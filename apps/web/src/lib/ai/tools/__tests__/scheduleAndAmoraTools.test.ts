@@ -5,6 +5,7 @@ import {
   executeAddScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
+  executeLogWeddingEvent,
 } from "../scheduleTools";
 import {
   executeGetAmoraActions,
@@ -149,6 +150,24 @@ describe("scheduleTools", () => {
     });
     expect(executeGetScheduleEvents({ from_date: "2026-07-01", to_date: "2026-07-31" }, ctx).toolOutput)
       .toMatchObject({ count: 1 });
+  });
+
+  it("rejects rollover calendar dates before touching storage", async () => {
+    mockAdminClient({});
+    const ctx = createContext({});
+
+    const scheduleResult = await executeAddScheduleEvent(
+      { date: "2026-02-30", title: "Impossible" },
+      ctx
+    );
+    const momentResult = await executeLogWeddingEvent(
+      { date: "2026-02-30", moment_type: "sanggyeonrye" },
+      ctx
+    );
+
+    expect(scheduleResult.success).toBe(false);
+    expect(momentResult.success).toBe(false);
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 });
 

@@ -4,7 +4,11 @@ import type {
   ResponseCreateParamsNonStreaming,
   ResponseInput,
 } from "openai/resources/responses/responses";
-import { getAmoraModelConfig, type AmoraModelRole } from "@/lib/ai/modelConfig";
+import {
+  assertAmoraOutputTokenLimit,
+  getAmoraModelConfig,
+  type AmoraModelRole,
+} from "@/lib/ai/modelConfig";
 import { getOpenAIClient, OpenAIResponseError } from "@/lib/ai/openai";
 import { createSafetyIdentifier } from "@/lib/ai/safetyIdentifier";
 import {
@@ -28,6 +32,34 @@ export interface AuditedOpenAIResponse {
     cache_write_input_tokens: number;
     cached_input_tokens: number;
   };
+}
+
+function safeProviderErrorCode(error: unknown): string {
+  if (error instanceof OpenAIResponseError) return "openai_response_error";
+  if (error instanceof Error && error.name === "AbortError") {
+    return "provider_request_aborted";
+  }
+
+  const record = error && typeof error === "object"
+    ? error as { name?: unknown; status?: unknown; code?: unknown; type?: unknown }
+    : {};
+  const cleanToken = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64);
+    return cleaned || null;
+  };
+  const parts = ["provider_request_failed"];
+  const name = cleanToken(record.name);
+  const code = cleanToken(record.code);
+  const type = cleanToken(record.type);
+  const status = typeof record.status === "number" && Number.isSafeInteger(record.status)
+    ? record.status
+    : null;
+  if (name) parts.push(`name_${name}`);
+  if (status !== null) parts.push(`status_${status}`);
+  if (code) parts.push(`code_${code}`);
+  if (type) parts.push(`type_${type}`);
+  return parts.join(":").slice(0, 240);
 }
 
 export async function createOpenAIResponseWithAudit(options: {
@@ -60,6 +92,7 @@ export async function createOpenAIResponseWithAudit(options: {
   // deliberately outside this catch so an audit outage cannot be misclassified
   // as a second provider failure or discard the response usage.
   try {
+    assertAmoraOutputTokenLimit(options.maxOutputTokens);
     options.signal?.throwIfAborted();
     const client = options.client ?? getOpenAIClient();
     const request: ResponseCreateParamsNonStreaming = {
@@ -94,10 +127,15 @@ export async function createOpenAIResponseWithAudit(options: {
     await logAIInteraction({
       ...options.audit,
       required: true,
+      // 비용·보안 장부에는 canonical 채팅/도메인 레코드와 별도로 대화
+      // 원문을 복제하지 않는다. 비활성 보조 작업이 재개돼도 같은 기본값을 유지한다.
+      userInput: null,
       aiOutput: null,
       latencyMs: elapsedMs(startedAt),
       success: false,
-      errorMessage: err instanceof Error ? err.message : String(err),
+      // Provider/SDK messages can reflect request fragments. Persist only a
+      // bounded diagnostic made from non-free-text name/status/code fields.
+      errorMessage: safeProviderErrorCode(err),
       model: responseError?.model ?? modelConfig.model,
       tokensInput: responseError?.usage?.input_tokens ?? null,
       tokensOutput: responseError?.usage?.output_tokens ?? null,
@@ -114,7 +152,8 @@ export async function createOpenAIResponseWithAudit(options: {
   await logAIInteraction({
     ...options.audit,
     required: true,
-    aiOutput: text || null,
+    userInput: null,
+    aiOutput: null,
     latencyMs: elapsedMs(startedAt),
     success: hasOutput,
     errorMessage: hasOutput ? null : "empty_response",
@@ -125,6 +164,12 @@ export async function createOpenAIResponseWithAudit(options: {
     cacheReadTokens: response.usage?.input_tokens_details?.cached_tokens ?? null,
     metadata: auditMetadata,
   });
+
+  if (!hasOutput) {
+    // The failed audit was already written above. Throw outside the provider
+    // catch so callers fail closed without creating a duplicate audit row.
+    throw new OpenAIResponseError("[openai] completed response contained no output text", response);
+  }
 
   return {
     text,

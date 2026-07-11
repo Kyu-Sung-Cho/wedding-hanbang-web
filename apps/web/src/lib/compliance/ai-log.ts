@@ -8,8 +8,8 @@
 //   - fire-and-forget: `void logAIInteraction(...)`로 호출 시 await 불필요
 //   - 가격표 내장 → cost_usd 자동 계산
 // 컴플라이언스:
-//   - user_input / ai_output 원문 그대로 저장 (민감정보 포함 가능)
-//   - DB COMMENT로 개인정보보호법 + AI 기본법 compliance 표기됨
+//   - 현재 LLM 호출 래퍼는 user_input / ai_output 원문을 복제하지 않고 null로 기록
+//   - 과거 행과 결정적 가격 데이터 로그의 잔존 원문은 retention migration으로 정리
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,7 +20,8 @@ import type { InteractionType, SpecialistType } from "@/types/moat.types";
 // -------------------------------------------
 // OpenAI 공개 가격 확인일: 2026-07-10
 // https://developers.openai.com/api/docs/models
-// Claude 가격은 공급자 전환 전 과거 로그 재계산을 위해 보존한다.
+// 현재 런타임에서 선택 가능한 모델은 Luna/Terra뿐이다. 그 밖의 OpenAI·Claude
+// 가격은 공급자 전환 전 과거 감사 행을 재계산하기 위한 호환 데이터다.
 interface TokenRates {
   in: number;
   out: number;

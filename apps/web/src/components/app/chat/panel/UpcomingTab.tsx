@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
-import { formatLocalDateOnly } from "@hanbang/shared";
+import { formatLocalDateOnly, parseLocalDateOnly } from "@hanbang/shared";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -50,7 +50,7 @@ export default function UpcomingTab() {
   );
   const weddingDateValue = journey?.wedding_date;
   const weddingDate = useMemo(
-    () => (weddingDateValue ? new Date(weddingDateValue) : null),
+    () => (weddingDateValue ? parseLocalDateOnly(weddingDateValue) : null),
     [weddingDateValue]
   );
 

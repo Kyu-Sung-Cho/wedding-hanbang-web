@@ -2,9 +2,9 @@
 
 ## Product Context
 
-- **What this is:** Wedding Hanbang is an AI wedding operating room for Korean couples preparing a wedding together.
-- **Who it is for:** Couples 6-12 months before the wedding who need one place for decisions, budget, schedule, vendors, and partner coordination.
-- **Product type:** Consumer mobile app plus web app, community, vendor marketplace, and marketing site.
+- **What this is:** Wedding Hanbang is an AI-assisted planning workspace for Korean couples preparing a wedding together.
+- **Who it is for:** Couples preparing for a wedding, including couples whose date is not fixed yet, who need one place for decisions, budget, schedule, vendor research, and partner coordination.
+- **Product type:** Consumer mobile app plus web app, community, vendor-information exploration, and marketing site. Vendor connection, reservation, and payment are currently disabled; the current boundary is documented in [`WEDDINGHANBANG_SERVICE_DOC.md`](./WEDDINGHANBANG_SERVICE_DOC.md).
 - **Core memory:** The first impression should be "this app tells us what to do next, without making wedding planning feel cheap or chaotic."
 
 ## Aesthetic Direction
@@ -67,9 +67,9 @@
 - Empty states should suggest the next useful action.
 - Error states should preserve trust and offer retry.
 - Forms should reduce wedding anxiety: one decision per visible block.
-- Any AI-generated recommendation must separate "AI recommendation" from verified vendor qualification.
-- Any couple decision produced through AI or onboarding must be recorded in `decision_nodes`.
-- Any AI call must be logged in `ai_interactions_log`.
+- AI-generated suggestions must be visually distinct from vendor-submitted, public-source, and user-provided facts. The source, reference date, and verification boundary should be shown where relevant.
+- AI or onboarding must not write an important couple decision without an explicit user confirmation step.
+- Provider usage, errors, and security events should be auditable without unnecessarily duplicating raw prompts, responses, or sensitive user data.
 
 ## Safe Choices
 
@@ -92,3 +92,4 @@
 | 2026-06-30 | Initial design system created | Consolidated existing Wedding Hanbang documents, design tokens, and mobile app direction into one source of truth. |
 | 2026-07-02 | Aligned mobile tokens with the web eucalyptus palette | The web app had moved to Eucalyptus Ink, Dusty Mauve, and Pearl Ivory; shared mobile tokens now match that production visual direction. |
 | 2026-07-02 | Standardized web and mobile typography on Paperlogy | User selected Paperlogy from Noonnu; self-hosted web WOFF2 and mobile TTF assets now provide one consistent brand font. |
+| 2026-07-11 | Aligned product and AI rules with the current service boundary | Removed marketplace and blanket logging assumptions; made source boundaries, user confirmation, and data minimization explicit. |

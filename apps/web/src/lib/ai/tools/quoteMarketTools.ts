@@ -1,13 +1,10 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
-  getNationalTotal,
-  getSeoulTotal,
   getLatestPeriodId,
   VENUE_NECESSARY,
   SDM_PACKAGES,
   DRESS_PRICES,
   MAKEUP_PRICES,
-  OPTION_PRICES,
   SEASONAL_DATA,
   PRICE_PERIODS,
   getVenueOptionalItems,
@@ -18,6 +15,11 @@ import {
   type AmoraQuoteCategory,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+
+const MARKET_PRICE_SOURCE = {
+  name: "한국소비자원 참가격 결혼서비스 가격조사",
+  url: "https://price.go.kr/tprice/portal/wedding/areaStatistic.do",
+} as const;
 
 export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
   const category = input.category as string;
@@ -31,10 +33,13 @@ export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecu
 
   switch (category) {
     case "total": {
-      const nat = getNationalTotal(pid);
-      const seoul = getSeoulTotal(pid);
-      displayMessage = `[${period.label} 기준 총 비용]\n전국 평균: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 꽃장식 ${nat.decoration})\n서울 평균: ${seoul.total}만원 (식대 ${seoul.meal} + 스드메 ${seoul.sdm} + 대관료 ${seoul.rental} + 꽃장식 ${seoul.decoration})`;
-      toolOutput = { national: nat, seoul };
+      displayMessage = `[${period.label} 조사]\n예식장과 스드메는 조사 항목·단위가 달라 하나의 "총비용"으로 합산하지 않아요. 예식장은 venue, 스드메는 sdm 항목으로 각각 확인해주세요.`;
+      toolOutput = {
+        periodId: pid,
+        periodLabel: period.label,
+        totalAvailable: false,
+        reason: "예식장과 스드메의 서로 다른 조사 항목을 합산한 총비용은 제공하지 않습니다.",
+      };
       break;
     }
     case "venue": {
@@ -54,55 +59,58 @@ export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecu
       break;
     }
     case "studio": {
-      const studioOpts = OPTION_PRICES.filter((option) => option.category === "studio");
-      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
-      displayMessage = `[${scopeLabel} 스튜디오 옵션 시세]\n` +
-        studioOpts.filter((option) => option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n");
-      toolOutput = { options: studioOpts };
+      const region = scope === "seoul" ? "서울" : "전체";
+      const studio = SDM_PACKAGES.find(
+        (packagePrice) => packagePrice.periodId === pid && packagePrice.region === region
+      );
+      if (studio) {
+        displayMessage = `[${scopeLabel} 스튜디오 기본촬영 - ${period.label}]\n중위가격: ${studio.studioBasic}만원`;
+        toolOutput = { periodId: pid, periodLabel: period.label, region, studioBasic: studio.studioBasic };
+      }
       break;
     }
     case "dress": {
       const d = DRESS_PRICES.find((price) => price.periodId === pid && price.scope === scope);
-      const dressOpts = OPTION_PRICES.filter((option) => option.category === "dress");
-      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
       if (d) {
-        displayMessage = `[${scopeLabel} 드레스 시세 - ${period.label}]\n촬영용: ${d.photoShoot}만원\n본식용: ${d.ceremony}만원\n2부 드레스: ${d.secondDress}만원\n\n주요 옵션:\n` +
-          dressOpts.filter((option) => option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n");
-        toolOutput = { prices: d, options: dressOpts };
+        displayMessage = `[${scopeLabel} 드레스 중위가격 - ${period.label}]\n촬영용: ${d.photoShoot}만원\n본식용: ${d.ceremony}만원\n2부 드레스: ${d.secondDress}만원`;
+        toolOutput = { periodId: pid, periodLabel: period.label, prices: d };
       }
       break;
     }
     case "makeup": {
       const m = MAKEUP_PRICES.find((price) => price.periodId === pid && price.scope === scope);
-      const makeupOpts = OPTION_PRICES.filter((option) => option.category === "makeup");
-      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
       if (m) {
-        displayMessage = `[${scopeLabel} 메이크업 시세 - ${period.label}]\n촬영: ${m.photoShoot}만원\n본식: ${m.ceremony}만원\n리허설: ${m.rehearsal}만원\n\n주요 옵션:\n` +
-          makeupOpts.filter((option) => option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n");
-        toolOutput = { prices: m, options: makeupOpts };
+        displayMessage = `[${scopeLabel} 메이크업 중위가격 - ${period.label}]\n촬영: ${m.photoShoot}만원\n본식: ${m.ceremony}만원\n리허설: ${m.rehearsal}만원`;
+        toolOutput = { periodId: pid, periodLabel: period.label, prices: m };
       }
       break;
     }
     case "options": {
-      const allOpts = OPTION_PRICES;
-      const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
-      displayMessage = `[${scopeLabel} 옵션별 시세 - 최신 기준]\n\n스튜디오 (${allOpts.filter((option) => option.category === "studio").length}개):\n` +
-        allOpts.filter((option) => option.category === "studio" && option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n") +
-        `\n\n드레스 (${allOpts.filter((option) => option.category === "dress").length}개):\n` +
-        allOpts.filter((option) => option.category === "dress" && option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n") +
-        `\n\n메이크업 (${allOpts.filter((option) => option.category === "makeup").length}개):\n` +
-        allOpts.filter((option) => option.category === "makeup" && option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n");
-      toolOutput = { options: allOpts };
+      const options = getVenueOptionalItems(pid, scope);
+      const available = Object.entries(options.items).filter(([, price]) => price > 0);
+      displayMessage = `[${scopeLabel} 예식장 선택항목 중위가격 - ${period.label}]\n` +
+        available.map(([name, price]) => `- ${name}: ${price}만원`).join("\n");
+      toolOutput = { periodId: pid, periodLabel: period.label, category: "venue", options: options.items };
       break;
     }
     case "seasonal": {
-      const latest = SEASONAL_DATA[SEASONAL_DATA.length - 1];
-      displayMessage = `[성수기 vs 비수기 - ${period.label}]\n성수기 (4~6월, 9~11월): ${latest.peak}만원\n비수기 (1~3월, 7~8월, 12월): ${latest.offPeak}만원\n비수기 절약: 약 ${latest.savings}만원`;
-      toolOutput = { seasonal: latest };
+      const latest = SEASONAL_DATA.find((item) => item.periodId === pid);
+      if (latest) {
+        displayMessage = `[예식장 성수기·비수기 중위 계약금액 - ${period.label}]\n성수기 (4~6월, 9~11월): ${latest.peak}만원\n비수기 (1~3월, 7~8월, 12월): ${latest.offPeak}만원\n차이: ${latest.savings}만원 (절약 보장액 아님)`;
+        toolOutput = { periodId: pid, periodLabel: period.label, seasonal: latest };
+      }
       break;
     }
     default:
       displayMessage = "지원하지 않는 카테고리입니다.";
+  }
+
+  if (Object.keys(toolOutput).length > 0) {
+    toolOutput = {
+      ...toolOutput,
+      sourceName: MARKET_PRICE_SOURCE.name,
+      sourceUrl: MARKET_PRICE_SOURCE.url,
+    };
   }
 
   return {
@@ -193,9 +201,6 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
           id: item.id,
           name: item.name,
           category: item.category,
-          severity: item.severity,
-          price: item.priceManwon,
-          usageRate: item.usageRatePercent,
           checkQuestion: item.checkQuestion,
         })),
       },
@@ -216,31 +221,20 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
   const output = {
     quotePrice: analysis.quotePriceManwon,
     category: analysis.category,
-    region: analysis.scope,
+    region,
     vendorName,
-    marketMedian: analysis.marketMedianManwon,
-    marketComparatorLabel: analysis.marketComparatorLabel,
-    priceDiff: analysis.quotePriceManwon - analysis.marketMedianManwon,
-    priceDiffPercent: analysis.priceDiffPercent,
     dataSource: analysis.sourceNote,
-    missingItems: analysis.missingItems.map((item) => ({
+    sourceUrl: analysis.sourceUrl,
+    unconfirmedItems: analysis.unconfirmedItems.map((item) => ({
       name: item.name,
       category: item.category,
-      severity: item.severity,
-      price: item.priceManwon,
-      usageRate: item.usageRatePercent,
-      reason: item.reason,
       checkQuestion: item.checkQuestion,
-      disguise: item.disguise,
     })),
     includedItems: analysis.includedItems.map((item) => ({
       name: item.name,
       category: item.category,
-      severity: item.severity,
     })),
-    missingCriticalCount: analysis.missingCriticalCount,
-    missingHighCount: analysis.missingHighCount,
-    missingMediumCount: analysis.missingMediumCount,
+    unconfirmedItemCount: analysis.unconfirmedItemCount,
     summaryTitle: analysis.summaryTitle,
     summaryText: analysis.summaryText,
     recommendedAction: analysis.recommendedAction,
@@ -255,8 +249,8 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     toolOutput: output,
     success: true,
     displayMessage:
-      analysis.missingCriticalCount + analysis.missingHighCount + analysis.missingMediumCount > 0
-        ? `견적 체크 완료: 필수 ${analysis.missingCriticalCount}개·추가금 항목 ${analysis.missingHighCount + analysis.missingMediumCount}개가 견적서에서 확인되지 않았어요`
-        : "견적 체크 완료: 체크리스트의 주요 항목이 모두 견적서에 명시돼 있어요",
+      analysis.unconfirmedItemCount > 0
+        ? `견적 체크 완료: ${analysis.unconfirmedItemCount}개 항목의 포함 여부를 더 확인해보세요`
+        : "견적 체크 완료: 선택한 확인 항목을 모두 포함으로 표시했어요",
   };
 }

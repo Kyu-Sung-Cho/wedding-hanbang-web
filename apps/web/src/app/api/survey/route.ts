@@ -130,11 +130,12 @@ export async function POST(request: NextRequest) {
       q22_gender: scalar(q22.q22_gender),
       q22_age: scalar(q22.q22_age),
       q22_budget: scalar(q22.q22_budget),
-      q23_contact: cleanOptionalText(answers.q23, 160),
+      q23_contact: null,
 
       completion_time_seconds:
         cleanIntegerInRange(body.completionTimeSeconds, 0, 24 * 60 * 60) ?? null,
-      user_agent: cleanOptionalText(request.headers.get("user-agent"), 300),
+      // Browser fingerprinting data is unnecessary for this product research.
+      user_agent: null,
       screen_out: false,
     };
 

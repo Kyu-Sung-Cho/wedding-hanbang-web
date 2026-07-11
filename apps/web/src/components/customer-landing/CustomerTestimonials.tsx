@@ -4,17 +4,17 @@ import { motion } from "framer-motion";
 
 const scenarios = [
   {
-    text: "새벽에 갑자기 스튜디오 고민이 생겨도 AI가 바로 상담해줍니다. 실제 웨딩 플래너처럼 자세하게 알려드려요.",
+    text: "늦은 시간 떠오른 질문도 아모라에게 남겨 비교 기준을 정리할 수 있어요. 중요한 정보는 다음 날 업체나 원문으로 다시 확인해요.",
     avatar: "💬",
     label: "AI 상담",
     situation: "새벽 2시, 갑자기 떠오른 고민",
     feature: "AI 상담",
   },
   {
-    text: "추가금이 얼마나 붙을지, 다른 커플들은 평균 얼마를 쓰는지. AI가 미리 계산해서 예산 걱정을 덜어드려요.",
+    text: "공개 시세와 견적 체크 결과를 참고해 예상 항목을 정리하고, 확정 금액은 직접 예산에 기록해요.",
     avatar: "💰",
     label: "예산 관리",
-    situation: "예산 고민, AI가 대신 계산해줘요",
+    situation: "예산 고민, 확인 항목을 함께 정리해요",
     feature: "예산 관리",
   },
   {
@@ -25,14 +25,14 @@ const scenarios = [
     feature: "예산 관리",
   },
   {
-    text: "D-day 기준으로 뭘 먼저 해야 하는지 AI가 알려줍니다. 체크리스트로 체계적으로 관리하니 빠뜨릴 걱정이 없어요.",
+    text: "D-day 기준 체크리스트에서 지금 확인할 항목을 보고, 실제 일정은 직접 등록해 커플과 공유해요.",
     avatar: "📋",
     label: "일정 관리",
-    situation: "D-120, 오늘 할 일 알림",
+    situation: "D-120, 지금 확인할 체크리스트",
     feature: "일정 관리",
   },
   {
-    text: "업체별 패키지 가격을 한눈에 비교할 수 있어요. 숨겨진 추가 비용도 미리 확인해서 예산 계획이 쉬워집니다.",
+    text: "공개 시세와 견적의 포함 항목을 비교해 업체에 다시 물어볼 질문을 준비할 수 있어요.",
     avatar: "💰",
     label: "비용 비교",
     situation: "웨딩 박람회 전, 냉정한 비교",
@@ -64,12 +64,12 @@ export default function CustomerTestimonials() {
           Experience
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
-          이런 경험을 드립니다
+          이렇게 활용할 수 있어요
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          웨딩한방과 함께라면 결혼 준비의
+          현재 제공 중인 도구를 준비 상황에 맞게
           <br className="hidden md:block" />
-          모든 순간이 달라집니다.
+          필요한 순서로 활용해보세요.
         </p>
       </motion.div>
 

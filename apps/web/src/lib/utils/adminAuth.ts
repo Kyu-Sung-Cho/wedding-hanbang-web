@@ -11,12 +11,13 @@ export function getServiceClient() {
 
 // 시드 라우트 환경 게이트 — 시드는 가짜 업체/상품/타임슬롯을 대량 생성하므로
 // verifyAdmin만으로는 부족하다(세션 탈취 1회·운영자 실수 재호출 1번 → 프로덕션 오염).
-// 프로덕션에서는 ALLOW_SEED=true가 명시된 경우에만 허용한다.
+// 프로덕션에서는 환경변수로도 우회할 수 없게 항상 차단한다. 실제 업체
+// 등록은 검증된 별도 온보딩/관리 절차를 사용해야 한다.
 // 차단 시 403 응답을 반환, 통과 시 null. (호출부: `const gate = seedGate(); if (gate) return gate;`)
 export function seedGate(): NextResponse | null {
   const isProd =
     process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
-  if (isProd && process.env.ALLOW_SEED !== "true") {
+  if (isProd) {
     return NextResponse.json(
       { error: "시드는 프로덕션에서 비활성화되어 있습니다." },
       { status: 403 }

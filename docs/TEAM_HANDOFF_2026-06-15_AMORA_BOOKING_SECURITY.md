@@ -1,5 +1,8 @@
 # 2026-06-15 Team Handoff: Amora, Booking, Supabase Security
 
+> [!WARNING]
+> **2026-06-15 브랜치 인수인계 스냅샷입니다.** 아래 빌드 수치, migration 목록, 예약 생성과 배포 절차는 현재 상태가 아닙니다. 현재 새 예약·상담 요청과 결과 저장은 비활성입니다. 최신 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)와 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)를 우선합니다.
+
 ## Current Status
 
 Branch: `codex/harden-booking-amora-sync`

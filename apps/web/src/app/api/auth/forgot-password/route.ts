@@ -117,7 +117,7 @@ export async function POST(request: Request) {
           </h1>
           <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
             아래 버튼을 클릭하여 새 비밀번호를 설정해주세요.<br>
-            이 링크는 24시간 동안 유효합니다.
+            보안을 위해 링크가 만료될 수 있으니 가능한 빨리 사용해주세요.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
             <a href="${safeResetLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">

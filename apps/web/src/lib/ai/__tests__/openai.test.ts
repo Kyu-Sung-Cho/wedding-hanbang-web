@@ -108,6 +108,7 @@ describe("OpenAI chat adapter", () => {
       service_tier: "default",
       prompt_cache_options: { mode: "explicit" },
       reasoning: { effort: "none" },
+      max_output_tokens: 800,
       parallel_tool_calls: false,
       tools: [expect.objectContaining({
         type: "function",
@@ -136,7 +137,7 @@ describe("OpenAI chat adapter", () => {
     );
   });
 
-  it("counts exact input tokens before reservation and blocks over-limit generation", async () => {
+  it("counts exact input tokens and blocks over-limit generation", async () => {
     const create = vi.fn();
     const count = vi.fn().mockResolvedValue({
       object: "response.input_tokens",
@@ -159,6 +160,110 @@ describe("OpenAI chat adapter", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("enforces the shared 800-token output ceiling before any provider request", async () => {
+    const create = vi.fn();
+    const count = vi.fn();
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "long answer" }],
+      tools: [],
+      maxOutputTokens: 801,
+      maxInputTokens: 1_000,
+      client,
+    })).rejects.toThrow("between 1 and 800");
+
+    expect(count).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("can downgrade a boundary turn to a single provider call after exact counting", async () => {
+    const response = completedResponse([], "한 번에 답할게요");
+    const create = vi.fn().mockResolvedValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: "response.output_text.delta", delta: "한 번에 답할게요", item_id: "msg_1" };
+        yield { type: "response.completed", response };
+      },
+    });
+    const count = vi.fn()
+      .mockResolvedValueOnce({
+        object: "response.input_tokens",
+        input_tokens: 120,
+      })
+      .mockResolvedValueOnce({
+        object: "response.input_tokens",
+        input_tokens: 80,
+      });
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeProviderRequest = vi.fn().mockResolvedValue(undefined);
+
+    await chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "업체 알려줘" }],
+      tools: [{ name: "search_vendors", input_schema: { type: "object" } }],
+      maxInputTokens: 1_000,
+      beforeCreate: async () => ({
+        tools: [],
+        systemPromptSuffix: "\n도구 없이 한 번에 답하세요.",
+      }),
+      beforeProviderRequest,
+      client,
+    });
+
+    expect(count).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      tools: expect.arrayContaining([expect.objectContaining({ name: "search_vendors" })]),
+    }));
+    expect(count).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      tools: [],
+      instructions: expect.stringContaining("도구 없이 한 번에 답하세요"),
+    }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      tools: [],
+      instructions: expect.stringContaining("도구 없이 한 번에 답하세요"),
+    }));
+    expect(beforeProviderRequest).toHaveBeenCalledOnce();
+  });
+
+  it("enters the reserved provider boundary before sending raw input to the counter", async () => {
+    const calls: string[] = [];
+    const response = completedResponse([], "완료");
+    const create = vi.fn().mockImplementation(async () => {
+      calls.push("generation");
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield { type: "response.completed", response };
+        },
+      };
+    });
+    const count = vi.fn().mockImplementation(async () => {
+      calls.push("count");
+      return { object: "response.input_tokens", input_tokens: 10 };
+    });
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+
+    await chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "private input" }],
+      tools: [],
+      maxInputTokens: 1_000,
+      beforeInputCount: async () => { calls.push("reserve"); },
+      beforeInputCountRequest: async () => { calls.push("mark-started"); },
+      beforeCreate: async () => { calls.push("reauthorize"); },
+      beforeProviderRequest: async () => { calls.push("final-check"); },
+      client,
+    });
+
+    expect(calls).toEqual([
+      "reserve",
+      "mark-started",
+      "count",
+      "reauthorize",
+      "final-check",
+      "generation",
+    ]);
+  });
+
   it("rechecks authorization before sending raw input to the token counter", async () => {
     const create = vi.fn();
     const count = vi.fn();
@@ -176,6 +281,25 @@ describe("OpenAI chat adapter", () => {
 
     expect(beforeInputCount).toHaveBeenCalledOnce();
     expect(count).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the exact-count endpoint returns an invalid token count", async () => {
+    const create = vi.fn();
+    const count = vi.fn().mockResolvedValue({
+      object: "response.input_tokens",
+      input_tokens: -1,
+    });
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "hello" }],
+      tools: [],
+      maxInputTokens: 1_000,
+      client,
+    })).rejects.toThrow("invalid result");
+
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -216,6 +340,38 @@ describe("OpenAI chat adapter", () => {
       callId: "call_bad",
       input: {},
       parseError: "invalid_json",
+    });
+  });
+
+  it("rejects multiple function calls from one response instead of amplifying execution", async () => {
+    const response = completedResponse([
+      {
+        id: "fc_1",
+        type: "function_call",
+        call_id: "call_1",
+        name: "get_budget_summary",
+        arguments: "{}",
+        status: "completed",
+      },
+      {
+        id: "fc_2",
+        type: "function_call",
+        call_id: "call_2",
+        name: "get_schedule_summary",
+        arguments: "{}",
+        status: "completed",
+      },
+    ], "");
+    const { client } = fakeClient([{ type: "response.completed", response }]);
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "summary" }],
+      tools: [],
+      client,
+    })).rejects.toMatchObject({
+      message: expect.stringContaining("too many function calls: 2"),
+      usage: expect.objectContaining({ input_tokens: 120, output_tokens: 30 }),
     });
   });
 
@@ -276,6 +432,23 @@ describe("OpenAI chat adapter", () => {
       message: expect.stringContaining("텍스트 또는 도구 호출이 없는"),
       usage: expect.objectContaining({ input_tokens: 120, output_tokens: 30 }),
     });
+  });
+
+  it("uses the completed response text when only a partial delta was observed", async () => {
+    const response = completedResponse([], "완성된 전체 답변");
+    const { client } = fakeClient([
+      { type: "response.output_text.delta", delta: "완성된 ", item_id: "msg_1" },
+      { type: "response.completed", response },
+    ]);
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "안녕" }],
+      tools: [],
+      client,
+    });
+
+    expect(result.fullText).toBe("완성된 전체 답변");
   });
 
   it("streams a valid model refusal instead of reporting an outage", async () => {

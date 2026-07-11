@@ -11,11 +11,14 @@ import {
   isRecord,
   normalizeEmail,
 } from "@/utils/requestValidation";
+import { ymdInKst } from "@/lib/utils/kstDate";
 
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 16 * 1024;
 const ROLE_VALUES = ["bride", "groom"] as const;
+const PRIVACY_POLICY_VERSION = "2026-07-11";
+const RETENTION_DAYS = 180;
 
 function getServiceClient() {
   return createClient(
@@ -48,10 +51,18 @@ export async function POST(request: NextRequest) {
     const role = cleanOptionalEnum(body.role, ROLE_VALUES);
     const message = cleanOptionalText(body.message, 500);
     const isBetaCandidate = cleanOptionalBoolean(body.isBetaCandidate);
+    const privacyConsent = cleanOptionalBoolean(body.privacyConsent);
 
     if (!email) {
       return NextResponse.json(
         { error: "유효한 이메일을 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
+    if (privacyConsent !== true) {
+      return NextResponse.json(
+        { error: "개인정보 수집·이용 안내를 확인하고 동의해주세요." },
         { status: 400 }
       );
     }
@@ -68,6 +79,12 @@ export async function POST(request: NextRequest) {
         { error: "역할 값이 올바르지 않습니다." },
         { status: 400 }
       );
+    }
+    if (weddingDate && weddingDate < ymdInKst()) {
+      return NextResponse.json({ error: "지난 예식일은 베타 신청에 사용할 수 없습니다." }, { status: 400 });
+    }
+    if (isBetaCandidate && !role) {
+      return NextResponse.json({ error: "역할을 선택해주세요." }, { status: 400 });
     }
 
     const emailLimited = await checkRateLimitPersistent(`preregister-email:${email}`, {
@@ -88,31 +105,39 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getServiceClient();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: existing } = await supabase
+    const { error: purgeError } = await supabase
       .from("preregistrations")
-      .select("id, is_beta_candidate")
+      .delete()
+      .lt("expires_at", now.toISOString());
+    if (purgeError) {
+      console.error("expired preregistration purge failed:", purgeError);
+      return NextResponse.json(
+        { error: "신청 정보를 안전하게 처리할 수 없습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503 }
+      );
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("preregistrations")
+      .select("id")
       .eq("email", email)
       .maybeSingle();
 
-    if (existing) {
-      if (isBetaCandidate && !existing.is_beta_candidate) {
-        await supabase
-          .from("preregistrations")
-          .update({
-            is_beta_candidate: true,
-            name: name ?? undefined,
-            wedding_date: weddingDate ?? undefined,
-            role: role ?? undefined,
-            message: message ?? undefined,
-          })
-          .eq("id", existing.id);
-        return NextResponse.json({ success: true, upgraded: true });
-      }
+    if (existingError) {
+      console.error("preregistration lookup failed:", existingError);
       return NextResponse.json(
-        { error: "이미 등록된 이메일입니다." },
-        { status: 409 }
+        { error: "신청 상태를 확인할 수 없습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503 }
       );
+    }
+
+    if (existing) {
+      // 이메일 소유 확인 전에는 타인이 기존 신청의 PII·동의·만료일을
+      // 덮어쓸 수 없다. 신규/기존 여부도 같은 응답으로 반환해 열거를 막는다.
+      return NextResponse.json({ success: true });
     }
 
     // UTM: body 우선, URL 쿼리 폴백 — 폼은 fetch POST라 쿼리가 안 실린다.
@@ -138,9 +163,17 @@ export async function POST(request: NextRequest) {
         utm_source,
         utm_medium,
         utm_campaign,
+        privacy_consent_at: now.toISOString(),
+        privacy_policy_version: PRIVACY_POLICY_VERSION,
+        expires_at: expiresAt,
       });
 
     if (insertError) {
+      // 동시에 같은 이메일이 접수된 경우에도 신규/기존 여부를 드러내지
+      // 않고 같은 성공 응답을 준다. 기존 행의 동의·PII는 변경하지 않는다.
+      if (insertError.code === "23505") {
+        return NextResponse.json({ success: true });
+      }
       console.error("preregistration insert failed:", insertError);
       return NextResponse.json(
         { error: "등록 중 오류가 발생했습니다." },

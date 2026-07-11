@@ -23,24 +23,20 @@ function normalizedMobile(value: string | null): string | null {
 }
 
 /**
- * 요청 body의 이름/번호를 신뢰하지 않고 저장된 커플 프로필에서 예약 연락처를 결정한다.
- * 현재 사용자의 번호를 우선하며, 없으면 연결된 파트너의 유효한 번호를 사용한다.
+ * 요청 body를 신뢰하지 않고 현재 요청자의 저장 프로필에서만 업체 제공 정보를 결정한다.
+ * 파트너가 별도로 동의한 연락처 공유 장부가 생기기 전에는 파트너 PII를 대체값으로 쓰지 않는다.
  */
 export function resolveBookingContact(
   profiles: BookingContactProfile[],
   currentUserId: string,
 ): ResolvedBookingContact {
-  const bride = profiles.find((profile) => profile.role === "bride");
-  const groom = profiles.find((profile) => profile.role === "groom");
   const currentUser = profiles.find((profile) => profile.id === currentUserId);
-  const contactPhone =
-    normalizedMobile(currentUser?.phone ?? null) ??
-    profiles.map((profile) => normalizedMobile(profile.phone)).find(Boolean) ??
-    null;
+  const currentName = normalizedName(currentUser?.name ?? null);
+  const contactPhone = normalizedMobile(currentUser?.phone ?? null);
 
   return {
-    brideName: normalizedName(bride?.name ?? null),
-    groomName: normalizedName(groom?.name ?? null),
+    brideName: currentUser?.role === "bride" ? currentName : "",
+    groomName: currentUser?.role === "groom" ? currentName : "",
     contactPhone,
   };
 }

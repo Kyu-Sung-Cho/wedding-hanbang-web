@@ -15,6 +15,7 @@ import {
   requireDestructiveConfirmation,
   type ToolExecutionContext,
 } from "@/lib/ai/tools/toolTypes";
+import { bookingSlotCountKey } from "@/lib/ai/tools/bookingTime";
 
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HH_00_RE = /^\d{2}:00$/;
@@ -396,7 +397,8 @@ export async function executeGetAvailableSlots(
 
   const bookingCountMap = new Map<string, number>();
   for (const booking of bookings ?? []) {
-    const key = `${booking.booking_date}:${booking.booking_time}`;
+    const key = bookingSlotCountKey(booking.booking_date, booking.booking_time);
+    if (!key) continue;
     bookingCountMap.set(key, (bookingCountMap.get(key) ?? 0) + 1);
   }
 
@@ -619,7 +621,7 @@ export async function executeCreateBooking(
         toolName: "create_booking", toolInput: input,
         toolOutput: { error: "invalid_product_vendor", vendorId, productId },
         success: false,
-        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약을 진행하지 않았습니다. 업체 상품을 다시 확인해 주세요.",
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 상담 요청을 진행하지 않았습니다. 업체 상품을 다시 확인해 주세요.",
       };
     }
     if (product.is_active === false) {
@@ -627,7 +629,7 @@ export async function executeCreateBooking(
         toolName: "create_booking", toolInput: input,
         toolOutput: { error: "inactive_product", vendorId, productId },
         success: false,
-        displayMessage: "선택한 상품은 현재 예약 가능한 상품이 아니라 예약을 진행하지 않았습니다.",
+        displayMessage: "선택한 상품은 현재 상담 요청 가능한 상품이 아니라 요청을 진행하지 않았습니다.",
       };
     }
     productName = product.name;
@@ -647,7 +649,7 @@ export async function executeCreateBooking(
         toolName: "create_booking", toolInput: input,
         toolOutput: { error: "invalid_staff_vendor", vendorId, staffId },
         success: false,
-        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약을 진행하지 않았습니다. 담당자 정보를 다시 확인해 주세요.",
+        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 상담 요청을 진행하지 않았습니다. 담당자 정보를 다시 확인해 주세요.",
       };
     }
     staffName = staff.role ? `${staff.name} ${staff.role}` : staff.name;
@@ -674,28 +676,28 @@ export async function executeCreateBooking(
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: { error: "invalid_product_vendor" }, success: false,
-        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 예약을 진행하지 않았습니다.",
+        displayMessage: "선택한 상품이 이 업체의 상품이 아니라 상담 요청을 진행하지 않았습니다.",
       };
     }
     if (msg.includes("invalid_staff_vendor")) {
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: { error: "invalid_staff_vendor" }, success: false,
-        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 예약을 진행하지 않았습니다.",
+        displayMessage: "선택한 담당자가 이 업체 소속이 아니라 상담 요청을 진행하지 않았습니다.",
       };
     }
     if (msg.includes("slot_unavailable")) {
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: {}, success: false,
-        displayMessage: `해당 날짜/시간(${date} ${time})은 예약이 불가능합니다.`,
+        displayMessage: `해당 날짜/시간(${date} ${time})에는 상담 요청을 보낼 수 없습니다.`,
       };
     }
     if (msg.includes("slot_full")) {
       return {
         toolName: "create_booking", toolInput: input,
         toolOutput: {}, success: false,
-        displayMessage: `해당 날짜/시간(${date} ${time})의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.`,
+        displayMessage: `해당 날짜/시간(${date} ${time})의 상담 요청이 마감되었습니다. 다른 시간을 선택해 주세요.`,
       };
     }
     throw rpcError;
@@ -776,7 +778,7 @@ export async function executeCreateBooking(
       syncedNewSpent,
     },
     success: true,
-    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}`,
+    displayMessage: `${vendor.name} 상담 요청이 접수되었습니다. 업체 확인 전에는 예약이 확정되지 않습니다. (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}`,
   };
 }
 

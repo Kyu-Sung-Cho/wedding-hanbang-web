@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { syncBookingProgressAfterCreate } from "@/lib/bookings/progressSync";
 import { resolveBookingContact } from "@/lib/bookings/contact";
@@ -12,6 +12,9 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+
+export const BOOKING_REQUESTS_ENABLED = false as const;
+export const BOOKING_REQUESTS_DISABLED_CODE = "booking_requests_disabled" as const;
 
 const BOOKING_TIME_RE = /^\d{2}:\d{2}(?::\d{2})?$/;
 
@@ -50,6 +53,18 @@ function parseBookingRequestBody(body: unknown): BookingRequestBody | null {
 }
 
 export async function POST(req: Request) {
+  // 업체 수신·상태 왕복·연락처 철회 경로가 완성될 때까지 인증과 본문 파싱보다
+  // 먼저 차단한다. 구버전 클라이언트도 PII를 처리·저장하는 경로에 진입하지 않는다.
+  if (!BOOKING_REQUESTS_ENABLED) {
+    return NextResponse.json(
+      {
+        error: "업체 연결 준비 중입니다. 현재 상담 요청은 업체에 전송되지 않으며 저장되지 않습니다.",
+        code: BOOKING_REQUESTS_DISABLED_CODE,
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();
@@ -59,7 +74,7 @@ export async function POST(req: Request) {
     }
 
     // Rate limit: 10 bookings per hour per user
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("booking:create", req, user.id),
       { maxRequests: 10, windowMs: 60 * 60 * 1000 }
     );
@@ -72,7 +87,7 @@ export async function POST(req: Request) {
     const { vendorId, productId, staffId, date, time, memo } = body;
     if (date < ymdInKst()) {
       return NextResponse.json(
-        { error: "지난 날짜로는 예약할 수 없어요.", code: "booking_date_past" },
+        { error: "지난 날짜로는 상담 요청을 보낼 수 없어요.", code: "booking_date_past" },
         { status: 400 },
       );
     }
@@ -95,25 +110,27 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
-    const { data: coupleProfiles, error: profilesError } = await admin
+    const { data: bookingProfile, error: profilesError } = await admin
       .from("profiles")
       .select("id, name, role, phone")
-      .eq("couple_id", profile.couple_id);
+      .eq("id", user.id)
+      .eq("couple_id", profile.couple_id)
+      .maybeSingle();
     if (profilesError) {
       console.error("Booking contact lookup error:", profilesError);
       return NextResponse.json(
-        { error: "예약 연락처를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
+        { error: "상담 요청 연락처를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." },
         { status: 500 },
       );
     }
     const { brideName, groomName, contactPhone } = resolveBookingContact(
-      coupleProfiles ?? [],
+      bookingProfile ? [bookingProfile] : [],
       user.id,
     );
     if (!contactPhone) {
       return NextResponse.json(
         {
-          error: "예약 연락처가 없어요. 설정에서 휴대폰 번호를 등록한 뒤 다시 시도해 주세요.",
+          error: "상담 요청 연락처가 없어요. 설정에서 휴대폰 번호를 등록한 뒤 다시 시도해 주세요.",
           code: "booking_contact_required",
           actionHref: "/settings",
         },
@@ -155,13 +172,13 @@ export async function POST(req: Request) {
     const { data: existingBooking, error: existingBookingError } = await findMatchingBooking();
     if (existingBookingError) {
       console.error("Booking idempotency lookup error:", existingBookingError);
-      return NextResponse.json({ error: "기존 예약을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+      return NextResponse.json({ error: "기존 상담 요청을 확인하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 500 });
     }
     if (existingBooking) {
       return NextResponse.json({
         booking: existingBooking,
         deduplicated: true,
-        message: "같은 예약이 이미 접수되어 있어요.",
+        message: "같은 상담 요청이 이미 접수되어 있어요.",
       });
     }
 
@@ -193,15 +210,15 @@ export async function POST(req: Request) {
           return NextResponse.json({
             booking: duplicateBooking,
             deduplicated: true,
-            message: "같은 예약이 이미 접수되어 있어요.",
+            message: "같은 상담 요청이 이미 접수되어 있어요.",
           });
         }
       }
       if (msg.includes("slot_unavailable")) {
-        return NextResponse.json({ error: "해당 시간은 예약이 불가능합니다." }, { status: 409 });
+        return NextResponse.json({ error: "해당 시간에는 상담 요청을 보낼 수 없습니다." }, { status: 409 });
       }
       if (msg.includes("slot_full")) {
-        return NextResponse.json({ error: "해당 시간은 예약이 마감되었습니다." }, { status: 409 });
+        return NextResponse.json({ error: "해당 시간의 상담 요청이 마감되었습니다." }, { status: 409 });
       }
       if (msg.includes("invalid_product_vendor")) {
         return NextResponse.json({ error: "선택한 상품이 이 업체의 상품이 아닙니다." }, { status: 400 });
@@ -210,7 +227,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "선택한 담당자가 이 업체 소속이 아닙니다." }, { status: 400 });
       }
       console.error("Booking create RPC error:", rpcError);
-      return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "상담 요청 접수에 실패했습니다." }, { status: 500 });
     }
 
     const syncResult = await syncBookingProgressAfterCreate(admin, {
@@ -243,14 +260,14 @@ export async function POST(req: Request) {
         {
           accepted: true,
           bookingId,
-          message: "예약은 접수됐어요. 예약 목록에 표시되는 데 잠시 걸릴 수 있습니다.",
+          message: "상담 요청은 접수됐어요. 요청 목록에 표시되는 데 잠시 걸릴 수 있습니다.",
           sync: { persisted: syncResult.persisted },
         },
         { status: 202 },
       );
     }
 
-    // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
+    // D2 Hook 2: 업체 확인 전 상담 요청을 scheduled 상태로 기록 (fire-and-forget)
     if (booking && profile.couple_id) {
       void (async () => {
         try {
@@ -265,7 +282,7 @@ export async function POST(req: Request) {
             coupleId: profile.couple_id,
             userId: user.id,
             category: v?.category ?? "vendor",
-            title: `예약: ${v?.name ?? "업체"}`,
+            title: `상담 요청: ${v?.name ?? "업체"}`,
             chosenValue: {
               vendor_id: vendorId,
               vendor_name: v?.name ?? null,
@@ -273,7 +290,7 @@ export async function POST(req: Request) {
               booking_time: time,
               amount,
             },
-            decisionType: "booked",
+            decisionType: "scheduled",
             source: "vendor_booking",
             sourceRefId: (booking as { id: string }).id,
             metadata: { hook: "bookings", booking_type: "consultation" },
@@ -294,7 +311,7 @@ export async function POST(req: Request) {
         budgetExceededBy: syncResult.budgetExceededBy,
         categoryKey: syncResult.syncedCategoryKey,
       },
-      message: "예약이 접수되었습니다.",
+      message: "상담 요청이 접수되었습니다. 업체 확인 전에는 예약이 확정되지 않습니다.",
     });
   } catch (err) {
     console.error("Booking create error:", err);

@@ -10,6 +10,7 @@ import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+import { ddayInKst } from "@/lib/utils/kstDate";
 
 const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
@@ -53,13 +54,13 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
 
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
-  const dday =
-    weddingDate
-      ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      : null;
+  const dday = ddayInKst(journey?.wedding_date, today);
   const progress = journey?.progress ?? {};
-  const { notifications, newCount, dismiss, dismissAll } = useNotifications(weddingDate, progress, prefs);
+  const { notifications, newCount, dismiss, dismissAll } = useNotifications(
+    journey?.wedding_date ?? null,
+    progress,
+    prefs
+  );
 
   function handleCategoryClick(categoryKey: string) {
     setShowNotifications(false);

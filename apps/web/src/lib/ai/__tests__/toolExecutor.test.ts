@@ -1,13 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { executeTool } from "../toolExecutor";
 import {
   BETA_SAFE_TOOLS,
+  MODEL_DISABLED_AVAILABILITY_TOOL_NAMES,
   MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES,
   MODEL_DISABLED_EXTERNAL_TOOL_NAMES,
   MODEL_MUTATING_TOOL_NAMES,
   READ_ONLY_SAFE_TOOLS,
 } from "../tools";
 import type { ToolExecutionContext } from "../tools/toolTypes";
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
+
+const createAdminClientMock = vi.mocked(createAdminClient);
 
 // AI 도구층 회귀 잠금 (2026-07-06 전수 감사) — DB 접근 없는 순수 경로만 검증.
 // 핵심: 아모라가 사용자에게 말하는 숫자는 전부 실데이터여야 한다(지어낸 지출 금지).
@@ -122,6 +130,9 @@ describe("파괴적 도구 확인 게이트", () => {
   it("파괴적 도구를 모델에 노출하지 않는다", () => {
     const exposedNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
     for (const toolName of MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES) {
+      expect(exposedNames.has(toolName)).toBe(false);
+    }
+    for (const toolName of MODEL_DISABLED_AVAILABILITY_TOOL_NAMES) {
       expect(exposedNames.has(toolName)).toBe(false);
     }
   });
@@ -249,6 +260,23 @@ describe("도구 인자 서버 검증", () => {
     }
   });
 
+  it("후보 도구에서 제거된 가용시간 인자는 DB 실행 전에 차단한다", async () => {
+    const result = await executeTool(
+      "recommend_vendors",
+      { category: "studio", preferred_time: "afternoon" },
+      makeCtx()
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: {
+        error: "invalid_tool_input",
+        reason: "unexpected_field",
+        path: "$.preferred_time",
+      },
+    });
+  });
+
   it("문자열과 배열 크기 상한을 적용한다", async () => {
     const longString = await executeTool(
       "search_nearby_places",
@@ -287,6 +315,44 @@ describe("도구 인자 서버 검증", () => {
       reason: "unexpected_field",
       path: "$.injected",
     });
+  });
+});
+
+describe("도구 내부 오류 비노출", () => {
+  it("예외 원문을 서버 로그에도 남기지 않고 안정적인 오류 코드만 반환한다", async () => {
+    const internalError = new Error("postgres://secret-host/private-table constraint failed");
+    createAdminClientMock.mockImplementationOnce(() => {
+      throw internalError;
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const ctx = makeCtx();
+    ctx.allowMutations = true;
+    ctx.currentUserText = "총 예산을 5천만원으로 변경해줘";
+
+    try {
+      const result = await executeTool(
+        "update_budget",
+        { total_budget: 50_000_000 },
+        ctx
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "tool_execution_failed" },
+        displayMessage: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      });
+      expect(JSON.stringify(result)).not.toContain(internalError.message);
+      expect(consoleError).toHaveBeenCalledWith(
+        "아모라 도구 실행 실패",
+        {
+          toolName: "update_budget",
+          errorCode: "tool_execution_failed:name_Error",
+        }
+      );
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(internalError.message);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 

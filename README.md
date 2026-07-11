@@ -8,6 +8,10 @@
 교정 턴만 `gpt-5.6-terra`로 승격합니다. Anthropic/Claude 런타임은 제거되었습니다.
 WeddingCode는 개인 결과를 브라우저에서만 계산하며, 커플 초대·비교와 익명 응답 수집은
 보안·동의·보유기간 재설계 전까지 코드에서 비활성화되어 있습니다.
+업체 연결은 실제 전달·상태 왕복·연락처 철회가 검증될 때까지 새 상담 요청·문의·결과·공개 후기
+저장을 하드 비활성화하고 과거·예시 기록만 조회합니다.
+계정 없는 예시 체험은 합성 데이터와 24시간 서명 쿠키만 사용하며 OpenAI 호출과 아모라 전송을
+서버에서 차단합니다. 운영에서는 `DEMO_SESSION_SECRET`이 없으면 예시 세션을 만들지 않습니다.
 
 ## 워크스페이스
 
@@ -59,6 +63,9 @@ corepack pnpm mobile:release-check
 
 감사 문서는 작성 시점의 스냅샷이며 현재 코드를 대신하지 않습니다.
 
+- 현재 서비스 기준: [`WEDDINGHANBANG_SERVICE_DOC.md`](WEDDINGHANBANG_SERVICE_DOC.md)
+- 2026-07-11 소비자 여정·보안·출시 보수 감사: [`docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)
+- 아모라 OpenAI GPT-5.6 전환 검토: [`docs/AMORA_OPENAI_MIGRATION_REVIEW_2026-07-10.md`](docs/AMORA_OPENAI_MIGRATION_REVIEW_2026-07-10.md)
 - 2026-07-10 보수적 전체 감사와 출시 경계: [`docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md`](docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md)
 - 최신 광역 문서-코드 대조: [`docs/DOC_VS_CODE_AUDIT_2026-07-03.md`](docs/DOC_VS_CODE_AUDIT_2026-07-03.md)
 - 보안 감사 묶음: [`docs/SECURITY_AUDIT_2.1_ADMIN_AUTH_2026-07-03.md`](docs/SECURITY_AUDIT_2.1_ADMIN_AUTH_2026-07-03.md)부터 `2.5_RLS`까지

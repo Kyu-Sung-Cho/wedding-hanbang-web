@@ -42,8 +42,9 @@ export default function IntroScreen({
           <br />
           소요 시간은 약 5~7분이며, 응답 내용은 서비스 개선에만 활용됩니다.
         </p>
-        <p className="text-[13px] text-taupe-400 mb-10">
-          모든 응답은 익명으로 처리됩니다.
+        <p className="text-[13px] text-taupe-400 mb-10 leading-relaxed">
+          이름, 연락처와 계정 식별자는 받지 않습니다. 작성 중 응답은 이 브라우저에만 최대 24시간 보관되며,
+          제출 후 임시저장본은 삭제됩니다. 서버의 접속 정보 처리는 개인정보처리방침에서 확인할 수 있습니다.
         </p>
 
         {hasDraft ? (

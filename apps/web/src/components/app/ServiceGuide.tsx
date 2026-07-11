@@ -41,14 +41,14 @@ function SlideWelcome() {
         결혼 준비,{"\n"}이제 혼자 고민하지 마세요
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
-        웨딩한방이 처음부터 끝까지 함께합니다
+        준비 기록을 한곳에서 차근차근 정리해요
       </p>
 
       {/* 3가지 핵심 가치 */}
       <div className="flex items-stretch gap-3 w-full max-w-[380px] mb-7">
         {[
-          { icon: <MessageCircle className="w-6 h-6" />, label: "AI 상담", sub: "24시간 플래너" },
-          { icon: <Users className="w-6 h-6" />, label: "커플 연동", sub: "실시간 동기화" },
+          { icon: <MessageCircle className="w-6 h-6" />, label: "AI 상담", sub: "필요할 때 질문" },
+          { icon: <Users className="w-6 h-6" />, label: "커플 연동", sub: "같은 기록 확인" },
           { icon: <Wallet className="w-6 h-6" />, label: "예산 관리", sub: "사용 금액 확인" },
         ].map((item, i) => (
           <div
@@ -165,7 +165,7 @@ function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
-        아모라 — 모든 걸 연결하는 중심
+        준비 기록을 연결해 보는 아모라
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-5">
         궁금한 건 묻고, 준비는 라운지에서 정리해요
@@ -417,7 +417,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         준비되셨나요?
       </h2>
       <p className="text-sm sm:text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
-        무료로 모든 기능을 이용할 수 있어요
+        현재 베타에서 제공하는 준비 도구를 차근차근 둘러보세요
       </p>
 
       {/* CTA 버튼 */}
@@ -442,9 +442,9 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
       {/* 신뢰 배지 */}
       <div className="flex items-center justify-center gap-5">
         {[
-          { icon: <Sparkles className="w-4 h-4" />, label: "무료" },
-          { icon: <Shield className="w-4 h-4" />, label: "광고 없음" },
-          { icon: <Check className="w-4 h-4" />, label: "데이터 보호" },
+          { icon: <Sparkles className="w-4 h-4" />, label: "현재 별도 이용료 없음" },
+          { icon: <Shield className="w-4 h-4" />, label: "AI 답변 확인 필요" },
+          { icon: <Check className="w-4 h-4" />, label: "업체 연결 준비 중" },
         ].map((badge, i) => (
           <div key={i} className="flex items-center gap-1 text-[#B5ADA3]">
             {badge.icon}

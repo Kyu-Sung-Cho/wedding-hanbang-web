@@ -144,6 +144,20 @@ function isDemoMode() {
   return document.cookie.includes("demo_mode=true");
 }
 
+function verifiedDemoAuthState() {
+  return {
+    user: { id: "demo", email: "demo@hanbang.ai" },
+    profile: DEMO_PROFILE,
+    couple: DEMO_COUPLE,
+    journey: DEMO_JOURNEY,
+    partner: null,
+    isDemo: true,
+    isLoading: false,
+    isInitialized: true,
+    initError: null,
+  };
+}
+
 function isTransientAuthFetchError(err: unknown) {
   if (!(err instanceof Error)) return false;
   return (
@@ -188,7 +202,7 @@ interface AuthState {
   isDemo: boolean;
   initError: AuthInitializationError | null;
 
-  initialize: (options?: { force?: boolean }) => Promise<void>;
+  initialize: (options?: { force?: boolean; verifiedDemo?: boolean }) => Promise<void>;
   updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<boolean>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
@@ -221,6 +235,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const requestId = ++authInitializationRequestId;
     const hadUsableAuth = Boolean(get().user && get().profile);
     if (!options?.force) set({ isLoading: true });
+
+    // 서버 레이아웃이 HMAC 서명과 만료를 이미 검증한 예시 세션은
+    // Supabase 클라이언트나 /api/auth/me를 만들기 전에 즉시 준비한다.
+    if (options?.verifiedDemo) {
+      set(verifiedDemoAuthState());
+      return;
+    }
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
@@ -279,17 +300,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
-        set({
-          user: { id: "demo", email: "demo@hanbang.ai" },
-          profile: DEMO_PROFILE,
-          couple: DEMO_COUPLE,
-          journey: DEMO_JOURNEY,
-          partner: null,
-          isDemo: true,
-          isLoading: false,
-          isInitialized: true,
-          initError: null,
-        });
+        set(verifiedDemoAuthState());
         return;
       }
 
@@ -312,17 +323,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
-        set({
-          user: { id: "demo", email: "demo@hanbang.ai" },
-          profile: DEMO_PROFILE,
-          couple: DEMO_COUPLE,
-          journey: DEMO_JOURNEY,
-          partner: null,
-          isDemo: true,
-          isLoading: false,
-          isInitialized: true,
-          initError: null,
-        });
+        set(verifiedDemoAuthState());
         return;
       }
 

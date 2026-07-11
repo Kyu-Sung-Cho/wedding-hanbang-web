@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
@@ -685,11 +686,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     followStreamRef.current = false; // 응답 완료 → 다음 발화까지 자동 follow 안 함
   }, [isStreaming, scrollContainerToBottom]);
 
-  // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
-  // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
-  // 서버에서 휴리스틱 + 회상 필터 + 턴 패턴 + (borderline) LLM 검증 → 트리거 시
-  // mediation 메시지를 직접 INSERT 하며 Realtime 으로 양쪽 클라이언트에 자동 전달.
-  // 단일 진실원본이라 양쪽 디바이스 동시 트리거하는 race condition 제거.
+  // 자동 갈등 감지·중재는 현재 비활성이다. 상대방 메시지는 저장·전달만 하며,
+  // 사용자가 아모라에게 직접 요청한 상담만 메인 채팅 비용/삭제 경계를 거친다.
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
@@ -847,6 +845,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   const handleSend = useCallback(
     async (text?: string) => {
+      // 데모는 로컬 샘플 데이터 탐색 전용이다. 인증되지 않은 유료 AI 호출을
+      // 시도해 401을 보여주거나 비용 우회 경로를 만들지 않는다.
+      if (isDemo) return;
       const content = text ?? input.trim();
       if ((!content && attachments.length === 0) || !coupleId || !profile) return;
 
@@ -906,7 +907,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       });
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
+    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate, isDemo]
   );
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
@@ -1414,7 +1415,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
         <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
+          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 주제와 맥락을 나눠 정리하기 쉬워요.</p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
             <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
@@ -1942,7 +1943,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         {/* 대상 토글 — 한 단계 컴팩트 (px/py/font 톤다운) */}
-        {activeTab === "shared" && (
+        {activeTab === "shared" && !isDemo && (
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1">
             <button
               onClick={() => setMessageTarget("ai")}
@@ -1969,6 +1970,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {isDemo && (
+          <div className="mb-2 flex flex-col gap-2 rounded-xl border border-[#E8DDD3] bg-[#FFF9F4] px-4 py-3 text-sm text-[#504444] sm:flex-row sm:items-center sm:justify-between">
+            <p>이 화면은 샘플 기록을 둘러보는 데모예요. 실제 아모라 상담과 파일 분석은 로그인 후 사용할 수 있어요.</p>
+            <Link
+              href={`/login?redirect=${encodeURIComponent(weddingPath("/chat"))}`}
+              className="shrink-0 rounded-full bg-[#795252] px-4 py-2 text-center font-medium text-white"
+            >
+              로그인하고 상담하기
+            </Link>
+          </div>
+        )}
+
         <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
@@ -1983,11 +1996,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx"
             multiple
             onChange={handleFileSelect}
+            disabled={isDemo}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
+            disabled={isDemo || isStreaming || attachments.length >= MAX_ATTACHMENTS}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word)"
           >
@@ -2022,18 +2036,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }}
             onPaste={handlePaste}
             placeholder={
-              messageTarget === "partner"
+              isDemo
+                ? "데모에서는 샘플 대화만 볼 수 있어요"
+                : messageTarget === "partner"
                 ? "상대방에게 메시지…"
                 : isPrivate
                   ? "아모라에게 솔직히…"
                   : "무엇이든 물어보세요…"
             }
-            disabled={isStreaming}
+            disabled={isDemo || isStreaming}
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}
-            disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+            disabled={isDemo || (!input.trim() && attachments.length === 0) || isStreaming}
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"

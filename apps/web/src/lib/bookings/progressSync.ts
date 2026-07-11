@@ -191,7 +191,7 @@ function buildEventTitle(input: BookingProgressBuildInput): string {
   const vendorLabel = compactLabel(
     `${input.vendor.name}${productName ? ` ${productName}` : ""}`
   );
-  return `${timeLabel} ${vendorLabel} 상담${staffName ? ` (${staffName})` : ""}`;
+  return `${timeLabel} ${vendorLabel} 상담 요청${staffName ? ` (${staffName})` : ""}`;
 }
 
 export function buildBookingOutcomeProgressPatch(input: {
@@ -362,16 +362,22 @@ export function buildBookingCreatedProgressPatch(
   const sourceKey = bookingSourceKey(input.booking.id);
   const now = new Date().toISOString();
 
-  const existingEvent = events.find(
-    (event) => event.id === eventId || event.sourceKey === sourceKey
+  const existingEvent = events.find((event) => isBookingEvent(event, input.booking.id));
+  const existingContributions = readBookingCostContributions(progress);
+  const hasStoredContribution = Object.prototype.hasOwnProperty.call(
+    existingContributions,
+    input.booking.id
   );
+  // Legacy booking events without a ledger entry already contributed their quoted
+  // amount to spent. Only a genuinely new pending request receives the zero marker.
+  const shouldInitializePendingContribution = !existingEvent && !hasStoredContribution;
 
   const event: ScheduleEvent = {
     ...(existingEvent ?? {}),
     id: existingEvent?.id ?? eventId,
     date: input.booking.date,
     title: buildEventTitle(input),
-    memo: `예약 자동 등록 · booking ${input.booking.id.slice(0, 8)}${wonMemo(amount)}`,
+    memo: `상담 요청 자동 등록 · booking ${input.booking.id.slice(0, 8)}${wonMemo(amount)}`,
     categoryKey: categoryKey ?? existingEvent?.categoryKey,
     sourceKey,
     createdAt: existingEvent?.createdAt ?? now,
@@ -390,42 +396,13 @@ export function buildBookingCreatedProgressPatch(
     __events: nextEvents,
   };
 
-  let budgetUpdated = false;
-  let budgetExceededBy = 0;
-  let categoryBudgetLimit = 0;
-  let categoryLabel: string | null = null;
-  let syncedNewSpent: number | null = null;
-
-  if (!existingEvent && categoryKey && amount > 0) {
-    const currentCategory = isRecord(progress[categoryKey])
-      ? progress[categoryKey]
-      : {};
-    const previousSpent =
-      typeof currentCategory.spent === "number" && Number.isFinite(currentCategory.spent)
-        ? currentCategory.spent
-        : 0;
-    const budget =
-      typeof currentCategory.budget === "number" && Number.isFinite(currentCategory.budget)
-        ? currentCategory.budget
-        : 0;
-    const nextSpent = previousSpent + amount;
-    const nextCategory = {
-      ...currentCategory,
-      spent: nextSpent,
+  if (shouldInitializePendingContribution) {
+    const nextContributions = {
+      ...existingContributions,
+      [input.booking.id]: 0,
     };
-
-    patch[categoryKey] = nextCategory;
-    nextProgress[categoryKey] = nextCategory;
-    budgetUpdated = true;
-    syncedNewSpent = nextSpent;
-    categoryBudgetLimit = budget;
-    categoryLabel =
-      typeof currentCategory.label === "string" && currentCategory.label.trim()
-        ? currentCategory.label
-        : categoryKey;
-    if (budget > 0 && nextSpent > budget) {
-      budgetExceededBy = nextSpent - budget;
-    }
+    patch.__booking_costs = nextContributions;
+    nextProgress.__booking_costs = nextContributions;
   }
 
   return {
@@ -433,13 +410,13 @@ export function buildBookingCreatedProgressPatch(
     nextProgress,
     scheduleAdded: !existingEvent,
     scheduleUpdated: Boolean(existingEvent),
-    budgetUpdated,
-    budgetExceededBy,
-    categoryBudgetLimit,
-    categoryLabel,
+    budgetUpdated: false,
+    budgetExceededBy: 0,
+    categoryBudgetLimit: 0,
+    categoryLabel: null,
     syncedEvent: event,
-    syncedCategoryKey: budgetUpdated ? categoryKey : null,
-    syncedNewSpent,
+    syncedCategoryKey: null,
+    syncedNewSpent: null,
   };
 }
 

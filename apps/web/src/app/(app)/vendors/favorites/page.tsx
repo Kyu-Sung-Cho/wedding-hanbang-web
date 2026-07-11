@@ -141,13 +141,13 @@ export default function VendorFavoritesPage() {
                       {vendor.aiRecommend && (
                         <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#36534E] shadow-sm ring-1 ring-[#d9e4dc]">
                           <Sparkles className="w-4 h-4" />
-                          한방 큐레이션
+                          등록 탐색 후보
                         </span>
                       )}
                       {hasSlots && (
                         <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2E7D5A] text-white text-sm font-medium">
                           <Clock className="w-4 h-4" />
-                          예약 가능
+                          운영시간 참고
                         </span>
                       )}
                     </div>

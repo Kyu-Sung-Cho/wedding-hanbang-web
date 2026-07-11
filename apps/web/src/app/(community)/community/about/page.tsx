@@ -117,7 +117,7 @@ export default function CommunityAboutPage() {
               {
                 icon: TrendingUp,
                 title: "투표로 좋은 글 추천",
-                desc: "도움이 된 글에 투표하면 다른 신부들도 빨리 찾을 수 있어요. 매주 BEST 글이 선정돼요.",
+                desc: "도움이 된 글에 투표하면 다른 예비부부가 참고할 글을 찾는 데 도움이 돼요. 운영 기준에 따라 BEST로 표시될 수 있어요.",
                 color: "from-[#A8D8A8]/30 to-[#A8D8A8]/5",
                 iconColor: "text-sage-500",
               },

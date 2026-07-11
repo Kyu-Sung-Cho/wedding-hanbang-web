@@ -10,7 +10,8 @@ interface CustomerCTAProps {
 
 export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const loginHref = "/login";
+  const accountHref = "/login?mode=signup";
+  const exampleAppHref = "/demo/login";
   return (
     <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}
@@ -42,43 +43,49 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
           <p className="text-[clamp(14px,1.8vw,16px)] text-charcoal leading-relaxed font-light mb-10">
             {isComingSoon ? (
               <>
-                정식 오픈 전, 로그인 없이
+                베타 계정 제공 상황과 별개로
                 <br className="hidden md:block" />
-                웨딩한방의 주요 기능을 미리 체험해보세요.
+                예시 앱은 계정 없이 바로 둘러볼 수 있습니다.
               </>
             ) : (
               <>
-                지금 바로 시작하세요. 카카오 또는 구글 계정으로
+                베타 계정을 만들어 내 준비 정보를 저장하거나,
                 <br className="hidden md:block" />
-                간편하게 가입하고 모든 기능을 무료로 이용할 수 있습니다.
+                계정 없이 별도 예시 데이터로 먼저 둘러보세요.
               </>
             )}
           </p>
 
           <div className="flex gap-4 justify-center flex-wrap mb-8">
             <a
-              href={loginHref}
+              href={accountHref}
               className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
-              {isComingSoon ? "미리 둘러보기" : "무료로 시작하기"}
+              베타 계정 만들기
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>
+            </a>
+            <a
+              href={exampleAppHref}
+              className="inline-flex items-center justify-center px-10 py-4 border border-[#36534E]/30 text-[#36534E] rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white/40 transition-all duration-300"
+            >
+              계정 없이 예시 앱 체험
             </a>
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-taupe-500">
             {isComingSoon ? (
               <>
-                <span>✦ 로그인 없이 체험</span>
+                <span>✦ 계정 없는 예시 앱</span>
                 <span>✦ 주요 기능 미리보기</span>
-                <span>✦ 완전 무료</span>
+                <span>✦ 예시 데이터 사용</span>
               </>
             ) : (
               <>
-                <span>✦ 가입 즉시 모든 기능 이용</span>
-                <span>✦ 카카오 · 구글 간편 로그인</span>
-                <span>✦ 완전 무료</span>
+                <span>✦ 베타 계정과 예시 앱 분리</span>
+                <span>✦ 계정 없는 예시 앱</span>
+                <span>✦ 공개는 직접 선택</span>
               </>
             )}
           </div>

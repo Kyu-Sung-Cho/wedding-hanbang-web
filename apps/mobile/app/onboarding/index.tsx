@@ -597,7 +597,7 @@ export default function OnboardingScreen() {
               </View>
               <Text style={[styles.stepTitle, { textAlign: "center" }]}>준비 완료!</Text>
               <Text style={[styles.stepDesc, { textAlign: "center" }]}>
-                웨딩한방과 함께{"\n"}완벽한 결혼을 준비하세요
+                웨딩한방과 함께{"\n"}우리에게 맞는 준비를 시작하세요
               </Text>
 
               {resultCode ? (

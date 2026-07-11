@@ -119,11 +119,12 @@ export default function VendorsPage() {
   // 통계치 (현재 로드된 목록 기반)
   const totalCount = vendors.length;
   const favoritesCount = favoriteIds.size;
-  const curatedVendorsCount = useMemo(() => {
+  const candidateVendorCount = useMemo(() => {
     return vendors.filter((v) => v.aiRecommend).length;
   }, [vendors]);
 
-  // AI 맞춤 추천 로직: 유저 선호도와 공개 품질 지표 기반 TOP 3
+  // 사용자가 직접 저장한 관심 카테고리와 등록 카테고리의 단순 일치만 표시한다.
+  // 평점이나 임의 점수를 개인화 추천 근거로 사용하지 않는다.
   const { journey } = useAuthStore();
   const userPrefs = useMemo(() => {
     return ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
@@ -140,46 +141,24 @@ export default function VendorsPage() {
     return !!(userPrefs && (userPrefs.weddingStyle || (userPrefs.priorities && userPrefs.priorities.length > 0) || userPrefs.budgetAttitude));
   }, [userPrefs]);
 
-  const aiRecommendedIds = useMemo(() => {
+  const conditionMatchedIds = useMemo(() => {
     const prefs = userPrefs;
 
-    if (!hasUserPreferences || !prefs) {
+    if (!prefs?.priorities || prefs.priorities.length === 0) {
       return new Set<string>();
     }
 
-    // 각 업체에 매칭 점수 부여
-    const scored = vendors.map((v) => {
-      let score = 0;
-
-      // 1. 카테고리 우선순위 매칭 (+3)
-      if (prefs.priorities && prefs.priorities.length > 0) {
-        const catKeyMap: Record<string, string> = {
-          스튜디오: "studio", 드레스: "dress", 메이크업: "makeup",
-          예식장: "venue", 한복: "hanbok", 예물: "ring", 신혼여행: "honeymoon",
-        };
-        const catKey = catKeyMap[v.category ?? ""] ?? v.category;
-        if (prefs.priorities.includes(catKey)) score += 3;
-      }
-
-      // 2. 평점 높을수록 (+최대 2)
-      if (v.rating >= 4.5) score += 2;
-      else if (v.rating >= 4.0) score += 1;
-
-      // 3. 예산 성향 매칭 (+2)
-      // premium → 고가 업체, 절약 → 저가 업체
-      // 가격은 상품 기준이라 간단히 패스
-
-      return { id: v.id, score };
-    });
-
-    // 점수 높은 순 TOP 3
-    const top = scored
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-
-    return new Set(top.map((t) => t.id));
-  }, [vendors, userPrefs, hasUserPreferences]);
+    const catKeyMap: Record<string, string> = {
+      스튜디오: "studio", 드레스: "dress", 메이크업: "makeup",
+      예식장: "venue", 한복: "hanbok", 예물: "ring", jewelry: "ring",
+      신혼여행: "honeymoon",
+    };
+    return new Set(
+      vendors
+        .filter((vendor) => prefs.priorities!.includes(catKeyMap[vendor.category ?? ""] ?? vendor.category ?? ""))
+        .map((vendor) => vendor.id)
+    );
+  }, [vendors, userPrefs]);
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -193,7 +172,7 @@ export default function VendorsPage() {
             업체 탐색
           </h1>
           <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-            예산과 스타일에 맞는 후보를 차분히 비교하고, 마음에 드는 업체를 저장해보세요.
+            공개 등록 정보와 직접 정한 관심 카테고리를 비교하고, 확인할 업체를 저장해보세요.
           </p>
         </section>
 
@@ -233,14 +212,14 @@ export default function VendorsPage() {
               HANBANG CURATED
             </p>
             <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
-              {curatedVendorsCount || "—"}
+              {candidateVendorCount || "—"}
             </p>
-            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">검토된 후보</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">등록 탐색 후보</p>
           </div>
         </div>
 
-        {/* 맞춤 추천 안내 배너 — 선호도 없으면 설정 유도 */}
-        {aiRecommendedIds.size === 0 && (
+        {/* 관심 카테고리가 없거나 현재 목록과 일치하지 않을 때 설정 유도 */}
+        {conditionMatchedIds.size === 0 && (
           <div className="mb-5 flex flex-col items-start justify-between gap-4 rounded-[18px] border border-[#eadfc9] bg-[#fffdf7]/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:flex-row sm:items-center sm:p-5">
             <div className="flex items-start sm:items-center gap-4 min-w-0">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef4ef] text-[#36534E]">
@@ -248,10 +227,10 @@ export default function VendorsPage() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-[14px] font-semibold text-[#071629]">
-                  AI 맞춤 추천을 받아보세요
+                  관심 카테고리를 먼저 정해보세요
                 </h3>
                 <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
-                  예산과 웨딩 스타일을 알려주시면 어울리는 업체에 맞춤 추천 뱃지가 표시돼요
+                  직접 고른 관심 카테고리와 등록 카테고리가 같으면 일치 표시를 보여드려요
                 </p>
               </div>
             </div>
@@ -342,22 +321,22 @@ export default function VendorsPage() {
 
                       {/* 좌상단 뱃지 */}
                       <div className="absolute top-4 left-4 flex gap-2">
-                        {aiRecommendedIds.has(vendor.id) && (
+                        {conditionMatchedIds.has(vendor.id) && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-lg">
                             <Sparkles className="w-3.5 h-3.5" />
-                            맞춤 추천
+                            관심 카테고리 일치
                           </span>
                         )}
-                        {!aiRecommendedIds.has(vendor.id) && vendor.aiRecommend && (
+                        {!conditionMatchedIds.has(vendor.id) && vendor.aiRecommend && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/95 text-[#36534E] text-sm font-medium shadow-lg ring-1 ring-[#d9e4dc]">
                             <Star className="w-3.5 h-3.5" />
-                            한방 큐레이션
+                            등록 탐색 후보
                           </span>
                         )}
                         {hasSlots && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-sage-500 text-white text-sm font-medium shadow-lg">
                             <Clock className="w-3.5 h-3.5" />
-                            예약 가능
+                            운영시간 참고
                           </span>
                         )}
                       </div>
@@ -435,13 +414,13 @@ export default function VendorsPage() {
               <>
                 <p className="font-serif-kr text-[22px] font-medium text-[#071629] mb-2">곧 만날 수 있어요</p>
                 <p className="mb-4 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-                  믿을 수 있는 업체만 엄선해서 모시는 중이에요. 등록 직후 알려드릴게요.
+                  공개할 수 있는 등록 정보를 확인하고 있어요. 그동안 비교 질문을 먼저 정리해보세요.
                 </p>
                 <Link
                   {...weddingLinkProps("/chat")}
                   className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#36534E] transition-all hover:gap-3"
                 >
-                  아모라에게 미리 추천 요청하기
+                  아모라에게 비교 질문 정리 요청하기
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </>
@@ -456,16 +435,16 @@ export default function VendorsPage() {
               AMORA CURATION
             </p>
             <h3 className="mt-1 font-serif-kr text-[22px] font-medium leading-tight text-white sm:text-[24px]">
-              내 예산과 스타일에 맞는 업체 찾기
+              등록 조건으로 업체 후보 좁히기
             </h3>
             <p className="mt-2 mb-5 text-[13px] font-medium leading-[1.65] text-white/75">
-              예산, 지역, 스타일을 알려주시면 AI 아모라가 딱 맞는 업체 3곳을 추천해드려요
+              직접 정한 가격 상한, 지역, 스타일 표현과 등록 정보가 일치하는 후보를 정리해드려요. 최신 가격과 품질은 업체에 확인해야 해요.
             </p>
             <Link
               {...weddingLinkProps("/chat")}
               className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec]"
             >
-              맞춤 추천 받기
+              검토 후보 정리하기
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

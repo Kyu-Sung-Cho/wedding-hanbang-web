@@ -76,13 +76,19 @@ export function createChatRequestIdentity(params: {
   clientRequestId: string;
   payload: unknown;
 }): { requestKey: string; requestHash: string } {
-  const secret = (
-    process.env.AMORA_IDEMPOTENCY_SECRET ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    ""
-  ).trim();
-  if (secret.length < 32) {
-    throw new Error("[ai-config] AMORA_IDEMPOTENCY_SECRET 또는 충분히 긴 service role key가 필요합니다.");
+  const dedicatedSecret = process.env.AMORA_IDEMPOTENCY_SECRET?.trim() ?? "";
+  const localFallback = process.env.NODE_ENV === "production"
+    ? ""
+    : process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  const secret = dedicatedSecret || localFallback;
+  const looksLikePlaceholder =
+    /(?:replace[-_ ]?with|at[-_ ]?least[-_ ]?32|your[-_ ]?secret|example|placeholder)/i.test(secret);
+  if (secret.length < 32 || looksLikePlaceholder) {
+    throw new Error(
+      process.env.NODE_ENV === "production"
+        ? "[ai-config] production에는 전용 AMORA_IDEMPOTENCY_SECRET(32자 이상)이 필요합니다."
+        : "[ai-config] AMORA_IDEMPOTENCY_SECRET 또는 로컬용 service role key(32자 이상)가 필요합니다."
+    );
   }
   const requestKey = createHmac("sha256", secret)
     .update(
@@ -133,7 +139,7 @@ export async function claimChatExecution(
 
   const { data, error } = await admin
     .from("amora_request_claims")
-    .select("request_hash, status, message_id")
+    .select("request_hash, status, message_id, lease_expires_at")
     .eq("request_key", params.requestKey)
     .maybeSingle();
   if (error || !data) {
@@ -156,6 +162,32 @@ export async function claimChatExecution(
       "완료된 요청의 응답은 다시 표시할 수 없습니다.",
       "replay_unavailable"
     );
+  }
+  if (data.status === "in_progress") {
+    const leaseExpiresAt = Date.parse(
+      typeof data.lease_expires_at === "string" ? data.lease_expires_at : ""
+    );
+    if (Number.isFinite(leaseExpiresAt) && leaseExpiresAt <= Date.now()) {
+      const { data: expired, error: expireError } = await admin.rpc(
+        "expire_stale_amora_chat_request",
+        {
+          p_request_key: params.requestKey,
+          p_request_hash: params.requestHash,
+        }
+      );
+      if (expireError) {
+        throw new ChatExecutionClaimError(
+          "멈춘 요청의 상태를 안전하게 정리하지 못했습니다.",
+          "claim_unavailable"
+        );
+      }
+      if (expired === true) {
+        throw new ChatExecutionClaimError(
+          "이전 요청이 중단되어 새 요청 ID로 다시 시도해야 합니다.",
+          "request_failed"
+        );
+      }
+    }
   }
   if (data.status === "failed") {
     throw new ChatExecutionClaimError(
@@ -182,25 +214,4 @@ export async function markChatExecutionFailed(
     .eq("request_hash", requestHash)
     .eq("status", "in_progress");
   if (error) console.error("[chat-claim] failed 상태 기록 실패:", error.message);
-}
-
-export async function completeChatExecutionWithoutReplay(
-  admin: SupabaseClient,
-  requestKey: string,
-  requestHash: string
-): Promise<void> {
-  const { data, error } = await admin
-    .from("amora_request_claims")
-    .update({ status: "completed", updated_at: new Date().toISOString() })
-    .eq("request_key", requestKey)
-    .eq("request_hash", requestHash)
-    .eq("status", "in_progress")
-    .select("request_key")
-    .maybeSingle();
-  if (error || !data) {
-    throw new ChatExecutionClaimError(
-      "요청 완료 상태를 확정하지 못했습니다.",
-      "claim_unavailable"
-    );
-  }
 }

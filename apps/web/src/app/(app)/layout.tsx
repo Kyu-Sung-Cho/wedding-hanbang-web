@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import AppClientLayout from "./AppClientLayout";
 import { verifyDemoSessionToken } from "@/lib/demoSession";
+import {
+  AUTH_RETURN_PATH_HEADER,
+  pathWithAuthReturn,
+  sanitizeAuthReturnPath,
+} from "@/lib/authReturnPath";
 
 /**
  * (app) 그룹 서버 컴포넌트 가드.
@@ -34,9 +39,13 @@ export default async function AppServerGuard({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      redirect("/login");
+      const requestHeaders = await headers();
+      const returnPath = sanitizeAuthReturnPath(
+        requestHeaders.get(AUTH_RETURN_PATH_HEADER)
+      );
+      redirect(pathWithAuthReturn("/login", returnPath));
     }
   }
 
-  return <AppClientLayout>{children}</AppClientLayout>;
+  return <AppClientLayout initialDemo={Boolean(isDemo)}>{children}</AppClientLayout>;
 }

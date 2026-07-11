@@ -7,7 +7,7 @@ import ForBetaCouples from "@/components/landing/ForBetaCouples";
 import Footer from "@/components/landing/Footer";
 import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
 
-// ISR: 60초마다 베타 카운트 새로고침
+// ISR: 60초마다 사용자 연구 코호트 신청 카운트 새로고침
 export const revalidate = 60;
 
 export const metadata = {

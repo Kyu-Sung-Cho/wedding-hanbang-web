@@ -1,527 +1,85 @@
-"use client";
-
-import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import Link from "next/link";
+import { ArrowRight, Play } from "lucide-react";
 import Logo from "@/components/ui/Logo";
-import { createClient } from "@/lib/supabase/client";
-import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
-
-type Mode = "login" | "signup" | "forgot";
-
-// 비밀번호 강도 체크
-interface PasswordCheck {
-  minLength: boolean;
-  hasUppercase: boolean;
-  hasLowercase: boolean;
-  hasNumber: boolean;
-  hasSpecial: boolean;
-}
-
-function checkPasswordStrength(pw: string): PasswordCheck {
-  return {
-    minLength: pw.length >= 8,
-    hasUppercase: /[A-Z]/.test(pw),
-    hasLowercase: /[a-z]/.test(pw),
-    hasNumber: /[0-9]/.test(pw),
-    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw),
-  };
-}
-
-function isPasswordValid(checks: PasswordCheck): boolean {
-  return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
-}
-
-export default function DemoLoginPage() {
-  const [mode, setMode] = useState<Mode>("login");
-  const [loading, setLoading] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [name, setName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
-
-  const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
-
-  // 콜백에서 전달된 에러 표시 (query params + hash fragment)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const callbackError = params.get("error");
-
-    const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
-    const hashError = hashParams.get("error");
-    const hashDescription = hashParams.get("error_description");
-
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
-    }
-  }, []);
-
-  const handleOAuth = async (provider: "kakao" | "google" | "apple") => {
-    setLoading(provider);
-    setError("");
-    // 데모 모드 쿠키 제거 (실제 로그인이므로)
-    document.cookie = "demo_mode=; path=/; max-age=0";
-    try {
-      const supabase = createClient();
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/callback?from=demo`,
-        },
-      });
-      if (oauthError) {
-        console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
-        setLoading(null);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("OAuth catch error:", msg);
-      setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
-    }
-  };
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (mode === "forgot") {
-      if (!email) { setError("이메일을 입력해주세요."); return; }
-      if (TURNSTILE_ENABLED && !turnstileToken) { setError("봇 확인을 완료해주세요."); return; }
-    } else if (!email || !password) {
-      setError("이메일과 비밀번호를 입력해주세요.");
-      return;
-    }
-
-    if (mode === "signup") {
-      if (!name.trim()) {
-        setError("이름을 입력해주세요.");
-        return;
-      }
-      if (!isPasswordValid(passwordChecks)) {
-        setError("비밀번호 조건을 모두 충족해주세요.");
-        return;
-      }
-      if (password !== passwordConfirm) {
-        setError("비밀번호가 일치하지 않습니다.");
-        return;
-      }
-      if (TURNSTILE_ENABLED && !turnstileToken) {
-        setError("봇 확인을 완료해주세요.");
-        return;
-      }
-    }
-
-    setLoading("email");
-    setError("");
-    setSuccess("");
-    document.cookie = "demo_mode=; path=/; max-age=0";
-
-    try {
-      const supabase = createClient();
-
-      if (mode === "signup") {
-        // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken }),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          setError(result.error || "회원가입에 실패했습니다.");
-        } else {
-          setSuccess(
-            result.message ||
-              "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다."
-          );
-        }
-      } else if (mode === "forgot") {
-        // 서버 API로 비밀번호 재설정 이메일 발송
-        const res = await fetch("/api/auth/forgot-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, turnstileToken }),
-        });
-        const result = await res.json().catch(() => ({}));
-        if (res.ok) {
-          setSuccess(
-            result.message ||
-              "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다."
-          );
-        } else {
-          setError(result.error || "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
-        }
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) {
-          if (signInError.message === "Invalid login credentials") {
-            setError("이메일 또는 비밀번호가 올바르지 않습니다.");
-          } else if (signInError.message === "Email not confirmed") {
-            setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
-          } else {
-            setError(signInError.message);
-          }
-        } else {
-          // 온보딩 완료 여부 확인
-          const { data: { user: loggedInUser } } = await supabase.auth.getUser();
-          if (loggedInUser) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("onboarding_completed")
-              .eq("id", loggedInUser.id)
-              .single();
-
-            if (profile?.onboarding_completed) {
-              document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/wedding/lounge";
-            } else {
-              window.location.href = "/wedding/onboarding";
-            }
-          } else {
-            window.location.href = "/wedding/lounge";
-          }
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
-    } finally {
-      setLoading(null);
-      if (mode === "signup" || mode === "forgot") {
-        setTurnstileToken("");
-        setTurnstileAttempt((value) => value + 1);
-      }
-    }
-  };
+export default async function DemoLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const errorMessage = error === "rate_limited"
+    ? "잠시 동안 예시 앱 시작 요청이 많았습니다. 잠시 후 다시 시도해 주세요."
+    : error === "unavailable"
+      ? "예시 앱을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요."
+      : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5">
-      {/* 배경 장식 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,var(--rose-pale),transparent)] blur-[100px] opacity-25" />
-        <div className="absolute -bottom-[10%] -left-[5%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(circle,var(--gold-light),transparent)] blur-[100px] opacity-25" />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_52%,#f5f8f1_100%)] px-5 py-12">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="absolute -right-[8%] -top-[18%] h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,#eef4f1,transparent)] blur-[100px] opacity-60" />
+        <div className="absolute -bottom-[20%] -left-[10%] h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle,#f6efe5,transparent)] blur-[100px] opacity-55" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        className="relative z-10 w-full max-w-[420px]"
+      <section
+        className="relative z-10 w-full max-w-[480px]"
+        aria-labelledby="demo-launcher-title"
       >
-        {/* 로고 */}
-        <div className="text-center mb-10">
-          <a href="/demo">
-            <Logo size="md" />
-          </a>
-          <p className="text-[14px] text-taupe-500 font-light mt-3">
-            AI 웨딩 플래너와 함께하는 결혼 준비
-          </p>
-        </div>
+        <Link href="/demo" className="mb-8 flex justify-center" aria-label="예시 앱 소개로 돌아가기">
+          <Logo size="md" />
+        </Link>
 
-        {/* 로그인 카드 */}
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
-          {/* 내부 개발자 배지 */}
-          <div className="flex justify-center mb-5">
-            <span className="text-[11px] px-3 py-1 rounded-full bg-noir-800 text-white font-medium tracking-wide">
-              INTERNAL DEV
-            </span>
+        <div className="rounded-[28px] border border-black/[0.05] bg-white/85 p-7 shadow-[0_18px_60px_rgba(38,56,50,0.08)] backdrop-blur-xl sm:p-10">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-[12px] font-medium text-[#36534E]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#36534E]" />
+            계정 없는 예시 앱
           </div>
 
-          <h1 className="font-serif-kr text-[24px] font-light text-noir-800 text-center mb-2">
-            {mode === "login" ? "로그인" : mode === "signup" ? "회원가입" : "비밀번호 찾기"}
+          <h1 id="demo-launcher-title" className="font-serif-kr text-[30px] font-light leading-[1.35] text-[#263832] sm:text-[34px]">
+            내 정보 없이 먼저
+            <br />
+            웨딩한방을 둘러보세요
           </h1>
-          <p className="text-[13px] text-taupe-400 text-center mb-8">
-            {mode === "login"
-              ? "계정에 로그인하세요"
-              : mode === "signup"
-                ? "이메일로 간편하게 가입하세요"
-                : "가입한 이메일을 입력해주세요"}
+          <p className="mt-5 text-[14px] font-light leading-[1.8] text-[#635b51]">
+            준비된 예시 커플의 일정·예산·상담 화면을 확인합니다. 입력한 내용은 실제 계정에 저장되지 않으며,
+            예시 세션은 브라우저의 별도 체험 쿠키로만 유지됩니다.
           </p>
 
-          {/* 이메일 폼 */}
-          <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
-            {mode === "signup" && (
-              <div>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); setError(""); }}
-                  onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-                  placeholder="이름 *"
-                  className={`w-full px-5 py-3.5 rounded-2xl border bg-white text-[14px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
-                    touched.name && !name.trim() ? "border-rose-500/50" : "border-black/[0.06] focus:border-rose-500"
-                  }`}
-                />
-                {touched.name && !name.trim() && (
-                  <p className="text-[11px] text-rose-500 mt-1 px-2">이름을 입력해주세요</p>
-                )}
-              </div>
-            )}
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(""); }}
-              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-              placeholder={mode === "signup" ? "이메일 *" : "이메일"}
-              className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-            />
+          <ul className="my-7 space-y-3 rounded-2xl bg-[#FBF8F2] p-5 text-[13px] leading-relaxed text-[#635b51]">
+            <li>• 실제 이름·연락처·예식 정보를 입력할 필요가 없습니다.</li>
+            <li>• 예시 데이터는 실제 사용자나 업체의 데이터가 아닙니다.</li>
+            <li>• 계정 기능을 사용하려면 베타 계정을 별도로 만들어야 합니다.</li>
+          </ul>
 
-            {/* 비밀번호 (forgot 모드에서는 숨김) */}
-            {mode !== "forgot" && <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-                placeholder={mode === "signup" ? "비밀번호 *" : "비밀번호"}
-                className="w-full px-5 py-3.5 pr-12 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
-              </button>
-            </div>}
+          {errorMessage && (
+            <p className="mb-4 rounded-xl bg-[#fff4f2] px-4 py-3 text-[13px] text-[#9A554C]" role="alert">
+              {errorMessage}
+            </p>
+          )}
 
-            {/* 비밀번호 강도 표시 (회원가입 모드) */}
-            {mode === "signup" && password.length > 0 && (
-              <div className="px-2 space-y-1.5">
-                <div className="flex gap-1.5">
-                  {[passwordChecks.minLength, passwordChecks.hasLowercase, passwordChecks.hasUppercase, passwordChecks.hasNumber, passwordChecks.hasSpecial].map((ok, i) => (
-                    <div key={i} className={`flex-1 h-1 rounded-full transition-colors ${ok ? "bg-[#2E7D5A]" : "bg-taupe-300/40"}`} />
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                  {[
-                    { label: "8자 이상", ok: passwordChecks.minLength },
-                    { label: "대문자 포함", ok: passwordChecks.hasUppercase },
-                    { label: "소문자 포함", ok: passwordChecks.hasLowercase },
-                    { label: "숫자 포함", ok: passwordChecks.hasNumber },
-                    { label: "특수문자 포함", ok: passwordChecks.hasSpecial },
-                  ].map((item) => (
-                    <p key={item.label} className={`text-[11px] flex items-center gap-1 ${item.ok ? "text-[#2E7D5A]" : "text-taupe-400"}`}>
-                      {item.ok ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      ) : (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>
-                      )}
-                      {item.label}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 비밀번호 확인 (회원가입 모드) */}
-            {mode === "signup" && (
-              <div>
-                <div className="relative">
-                  <input
-                    type={showPasswordConfirm ? "text" : "password"}
-                    value={passwordConfirm}
-                    onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
-                    onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
-                    placeholder="비밀번호 확인 *"
-                    className={`w-full px-5 py-3.5 pr-12 rounded-2xl border bg-white text-[14px] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 ${
-                      touched.passwordConfirm && passwordConfirm && password !== passwordConfirm
-                        ? "border-rose-500/50"
-                        : "border-black/[0.06] focus:border-rose-500"
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPasswordConfirm ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
-                  <p className="text-[11px] text-rose-500 mt-1 px-2">비밀번호가 일치하지 않습니다</p>
-                )}
-                {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
-                  <p className="text-[11px] text-[#2E7D5A] mt-1 px-2 flex items-center gap-1">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    비밀번호 일치
-                  </p>
-                )}
-              </div>
-            )}
-
-            {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
-              <TurnstileWidget
-                key={`${mode}-${turnstileAttempt}`}
-                onVerify={setTurnstileToken}
-              />
-            )}
-
-            {error && (
-              <p className="text-[12px] text-rose-600 px-1">{error}</p>
-            )}
-            {success && (
-              <div className="bg-[#2E7D5A]/5 border border-[#2E7D5A]/20 rounded-xl px-4 py-3">
-                <p className="text-[13px] text-[#2E7D5A] font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  {success}
-                </p>
-                <p className="text-[11px] text-[#2E7D5A]/70 mt-1">안내가 도착하면 스팸 메일함도 확인해주세요</p>
-              </div>
-            )}
-
+          <form action="/api/demo/start" method="post">
             <button
               type="submit"
-              disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
-              className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-6 py-4 text-[15px] font-medium text-white shadow-[0_8px_24px_rgba(121,82,82,0.2)] transition-all hover:-translate-y-0.5"
             >
-              {loading === "email"
-                ? "처리 중..."
-                : mode === "login"
-                  ? "로그인"
-                  : mode === "signup"
-                    ? "회원가입"
-                    : "비밀번호 재설정 링크 보내기"}
+              <>
+                <Play className="h-4 w-4" fill="currentColor" />
+                예시 앱 체험 시작
+              </>
             </button>
           </form>
 
-          {/* 모드 전환 */}
-          <div className="text-[13px] text-taupe-400 text-center mb-6 space-y-1.5">
-            {mode === "login" && (
-              <>
-                <p>
-                  아직 계정이 없으신가요?{" "}
-                  <button
-                    onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                    className="text-rose-500 font-medium hover:underline"
-                  >
-                    회원가입
-                  </button>
-                </p>
-                <p>
-                  <button
-                    onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                    className="text-taupe-400 hover:text-rose-500 hover:underline transition-colors"
-                  >
-                    비밀번호를 잊으셨나요?
-                  </button>
-                </p>
-              </>
-            )}
-            {mode === "signup" && (
-              <p>
-                이미 계정이 있으신가요?{" "}
-                <button
-                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                  className="text-rose-500 font-medium hover:underline"
-                >
-                  로그인
-                </button>
-              </p>
-            )}
-            {mode === "forgot" && (
-              <p>
-                <button
-                  onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                  className="text-rose-500 font-medium hover:underline"
-                >
-                  ← 로그인으로 돌아가기
-                </button>
-              </p>
-            )}
-          </div>
-
-          {/* 구분선 */}
-          <div className="flex items-center gap-4 mb-5">
-            <div className="flex-1 h-px bg-platinum" />
-            <span className="text-[11px] text-taupe-400">소셜 로그인</span>
-            <div className="flex-1 h-px bg-platinum" />
-          </div>
-
-          {/* 소셜 로그인 */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleOAuth("kakao")}
-              disabled={loading !== null}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-[#FEE500] text-[#191919] hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
-              </svg>
-              카카오
-            </button>
-            <button
-              onClick={() => handleOAuth("google")}
-              disabled={loading !== null}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-white border border-black/[0.08] text-noir-800 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
-                <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 009 18z" fill="#34A853"/>
-                <path d="M3.97 10.71A5.41 5.41 0 013.68 9c0-.6.1-1.17.28-1.71V4.96H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.04l3.01-2.33z" fill="#FBBC05"/>
-                <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3.01 2.33C4.68 5.17 6.66 3.58 9 3.58z" fill="#EA4335"/>
-              </svg>
-              Google
-            </button>
-            <button
-              onClick={() => handleOAuth("apple")}
-              disabled={loading !== null}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-black text-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
-              </svg>
-              Apple
-            </button>
+          <div className="mt-6 flex flex-col items-center gap-3 border-t border-black/[0.06] pt-6 text-[13px] sm:flex-row sm:justify-between">
+            <Link href="/login" className="text-[#635b51] underline-offset-4 hover:text-[#36534E] hover:underline">
+              이미 계정이 있어요
+            </Link>
+            <Link href="/login?mode=signup" className="inline-flex items-center gap-1.5 font-medium text-[#36534E] hover:underline">
+              베타 계정 만들기
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
-
-        {/* 하단 링크 */}
-        <div className="flex items-center justify-center gap-4 mt-6">
-          <a href="/demo" className="text-[13px] text-taupe-400 hover:text-rose-500 transition-colors">
-            ← 데모 홈
-          </a>
-        </div>
-      </motion.div>
-    </div>
+      </section>
+    </main>
   );
 }

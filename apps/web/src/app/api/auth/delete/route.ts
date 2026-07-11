@@ -84,7 +84,7 @@ async function enqueueAccountDeletion(request: Request) {
   if (data.status === "dead_letter") {
     return NextResponse.json(
       {
-        error: "삭제 요청은 보관되어 있지만 자동 처리가 중단되었습니다. 고객센터 확인이 필요합니다.",
+        error: "삭제 요청은 보관되어 있지만 자동 처리가 중단되었습니다. 지원 이메일로 확인해 주세요.",
         status: "dead_letter",
       },
       { status: 503 },

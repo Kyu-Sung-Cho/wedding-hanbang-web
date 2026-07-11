@@ -11,9 +11,9 @@ import CustomerCTA from "@/components/customer-landing/CustomerCTA";
 import Footer from "@/components/landing/Footer";
 
 export const metadata = {
-  title: "웨딩한방 Demo — AI가 이끄는 새로운 결혼 준비",
+  title: "웨딩한방 Demo — AI와 함께 정리하는 결혼 준비",
   description:
-    "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
+    "아모라 상담, 커플 일정·예산 공유, 견적 체크 등 현재 제공 중인 주요 기능을 둘러보세요.",
 };
 
 

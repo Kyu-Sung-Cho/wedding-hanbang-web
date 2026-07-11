@@ -1,220 +1,103 @@
 /**
- * 웨딩 업체 정보 비대칭 — 업체는 알지만 소비자는 모르는 것
+ * 계약·견적을 볼 때 사용할 보수적 확인 질문 모음.
  *
- * 출처:
- * - 한국소비자원 결혼서비스 분쟁사례 (2024-2025)
- * - 공정거래위원회 결혼준비대행업 표준약관 (2025.4.3 제정)
- * - 정부 결혼서비스 실태조사 (2024, 기획재정부 발표)
- * - 업계 종사자 인터뷰 (10인+, 익명)
- *
- * 5가지 역할 중 #5 "정보 격차 해소자" 데이터 코어.
- * 마케팅 약속: "업체가 아는 모든 것을 당신도 알 수 있게."
+ * 특정 업체의 위법·사기 여부, 환불 가능액, 할인율을 단정하지 않는다.
+ * 계약 종류와 시점에 따라 적용 기준이 달라질 수 있으므로 원문 계약서,
+ * 공정위 표준약관·소비자분쟁해결기준과 1372 상담을 다시 확인한다.
  */
 
 export type VendorAsymmetryCategory =
-  | "negotiation"   // 협상 전술 — 업체가 쓰는 압박 패턴
-  | "scam"          // 흔한 분쟁/사기 패턴
-  | "redFlag"       // 계약 전 경고 신호
-  | "secret";       // 업계가 안 알려주는 사실 (소비자 우위 정보)
+  | "negotiation"
+  | "scam"
+  | "redFlag"
+  | "secret";
 
 export interface VendorAsymmetryItem {
   id: string;
   category: VendorAsymmetryCategory;
   title: string;
-  /** 업체 측 행동/주장/관행 */
+  /** 업체 측 행동·주장·관행의 예시 */
   pattern: string;
-  /** 소비자가 알아야 할 진실 */
+  /** 소비자가 확인할 핵심 */
   truth: string;
-  /** 실전 대응 방법 */
+  /** 보수적 대응 방법 */
   defense: string;
-  /** 출처 (있으면) */
   source?: string;
 }
 
 export const VENDOR_ASYMMETRY: VendorAsymmetryItem[] = [
-  // ===== 협상 전술 (negotiation) =====
   {
-    id: "neg_artificial_urgency",
+    id: "neg_offer_deadline",
     category: "negotiation",
-    title: "인위적 긴급성 (오늘만 가격)",
-    pattern: '"오늘 계약 안 하시면 이 가격 보장 못 해드려요"',
-    truth: "대부분 협상 마진 안에서 만든 가짜 마감. 실제로 다음 주에 같은 가격 또는 더 좋은 조건 가능한 경우 多.",
-    defense: "절대 즉석 계약 X. \"하루만 생각해보고 연락드릴게요\" 한 마디로 80% 검증됨. 진짜 한정이면 그래도 잡을 수 있음.",
+    title: "기한이 짧은 할인 제안",
+    pattern: '"오늘 결정해야 이 가격이 가능해요"',
+    truth: "실제 한정 조건일 수도 있으므로 거짓이라고 단정하지 말고, 적용 기한과 제외 조건을 서면으로 확인해야 합니다.",
+    defense: "총액·포함 항목·취소 조건을 받은 뒤 결정 시간을 요청하세요. 확인하지 못한 조건 때문에 서둘러 계약할 필요는 없습니다.",
   },
   {
-    id: "neg_false_intimacy",
+    id: "neg_itemized_quote",
     category: "negotiation",
-    title: "친밀감 위장 (특별 할인 척)",
-    pattern: '"고객님은 특별히 친한 손님이라 깎아드리는 거예요"',
-    truth: "거의 모든 손님에게 같은 멘트. 진짜 할인이라면 계약서·견적서에 명시 가능해야 함.",
-    defense: "\"그럼 그 할인된 금액으로 견적서 다시 써주세요\" 요청. 거절하면 거짓말일 확률 90%+.",
+    title: "정가·할인·추가금 구분",
+    pattern: '"원래 가격에서 특별히 할인했어요"',
+    truth: "할인율보다 실제 지불 총액과 필수 추가금, 선택 옵션, 세금 포함 여부가 비교에 더 중요합니다.",
+    defense: "같은 조건의 항목별 견적을 받아 공공 시세와 다른 업체 견적을 함께 비교하세요.",
+    source: "한국소비자원 참가격 결혼서비스 가격정보",
   },
   {
-    id: "neg_anchor_pricing",
-    category: "negotiation",
-    title: "앵커 가격 (정가 부풀리기)",
-    pattern: '"원래 700만원인데 특별히 580만원에 해드릴게요"',
-    truth: "원래 가격 자체가 부풀려진 경우 多. 실제 시세는 580 근처 또는 그 이하.",
-    defense: "한국소비자원 참가격(price.go.kr)에서 동일 카테고리 시세 확인. 시세 대비 비싸면 협상.",
-    source: "한국소비자원 참가격 비교",
-  },
-  {
-    id: "neg_sunk_cost_trap",
-    category: "negotiation",
-    title: "계약금 함정 (천천히 정하세요)",
-    pattern: '"계약금부터 일단 내시고 세부사항은 천천히 정하시면 돼요"',
-    truth: "계약금 낸 후엔 협상력 0. 추가 옵션 강매 + 가격 인상 위험. 환불 시 위약금 큼.",
-    defense: "**모든 핵심 조건(가격·포함 항목·일정·취소 정책)을 계약서에 명시 후** 계약금. 표준약관 요구.",
-    source: "공정위 결혼준비대행업 표준약관 §3",
-  },
-
-  // ===== 사기/분쟁 패턴 (scam) =====
-  {
-    id: "scam_no_retouching",
+    id: "dispute_written_terms",
     category: "scam",
-    title: "보정본 미명시 (원본만 받음)",
-    pattern: "계약서엔 \"사진 200장 제공\"만 적혀있음",
-    truth: "보정본/원본 구분 없으면 업체는 \"원본만 200장\" 주장 가능. 실제 분쟁 사례 多.",
-    defense: "계약서에 **\"보정본 N장 + 원본 N장\" 명시 필수**. \"보정본\" 단어 없으면 무조건 다시 작성 요청.",
-    source: "한국소비자원 2024 결혼서비스 분쟁 1위",
+    title: "구두 설명과 계약서가 다른 경우",
+    pattern: "설명받은 보정 수량·시간·추가비용이 계약서에는 없음",
+    truth: "분쟁을 줄이려면 상품 범위, 수량, 일정, 추가 단가와 변경·취소 조건을 계약 문서에서 확인해야 합니다.",
+    defense: "중요한 설명은 계약 전에 견적서나 계약서에 반영해 달라고 요청하고, 확정본을 보관하세요.",
+    source: "한국소비자원 결혼서비스 소비자정보",
   },
   {
-    id: "scam_overtime_fee",
-    category: "scam",
-    title: "시간 연장료 사후 청구",
-    pattern: "촬영 끝나고 청구서에 \"연장료 시간당 30만원\" 추가",
-    truth: "사전 고지 없는 추가 청구는 부당. 단, 계약서에 \"기본 N시간\" 명시돼 있고 그 이상 썼으면 청구 가능.",
-    defense: "계약서 **기본 시간 + 연장 단가 + 연장 사전 동의 의무** 모두 명시. 동의 없는 연장은 거부 가능.",
-  },
-  {
-    id: "scam_helper_extra",
-    category: "scam",
-    title: "헬퍼/메이크업 사후 추가비",
-    pattern: "본식 당일 \"헬퍼분 식대 별도예요\" 통보",
-    truth: "사전 고지 안 하면 부당 청구. 헬퍼비·식대·차량비는 계약 시 미리 합산되어야 함.",
-    defense: "계약 전 \"본식 당일 추가로 발생할 수 있는 모든 비용 포함해서 견적서 다시 주세요\" 요청.",
-  },
-  {
-    id: "scam_package_change_penalty",
-    category: "scam",
-    title: "패키지 변경 위약금 폭탄",
-    pattern: "스튜디오만 변경하려는데 \"패키지 전체 위약금 30%\" 요구",
-    truth: "공정위 표준약관 기준 부분 변경은 해당 부분 위약금만 가능. 전체 위약금은 부당.",
-    defense: "표준약관 인용 + \"한국소비자원 신고하겠다\" 한 마디로 대부분 조정. 안 되면 진짜 신고.",
-    source: "공정위 결혼준비대행업 표준약관 §6",
-  },
-
-  // ===== 경고 신호 (redFlag) =====
-  {
-    id: "rf_cash_only",
+    id: "rf_business_and_receipt",
     category: "redFlag",
-    title: "현금 결제 강요",
-    pattern: '"카드 결제는 부가세 별도예요" 또는 "현금만 받습니다"',
-    truth: "카드결제 거부는 여신전문금융업법 위반. 부가세 별도 청구도 가격표시법 위반.",
-    defense: "카드 결제 가능한 곳만 선택. 강요당하면 국세청 (126) 신고 가능. 결혼서비스 이용자 78.1%가 현금 결제 유도를 경험했을 만큼 흔한 문제.",
-    source: "한국소비자원 2024 소비자 시장평가지표",
+    title: "사업자·결제 증빙 확인",
+    pattern: "계약 상대방 정보나 결제 증빙을 확인하기 어려움",
+    truth: "계약 상대방, 사업자 정보, 결제 금액과 환불 창구를 확인할 수 있어야 사후 문의가 쉽습니다.",
+    defense: "계약서의 사업자명·등록번호·연락처를 확인하고 결제 수단과 무관하게 계약서와 영수증을 보관하세요. 구체적인 위법 의심은 1372 또는 관계 기관에 문의하세요.",
   },
   {
-    id: "rf_no_business_reg",
-    category: "redFlag",
-    title: "사업자등록번호 없는 업체",
-    pattern: "계약서에 사업자등록번호 없거나 거부",
-    truth: "정식 사업자가 아니면 분쟁 시 보호 불가. 세금계산서·환불 청구 어려움.",
-    defense: "계약서·견적서·명함에 사업자등록번호 필수. 국세청 홈택스에서 진위 확인 가능.",
-  },
-  {
-    id: "rf_verbal_only",
-    category: "redFlag",
-    title: "구두 약속 (계약서 미작성)",
-    pattern: '"우린 다 이렇게 해요, 믿고 맡기세요"',
-    truth: "구두 약속은 분쟁 시 0의 효력. 업체가 \"그런 약속한 적 없어요\"로 끝.",
-    defense: "**모든 합의 사항 계약서 명시**. 못하겠다는 업체는 계약 X. 계약서 없는 거래는 100% 사기 위험.",
-  },
-  {
-    id: "rf_last_minute_price_change",
-    category: "redFlag",
-    title: "계약 직전 가격 변경",
-    pattern: "1차 견적 580 → 계약하러 갔더니 620으로 \"옵션 추가\"",
-    truth: "옵션 사전 동의 없이 추가하는 건 가격 부풀리기. 실제 추가 옵션이라면 사전 협의 필요.",
-    defense: "1차 견적서 사진 보관. 변경 시 \"왜 올라갔는지\" 명세 요구. 답변 모호하면 재협상 또는 다른 업체.",
-  },
-
-  // ===== 업계 비밀 — 소비자 우위 정보 (secret) =====
-  {
-    id: "secret_offseason_discount",
+    id: "secret_cancellation_terms",
     category: "secret",
-    title: "비수기 가격 협상 30~50% 가능",
-    pattern: "(업체 안 알려줌)",
-    truth: "1~2월·7~8월·12월은 비수기. 호텔/웨딩홀은 30~50% 협상 가능한 경우 많음. 평일은 추가 25% 할인.",
-    defense: "비수기 가능하면 적극 활용. 성수기여도 평일·일요일 오전 선택 시 가격 큰 차이.",
-    source: "업계 종사자 인터뷰 (2025)",
+    title: "변경·취소 조건은 계약별 확인",
+    pattern: '"계약금은 어떤 경우에도 돌려받을 수 없어요"',
+    truth: "환급·위약금은 서비스 종류, 계약 내용, 취소 시점과 실제 적용 기준에 따라 달라지므로 일률적으로 단정할 수 없습니다.",
+    defense: "계약 전 단계별 위약금 표를 받고 공정위 표준약관·소비자분쟁해결기준의 최신 원문을 대조하세요. 분쟁 시 1372 상담을 이용할 수 있습니다.",
+    source: "공정거래위원회 표준약관·소비자분쟁해결기준",
   },
   {
-    id: "secret_deposit_refund",
+    id: "secret_same_condition_compare",
     category: "secret",
-    title: "계약금 환불 가능 (표준약관)",
-    pattern: '"계약금은 어떤 경우에도 환불 안 돼요"',
-    truth: "공정위 표준약관 기준 계약금 환불 가능 (위약금만 차감). 100% 환불 불가는 부당.",
-    defense: "계약 시점, 잔금 시점, 본식 X일 전에 따라 환불 비율 다름 (10%~90%). 표준약관 §5 확인.",
-    source: "공정위 결혼준비대행업 표준약관 §5",
-  },
-  {
-    id: "secret_price_negotiable_fields",
-    category: "secret",
-    title: "견적서 \"기타\" 항목은 거의 다 협상 여지",
-    pattern: "견적서에 \"기타 부대비용 50만원\" 같은 모호한 항목",
-    truth: "\"기타\" \"부대비용\" \"운영비\" 등 모호한 항목은 마진 항목. 거의 다 깎거나 빼기 가능.",
-    defense: "각 항목 \"이건 정확히 뭐예요?\" 질문. 답변 모호하면 \"그럼 빼주세요\" 요청. 80% 가능.",
-  },
-  {
-    id: "secret_individual_vs_package",
-    category: "secret",
-    title: "패키지 vs 개별 견적 비교",
-    pattern: '"패키지가 훨씬 싸요" (or "개별이 더 싸요")',
-    truth: "둘 다 정답인 경우 있음. 카테고리·시즌·업체에 따라 다름. 양쪽 다 받아서 비교해야 진짜 가격 보임.",
-    defense: "**같은 조건으로 패키지 견적 + 개별 견적 둘 다 받아서 비교**. 30분 더 쓰고 평균 50~150만원 절약.",
+    title: "패키지와 개별 견적은 같은 조건으로 비교",
+    pattern: '"패키지가 항상 더 저렴해요" 또는 "개별 계약이 항상 더 저렴해요"',
+    truth: "구성·시즌·업체가 달라 어느 방식이 항상 저렴하다고 말할 수 없습니다.",
+    defense: "수량·등급·추가비·변경·취소 조건을 같게 맞춘 뒤 총액을 비교하세요. 특정 절감액을 기대값으로 잡지 마세요.",
   },
 ];
 
 /**
- * 시스템 프롬프트에 주입할 텍스트 생성
- * - 너무 많이 주입하면 토큰 폭증 → 카테고리당 핵심 3-4개씩만
- * - AI가 사용자 상황 맞춰 자연스럽게 인용하도록 가이드
+ * 현재 런타임 프롬프트에서는 사용하지 않는 보조 컨텍스트다.
+ * 재연결할 경우에도 아래 비단정 원칙과 공식 원문 재확인 문구를 유지한다.
  */
 export function getVendorAsymmetryContext(): string {
-  const byCategory = {
-    negotiation: VENDOR_ASYMMETRY.filter((v) => v.category === "negotiation"),
-    scam: VENDOR_ASYMMETRY.filter((v) => v.category === "scam"),
-    redFlag: VENDOR_ASYMMETRY.filter((v) => v.category === "redFlag"),
-    secret: VENDOR_ASYMMETRY.filter((v) => v.category === "secret"),
+  const formatItem = (item: VendorAsymmetryItem): string => {
+    const source = item.source ? ` [확인처: ${item.source}]` : "";
+    return `- **${item.title}**: ${item.truth} → ${item.defense}${source}`;
   };
 
-  const formatItem = (v: VendorAsymmetryItem): string => {
-    const sourceText = v.source ? ` [출처: ${v.source}]` : "";
-    return `  - **${v.title}**: ${v.truth} → ${v.defense}${sourceText}`;
-  };
+  return `## 계약·견적 확인 질문
 
-  return `## 업체 정보 비대칭 — 업체는 알지만 소비자는 모르는 것
+아래 내용은 특정 업체의 위법·사기 여부나 환불액을 판정하지 않습니다. 사용자가 계약·견적을 물었을 때 관련된 1~2개만 안내하고, 계약 원문과 최신 공식 기준을 다시 확인하게 하세요.
 
-마케팅 카피: "업체가 아는 모든 것을 당신도 알 수 있게."
-사용자가 계약·견적·업체 협상 관련 질문 시 아래 데이터를 **상황에 맞게** 자연스럽게 인용. 한 번에 다 쏟지 말고 그 순간 가장 적합한 1~2개만.
+${VENDOR_ASYMMETRY.map(formatItem).join("\n")}
 
-### 협상 전술 — 업체가 쓰는 압박 패턴
-${byCategory.negotiation.map(formatItem).join("\n")}
-
-### 흔한 분쟁/사기 패턴
-${byCategory.scam.map(formatItem).join("\n")}
-
-### 계약 전 경고 신호
-${byCategory.redFlag.map(formatItem).join("\n")}
-
-### 업계 비밀 — 소비자 우위 정보
-${byCategory.secret.map(formatItem).join("\n")}
-
-**활용 원칙:**
-1. 사용자가 견적/계약 얘기 꺼낼 때만 활용. 평소 대화엔 안 씀.
-2. 출처 있는 항목은 **반드시 출처 명시** ("공정위 표준약관 §5에 따르면...").
-3. 사용자를 겁주지 말고, **"미리 알면 안전한 정보"**로 부드럽게 전달.
-4. 구체 상황 (사용자가 말한 업체 멘트, 견적 항목)에 매칭되는 것만 인용.
-5. 모든 업체가 그렇다고 일반화 X — "이런 패턴이 흔하니까 미리 체크하면 좋아요" 톤.`;
+**활용 원칙**
+1. 확인되지 않은 할인율·절감액·분쟁 비율을 만들지 않습니다.
+2. 모든 업체가 같다고 일반화하지 않습니다.
+3. 환불·위약금·위법 여부를 확정하지 않습니다.
+4. 사용자의 계약 원문, 공정위·한국소비자원 최신 자료와 1372 상담을 우선합니다.`;
 }

@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { getSpecialistPromptAddon, routeSpecialist } from "../stage-router";
+import { determineStage, getSpecialistPromptAddon, routeSpecialist } from "../stage-router";
+
+describe("determineStage KST calendar boundaries", () => {
+  it("treats the whole same KST calendar day as the ceremony day", () => {
+    expect(determineStage("2026-07-11", new Date("2026-07-10T15:00:01.000Z"))).toBe(
+      "ceremony_3"
+    );
+    expect(determineStage("2026-07-11", new Date("2026-07-11T14:59:59.000Z"))).toBe(
+      "ceremony_3"
+    );
+  });
+
+  it("moves to settlement only after KST midnight", () => {
+    expect(determineStage("2026-07-11", new Date("2026-07-11T15:00:00.000Z"))).toBe(
+      "settlement_4"
+    );
+  });
+
+  it("keeps exact 30 and 180 day thresholds stable", () => {
+    const now = new Date("2026-07-10T15:00:00.000Z");
+    expect(determineStage("2026-08-10", now)).toBe("execution_2");
+    expect(determineStage("2027-01-07", now)).toBe("preparation_1");
+    expect(determineStage("2027-01-08", now)).toBe("planning_0");
+  });
+
+  it("rejects impossible date-only values", () => {
+    expect(determineStage("2026-02-30", new Date("2026-02-01T00:00:00.000Z"))).toBe(
+      "planning_0"
+    );
+  });
+});
 
 describe("routeSpecialist contract intent", () => {
   it.each([

@@ -69,6 +69,8 @@ interface ApiResponse {
 }
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+// 실제 업체 전달·상태 왕복이 검증되기 전에는 등록 슬롯도 예약 가능 정보로 노출하지 않는다.
+const VENDOR_CONNECTION_ENABLED = false as const;
 
 // DB에 저장된 영어 enum (studio/dress/makeup/venue/hanbok/jewelry/honeymoon/other)을
 // 화면에 표시할 한글 라벨로 변환. vendorMapper.categoryToKorean과 동일한 매핑이지만
@@ -297,8 +299,8 @@ export default function VendorDetailPage() {
         />
       </section>
 
-      {/* ─── 예약 섹션 ─── */}
-      {vendor ? (
+      {/* ─── 업체 연결 상태 ─── */}
+      {VENDOR_CONNECTION_ENABLED && vendor ? (
         <BookingSection
           vendor={vendor}
           products={products}
@@ -436,7 +438,7 @@ function BookingSection({
         <div className="flex items-center gap-2 text-[#1A1A1F]">
           <Calendar className="w-4 h-4 text-[#36534E]" />
           <h2 className="font-serif text-lg font-medium" style={{ fontFamily: "'Paperlogy', sans-serif" }}>
-            예약 가능 시간
+            업체 등록 운영 시간 (참고)
           </h2>
         </div>
         <span className="text-xs text-[#928980]">앞으로 7일</span>
@@ -543,7 +545,7 @@ function BookingSection({
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] overflow-x-auto">
         <div className="flex gap-2 min-w-max">
           {dayGroups.length === 0 && (
-            <p className="text-sm text-[#928980] py-2">예약 가능 시간이 등록되지 않았습니다.</p>
+            <p className="text-sm text-[#928980] py-2">업체 운영 시간 정보가 등록되지 않았습니다.</p>
           )}
           {dayGroups.map((day, idx) => {
             const isToday = day.date.getTime() === today.getTime();
@@ -582,7 +584,7 @@ function BookingSection({
                     selected ? "text-white/70" : "text-[#B5ADA3]"
                   }`}
                 >
-                  {availableCount > 0 ? `${availableCount}자리` : "마감"}
+                  {availableCount > 0 ? `${availableCount}개 시간대` : "등록 없음"}
                 </span>
               </button>
             );
@@ -618,7 +620,7 @@ function BookingSection({
                   >
                     <div className="text-sm font-semibold">{slot.hour}:00</div>
                     <div className="text-[10px] mt-0.5">
-                      {available ? `잔여 ${slot.remaining}` : "마감"}
+                      {available ? "등록됨" : "등록 없음"}
                     </div>
                   </div>
                 );
@@ -634,7 +636,7 @@ function BookingSection({
           </>
         ) : (
           <p className="text-sm text-[#B5ADA3] text-center py-6">
-            이 날짜에는 예약 가능 시간이 없습니다.
+            이 날짜에는 등록된 운영 시간이 없습니다.
           </p>
         )}
       </div>
@@ -642,8 +644,8 @@ function BookingSection({
       {/* CTA */}
       <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fbf8f2] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-xs text-[#928980] leading-relaxed">
-          슬롯을 누르면 업체 상세 페이지에서 예약을 확정합니다. 확정 시 등록한 연락처로
-          안내됩니다.
+          업체가 등록한 운영시간을 참고용으로 보여주는 화면입니다. 실제 가능 여부와 예약은
+          업체의 공식 연락처로 직접 확인해야 합니다.
         </p>
         <Link
           href={weddingPath(`/vendors/${vendor.id}${
@@ -660,9 +662,6 @@ function BookingSection({
 }
 
 function NoBookingFallback({ name }: { name: string }) {
-  // 데모/온보딩용 미리보기 슬롯 — 진짜 데이터가 아님을 명시. 실제 예약은 연동 후 가능.
-  const previewDays = ["오늘", "내일", "금"];
-  const previewHours = [11, 13, 15, 17];
   return (
     <section className="bg-white border border-[#F0EFED] rounded-2xl overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-[#F0EFED] flex items-center justify-between gap-3">
@@ -672,7 +671,7 @@ function NoBookingFallback({ name }: { name: string }) {
             className="font-serif text-lg font-medium"
             style={{ fontFamily: "'Paperlogy', sans-serif" }}
           >
-            예약 가능 시간
+            업체 연결 상태
           </h2>
         </div>
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fbf8f2] border border-[#F0EFED] text-[11px] text-[#928980]">
@@ -685,51 +684,19 @@ function NoBookingFallback({ name }: { name: string }) {
           <Sparkles className="w-5 h-5 text-[#36534E] shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-sm font-medium text-[#1A1A1F] mb-0.5">
-              <span className="font-semibold">{name}</span>은(는) 아직 예약 연동 전입니다
+              <span className="font-semibold">{name}</span> 업체 연결은 준비 중입니다
             </p>
             <p className="text-xs text-[#635b51] leading-relaxed">
-              실제 후기 데이터는 모이고 있지만 실시간 슬롯은 곧 오픈됩니다. 아래는 슬롯 UI
-              미리보기 — 연동 완료된 업체는 이 화면에서 바로 예약합니다.
+              현재 웨딩한방에서는 상담 요청이나 예약을 업체에 전송하지 않습니다. 최신 가격,
+              가능 일정과 계약 조건은 업체의 공식 연락처로 직접 확인해 주세요.
             </p>
-          </div>
-        </div>
-
-        {/* 미리보기 슬롯 — 클릭 비활성 */}
-        <div className="opacity-60 pointer-events-none select-none">
-          <div className="flex gap-2 overflow-x-auto mb-3">
-            {previewDays.map((d, i) => (
-              <div
-                key={d}
-                className={`flex flex-col items-center justify-center px-3.5 py-2 rounded-xl border ${
-                  i === 0
-                    ? "border-[#36534E] bg-[#36534E] text-white"
-                    : "border-[#F0EFED] bg-white text-[#1A1A1F]"
-                } min-w-[64px]`}
-              >
-                <span className="text-[11px] font-medium opacity-80">
-                  {["일", "월", "화", "수", "목", "금", "토"][(new Date().getDay() + i) % 7]}
-                </span>
-                <span className="text-sm font-semibold mt-0.5">{d}</span>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {previewHours.map((h) => (
-              <div
-                key={h}
-                className="rounded-lg px-2.5 py-3 text-center bg-[#f6efe5] border border-[#dfc9c1] text-[#36534E]"
-              >
-                <div className="text-sm font-semibold">{h}:00</div>
-                <div className="text-[10px] mt-0.5">잔여 2</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
 
       <div className="px-5 sm:px-6 py-4 border-t border-[#F0EFED] bg-[#fbf8f2] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-xs text-[#928980] leading-relaxed">
-          연동 완료까지는 받은 견적을 체크리스트로 먼저 정리해 보세요.
+          업체 연결이 준비되는 동안 받은 견적의 확인 항목을 먼저 정리할 수 있습니다.
         </p>
         <Link
           href={weddingPath("/community/quote-check")}

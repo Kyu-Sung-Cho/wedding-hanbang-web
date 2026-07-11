@@ -10,6 +10,7 @@ import {
   requireDestructiveConfirmation,
   type ToolExecutionContext,
 } from "@/lib/ai/tools/toolTypes";
+import { differenceInDateOnlyDays } from "@hanbang/shared";
 
 export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecutionResult {
   const progress = ctx.weddingContext.progress;
@@ -86,7 +87,7 @@ function isValidEventDate(value: unknown): value is string {
   return (
     typeof value === "string" &&
     EVENT_YMD_RE.test(value) &&
-    !Number.isNaN(new Date(`${value}T00:00:00`).getTime())
+    differenceInDateOnlyDays(value, value) !== null
   );
 }
 
@@ -331,7 +332,7 @@ export async function executeLogWeddingEvent(
   }
 
   const date = String(input.date ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
+  if (differenceInDateOnlyDays(date, date) === null) {
     return {
       toolName: "log_wedding_event",
       toolInput: input,

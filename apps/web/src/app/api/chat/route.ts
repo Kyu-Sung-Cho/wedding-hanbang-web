@@ -13,13 +13,20 @@ import type {
   ImageAttachment,
   NormalizedOpenAIUsage,
 } from "@/lib/ai/openai";
-import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
+import {
+  getWeddingPlannerSystemPrompt,
+  getWeddingPlannerUntrustedContext,
+} from "@/lib/ai/prompts";
 import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
 import { BETA_SAFE_TOOLS, READ_ONLY_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { countRecentConsecutiveDissatisfaction } from "@/lib/ai/dissatisfaction";
-import { getRuntimeToolContract } from "@/lib/ai/runtimeToolContract";
+import {
+  getRuntimeToolContract,
+  serializeUntrustedToolResultForModel,
+} from "@/lib/ai/runtimeToolContract";
+import { selectAmoraToolsForTurn } from "@/lib/ai/toolSelection";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { calcCostUsd, logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
@@ -28,6 +35,8 @@ import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
 import {
+  checkAmoraCostGuard,
+  markAmoraProviderStarted,
   reserveAmoraProviderCall,
   reserveAmoraUserTurn,
   type CostGuardResult,
@@ -43,7 +52,6 @@ import {
 import {
   ChatExecutionClaimError,
   claimChatExecution,
-  completeChatExecutionWithoutReplay,
   createChatRequestIdentity,
   markChatExecutionFailed,
 } from "@/lib/ai/chatExecutionClaim";
@@ -130,7 +138,6 @@ function getServiceClient() {
 // request claim 완료와 AI 메시지 INSERT를 한 DB 트랜잭션에서 확정한다.
 // private 응답은 삭제 세대가 바뀌지 않았을 때만 같은 profile row lock 안에서 저장된다.
 async function completeAiMessage(params: {
-  isDemo: boolean;
   userId: string;
   coupleId: string;
   cleanText: string;
@@ -156,26 +163,6 @@ async function completeAiMessage(params: {
   };
 }): Promise<{ id: string | null; createdAt: string | null }> {
   const admin = getServiceClient();
-  if (params.isDemo) {
-    await logAIInteraction({
-      userId: params.userId,
-      coupleId: params.coupleId,
-      interactionType: "chat_turn",
-      specialistType: params.specialistType as Parameters<typeof logAIInteraction>[0]["specialistType"],
-      userInput: params.audit.userInput,
-      aiOutput: params.audit.aiOutput,
-      latencyMs: params.audit.latencyMs,
-      success: true,
-      model: params.audit.model,
-      tokensInput: params.audit.tokensInput,
-      tokensOutput: params.audit.tokensOutput,
-      costUsd: params.audit.costUsd,
-      metadata: params.audit.metadata,
-      required: true,
-    });
-    await completeChatExecutionWithoutReplay(admin, params.requestKey, params.requestHash);
-    return { id: null, createdAt: null };
-  }
   if (!params.cleanText) {
     throw new Error("완료할 AI 메시지 내용이 없습니다.");
   }
@@ -215,6 +202,23 @@ async function replayCompletedChatMessage(
   coupleId: string,
   messageId: string
 ): Promise<Response | null> {
+  const event = await loadCompletedChatEvent(admin, coupleId, messageId);
+  if (!event) return null;
+
+  return new Response(`data: ${JSON.stringify(event)}\n\n`, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+async function loadCompletedChatEvent(
+  admin: ReturnType<typeof getServiceClient>,
+  coupleId: string,
+  messageId: string
+): Promise<Record<string, unknown> | null> {
   const { data, error } = await admin
     .from("chat_messages")
     .select("id, content, metadata, stage_tag, specialist_type, created_at")
@@ -239,13 +243,101 @@ async function replayCompletedChatMessage(
       idempotencyReplayed: true,
     },
   };
-  return new Response(`data: ${JSON.stringify(event)}\n\n`, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
+  return event;
+}
+
+async function reconcileChatRequestFinalState(
+  admin: ReturnType<typeof getServiceClient>,
+  params: {
+    requestKey: string;
+    requestHash: string;
+    reason:
+      | "preflight_denied"
+      | "provider_limit"
+      | "aborted"
+      | "timeout"
+      | "input_too_large"
+      | "provider_error"
+      | "tool_error"
+      | "authorization_changed"
+      | "request_failed"
+      | "completed";
+  }
+): Promise<{ finalStatus: "completed" | "failed"; messageId: string | null; visibleRefunded: boolean }> {
+  const { data, error } = await admin.rpc("fail_amora_chat_request", {
+    p_request_key: params.requestKey,
+    p_request_hash: params.requestHash,
+    p_reason: params.reason,
   });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || (row.final_status !== "completed" && row.final_status !== "failed")) {
+    throw new Error("fail_amora_chat_request returned an invalid result");
+  }
+  return {
+    finalStatus: row.final_status,
+    messageId: typeof row.message_id === "string" ? row.message_id : null,
+    visibleRefunded: row.visible_refunded === true,
+  };
+}
+
+function classifyAmoraFailureForLedger(error: unknown):
+  | "provider_limit"
+  | "aborted"
+  | "timeout"
+  | "input_too_large"
+  | "provider_error"
+  | "tool_error"
+  | "authorization_changed"
+  | "request_failed" {
+  if (error instanceof AmoraCostGuardError) return "provider_limit";
+  if (error instanceof OpenAIInputTokenLimitError) return "input_too_large";
+  if (error instanceof OpenAIResponseError) return "provider_error";
+  const name = error instanceof Error ? error.name.toLowerCase() : "";
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (name === "aborterror" || message.includes("abort")) return "aborted";
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("authorization") || message.includes("membership") || message.includes("account deleting")) {
+    return "authorization_changed";
+  }
+  if (message.includes("tool")) return "tool_error";
+  return "request_failed";
+}
+
+function safeChatErrorCode(error: unknown): string {
+  if (error instanceof AmoraCostGuardError) {
+    return `cost_guard_${error.result.reason ?? "denied"}`;
+  }
+  if (error instanceof OpenAIInputTokenLimitError) return "openai_input_token_limit";
+  if (error instanceof OpenAIResponseError) return "openai_response_error";
+  if (error instanceof ToolExecutionClaimError) return `tool_claim_${error.code}`;
+  if (error instanceof Error && error.name === "AbortError") return "request_aborted";
+
+  const record = error && typeof error === "object"
+    ? error as { name?: unknown; status?: unknown; code?: unknown }
+    : {};
+  const cleanToken = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64);
+    return cleaned || null;
+  };
+  const parts = ["chat_request_failed"];
+  const name = cleanToken(record.name);
+  const code = cleanToken(record.code);
+  const status = typeof record.status === "number" && Number.isSafeInteger(record.status)
+    ? record.status
+    : null;
+  if (name) parts.push(`name_${name}`);
+  if (status !== null) parts.push(`status_${status}`);
+  if (code) parts.push(`code_${code}`);
+  return parts.join(":").slice(0, 240);
+}
+
+function safeToolErrorCode(toolOutput: Record<string, unknown>): string {
+  const error = toolOutput.error;
+  return typeof error === "string" && /^[a-z][a-z0-9_]{0,63}$/i.test(error)
+    ? error
+    : "tool_execution_failed";
 }
 
 // DOCX에서 텍스트 추출 (동적 import)
@@ -521,6 +613,17 @@ export async function POST(request: Request) {
   const isDemo =
     bodyIsDemo === true &&
     hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+  // 예시 앱의 채팅은 정적 샘플만 보여준다. UI뿐 아니라 서버에서도 차단해
+  // 공개 데모 세션이 OpenAI 비용이나 복구 불가능한 완료 claim을 만들지 못하게 한다.
+  if (isDemo) {
+    return NextResponse.json(
+      {
+        error: "예시 앱에서는 저장·전송 없는 샘플 상담만 볼 수 있습니다.",
+        code: "demo_chat_disabled",
+      },
+      { status: 403 }
+    );
+  }
   const normalizedClientRequestId =
     typeof bodyClientRequestId === "string" ? bodyClientRequestId.trim() : "";
   const clientRequestId: string | null = /^[A-Za-z0-9._:-]{1,120}$/.test(normalizedClientRequestId)
@@ -624,7 +727,7 @@ export async function POST(request: Request) {
     .single();
 
   if (userProfileError) {
-    console.error("채팅 사용자 프로필 조회 실패:", userProfileError.message);
+    console.error("채팅 사용자 프로필 조회 실패:", safeChatErrorCode(userProfileError));
     return NextResponse.json({ error: "사용자 상태를 안전하게 확인하지 못했습니다." }, { status: 503 });
   }
   if (userProfile?.couple_id !== coupleId) {
@@ -777,13 +880,13 @@ export async function POST(request: Request) {
       },
     }));
   } catch (error) {
-    console.error("채팅 요청 HMAC 설정 오류:", error);
+    console.error("채팅 요청 HMAC 설정 오류:", safeChatErrorCode(error));
     return NextResponse.json({ error: "채팅 안전 설정을 확인하지 못했습니다." }, { status: 503 });
   }
   try {
     await assertRequestStillAuthorized();
   } catch (error) {
-    console.error("채팅 초기 회원 상태 검증 실패:", error);
+    console.error("채팅 초기 회원 상태 검증 실패:", safeChatErrorCode(error));
     return NextResponse.json({ error: "현재 커플 연결 상태로 상담을 시작할 수 없습니다." }, { status: 409 });
   }
   // 병렬로 커플 관련 데이터 전체 조회
@@ -839,7 +942,7 @@ export async function POST(request: Request) {
 
   const journey = journeyResult.data;
   if (journeyResult.error) {
-    console.error("Journey 조회 에러:", journeyResult.error.message);
+    console.error("Journey 조회 에러:", safeChatErrorCode(journeyResult.error));
   }
 
   // 실서비스에서는 시스템 프롬프트·도구 컨텍스트를 DB 정본으로만 구성한다.
@@ -980,8 +1083,10 @@ export async function POST(request: Request) {
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
   // 현재 사용자 메시지 (마지막 user 메시지)
   const typedMessages = messages;
-  const lastUserMsg = [...typedMessages].reverse().find((m) => m.role === "user");
+  const recentUserMessages = typedMessages.filter((message) => message.role === "user");
+  const lastUserMsg = recentUserMessages.at(-1);
   const lastUserText = lastUserMsg?.content ?? "";
+  const previousUserText = recentUserMessages.at(-2)?.content ?? "";
 
   // 오래된 불만은 누적하지 않고, 최근에 연속된 교정·불만만 승격 근거로 쓴다.
   const correctionCount = countRecentConsecutiveDissatisfaction(typedMessages);
@@ -1011,7 +1116,7 @@ export async function POST(request: Request) {
       `- 답변은 평소처럼 따뜻하고 실용적으로. 비공개라고 톤을 어둡게 하지 마세요.\n\n`
     : "";
 
-  let systemPrompt = cautionPrefix + privacyPrefix + getWeddingPlannerSystemPrompt({
+  const amoraPromptContext = {
     weddingDate: weddingDateForStage,
     budget: trustedWeddingContext.budget,
     venue: trustedWeddingContext.venue,
@@ -1027,10 +1132,16 @@ export async function POST(request: Request) {
     feedbackLessons,
     pastDecisions,
     pastConflicts,
-  }) + specialistAddon;
+  };
+  let systemPrompt = cautionPrefix + privacyPrefix
+    + getWeddingPlannerSystemPrompt(amoraPromptContext)
+    + specialistAddon;
+  const untrustedContextInput = getWeddingPlannerUntrustedContext(amoraPromptContext);
 
   // 메시지 포맷팅
-  const formattedMessages: ChatMessageInput[] = messages.map(
+  const formattedMessages: ChatMessageInput[] = [
+    { role: "user", content: untrustedContextInput },
+    ...messages.map(
     (m: { role: string; content: string }, index: number) => {
       const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
       const isLastUserMessage = role === "user" && index === messages.length - 1;
@@ -1055,7 +1166,8 @@ export async function POST(request: Request) {
 
       return { role, content: m.content };
     }
-  );
+    ),
+  ];
 
   const executionContext: ToolExecutionContext = {
     coupleId,
@@ -1073,10 +1185,19 @@ export async function POST(request: Request) {
     },
   };
   const canUseExternalSearch = visibility === "shared" && requestAttachments.length === 0;
-  const toolsForTurn = canUseExternalSearch
+  const availableToolsForTurn = canUseExternalSearch
     ? BETA_SAFE_TOOLS
     : READ_ONLY_SAFE_TOOLS;
-  systemPrompt += getRuntimeToolContract(toolsForTurn, { toolCards: supportsToolCards });
+  let toolsForTurn = selectAmoraToolsForTurn(availableToolsForTurn, {
+    userText: lastUserText,
+    previousUserText,
+    hasDocumentAttachments:
+      textAttachments.length > 0
+      || visionAttachments.some((attachment) => attachment.mediaType === "application/pdf"),
+    hasImageAttachments: visionAttachments.some(
+      (attachment) => attachment.mediaType !== "application/pdf"
+    ),
+  });
 
   if (!hasOpenAIConfig(chatModelRole)) {
     return NextResponse.json(
@@ -1111,16 +1232,54 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ChatExecutionClaimError) {
       const status = error.code === "claim_unavailable" ? 503 : 409;
-      return NextResponse.json({ error: error.message }, { status });
+      return NextResponse.json({ error: error.message, code: error.code }, { status });
     }
     return NextResponse.json({ error: "요청 상태를 안전하게 확인하지 못했습니다." }, { status: 503 });
   }
 
-  // 토큰 사전 계산을 통과한 실제 generation만 예약한다. 상한 초과 입력이
-  // 커플/전역 쿼터를 태우지 않도록 예약은 chatWithToolsStream.beforeCreate에서 수행한다.
+  // Exact token count도 원문을 보내는 OpenAI provider 요청이다. 각 count와
+  // generation 쌍을 하나의 원자 slot으로 예약하고 count 직전 started로 표시해
+  // 상한 초과/실패 요청도 전역 외부요청 차단기를 우회하지 못하게 한다.
   const reservationParams = {
     coupleId,
     isAdmin: userProfile?.is_admin === true,
+  };
+  const preflight = await checkAmoraCostGuard(serviceClient, reservationParams);
+  if (!preflight.allowed) {
+    try {
+      await reconcileChatRequestFinalState(serviceClient, {
+        requestKey,
+        requestHash,
+        reason: "preflight_denied",
+      });
+    } catch (error) {
+      console.error("아모라 사전 한도 차단 상태 기록 실패:", safeChatErrorCode(error));
+      await markChatExecutionFailed(serviceClient, requestKey, requestHash);
+    }
+    return NextResponse.json(
+      { error: preflight.message ?? "아모라 이용 한도를 확인하지 못했습니다." },
+      { status: preflight.reason === "guard_unavailable" ? 503 : 429 }
+    );
+  }
+
+  // 한 자리만 남았으면 첫 호출부터 도구 없이 답하게 해, 도구 결과 뒤의
+  // 필수 설명 호출이 한도에서 막혀 소비자가 빈 답을 받는 경계를 없앤다.
+  if (typeof preflight.providerRemaining === "number" && preflight.providerRemaining <= 1) {
+    toolsForTurn = [];
+  }
+  systemPrompt += getRuntimeToolContract(toolsForTurn, { toolCards: supportsToolCards });
+
+  let nextProviderOrdinal = 0;
+  let pendingProviderStartOrdinal: 0 | 1 | null = null;
+  const currentReservationIdentity = () => {
+    if (nextProviderOrdinal !== 0 && nextProviderOrdinal !== 1) {
+      throw new Error("아모라 provider 호출 순번이 안전 상한을 초과했습니다.");
+    }
+    return {
+      requestKey,
+      requestHash,
+      providerOrdinal: nextProviderOrdinal as 0 | 1,
+    };
   };
 
   // 숨은 Luna 후처리도 각각 원자 예약한다. 메인 채팅만 예약하고 요약·분류·
@@ -1133,12 +1292,30 @@ export async function POST(request: Request) {
   };
   const reserveProviderCallOrThrow = async (): Promise<CostGuardResult> => {
     routeSignal.throwIfAborted();
-    const reservation = await reserveAmoraProviderCall(serviceClient, reservationParams);
+    await assertRequestStillAuthorized();
+    const reservation = await reserveAmoraProviderCall(serviceClient, {
+      ...reservationParams,
+      reservation: currentReservationIdentity(),
+    });
     if (!reservation.allowed) {
       throw new AmoraCostGuardError(reservation);
     }
+    pendingProviderStartOrdinal = nextProviderOrdinal as 0 | 1;
+    nextProviderOrdinal += 1;
     routeSignal.throwIfAborted();
     return reservation;
+  };
+  const markReservedProviderStarted = async (): Promise<void> => {
+    if (pendingProviderStartOrdinal === null) {
+      throw new Error("아모라 provider 시작 대상 예약이 없습니다.");
+    }
+    const ordinal = pendingProviderStartOrdinal;
+    await markAmoraProviderStarted(serviceClient, {
+      requestKey,
+      requestHash,
+      providerOrdinal: ordinal,
+    });
+    pendingProviderStartOrdinal = null;
   };
 
   // SSE 스트림 응답 생성
@@ -1172,7 +1349,10 @@ export async function POST(request: Request) {
       // OpenAI cache write/read 토큰을 별도 집계해 비용을 정확히 계산한다.
       let totalCacheWriteTokens = 0;
       let totalCacheReadTokens = 0;
+      let lastGeneratedCleanText = "";
       let lastModel: string | undefined;
+      let visibleQuotaRemaining: number | null = null;
+      let visibleQuotaSent = false;
       const requestUsage: Array<{
         model: string;
         input_tokens: number;
@@ -1206,6 +1386,15 @@ export async function POST(request: Request) {
         } catch {
           // 응답 소비자가 이미 연결을 닫은 경우
         }
+      };
+      const sendVisibleQuotaIfCommitted = () => {
+        if (
+          visibleQuotaSent
+          || visibleQuotaRemaining === null
+          || visibleQuotaRemaining > 15
+        ) return;
+        visibleQuotaSent = true;
+        send({ type: "quota", remaining: visibleQuotaRemaining });
       };
 
       const getTurnCostUsd = (): number | null => {
@@ -1253,26 +1442,49 @@ export async function POST(request: Request) {
           routeSignal.throwIfAborted();
           // 실시간 스트리밍: 모든 라운드에서 텍스트 토큰을 즉시 클라이언트로 전송
           // tool_use가 발견되면 text_clear로 리셋 후 도구 실행
+          let providerBoundaryOverride:
+            | { tools: typeof currentTools; systemPromptSuffix: string }
+            | undefined;
           const result = await chatWithToolsStream({
             systemPrompt,
             input: currentInput,
             tools: currentTools,
             maxOutputTokens: MAX_CHAT_OUTPUT_TOKENS,
             maxInputTokens: MAX_CHAT_INPUT_TOKENS,
-            beforeInputCount: assertRequestStillAuthorized,
-            beforeCreate: async () => {
+            // Exact counting is itself an OpenAI request. Reserve first and
+            // mark the slot at the immediate count boundary so oversized or
+            // repeated payloads cannot bypass the durable daily breaker.
+            beforeInputCount: async () => {
               await assertRequestStillAuthorized();
               if (round === 0) {
                 routeSignal.throwIfAborted();
-                const reservation = await reserveAmoraUserTurn(serviceClient, reservationParams);
+                const reservation = await reserveAmoraUserTurn(serviceClient, {
+                  ...reservationParams,
+                  reservation: currentReservationIdentity(),
+                });
                 if (!reservation.allowed) throw new AmoraCostGuardError(reservation);
-                if (typeof reservation.remaining === "number" && reservation.remaining <= 15) {
-                  send({ type: "quota", remaining: reservation.remaining });
+                pendingProviderStartOrdinal = nextProviderOrdinal as 0 | 1;
+                nextProviderOrdinal += 1;
+                if (typeof reservation.remaining === "number") {
+                  visibleQuotaRemaining = reservation.remaining;
+                }
+                if (reservation.providerRemaining === 0 && currentTools.length > 0) {
+                  providerBoundaryOverride = {
+                    tools: [],
+                    systemPromptSuffix:
+                      "\n[PROVIDER_BOUNDARY] 이번 턴은 비용 안전 한도상 단일 응답만 가능합니다. 도구를 호출하지 말고 확인된 현재 문맥만으로 솔직하게 답하세요.",
+                  };
                 }
               } else {
                 await reserveProviderCallOrThrow();
               }
             },
+            beforeInputCountRequest: markReservedProviderStarted,
+            beforeCreate: async () => {
+              await assertRequestStillAuthorized();
+              return providerBoundaryOverride;
+            },
+            beforeProviderRequest: assertRequestStillAuthorized,
             safetyIdentifier,
             modelRole: chatModelRole,
             signal: routeSignal,
@@ -1293,6 +1505,7 @@ export async function POST(request: Request) {
             );
             // 갈등 중재 마커 추출 — 본문에서 [mediation]...[/mediation] 제거 + 4필드 metadata로
             const { cleanText, mediation } = extractMediation(afterSuggest);
+            lastGeneratedCleanText = cleanText;
 
             if (suggestions.length > 0) {
               send({ type: "suggestions", suggestions });
@@ -1302,7 +1515,6 @@ export async function POST(request: Request) {
             // 모바일 retry / 중복 fetch 시 동일 내용을 또 INSERT하지 않음.
             await assertRequestStillAuthorized();
             const insertResult = await completeAiMessage({
-              isDemo,
               userId: user.id,
               coupleId,
               cleanText,
@@ -1334,15 +1546,29 @@ export async function POST(request: Request) {
                   visibility,
                   client_request_id: clientRequestId,
                   request_usage: requestUsage,
-                  quota_class: "user_turn",
+                  quota_class: reservationParams.isAdmin ? "admin_turn" : "user_turn",
+                  request_key: requestKey,
+                  provider_reservation_count: nextProviderOrdinal,
                   cache_write_input_tokens: totalCacheWriteTokens,
                   cache_read_input_tokens: totalCacheReadTokens,
                 },
               },
             });
+            const completionState = await reconcileChatRequestFinalState(serviceClient, {
+              requestKey,
+              requestHash,
+              reason: "completed",
+            });
+            if (completionState.finalStatus !== "completed") {
+              throw new Error("완료된 아모라 요청의 비용 장부를 확정하지 못했습니다.");
+            }
             const serverMessageId: string | null = insertResult.id;
             const serverCreatedAt: string | null = insertResult.createdAt;
 
+            // The visible turn is consumed only after the completed message
+            // and ledger state commit. Do not briefly show a lower quota for a
+            // failed request that the settlement path immediately refunds.
+            sendVisibleQuotaIfCommitted();
             send({
               type: "done",
               fullContent: cleanText,
@@ -1420,13 +1646,18 @@ export async function POST(request: Request) {
             return;
           }
 
+          // Claim the one possible follow-up slot before any tool I/O. This
+          // avoids doing DB/vendor work only to discover at final generation
+          // time that another concurrent request consumed the last slot.
+          await reserveProviderCallOrThrow();
+
           // tool use 감지 → 스트리밍된 텍스트 클리어 후 도구 실행
           send({ type: "text_clear" });
 
           // UI 카드로 자동 렌더링되는 도구 목록
           const UI_RENDERED_TOOLS = new Set([
             "search_vendors", "recommend_vendors", "get_vendor_detail",
-            "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
+            "create_booking", "cancel_booking", "search_nearby_places",
             "analyze_quote", "analyze_contract_readiness", "simulate_guest_guarantee",
           ]);
 
@@ -1527,9 +1758,7 @@ export async function POST(request: Request) {
               success: execResult.success,
               errorMessage: execResult.success
                 ? null
-                : typeof execResult.toolOutput.error === "string"
-                  ? execResult.toolOutput.error
-                  : "tool_execution_failed",
+                : safeToolErrorCode(execResult.toolOutput),
               metadata: {
                 call_id: toolCall.callId,
                 visibility,
@@ -1543,7 +1772,10 @@ export async function POST(request: Request) {
             routeSignal.throwIfAborted();
             send({ type: "tool_result", result: execResult });
             // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
-            const outputJson = JSON.stringify(execResult.toolOutput);
+            const outputJson = serializeUntrustedToolResultForModel(execResult.toolOutput, {
+              success: execResult.success,
+              displayMessage: execResult.displayMessage,
+            });
             const reminder = UI_RENDERED_TOOLS.has(toolCall.name) && supportsToolCards
               ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
               : !supportsToolCards
@@ -1572,10 +1804,9 @@ export async function POST(request: Request) {
           maxOutputTokens: MAX_CHAT_OUTPUT_TOKENS,
           maxInputTokens: MAX_CHAT_INPUT_TOKENS,
           beforeInputCount: assertRequestStillAuthorized,
-          beforeCreate: async () => {
-            await assertRequestStillAuthorized();
-            await reserveProviderCallOrThrow();
-          },
+          beforeInputCountRequest: markReservedProviderStarted,
+          beforeCreate: assertRequestStillAuthorized,
+          beforeProviderRequest: assertRequestStillAuthorized,
           safetyIdentifier,
           modelRole: chatModelRole,
           signal: routeSignal,
@@ -1593,6 +1824,7 @@ export async function POST(request: Request) {
           finalResult.fullText
         );
         const { cleanText, mediation } = extractMediation(afterSuggest2);
+        lastGeneratedCleanText = cleanText;
 
         if (suggestions.length > 0) {
           send({ type: "suggestions", suggestions });
@@ -1601,7 +1833,6 @@ export async function POST(request: Request) {
         // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기 — idempotency 포함)
         await assertRequestStillAuthorized();
         const insertResult2 = await completeAiMessage({
-          isDemo,
           userId: user.id,
           coupleId,
           cleanText,
@@ -1632,12 +1863,22 @@ export async function POST(request: Request) {
               visibility,
               client_request_id: clientRequestId,
               request_usage: requestUsage,
-              quota_class: "user_turn",
+              quota_class: reservationParams.isAdmin ? "admin_turn" : "user_turn",
+              request_key: requestKey,
+              provider_reservation_count: nextProviderOrdinal,
               cache_write_input_tokens: totalCacheWriteTokens,
               cache_read_input_tokens: totalCacheReadTokens,
             },
           },
         });
+        const completionState2 = await reconcileChatRequestFinalState(serviceClient, {
+          requestKey,
+          requestHash,
+          reason: "completed",
+        });
+        if (completionState2.finalStatus !== "completed") {
+          throw new Error("완료된 아모라 요청의 비용 장부를 확정하지 못했습니다.");
+        }
 
         // Memory Step A + B: 요약 생성 + decision/preference 추출 (fire-and-forget)
         const messagesWithLatest = [
@@ -1692,6 +1933,7 @@ export async function POST(request: Request) {
           });
         }
 
+        sendVisibleQuotaIfCommitted();
         send({
           type: "done",
           fullContent: cleanText,
@@ -1713,10 +1955,40 @@ export async function POST(request: Request) {
         }
         const errMsg = err instanceof Error ? err.message : String(err);
         const normalizedErrMsg = errMsg.toLowerCase();
-        console.error("채팅 API 에러:", errMsg);
-        await markChatExecutionFailed(serviceClient, requestKey, requestHash);
-        // 내부 에러 원문(모델명·스택·DB 제약 등)을 클라이언트에 노출하지 않는다.
-        // 원문은 위 console.error·아래 logAIInteraction에만 남긴다.
+        const safeErrorCode = safeChatErrorCode(err);
+        // Provider/SDK/DB messages can reflect request fragments. Keep free
+        // text out of both persistent audit rows and server logs.
+        console.error("채팅 API 에러:", safeErrorCode);
+        let visibleRefunded = false;
+        try {
+          const reconciliation = await reconcileChatRequestFinalState(serviceClient, {
+            requestKey,
+            requestHash,
+            reason: classifyAmoraFailureForLedger(err),
+          });
+          visibleRefunded = reconciliation.visibleRefunded;
+          if (reconciliation.finalStatus === "completed") {
+            const completedEvent = reconciliation.messageId
+              ? await loadCompletedChatEvent(serviceClient, coupleId, reconciliation.messageId)
+              : {
+                  type: "done",
+                  fullContent: lastGeneratedCleanText,
+                  metadata: { idempotencyReplayed: true },
+                };
+            if (completedEvent) {
+              sendVisibleQuotaIfCommitted();
+              send(completedEvent);
+            }
+            return;
+          }
+        } catch (reconciliationError) {
+          console.error(
+            "채팅 실패/완료 원자 조정 실패:",
+            safeChatErrorCode(reconciliationError)
+          );
+          await markChatExecutionFailed(serviceClient, requestKey, requestHash);
+        }
+        // 내부 에러 원문(모델명·스택·DB 제약 등)을 클라이언트·로그·감사행에 노출하지 않는다.
         const clientErrorMessage = err instanceof AmoraCostGuardError
           ? err.message
           : err instanceof OpenAIInputTokenLimitError
@@ -1743,7 +2015,7 @@ export async function POST(request: Request) {
           aiOutput: null,
           latencyMs: elapsedMs(turnStartedAt),
           success: false,
-          errorMessage: errMsg,
+          errorMessage: safeErrorCode,
           model: lastModel,
           tokensInput: totalTokensIn || null,
           tokensOutput: totalTokensOut || null,
@@ -1754,6 +2026,10 @@ export async function POST(request: Request) {
             stage_tag: stageTag,
             visibility,
             client_request_id: clientRequestId,
+            request_key: requestKey,
+            quota_class: "failed_attempt",
+            provider_reservation_count: nextProviderOrdinal,
+            visible_quota_refunded: visibleRefunded,
             request_usage: requestUsage,
             tools_used: toolsUsed,
             tool_results: toolResults.map((result) => ({
@@ -1769,7 +2045,7 @@ export async function POST(request: Request) {
             { p_lease_id: providerLeaseId }
           );
           if (releaseError) {
-            console.error("아모라 provider lease 해제 실패:", releaseError.message);
+            console.error("아모라 provider lease 해제 실패:", safeChatErrorCode(releaseError));
           }
         }
         clearInterval(heartbeat);

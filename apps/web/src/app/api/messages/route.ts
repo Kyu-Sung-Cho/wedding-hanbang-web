@@ -11,6 +11,8 @@ import {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const VENDOR_MESSAGES_ENABLED = false as const;
+export const VENDOR_MESSAGES_DISABLED_CODE = "vendor_messages_disabled" as const;
 const MAX_MESSAGE_BODY_BYTES = 16 * 1024;
 const MAX_MESSAGE_LENGTH = 2000;
 const MESSAGE_SELECT = "id, vendor_id, customer_id, sender_type, content, is_read, booking_id, created_at";
@@ -97,6 +99,18 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // 과거 대화 GET은 유지하되, 실제 업체 수신·철회 경로가 완성되기 전에는
+  // 구버전/직접 호출도 인증과 본문 파싱보다 먼저 막아 문의 내용을 저장하지 않는다.
+  if (!VENDOR_MESSAGES_ENABLED) {
+    return NextResponse.json(
+      {
+        error: "업체 연결 준비 중입니다. 현재 문의는 업체에 전송되지 않으며 저장되지 않습니다.",
+        code: VENDOR_MESSAGES_DISABLED_CODE,
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     const supabase = await createClientFromRequest(req);
     const { data: { user } } = await supabase.auth.getUser();

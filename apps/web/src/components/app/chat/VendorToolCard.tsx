@@ -21,6 +21,8 @@ import {
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
 import ProtectionToolCard, { PROTECTION_TOOL_NAMES } from "./ProtectionToolCard";
 
+const VENDOR_CONNECTION_ENABLED = false as const;
+
 // 업체 관련 tool 이름 집합
 export const VENDOR_TOOL_NAMES = new Set([
   "recommend_vendors",
@@ -56,11 +58,17 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
       return <VendorDetailCard result={result} onSend={onSend} disabled={disabled} />;
     case "get_available_slots":
     case "check_vendor_availability":
-      return <TimeslotPicker result={result} onSend={onSend} disabled={disabled} />;
+      return VENDOR_CONNECTION_ENABLED
+        ? <TimeslotPicker result={result} onSend={onSend} disabled={disabled} />
+        : <VendorConnectionUnavailableCard />;
     case "create_booking":
-      return <BookingConfirmCard result={result} onSend={onSend} disabled={disabled} />;
+      return VENDOR_CONNECTION_ENABLED
+        ? <BookingConfirmCard result={result} onSend={onSend} disabled={disabled} />
+        : <VendorConnectionUnavailableCard historical />;
     case "cancel_booking":
-      return <BookingCancelCard result={result} />;
+      return VENDOR_CONNECTION_ENABLED
+        ? <BookingCancelCard result={result} />
+        : <VendorConnectionUnavailableCard historical />;
     case "search_nearby_places":
       return <PlaceCards result={result} />;
     case "analyze_quote":
@@ -73,7 +81,24 @@ export default function VendorToolCard({ result, onSend, disabled }: VendorToolC
   }
 }
 
-// ── A. 업체 추천/검색 결과 카드 ──
+function VendorConnectionUnavailableCard({ historical = false }: { historical?: boolean }) {
+  return (
+    <div className="flex justify-start ml-14 my-2">
+      <div className="w-full max-w-[440px] rounded-xl border border-[#d8bb86]/70 bg-[#fffdf8] px-5 py-4 shadow-sm">
+        <p className="text-base font-semibold text-[#1A1A1F]">
+          {historical ? "과거·예시 요청 기록" : "업체 연결 준비 중"}
+        </p>
+        <p className="mt-1.5 text-sm leading-6 text-[#746c65]">
+          {historical
+            ? "이 카드는 업체의 수신·예약·취소 완료를 증명하지 않습니다. 현재 새 요청과 취소는 채팅에서 처리되지 않아요."
+            : "등록된 운영시간은 참고 정보이며 현재 예약 가능 여부가 아닙니다. 최신 가능 시간과 계약 조건은 업체의 공식 연락처로 직접 확인해 주세요."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── A. 업체 검토 후보/검색 결과 카드 ──
 
 function VendorRecommendCards({
   result,
@@ -90,8 +115,8 @@ function VendorRecommendCards({
       name: string;
       location: string;
       priceRange: string;
-      rating: number;
-      reviewCount: number;
+      rating: number | null;
+      reviewCount: number | null;
       tags: string[];
       reasons?: string[];
       link: string;
@@ -111,11 +136,10 @@ function VendorRecommendCards({
               <Sparkles className="w-5 h-5 text-[#C4967E]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">업체 추천은 준비 중이에요</p>
+              <p className="text-base font-semibold text-[#1A1A1F]">업체 후보 탐색은 준비 중이에요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#504444]">
-                지금은 업체 데이터베이스를 검수·정리하고 있어요. 곧 지역·예산·스타일에 맞는
-                실제 후보를 보여드릴 수 있게 준비 중입니다. 그동안 견적 체크·예산·일정 정리는
-                바로 도와드릴 수 있어요.
+                지금은 업체 등록 정보를 정리하고 있어요. 확인되지 않은 업체를 추천하는 대신
+                견적 체크·예산·일정 정리를 먼저 도와드릴게요.
               </p>
             </div>
           </div>
@@ -127,6 +151,13 @@ function VendorRecommendCards({
   return (
     <div className="flex justify-start ml-14 my-2">
       <div className="flex flex-col gap-2.5 w-full max-w-[440px]">
+        <div className="rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3">
+          <p className="text-sm font-semibold text-[#36534E]">등록 조건 검토 후보</p>
+          <p className="mt-1 text-xs leading-5 text-[#746c65]">
+            등록 정보가 입력 조건과 일치하는지 정리한 결과예요. 평점·리뷰 수도 등록 값이며
+            출처·최신성을 확인하지 않았습니다. 품질, 최신 가격, 예약 가능 여부는 업체에 직접 확인해 주세요.
+          </p>
+        </div>
         {vendors.map((v) => (
           <div
             key={v.id}
@@ -138,11 +169,15 @@ function VendorRecommendCards({
                   {v.name}
                 </p>
                 <div className="flex items-center gap-1.5 mt-1">
-                  <Star className="w-4 h-4 text-[#C9A96E] fill-[#C9A96E]" />
-                  <span className="text-sm text-[#928980]">
-                    {v.rating} ({v.reviewCount})
-                  </span>
-                  <span className="text-sm text-[#B5ADA3]">·</span>
+                  {typeof v.rating === "number" && (
+                    <>
+                      <Star className="w-4 h-4 text-[#C9A96E] fill-[#C9A96E]" />
+                      <span className="text-sm text-[#928980]">
+                        등록 평점 {v.rating}{typeof v.reviewCount === "number" ? ` · 리뷰 ${v.reviewCount}개` : ""}
+                      </span>
+                      <span className="text-sm text-[#B5ADA3]">·</span>
+                    </>
+                  )}
                   <MapPin className="w-4 h-4 text-[#B5ADA3]" />
                   <span className="text-sm text-[#928980]">{v.location}</span>
                   <span className="text-sm text-[#B5ADA3]">·</span>
@@ -165,7 +200,7 @@ function VendorRecommendCards({
               </div>
             )}
 
-            {/* 추천 이유 */}
+            {/* 등록 조건 일치 근거 */}
             {v.reasons && v.reasons.length > 0 && (
               <p className="text-sm text-[#C4967E] mt-2 truncate">
                 {v.reasons.slice(0, 3).join(" · ")}
@@ -221,7 +256,6 @@ function VendorDetailCard({
       price: number;
       discountPrice: number | null;
       duration: number | null;
-      isPopular: boolean;
       includes: string[];
     }[];
     staff: {
@@ -272,7 +306,7 @@ function VendorDetailCard({
         {/* 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <p className="text-lg font-semibold text-[#1A1A1F]">{output.vendorName}</p>
-          <p className="text-sm text-[#928980] mt-1">{hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}</p>
+          <p className="text-sm text-[#928980] mt-1">{hasStaff ? "등록된 상품과 스태프 정보를 선택해 주세요" : "상품을 선택하면 등록된 운영시간을 참고할 수 있어요"}</p>
         </div>
 
         {/* 상품 선택 */}
@@ -305,11 +339,6 @@ function VendorDetailCard({
                           <p className={`text-base font-medium ${isSelected ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
                             {p.name}
                           </p>
-                          {p.isPopular && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
-                              인기
-                            </span>
-                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           {p.discountPrice ? (
@@ -415,7 +444,7 @@ function VendorDetailCard({
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />
-              예약 가능 시간 확인
+              등록 운영시간 참고
             </button>
           </div>
         )}
@@ -484,21 +513,13 @@ function TimeslotPicker({
   }
 
   const handleSelect = (slot: (typeof slots)[0]) => {
-    const tags = [
-      `[vendor:${output.vendorId}]`,
-      output.productId ? `[product:${output.productId}]` : "",
-      output.staffId ? `[staff:${output.staffId}]` : "",
-      `[date:${slot.date}]`,
-      `[time:${slot.time}]`,
-    ].filter(Boolean).join("");
-
     // 날짜 포맷 (3/15(토)) — slot.date 는 "YYYY-MM-DD" 문자열이므로 timezone 영향
     // 받지 않게 직접 파싱 (new Date("YYYY-MM-DD") 은 UTC 자정으로 해석돼 해외
     // timezone 사용자에게 ±1일 어긋날 수 있음).
     const [, ymM, ymD] = slot.date.split("-");
     const dateLabel = `${Number(ymM)}/${Number(ymD)}(${slot.dayLabel})`;
 
-    onSend?.(`${dateLabel} ${slot.time} 예약할게요 ${tags}`);
+    onSend?.(`${dateLabel} ${slot.time}은 등록 운영시간으로 보이는데, 최신 가능 여부를 업체에 확인할 질문을 정리해줘.`);
   };
 
   if (slots.length === 0) {
@@ -510,8 +531,8 @@ function TimeslotPicker({
             <Calendar className="w-5 h-5 text-[#B5ADA3]" />
             <p className="text-base text-[#928980]">
               {filterLabel
-                ? `${filterLabel}에 예약 가능한 시간이 없습니다`
-                : "예약 가능한 시간이 없습니다"}
+                ? `${filterLabel}에 등록된 운영시간 정보가 없습니다`
+                : "등록된 운영시간 정보가 없습니다"}
             </p>
           </div>
           {dbg && (
@@ -535,16 +556,16 @@ vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${outpu
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-[#C4967E]" />
-            <p className="text-lg font-semibold text-[#1A1A1F]">예약 가능 시간</p>
+            <p className="text-lg font-semibold text-[#1A1A1F]">등록 운영시간 (참고)</p>
           </div>
           <p className="text-sm text-[#928980] mt-1">
             {output.vendorName}
             {filterLabel && !usingFallback ? ` · ${filterLabel}` : ""}
-            {" · 원하시는 시간을 선택해 주세요"}
+            {" · 업체에 직접 확인할 시간을 골라보세요"}
           </p>
           {usingFallback && (
             <p className="mt-2 text-xs text-[#9A6B62] bg-[#C4967E]/10 rounded px-2 py-1.5 inline-block">
-              💡 {filterLabel}에는 빈 시간이 없어 인접한 시기의 슬롯을 보여드려요
+              💡 {filterLabel}에는 등록 정보가 없어 인접한 시기의 운영시간을 참고로 보여드려요
             </p>
           )}
         </div>
@@ -575,9 +596,6 @@ vendorId=${output.vendorId} productId=${output.productId ?? "-"} staffId=${outpu
                         active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <span className="font-medium">{slot.time}</span>
-                      {slot.remaining <= 2 && (
-                        <span className="text-xs text-[#C4967E] ml-1">잔여{slot.remaining}</span>
-                      )}
                     </button>
                   ))}
                 </div>
@@ -626,7 +644,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
   const handleCancel = () => {
     setCancelled(true);
     setShowCancelConfirm(false);
-    onSend?.(`예약 취소해줘 [booking:${output.bookingId}]`);
+    onSend?.(`이 과거 요청 기록의 실제 처리 여부를 업체에 확인할 질문을 정리해줘.`);
   };
 
   return (
@@ -643,10 +661,10 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           </div>
           <div>
             <p className="text-sm font-semibold text-[#1A1A1F]">
-              {cancelled ? "예약 취소 요청됨" : "예약이 접수되었습니다"}
+              {cancelled ? "과거 취소 확인 메모" : "과거·예시 요청 기록"}
             </p>
             <p className="text-xs text-[#928980]">
-              {cancelled ? "취소 처리 중" : "업체 확인 후 최종 확정"}
+              업체 수신·처리·예약 확정 증빙이 아닙니다
             </p>
           </div>
         </div>
@@ -690,7 +708,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             <div className="mt-2">
               {showCancelConfirm ? (
                 <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                  <p className="text-xs text-red-600">예약을 취소할까요?</p>
+                  <p className="text-xs text-red-600">업체 확인 질문을 만들까요?</p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
@@ -703,7 +721,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                       disabled={disabled}
                       className="px-2.5 py-1 text-xs rounded-md bg-red-500 text-white disabled:opacity-40"
                     >
-                      취소하기
+                      질문 만들기
                     </button>
                   </div>
                 </div>
@@ -713,7 +731,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                   disabled={disabled}
                   className="text-xs text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
                 >
-                  예약 취소
+                  처리 여부 확인 항목
                 </button>
               )}
             </div>
@@ -766,7 +784,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             <X className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-[#1A1A1F]">예약이 취소되었습니다</p>
+            <p className="text-lg font-semibold text-[#1A1A1F]">과거 취소 요청 기록</p>
           </div>
         </div>
         <div className="px-5 pb-4">

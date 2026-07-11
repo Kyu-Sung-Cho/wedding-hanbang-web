@@ -9,9 +9,7 @@ interface AiMessageFooterProps {
   className?: string;
 }
 
-// AI 답변 메시지 단위 인라인 푸터 (캐논 v2 §5 법적 안전판).
-// 모든 AI 답변에 "AI 생성 + 출처 + 전문가 검토 권장" 표시 의무.
-// AI 기본법(2026.1.22 시행) 준수.
+// AI 답변 메시지 단위 인라인 푸터. 실제 제공되지 않은 출처를 추정해 표시하지 않는다.
 export default function AiMessageFooter({
   severity = "low",
   showPolicyLink = true,
@@ -34,10 +32,8 @@ export default function AiMessageFooter({
         AI 생성
       </span>
       <span className="text-[#B5ADA3]">·</span>
-      <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
-      <span className="text-[#B5ADA3]">·</span>
       <span className={isHigh ? "font-medium" : ""}>
-        {isHigh ? "전문가 검토 강력 권장" : "전문가 검토 권장"}
+        {isHigh ? "원문·전문가 확인 필요" : "중요한 내용은 직접 확인"}
       </span>
       {showPolicyLink && (
         <>

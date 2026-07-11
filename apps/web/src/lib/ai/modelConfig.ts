@@ -14,6 +14,23 @@ interface AmoraModelConfig {
   verbosity: "low" | "medium";
 }
 
+// Every Amora provider wrapper shares this ceiling. Keeping it at the common
+// model boundary prevents a future internal caller from silently bypassing the
+// chat route's 800-token cost policy.
+export const MAX_AMORA_OUTPUT_TOKENS = 800;
+
+export function assertAmoraOutputTokenLimit(value: number): void {
+  if (
+    !Number.isSafeInteger(value)
+    || value < 1
+    || value > MAX_AMORA_OUTPUT_TOKENS
+  ) {
+    throw new Error(
+      `[ai-config] maxOutputTokens must be an integer between 1 and ${MAX_AMORA_OUTPUT_TOKENS}.`
+    );
+  }
+}
+
 const MODEL_ENV_BY_ROLE: Record<AmoraModelRole, string> = {
   primary: "OPENAI_AMORA_PRIMARY_MODEL",
   fast: "OPENAI_AMORA_FAST_MODEL",
@@ -73,7 +90,16 @@ export function getAmoraModelConfig(role: AmoraModelRole): AmoraModelConfig {
 }
 
 export function hasOpenAIConfig(role?: AmoraModelRole): boolean {
-  if (!process.env.OPENAI_API_KEY?.trim()) return false;
+  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  // Keep example values and obvious placeholders from reaching a billable
+  // provider boundary. Project and service-account keys still share sk-.
+  if (
+    apiKey.length < 20
+    || !apiKey.startsWith("sk-")
+    || /(?:xxx|replace[-_ ]?with|your[-_ ]?(?:openai[-_ ]?)?key|example)/i.test(apiKey)
+  ) {
+    return false;
+  }
   try {
     if (role) getAmoraModelConfig(role);
     else {

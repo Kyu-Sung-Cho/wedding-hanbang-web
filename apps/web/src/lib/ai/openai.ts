@@ -10,7 +10,13 @@ import type {
   ResponseOutputItem,
   ResponseCreateParamsStreaming,
 } from "openai/resources/responses/responses";
-import { getAmoraModelConfig, type AmoraModelRole } from "@/lib/ai/modelConfig";
+import {
+  assertAmoraOutputTokenLimit,
+  getAmoraModelConfig,
+  hasOpenAIConfig,
+  MAX_AMORA_OUTPUT_TOKENS,
+  type AmoraModelRole,
+} from "@/lib/ai/modelConfig";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 
 let defaultClient: OpenAI | null = null;
@@ -24,7 +30,9 @@ const compiledToolSchemas = new WeakMap<object, ValidateFunction>();
 
 export function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error("[ai-config] OPENAI_API_KEY 환경변수가 필요합니다.");
+  if (!apiKey || !hasOpenAIConfig()) {
+    throw new Error("[ai-config] 유효한 OPENAI_API_KEY와 GPT-5.6 모델 설정이 필요합니다.");
+  }
   if (!defaultClient) {
     defaultClient = new OpenAI({
       apiKey,
@@ -212,8 +220,19 @@ export async function chatWithToolsStream(options: {
   maxInputTokens?: number;
   /** 원문이 OpenAI token-count endpoint로 나가기 직전에 회원/삭제 상태를 재검증한다. */
   beforeInputCount?: () => Promise<void>;
-  /** 토큰 상한 통과 뒤, 실제 유료 generation 직전에 원자 비용 예약을 수행한다. */
-  beforeCreate?: (inputTokens: number | null) => Promise<void>;
+  /**
+   * 첫 exact-count 요청 직전의 provider 경계다. 채팅 경로는 이미 예약한
+   * provider slot을 여기서 started로 바꿔 count endpoint도 일일 차단기 안에 둔다.
+   */
+  beforeInputCountRequest?: () => Promise<void>;
+  /** Exact count 뒤 generation 직전의 최종 권한 확인·요청 모양 축소 경계다. */
+  beforeCreate?: (inputTokens: number | null) => Promise<void | {
+    /** Cost-boundary fallback: remove tools when only one provider slot remains. */
+    tools?: AiToolDefinition[];
+    systemPromptSuffix?: string;
+  }>;
+  /** Called after reservation and final abort check, immediately before the provider request. */
+  beforeProviderRequest?: () => Promise<void>;
   safetyIdentifier?: string;
   /** Luna is the normal chat default; callers explicitly escalate high-risk turns to Terra. */
   modelRole?: AmoraModelRole;
@@ -225,21 +244,55 @@ export async function chatWithToolsStream(options: {
     input,
     tools,
     onTextDelta,
-    maxOutputTokens = 2_048,
+    maxOutputTokens = MAX_AMORA_OUTPUT_TOKENS,
     maxInputTokens,
     beforeInputCount,
+    beforeInputCountRequest,
     beforeCreate,
+    beforeProviderRequest,
     safetyIdentifier,
     // Cost-safe fallback for any future internal caller that does not yet
     // choose a role explicitly. High-consequence chat paths pass primary.
     modelRole = "fast",
     signal,
-    client = getOpenAIClient(),
+    client: providedClient,
   } = options;
   signal?.throwIfAborted();
+  assertAmoraOutputTokenLimit(maxOutputTokens);
+  const client = providedClient ?? getOpenAIClient();
   const modelConfig = getAmoraModelConfig(modelRole);
-  const openAITools = toOpenAITools(tools);
+  let effectiveTools = tools;
+  let openAITools = toOpenAITools(effectiveTools);
+  let effectiveSystemPrompt = systemPrompt;
   let countedInputTokens: number | null = null;
+
+  const countExactInputTokens = async (params: {
+    instructions: string;
+    tools: FunctionTool[];
+    enterProviderBoundary: boolean;
+  }): Promise<number> => {
+    const countParams = {
+      model: modelConfig.model,
+      instructions: params.instructions,
+      input,
+      tools: params.tools,
+      parallel_tool_calls: false,
+      reasoning: { effort: modelConfig.reasoningEffort },
+      text: { verbosity: modelConfig.verbosity },
+    } as const;
+    if (params.enterProviderBoundary) {
+      await beforeInputCountRequest?.();
+      signal?.throwIfAborted();
+    }
+    const tokenCount = signal
+      ? await client.responses.inputTokens.count(countParams, { signal })
+      : await client.responses.inputTokens.count(countParams);
+    signal?.throwIfAborted();
+    if (!Number.isSafeInteger(tokenCount.input_tokens) || tokenCount.input_tokens < 0) {
+      throw new Error("[openai] input token counter returned an invalid result.");
+    }
+    return tokenCount.input_tokens;
+  };
 
   if (maxInputTokens !== undefined) {
     if (!Number.isInteger(maxInputTokens) || maxInputTokens <= 0) {
@@ -247,31 +300,46 @@ export async function chatWithToolsStream(options: {
     }
     await beforeInputCount?.();
     signal?.throwIfAborted();
-    const countParams = {
-      model: modelConfig.model,
+    countedInputTokens = await countExactInputTokens({
       instructions: systemPrompt,
-      input,
       tools: openAITools,
-      parallel_tool_calls: false,
-      reasoning: { effort: modelConfig.reasoningEffort },
-      text: { verbosity: modelConfig.verbosity },
-    } as const;
-    const tokenCount = signal
-      ? await client.responses.inputTokens.count(countParams, { signal })
-      : await client.responses.inputTokens.count(countParams);
-    signal?.throwIfAborted();
-    countedInputTokens = tokenCount.input_tokens;
-    if (tokenCount.input_tokens > maxInputTokens) {
-      throw new OpenAIInputTokenLimitError(tokenCount.input_tokens, maxInputTokens);
+      enterProviderBoundary: true,
+    });
+    if (countedInputTokens > maxInputTokens) {
+      throw new OpenAIInputTokenLimitError(countedInputTokens, maxInputTokens);
     }
   }
 
-  await beforeCreate?.(countedInputTokens);
+  const createOverrides = await beforeCreate?.(countedInputTokens);
+  let requestShapeChanged = false;
+  if (createOverrides?.tools) {
+    effectiveTools = createOverrides.tools;
+    openAITools = toOpenAITools(effectiveTools);
+    requestShapeChanged = true;
+  }
+  if (createOverrides?.systemPromptSuffix) {
+    effectiveSystemPrompt += createOverrides.systemPromptSuffix;
+    requestShapeChanged = true;
+  }
+  // The first count feeds the reservation callback. If that callback changes
+  // tools or instructions, count the exact final request too. This rare second
+  // count remains inside the provider slot already marked at the first boundary.
+  if (maxInputTokens !== undefined && requestShapeChanged) {
+    countedInputTokens = await countExactInputTokens({
+      instructions: effectiveSystemPrompt,
+      tools: openAITools,
+      enterProviderBoundary: false,
+    });
+    if (countedInputTokens > maxInputTokens) {
+      throw new OpenAIInputTokenLimitError(countedInputTokens, maxInputTokens);
+    }
+  }
   signal?.throwIfAborted();
+  await beforeProviderRequest?.();
 
   const requestBody: ResponseCreateParamsStreaming = {
     model: modelConfig.model,
-    instructions: systemPrompt,
+    instructions: effectiveSystemPrompt,
     input,
     tools: openAITools,
     parallel_tool_calls: false,
@@ -324,12 +392,21 @@ export async function chatWithToolsStream(options: {
 
   if (!finalResponse) throw new Error("[openai] 완료 응답을 받지 못했습니다.");
 
-  const toolCalls = finalResponse.output
-    .filter((item) => item.type === "function_call")
+  const functionCallItems = finalResponse.output
+    .filter((item) => item.type === "function_call");
+  // The response remains untrusted even with parallel_tool_calls=false. Reject
+  // amplification instead of executing an unbounded list of reads from one turn.
+  if (functionCallItems.length > 1) {
+    throw new OpenAIResponseError(
+      `[openai] one response returned too many function calls: ${functionCallItems.length}`,
+      finalResponse
+    );
+  }
+  const toolCalls = functionCallItems
     .map((item) => {
       const parsed = parseToolArguments(item.arguments);
       const parseError: ToolCallBlock["parseError"] = parsed.parseError ?? (
-        validateToolInput(tools.find((tool) => tool.name === item.name), parsed.input)
+        validateToolInput(effectiveTools.find((tool) => tool.name === item.name), parsed.input)
           ? undefined
           : "schema_validation"
       );
@@ -340,8 +417,11 @@ export async function chatWithToolsStream(options: {
         parseError,
       };
     });
-  const resolvedRefusal = refusalText || getRefusalText(finalResponse);
-  const resolvedText = fullText || finalResponse.output_text || resolvedRefusal || "";
+  const resolvedRefusal = getRefusalText(finalResponse) || refusalText;
+  // Treat the completed response as canonical. A transport can end after only
+  // some deltas were observed even though the final object contains the whole
+  // answer; persisting the partial delta buffer would silently truncate it.
+  const resolvedText = finalResponse.output_text || resolvedRefusal || fullText || "";
   if (!resolvedText && toolCalls.length === 0) {
     throw new OpenAIResponseError(
       "[openai] 텍스트 또는 도구 호출이 없는 응답입니다.",

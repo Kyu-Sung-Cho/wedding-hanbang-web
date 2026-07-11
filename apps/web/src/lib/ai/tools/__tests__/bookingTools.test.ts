@@ -238,7 +238,7 @@ describe("bookingTools", () => {
     });
   });
 
-  it("syncs successful booking creation into schedule events and category spent", async () => {
+  it("syncs successful booking creation as an unspent consultation request", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
 
@@ -305,9 +305,9 @@ describe("bookingTools", () => {
       bookingId,
       amount: 500_000,
       scheduleAdded: true,
-      budgetUpdated: true,
-      syncedCategoryKey: "studio",
-      syncedNewSpent: 700_000,
+      budgetUpdated: false,
+      syncedCategoryKey: null,
+      syncedNewSpent: null,
     });
     expect(result.toolOutput.syncedEvent).toMatchObject({
       id: `evt_booking_${bookingId}`,
@@ -315,12 +315,18 @@ describe("bookingTools", () => {
       categoryKey: "studio",
       sourceKey: `booking:${bookingId}`,
     });
+    expect((result.toolOutput.syncedEvent as ScheduleEvent).title).toContain("상담 요청");
     expect(progressPatch).toMatchObject({
-      studio: { spent: 700_000 },
+      __booking_costs: { [bookingId]: 0 },
     });
+    expect(progressPatch).not.toHaveProperty("studio");
     const createdProgress = ctx.weddingContext.progress as unknown as Record<string, unknown>;
     const events = createdProgress.__events as ScheduleEvent[] | undefined;
     expect(events?.[0]).toMatchObject({ id: `evt_booking_${bookingId}` });
+    expect(createdProgress).toMatchObject({
+      __booking_costs: { [bookingId]: 0 },
+      studio: { spent: 200_000 },
+    });
   });
 
   it("reverts synced schedule and budget data when a booking is cancelled", async () => {
