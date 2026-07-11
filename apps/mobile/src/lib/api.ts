@@ -2,6 +2,7 @@
 import { Alert } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "./supabase";
+import { persistActiveMobileAuthReturnPath } from "./mobileAuthIntent";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 
@@ -14,10 +15,15 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     throw new Error("내부 API 경로만 호출할 수 있습니다.");
   }
 
-  const { data } = await supabase.auth.getSession();
+  const { data, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error("로그인 상태를 확인하지 못했습니다. 연결을 확인하고 다시 시도해주세요.");
+  }
   const token = data.session?.access_token;
 
   if (!token) {
+    await persistActiveMobileAuthReturnPath().catch(() => false);
+    router.replace("/(auth)/login");
     throw new Error("로그인이 필요합니다.");
   }
 
@@ -38,8 +44,12 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
       {
         text: "확인",
         onPress: () => {
-          supabase.auth.signOut();
-          router.replace("/(auth)/login");
+          void persistActiveMobileAuthReturnPath()
+            .catch(() => false)
+            .finally(async () => {
+              await supabase.auth.signOut();
+              router.replace("/(auth)/login");
+            });
         },
       },
     ]);

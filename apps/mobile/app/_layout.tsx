@@ -11,6 +11,7 @@ import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
 import { supabase } from "@/lib/supabase";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ErrorRetry from "@/components/ErrorRetry";
 import OfflineBanner from "@/components/OfflineBanner";
 
 const paperlogyFonts = {
@@ -63,8 +64,9 @@ initSentry();
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [authReady, setAuthReady] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
+  const [authStatus, setAuthStatus] = useState<"loading" | "signed-in" | "signed-out" | "error">("loading");
+  const [authRetryToken, setAuthRetryToken] = useState(0);
+  const signedIn = authStatus === "signed-in";
   const [fontsLoaded, fontError] = useFonts({
     // Paperlogy mapped through legacy aliases for existing screens.
     NotoSerifKR_300Light,
@@ -97,30 +99,40 @@ export default function RootLayout() {
   // 딥링크는 index를 거치지 않을 수 있으므로, 루트 네비게이터에서 비공개 화면을 막는다.
   useEffect(() => {
     let mounted = true;
+    let resolvedByAuthEvent = false;
+    setAuthStatus("loading");
 
     void supabase.auth.getSession()
-      .then(({ data }) => {
-        if (!mounted) return;
-        setSignedIn(Boolean(data.session));
-        setAuthReady(true);
+      .then(({ data, error }) => {
+        if (!mounted || resolvedByAuthEvent) return;
+        if (error) {
+          console.error("Mobile root session load failed:", error);
+          setAuthStatus("error");
+          return;
+        }
+        setAuthStatus(data.session ? "signed-in" : "signed-out");
       })
-      .catch(() => {
-        if (!mounted) return;
-        setSignedIn(false);
-        setAuthReady(true);
+      .catch((error: unknown) => {
+        if (!mounted || resolvedByAuthEvent) return;
+        console.error("Mobile root session load failed:", error);
+        setAuthStatus("error");
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      setSignedIn(Boolean(session));
-      setAuthReady(true);
+      // getSession() is the single source for initial state because it exposes
+      // storage/network errors. Treating a failed INITIAL_SESSION as signed out
+      // would send an existing user to login.
+      if (event === "INITIAL_SESSION") return;
+      resolvedByAuthEvent = true;
+      setAuthStatus(session ? "signed-in" : "signed-out");
     });
 
     return () => {
       mounted = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [authRetryToken]);
 
   // 알림 종류별 동의·토큰 폐기 계약이 연결되기 전에는 시작 시 권한을 묻지 않는다.
   // 운영자가 명시적으로 플래그를 켠 빌드에서만 등록한다.
@@ -133,10 +145,21 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, signedIn]);
 
-  if ((!fontsLoaded && !fontError) || !authReady) {
+  if ((!fontsLoaded && !fontError) || authStatus === "loading") {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.rose[500]} />
+      </View>
+    );
+  }
+
+  if (authStatus === "error") {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", backgroundColor: colors.bg, paddingHorizontal: 24 }}>
+        <ErrorRetry
+          message="로그인 상태를 확인하지 못했어요. 로그아웃하지 않고 다시 연결할게요."
+          onRetry={() => setAuthRetryToken((value) => value + 1)}
+        />
       </View>
     );
   }
