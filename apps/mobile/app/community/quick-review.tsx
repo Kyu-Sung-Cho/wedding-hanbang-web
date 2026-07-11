@@ -163,6 +163,10 @@ export default function QuickReviewScreen() {
           })}
         </View>
 
+        <Text style={s.visibilityNotice}>
+          이 후기는 전체 공개되며, 가입 이름 대신 자동 생성된 커뮤니티 닉네임으로 표시됩니다.
+        </Text>
+
         <PrimaryButton
           style={s.submitButton}
           onPress={handleSubmit}
@@ -204,6 +208,17 @@ const s = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: "right",
     marginTop: 4,
+  },
+  visibilityNotice: {
+    marginTop: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: "NotoSansKR_400Regular",
   },
 
   // 카테고리 칩
