@@ -1,152 +1,139 @@
 import { describe, expect, it } from "vitest";
 import {
-  WEDDING_CODE_V05_EXPOSURE_MAX,
-  WEDDING_CODE_V05_NON_PUBLIC_CONSTRUCTS,
   WEDDING_CODE_V05_PUBLIC_AXES,
   WEDDING_CODE_V05_QUESTIONS,
+  type WeddingCodeV05AxisKey,
+  type WeddingCodeV05AxisSide,
+  type WeddingCodeV05OptionValue,
   type WeddingCodeV05QuestionKey,
 } from "@/constants/weddingCodeV05";
-import { WEDDING_CODE_CONSTRUCT_KEYS } from "@/lib/wedding-code/types";
-import {
-  assertWeddingCodeV05ExposureMaxMatchesDraft,
-  computeWeddingCodeV05GlobalExposureMax,
-  publicAxisUsesInternalOnlyConstructs,
-  scoreWeddingCodeV05,
-} from "../score";
+import { scoreWeddingCodeV05, type WeddingCodeV05Answers } from "../score";
 
-describe("WeddingCode v0.5 candidate item integrity", () => {
-  it("16개 문항과 문항별 4개 선택지를 유지한다", () => {
+function answerForSide(
+  question: (typeof WEDDING_CODE_V05_QUESTIONS)[number],
+  side: WeddingCodeV05AxisSide
+): WeddingCodeV05OptionValue {
+  const option = question.options.find((candidate) => candidate.side === side);
+  if (!option) throw new Error(`${question.key} has no ${side} option`);
+  return option.value;
+}
+
+function completeAnswers(
+  sideForQuestion: (question: (typeof WEDDING_CODE_V05_QUESTIONS)[number], axisIndex: number) => WeddingCodeV05AxisSide
+): WeddingCodeV05Answers {
+  const seenByAxis = new Map<WeddingCodeV05AxisKey, number>();
+  return Object.fromEntries(
+    WEDDING_CODE_V05_QUESTIONS.map((question) => {
+      const axisIndex = seenByAxis.get(question.axis) ?? 0;
+      seenByAxis.set(question.axis, axisIndex + 1);
+      return [question.key, answerForSide(question, sideForQuestion(question, axisIndex))];
+    })
+  ) as WeddingCodeV05Answers;
+}
+
+describe("WeddingCode candidate.10 item contract", () => {
+  it("16개 문항을 4축×4문항으로 배치하고 문항마다 같은 축의 두 시작점만 둔다", () => {
     expect(WEDDING_CODE_V05_QUESTIONS).toHaveLength(16);
     expect(new Set(WEDDING_CODE_V05_QUESTIONS.map((question) => question.key)).size).toBe(16);
+
+    for (const axis of WEDDING_CODE_V05_PUBLIC_AXES) {
+      expect(WEDDING_CODE_V05_QUESTIONS.filter((question) => question.axis === axis.key), axis.key).toHaveLength(4);
+    }
+
     for (const question of WEDDING_CODE_V05_QUESTIONS) {
-      expect(question.options, question.key).toHaveLength(4);
+      expect(question.options, question.key).toHaveLength(2);
+      expect(new Set(question.options.map((option) => option.value)), question.key).toEqual(new Set(["A", "B"]));
+      expect(new Set(question.options.map((option) => option.side)), question.key).toEqual(new Set(["left", "right"]));
       expect(question.status).toBe("candidate_pending_human_validation");
+      expect(question.evidenceRefs).toContain("TEST_DEVELOPMENT_METHOD");
+      expect(question.evidenceRefs).toContain("PRODUCT_HYPOTHESIS");
+      expect(question.evidenceRefs.length, question.key).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it("모든 가중치는 등록된 construct만 사용하고 1~2점만 쓴다", () => {
-    const constructKeys = new Set<string>(WEDDING_CODE_CONSTRUCT_KEYS);
-    for (const question of WEDDING_CODE_V05_QUESTIONS) {
-      for (const option of question.options) {
-        expect(option.weights.length, `${question.key}-${option.value}`).toBeGreaterThan(0);
-        for (const weight of option.weights) {
-          expect(constructKeys.has(weight.construct), `${question.key}-${option.value}`).toBe(true);
-          expect([1, 2]).toContain(weight.value);
-        }
-      }
+  it("축마다 왼쪽/오른쪽 선택지를 각각 두 번씩 먼저 보여 위치 편향을 상쇄한다", () => {
+    for (const axis of WEDDING_CODE_V05_PUBLIC_AXES) {
+      const firstSides = WEDDING_CODE_V05_QUESTIONS
+        .filter((question) => question.axis === axis.key)
+        .map((question) => question.options[0].side);
+      expect(firstSides.filter((side) => side === "left"), axis.key).toHaveLength(2);
+      expect(firstSides.filter((side) => side === "right"), axis.key).toHaveLength(2);
     }
   });
 
-  it("D3에는 guidanceNeed 점수 누수가 없고, 예전 비난 프레임을 쓰지 않는다", () => {
-    const d3 = WEDDING_CODE_V05_QUESTIONS.find((question) => question.key === "D3")!;
-    expect(d3.question).toContain("준비 속도");
-    expect(d3.question).not.toContain("미루");
-    const d3Constructs = d3.options.flatMap((option) => option.weights.map((weight) => weight.construct));
-    expect(d3Constructs).not.toContain("guidanceNeed");
-  });
-
-  it("D4는 빠른 결정을 낙인찍지 않고 조건 확인 시간을 묻는다", () => {
-    const d4 = WEDDING_CODE_V05_QUESTIONS.find((question) => question.key === "D4")!;
-    expect(d4.question).toContain("오늘 예약을 확정하면 할인이나 서비스");
-    expect(d4.options.map((option) => option.label).join(" ")).toContain("총금액, 추가 비용, 취소 조건");
-    expect(d4.options.map((option) => option.label).join(" ")).not.toContain("잡고 싶다");
-  });
-
-  it("exposureMax는 문항 데이터에서 재계산한 값과 문서 반영값이 일치한다", () => {
-    expect(computeWeddingCodeV05GlobalExposureMax()).toEqual(WEDDING_CODE_V05_EXPOSURE_MAX);
-    expect(assertWeddingCodeV05ExposureMaxMatchesDraft()).toBe(true);
+  it("축을 A-A-A-A로 몰아 표시하지 않고 실제 흐름에서 교차 배치한다", () => {
+    for (let index = 0; index < WEDDING_CODE_V05_QUESTIONS.length; index += 4) {
+      expect(new Set(WEDDING_CODE_V05_QUESTIONS.slice(index, index + 4).map((question) => question.axis)).size).toBe(4);
+    }
   });
 });
 
-describe("WeddingCode v0.5 normalized scoring", () => {
-  it("공개 축은 DPR/GN 내부 전용 construct를 사용하지 않는다", () => {
-    expect(publicAxisUsesInternalOnlyConstructs()).toBe(false);
-    const internalOnly = new Set<string>(WEDDING_CODE_V05_NON_PUBLIC_CONSTRUCTS);
-    for (const axis of WEDDING_CODE_V05_PUBLIC_AXES) {
-      expect([...axis.left.constructs, ...axis.right.constructs].some((construct) => internalOnly.has(construct))).toBe(false);
+describe("WeddingCode candidate.10 scoring", () => {
+  it("한쪽을 4번 고르면 4:0, 반대쪽을 고르면 0:4로 투명하게 계산한다", () => {
+    const allLeft = scoreWeddingCodeV05(completeAnswers(() => "left"));
+    const allRight = scoreWeddingCodeV05(completeAnswers(() => "right"));
+
+    for (const axis of allLeft.publicAxes) {
+      expect(axis.leftCount).toBe(4);
+      expect(axis.rightCount).toBe(0);
+      expect(axis.leaning).toBe("left");
+      expect(axis.responsePattern).toBe("consistent");
+      expect(axis.leftScore).toBe(100);
+      expect(axis.rightScore).toBe(0);
+    }
+    for (const axis of allRight.publicAxes) {
+      expect(axis.leftCount).toBe(0);
+      expect(axis.rightCount).toBe(4);
+      expect(axis.leaning).toBe("right");
+      expect(axis.responsePattern).toBe("consistent");
     }
   });
 
-  it("전체 응답을 정규화해 0~100 범위 점수와 공개 축을 만든다", () => {
-    const answers = Object.fromEntries(
-      WEDDING_CODE_V05_QUESTIONS.map((question) => [question.key, "A"])
-    ) as Record<WeddingCodeV05QuestionKey, "A">;
-    const result = scoreWeddingCodeV05(answers);
+  it("2:2는 mixed, 3:1은 leaning으로만 기술하고 통계적 신뢰도처럼 부르지 않는다", () => {
+    const mixed = scoreWeddingCodeV05(completeAnswers((_, axisIndex) => (axisIndex < 2 ? "left" : "right")));
+    const leaning = scoreWeddingCodeV05(completeAnswers((_, axisIndex) => (axisIndex < 3 ? "left" : "right")));
 
-    expect(result.answeredCount).toBe(16);
-    expect(result.warnings).toEqual([]);
-    for (const score of Object.values(result.constructScores)) {
-      if (score.exposureMax === 0) {
-        expect(score.normalized).toBeNull();
-      } else {
-        expect(score.normalized).toBeGreaterThanOrEqual(0);
-        expect(score.normalized).toBeLessThanOrEqual(100);
-      }
-    }
-    expect(result.publicAxes).toHaveLength(4);
-    expect(result.publicAxes.every((axis) => !axis.displayKo.includes("궁합"))).toBe(true);
-    expect(result.publicAxes.every((axis) => !axis.displayKo.includes("갈등"))).toBe(true);
+    expect(mixed.publicAxes.every((axis) => axis.responsePattern === "mixed" && axis.leaning === "balanced")).toBe(true);
+    expect(mixed.publicAxes.every((axis) => axis.displayKo.includes("장면에 따라"))).toBe(true);
+    expect(leaning.publicAxes.every((axis) => axis.responsePattern === "leaning" && axis.leaning === "left")).toBe(true);
+    expect(leaning.publicAxes.every((axis) => axis.displayKo.includes("4개 장면 중 3개"))).toBe(true);
+    expect(JSON.stringify({ mixed, leaning })).not.toContain("confidence");
+    expect(JSON.stringify({ mixed, leaning })).not.toContain("신뢰");
   });
 
-  it("부분 응답은 응답한 문항의 exposure만 사용하고 부족한 축은 insufficient_data로 둔다", () => {
-    const result = scoreWeddingCodeV05({ A1: "A" });
+  it("한 축의 네 문항이 끝나지 않으면 그 축을 외삽하지 않는다", () => {
+    const first = WEDDING_CODE_V05_QUESTIONS[0];
+    const result = scoreWeddingCodeV05({ [first.key]: answerForSide(first, "left") });
+
     expect(result.answeredCount).toBe(1);
-    expect(result.constructScores.costRisk.exposureMax).toBeGreaterThan(0);
-    expect(result.constructScores.familyIntegration.exposureMax).toBe(0);
-    expect(result.constructScores.familyIntegration.normalized).toBeNull();
-    expect(result.publicAxes.some((axis) => axis.leaning === "insufficient_data")).toBe(true);
+    expect(result.publicAxes.every((axis) => axis.responsePattern === "insufficient_data")).toBe(true);
+    expect(result.publicAxes.every((axis) => axis.leftScore === null && axis.rightScore === null)).toBe(true);
   });
 
-  it("내부 샘플 5개가 금지어 없이 서로 다른 축 패턴을 만든다", () => {
-    const samples: Record<string, Record<WeddingCodeV05QuestionKey, "A" | "B" | "C" | "D">> = {
-      costGuard: {
-        A1: "A", A2: "B", A3: "A", A4: "A",
-        B1: "C", B2: "B", B3: "D", B4: "A",
-        C1: "C", C2: "B", C3: "D", C4: "A",
-        D1: "C", D2: "C", D3: "B", D4: "C",
-      },
-      meaningMood: {
-        A1: "B", A2: "A", A3: "B", A4: "B",
-        B1: "D", B2: "D", B3: "B", B4: "C",
-        C1: "D", C2: "A", C3: "A", C4: "C",
-        D1: "A", D2: "B", D3: "A", D4: "D",
-      },
-      roleOrganizer: {
-        A1: "D", A2: "C", A3: "A", A4: "C",
-        B1: "B", B2: "C", B3: "A", B4: "B",
-        C1: "B", C2: "B", C3: "D", C4: "D",
-        D1: "C", D2: "D", D3: "C", D4: "A",
-      },
-      familyBridge: {
-        A1: "C", A2: "D", A3: "C", A4: "D",
-        B1: "A", B2: "D", B3: "B", B4: "C",
-        C1: "A", C2: "C", C3: "B", C4: "B",
-        D1: "B", D2: "B", D3: "A", D4: "B",
-      },
-      autonomyPacer: {
-        A1: "C", A2: "B", A3: "D", A4: "D",
-        B1: "A", B2: "B", B3: "B", B4: "D",
-        C1: "D", C2: "A", C3: "A", C4: "C",
-        D1: "D", D2: "A", D3: "D", D4: "A",
-      },
+  it("한 답을 뒤집으면 해당 문항의 축만 바뀌고 다른 세 축은 그대로다", () => {
+    const baselineAnswers = completeAnswers((_, axisIndex) => (axisIndex < 2 ? "left" : "right"));
+    const target = WEDDING_CODE_V05_QUESTIONS.find((question) => question.axis === "decisionCriteria")!;
+    const changedAnswers: WeddingCodeV05Answers = {
+      ...baselineAnswers,
+      [target.key]: answerForSide(target, "right"),
     };
-    const signatures = new Set<string>();
-    const bannedWords = ["궁합", "적합도", "갈등 위험", "이혼", "성공률", "희귀"];
+    const before = scoreWeddingCodeV05(baselineAnswers);
+    const after = scoreWeddingCodeV05(changedAnswers);
 
-    for (const [name, answers] of Object.entries(samples)) {
-      const result = scoreWeddingCodeV05(answers);
-      expect(result.answeredCount, name).toBe(16);
-      expect(result.warnings, name).toEqual([]);
-      for (const axis of result.publicAxes) {
-        for (const word of bannedWords) {
-          expect(axis.displayKo, `${name}-${axis.key}`).not.toContain(word);
-        }
-      }
-      signatures.add(result.publicAxes.map((axis) => `${axis.key}:${axis.leaning}`).join("|"));
+    for (const axis of WEDDING_CODE_V05_PUBLIC_AXES) {
+      const beforeAxis = before.publicAxes.find((candidate) => candidate.key === axis.key)!;
+      const afterAxis = after.publicAxes.find((candidate) => candidate.key === axis.key)!;
+      if (axis.key === "decisionCriteria") expect(afterAxis).not.toEqual(beforeAxis);
+      else expect(afterAxis).toEqual(beforeAxis);
     }
+  });
 
-    expect(signatures.size).toBeGreaterThanOrEqual(3);
-    expect(scoreWeddingCodeV05(samples.costGuard).publicAxes[0].leaning).toBe("left");
-    expect(scoreWeddingCodeV05(samples.meaningMood).publicAxes[0].leaning).toBe("right");
+  it("항상 첫 번째 버튼만 누르면 네 축 모두 2:2가 되어 위치만으로 성향이 생기지 않는다", () => {
+    const allFirst = Object.fromEntries(
+      WEDDING_CODE_V05_QUESTIONS.map((question) => [question.key, question.options[0].value])
+    ) as Record<WeddingCodeV05QuestionKey, WeddingCodeV05OptionValue>;
+    const result = scoreWeddingCodeV05(allFirst);
+
+    expect(result.publicAxes.every((axis) => axis.leftCount === 2 && axis.rightCount === 2)).toBe(true);
   });
 });

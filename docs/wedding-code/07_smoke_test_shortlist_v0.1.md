@@ -1,5 +1,7 @@
 # WeddingCode 3-Minute Smoke Test Shortlist v0.1
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 초기 후보와 삭제된 구인 파일 참조는 현재 런타임의 source of truth가 아니다. 현재 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)다.
+
 ## 0. Scope
 
 This file defines a draft 3-minute smoke test shortlist selected from `06_question_bank_v0.1.md`.

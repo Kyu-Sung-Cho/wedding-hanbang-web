@@ -13,7 +13,7 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 - 아모라 AI 연동은 OpenAI Responses API다. 일반 상담은 정확히 `gpt-5.6-luna`, 계약·분쟁/안전·반복 교정만 정확히 `gpt-5.6-terra`를 사용하며 reasoning은 코드에서 `none`으로 고정한다. Anthropic/Claude 런타임과 SDK는 제거되었다.
 - 현재 베타의 아모라는 조회·정리 중심이다. 일정·예산·준비 상태 수정과 예약 생성·취소 등 모델 기반 쓰기 도구는 서버 확인 토큰과 동시성 계약이 완성될 때까지 하드 비활성이다. 프롬프트의 과거 기능 설명보다 `runtimeToolContract.ts`와 실제 노출 도구 목록이 우선한다.
 - OpenAI 키가 없어도 정적 테스트는 가능하지만, 출시는 GPT-5.6 Luna/Terra 사용 권한이 있는 실제 프로젝트 키로 스트리밍·도구 후속·PDF·거절·중단·예산 상한을 canary 검증한 뒤에만 가능하다.
-- WeddingCode는 개인 결과만 브라우저에서 계산한다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
+- WeddingCode는 candidate.10의 16개 준비 순서 문항을 개인 브라우저에서만 계산한다. 최신 문항·계산·검증 경계는 `docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`가 기준이다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
 - 디자인 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹에 실제 적용된 값은 `apps/web/src/app/globals.css`가 기준이다. 충돌하면 실행 코드의 현재 동작을 먼저 확인하고 문서를 함께 동기화한다.
 - 저장소 명령은 루트에서 `corepack pnpm ...` 형식을 사용한다. 실제 스크립트는 루트와 각 앱의 `package.json`을 확인한다.
 

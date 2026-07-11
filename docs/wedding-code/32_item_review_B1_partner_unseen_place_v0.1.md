@@ -1,5 +1,7 @@
 # WeddingCode B1 Item Review — 나만 먼저 마음에 든 곳
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 결론과 삭제된 구 폼 참조는 이전 문항 세트 기록이다. 현재 B1과 검증 경계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 작성일: 2026-07-07  
 상태: v0.5 문항 후보 확정 전 심층 리뷰  
 대상: B축 `준비 방식` 1번 문항, 기존 q03

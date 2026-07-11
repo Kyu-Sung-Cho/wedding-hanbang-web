@@ -1,5 +1,7 @@
 # 2026-07-09 WeddingCode Worklog & Handoff
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 현재 문항·계산·검증 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)다. 이 문서는 candidate.8~9 당시 인수인계 기록으로만 사용한다.
+
 - Date: 2026-07-09
 - Truth refresh: 2026-07-10
 - Branch to publish: `agent/wedding-code-plain-language`

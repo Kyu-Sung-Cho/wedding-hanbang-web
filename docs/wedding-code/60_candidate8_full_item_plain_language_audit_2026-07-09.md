@@ -1,5 +1,7 @@
 # WeddingCode v0.5 Candidate 8 Full Item Plain-Language Audit
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 문서는 문장 명료도 감사였으며 문항 타당도 통과를 뜻하지 않는다. candidate.10 전면 재설계와 현재 검증 경계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 Date: 2026-07-09
 
 ## Scope
