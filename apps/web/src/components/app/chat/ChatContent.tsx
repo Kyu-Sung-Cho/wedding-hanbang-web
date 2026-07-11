@@ -1605,14 +1605,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
-          return filteredMessages.map((msg, index) => {
+          const previousHumanByAiMessageId = new Map<string, ChatMessage>();
+          let previousHuman: ChatMessage | undefined;
+          for (const message of filteredMessages) {
+            if (message.sender_role === "ai") {
+              if (previousHuman) previousHumanByAiMessageId.set(message.id, previousHuman);
+            } else {
+              previousHuman = message;
+            }
+          }
+          return filteredMessages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
               msg.metadata.toolResults.length > 0;
             const previousHumanMessage = msg.sender_role === "ai"
-              ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
+              ? previousHumanByAiMessageId.get(msg.id)
               : undefined;
             const isSharedCommunityFallback =
               activeTab === "shared" &&

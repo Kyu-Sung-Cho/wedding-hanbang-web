@@ -718,7 +718,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           .from("chat_messages")
           .select("*")
           .eq("couple_id", coupleId)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
           .limit(500),
       ]);
 
@@ -737,7 +737,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         readLocalClearedAt(coupleId, "private")
       );
 
-      const allMessages = (messagesData ?? [])
+      const allMessages = [...(messagesData ?? [])]
+        .reverse()
         .map((m) => dbRowToMessage(m as Record<string, unknown>))
         .filter(canCurrentUserSeeMessage)
         .filter((m) => {
@@ -942,6 +943,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           isDemo,
           clientRequestId,
           visibility: finalVisibility,
+          clientCapabilities: { toolCards: true, incrementalSse: true },
           ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         }),
         signal: abortController.signal,
