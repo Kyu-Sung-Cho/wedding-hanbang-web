@@ -71,4 +71,40 @@ describe("/api/auth/callback GET", () => {
       "http://localhost/wedding/onboarding?next=%2Fwedding%2Flounge"
     );
   });
+
+  it("does not put a provider error message in the redirect or server log", async () => {
+    const sensitiveMessage = "invalid code for user@example.com";
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: {
+        exchangeCodeForSession: vi.fn().mockResolvedValue({
+          error: { message: sensitiveMessage },
+        }),
+      },
+    } as unknown as ReturnType<typeof createServerClient>);
+
+    const response = await GET(
+      new Request("http://localhost/api/auth/callback?code=oauth-code")
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/login?error=session_exchange_failed"
+    );
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(sensitiveMessage);
+  });
+
+  it("uses a stable code when an unexpected callback exception occurs", async () => {
+    const sensitiveMessage = "cookie failed for user@example.com";
+    vi.mocked(createServerClient).mockImplementation(() => {
+      throw new Error(sensitiveMessage);
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/auth/callback?code=oauth-code")
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/login?error=callback_failed"
+    );
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(sensitiveMessage);
+  });
 });

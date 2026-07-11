@@ -25,8 +25,11 @@ export async function GET(
       .maybeSingle();
 
     if (error) {
-      console.error("Public quote check fetch error:", error.message);
-      return NextResponse.json({ error: "결과를 불러올 수 없습니다." }, { status: 500 });
+      console.error("[public-quote-check] read_failed");
+      return NextResponse.json(
+        { error: "결과를 불러올 수 없습니다.", code: "quote_check_unavailable" },
+        { status: 500 }
+      );
     }
 
     if (!data) {
@@ -62,8 +65,11 @@ export async function GET(
       // Revocation must take effect immediately, so bearer-link responses are never cached.
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "결과를 불러올 수 없습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    console.error("[public-quote-check] request_failed");
+    return NextResponse.json(
+      { error: "결과를 불러올 수 없습니다.", code: "quote_check_unavailable" },
+      { status: 500 }
+    );
   }
 }

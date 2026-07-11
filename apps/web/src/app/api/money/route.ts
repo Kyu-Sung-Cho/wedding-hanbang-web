@@ -48,13 +48,19 @@ export async function GET(request: Request) {
       .order("received_at", { ascending: false });
 
     if (error) {
-      console.error("[money GET] supabase:", error);
-      return NextResponse.json({ error: "축의금 정보를 불러올 수 없습니다." }, { status: 500 });
+      console.error("[money] read_failed");
+      return NextResponse.json(
+        { error: "축의금 정보를 불러오지 못했습니다.", code: "money_read_failed" },
+        { status: 500 }
+      );
     }
     return NextResponse.json({ moneyList: data ?? [] });
-  } catch (err) {
-    console.error("[money GET]", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  } catch {
+    console.error("[money] read_failed");
+    return NextResponse.json(
+      { error: "축의금 정보를 불러오지 못했습니다.", code: "money_read_failed" },
+      { status: 500 }
+    );
   }
 }
 
@@ -136,10 +142,19 @@ export async function POST(request: Request) {
       .select(MONEY_SELECT)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[money] create_failed");
+      return NextResponse.json(
+        { error: "축의금 정보를 저장하지 못했습니다.", code: "money_create_failed" },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ money: data }, { status: 201 });
-  } catch (err) {
-    console.error("[money POST]", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  } catch {
+    console.error("[money] create_failed");
+    return NextResponse.json(
+      { error: "축의금 정보를 저장하지 못했습니다.", code: "money_create_failed" },
+      { status: 500 }
+    );
   }
 }
