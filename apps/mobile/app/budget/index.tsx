@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { storedMoneyToWon } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
@@ -88,12 +89,6 @@ function formatWon(n: number): string {
   return "—";
 }
 
-function normalizeCost(cost: unknown): number {
-  if (typeof cost === "number") return cost;
-  if (typeof cost === "string") return parseInt(cost, 10) || 0;
-  return 0;
-}
-
 export default function BudgetScreen() {
   const [totalBudget, setTotalBudget] = useState(0);
   const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
@@ -157,7 +152,7 @@ export default function BudgetScreen() {
   function getCatBudget(key: string): number {
     const item = progress[key];
     if (item?.budget && item.budget > 0) return item.budget;
-    const cost = normalizeCost(item?.cost);
+    const cost = storedMoneyToWon(item?.cost);
     if (cost > 0) return cost;
     const r = CATEGORY_RATIOS.find((c) => c.key === key);
     return r ? Math.round(totalBudget * r.ratio) : 0;
@@ -165,7 +160,7 @@ export default function BudgetScreen() {
   function getCatSpent(key: string): number {
     const item = progress[key];
     if (item?.spent !== undefined) return item.spent;
-    return normalizeCost(item?.cost);
+    return storedMoneyToWon(item?.cost);
   }
   function getCatStatus(key: string): string {
     const s = progress[key]?.status ?? "not_started";

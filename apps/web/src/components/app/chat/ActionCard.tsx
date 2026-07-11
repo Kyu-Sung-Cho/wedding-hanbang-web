@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
+import { storedMoneyToWon } from "@hanbang/shared";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -118,14 +119,14 @@ function BudgetMiniCard() {
   const items = topCategories.map((key) => {
     const item = progress[key];
     const budget = item?.budget ?? Math.round(totalBudget * (CATEGORY_RATIOS[key] ?? 0));
-    const spent = item?.spent ?? (item?.cost ? (item.cost < 100000 ? item.cost * 10000 : item.cost) : 0);
+    const spent = item?.spent ?? storedMoneyToWon(item?.cost);
     const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
     return { key, label: CATEGORY_LABELS[key], budget, spent, pct };
   });
 
   const totalSpent = Object.keys(CATEGORY_LABELS).reduce((s, key) => {
     const item = progress[key];
-    const spent = item?.spent ?? (item?.cost ? (item.cost < 100000 ? item.cost * 10000 : item.cost) : 0);
+    const spent = item?.spent ?? storedMoneyToWon(item?.cost);
     return s + spent;
   }, 0);
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
