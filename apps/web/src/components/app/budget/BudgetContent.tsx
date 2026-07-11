@@ -38,6 +38,7 @@ import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem, PayerType } from "@/types/database.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import Link from "next/link";
+import { storedMoneyToWon } from "@hanbang/shared";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
@@ -109,12 +110,6 @@ function formatWon(n: number): string {
 
 function formatWonFull(n: number): string {
   return `${Math.round(n / 10000).toLocaleString()}만원`;
-}
-
-// 이전 버전 호환: cost가 만원 단위로 저장된 경우 원 단위로 변환
-function normalizeCost(cost: number | undefined): number {
-  if (!cost || cost <= 0) return 0;
-  return cost < 100000 ? cost * 10000 : cost;
 }
 
 // 숨겨진 비용 경고 배지 컴포넌트
@@ -743,7 +738,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     (key: string) => {
       const item = progress[key];
       if (item?.budget !== undefined && item.budget > 0) return item.budget;
-      const cost = normalizeCost(item?.cost);
+      const cost = storedMoneyToWon(item?.cost);
       if (cost > 0) return cost;
       const catRatio = CATEGORY_RATIOS.find((c) => c.key === key);
       return catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
@@ -755,7 +750,7 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
     (key: string) => {
       const item = progress[key];
       if (item?.spent !== undefined) return item.spent;
-      const cost = normalizeCost(item?.cost);
+      const cost = storedMoneyToWon(item?.cost);
       if (cost > 0) return cost;
       return 0;
     },
