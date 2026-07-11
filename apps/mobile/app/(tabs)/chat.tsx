@@ -6,12 +6,20 @@ import {
   KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Send, Sparkles, Heart } from "lucide-react-native";
+import { Send, Sparkles, Heart, LockKeyhole } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
-import { parseChatSse } from "@hanbang/shared";
+import {
+  chatVisibilityForMobileTarget,
+  isMessageAllowedInAiContext,
+  isMessageVisibleForMobileTarget,
+  normalizeChatVisibility,
+  parseChatSse,
+  type ChatVisibility,
+  type MobileChatTarget,
+} from "@hanbang/shared";
 
 interface ChatMessage {
   id: string;
@@ -19,10 +27,9 @@ interface ChatMessage {
   sender_type: "bride" | "groom" | "ai";
   content: string;
   metadata?: { target?: string } | null;
+  visibility: ChatVisibility;
   created_at?: string;
 }
-
-type MessageTarget = "ai" | "partner";
 
 function ThinkingDots() {
   const dot1 = useRef(new Animated.Value(0)).current;
@@ -53,12 +60,16 @@ export default function ChatScreen() {
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [target, setTarget] = useState<MessageTarget>("ai");
+  const [target, setTarget] = useState<MobileChatTarget>("ai_shared");
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const previousMessageCountRef = useRef(0);
-  const visibleMessages = useMemo(() => [...messages].reverse(), [messages]);
+  const activeVisibility = chatVisibilityForMobileTarget(target, userRole);
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => isMessageVisibleForMobileTarget(message, target, userRole)).reverse(),
+    [messages, target, userRole]
+  );
 
   const scrollToLatest = useCallback((animated = true, delay = 40) => {
     setTimeout(() => {
@@ -84,11 +95,11 @@ export default function ChatScreen() {
 
       // 대화 이력
       const { data: history } = await supabase.from("chat_messages")
-        .select("id, role, sender_type, content, metadata, created_at")
+        .select("id, role, sender_type, content, metadata, visibility, created_at")
         .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
 
       if (history?.length) {
-        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], created_at: m.created_at })));
+        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], visibility: normalizeChatVisibility(m.visibility), created_at: m.created_at })));
       }
 
       // Realtime
@@ -99,7 +110,7 @@ export default function ChatScreen() {
             if (prev.some((m) => m.id === n.id)) return prev;
             return [...prev.filter((m) => !m.id.toString().startsWith("temp_")), {
               id: n.id as string, role: n.role as "user" | "assistant", sender_type: n.sender_type as "bride" | "groom" | "ai",
-              content: n.content as string, metadata: n.metadata as ChatMessage["metadata"], created_at: n.created_at as string,
+              content: n.content as string, metadata: n.metadata as ChatMessage["metadata"], visibility: normalizeChatVisibility(n.visibility), created_at: n.created_at as string,
             }];
           });
         }).subscribe();
@@ -121,7 +132,7 @@ export default function ChatScreen() {
     }
 
     scrollToLatest(true);
-  }, [initialLoaded, messages.length, scrollToLatest]);
+  }, [initialLoaded, target, visibleMessages.length, scrollToLatest]);
 
   function pressIn() { Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start(); }
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
@@ -143,18 +154,19 @@ export default function ChatScreen() {
     // AI
     const persistResponse = await apiFetch("/api/chat/messages", {
       method: "POST",
-      body: JSON.stringify({ coupleId, content: text, visibility: "shared" }),
+      body: JSON.stringify({ coupleId, content: text, visibility: activeVisibility }),
     });
     const persistPayload = await persistResponse.json().catch(() => ({}));
     if (!persistResponse.ok || !persistPayload.message) return;
     const ui = persistPayload.message as ChatMessage;
-    const userMsg: ChatMessage = { ...ui, role: "user", sender_type: userRole };
+    const userMsg: ChatMessage = { ...ui, role: "user", sender_type: userRole, visibility: activeVisibility };
     const tempId = `temp_${Date.now()}`;
-    setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "" }]);
+    setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "", visibility: activeVisibility }]);
     setInput(""); setStreaming(true); scrollToLatest(true);
 
     try {
       const recentContext = [...messages, userMsg]
+        .filter((message) => isMessageAllowedInAiContext(message, activeVisibility))
         .slice(-20)
         .map((m) => ({ role: m.role, content: m.content }));
       const res = await apiFetch("/api/chat", {
@@ -163,6 +175,7 @@ export default function ChatScreen() {
           messages: recentContext,
           coupleId,
           senderName: userName,
+          visibility: activeVisibility,
           clientRequestId: `mobile:${userMsg.id}`.slice(0, 120),
         }),
       });
@@ -207,16 +220,18 @@ export default function ChatScreen() {
   }
 
   const isP = target === "partner";
+  const isPrivate = target === "ai_private";
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
         <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>AI 웨딩 플래너</Text></View></View>
-        {messages.length > 0 && <StatusPill label={`${messages.length}`} tone="neutral" />}
+        {visibleMessages.length > 0 && <StatusPill label={`${visibleMessages.length}`} tone="neutral" />}
       </View>
 
       <View style={st.targetRow}>
-        <Pressable style={[st.targetBtn, !isP && st.targetActive]} onPress={() => setTarget("ai")} accessibilityRole="tab" accessibilityState={{ selected: !isP }}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
+        <Pressable style={[st.targetBtn, target === "ai_shared" && st.targetActive]} onPress={() => setTarget("ai_shared")} accessibilityRole="tab" accessibilityLabel="커플이 함께 보는 아모라 대화" accessibilityState={{ selected: target === "ai_shared" }}><Sparkles size={14} color={target === "ai_shared" ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, target === "ai_shared" && st.targetTextActive]}>함께</Text></Pressable>
+        <Pressable style={[st.targetBtn, isPrivate && st.targetPrivate]} onPress={() => setTarget("ai_private")} accessibilityRole="tab" accessibilityLabel="나만 보는 아모라 비공개 대화" accessibilityState={{ selected: isPrivate }}><LockKeyhole size={14} color={isPrivate ? colors.noir[800] : colors.textTertiary} /><Text style={[st.targetText, isPrivate && st.targetTextPrivate]}>나만</Text></Pressable>
         <Pressable style={[st.targetBtn, isP && st.targetPartner]} onPress={() => setTarget("partner")} accessibilityRole="tab" accessibilityState={{ selected: isP }}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
       </View>
 
@@ -228,7 +243,7 @@ export default function ChatScreen() {
           accessibilityLabel="AI 생성 안내와 AI 정책 열기"
         >
           <Sparkles size={12} color={colors.gold.DEFAULT} />
-          <Text style={st.aiNoticeText}>AI 생성 · GPT-5.6 · AI 정책</Text>
+          <Text style={st.aiNoticeText}>AI 생성 · {isPrivate ? "나만 보는 대화" : "커플이 함께 보는 대화"} · AI 정책</Text>
         </Pressable>
       )}
 
@@ -238,7 +253,7 @@ export default function ChatScreen() {
             <ActivityIndicator color={colors.rose[500]} />
             <Text style={st.loadingText}>대화를 준비하는 중이에요</Text>
           </View>
-        ) : messages.length === 0 ? (
+        ) : visibleMessages.length === 0 ? (
           <View style={st.empty}>
             <EmptyState
               icon={
@@ -246,17 +261,21 @@ export default function ChatScreen() {
                   <Sparkles size={28} color={colors.gold.DEFAULT} />
                 </IconBadge>
               }
-              title="안녕하세요, 아모라예요"
-              description={"결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."}
+              title={isP ? `${partnerName ?? "파트너"}님과 대화` : "안녕하세요, 아모라예요"}
+              description={isP
+                ? "커플이 함께 보는 대화예요.\n첫 메시지를 보내보세요."
+                : isPrivate
+                  ? "이 대화는 나만 볼 수 있어요.\n상대방에게 공유되지 않아요."
+                  : "이 대화는 커플이 함께 볼 수 있어요.\n결혼 준비를 무엇이든 물어보세요."}
             />
-            <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { setTarget("ai"); setInput(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
+            {!isP && <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => setInput(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>}
           </View>
         ) : (
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={setInput} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={setInput} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : isPrivate ? "나만의 고민을 입력하세요..." : "함께 볼 메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
             <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
@@ -278,9 +297,11 @@ const st = StyleSheet.create({
   targetRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   targetBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11 },
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
+  targetPrivate: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
   targetPartner: { borderBottomWidth: 2, borderBottomColor: colors.rose[500] },
   targetText: { fontSize: 14, color: colors.textTertiary },
   targetTextActive: { color: colors.noir[800], fontWeight: "600" },
+  targetTextPrivate: { color: colors.noir[800], fontWeight: "600" },
   targetTextPartner: { color: colors.rose[500], fontWeight: "600" },
   aiNotice: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   aiNoticeText: { fontSize: 12, color: colors.textSecondary, textDecorationLine: "underline" },
