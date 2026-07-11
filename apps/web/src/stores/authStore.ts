@@ -152,6 +152,31 @@ function isTransientAuthFetchError(err: unknown) {
   );
 }
 
+export type AuthInitializationErrorCode = "PROFILE_UNAVAILABLE" | "AUTH_UNAVAILABLE";
+
+export interface AuthInitializationError {
+  code: AuthInitializationErrorCode;
+  status: number | null;
+  message: string;
+  retryAfterSeconds: number | null;
+}
+
+function parseRetryAfterSeconds(response: Response): number | null {
+  const value = Number(response.headers?.get("Retry-After"));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function unavailableInitializationError(
+  code: AuthInitializationErrorCode,
+  message: string,
+  status: number | null = null,
+  retryAfterSeconds: number | null = null,
+): AuthInitializationError {
+  return { code, status, message, retryAfterSeconds };
+}
+
+let authInitializationRequestId = 0;
+
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
@@ -161,6 +186,7 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   isDemo: boolean;
+  initError: AuthInitializationError | null;
 
   initialize: (options?: { force?: boolean }) => Promise<void>;
   updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<boolean>;
@@ -188,17 +214,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   isDemo: false,
+  initError: null,
 
   initialize: async (options) => {
     if (get().isInitialized && !options?.force) return;
+    const requestId = ++authInitializationRequestId;
+    const hadUsableAuth = Boolean(get().user && get().profile);
     if (!options?.force) set({ isLoading: true });
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
+      if (requestId !== authInitializationRequestId) return;
 
       if (res.ok) {
         const data = await res.json();
+        if (requestId !== authInitializationRequestId) return;
 
         if (data.user) {
           // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
@@ -215,9 +246,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isDemo: false,
             isLoading: false,
             isInitialized: true,
+            initError: null,
           });
           return;
         }
+      }
+
+      if (!res.ok && res.status !== 401) {
+        const body = (typeof res.json === "function"
+          ? await res.json().catch(() => ({}))
+          : {}) as {
+          code?: string;
+          error?: string;
+        };
+        if (requestId !== authInitializationRequestId) return;
+        const isProfileUnavailable =
+          res.status === 503 && body.code === "PROFILE_UNAVAILABLE";
+        const initError = unavailableInitializationError(
+          isProfileUnavailable ? "PROFILE_UNAVAILABLE" : "AUTH_UNAVAILABLE",
+          body.error ?? "로그인 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+          typeof res.status === "number" ? res.status : null,
+          parseRetryAfterSeconds(res),
+        );
+
+        set({
+          isLoading: false,
+          isInitialized: true,
+          ...(hadUsableAuth ? {} : { initError }),
+        });
+        return;
       }
 
       // 실제 유저가 없을 때만 데모 모드 체크
@@ -231,12 +288,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: true,
           isLoading: false,
           isInitialized: true,
+          initError: null,
         });
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      set({
+        user: null,
+        profile: null,
+        partner: null,
+        couple: null,
+        journey: null,
+        isDemo: false,
+        isLoading: false,
+        isInitialized: true,
+        initError: null,
+      });
     } catch (err) {
+      if (requestId !== authInitializationRequestId) return;
       if (!isTransientAuthFetchError(err)) {
         console.error("Auth store init error:", err);
       }
@@ -252,11 +321,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: true,
           isLoading: false,
           isInitialized: true,
+          initError: null,
         });
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      set({
+        isLoading: false,
+        isInitialized: true,
+        ...(hadUsableAuth
+          ? {}
+          : {
+              initError: unavailableInitializationError(
+                "AUTH_UNAVAILABLE",
+                "로그인 정보를 불러오지 못했습니다. 연결을 확인하고 다시 시도해주세요.",
+              ),
+            }),
+      });
     }
   },
 
@@ -389,6 +470,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    authInitializationRequestId += 1;
     set({
       user: null,
       profile: null,
@@ -398,6 +480,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       isInitialized: false,
       isDemo: false,
+      initError: null,
     });
   },
 }));

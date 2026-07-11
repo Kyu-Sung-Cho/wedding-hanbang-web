@@ -17,6 +17,9 @@ import {
   normalizeCoupleInviteCode,
 } from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
+import ErrorRetry from "@/components/ErrorRetry";
+import { consumePendingMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
+import { supabase } from "@/lib/supabase";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -140,6 +143,8 @@ function CelebrationDots() {
 }
 
 export default function OnboardingScreen() {
+  const [guardStatus, setGuardStatus] = useState<"checking" | "ready" | "error">("checking");
+  const guardRequestIdRef = useRef(0);
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
   const [coupleAction, setCoupleAction] = useState<CoupleAction>("create");
@@ -156,6 +161,51 @@ export default function OnboardingScreen() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [budgetTendency, setBudgetTendency] = useState<BudgetTendency | null>(null);
   const [guestCount, setGuestCount] = useState<GuestCount | null>(null);
+
+  const navigateAfterOnboarding = useCallback(async () => {
+    const pendingPath = await consumePendingMobileAuthReturnPath().catch(() => null);
+    router.replace(pendingPath ?? "/(tabs)/dashboard");
+  }, []);
+
+  const verifyOnboardingState = useCallback(async () => {
+    const requestId = ++guardRequestIdRef.current;
+    setGuardStatus("checking");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (requestId !== guardRequestIdRef.current) return;
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", sessionData.session.user.id)
+        .maybeSingle();
+      if (requestId !== guardRequestIdRef.current) return;
+      if (profileError) throw profileError;
+
+      if (profile?.onboarding_completed) {
+        await navigateAfterOnboarding();
+        return;
+      }
+
+      setGuardStatus("ready");
+    } catch (error) {
+      if (requestId !== guardRequestIdRef.current) return;
+      console.error("Mobile onboarding guard failed:", error);
+      setGuardStatus("error");
+    }
+  }, [navigateAfterOnboarding]);
+
+  useEffect(() => {
+    void verifyOnboardingState();
+    return () => {
+      guardRequestIdRef.current += 1;
+    };
+  }, [verifyOnboardingState]);
 
   function togglePriority(item: PriorityItem) {
     setPriorities((prev) => {
@@ -246,7 +296,7 @@ export default function OnboardingScreen() {
         setResultCode(data.inviteCode);
         animateStepTransition(5);
       } else {
-        router.replace("/(tabs)/dashboard");
+        await navigateAfterOnboarding();
       }
     } catch (err) {
       Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
@@ -259,7 +309,7 @@ export default function OnboardingScreen() {
     if (step === 4) {
       handleSubmit();
     } else if (step === 5) {
-      router.replace("/(tabs)/dashboard");
+      void navigateAfterOnboarding();
     } else {
       animateStepTransition(step + 1);
     }
@@ -269,6 +319,25 @@ export default function OnboardingScreen() {
     if (step > 1 && step < 5) {
       animateStepTransition(step - 1);
     }
+  }
+
+  if (guardStatus === "checking") {
+    return (
+      <SafeAreaView style={styles.guardState} accessibilityLiveRegion="polite">
+        <ActivityIndicator color={colors.rose[500]} size="large" />
+      </SafeAreaView>
+    );
+  }
+
+  if (guardStatus === "error") {
+    return (
+      <SafeAreaView style={styles.guardState}>
+        <ErrorRetry
+          message="온보딩 상태를 확인하지 못했어요. 기존 설정은 바꾸지 않고 다시 확인할게요."
+          onRetry={() => void verifyOnboardingState()}
+        />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -575,6 +644,12 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  guardState: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+    paddingHorizontal: 24,
+  },
   content: { paddingHorizontal: 24, paddingBottom: 120 },
 
   header: {

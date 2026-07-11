@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { router } from "expo-router";
 import { AppState } from "react-native";
 import type { AppStateStatus, NativeEventSubscription } from "react-native";
+import { persistActiveMobileAuthReturnPath } from "./mobileAuthIntent";
 
 let initialized = false;
 let appStateSubscription: NativeEventSubscription | null = null;
@@ -26,7 +27,13 @@ export function initAuthListener() {
 
   const { data } = supabase.auth.onAuthStateChange((event) => {
     if (event === "SIGNED_OUT") {
-      router.replace("/(auth)/login");
+      void persistActiveMobileAuthReturnPath()
+        .catch((error: unknown) => {
+          console.error("Pending auth return path save failed:", error);
+        })
+        .finally(() => {
+          router.replace("/(auth)/login");
+        });
     }
   });
   authStateSubscription = data.subscription;
