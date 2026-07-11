@@ -176,6 +176,10 @@ export default function QuickReviewPage() {
           />
         </div>
 
+        <p className="rounded-xl bg-[#f5f1e8] px-4 py-3 text-xs leading-relaxed text-[#5f574f]">
+          이 후기는 전체 공개되며, 가입 이름 대신 자동 생성된 커뮤니티 닉네임으로 표시됩니다. 닉네임은 커뮤니티 프로필에서 바꿀 수 있어요.
+        </p>
+
         <button
           type="submit"
           disabled={submitting}

@@ -40,8 +40,14 @@ describe("community nickname validation", () => {
     }
   });
 
-  it("uses a stable fallback when a profile name is not valid as a nickname", () => {
-    expect(getSafeDefaultCommunityNickname("관리자", "12345678-aaaa-bbbb-cccc-123456789012"))
-      .toBe(getCommunityNicknameFallback("12345678-aaaa-bbbb-cccc-123456789012"));
+  it("never copies an account name into the default public nickname", () => {
+    const userId = "12345678-aaaa-bbbb-cccc-123456789012";
+    const nickname = getSafeDefaultCommunityNickname("김웨딩", userId);
+
+    expect(nickname).toBe(getCommunityNicknameFallback(userId));
+    expect(nickname).not.toContain("김웨딩");
+    expect(nickname).not.toContain("12345678");
+    expect(getSafeDefaultCommunityNickname("다른 이름", userId)).toBe(nickname);
+    expect(validateCommunityNickname(nickname).ok).toBe(true);
   });
 });
