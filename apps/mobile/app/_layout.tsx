@@ -4,10 +4,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { initSentry } from "@/lib/sentry";
 import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
+import { supabase } from "@/lib/supabase";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
@@ -62,6 +63,8 @@ initSentry();
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [authReady, setAuthReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     // Paperlogy mapped through legacy aliases for existing screens.
     NotoSerifKR_300Light,
@@ -91,6 +94,34 @@ export default function RootLayout() {
     return disposeAuthListener;
   }, []);
 
+  // 딥링크는 index를 거치지 않을 수 있으므로, 루트 네비게이터에서 비공개 화면을 막는다.
+  useEffect(() => {
+    let mounted = true;
+
+    void supabase.auth.getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSignedIn(Boolean(data.session));
+        setAuthReady(true);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSignedIn(false);
+        setAuthReady(true);
+      });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setSignedIn(Boolean(session));
+      setAuthReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
   // 푸시 알림 등록 (EAS Build에서만 작동, Expo Go에서는 스킵)
   useEffect(() => {
     if (fontsLoaded && !__DEV__) {
@@ -100,7 +131,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded && !fontError) {
+  if ((!fontsLoaded && !fontError) || !authReady) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
         <ActivityIndicator color={colors.rose[500]} />
@@ -121,13 +152,18 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
-            <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
-            <Stack.Screen name="schedule" options={{ headerShown: false }} />
-            <Stack.Screen name="budget" options={{ headerShown: false }} />
+            <Stack.Protected guard={!signedIn}>
+              <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+            </Stack.Protected>
+            <Stack.Protected guard={signedIn}>
+              <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
+              <Stack.Screen name="schedule" options={{ headerShown: false }} />
+              <Stack.Screen name="budget" options={{ headerShown: false }} />
+              <Stack.Screen name="bookings" options={{ headerShown: false }} />
+              <Stack.Screen name="settings" options={{ headerShown: false }} />
+            </Stack.Protected>
             <Stack.Screen name="vendors" options={{ headerShown: false }} />
-            <Stack.Screen name="settings" options={{ headerShown: false }} />
             <Stack.Screen name="market-prices" options={{ headerShown: false }} />
             <Stack.Screen name="etiquette" options={{ headerShown: false }} />
             <Stack.Screen name="webview" options={{ headerShown: false }} />

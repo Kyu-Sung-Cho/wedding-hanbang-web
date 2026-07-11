@@ -31,3 +31,10 @@ export function pathWithAuthReturn(path: string, returnPath: string | null): str
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}next=${encodeURIComponent(returnPath)}`;
 }
+
+export function authReturnPathFromLocation(location: {
+  pathname: string;
+  search?: string;
+}): string | null {
+  return sanitizeAuthReturnPath(`${location.pathname}${location.search ?? ""}`);
+}

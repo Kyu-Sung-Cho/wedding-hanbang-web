@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { sanitizeAuthReturnPath } from "@/lib/authReturnPath";
+import { authReturnPathFromLocation } from "@/lib/authReturnPath";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -77,7 +77,7 @@ export async function updateSession(request: NextRequest) {
   if (!user) {
     const url = request.nextUrl.clone();
     const returnPath = protectedType === "customer"
-      ? sanitizeAuthReturnPath(`${pathname}${request.nextUrl.search}`)
+      ? authReturnPathFromLocation(request.nextUrl)
       : null;
     url.pathname = protectedType === "admin" ? "/admin/login" : "/login";
     url.search = "";
@@ -93,7 +93,10 @@ export async function updateSession(request: NextRequest) {
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {
       const url = request.nextUrl.clone();
+      const returnPath = authReturnPathFromLocation(request.nextUrl);
       url.pathname = "/wedding/onboarding";
+      url.search = "";
+      if (returnPath) url.searchParams.set("next", returnPath);
       return NextResponse.redirect(url);
     }
   }
