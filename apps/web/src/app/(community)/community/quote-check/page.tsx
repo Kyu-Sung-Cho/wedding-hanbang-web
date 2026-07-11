@@ -454,7 +454,7 @@ function ResultPanel({
     return lines.join("\n");
   }, [result, topMissing]);
 
-  // "익명 사례로 공유하기" 게시글 prefill
+  // "업체명 뺀 사례로 공유하기" 게시글 prefill
   const postTitle = useMemo(
     () =>
       `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적, 이거 빠진 거 정상인가요?`,
@@ -637,7 +637,7 @@ function ResultPanel({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
         >
           <PenLine className="h-4 w-4" />
-          익명 사례로 공유하기
+          업체명 뺀 사례로 공유하기
         </Link>
       </div>
 
