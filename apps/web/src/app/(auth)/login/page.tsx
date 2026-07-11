@@ -7,6 +7,7 @@ import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
@@ -33,6 +34,11 @@ function checkPasswordStrength(pw: string): PasswordCheck {
 
 function isPasswordValid(checks: PasswordCheck): boolean {
   return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
+}
+
+function currentReturnPath(): string | null {
+  if (typeof window === "undefined") return null;
+  return sanitizeAuthReturnPath(new URLSearchParams(window.location.search).get("next"));
 }
 
 export default function LoginPage() {
@@ -85,10 +91,13 @@ export default function LoginPage() {
     document.cookie = "demo_mode=; path=/; max-age=0";
     try {
       const supabase = createClient();
+      const callbackUrl = new URL("/api/auth/callback", window.location.origin);
+      const returnPath = currentReturnPath();
+      if (returnPath) callbackUrl.searchParams.set("next", returnPath);
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
+          redirectTo: callbackUrl.toString(),
         },
       });
       if (oauthError) {
@@ -148,7 +157,7 @@ export default function LoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken }),
+          body: JSON.stringify({ email, password, name, turnstileToken, next: currentReturnPath() }),
         });
         const result = await res.json();
         if (!res.ok) {
@@ -199,12 +208,12 @@ export default function LoginPage() {
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/wedding/lounge";
+              window.location.href = currentReturnPath() ?? "/wedding/lounge";
             } else {
-              window.location.href = "/wedding/onboarding";
+              window.location.href = pathWithAuthReturn("/wedding/onboarding", currentReturnPath());
             }
           } else {
-            window.location.href = "/wedding/lounge";
+            window.location.href = currentReturnPath() ?? "/wedding/lounge";
           }
         }
       }
@@ -228,7 +237,7 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/demo/start", { method: "POST" });
       if (!res.ok) throw new Error("demo start failed");
-      window.location.href = "/wedding/lounge";
+      window.location.href = currentReturnPath() ?? "/wedding/lounge";
     } catch {
       setError("데모 모드를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
       setLoading(null);

@@ -11,6 +11,7 @@ import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { isCoupleInviteCode } from "@hanbang/shared";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -19,14 +20,18 @@ export default function OnboardingPage() {
   const [inviteCodeResult, setInviteCodeResult] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [returnPath, setReturnPath] = useState<string | null>(null);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
+    const nextPath = sanitizeAuthReturnPath(new URLSearchParams(window.location.search).get("next"));
+    setReturnPath(nextPath);
+
     const checkProfile = async () => {
       try {
         const res = await fetch("/api/auth/me");
         if (!res.ok) {
-          window.location.href = "/login";
+          window.location.href = pathWithAuthReturn("/login", nextPath);
           return;
         }
         const data = await res.json();
@@ -35,7 +40,7 @@ export default function OnboardingPage() {
         }
         if (data.profile.onboarding_completed) {
           document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-          window.location.href = "/wedding/lounge";
+          window.location.href = nextPath ?? "/wedding/lounge";
         }
       } catch {
         // 에러 시 온보딩 계속 진행
@@ -121,7 +126,7 @@ export default function OnboardingPage() {
         setShowInviteModal(true);
         // 리다이렉트 하지 않음 → 모달에서 사용자가 직접 이동
       } else {
-        window.location.href = "/wedding/lounge";
+        window.location.href = returnPath ?? "/wedding/lounge";
       }
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -344,11 +349,11 @@ export default function OnboardingPage() {
 
               <button
                 onClick={() => {
-                  window.location.href = "/wedding/lounge";
+                  window.location.href = returnPath ?? "/wedding/lounge";
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
-                대시보드로 이동
+                {returnPath ? "이어서 보기" : "웨딩 라운지로 이동"}
               </button>
             </motion.div>
           </motion.div>

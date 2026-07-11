@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
+import { sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 const GENERIC_SIGNUP_MESSAGE =
   "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다. 받지 못했다면 잠시 후 다시 시도해주세요.";
@@ -95,9 +96,10 @@ async function compensateCreatedUser(
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed } = await request.json();
+    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed, next: rawNext } = await request.json();
     const email = normalizeEmail(rawEmail);
     const name = cleanOptionalText(rawName, 60);
+    const returnPath = sanitizeAuthReturnPath(rawNext);
     // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
     const marketingConsent = marketingAgreed === true;
 
@@ -134,13 +136,19 @@ export async function POST(request: Request) {
     if (emailLimited) return emailLimited;
 
     const supabase = getAdminSupabase();
+    const callbackUrl = new URL(
+      "/api/auth/callback",
+      process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"
+    );
+    if (returnPath) callbackUrl.searchParams.set("next", returnPath);
+
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "signup",
       email,
       password,
       options: {
         data: { name, marketing_agreed: marketingConsent },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"}/api/auth/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     });
 
