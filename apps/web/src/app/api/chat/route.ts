@@ -19,6 +19,7 @@ import { BETA_SAFE_TOOLS, READ_ONLY_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { countRecentConsecutiveDissatisfaction } from "@/lib/ai/dissatisfaction";
+import { getRuntimeToolContract } from "@/lib/ai/runtimeToolContract";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { calcCostUsd, logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
@@ -491,6 +492,13 @@ export async function POST(request: Request) {
     clientRequestId: bodyClientRequestId,
     visibility: bodyVisibility,
   } = body;
+  const rawClientCapabilities = body.clientCapabilities;
+  const supportsToolCards = !(
+    rawClientCapabilities &&
+    typeof rawClientCapabilities === "object" &&
+    "toolCards" in rawClientCapabilities &&
+    rawClientCapabilities.toolCards === false
+  );
   const isDemo =
     bodyIsDemo === true &&
     hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
@@ -969,7 +977,7 @@ export async function POST(request: Request) {
       `- 답변은 평소처럼 따뜻하고 실용적으로. 비공개라고 톤을 어둡게 하지 마세요.\n\n`
     : "";
 
-  const systemPrompt = cautionPrefix + privacyPrefix + getWeddingPlannerSystemPrompt({
+  let systemPrompt = cautionPrefix + privacyPrefix + getWeddingPlannerSystemPrompt({
     weddingDate: weddingDateForStage,
     budget: trustedWeddingContext.budget,
     venue: trustedWeddingContext.venue,
@@ -1034,6 +1042,7 @@ export async function POST(request: Request) {
   const toolsForTurn = canUseExternalSearch
     ? BETA_SAFE_TOOLS
     : READ_ONLY_SAFE_TOOLS;
+  systemPrompt += getRuntimeToolContract(toolsForTurn, { toolCards: supportsToolCards });
 
   if (!hasOpenAIConfig(chatModelRole)) {
     return NextResponse.json(
@@ -1501,9 +1510,11 @@ export async function POST(request: Request) {
             send({ type: "tool_result", result: execResult });
             // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
             const outputJson = JSON.stringify(execResult.toolOutput);
-            const reminder = UI_RENDERED_TOOLS.has(toolCall.name)
+            const reminder = UI_RENDERED_TOOLS.has(toolCall.name) && supportsToolCards
               ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
-              : "";
+              : !supportsToolCards
+                ? "\n[SYSTEM: 이 클라이언트는 결과 카드를 렌더링하지 못합니다. 도구의 성공/실패와 사용자가 알아야 할 핵심 결과를 최종 텍스트에 반드시 요약하세요.]"
+                : "";
             toolResultInputs.push(buildToolResultInput(toolCall.callId, outputJson + reminder));
           }
 
