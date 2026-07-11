@@ -57,6 +57,10 @@ import {
   sanitizeTrustedDisplayName,
 } from "@/lib/ai/chatRequest";
 import { NextResponse } from "next/server";
+import {
+  hasImmediateKoreanCrisisSignal,
+  KOREAN_CRISIS_SAFETY_RESPONSE,
+} from "@/lib/ai/crisisSafety";
 import type { ToolExecutionResult } from "@/types/database.types";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
@@ -439,6 +443,27 @@ function chatRequestErrorResponse(error: unknown, signal?: AbortSignal): NextRes
   return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
 }
 
+function createCrisisSafetySseResponse(): Response {
+  return new Response(
+    `data: ${JSON.stringify({
+      type: "done",
+      fullContent: KOREAN_CRISIS_SAFETY_RESPONSE,
+      metadata: {
+        safetyResponse: true,
+        providerCalled: false,
+      },
+    })}\n\n`,
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    }
+  );
+}
+
 export async function POST(request: Request) {
   const responseAbortController = new AbortController();
   const routeSignal = AbortSignal.any([
@@ -463,12 +488,6 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
-
-  const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
-    maxRequests: 60,
-    windowMs: 60 * 60 * 1000,
-  });
-  if (limited) return limited;
 
   let body: Record<string, unknown>;
   try {
@@ -570,6 +589,21 @@ export async function POST(request: Request) {
   if (messages[messages.length - 1]?.role !== "user") {
     return NextResponse.json({ error: "마지막 메시지는 사용자 메시지여야 합니다." }, { status: 400 });
   }
+  const crisisCandidateText = messages[messages.length - 1]?.content ?? "";
+  const hasCrisisSafetySignal = hasImmediateKoreanCrisisSignal(crisisCandidateText);
+
+  // This fixed, side-effect-free response runs immediately after authentication
+  // and bounded message validation. It bypasses chat rate-limit logging so the
+  // sensitive text and derived safety classification are never copied to logs.
+  if (hasCrisisSafetySignal) {
+    return createCrisisSafetySseResponse();
+  }
+
+  const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
+    maxRequests: 60,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (limited) return limited;
 
   const requestAttachments = attachments ?? body.images ?? [];
   if (!Array.isArray(requestAttachments)) {
