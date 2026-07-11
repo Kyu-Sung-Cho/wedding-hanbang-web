@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Send, Sparkles, Heart, LockKeyhole } from "lucide-react-native";
+import { useRouter } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
@@ -17,18 +18,128 @@ import {
   isMessageVisibleForMobileTarget,
   normalizeChatVisibility,
   parseChatSse,
+  type ChatSseToolResult,
   type ChatVisibility,
   type MobileChatTarget,
+  type ParsedChatSse,
 } from "@hanbang/shared";
+
+interface ChatMessageMetadata extends Record<string, unknown> {
+  target?: string;
+  client_request_id?: string;
+}
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   sender_type: "bride" | "groom" | "ai";
   content: string;
-  metadata?: { target?: string } | null;
+  metadata?: ChatMessageMetadata | null;
   visibility: ChatVisibility;
   created_at?: string;
+  toolResults?: ChatSseToolResult[];
+  suggestions?: string[];
+  quotaRemaining?: number;
+}
+
+interface PendingAiRequest {
+  requestId: string;
+  tempId: string;
+  body: {
+    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    coupleId: string;
+    senderName: string;
+    visibility: ChatVisibility;
+    clientRequestId: string;
+    clientCapabilities: { toolCards: false; incrementalSse: true };
+  };
+}
+
+type LoadIssue = "signed_out" | "couple_missing" | "load_failed";
+
+interface SendIssue {
+  message: string;
+  retry: "send" | "ai";
+}
+
+interface ChatStreamReader {
+  read(): Promise<{ done: boolean; value?: Uint8Array }>;
+  releaseLock?(): void;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toMetadata(value: unknown): ChatMessageMetadata | null {
+  return isRecord(value) ? value : null;
+}
+
+function toolResultsFromMetadata(metadata: ChatMessageMetadata | null): ChatSseToolResult[] | undefined {
+  if (!Array.isArray(metadata?.toolResults)) return undefined;
+  const results = metadata.toolResults.filter(isRecord) as ChatSseToolResult[];
+  return results.length > 0 ? results : undefined;
+}
+
+function toolResultLabels(results: ChatSseToolResult[] | undefined): string[] {
+  if (!results?.length) return [];
+  return results.slice(-3).map((result) => {
+    if (typeof result.displayMessage === "string" && result.displayMessage.trim()) {
+      const message = result.displayMessage.trim();
+      return message.length > 180 ? `${message.slice(0, 177)}...` : message;
+    }
+    return result.success === false ? "정보를 확인하지 못했어요." : "정보 확인을 마쳤어요.";
+  });
+}
+
+function matchesPendingRequest(message: ChatMessage, pending: PendingAiRequest): boolean {
+  return message.id === pending.tempId || message.metadata?.client_request_id === pending.requestId;
+}
+
+async function readChatSseResponse(
+  response: Response,
+  onUpdate: (parsed: ParsedChatSse) => void
+): Promise<ParsedChatSse> {
+  const body = response.body as unknown as { getReader?: () => ChatStreamReader } | null;
+  if (!body?.getReader || typeof TextDecoder === "undefined") {
+    const parsed = parseChatSse(await response.text());
+    onUpdate(parsed);
+    return parsed;
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let raw = "";
+  let parsed = parseChatSse(raw);
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      raw += decoder.decode(value, { stream: true });
+      parsed = parseChatSse(raw);
+      onUpdate(parsed);
+    }
+    raw += decoder.decode();
+    parsed = parseChatSse(raw);
+    onUpdate(parsed);
+    return parsed;
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+
+async function readResponseError(response: Response, fallback: string): Promise<string> {
+  const payload = await response.json().catch(() => null);
+  return isRecord(payload) && typeof payload.error === "string" ? payload.error : fallback;
+}
+
+function cleanAssistantContent(content: string): string {
+  return content
+    .replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "")
+    .replace(/\[suggestions\][\s\S]*$/g, "")
+    .trim();
 }
 
 function ThinkingDots() {
@@ -51,20 +162,28 @@ function ThinkingDots() {
 }
 
 export default function ChatScreen() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<"bride" | "groom">("bride");
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [loadIssue, setLoadIssue] = useState<LoadIssue | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [sendIssue, setSendIssue] = useState<SendIssue | null>(null);
+  const [pendingAiRequest, setPendingAiRequest] = useState<PendingAiRequest | null>(null);
   const [target, setTarget] = useState<MobileChatTarget>("ai_shared");
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const previousMessageCountRef = useRef(0);
+  const submitLockRef = useRef(false);
+  const aiLockRef = useRef(false);
   const activeVisibility = chatVisibilityForMobileTarget(target, userRole);
   const visibleMessages = useMemo(
     () => messages.filter((message) => isMessageVisibleForMobileTarget(message, target, userRole)).reverse(),
@@ -78,47 +197,108 @@ export default function ChatScreen() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setInitialLoaded(true); return; }
-      setUserId(user.id);
+    let cancelled = false;
+    setInitialLoaded(false);
+    setLoadIssue(null);
+    setCoupleId(null);
+    setUserId(null);
+    setPartnerName(null);
 
-      const { data: profile } = await supabase.from("profiles").select("name, role, couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) { setInitialLoaded(true); return; }
-      setCoupleId(profile.couple_id);
-      if (profile.name) setUserName(profile.name);
-      if (profile.role) setUserRole(profile.role as "bride" | "groom");
+    void (async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!user) {
+          if (!cancelled) setLoadIssue("signed_out");
+          return;
+        }
+        if (cancelled) return;
+        setUserId(user.id);
 
-      // 파트너
-      const { data: partners } = await supabase.rpc("get_my_partner_public");
-      if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("name, role, couple_id")
+          .eq("id", user.id)
+          .single();
+        if (profileError || !profile) throw profileError ?? new Error("프로필을 찾을 수 없습니다.");
+        if (!profile.couple_id) {
+          if (!cancelled) setLoadIssue("couple_missing");
+          return;
+        }
+        if (cancelled) return;
+        setCoupleId(profile.couple_id);
+        if (profile.name) setUserName(profile.name);
+        if (profile.role === "bride" || profile.role === "groom") setUserRole(profile.role);
 
-      // 대화 이력
-      const { data: history } = await supabase.from("chat_messages")
-        .select("id, role, sender_type, content, metadata, visibility, created_at")
-        .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
+        // 파트너가 없거나 조회가 실패하면 파트너 탭을 비활성화하고 AI 상담은 계속 제공한다.
+        const { data: partners } = await supabase.rpc("get_my_partner_public");
+        if (!cancelled) setPartnerName(partners?.[0]?.name?.trim() || null);
 
-      if (history?.length) {
-        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], visibility: normalizeChatVisibility(m.visibility), created_at: m.created_at })));
+        // 최신 200개를 먼저 제한한 뒤, 화면 상태는 시간 오름차순으로 보관한다.
+        const { data: history, error: historyError } = await supabase
+          .from("chat_messages")
+          .select("id, role, sender_type, content, metadata, visibility, created_at")
+          .eq("couple_id", profile.couple_id)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        if (historyError) throw historyError;
+        if (cancelled) return;
+
+        setMessages((history ?? []).slice().reverse().map((message) => {
+          const metadata = toMetadata(message.metadata);
+          return {
+            id: message.id,
+            role: message.role as "user" | "assistant",
+            sender_type: message.sender_type as "bride" | "groom" | "ai",
+            content: message.content,
+            metadata,
+            visibility: normalizeChatVisibility(message.visibility),
+            created_at: message.created_at,
+            toolResults: toolResultsFromMetadata(metadata),
+          };
+        }));
+
+        const ch = supabase.channel(`chat:${profile.couple_id}`)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            const metadata = toMetadata(row.metadata);
+            const incoming: ChatMessage = {
+              id: row.id as string,
+              role: row.role as "user" | "assistant",
+              sender_type: row.sender_type as "bride" | "groom" | "ai",
+              content: row.content as string,
+              metadata,
+              visibility: normalizeChatVisibility(row.visibility),
+              created_at: row.created_at as string,
+              toolResults: toolResultsFromMetadata(metadata),
+            };
+            setMessages((previous) => {
+              if (previous.some((message) => message.id === incoming.id)) return previous;
+              const requestId = incoming.metadata?.client_request_id;
+              const hasMatchingPlaceholder = incoming.sender_type === "ai" && typeof requestId === "string"
+                && previous.some((message) => message.id.startsWith("temp_") && message.metadata?.client_request_id === requestId);
+              // SSE 완료 이벤트가 canonical ID와 본문을 적용하므로 진행 중 placeholder는 지우지 않는다.
+              if (hasMatchingPlaceholder) return previous;
+              return [...previous, incoming];
+            });
+          })
+          .subscribe();
+        channelRef.current = ch;
+      } catch {
+        if (!cancelled) setLoadIssue("load_failed");
+      } finally {
+        if (!cancelled) setInitialLoaded(true);
       }
-
-      // Realtime
-      const ch = supabase.channel(`chat:${profile.couple_id}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
-          const n = payload.new as Record<string, unknown>;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === n.id)) return prev;
-            return [...prev.filter((m) => !m.id.toString().startsWith("temp_")), {
-              id: n.id as string, role: n.role as "user" | "assistant", sender_type: n.sender_type as "bride" | "groom" | "ai",
-              content: n.content as string, metadata: n.metadata as ChatMessage["metadata"], visibility: normalizeChatVisibility(n.visibility), created_at: n.created_at as string,
-            }];
-          });
-        }).subscribe();
-      channelRef.current = ch;
-      setInitialLoaded(true);
     })();
-    return () => { if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; } };
-  }, []);
+
+    return () => {
+      cancelled = true;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [reloadNonce]);
 
   useEffect(() => {
     if (!initialLoaded || messages.length === 0) return;
@@ -137,60 +317,212 @@ export default function ChatScreen() {
   function pressIn() { Animated.spring(sendBtnScale, { toValue: 0.88, useNativeDriver: true }).start(); }
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
 
+  function applyStreamUpdate(pending: PendingAiRequest, parsed: ParsedChatSse) {
+    const clean = cleanAssistantContent(parsed.content);
+    const serverMessageId = typeof parsed.metadata?.serverMessageId === "string"
+      ? parsed.metadata.serverMessageId
+      : null;
+    const serverCreatedAt = typeof parsed.metadata?.serverCreatedAt === "string"
+      ? parsed.metadata.serverCreatedAt
+      : undefined;
+
+    setMessages((previous) => previous.map((message) => {
+      if (!matchesPendingRequest(message, pending)) return message;
+      return {
+        ...message,
+        id: parsed.completed && serverMessageId ? serverMessageId : message.id,
+        content: clean || (parsed.completed ? "응답 내용을 표시하지 못했어요. 다시 시도해주세요." : ""),
+        metadata: {
+          ...(message.metadata ?? {}),
+          ...(parsed.metadata ?? {}),
+          client_request_id: pending.requestId,
+        },
+        created_at: serverCreatedAt ?? message.created_at,
+        toolResults: parsed.toolResults ?? message.toolResults,
+        suggestions: parsed.suggestions ?? message.suggestions,
+        quotaRemaining: parsed.quotaRemaining ?? message.quotaRemaining,
+      };
+    }));
+  }
+
+  async function requestAiReply(pending: PendingAiRequest) {
+    if (aiLockRef.current) return;
+    aiLockRef.current = true;
+    setPendingAiRequest(pending);
+    setSendIssue(null);
+    setStreaming(true);
+    setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
+      ? { ...message, content: "" }
+      : message));
+    scrollToLatest(true);
+
+    try {
+      const response = await apiFetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify(pending.body),
+      });
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "아모라 연결에 실패했어요."));
+      }
+
+      const parsed = await readChatSseResponse(response, (next) => applyStreamUpdate(pending, next));
+      if (parsed.error) throw new Error(parsed.error);
+      if (!parsed.completed) throw new Error("응답 연결이 중간에 끊겼어요.");
+
+      applyStreamUpdate(pending, parsed);
+      setInput("");
+      setPendingAiRequest(null);
+      setSendIssue(null);
+      scrollToLatest(true);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요.";
+      setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
+        ? { ...message, content: "아모라 답변을 불러오지 못했어요." }
+        : message));
+      setSendIssue({ message: `${detail} 입력한 내용은 그대로 두었어요.`, retry: "ai" });
+    } finally {
+      aiLockRef.current = false;
+      setStreaming(false);
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
-    if (!text || streaming || !coupleId || !userId) return;
-
-    if (target === "partner") {
-      const response = await apiFetch("/api/chat/messages", {
-        method: "POST",
-        body: JSON.stringify({ coupleId, content: text, target: "partner", visibility: "shared" }),
-      });
-      if (!response.ok) return;
-      setInput("");
+    if (!text || streaming || submitting || submitLockRef.current) return;
+    if (!coupleId || !userId) {
+      setSendIssue({ message: "커플 연결 상태를 확인한 뒤 다시 시도해주세요.", retry: "send" });
       return;
     }
 
-    // AI
-    const persistResponse = await apiFetch("/api/chat/messages", {
-      method: "POST",
-      body: JSON.stringify({ coupleId, content: text, visibility: activeVisibility }),
-    });
-    const persistPayload = await persistResponse.json().catch(() => ({}));
-    if (!persistResponse.ok || !persistPayload.message) return;
-    const ui = persistPayload.message as ChatMessage;
-    const userMsg: ChatMessage = { ...ui, role: "user", sender_type: userRole, visibility: activeVisibility };
-    const tempId = `temp_${Date.now()}`;
-    setMessages((p) => [...p, userMsg, { id: tempId, role: "assistant", sender_type: "ai", content: "", visibility: activeVisibility }]);
-    setInput(""); setStreaming(true); scrollToLatest(true);
+    submitLockRef.current = true;
+    setSubmitting(true);
+    setSendIssue(null);
 
     try {
-      const recentContext = [...messages, userMsg]
-        .filter((message) => isMessageAllowedInAiContext(message, activeVisibility))
-        .slice(-20)
-        .map((m) => ({ role: m.role, content: m.content }));
-      const res = await apiFetch("/api/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          messages: recentContext,
-          coupleId,
-          senderName: userName,
+      if (target === "partner") {
+        if (!partnerName) {
+          setSendIssue({ message: "파트너가 연결되면 메시지를 보낼 수 있어요.", retry: "send" });
+          return;
+        }
+        try {
+          const response = await apiFetch("/api/chat/messages", {
+            method: "POST",
+            body: JSON.stringify({ coupleId, content: text, target: "partner", visibility: "shared" }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !isRecord(payload) || !isRecord(payload.message)) {
+            const message = isRecord(payload) && typeof payload.error === "string"
+              ? payload.error
+              : "메시지를 보내지 못했어요.";
+            throw new Error(message);
+          }
+          const saved = payload.message;
+          const metadata = toMetadata(saved.metadata);
+          const partnerMessage: ChatMessage = {
+            id: saved.id as string,
+            role: "user",
+            sender_type: userRole,
+            content: saved.content as string,
+            metadata,
+            visibility: normalizeChatVisibility(saved.visibility),
+            created_at: saved.created_at as string,
+          };
+          setMessages((previous) => previous.some((message) => message.id === partnerMessage.id)
+            ? previous
+            : [...previous, partnerMessage]);
+          setInput("");
+        } catch (error) {
+          setSendIssue({
+            message: `${error instanceof Error ? error.message : "메시지를 보내지 못했어요."} 입력한 내용은 그대로 두었어요.`,
+            retry: "send",
+          });
+        }
+        return;
+      }
+
+      try {
+        const persistResponse = await apiFetch("/api/chat/messages", {
+          method: "POST",
+          body: JSON.stringify({ coupleId, content: text, visibility: activeVisibility }),
+        });
+        const persistPayload = await persistResponse.json().catch(() => null);
+        if (!persistResponse.ok || !isRecord(persistPayload) || !isRecord(persistPayload.message)) {
+          const message = isRecord(persistPayload) && typeof persistPayload.error === "string"
+            ? persistPayload.error
+            : "메시지를 저장하지 못했어요.";
+          throw new Error(message);
+        }
+
+        const saved = persistPayload.message;
+        const userMsg: ChatMessage = {
+          id: saved.id as string,
+          role: "user",
+          sender_type: userRole,
+          content: saved.content as string,
+          metadata: toMetadata(saved.metadata),
           visibility: activeVisibility,
-          clientRequestId: `mobile:${userMsg.id}`.slice(0, 120),
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "채팅 오류");
-      const raw = await res.text();
-      const parsed = parseChatSse(raw);
-      if (parsed.error) throw new Error(parsed.error);
-      if (!parsed.completed) throw new Error("AI 응답이 완료되지 않았어요. 다시 시도해주세요.");
-      const full = parsed.content;
-      const clean = full.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/g, "").trim() || full || "응답을 받지 못했어요.";
-      setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: clean } : m));
-      scrollToLatest(true);
-    } catch (err) {
-      setMessages((p) => p.map((m) => m.id === tempId ? { ...m, content: `오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}` } : m));
-    } finally { setStreaming(false); }
+          created_at: saved.created_at as string,
+        };
+        const recentContext = [...messages, userMsg]
+          .filter((message) => !message.id.startsWith("temp_"))
+          .filter((message) => isMessageAllowedInAiContext(message, activeVisibility))
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content }));
+        const requestId = `mobile:${userMsg.id}`.slice(0, 120);
+        const pending: PendingAiRequest = {
+          requestId,
+          tempId: `temp_${Date.now()}`,
+          body: {
+            messages: recentContext,
+            coupleId,
+            senderName: userName,
+            visibility: activeVisibility,
+            clientRequestId: requestId,
+            clientCapabilities: { toolCards: false, incrementalSse: true },
+          },
+        };
+        const placeholder: ChatMessage = {
+          id: pending.tempId,
+          role: "assistant",
+          sender_type: "ai",
+          content: "",
+          metadata: { client_request_id: requestId },
+          visibility: activeVisibility,
+        };
+        setMessages((previous) => [
+          ...previous.filter((message) => message.id !== userMsg.id),
+          userMsg,
+          placeholder,
+        ]);
+        await requestAiReply(pending);
+      } catch (error) {
+        setSendIssue({
+          message: `${error instanceof Error ? error.message : "메시지를 저장하지 못했어요."} 입력한 내용은 그대로 두었어요.`,
+          retry: "send",
+        });
+      }
+    } finally {
+      submitLockRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  function retrySend() {
+    if (submitting || streaming) return;
+    if (sendIssue?.retry === "ai" && pendingAiRequest) {
+      void requestAiReply(pendingAiRequest);
+      return;
+    }
+    void handleSend();
+  }
+
+  function handleInputChange(value: string) {
+    if (pendingAiRequest && value !== input) {
+      setMessages((previous) => previous.filter((message) => !matchesPendingRequest(message, pendingAiRequest)));
+      setPendingAiRequest(null);
+    }
+    setSendIssue(null);
+    setInput(value);
   }
 
   function renderMessage({ item }: { item: ChatMessage }) {
@@ -198,7 +530,10 @@ export default function ChatScreen() {
     const isMe = item.sender_type === userRole;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
-    const isThinking = isAi && !item.content && streaming;
+    const isThinking = isAi && !item.content && streaming && Boolean(
+      pendingAiRequest && matchesPendingRequest(item, pendingAiRequest)
+    );
+    const toolLabels = toolResultLabels(item.toolResults);
     const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
@@ -212,8 +547,27 @@ export default function ChatScreen() {
         <View style={{ maxWidth: "78%" }}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
           <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
-            {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+            {isThinking && <ThinkingDots />}
+            {!isThinking && Boolean(item.content) && <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+            {toolLabels.map((label, index) => (
+              <View key={`${item.id}:tool:${index}`} style={st.toolStatus}>
+                <Sparkles size={11} color={colors.gold.DEFAULT} />
+                <Text style={st.toolStatusText}>{label}</Text>
+              </View>
+            ))}
+            {item.quotaRemaining !== undefined && (
+              <Text style={st.quotaText}>오늘 아모라 대화 {item.quotaRemaining}회 남았어요.</Text>
+            )}
           </View>
+          {isAi && Boolean(item.suggestions?.length) && (
+            <View style={st.messageSuggestions}>
+              {item.suggestions!.slice(0, 3).map((suggestion) => (
+                <Pressable key={`${item.id}:${suggestion}`} style={st.messageSuggestionBtn} onPress={() => handleInputChange(suggestion)}>
+                  <Text style={st.messageSuggestionText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
       </View>
     );
@@ -221,6 +575,22 @@ export default function ChatScreen() {
 
   const isP = target === "partner";
   const isPrivate = target === "ai_private";
+  const targetLocked = submitting || streaming || Boolean(pendingAiRequest);
+  const loadCopy = loadIssue === "signed_out"
+    ? { title: "로그인이 필요해요", description: "로그인하면 아모라 대화를 안전하게 이어갈 수 있어요.", action: "로그인하기" }
+    : loadIssue === "couple_missing"
+      ? { title: "커플 연결이 필요해요", description: "내 정보를 먼저 설정하거나 파트너 초대 코드를 연결해주세요.", action: "연결 설정하기" }
+      : { title: "대화를 불러오지 못했어요", description: "네트워크 상태를 확인하고 다시 불러와 주세요.", action: "다시 불러오기" };
+
+  function handleLoadIssueAction() {
+    if (loadIssue === "signed_out") {
+      router.replace("/(auth)/login");
+    } else if (loadIssue === "couple_missing") {
+      router.push("/onboarding");
+    } else {
+      setReloadNonce((value) => value + 1);
+    }
+  }
 
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
@@ -230,9 +600,19 @@ export default function ChatScreen() {
       </View>
 
       <View style={st.targetRow}>
-        <Pressable style={[st.targetBtn, target === "ai_shared" && st.targetActive]} onPress={() => setTarget("ai_shared")} accessibilityRole="tab" accessibilityLabel="커플이 함께 보는 아모라 대화" accessibilityState={{ selected: target === "ai_shared" }}><Sparkles size={14} color={target === "ai_shared" ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, target === "ai_shared" && st.targetTextActive]}>함께</Text></Pressable>
-        <Pressable style={[st.targetBtn, isPrivate && st.targetPrivate]} onPress={() => setTarget("ai_private")} accessibilityRole="tab" accessibilityLabel="나만 보는 아모라 비공개 대화" accessibilityState={{ selected: isPrivate }}><LockKeyhole size={14} color={isPrivate ? colors.noir[800] : colors.textTertiary} /><Text style={[st.targetText, isPrivate && st.targetTextPrivate]}>나만</Text></Pressable>
-        <Pressable style={[st.targetBtn, isP && st.targetPartner]} onPress={() => setTarget("partner")} accessibilityRole="tab" accessibilityState={{ selected: isP }}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
+        <Pressable style={[st.targetBtn, target === "ai_shared" && st.targetActive, targetLocked && st.targetDisabled]} onPress={() => setTarget("ai_shared")} disabled={targetLocked} accessibilityRole="tab" accessibilityLabel="커플이 함께 보는 아모라 대화" accessibilityState={{ selected: target === "ai_shared", disabled: targetLocked }}><Sparkles size={14} color={target === "ai_shared" ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, target === "ai_shared" && st.targetTextActive]}>함께</Text></Pressable>
+        <Pressable style={[st.targetBtn, isPrivate && st.targetPrivate, targetLocked && st.targetDisabled]} onPress={() => setTarget("ai_private")} disabled={targetLocked} accessibilityRole="tab" accessibilityLabel="나만 보는 아모라 비공개 대화" accessibilityState={{ selected: isPrivate, disabled: targetLocked }}><LockKeyhole size={14} color={isPrivate ? colors.noir[800] : colors.textTertiary} /><Text style={[st.targetText, isPrivate && st.targetTextPrivate]}>나만</Text></Pressable>
+        <Pressable
+          style={[st.targetBtn, isP && st.targetPartner, (!partnerName || targetLocked) && st.targetDisabled]}
+          onPress={() => setTarget("partner")}
+          disabled={!partnerName || targetLocked}
+          accessibilityRole="tab"
+          accessibilityLabel={partnerName ? `${partnerName}님과 대화` : "파트너 미연결"}
+          accessibilityState={{ selected: isP, disabled: !partnerName || targetLocked }}
+        >
+          <Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} />
+          <Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너 미연결"}</Text>
+        </Pressable>
       </View>
 
       {!isP && (
@@ -252,6 +632,17 @@ export default function ChatScreen() {
           <View style={st.loading}>
             <ActivityIndicator color={colors.rose[500]} />
             <Text style={st.loadingText}>대화를 준비하는 중이에요</Text>
+          </View>
+        ) : loadIssue ? (
+          <View style={st.empty}>
+            <EmptyState
+              icon={<IconBadge tone="noir" size={64}><Sparkles size={28} color={colors.gold.DEFAULT} /></IconBadge>}
+              title={loadCopy.title}
+              description={loadCopy.description}
+            />
+            <Pressable style={st.primaryRetryBtn} onPress={handleLoadIssueAction} accessibilityRole="button">
+              <Text style={st.primaryRetryText}>{loadCopy.action}</Text>
+            </Pressable>
           </View>
         ) : visibleMessages.length === 0 ? (
           <View style={st.empty}>
@@ -274,11 +665,20 @@ export default function ChatScreen() {
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
         )}
 
+        {sendIssue && !loadIssue && (
+          <View style={st.sendIssue} accessibilityRole="alert">
+            <Text style={st.sendIssueText}>{sendIssue.message}</Text>
+            <Pressable style={st.retryLink} onPress={retrySend} disabled={submitting || streaming} accessibilityRole="button">
+              <Text style={st.retryLinkText}>{submitting || streaming ? "다시 연결 중" : "다시 시도"}</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={setInput} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : isPrivate ? "나만의 고민을 입력하세요..." : "함께 볼 메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : isPrivate ? "나만의 고민을 입력하세요..." : "함께 볼 메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!submitting && !streaming && !loadIssue} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming} accessibilityLabel="메시지 보내기" accessibilityRole="button">
-              {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || submitting || streaming || Boolean(loadIssue)) && st.sendBtnOff]} onPress={pendingAiRequest ? retrySend : handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || submitting || streaming || Boolean(loadIssue)} accessibilityLabel={pendingAiRequest ? "아모라 답변 다시 받기" : "메시지 보내기"} accessibilityRole="button">
+              {submitting ? <ActivityIndicator size="small" color="#FFF" /> : isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>
         </View>
@@ -299,6 +699,7 @@ const st = StyleSheet.create({
   targetActive: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
   targetPrivate: { borderBottomWidth: 2, borderBottomColor: colors.noir[800] },
   targetPartner: { borderBottomWidth: 2, borderBottomColor: colors.rose[500] },
+  targetDisabled: { opacity: 0.48 },
   targetText: { fontSize: 14, color: colors.textTertiary },
   targetTextActive: { color: colors.noir[800], fontWeight: "600" },
   targetTextPrivate: { color: colors.noir[800], fontWeight: "600" },
@@ -324,6 +725,18 @@ const st = StyleSheet.create({
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, lineHeight: 22 },
+  toolStatus: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  toolStatusText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  quotaText: { marginTop: 8, fontSize: 11, color: colors.textTertiary },
+  messageSuggestions: { gap: 6, marginTop: 7 },
+  messageSuggestionBtn: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  messageSuggestionText: { fontSize: 12, lineHeight: 17, color: colors.noir[800] },
+  primaryRetryBtn: { minHeight: 44, minWidth: 160, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, borderRadius: 14, backgroundColor: colors.noir[800] },
+  primaryRetryText: { fontSize: 14, fontWeight: "600", color: "#FFF" },
+  sendIssue: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#FFF5F3", borderTopWidth: 1, borderTopColor: colors.rose.light },
+  sendIssueText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.noir[800] },
+  retryLink: { minHeight: 36, justifyContent: "center", paddingHorizontal: 10 },
+  retryLinkText: { fontSize: 12, fontWeight: "700", color: colors.rose[600] },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 40, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.noir[800], backgroundColor: colors.bg, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.rose[500], alignItems: "center", justifyContent: "center" },

@@ -29,4 +29,28 @@ describe("parseChatSse", () => {
 
     expect(parsed).toEqual({ content: "", completed: false, error: "실패" });
   });
+
+  it("preserves tool results, suggestions, quota, and completion metadata", () => {
+    const parsed = parseChatSse([
+      'data: {"type":"tool_result","result":{"toolName":"get_budget_summary","success":true,"displayMessage":"예산을 확인했어요."}}',
+      'data: {"type":"suggestions","suggestions":["예산 다시 보기",7,"  "]}',
+      'data: {"type":"quota","remaining":4.9}',
+      'data: {"type":"metadata","metadata":{"delivery":"incremental"}}',
+      'data: {"type":"done","fullContent":"확인했어요.","metadata":{"serverMessageId":"message-1","stageTag":"budget"}}',
+      "",
+    ].join("\n"));
+
+    expect(parsed).toMatchObject({
+      content: "확인했어요.",
+      completed: true,
+      toolResults: [{
+        toolName: "get_budget_summary",
+        success: true,
+        displayMessage: "예산을 확인했어요.",
+      }],
+      suggestions: ["예산 다시 보기"],
+      quotaRemaining: 4,
+      metadata: { delivery: "incremental", serverMessageId: "message-1", stageTag: "budget" },
+    });
+  });
 });
