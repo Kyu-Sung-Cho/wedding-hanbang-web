@@ -4,8 +4,7 @@ import type { AmoraQuoteCheckResult } from "@/lib/amora/quoteCheck";
 
 export const dynamic = "force-dynamic";
 
-// 공개 진단 결과 GET — 개인정보 제거된 요약만 반환.
-// 카톡 공유로 친구가 받은 링크로 진입해도 안전하게 볼 수 있도록.
+// Explicitly published diagnosis result GET — returns a privacy-redacted summary only.
 // 사용자 식별 정보(user_id, couple_id, vendor_name, memo, 전체 contractQuestions/negotiationScript)는 제외.
 export async function GET(
   _req: NextRequest,
@@ -22,6 +21,7 @@ export async function GET(
       .from("amora_quote_checks")
       .select("id, category, region, quote_price_manwon, analysis, created_at")
       .eq("id", id)
+      .eq("is_public", true)
       .maybeSingle();
 
     if (error) {
@@ -59,7 +59,8 @@ export async function GET(
         analysis: publicAnalysis,
         createdAt: data.created_at,
       },
-      { headers: { "Cache-Control": "public, max-age=300, s-maxage=300" } }
+      // Revocation must take effect immediately, so bearer-link responses are never cached.
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "결과를 불러올 수 없습니다.";

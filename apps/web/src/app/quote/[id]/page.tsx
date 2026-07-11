@@ -13,7 +13,10 @@ import {
 import ShareButtons from "@/components/quote/ShareButtons";
 import { weddingPath } from "@/lib/weddingPaths";
 
-// 카톡 공유 진단 결과 페이지 — 공개 (RLS service role 우회).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+// 카톡 공유 진단 결과 페이지 — 소유자가 명시적으로 공개한 행만 조회.
 // 캐논 v2 referral 루프 핵심: 공유 받은 친구가 → "나도 진단 받기" CTA 클릭
 // 원칙: 판정(점수·등급·안전/위험) 없음 — 빠진 항목 개수와 출처 있는 참고 시세만.
 
@@ -47,6 +50,7 @@ async function fetchQuoteData(id: string): Promise<PublicQuoteData | null> {
     .from("amora_quote_checks")
     .select("id, category, region, analysis, created_at")
     .eq("id", id)
+    .eq("is_public", true)
     .maybeSingle();
 
   if (error || !data) return null;
