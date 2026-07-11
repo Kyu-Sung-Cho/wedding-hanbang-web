@@ -23,6 +23,7 @@ import { buildWeddingCodeV05IndividualReport } from "@/lib/weddingCode/report";
 import { scoreWeddingCodeV05 } from "@/lib/weddingCode/score";
 import { renderShareCard, downloadCanvasPng, canvasToPngBlob } from "@/lib/weddingCode/shareCard";
 import { captureEvent } from "@/lib/analytics";
+import { shareFileThenText } from "@/lib/share/nativeShare";
 import {
   clearWcResultBackup,
   isCompleteCurrentWcResultBackup,
@@ -150,22 +151,30 @@ export default function WeddingCodeResultClient() {
       });
 
       const blob = await canvasToPngBlob(canvas);
-      if (blob && typeof navigator.canShare === "function") {
+      if (blob) {
         const file = new File([blob], "weddingcode-result.png", { type: "image/png" });
         const shareData = {
           files: [file],
           title: "나의 웨딩 준비 시작점",
           text: `${report.sharePromptKo}\nhttps://hanbang.ai/wedding-code`,
         };
-        if (navigator.canShare(shareData)) {
-          try {
-            await navigator.share(shareData);
-            captureEvent("wc_result_card_saved", { method: "share", version: sourceVersion });
-            return;
-          } catch (err) {
-            if (err instanceof Error && err.name === "AbortError") return;
-          }
+        const shareOutcome = await shareFileThenText({
+          shareNavigator: navigator,
+          fileData: shareData,
+          textData: {
+            title: "나의 웨딩 준비 시작점",
+            text: report.sharePromptKo,
+            url: "https://hanbang.ai/wedding-code",
+          },
+        });
+        if (shareOutcome === "shared-file" || shareOutcome === "shared-text") {
+          captureEvent("wc_result_card_saved", {
+            method: shareOutcome === "shared-file" ? "share" : "share_text",
+            version: sourceVersion,
+          });
+          return;
         }
+        if (shareOutcome === "cancelled") return;
       }
 
       const dataUrl = canvas.toDataURL("image/png");

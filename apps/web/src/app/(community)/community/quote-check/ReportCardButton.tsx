@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { ImageDown, Loader2, X } from "lucide-react";
 import { captureEvent } from "@/lib/analytics";
+import { shareFileThenText } from "@/lib/share/nativeShare";
 import {
   AMORA_QUOTE_CATEGORY_LABELS,
   type AmoraQuoteCheckResult,
@@ -41,18 +42,24 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
       });
 
       const blob = await canvasToPngBlob(canvas);
-      if (blob && typeof navigator.canShare === "function") {
+      if (blob) {
         const file = new File([blob], "hanbang-quote-report.png", { type: "image/png" });
-        if (navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file] });
-            captureEvent("quote_check_report_saved", { method: "share" });
-            return;
-          } catch (err) {
-            if (err instanceof Error && err.name === "AbortError") return;
-            // NotAllowedError 등 → 오버레이 폴백
-          }
+        const shareOutcome = await shareFileThenText({
+          shareNavigator: navigator,
+          fileData: { files: [file] },
+          textData: {
+            title: document.title,
+            text: result.summaryTitle,
+            url: window.location.href,
+          },
+        });
+        if (shareOutcome === "shared-file" || shareOutcome === "shared-text") {
+          captureEvent("quote_check_report_saved", {
+            method: shareOutcome === "shared-file" ? "share" : "share_text",
+          });
+          return;
         }
+        if (shareOutcome === "cancelled") return;
       }
 
       setOverlay({ dataUrl: canvas.toDataURL("image/png"), canvas });
