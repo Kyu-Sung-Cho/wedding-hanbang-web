@@ -78,7 +78,7 @@ import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 // 웹 클라이언트 180초 제한보다 먼저 종료해 플랫폼 강제 종료와 유령 과금을 피한다.
 export const maxDuration = 175;
 
-// 비용 상한: 도구 선택 Terra 1회 + 결과 설명 Terra 1회가 최대다.
+// 비용 상한: 선택된 Luna/Terra 모델로 도구 선택 1회 + 결과 설명 1회가 최대다.
 // 연쇄 도구 계획은 한 사용자 턴에 허용하지 않는다.
 const MAX_TOOL_ROUNDS = 1;
 const CHAT_ROUTE_DEADLINE_MS = 170_000;
