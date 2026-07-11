@@ -38,7 +38,8 @@ function isPasswordValid(checks: PasswordCheck): boolean {
 
 function currentReturnPath(): string | null {
   if (typeof window === "undefined") return null;
-  return sanitizeAuthReturnPath(new URLSearchParams(window.location.search).get("next"));
+  const params = new URLSearchParams(window.location.search);
+  return sanitizeAuthReturnPath(params.get("next") ?? params.get("redirect"));
 }
 
 export default function LoginPage() {
