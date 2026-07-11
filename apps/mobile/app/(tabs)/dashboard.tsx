@@ -799,7 +799,15 @@ export default function DashboardScreen() {
 
         {/* 파트너 활동 배너 */}
         {data?.partnerActivity && (
-          <View style={styles.partnerBanner}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.partnerBanner,
+              pressed && styles.partnerBannerPressed,
+            ]}
+            onPress={() => router.push("/schedule")}
+            accessibilityRole="button"
+            accessibilityLabel={`${data.partnerActivity.partnerName}님의 최근 준비 변경사항 보기`}
+          >
             <Users size={16} color={colors.rose[500]} />
             <Text style={styles.partnerBannerText}>
               {data.partnerActivity.partnerName}님이{" "}
@@ -811,7 +819,7 @@ export default function DashboardScreen() {
               을(를) 변경했어요
             </Text>
             <ChevronRight size={14} color={colors.textTertiary} />
-          </View>
+          </Pressable>
         )}
 
         {/* 오늘의 할 일 */}
@@ -1322,6 +1330,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 16,
+  },
+  partnerBannerPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
   },
   partnerBannerText: {
     flex: 1,

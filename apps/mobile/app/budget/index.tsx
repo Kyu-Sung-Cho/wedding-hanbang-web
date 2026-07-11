@@ -13,6 +13,7 @@ import { colors } from "@hanbang/design-tokens";
 import { storedMoneyToWon } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import ErrorRetry from "@/components/ErrorRetry";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
 // 분담 타입 (웹과 동일)
@@ -95,6 +96,8 @@ export default function BudgetScreen() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalInput, setTotalInput] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -107,15 +110,33 @@ export default function BudgetScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) return;
+      setLoadError(false);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw authError ?? new Error("authenticated user not found");
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("couple_id")
+        .eq("id", user.id)
+        .single();
+      if (profileError || !profile?.couple_id) {
+        throw profileError ?? new Error("couple profile not found");
+      }
       setCoupleId(profile.couple_id);
-      const { data: journey } = await supabase.from("wedding_journeys").select("total_budget, progress").eq("couple_id", profile.couple_id).single();
+      const { data: journey, error: journeyError } = await supabase
+        .from("wedding_journeys")
+        .select("total_budget, progress")
+        .eq("couple_id", profile.couple_id)
+        .single();
+      if (journeyError || !journey) {
+        throw journeyError ?? new Error("wedding journey not found");
+      }
       setTotalBudget(journey?.total_budget ?? 0);
       setProgress((journey?.progress as Record<string, ProgressItem>) ?? {});
-    } catch (err) { console.error("Budget load:", err); }
+      setHasLoadedData(true);
+    } catch (err) {
+      console.error("Budget load:", err);
+      setLoadError(true);
+    }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -341,6 +362,18 @@ export default function BudgetScreen() {
     );
   }
 
+  if (loadError && !hasLoadedData) {
+    return (
+      <SafeAreaView style={s.container} edges={["top"]}>
+        <AppHeader title="예산 관리" onBack={() => router.back()} />
+        <ErrorRetry
+          message="예산 정보를 불러오지 못했어요"
+          onRetry={() => { setLoading(true); loadData(); }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
@@ -348,6 +381,19 @@ export default function BudgetScreen() {
         subtitle="지출, 분담, 숨은 비용을 함께 봐요"
         onBack={() => router.back()}
       />
+
+      {loadError && hasLoadedData ? (
+        <Pressable
+          style={({ pressed }) => [s.loadWarning, pressed && s.loadWarningPressed]}
+          onPress={loadData}
+          accessibilityRole="button"
+          accessibilityLabel="예산 최신 정보 다시 불러오기"
+        >
+          <AlertTriangle size={16} color={colors.danger} />
+          <Text style={s.loadWarningText}>최신 예산을 불러오지 못했어요</Text>
+          <Text style={s.loadWarningAction}>다시 시도</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />}>
@@ -554,6 +600,10 @@ export default function BudgetScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  loadWarning: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "rgba(239, 68, 68, 0.08)" },
+  loadWarningPressed: { opacity: 0.78 },
+  loadWarningText: { flex: 1, fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary },
+  loadWarningAction: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.danger },
   content: { padding: 20, paddingBottom: 40 },
   totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
   totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },

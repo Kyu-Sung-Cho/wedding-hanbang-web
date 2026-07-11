@@ -208,7 +208,7 @@ export function ActionRow({
           </AppText>
         ) : null}
       </View>
-      {right ?? <ChevronRight size={16} color={colors.textTertiary} />}
+      {right === undefined ? <ChevronRight size={16} color={colors.textTertiary} /> : right}
     </Pressable>
   );
 }
