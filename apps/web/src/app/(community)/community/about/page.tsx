@@ -252,7 +252,7 @@ export default function CommunityAboutPage() {
               {
                 icon: Shield,
                 title: "안전하게 지켜요",
-                desc: "익명 활동이지만 인격 모독·허위 글은 제재돼요.",
+                desc: "커뮤니티 닉네임으로 활동하지만 인격 모독·허위 글은 제재돼요.",
               },
             ].map((item) => {
               const Icon = item.icon;

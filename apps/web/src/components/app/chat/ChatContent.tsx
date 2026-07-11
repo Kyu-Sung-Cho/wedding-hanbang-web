@@ -1187,7 +1187,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   {communityDraft.privacyMode === "redacted_private" && (
                     <div className="mt-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
                       <p className="text-sm leading-relaxed text-[#2F5F51]">
-                        비공개 상담에서 만든 익명화 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 그래도 올리기 전에 개인적인 표현이 남아있는지 한 번만 확인해주세요.
+                        비공개 상담에서 개인정보를 덜어 만든 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 게시물에는 커뮤니티 닉네임이 표시되니 올리기 전에 개인적인 표현이 남아있는지 확인해주세요.
                       </p>
                     </div>
                   )}
@@ -1640,8 +1640,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const displayCommunityAskCue = canConsiderCommunityFallback
               ? isPrivateCommunityFallback
                 ? {
-                    label: "익명으로 물어보기",
-                    ariaLabel: "비공개 아모라 상담 내용을 익명화해 커뮤니티에 묻기",
+                    label: "개인정보 가리고 물어보기",
+                    ariaLabel: "비공개 아모라 상담 내용에서 개인정보를 가려 커뮤니티에 묻기",
                   }
                 : communityAskCue ?? {
                     label: "커뮤니티에 물어보기",

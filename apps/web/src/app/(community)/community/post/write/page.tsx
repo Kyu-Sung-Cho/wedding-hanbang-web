@@ -118,7 +118,7 @@ function PostWriteContent() {
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
   const prefillKind = searchParams.get("prefill");
-  // 견적 체크 → "익명 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
+  // 견적 체크 → "업체명 뺀 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
   const prefillTitle = searchParams.get("title");
   const prefillBody = searchParams.get("body");
   const requestedCategory = searchParams.get("category");
@@ -297,7 +297,7 @@ function PostWriteContent() {
     }
   }, [isEditMode, authChecked]);
 
-  // 견적 체크 → "익명 사례로 공유하기" prefill (이슈 #3)
+  // 견적 체크 → "업체명 뺀 사례로 공유하기" prefill (이슈 #3)
   // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
   const quotePrefillAppliedRef = useRef(false);
   useEffect(() => {
