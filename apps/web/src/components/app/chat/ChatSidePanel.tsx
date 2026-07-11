@@ -700,6 +700,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   onClick={() => handleSend()}
                   disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                  aria-label={messageTarget === "partner" ? "상대방에게 메시지 보내기" : "아모라에게 메시지 보내기"}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
