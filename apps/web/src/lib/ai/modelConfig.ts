@@ -86,7 +86,18 @@ export function hasOpenAIConfig(role?: AmoraModelRole): boolean {
   }
 }
 
-const TERRA_RISK_PATTERN = /갈등|싸(?:웠|움)|다툼|파혼|헤어지|폭력|협박|학대|강요|자해|죽고|소송|분쟁/;
+const TERRA_RISK_PATTERN =
+  /갈등|싸(?:웠|움)|다툼|파혼|헤어지|폭력|폭행|때렸|때려|협박|학대|강요|자해|자살|살기\s*싫|죽고\s*싶|극단적\s*선택|목숨을?\s*끊|스토킹|따라다(?:녀|니)|위치\s*추적|감금|가둬|못\s*나가게|성폭행|성폭력|성추행|강간|소송|분쟁/;
+const PERSONAL_ASSAULT_PATTERN =
+  /^(?:나|저|내가|제가)?\s*맞았어[.!?…]*$|(?:한테|에게)\s*맞(?:았|고|아서|는\s*중)/;
+const EMERGENCY_112_PATTERN =
+  /^(?:112)[.!?…]*$|112(?:에|로)?\s*(?:신고|전화|연락)|(?:신고|전화|연락).{0,8}112/;
+
+function hasTerraRiskSignal(userText: string): boolean {
+  return TERRA_RISK_PATTERN.test(userText)
+    || PERSONAL_ASSAULT_PATTERN.test(userText)
+    || EMERGENCY_112_PATTERN.test(userText);
+}
 
 /**
  * Luna가 기본 상담을 맡고, 계약/분쟁·안전 신호 또는 반복 수정처럼
@@ -99,6 +110,6 @@ export function chooseAmoraChatModelRole(input: {
 }): AmoraModelRole {
   if (input.specialistType === "contract_reviewer") return "primary";
   if (input.correctionCount >= 2) return "primary";
-  if (TERRA_RISK_PATTERN.test(input.userText)) return "primary";
+  if (hasTerraRiskSignal(input.userText)) return "primary";
   return "fast";
 }

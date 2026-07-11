@@ -18,7 +18,7 @@ import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
 import { BETA_SAFE_TOOLS, READ_ONLY_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
-import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
+import { countRecentConsecutiveDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
 import { calcCostUsd, logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
@@ -941,23 +941,12 @@ export async function POST(request: Request) {
   const lastUserMsg = [...typedMessages].reverse().find((m) => m.role === "user");
   const lastUserText = lastUserMsg?.content ?? "";
 
-  // 세션 내 수정 횟수 카운트 (전체 대화 기록에서 correction/retry/frustration 시그널 확인)
-  let correctionCount = 0;
-  for (let i = 1; i < typedMessages.length; i++) {
-    const m = typedMessages[i];
-    if (m.role === "user") {
-      // 직전 assistant 메시지 찾기
-      const prevAssistant = typedMessages.slice(0, i).reverse().find((p) => p.role === "assistant");
-      const result = detectDissatisfaction(m.content, prevAssistant?.content);
-      if (result?.detected && ["correction", "retry", "frustration"].includes(result.signal)) {
-        correctionCount++;
-      }
-    }
-  }
+  // 오래된 불만은 누적하지 않고, 최근에 연속된 교정·불만만 승격 근거로 쓴다.
+  const correctionCount = countRecentConsecutiveDissatisfaction(typedMessages);
 
   // Part 3: 세션 내 2회 이상 수정 시 신중 모드 프리픽스
   const cautionPrefix = correctionCount >= 2
-    ? "[CONTEXT: 이 세션에서 사용자가 2번 이상 수정했습니다. 더 신중하게, 확인하며 답변하세요.]\n\n"
+    ? "[CONTEXT: 최근 답변에 교정이나 불만이 2번 이상 연속되었습니다. 더 신중하게, 확인하며 답변하세요.]\n\n"
     : "";
 
   // D3: stage + specialist 계산
