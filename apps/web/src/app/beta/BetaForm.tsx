@@ -87,7 +87,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
 
   if (success) {
     return (
-      <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
+      <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]" role="status" aria-live="polite">
         <div className="w-12 h-12 rounded-full bg-rose-light/20 flex items-center justify-center mb-6">
           <Check className="w-6 h-6 text-rose-light" />
         </div>
@@ -176,28 +176,38 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        <Field label="역할" required>
+        <fieldset>
+          <legend className="mb-2.5 block text-[11px] font-medium tracking-[0.2em] text-white/60">
+            역할 <span className="ml-1 text-rose-light">*</span>
+          </legend>
           <div className="flex gap-3">
             {([
               { value: "bride" as const, label: "신부" },
               { value: "groom" as const, label: "신랑" },
             ]).map((opt) => (
-              <button
+              <label
                 key={opt.value}
-                type="button"
-                onClick={() => setRole(opt.value)}
-                disabled={submitting}
-                className={`flex-1 py-3 text-sm font-medium rounded-xl border transition-colors ${
+                className={`flex-1 cursor-pointer rounded-xl border py-3 text-center text-sm font-medium transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-rose-light/60 ${
                   role === opt.value
                     ? "bg-rose-light/20 border-rose-light text-white"
                     : "border-white/15 text-white/60 hover:border-white/30 hover:text-white/80"
-                }`}
+                } ${submitting ? "cursor-not-allowed opacity-50" : ""}`}
               >
+                <input
+                  type="radio"
+                  name="beta-role"
+                  value={opt.value}
+                  checked={role === opt.value}
+                  onChange={() => setRole(opt.value)}
+                  disabled={submitting}
+                  required
+                  className="sr-only"
+                />
                 {opt.label}
-              </button>
+              </label>
             ))}
           </div>
-        </Field>
+        </fieldset>
 
         <Field label="예식 예정일">
           <DatePickerPopover

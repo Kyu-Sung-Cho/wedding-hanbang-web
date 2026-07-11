@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useId } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@
 import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import { databaseWeekdayIndex, formatLocalDateOnly } from "@hanbang/shared";
 
 interface ReviewItem {
@@ -141,6 +142,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const messageDialogTitleId = useId();
+  const messageInputId = useId();
+  const { dialogRef: messageDialogRef } = useAccessibleDialog({
+    isOpen: showMessageBox,
+    onClose: () => setShowMessageBox(false),
+  });
   const [staffList, setStaffList] = useState<{ id: string; name: string; role: string | null; timeSlots: { day: number; hour: number; maxBookings: number; currentBookings: number }[] }[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -739,7 +746,10 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
 
             {/* 문의하기 */}
             <button
+              type="button"
               onClick={() => setShowMessageBox(true)}
+              aria-haspopup="dialog"
+              aria-expanded={showMessageBox}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white text-base text-[#795252] font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
             >
               <MessageSquare className="w-5 h-5" />
@@ -752,17 +762,28 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       {/* 문의 다이얼로그 */}
       {showMessageBox && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setShowMessageBox(false)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={messageDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={messageDialogTitleId}
+            tabIndex={-1}
+            className="bg-white rounded-xl w-full max-w-md p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{vendor.name}에 문의</h3>
+                <h3 id={messageDialogTitleId} className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{vendor.name}에 문의</h3>
               </div>
-              <button onClick={() => setShowMessageBox(false)} className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
+              <button type="button" onClick={() => setShowMessageBox(false)} aria-label="업체 문의 창 닫기" className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
                 <X className="w-5 h-5 text-[#B5ADA3]" />
               </button>
             </div>
+            <label htmlFor={messageInputId} className="sr-only">업체에 보낼 문의 내용</label>
             <textarea
+              id={messageInputId}
+              data-dialog-initial-focus
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               placeholder="궁금한 점을 자유롭게 작성해주세요..."
@@ -770,6 +791,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               className="w-full px-4 py-3 bg-[#F6F3F2] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none mb-4"
             />
             <button
+              type="button"
               onClick={handleSendMessage}
               disabled={!messageText.trim() || sendingMessage || messageSent}
               className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-medium transition-all ${

@@ -49,16 +49,17 @@ export default function BookingsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-[700px] mx-auto flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-2 border-[#795252] border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-[700px] mx-auto flex items-center justify-center py-20" role="status" aria-live="polite">
+        <div className="w-8 h-8 border-2 border-[#795252] border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+        <span className="sr-only">예약 요청 목록을 불러오는 중입니다.</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-[700px] mx-auto text-center py-20">
-        <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+      <div className="max-w-[700px] mx-auto text-center py-20" role="alert">
+        <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" aria-hidden="true" />
         <p className="text-base text-[#504444]">{error}</p>
       </div>
     );
