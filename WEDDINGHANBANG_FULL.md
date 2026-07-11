@@ -1,5 +1,8 @@
 # 웨딩한방 (hanbang.ai) — 전체 서비스 종합 문서
 
+> [!WARNING]
+> **역사 기능 스냅샷입니다.** 현재 구현·출시 상태나 실행 지침이 아니며, 삭제·비활성화된 기능 설명이 포함돼 있습니다. 최신 기준은 `docs/CONSUMER_JOURNEY_AND_AMORA_REVIEW_2026-07-11.md`와 실제 코드를 따릅니다.
+
 > **작성일**: 2026-04-28
 > **AI 공급자 갱신**: 2026-07-10 — OpenAI GPT-5.6 Terra/Luna
 > **도메인**: hanbang.ai / www.hanbang.ai
