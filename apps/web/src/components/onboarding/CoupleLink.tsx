@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  COUPLE_INVITE_CODE_EXAMPLE,
+  COUPLE_INVITE_CODE_LENGTH,
+  isCoupleInviteCode,
+  normalizeCoupleInviteCode,
+} from "@hanbang/shared";
 
 interface CoupleLinkProps {
   coupleAction: "create" | "join" | null;
@@ -18,8 +24,7 @@ export default function CoupleLink({
   const [codeError, setCodeError] = useState("");
 
   const handleCodeChange = (val: string) => {
-    // WH-XXXXXX 형식 자동 포맷
-    const clean = val.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+    const clean = normalizeCoupleInviteCode(val);
     onPartnerCodeChange(clean);
     setCodeError("");
   };
@@ -29,8 +34,8 @@ export default function CoupleLink({
       setCodeError("코드를 입력해주세요");
       return false;
     }
-    if (!/^WH-[A-Z0-9]{6,12}$/.test(code)) {
-      setCodeError("올바른 형식이 아닙니다 (예: WH-A3B2C1)");
+    if (!isCoupleInviteCode(code)) {
+      setCodeError(`올바른 형식이 아닙니다 (예: ${COUPLE_INVITE_CODE_EXAMPLE})`);
       return false;
     }
     return true;
@@ -108,8 +113,8 @@ export default function CoupleLink({
             value={partnerCode}
             onChange={(e) => handleCodeChange(e.target.value)}
             onBlur={() => partnerCode && validateCode(partnerCode)}
-            placeholder="WH-A3B2C1"
-            maxLength={15}
+            placeholder={COUPLE_INVITE_CODE_EXAMPLE}
+            maxLength={COUPLE_INVITE_CODE_LENGTH}
             className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-noir-800 text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 placeholder:tracking-[0.2em]"
           />
           {codeError && (

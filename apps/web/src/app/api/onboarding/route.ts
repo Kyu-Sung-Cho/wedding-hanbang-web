@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { upsertMomentEvent } from "@/utils/scheduleEvents";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
+import { isCoupleInviteCode, normalizeCoupleInviteCode } from "@hanbang/shared";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const ONBOARDING_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
@@ -131,9 +132,9 @@ export async function POST(request: Request) {
     }
 
     const inviteCode = typeof body.partnerInviteCode === "string"
-      ? body.partnerInviteCode.trim().toUpperCase()
+      ? normalizeCoupleInviteCode(body.partnerInviteCode.trim())
       : "";
-    if (!/^WH-[A-Z0-9]{12}$/.test(inviteCode)) {
+    if (!isCoupleInviteCode(inviteCode)) {
       return NextResponse.json({ error: "초대 코드 형식이 올바르지 않습니다." }, { status: 400 });
     }
 
