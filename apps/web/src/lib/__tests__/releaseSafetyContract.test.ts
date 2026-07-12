@@ -15,6 +15,14 @@ const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
   approvedNonProductionSupabaseProjectRefs: string[];
   productionDatabaseWriteFence: string;
   productionDatabaseWriteFenceContract: string;
+  productionSupabaseRedirectTokenPolicy: {
+    rateLimits: {
+      emailSentPerHour: number;
+      tokenRefreshPerFiveMinutesPerIp: number;
+      signInSignUpsPerFiveMinutesPerIp: number;
+      tokenVerificationsPerFiveMinutesPerIp: number;
+    };
+  };
   backupPolicy: { status: string; allowedRestoreProjectRefs: string[] };
 };
 const ship = readRepo("scripts/supabase-ship-safe.ps1");
@@ -137,6 +145,13 @@ describe("release safety contract", () => {
     expect(releaseTargets.productionDatabaseWriteFenceContract).toBe(
       "database-readonly-realtime-cron-v1"
     );
+    expect(releaseTargets.productionSupabaseRedirectTokenPolicy.rateLimits)
+      .toEqual({
+        emailSentPerHour: 2,
+        tokenRefreshPerFiveMinutesPerIp: 150,
+        signInSignUpsPerFiveMinutesPerIp: 30,
+        tokenVerificationsPerFiveMinutesPerIp: 30,
+      });
     expect(releaseTargets.backupPolicy).toMatchObject({
       status: "not_configured",
       allowedRestoreProjectRefs: [],

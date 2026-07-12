@@ -126,6 +126,12 @@ corepack pnpm supabase:auth-config:preflight -- `
 - 이메일 공급자는 활성, 자동 확인은 비활성
 - **일반 사용자** 비밀번호는 정확히 8자 이상이며 소문자·대문자·숫자·특수문자를 모두 요구
 - 비밀번호 변경 재인증 보호 활성
+- canonical site URL과 쉼표 구분 redirect allow-list가 checked-in exact 목록과 일치
+- JWT 3,600초, refresh rotation 활성, reuse interval 10초, 이메일 OTP 6자리·3,600초가 exact
+- 이메일 발송은 시간당 2회, token refresh는 IP당 5분 150회, sign-in/sign-up과 token verification은 각각 IP당 5분 30회로 exact
+- hosted에서 활성인 모든 `external_*_enabled` OAuth provider 집합이 화면에 허용한 checked-in provider 집합과 exact
+
+필드 이름과 rate-limit 시간 창은 Supabase의 [Management API](https://supabase.com/docs/reference/api/getting-started)와 [CLI Auth config reference](https://supabase.com/docs/guides/local-development/cli/config)의 현재 공식 스키마에 맞춘다. config-only PASS는 실제 recovery/OAuth round-trip 성공을 뜻하지 않는다.
 
 Supabase의 공개 project key는 비밀이 아니므로 `disable_signup=false`이면 공격자가 웹 `/api/auth/signup`을 거치지 않고 GoTrue `/signup`을 직접 호출할 수 있다. 그러면 앱 서버의 Turnstile, 영속 rate limit, 중립 응답, 커스텀 확인 메일 보상 흐름과 일반 사용자 8자 정책을 우회한다. 따라서 앱 화면에서 직접 SDK 호출을 제거한 것만으로 통과 처리하지 않는다. Supabase도 8자 미만을 권장하지 않으며 가장 강한 문자 조합과 CAPTCHA 보호를 제공한다: [Password security](https://supabase.com/docs/guides/auth/password-security), [CAPTCHA protection](https://supabase.com/docs/guides/auth/auth-captcha).
 
@@ -142,13 +148,13 @@ Supabase의 공개 project key는 비밀이 아니므로 `disable_signup=false`�
 
 #### 0-B. Hosted public email·redirect/token·OAuth evidence gap
 
-guarded ship은 `productionSupabasePublicEmailBoundary`, `productionSupabaseRedirectTokenPolicy`, `productionOAuthProviderContract`가 모두 `verified-v1`인지를 요구한다. 하지만 현재 저장소의 read-only Auth preflight는 signup/password 계약만 검증하며, 아래 세 경계의 실제 값·black-box 결과를 생성하거나 checked-in JSON과 결합하는 attester는 아직 없다.
+guarded ship은 `productionSupabasePublicEmailBoundary`, `productionSupabaseRedirectTokenPolicy`, `productionOAuthProviderContract`가 모두 `verified-v1`인지를 요구한다. read-only Auth preflight는 이제 signup/password뿐 아니라 canonical URL, exact redirect allow-list, JWT/refresh/OTP/rate-limit과 hosted OAuth enable 집합을 `scripts/release-targets.json`에 결합해 boolean만 출력한다. 이 로컬 계약은 14개 테스트를 통과했지만, 회전된 PAT로 실제 hosted 설정을 읽은 증거는 아직 없고 다음 black-box 경계도 남아 있다.
 
 - 공개 recovery·resend·magic-link·OTP가 앱 CAPTCHA·limiter·중립 응답·전달 경계를 우회하지 않는지
-- canonical site URL, exact redirect allow-list, JWT/refresh/OTP 정책과 Auth rate limit
-- 화면의 OAuth flags·hosted provider 활성 상태·실제 redirect round-trip의 정확한 일치
+- canonical site URL, exact redirect allow-list, JWT/refresh/OTP 정책과 Auth rate limit의 실제 hosted snapshot
+- 화면의 OAuth flags·hosted provider 활성 상태·실제 redirect round-trip의 정확한 일치. config boolean만으로 provider credential과 callback 성공을 증명하지 않는다.
 
-따라서 운영자가 `scripts/release-targets.json`의 status만 바꾸는 것은 증거가 아니며 금지한다. 비밀을 출력하지 않는 read-only attester와 승인된 black-box probe가 exact SHA·Supabase ref·환경 snapshot에 묶이기 전까지 세 status를 현재 blocked/not-attested 상태로 유지하고, ship의 hard-stop을 정상으로 취급한다.
+따라서 운영자가 `scripts/release-targets.json`의 status만 바꾸는 것은 증거가 아니며 금지한다. read-only 결과와 승인된 public-email/OAuth black-box probe가 exact SHA·Supabase ref·환경 snapshot에 함께 묶이기 전까지 세 status를 현재 blocked/not-attested 상태로 유지하고, ship의 hard-stop을 정상으로 취급한다.
 
 #### 0-C. PR candidate와 post-merge release SHA 분리
 

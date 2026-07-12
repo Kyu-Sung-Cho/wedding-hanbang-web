@@ -19,7 +19,13 @@
     "refreshTokenRotation": true,
     "refreshTokenReuseSeconds": 10,
     "emailOtpLength": 6,
-    "emailOtpExpirySeconds": 3600
+    "emailOtpExpirySeconds": 3600,
+    "rateLimits": {
+      "emailSentPerHour": 2,
+      "tokenRefreshPerFiveMinutesPerIp": 150,
+      "signInSignUpsPerFiveMinutesPerIp": 30,
+      "tokenVerificationsPerFiveMinutesPerIp": 30
+    }
   },
   "productionOAuthProviderContract": {
     "status": "not_attested",
