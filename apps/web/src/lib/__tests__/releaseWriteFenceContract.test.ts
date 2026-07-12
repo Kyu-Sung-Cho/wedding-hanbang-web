@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 const repoRoot = resolve(process.cwd(), "../..");
 const powershellExecutable = process.platform === "win32" ? "powershell" : "pwsh";
 const readRepo = (path: string) => readFileSync(resolve(repoRoot, path), "utf8");
+const normalizeShellDiagnostic = (value: string) => value
+  .replace(/\u001b\[[0-9;]*m/g, "")
+  .replace(/\s+/g, " ");
 
 const fence = readRepo("scripts/supabase-write-fence.ps1");
 const statusSql = readRepo("scripts/sql/supabase-write-fence-status.sql");
@@ -268,6 +271,9 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("Write-fence snapshot production identity does not match the protected-ref policy");
     expect(fence).toContain("$snapshot.production -ne $isProductionTarget");
     expect(fence).toContain("Capture refuses to overwrite an existing write-fence journal");
+    expect(normalizeShellDiagnostic(
+      "\u001b[31;1mapproved non-production\u001b[0m\nproject ref"
+    )).toContain("approved non-production project ref");
 
     const result = spawnSync(
       powershellExecutable,
@@ -287,7 +293,8 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
       { cwd: repoRoot, encoding: "utf8" }
     );
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("approved non-production project ref");
+    const normalizedStderr = normalizeShellDiagnostic(result.stderr);
+    expect(normalizedStderr).toContain("approved non-production project ref");
   });
 
   it("keeps service roles read-only until management is verified, resumes cron last, and re-fences on failure", () => {
