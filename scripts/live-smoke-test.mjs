@@ -28,6 +28,9 @@ function parseArgs(argv) {
   };
 
   for (const arg of argv) {
+    // pnpm may preserve the conventional argument separator for script
+    // commands. Accept it without weakening unknown-option validation.
+    if (arg === "--") continue;
     if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
     else if (arg.startsWith("--browser-path=")) options.browserPath = arg.slice("--browser-path=".length);
     else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
@@ -61,13 +64,16 @@ function parseArgs(argv) {
   if (!["closed", "open"].includes(options.accountDeletionCron)) {
     throw new Error("--account-deletion-cron must be closed or open");
   }
-  if (options.launchMode === "coming_soon" && !/^[0-9a-f]{40}$/i.test(options.expectedSha)) {
+  if (
+    options.launchMode === "coming_soon"
+    && !isPlausibleCommitSha(options.expectedSha)
+  ) {
     throw new Error("--expected-sha must be the exact 40-character deployment commit in coming_soon mode");
   }
-  if (options.launchMode === "coming_soon" && !/^[A-Z0-9]{10}$/.test(options.appleTeamId)) {
+  if (options.launchMode === "coming_soon" && !isPlausibleAppleTeamId(options.appleTeamId)) {
     throw new Error("--apple-team-id must match the signed 10-character Apple Team ID in coming_soon mode");
   }
-  if (options.launchMode === "coming_soon" && !/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(options.playSigningSha256)) {
+  if (options.launchMode === "coming_soon" && !isPlausibleSigningFingerprint(options.playSigningSha256)) {
     throw new Error("--play-signing-sha256 must match the Play App Signing SHA-256 in coming_soon mode");
   }
   return options;
@@ -421,6 +427,35 @@ function buildFullChecks(skipDemo) {
   return checks;
 }
 
+function isPlausibleCommitSha(value) {
+  return /^[0-9a-f]{40}$/i.test(value)
+    && new Set(value.toLowerCase()).size >= 8
+    && !looksLikeObviousPlaceholder(value);
+}
+
+function isPlausibleAppleTeamId(value) {
+  return /^[A-Z0-9]{10}$/.test(value)
+    && new Set(value).size >= 4
+    && !/(?:TEAM|APPLE|EXAMPLE|PLACEHOLDER)/.test(value)
+    && !looksLikeObviousPlaceholder(value);
+}
+
+function isPlausibleSigningFingerprint(value) {
+  if (!/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(value)) {
+    return false;
+  }
+  const compact = value.replaceAll(":", "").toUpperCase();
+  const bytes = compact.match(/.{2}/g) ?? [];
+  return new Set(bytes).size >= 8 && !looksLikeObviousPlaceholder(compact);
+}
+
+function looksLikeObviousPlaceholder(value) {
+  const compact = value.replaceAll(":", "").toUpperCase();
+  return compact.includes("0123456789")
+    || compact.includes("9876543210")
+    || /^(.{1,20})\1+$/.test(compact);
+}
+
 function normalizeSha256Fingerprint(value) {
   return value.replaceAll(":", "").toUpperCase().match(/.{2}/g).join(":");
 }
@@ -478,8 +513,15 @@ function buildComingSoonChecks() {
 
         const health = await page.request.get(`${options.baseUrl}/api/health/maintenance`, { maxRedirects: 0 });
         const healthBody = await health.json().catch(() => null);
-        if (health.status() !== 200 || healthBody?.deployment !== options.expectedSha.slice(0, 12)) {
-          addFailure(result, `Expected health deployment ${options.expectedSha.slice(0, 12)}, got ${healthBody?.deployment ?? "none"}`);
+        if (health.status() !== 200 || healthBody?.deployment !== options.expectedSha.toLowerCase()) {
+          addFailure(result, `Expected health deployment ${options.expectedSha.toLowerCase()}, got ${healthBody?.deployment ?? "none"}`);
+        }
+        const expectedResearchIntake = options.researchIntake === "open";
+        if (healthBody?.researchCohortApplicationsEnabled !== expectedResearchIntake) {
+          addFailure(
+            result,
+            `Expected research intake ${options.researchIntake}, got ${String(healthBody?.researchCohortApplicationsEnabled)}`
+          );
         }
         const expectedAccountDeletionCron = options.accountDeletionCron === "open";
         if (healthBody?.accountDeletionCronEnabled !== expectedAccountDeletionCron) {

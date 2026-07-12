@@ -14,9 +14,9 @@ const ORIGINAL_PLAY_APP_SIGNING_SHA256 =
 
 const TEAM_ID = "6RSK726532";
 const COMPACT_FINGERPRINT =
-  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  "8525b75f66fc6a850da757a2cad247b9f6ebc78110d32fb72c84420daeb6400d";
 const CANONICAL_FINGERPRINT =
-  "01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF";
+  "85:25:B7:5F:66:FC:6A:85:0D:A7:57:A2:CA:D2:47:B9:F6:EB:C7:81:10:D3:2F:B7:2C:84:42:0D:AE:B6:40:0D";
 
 function restoreEnvironment(
   name: "APPLE_TEAM_ID" | "PLAY_APP_SIGNING_SHA256",
@@ -67,7 +67,17 @@ describe("app association responses", () => {
     });
   });
 
-  it.each([undefined, "", "6RSK72653", "6rsk726532", ` ${TEAM_ID}`])(
+  it.each([
+    undefined,
+    "",
+    "6RSK72653",
+    "6rsk726532",
+    ` ${TEAM_ID}`,
+    "AAAAAAAAAA",
+    "0000000000",
+    "0123456789",
+    "TEAMID1234",
+  ])(
     "fails AASA closed for an invalid team ID: %s",
     async (teamId) => {
       await expectUnavailable(
@@ -102,7 +112,8 @@ describe("app association responses", () => {
   });
 
   it("supports a bounded Play App Signing key-upgrade overlap", async () => {
-    const replacement = "AB".repeat(32).match(/.{2}/g)!.join(":");
+    const replacement =
+      "82:D8:12:C3:E7:E3:A7:2E:3E:2C:66:AF:B2:CA:50:56:C1:D5:1F:9C:A5:79:92:61:74:DE:7E:DC:33:8C:A5:BD";
     const response = createAssetLinksResponse({
       APPLE_TEAM_ID: undefined,
       PLAY_APP_SIGNING_SHA256: `${COMPACT_FINGERPRINT},${replacement}`,
@@ -126,6 +137,9 @@ describe("app association responses", () => {
     ` ${CANONICAL_FINGERPRINT}`,
     CANONICAL_FINGERPRINT.replace(":", "-"),
     `${COMPACT_FINGERPRINT}, ${COMPACT_FINGERPRINT}`,
+    "00".repeat(32),
+    "AB".repeat(32),
+    "0123456789abcdef".repeat(4),
   ])("fails assetlinks closed for an invalid fingerprint: %s", async (fingerprint) => {
     await expectUnavailable(
       createAssetLinksResponse({

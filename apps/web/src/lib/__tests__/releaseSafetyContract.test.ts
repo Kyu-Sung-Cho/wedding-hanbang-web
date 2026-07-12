@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -161,6 +162,7 @@ describe("release safety contract", () => {
   });
 
   it("binds the coming-soon live canary to the exact deployment and server gate", () => {
+    expect(liveSmoke).toContain('if (arg === "--") continue;');
     expect(liveSmoke).toContain('--launch-mode=<mode>');
     expect(liveSmoke).toContain('--expected-sha=<sha>');
     expect(liveSmoke).toContain('--research-intake=<state>');
@@ -168,8 +170,12 @@ describe("release safety contract", () => {
     expect(liveSmoke).toContain('body?.code !== "SERVICE_NOT_LAUNCHED"');
     expect(liveSmoke).toContain('intakeBody?.code !== "RESEARCH_INTAKE_CLOSED"');
     expect(liveSmoke).toContain('options.researchIntake === "closed"');
+    expect(liveSmoke).toContain("healthBody?.researchCohortApplicationsEnabled");
     expect(liveSmoke).toContain('final.searchParams.has("next")');
-    expect(liveSmoke).toContain('healthBody?.deployment !== options.expectedSha.slice(0, 12)');
+    expect(liveSmoke).toContain('healthBody?.deployment !== options.expectedSha.toLowerCase()');
+    expect(liveSmoke).toContain("isPlausibleCommitSha(options.expectedSha)");
+    expect(liveSmoke).toContain("isPlausibleAppleTeamId(options.appleTeamId)");
+    expect(liveSmoke).toContain("isPlausibleSigningFingerprint(options.playSigningSha256)");
     for (const associationPath of [
       "/apple-app-site-association",
       "/.well-known/apple-app-site-association",
@@ -177,6 +183,92 @@ describe("release safety contract", () => {
     ]) {
       expect(liveSmoke).toContain(associationPath);
     }
+  });
+
+  it("preserves pnpm argument forwarding while rejecting unknown live-smoke options", () => {
+    const run = (lastArgument: "--help" | "--definitely-unknown-live-smoke-option") => {
+      const executable = process.platform === "win32"
+        ? process.env.ComSpec ?? "cmd.exe"
+        : "corepack";
+      const args = process.platform === "win32"
+        ? ["/d", "/s", "/c", `corepack pnpm qa:live -- ${lastArgument}`]
+        : ["pnpm", "qa:live", "--", lastArgument];
+      return spawnSync(executable, args, {
+        cwd: repoRoot,
+        encoding: "utf8",
+        shell: false,
+        timeout: 15_000,
+      });
+    };
+
+    const help = run("--help");
+    expect(help.error).toBeUndefined();
+    expect(help.status).toBe(0);
+    expect(`${help.stdout}\n${help.stderr}`).toContain("Usage: pnpm qa:live [options]");
+
+    const unknown = run("--definitely-unknown-live-smoke-option");
+    expect(unknown.error).toBeUndefined();
+    expect(unknown.status).not.toBe(0);
+    expect(`${unknown.stdout}\n${unknown.stderr}`).toContain(
+      "Unknown argument: --definitely-unknown-live-smoke-option"
+    );
+  });
+
+  it("rejects obvious placeholder release identities before starting a browser", () => {
+    const script = resolve(repoRoot, "scripts/live-smoke-test.mjs");
+    const validSha = "76a644031180216a7f3c7a4e3a4a8cf18b11463e";
+    const validTeamId = "6RSK726532";
+    const validFingerprint =
+      "85:25:B7:5F:66:FC:6A:85:0D:A7:57:A2:CA:D2:47:B9:F6:EB:C7:81:10:D3:2F:B7:2C:84:42:0D:AE:B6:40:0D";
+    const run = (identityArgs: string[]) => spawnSync(
+      process.execPath,
+      [script, "--launch-mode=coming_soon", ...identityArgs],
+      { cwd: repoRoot, encoding: "utf8", shell: false, timeout: 10_000 }
+    );
+
+    const placeholderSha = run([
+      `--expected-sha=${"0".repeat(40)}`,
+      `--apple-team-id=${validTeamId}`,
+      `--play-signing-sha256=${validFingerprint}`,
+    ]);
+    expect(placeholderSha.status).not.toBe(0);
+    expect(`${placeholderSha.stdout}\n${placeholderSha.stderr}`).toContain(
+      "--expected-sha must be"
+    );
+
+    const placeholderTeam = run([
+      `--expected-sha=${validSha}`,
+      "--apple-team-id=AAAAAAAAAA",
+      `--play-signing-sha256=${validFingerprint}`,
+    ]);
+    expect(placeholderTeam.status).not.toBe(0);
+    expect(`${placeholderTeam.stdout}\n${placeholderTeam.stderr}`).toContain(
+      "--apple-team-id must match"
+    );
+
+    const placeholderFingerprint = run([
+      `--expected-sha=${validSha}`,
+      `--apple-team-id=${validTeamId}`,
+      `--play-signing-sha256=${"00".repeat(32)}`,
+    ]);
+    expect(placeholderFingerprint.status).not.toBe(0);
+    expect(`${placeholderFingerprint.stdout}\n${placeholderFingerprint.stderr}`).toContain(
+      "--play-signing-sha256 must match"
+    );
+
+    const sequentialTeam = run([
+      `--expected-sha=${validSha}`,
+      "--apple-team-id=0123456789",
+      `--play-signing-sha256=${validFingerprint}`,
+    ]);
+    expect(sequentialTeam.status).not.toBe(0);
+
+    const sequentialFingerprint = run([
+      `--expected-sha=${validSha}`,
+      `--apple-team-id=${validTeamId}`,
+      `--play-signing-sha256=${"0123456789abcdef".repeat(4)}`,
+    ]);
+    expect(sequentialFingerprint.status).not.toBe(0);
   });
 
   it("forbids destructive lifecycle smoke tests on every protected production ref", () => {
@@ -583,7 +675,12 @@ describe("release safety contract", () => {
       "Maintenance authorization expired during immediate pre-push verification."
     );
     expect(ship.slice(finalDryRun, push)).toContain("$reviewedDeployment");
+    expect(ship).toContain("$reviewedDeployment = $reviewedHead");
+    expect(ship).not.toContain("$reviewedHead.Substring(0, 12)");
+    expect(ship).toContain("$ExpectedDeployment -notmatch '^[0-9a-f]{40}$'");
     expect(ship).toContain("$status.rateLimitKeySecretConfigured -ne $true");
+    expect(ship).toContain("$status.researchCohortApplicationsEnabled -ne $false");
+    expect(ship).toContain("$status.accountDeletionCronEnabled -ne $false");
     expect(ship).toContain(
       "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
     );

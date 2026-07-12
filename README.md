@@ -64,6 +64,9 @@ corepack pnpm mobile:release-check
 감사 문서는 작성 시점의 스냅샷이며 현재 코드를 대신하지 않습니다.
 
 - 현재 서비스 기준: [`WEDDINGHANBANG_SERVICE_DOC.md`](WEDDINGHANBANG_SERVICE_DOC.md)
+- 2026-07-12 전체 QA와 현재 NO-GO 근거: [`docs/codex-tasks/FULL_QA_2026-07-12.md`](docs/codex-tasks/FULL_QA_2026-07-12.md)
+- 운영 출시·백업·롤백 순서: [`docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`](docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md)
+- 모바일 스토어 출시 체크리스트: [`docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md`](docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md)
 - 2026-07-11 소비자 여정·보안·출시 보수 감사: [`docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)
 - 아모라 OpenAI GPT-5.6 전환 검토: [`docs/AMORA_OPENAI_MIGRATION_REVIEW_2026-07-10.md`](docs/AMORA_OPENAI_MIGRATION_REVIEW_2026-07-10.md)
 - 2026-07-10 보수적 전체 감사와 출시 경계: [`docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md`](docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md)

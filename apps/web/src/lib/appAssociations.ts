@@ -29,8 +29,22 @@ function unavailableResponse(): Response {
   return jsonResponse({ error: "association_configuration_unavailable" }, 503);
 }
 
+function looksLikeObviousPlaceholder(value: string): boolean {
+  const compact = value.replaceAll(":", "").toUpperCase();
+  return compact.includes("0123456789")
+    || compact.includes("9876543210")
+    || /^(.{1,20})\1+$/.test(compact);
+}
+
 function parseAppleTeamId(value: string | undefined): string | null {
-  if (!value || value !== value.trim() || !APPLE_TEAM_ID_PATTERN.test(value)) {
+  if (
+    !value
+    || value !== value.trim()
+    || !APPLE_TEAM_ID_PATTERN.test(value)
+    || new Set(value).size < 4
+    || /(?:TEAM|APPLE|EXAMPLE|PLACEHOLDER)/.test(value)
+    || looksLikeObviousPlaceholder(value)
+  ) {
     return null;
   }
 
@@ -50,7 +64,9 @@ function parsePlaySigningFingerprints(value: string | undefined): string[] | nul
     if (
       !(COMPACT_SHA256_PATTERN.test(candidate) ||
         COLON_SHA256_PATTERN.test(candidate)) ||
-      !COMPACT_SHA256_PATTERN.test(compact)
+      !COMPACT_SHA256_PATTERN.test(compact) ||
+      new Set(compact.toUpperCase().match(/.{2}/g) ?? []).size < 8 ||
+      looksLikeObviousPlaceholder(compact)
     ) {
       return null;
     }

@@ -9,10 +9,10 @@
 
 ## 현재 출시 판정 (2026-07-12)
 
-- OpenAI Luna·Terra 런타임과 새 migration 체인은 폐기 가능한 Supabase preview에서 검증했다.
+- OpenAI Luna·Terra 런타임과 `20260711148000`까지의 107개 migration 체인은 폐기 가능한 Supabase preview에서 검증했다.
 - 폐기 가능한 preview에서 baseline부터 `20260711148000`까지 migration 107개를 빈 DB에 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, lifecycle smoke와 anon 10-table probe가 모두 통과했다. 함수 source hash는 CRLF를 제거한 뒤 비교해 Windows/Linux replay 결과가 같고, rate-limit bucket은 service role도 직접 INSERT/UPDATE하지 못하며 canonical RPC만 사용한다.
 - 새 `20260712100000_research_cohort_application_identity.sql`과 `20260712101000_durable_account_deletion_email_scope.sql`은 각각 연구 신청의 목적·이메일 확인 경계와 계정 삭제 재시도의 이메일 범위 증명을 추가하는 forward migration이며, 아직 폐기 가능 원격 DB에서 fresh replay·연속 upgrade를 통과하지 않았다. 따라서 위 107개 증거에 포함되지 않고 둘 다 별도 blocker다.
-- 기존 Vercel 변수 inventory는 확인했지만 운영 비밀과 signed-app 항목은 미완료다. `ADMIN_PASSWORD` 회전, 별도 고엔트로피 `RESEARCH_EMAIL_VERIFICATION_SECRET`, Resend 실제 전달, signed `APPLE_TEAM_ID`, Play App Signing SHA-256을 별도로 확인해야 한다. 값은 기록하지 않는다.
+- Vercel Production에는 다른 경계와 재사용하지 않은 고엔트로피 `RESEARCH_EMAIL_VERIFICATION_SECRET`을 값 노출 없이 추가했고, `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`와 `ACCOUNT_DELETION_CRON_ENABLED=false`를 유지했다. 아직 이 변수를 사용하는 운영 deployment와 실제 Resend 전달은 검증하지 않았다. `ADMIN_PASSWORD`와 노출된 OpenAI 키 회전, Resend click tracking 비활성화, signed `APPLE_TEAM_ID`, Play App Signing SHA-256도 별도로 확인해야 한다. 값은 기록하지 않는다.
 - 새 코드의 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`은 소개·사용자 연구 안내·정책·association 경로만 허용하고 로그인·앱·일반 API를 서버에서 차단한다. 실제 연구 정보 접수는 별도 서버 전용 `RESEARCH_COHORT_APPLICATIONS_ENABLED=true`가 있어야만 열리며, production/preview에서 미설정은 fail-closed다. 일반 베타 알림 신청과 연구 코호트를 같은 동의로 취급하지 않는다. 이 동작은 아직 운영 deployment에 반영되지 않았다.
 - 운영 배포는 **NO-GO**다. `database-readonly-realtime-cron-v1` 도구는 연결 lock, clean HEAD/tree, 기존 pooled session 경계와 exact restore를 검사하지만 실제 disposable black-box 증거가 없어 fence는 `not_configured`다. production ship/reconcile과 operator 작성 evidence도 코드에서 추가로 hard-stop한다. 암호화 export 도구도 Phase A이며 실제 isolated restore를 실행하지 않았으므로 `backupPolicy.status=not_configured`다.
 - 이전 CLI 조사 중 임시 login-role credential이 로그에 노출된 사고가 있었으므로, 기존 CLI login role과 PAT를 폐기하고 새 토큰으로 재로그인·재링크하기 전에는 원격 Supabase 명령을 실행하지 않는다.
@@ -84,7 +84,7 @@ corepack pnpm supabase:ship:safe -- -ExpectedProjectRef <production-project-ref>
 3. 현재 link·project ref·DB host·branch topology가 예상 대상과 정확히 일치한다.
 4. creator-aware production preflight가 테이블·열·타입·기본값·제약·RLS·함수 owner/ACL/search path/source·trigger·정리 대상 행을 검사한다.
 5. 활성 fence snapshot, 기존 pooled session 교체, 직접 DB/Auth/Storage 쓰기 차단 자동 증거와 traffic drain이 유효하다.
-6. maintenance endpoint의 deployment SHA가 검토한 HEAD 앞 12자리와 같다.
+6. maintenance endpoint의 deployment SHA가 검토한 HEAD 전체 40자리와 같다.
 7. maintenance 시작 뒤의 최신 백업이 완료됐고 30분 이내다.
 8. dry-run과 명시적 ACK가 실제 rewrite/delete inventory와 일치한다.
 9. migration 후 exact post-deploy contract가 함수·ACL·trigger·RLS·retired object 부재를 검증한다.

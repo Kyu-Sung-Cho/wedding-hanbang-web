@@ -758,6 +758,10 @@ function Assert-MaintenanceHealth {
   if ($status.rateLimitKeySecretConfigured -ne $true) {
     throw "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
   }
+  if ($status.researchCohortApplicationsEnabled -ne $false -or
+    $status.accountDeletionCronEnabled -ne $false) {
+    throw "Live deployment must keep research intake and account-deletion cron disabled during migration."
+  }
   $startedAt = [DateTimeOffset]::MinValue
   if (-not [DateTimeOffset]::TryParse(
       [string]$status.maintenanceStartedAt,
@@ -769,7 +773,7 @@ function Assert-MaintenanceHealth {
     $startedAt -lt [DateTimeOffset]::UtcNow.AddMinutes(-30)) {
     throw "Live maintenance mode must have started within the last 30 minutes."
   }
-  if ($ExpectedDeployment -notmatch '^[0-9a-f]{12}$' -or
+  if ($ExpectedDeployment -notmatch '^[0-9a-f]{40}$' -or
     [string]$status.deployment -cne $ExpectedDeployment) {
     throw "Live maintenance deployment does not match the reviewed Git HEAD."
   }
@@ -897,7 +901,7 @@ $reviewedHead = (git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $reviewedHead -notmatch '^[0-9a-f]{40}$') {
   throw "Unable to capture the reviewed Git HEAD."
 }
-$reviewedDeployment = $reviewedHead.Substring(0, 12)
+$reviewedDeployment = $reviewedHead
 $reviewedFingerprint = Get-ReleaseArtifactFingerprint
 
 $script:linkedRefPath = $linkedRefPath

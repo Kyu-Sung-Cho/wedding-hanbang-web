@@ -28,6 +28,9 @@ const originalRateLimitKeySecret = process.env.RATE_LIMIT_KEY_SECRET;
 const originalMaintenanceMode = process.env.MAINTENANCE_MODE;
 const originalLaunchMode = process.env.NEXT_PUBLIC_LAUNCH_MODE;
 const originalAccountDeletionCronEnabled = process.env.ACCOUNT_DELETION_CRON_ENABLED;
+const originalResearchCohortApplicationsEnabled =
+  process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED;
+const originalVercelGitCommitSha = process.env.VERCEL_GIT_COMMIT_SHA;
 
 afterEach(() => {
   if (originalRateLimitKeySecret === undefined) {
@@ -49,6 +52,17 @@ afterEach(() => {
     delete process.env.ACCOUNT_DELETION_CRON_ENABLED;
   } else {
     process.env.ACCOUNT_DELETION_CRON_ENABLED = originalAccountDeletionCronEnabled;
+  }
+  if (originalResearchCohortApplicationsEnabled === undefined) {
+    delete process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED;
+  } else {
+    process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED =
+      originalResearchCohortApplicationsEnabled;
+  }
+  if (originalVercelGitCommitSha === undefined) {
+    delete process.env.VERCEL_GIT_COMMIT_SHA;
+  } else {
+    process.env.VERCEL_GIT_COMMIT_SHA = originalVercelGitCommitSha;
   }
 });
 
@@ -163,6 +177,8 @@ describe("maintenance release contract", () => {
     expect(healthSource).toContain('supabaseProjectRef: configuredSupabaseProjectRef()');
     expect(healthSource).toContain('maintenanceStartedAt: process.env.MAINTENANCE_STARTED_AT_UTC');
     expect(healthSource).toContain("rateLimitKeySecretConfigured:");
+    expect(healthSource).toContain("deployment: configuredDeploymentCommit()");
+    expect(healthSource).toContain("researchCohortApplicationsEnabled:");
     expect(healthSource).toContain("accountDeletionCronEnabled:");
     expect(healthSource).toContain(
       "hasStrongRateLimitKeySecretConfig()"
@@ -205,5 +221,23 @@ describe("maintenance release contract", () => {
     const enabled = (await (await GET()).json()) as Record<string, unknown>;
     expect(enabled.accountDeletionCronEnabled).toBe(true);
     expect(enabled).not.toHaveProperty("accountDeletionCronSecret");
+  });
+
+  it("reports the full deployment commit and research-intake switch without secrets", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    process.env.VERCEL_GIT_COMMIT_SHA = "A".repeat(40);
+    process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED = "false";
+    const closed = (await (await GET()).json()) as Record<string, unknown>;
+    expect(closed.deployment).toBe("a".repeat(40));
+    expect(closed.researchCohortApplicationsEnabled).toBe(false);
+
+    process.env.VERCEL_GIT_COMMIT_SHA = "not-a-commit";
+    process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED = "true";
+    const open = (await (await GET()).json()) as Record<string, unknown>;
+    expect(open.deployment).toBeNull();
+    expect(open.researchCohortApplicationsEnabled).toBe(true);
+    expect(open).not.toHaveProperty("researchEmailVerificationSecret");
   });
 });

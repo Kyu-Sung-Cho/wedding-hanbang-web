@@ -19,6 +19,7 @@
 - EAS build profiles now exist at `apps/mobile/eas.json`.
 - EAS project is linked: `@hanbang/wedding-hanbang`.
 - EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
+- All three EAS profiles pin the repository runtime: Node `22.13.0` and pnpm `11.7.0`.
 - EAS preview environment has the required public mobile runtime variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
 - Store-build helper scripts now exist in `apps/mobile/package.json`.
 
@@ -53,7 +54,7 @@ corepack pnpm typecheck
 corepack pnpm lint
 ```
 
-`corepack pnpm qa:local` includes the static mobile foundation check, web tests/build, mobile lint/typecheck, shared packages, and design tokens. `mobile:release-check` currently passes with an explicit warning that social OAuth is hard-disabled. `mobile:store-release-check` intentionally fails until provider setup and physical-device login flows are implemented and verified; a green static check is not store readiness.
+`corepack pnpm qa:local` includes the static mobile foundation check, web tests/build, mobile lint/typecheck, shared packages, and design tokens. `mobile:release-check` currently passes 71 checks with one explicit warning that social OAuth is hard-disabled. `mobile:store-release-check` intentionally fails until provider setup and physical-device login flows are implemented and verified; a green static check is not store readiness.
 
 ## 3. EAS Build Profiles
 
@@ -64,6 +65,8 @@ The mobile app now has three EAS profiles:
 | `development` | Local/dev-client testing | Simulator build | APK |
 | `preview` | Internal team testing before store submission | Device build | APK |
 | `production` | App Store / Play Store release candidate | Device build with auto-increment | AAB |
+
+Every profile must keep `node: "22.13.0"` and `pnpm: "11.7.0"`. The static release check enforces this because EAS otherwise selected an older Preview builder Node that could not load pnpm 11.7.0's `node:sqlite` dependency.
 
 Commands:
 
@@ -158,7 +161,12 @@ Before TestFlight:
 
 Current result: the social entry points and OAuth implementation are intentionally hard-disabled. Therefore this section and `mobile:store-release-check` are red. Do not create or submit a store candidate until the selected providers, redirect allowlists, Apple Sign In entitlement, error recovery, and account-linking behavior pass on physical devices.
 
-EAS evidence as of 2026-07-12: Android production AAB build 4 succeeded from old SHA `52faf4b4`; no iOS build is present. The Android artifact predates the current working tree and is not a release candidate.
+EAS evidence as of 2026-07-12:
+
+- Android production AAB build 4 succeeded from old SHA `52faf4b4`; it predates the current working tree and is not a release candidate.
+- Android internal Preview builds `374d6164-d939-4ea6-8707-5e4e7bd45c91` and `f154348e-adc5-44da-b995-ee4b6037cba6` from exact SHA `9200a545` failed at dependency installation because Preview did not pin Node while pnpm 11.7.0 requires Node 22.13 or newer.
+- After pinning Node 22.13.0 and pnpm 11.7.0 in every profile and adding a static regression gate, Android internal Preview build `4db05478-e8b7-49d1-aa17-5f98fa45967c` from exact SHA `76a64403` finished successfully. The downloaded APK was 94,666,379 bytes with SHA-256 `d560a495e19a62a87d3ae22b08eb9a6bb05669e95227a6531d4fad121f51f61f`; the temporary verification file was then deleted. This proves the native Android Preview build path, not store readiness.
+- iOS internal Preview stopped before build creation because an internal-distribution certificate and registered device were unavailable. No signed iOS build is present.
 
 ## 8. Push Notification Checks
 
@@ -224,7 +232,7 @@ Before web production deployment:
 2. Confirm signed Apple Team ID and Play App Signing SHA-256; deploy association endpoints and verify direct 200 responses.
 3. Implement the approved social login set and make `corepack pnpm mobile:store-release-check` green on physical iPhone and Android devices.
 4. Commit the exact candidate SHA and run the full local/CI gates.
-5. Build new iOS and Android candidates from that exact SHA. The older Android AAB from `52faf4b4` is not evidence for the current tree.
+5. Build new iOS and Android store candidates from that exact SHA. The successful Android internal Preview from `76a64403` validates the build path but is not a store candidate; the older AAB from `52faf4b4` is not evidence for the current tree.
 6. Install through TestFlight/internal distribution and QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, links, notifications, deletion, and logout.
 7. Prepare and approve store metadata, screenshots, privacy answers, review account, and rollout plan.
 8. Submit to TestFlight/internal testing first, then public review only after the full gate passes.

@@ -20,7 +20,7 @@
 2. exact SHA의 CI, 타입, 테스트, lint, build, production dependency audit가 통과했다.
 3. PR은 Draft가 아니고 최신 변경을 본 독립 리뷰가 있다.
 4. Vercel production 환경 변수의 **이름·적용 대상·최종 수정 시각**을 확인했다. 값은 로그나 문서에 출력하지 않는다.
-5. exact SHA의 maintenance deployment가 `MAINTENANCE_MODE=true`로 응답하고 health endpoint가 같은 Supabase ref와 SHA 앞 12자리를 반환한다.
+5. exact SHA의 maintenance deployment가 `MAINTENANCE_MODE=true`로 응답하고 health endpoint가 같은 Supabase ref와 전체 40자 SHA를 반환한다.
 6. 웹 maintenance를 우회하는 기존 모바일·오래 열린 브라우저의 Data API/Auth/Storage 쓰기가 실제 black-box probe에서 거부된다.
 7. production preflight의 hard blocker가 모두 0이고 rewrite/delete inventory가 승인된 수량과 같다.
 8. migration history가 local의 연속 prefix다. core baseline history만 누락됐고 catalog가 exact일 때만 전용 reconcile 절차를 먼저 사용한다.
@@ -30,6 +30,19 @@
 12. 현재 과거 production deployment는 `coming_soon` 서버 gate를 포함하지 않으므로 rollback target으로 승인하지 않는다. DB 변경 전에 공개 allowlist만 여는 launch-gate 호환 deployment를 별도 생산·canary하고 deployment ID를 고정했다.
 13. 사용자 연구 접수를 공개하려면 사업 책임자가 선정 기준, 최대 인원, 검토 책임자, 선정·미선정 통지 기한, 문의·삭제 요청 SLA와 통지 문안을 승인하고 release evidence에 남겼다. 이메일 확인은 선정이 아니며, 이 운영 결정 없이 자동 선정 상태나 결과 메일을 임의로 만들지 않는다.
 14. Resend의 확인 메일 발송 도메인에서 **click tracking이 비활성화**되어 있고 링크가 tracking redirect로 재작성되지 않는다는 설정 화면·확인 시각을 증거로 남겼다. Fragment capability가 provider tracking URL에 복사될 수 있으므로 이 증거가 없으면 사용자 연구 메일을 운영 발송하지 않는다. Resend도 이메일 확인 같은 민감한 transactional email에는 추적 비활성화를 권장한다: [Open and Click Tracking](https://resend.com/docs/dashboard/domains/tracking).
+
+## OpenAI 키 노출 사고 복구 — 선행 hard gate
+
+2026-07-12 검증에 사용한 기존 OpenAI 키는 값 자체를 문서에 기록하지 않고 노출된 것으로 간주한다. 다음 증거가 모두 생기기 전에는 그 키나 같은 값을 운영 canary에 사용하지 않는다.
+
+1. OpenAI 프로젝트의 API key 관리 화면에서 당시 검증 키를 폐기하고 폐기 시각을 기록한다.
+2. 키 값을 출력하거나 shell history에 넣지 않는 방식으로 기존 키 인증이 거부되는지 확인한다.
+3. 노출 추정 시점 이후 프로젝트 usage·비용·rate-limit 활동을 검토해 승인하지 않은 사용 여부와 대응을 기록한다.
+4. 운영 전용 새 키를 발급해 Vercel **Production에만** 저장한다. Preview·Development·문서·채팅·명령행 인수·Git에는 값을 넣지 않는다.
+5. 환경 변수 수정 시각과 대상 project/environment를 기록하고, 기존 production을 재배포하지 않은 채 다음 exact-SHA anchor deployment에만 적용한다.
+6. 회전 키로 Luna/Terra 모델 접근, `store:false`, 스트리밍, 도구 후속, 첨부, 거절·중단·429/5xx, 비용 상한을 canary하고 사용량이 기대한 호출과 일치하는지 확인한다.
+
+키 폐기·새 키 저장·실사용 canary는 서로 다른 증거다. 하나만 끝났다고 회전 완료로 보고하지 않는다.
 
 ## 정상 출시 순서
 
@@ -68,8 +81,10 @@ Vercel production에 아래 값을 설정한 새 deployment를 만든다.
 GET https://hanbang.ai/api/health/maintenance
 maintenance = true
 supabaseProjectRef = protected production ref
-deployment = reviewed SHA first 12 chars
+deployment = reviewed full 40-character SHA
 rateLimitKeySecretConfigured = true
+researchCohortApplicationsEnabled = false
+accountDeletionCronEnabled = false
 ```
 
 페이지와 일반 API는 503이어야 한다. app association 세 경로와 health endpoint만 직접 응답한다. health endpoint가 404이거나 SHA가 다르면 중단한다.
