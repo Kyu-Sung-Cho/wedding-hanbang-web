@@ -119,6 +119,20 @@ const clientDeniedTriggerBindingMigration = readFileSync(
   ),
   "utf8"
 );
+const researchCohortIdentityMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712100000_research_cohort_application_identity.sql"
+  ),
+  "utf8"
+);
+const accountDeletionEmailScopeMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712101000_durable_account_deletion_email_scope.sql"
+  ),
+  "utf8"
+);
 
 const activePendingMigrationNames = readdirSync(migrationsDir)
   .filter((name) => name.endsWith(".sql") && name >= "20260710000000")
@@ -170,6 +184,8 @@ describe("expand-only mobile migration contract", () => {
       vendorUploadClosureMigration,
       rateLimitSubjectMigration,
       clientDeniedTriggerBindingMigration,
+      researchCohortIdentityMigration,
+      accountDeletionEmailScopeMigration,
     ];
 
     for (const migration of atomicMigrations) {
@@ -1114,6 +1130,122 @@ describe("expand-only mobile migration contract", () => {
     );
     expect(deterministicRetentionMigration).toMatch(
       /CREATE INDEX IF NOT EXISTS idx_rate_limit_buckets_reset_at\s+ON public\.rate_limit_buckets\(reset_at\);/
+    );
+  });
+
+  it("separates research consent identity from legacy preregistration rows", () => {
+    expect(researchCohortIdentityMigration).toContain(
+      "CREATE TABLE public.research_cohort_applications"
+    );
+    expect(researchCohortIdentityMigration).toContain("No legacy consent is inferred");
+    expect(researchCohortIdentityMigration).toContain("SET LOCAL lock_timeout = '5s'");
+    expect(researchCohortIdentityMigration).toContain("SET LOCAL statement_timeout = '120s'");
+    expect(researchCohortIdentityMigration).toContain(
+      "UNIQUE (cohort_code, email)"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "CHECK (cohort_code = 'research-2026-h2')"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "email = lower(btrim(email))"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "char_length(email) BETWEEN 3 AND 254"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "wedding_date date"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "wedding_date BETWEEN DATE '2026-07-01' AND DATE '2026-12-31'"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "CHECK (privacy_consent_at = created_at)"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "CHECK (privacy_policy_version = '2026-07-12')"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "CHECK (source = 'research')"
+    );
+    expect(researchCohortIdentityMigration).toMatch(
+      /CHECK \(\s*expires_at >= created_at\s+AND expires_at <= created_at \+ interval '180 days'\s*\)/
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "research_cohort_applications_receipt_lifecycle_check"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "trg_clamp_research_cohort_application_retention"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "email_verified_at timestamptz"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "research_cohort_applications_email_verification_window_check"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "privacy_consent_at IS NOT NULL AND email_verified_at IS NOT NULL"
+    );
+    expect(researchCohortIdentityMigration).toContain(
+      "DELETE FROM public.research_cohort_applications"
+    );
+    expect(researchCohortIdentityMigration).not.toContain(
+      "DROP CONSTRAINT IF EXISTS preregistrations_email_key"
+    );
+  });
+
+  it("keeps a temporary email-scope attestation until account deletion completes", () => {
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "ACTIVE_DELETION_EMAIL_SNAPSHOT_RECONCILIATION_REQUIRED"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "ADD COLUMN email_scopes text[]"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "ADD COLUMN email_snapshot_at timestamptz"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "account_deletion_jobs_email_snapshot_lifecycle_check"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "account_deletion_email_scopes_are_canonical"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "account_deletion_jobs_email_scopes_canonical_check"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "scope.value <> lower(btrim(scope.value))"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "count(DISTINCT scope.value)"
+    );
+    expect(accountDeletionEmailScopeMigration).toMatch(
+      /SET user_id = NULL,\s+email_scopes = NULL,\s+email_snapshot_at = NULL,\s+status = 'completed'/
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "ALTER FUNCTION public.request_account_deletion(uuid, text) OWNER TO postgres"
+    );
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "ALTER FUNCTION public.complete_account_deletion_job(uuid, uuid)"
+    );
+    const centralPreregDelete = accountDeletionEmailScopeMigration.indexOf(
+      "DELETE FROM public.preregistrations"
+    );
+    const centralResearchDelete = accountDeletionEmailScopeMigration.indexOf(
+      "DELETE FROM public.research_cohort_applications"
+    );
+    const legacyScrub = accountDeletionEmailScopeMigration.indexOf(
+      "UPDATE public.account_deletions"
+    );
+    const subjectScrub = accountDeletionEmailScopeMigration.indexOf(
+      "SET user_id = NULL,",
+      legacyScrub + 1
+    );
+    expect(centralPreregDelete).toBeGreaterThanOrEqual(0);
+    expect(centralResearchDelete).toBeGreaterThan(centralPreregDelete);
+    expect(legacyScrub).toBeGreaterThan(centralResearchDelete);
+    expect(subjectScrub).toBeGreaterThan(legacyScrub);
+    expect(accountDeletionEmailScopeMigration).toContain(
+      "email = ANY(v_email_scopes)"
     );
   });
 });

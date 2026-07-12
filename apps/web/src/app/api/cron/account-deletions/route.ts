@@ -34,6 +34,14 @@ export function isAccountDeletionCronAuthorized(request: Request, secret: string
     && timingSafeEqual(expectedBuffer, suppliedBuffer);
 }
 
+export function isAccountDeletionCronEnabled(
+  environment: Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "ACCOUNT_DELETION_CRON_ENABLED">> = process.env,
+): boolean {
+  if (environment.ACCOUNT_DELETION_CRON_ENABLED === "true") return true;
+  if (environment.ACCOUNT_DELETION_CRON_ENABLED === "false") return false;
+  return environment.NODE_ENV !== "production";
+}
+
 function parseClaimedJobs(value: unknown): AccountDeletionJob[] {
   if (!Array.isArray(value)) throw new AccountDeletionError("JOB_CLAIM_INVALID");
   return value.map((item) => {
@@ -52,6 +60,9 @@ function parseClaimedJobs(value: unknown): AccountDeletionJob[] {
 async function runAccountDeletionWorker(request: Request) {
   if (!isAccountDeletionCronAuthorized(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAccountDeletionCronEnabled()) {
+    return NextResponse.json({ error: "worker_disabled" }, { status: 503 });
   }
 
   const admin = getAdminClient();

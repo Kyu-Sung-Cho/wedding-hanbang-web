@@ -48,7 +48,17 @@
             {
               "scheme": "https",
               "host": "hanbang.ai",
-              "pathPrefix": "/app"
+              "path": "/app"
+            },
+            {
+              "scheme": "https",
+              "host": "hanbang.ai",
+              "pathPrefix": "/app/community/post/"
+            },
+            {
+              "scheme": "https",
+              "host": "hanbang.ai",
+              "pathPrefix": "/app/vendors/"
             }
           ],
           "category": [

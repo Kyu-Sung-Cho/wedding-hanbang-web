@@ -12,7 +12,7 @@ import {
   ShieldCheck, WalletCards, Info, FileCheck2, AlertTriangle, Store, Star,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { formatLocalDateOnly } from "@hanbang/shared";
+import { createMobileAppShareUrl, formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import {
@@ -372,8 +372,10 @@ export default function VendorDetailScreen() {
   async function handleShare() {
     if (!vendor) return;
     try {
+      const url = createMobileAppShareUrl({ kind: "vendor", id: vendor.id });
       await Share.share({
-        message: `${vendor.name} - 웨딩한방에서 확인하세요!\nhttps://hanbang.ai/vendors/${vendor.id}`,
+        url,
+        message: `${vendor.name} - 웨딩한방에서 확인하세요!\n${url}`,
       });
     } catch {
       // 사용자가 공유 취소

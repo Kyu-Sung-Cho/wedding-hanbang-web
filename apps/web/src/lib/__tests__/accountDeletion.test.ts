@@ -22,13 +22,33 @@ const BASE_JOB: AccountDeletionJob = {
 type MockAdminOptions = {
   authMissing?: boolean;
   profile?: { couple_id: string | null; role: string | null } | null;
+  deleteErrors?: Partial<Record<string, { code: string }>>;
+  verificationErrors?: Partial<Record<string, { code: string }>>;
+  remainingEmailRows?: Partial<Record<string, number>>;
+  authEmail?: string | null;
+  snapshotScopes?: string[] | null;
+  snapshotAt?: string | null;
+  snapshotSaveError?: { code: string };
+  snapshotLoadError?: { code: string };
+  leaseRenewErrorAt?: number;
+  leaseRenewErrorAfterEvent?: string;
+  allowedEmailScopes?: string[];
+  storageFiles?: string[];
 };
 
 function createMockAdmin(options: MockAdminOptions = {}) {
   const events: string[] = [];
   const fromCalls: string[] = [];
   let savedInventory: unknown;
-  const removedScopes = new Set<string>();
+  let leaseRenewalCount = 0;
+  let eventTriggeredLeaseFailure = false;
+  const removedBatchSizes: number[] = [];
+  const storageObjects = new Map<string, Set<string>>([
+    [
+      `community-images:${USER_ID}`,
+      new Set(options.storageFiles ?? ["photo.jpg"]),
+    ],
+  ]);
 
   function queryResult(table: string) {
     if (table === "guestbooks") return { data: [], error: null };
@@ -37,21 +57,72 @@ function createMockAdmin(options: MockAdminOptions = {}) {
 
   function from(table: string) {
     fromCalls.push(table);
+    const isEmailScopedApplicationTable = table === "preregistrations"
+      || table === "research_cohort_applications";
     let deleting = false;
+    let verifyingCount = false;
+    let savingEmailSnapshot = false;
+    let loadingEmailSnapshot = false;
+    let deletionEmail: string | null = null;
+    let verificationEmail: string | null = null;
     const query = {
-      select: () => query,
+      select: (_columns?: string, selectOptions?: { count?: string; head?: boolean }) => {
+        if (selectOptions?.count === "exact" && selectOptions.head === true) {
+          verifyingCount = true;
+          events.push(`db:verify:${table}`);
+        }
+        if (table === "account_deletion_jobs" && _columns?.includes("email_scopes")) {
+          loadingEmailSnapshot = true;
+          events.push("db:snapshot-load");
+        }
+        return query;
+      },
       delete: () => {
         deleting = true;
         events.push(`db:delete:${table}`);
         return query;
       },
-      update: () => {
+      update: (payload?: Record<string, unknown>) => {
         events.push(`db:update:${table}`);
+        if (table === "account_deletion_jobs" && payload?.email_snapshot_at) {
+          savingEmailSnapshot = true;
+          events.push("db:snapshot-save");
+        }
         return query;
       },
-      eq: () => query,
+      eq: (column: string, value: unknown) => {
+        if (deleting && column === "email" && typeof value === "string") {
+          deletionEmail = value;
+          events.push(`db:delete-scope:${table}:${value}`);
+        }
+        if (verifyingCount && column === "email" && typeof value === "string") {
+          verificationEmail = value;
+          events.push(`db:verify-scope:${table}:${value}`);
+        }
+        return query;
+      },
       like: () => query,
+      gt: () => query,
       maybeSingle: async () => {
+        if (table === "account_deletion_jobs" && savingEmailSnapshot) {
+          return {
+            data: options.snapshotSaveError ? null : { id: JOB_ID },
+            error: options.snapshotSaveError ?? null,
+          };
+        }
+        if (table === "account_deletion_jobs" && loadingEmailSnapshot) {
+          return {
+            data: options.snapshotLoadError ? null : {
+              email_scopes: options.snapshotScopes === undefined
+                ? ["delete-me@example.com"]
+                : options.snapshotScopes,
+              email_snapshot_at: options.snapshotAt === undefined
+                ? "2026-07-12T00:00:00.000Z"
+                : options.snapshotAt,
+            },
+            error: options.snapshotLoadError ?? null,
+          };
+        }
         if (table === "profiles") {
           return {
             data: options.profile === undefined
@@ -68,7 +139,25 @@ function createMockAdmin(options: MockAdminOptions = {}) {
       then: <TResult1 = unknown, TResult2 = never>(
         onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
         onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-      ) => Promise.resolve(deleting ? { data: null, error: null } : queryResult(table))
+      ) => Promise.resolve(deleting
+        ? {
+            data: null,
+            error: !isEmailScopedApplicationTable
+              || (options.allowedEmailScopes ?? ["delete-me@example.com"]).includes(deletionEmail ?? "")
+              ? options.deleteErrors?.[table] ?? null
+              : { code: "missing_email_filter" },
+          }
+        : verifyingCount
+          ? {
+              data: null,
+              count: (options.allowedEmailScopes ?? ["delete-me@example.com"]).includes(verificationEmail ?? "")
+                ? options.remainingEmailRows?.[table] ?? 0
+                : null,
+              error: (options.allowedEmailScopes ?? ["delete-me@example.com"]).includes(verificationEmail ?? "")
+                ? options.verificationErrors?.[table] ?? null
+                : { code: "missing_email_filter" },
+            }
+          : queryResult(table))
         .then(onfulfilled, onrejected),
     };
     return query;
@@ -87,26 +176,48 @@ function createMockAdmin(options: MockAdminOptions = {}) {
         savedInventory = args?.p_inventory;
         return { data: true, error: null };
       }
+      if (name === "renew_account_deletion_job_lease") {
+        leaseRenewalCount += 1;
+        events.push(`db:lease-renew:${leaseRenewalCount}`);
+        const failedAfterEvent = !eventTriggeredLeaseFailure
+          && typeof options.leaseRenewErrorAfterEvent === "string"
+          && events.includes(options.leaseRenewErrorAfterEvent);
+        const failed = options.leaseRenewErrorAt === leaseRenewalCount
+          || failedAfterEvent;
+        if (failedAfterEvent) eventTriggeredLeaseFailure = true;
+        return failed
+          ? { data: false, error: { code: "lease_expired" } }
+          : { data: true, error: null };
+      }
       if (name === "complete_account_deletion_job") return { data: true, error: null };
       return { data: null, error: null };
     },
     storage: {
       from: (bucket: string) => ({
-        list: async (directory: string) => {
+        list: async (
+          directory: string,
+          listOptions?: { limit?: number; offset?: number },
+        ) => {
           events.push(`storage:list:${bucket}:${directory}`);
           const scope = `${bucket}:${directory}`;
-          if (bucket === "community-images" && directory === USER_ID && !removedScopes.has(scope)) {
-            return {
-              data: [{ id: "storage-object-id", name: "photo.jpg" }],
-              error: null,
-            };
-          }
-          return { data: [], error: null };
+          const files = [...(storageObjects.get(scope) ?? new Set<string>())]
+            .sort()
+            .slice(
+              listOptions?.offset ?? 0,
+              (listOptions?.offset ?? 0) + (listOptions?.limit ?? 100),
+            );
+          return {
+            data: files.map((name) => ({ id: `storage-object:${name}`, name })),
+            error: null,
+          };
         },
         remove: async (paths: string[]) => {
           events.push(`storage:remove:${bucket}`);
+          removedBatchSizes.push(paths.length);
           for (const path of paths) {
-            removedScopes.add(`${bucket}:${path.split("/").slice(0, -1).join("/")}`);
+            const parts = path.split("/");
+            const name = parts.pop()!;
+            storageObjects.get(`${bucket}:${parts.join("/")}`)?.delete(name);
           }
           return { data: paths, error: null };
         },
@@ -123,7 +234,14 @@ function createMockAdmin(options: MockAdminOptions = {}) {
             };
           }
           return {
-            data: { user: { id: USER_ID, email: "delete-me@example.com" } },
+            data: {
+              user: {
+                id: USER_ID,
+                email: options.authEmail === undefined
+                  ? "delete-me@example.com"
+                  : options.authEmail,
+              },
+            },
             error: null,
           };
         },
@@ -142,6 +260,10 @@ function createMockAdmin(options: MockAdminOptions = {}) {
     events,
     fromCalls,
     getSavedInventory: () => savedInventory,
+    getRemainingStorageFiles: () => [
+      ...(storageObjects.get(`community-images:${USER_ID}`) ?? new Set<string>()),
+    ],
+    getRemovedBatchSizes: () => [...removedBatchSizes],
   };
 }
 
@@ -160,18 +282,114 @@ describe("processAccountDeletionJob", () => {
     expect(mock.fromCalls).not.toContain("invitations");
 
     const inventorySave = mock.events.indexOf("rpc:save_account_deletion_storage_inventory");
+    const emailSnapshotLoad = mock.events.indexOf("db:snapshot-load");
+    const firstLeaseRenew = mock.events.indexOf("db:lease-renew:1");
+    const secondLeaseRenew = mock.events.indexOf("db:lease-renew:2");
     const storageRemove = mock.events.indexOf("storage:remove:community-images");
     const leave = mock.events.indexOf("rpc:leave_amora_couple_safely");
     const redact = mock.events.lastIndexOf("rpc:redact_user_ai_data");
+    const preregistrationDelete = mock.events.indexOf("db:delete:preregistrations");
+    const researchApplicationDelete = mock.events.indexOf("db:delete:research_cohort_applications");
+    const preregistrationVerify = mock.events.indexOf("db:verify:preregistrations");
+    const researchApplicationVerify = mock.events.indexOf("db:verify:research_cohort_applications");
     const authDelete = mock.events.indexOf("auth:delete");
     const complete = mock.events.indexOf("rpc:complete_account_deletion_job");
 
-    expect(inventorySave).toBeGreaterThanOrEqual(0);
-    expect(storageRemove).toBeGreaterThan(inventorySave);
+    expect(firstLeaseRenew).toBeGreaterThanOrEqual(0);
+    expect(emailSnapshotLoad).toBeGreaterThan(firstLeaseRenew);
+    expect(inventorySave).toBeGreaterThan(emailSnapshotLoad);
+    expect(secondLeaseRenew).toBeGreaterThan(inventorySave);
+    expect(storageRemove).toBeGreaterThan(secondLeaseRenew);
     expect(leave).toBeGreaterThan(storageRemove);
+    expect(preregistrationDelete).toBeGreaterThan(leave);
+    expect(researchApplicationDelete).toBeGreaterThan(preregistrationDelete);
+    expect(preregistrationVerify).toBeGreaterThan(researchApplicationDelete);
+    expect(researchApplicationVerify).toBeGreaterThan(preregistrationVerify);
     expect(redact).toBeGreaterThan(leave);
+    expect(authDelete).toBeGreaterThan(researchApplicationVerify);
     expect(authDelete).toBeGreaterThan(redact);
     expect(complete).toBeGreaterThan(authDelete);
+  });
+
+  it("deletes each bounded storage page before listing the next page", async () => {
+    const storageFiles = Array.from(
+      { length: 201 },
+      (_, index) => `photo-${String(index).padStart(3, "0")}.jpg`,
+    );
+    const mock = createMockAdmin({ storageFiles });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    const listEvent = `storage:list:community-images:${USER_ID}`;
+    const listIndexes = mock.events
+      .map((event, index) => event === listEvent ? index : -1)
+      .filter((index) => index >= 0);
+    const removeIndexes = mock.events
+      .map((event, index) => event === "storage:remove:community-images" ? index : -1)
+      .filter((index) => index >= 0);
+
+    expect(removeIndexes).toHaveLength(3);
+    expect(mock.getRemovedBatchSizes()).toEqual([100, 100, 1]);
+    expect(listIndexes.length).toBeGreaterThan(3);
+    expect(removeIndexes[0]).toBeLessThan(listIndexes[1]);
+    expect(removeIndexes[1]).toBeLessThan(listIndexes[2]);
+    expect(removeIndexes[2]).toBeLessThan(listIndexes[3]);
+    expect(mock.getRemainingStorageFiles()).toEqual([]);
+    expect(mock.events).toContain("rpc:complete_account_deletion_job");
+  });
+
+  it.each([
+    ["preregistrations", "PREREGISTRATION_DELETE_FAILED"],
+    ["research_cohort_applications", "RESEARCH_COHORT_APPLICATION_DELETE_FAILED"],
+  ])("fails closed when deleting email-scoped application data from %s fails", async (
+    table,
+    expectedCode,
+  ) => {
+    const mock = createMockAdmin({
+      deleteErrors: { [table]: { code: "database_error" } },
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: expectedCode,
+      });
+    expect(mock.events).not.toContain("auth:delete");
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
+  });
+
+  it.each([
+    ["preregistrations", "PREREGISTRATION_DELETE_VERIFY_FAILED"],
+    ["research_cohort_applications", "RESEARCH_COHORT_APPLICATION_DELETE_VERIFY_FAILED"],
+  ])("fails closed when email-scoped application data remains in %s", async (
+    table,
+    expectedCode,
+  ) => {
+    const mock = createMockAdmin({ remainingEmailRows: { [table]: 1 } });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: expectedCode,
+      });
+    expect(mock.events).not.toContain("auth:delete");
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
+  });
+
+  it("fails closed when the research application deletion verification query fails", async () => {
+    const mock = createMockAdmin({
+      verificationErrors: {
+        research_cohort_applications: { code: "database_error" },
+      },
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "RESEARCH_COHORT_APPLICATION_DELETE_VERIFY_FAILED",
+      });
+    expect(mock.events).not.toContain("auth:delete");
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
   });
 
   it("finishes an idempotent retry after auth deletion when a saved inventory exists", async () => {
@@ -187,8 +405,142 @@ describe("processAccountDeletionJob", () => {
 
     expect(mock.fromCalls).not.toContain("guestbooks");
     expect(mock.fromCalls).not.toContain("invitations");
+    expect(mock.events).toContain("db:snapshot-load");
+    expect(mock.events).toContain("db:delete:preregistrations");
+    expect(mock.events).toContain("db:delete:research_cohort_applications");
     expect(mock.events).toContain("auth:delete");
     expect(mock.events.at(-1)).toBe("rpc:complete_account_deletion_job");
+  });
+
+  it("fails closed when the durable email snapshot cannot be refreshed", async () => {
+    const mock = createMockAdmin({
+      authEmail: "new-address@example.com",
+      snapshotSaveError: { code: "database_error" },
+      allowedEmailScopes: ["delete-me@example.com", "new-address@example.com"],
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "EMAIL_SNAPSHOT_SAVE_FAILED",
+      });
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it("preserves an existing email scope when the auth provider omits email", async () => {
+    const mock = createMockAdmin({ authEmail: null });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    expect(mock.events).not.toContain("db:snapshot-save");
+    expect(mock.events).toContain(
+      "db:delete-scope:research_cohort_applications:delete-me@example.com"
+    );
+    expect(mock.events).toContain("auth:delete");
+  });
+
+  it("durably appends and deletes both old and current auth email scopes", async () => {
+    const mock = createMockAdmin({
+      authEmail: "new-address@example.com",
+      allowedEmailScopes: ["delete-me@example.com", "new-address@example.com"],
+    });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    expect(mock.events).toContain("db:snapshot-save");
+    for (const email of ["delete-me@example.com", "new-address@example.com"]) {
+      expect(mock.events).toContain(
+        `db:delete-scope:preregistrations:${email}`
+      );
+      expect(mock.events).toContain(
+        `db:delete-scope:research_cohort_applications:${email}`
+      );
+    }
+    expect(mock.events).toContain("auth:delete");
+  });
+
+  it("stops before destructive account removal when the worker lease cannot renew", async () => {
+    const mock = createMockAdmin({ leaseRenewErrorAt: 2 });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "WORKER_LEASE_RENEW_FAILED",
+      });
+    expect(mock.events).not.toContain("db:delete:preregistrations");
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it("aborts between a long storage listing page and its destructive remove batch when the lease is lost", async () => {
+    const storageListEvent = `storage:list:community-images:${USER_ID}`;
+    const mock = createMockAdmin({
+      leaseRenewErrorAfterEvent: storageListEvent,
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "WORKER_LEASE_RENEW_FAILED",
+      });
+    expect(mock.events).toContain(storageListEvent);
+    expect(mock.events).not.toContain("storage:remove:community-images");
+    expect(mock.events).not.toContain("rpc:leave_amora_couple_safely");
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it("aborts between direct-data phases when the lease is lost", async () => {
+    const mock = createMockAdmin({
+      leaseRenewErrorAfterEvent: "rpc:leave_amora_couple_safely",
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "WORKER_LEASE_RENEW_FAILED",
+      });
+    expect(mock.events).toContain("rpc:leave_amora_couple_safely");
+    expect(mock.events).not.toContain("db:delete:chat_summaries");
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it.each([
+    [["Delete-Me@example.com"], "case-variant"],
+    [[" delete-me@example.com"], "whitespace-variant"],
+    [["delete-me@example.com", "delete-me@example.com"], "duplicate"],
+    [["invalid@"], "invalid-shape"],
+  ])("rejects a noncanonical durable email scope (%s)", async (snapshotScopes) => {
+    const mock = createMockAdmin({
+      authEmail: null,
+      snapshotScopes,
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "EMAIL_SNAPSHOT_INVALID",
+      });
+    expect(mock.events).not.toContain("db:delete:preregistrations");
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it("fails closed when an auth-missing retry has no durable email attestation", async () => {
+    const mock = createMockAdmin({
+      authMissing: true,
+      profile: null,
+      snapshotAt: null,
+    });
+    const job = {
+      ...BASE_JOB,
+      storage_inventory: [{ bucket: "community-images", prefix: USER_ID }],
+    };
+
+    await expect(processAccountDeletionJob(mock.admin, job, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "EMAIL_SNAPSHOT_LOAD_FAILED",
+      });
+    expect(mock.events).not.toContain("auth:delete");
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
   });
 
   it("fails closed when auth ownership disappeared before any inventory snapshot", async () => {

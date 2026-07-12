@@ -1,25 +1,24 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
-import { Check } from "lucide-react";
-import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import { getBetaCount } from "@/lib/beta-count";
 import {
   USER_RESEARCH_COHORT_BENEFITS,
   USER_RESEARCH_COHORT_CONDITIONS,
 } from "@/constants/beta";
+import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
 
 export const metadata = {
   title: "사용자 연구 코호트 신청 · 웨딩한방",
-  description: "베타 계정 이용과 별도로, 6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구 코호트 50쌍을 찾습니다.",
+  description: "베타 계정 이용과 별도로, 6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구 참여자 최대 50명을 찾습니다.",
 };
 
 export default async function BetaPage() {
-  const current = await getBetaCount();
-  const progress = Math.min(100, (current / BETA_TOTAL) * 100);
-  const isFull = current >= BETA_TOTAL;
+  const applicationsEnabled = isResearchCohortApplicationsEnabled();
+  const current = applicationsEnabled ? await getBetaCount() : 0;
 
   return (
     <main className="min-h-screen bg-noir-800">
@@ -43,7 +42,7 @@ export default async function BetaPage() {
           <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em] max-w-3xl">
             6주간 함께해 주실
             <br />
-            <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
+            <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
             일반 베타 계정 이용과 별도로, 이 페이지에서는
@@ -57,7 +56,7 @@ export default async function BetaPage() {
       <section id="cta" className="scroll-mt-24 px-[clamp(20px,5vw,60px)] pb-[clamp(80px,10vw,140px)]">
         <div className="max-w-[1240px] mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 lg:gap-20 items-start">
           {/* 좌측 */}
-          <div className="space-y-14">
+          <div className="order-2 space-y-14 lg:order-1">
             {/* Benefits */}
             <div>
               <p className="text-[11px] tracking-[0.22em] text-rose-light/80 mb-7 font-medium">
@@ -120,25 +119,8 @@ export default async function BetaPage() {
           </div>
 
           {/* 우측: Form or Full */}
-          <div className="lg:sticky lg:top-24">
-            {isFull ? (
-              <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
-                <Check className="w-8 h-8 text-rose-light mb-6" />
-                <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-4">
-                  사용자 연구 50쌍 <em className="not-italic text-rose-light">모집 완료</em>
-                </h2>
-                <p className="text-white/70 text-[15px] leading-[1.8] font-light mb-6">
-                  많은 관심 감사드립니다.
-                  <br />
-                  다음 사용자 연구 일정이 정해지면 별도로 안내드릴게요.
-                </p>
-                <p className="text-white/50 text-[12px] tracking-[0.18em]">
-                  현재 {current} / {BETA_TOTAL}
-                </p>
-              </div>
-            ) : (
-              <BetaForm current={current} total={BETA_TOTAL} progress={progress} />
-            )}
+          <div className="order-1 lg:order-2 lg:sticky lg:top-24">
+            <BetaForm current={current} applicationsEnabled={applicationsEnabled} />
           </div>
         </div>
       </section>

@@ -2,6 +2,15 @@
   "productionSupabaseProjectRefs": [
     "slrtobkksjmxgzatjyqb"
   ],
+  "approvedNonProductionSupabaseProjectRefs": [],
   "productionWebBaseUrl": "https://hanbang.ai",
-  "productionDatabaseWriteFence": "not_configured"
+  "productionDatabaseWriteFence": "not_configured",
+  "productionDatabaseWriteFenceContract": "database-readonly-realtime-cron-v1",
+  "backupPolicy": {
+    "status": "not_configured",
+    "requiredCliVersion": "2.106.0",
+    "allowedRestoreProjectRefs": [],
+    "ageRecipients": [],
+    "maxStorageConcurrency": 4
+  }
 }

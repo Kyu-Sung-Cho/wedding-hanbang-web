@@ -13,6 +13,13 @@ const SERVICE_LINKS = [
   { label: "내 즐겨찾기", href: weddingPath("/favorites") },
 ];
 
+const COMING_SOON_LINKS = [
+  { label: "서비스 소개", href: "/demo" },
+  { label: "사용자 연구 신청", href: "/beta" },
+  { label: "운영 원칙", href: "/about" },
+  { label: "고객 지원", href: "/support" },
+];
+
 const POLICY_LINKS = [
   { label: "서비스 소개", href: "/about" },
   { label: "AI 정책", href: "/ai-policy" },
@@ -26,6 +33,8 @@ const CONTACT_LINKS = [
 ];
 
 export default function Footer() {
+  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+  const serviceLinks = isComingSoon ? COMING_SOON_LINKS : SERVICE_LINKS;
   return (
     <footer className="bg-noir-800 text-ivory-50 pt-20 pb-10 px-[clamp(20px,5vw,60px)]">
       <div className="max-w-[1200px] mx-auto">
@@ -33,7 +42,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1.2fr] gap-10 lg:gap-12 mb-12">
           {/* 브랜드 */}
           <div>
-            <Link href={weddingPath()} className="inline-block">
+            <Link href={isComingSoon ? "/demo" : weddingPath()} className="inline-block">
               <Logo size="sm" variant="white" />
             </Link>
             <p className="text-ivory-50/60 text-sm leading-relaxed mt-5 font-light max-w-[320px]">
@@ -50,7 +59,7 @@ export default function Footer() {
               서비스
             </h5>
             <ul className="space-y-3">
-              {SERVICE_LINKS.map((link) => (
+              {serviceLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -114,9 +123,9 @@ export default function Footer() {
             <a href={`mailto:${CONTACT.email}`} className="ml-1 underline hover:text-white">{CONTACT.email}</a>
           </p>
           <p className="text-ivory-50/50 text-xs leading-relaxed">
-            현재 베타 계정 이용 범위에서는 웨딩 서비스의 결제나 계약을 체결·대행하지 않습니다. 업체 연결 기능은 준비 중이며
-            현재 상담 요청이나 문의를 업체에 전송하지 않습니다. 공개된 가격·운영시간은 참고용이므로 최신 구성과
-            변경·취소 조건은 업체의 공식 연락처로 직접 확인해 주세요. 정식 사업자 정보와 거래 고지는 사업 개시 전에 갱신합니다.
+            {isComingSoon
+              ? "정식 베타 공개 전 사용자 연구 신청을 받고 있습니다. 아직 로그인·앱 기능은 제공하지 않으며, 선정 및 참여 안내는 신청한 이메일로만 전합니다."
+              : "현재 베타 계정 이용 범위에서는 웨딩 서비스의 결제나 계약을 체결·대행하지 않습니다. 업체 연결 기능은 준비 중이며 현재 상담 요청이나 문의를 업체에 전송하지 않습니다. 공개된 가격·운영시간은 참고용이므로 최신 구성과 변경·취소 조건은 업체의 공식 연락처로 직접 확인해 주세요. 정식 사업자 정보와 거래 고지는 사업 개시 전에 갱신합니다."}
           </p>
         </div>
 

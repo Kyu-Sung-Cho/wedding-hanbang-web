@@ -71,6 +71,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
+  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+    return staticPages.filter(({ url }) =>
+      [`${BASE_URL}/demo`, `${BASE_URL}/about`, `${BASE_URL}/beta`].includes(url)
+    );
+  }
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return staticPages;
   }

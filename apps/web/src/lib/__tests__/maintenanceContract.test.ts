@@ -25,12 +25,30 @@ const mobileSettingsSource = readFileSync(
   "utf8"
 );
 const originalRateLimitKeySecret = process.env.RATE_LIMIT_KEY_SECRET;
+const originalMaintenanceMode = process.env.MAINTENANCE_MODE;
+const originalLaunchMode = process.env.NEXT_PUBLIC_LAUNCH_MODE;
+const originalAccountDeletionCronEnabled = process.env.ACCOUNT_DELETION_CRON_ENABLED;
 
 afterEach(() => {
   if (originalRateLimitKeySecret === undefined) {
     delete process.env.RATE_LIMIT_KEY_SECRET;
   } else {
     process.env.RATE_LIMIT_KEY_SECRET = originalRateLimitKeySecret;
+  }
+  if (originalMaintenanceMode === undefined) {
+    delete process.env.MAINTENANCE_MODE;
+  } else {
+    process.env.MAINTENANCE_MODE = originalMaintenanceMode;
+  }
+  if (originalLaunchMode === undefined) {
+    delete process.env.NEXT_PUBLIC_LAUNCH_MODE;
+  } else {
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = originalLaunchMode;
+  }
+  if (originalAccountDeletionCronEnabled === undefined) {
+    delete process.env.ACCOUNT_DELETION_CRON_ENABLED;
+  } else {
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = originalAccountDeletionCronEnabled;
   }
 });
 
@@ -66,12 +84,88 @@ describe("maintenance release contract", () => {
     expect(mobileSettingsSource).toContain("apiErrorMessage(body");
   });
 
+  it("keeps signed app-association proofs directly reachable during maintenance", async () => {
+    const { proxy } = await import("../../proxy");
+    process.env.MAINTENANCE_MODE = "true";
+
+    for (const path of [
+      "/apple-app-site-association",
+      "/.well-known/apple-app-site-association",
+      "/.well-known/assetlinks.json",
+    ]) {
+      const response = await proxy(new NextRequest(`https://hanbang.ai${path}`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    }
+  });
+
+  it("enforces coming-soon mode on the server while keeping only explicit public paths", async () => {
+    const { proxy } = await import("../../proxy");
+    delete process.env.MAINTENANCE_MODE;
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "coming_soon";
+
+    for (const path of [
+      "/demo",
+      "/beta",
+      "/beta/verify",
+      "/privacy",
+      "/api/preregister",
+      "/api/preregister/verify",
+      "/api/health/maintenance",
+      "/apple-app-site-association",
+      "/.well-known/apple-app-site-association",
+      "/.well-known/assetlinks.json",
+    ]) {
+      const response = await proxy(new NextRequest(`https://hanbang.ai${path}`));
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get("x-middleware-rewrite"), path).toBeNull();
+    }
+
+    const pageResponse = await proxy(
+      new NextRequest("https://hanbang.ai/login?mode=signup&next=/wedding/chat")
+    );
+    expect(pageResponse.status).toBe(307);
+    expect(pageResponse.headers.get("location")).toBe("https://hanbang.ai/demo");
+    expect(pageResponse.headers.get("cache-control")).toBe("no-store, max-age=0");
+
+    const campaignResponse = await proxy(
+      new NextRequest(
+        "https://hanbang.ai/wedding/chat?utm_source=kakao&utm_campaign=summer&next=/admin"
+      )
+    );
+    expect(campaignResponse.headers.get("location")).toBe(
+      "https://hanbang.ai/demo?utm_source=kakao&utm_campaign=summer"
+    );
+
+    const apiResponse = await proxy(
+      new NextRequest("https://hanbang.ai/api/auth/signup", { method: "POST" })
+    );
+    expect(apiResponse.status).toBe(503);
+    expect(apiResponse.headers.get("cache-control")).toBe("no-store, max-age=0");
+    expect(apiResponse.headers.get("retry-after")).toBe("3600");
+    await expect(apiResponse.json()).resolves.toMatchObject({
+      code: "SERVICE_NOT_LAUNCHED",
+      retryAfterSeconds: 3600,
+    });
+  });
+
+  it("keeps maintenance mode authoritative when both release gates are enabled", async () => {
+    const { proxy } = await import("../../proxy");
+    process.env.MAINTENANCE_MODE = "true";
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "coming_soon";
+
+    const response = await proxy(new NextRequest("https://hanbang.ai/demo"));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("x-middleware-rewrite")).toContain("/maintenance");
+  });
+
   it("binds the live maintenance proof to the configured Supabase project", () => {
     expect(healthSource).toContain('supabaseProjectRef: configuredSupabaseProjectRef()');
     expect(healthSource).toContain('maintenanceStartedAt: process.env.MAINTENANCE_STARTED_AT_UTC');
     expect(healthSource).toContain("rateLimitKeySecretConfigured:");
+    expect(healthSource).toContain("accountDeletionCronEnabled:");
     expect(healthSource).toContain(
-      "(process.env.RATE_LIMIT_KEY_SECRET?.trim().length ?? 0) >= 32"
+      "hasStrongRateLimitKeySecretConfig()"
     );
     expect(healthSource).not.toContain("rateLimitKeySecret:");
     expect(healthSource).toContain('/^([a-z0-9]{20})\\.supabase\\.co$/');
@@ -80,7 +174,7 @@ describe("maintenance release contract", () => {
     expect(webEnvExample).toContain("MAINTENANCE_STARTED_AT_UTC=");
   });
 
-  it("reports only whether the deployed rate-limit secret meets the minimum", async () => {
+  it("reports only whether the deployed rate-limit secret meets the strict boundary", async () => {
     const { GET } = await import(
       "../../app/api/health/maintenance/route"
     );
@@ -89,9 +183,27 @@ describe("maintenance release contract", () => {
     expect(missing.rateLimitKeySecretConfigured).toBe(false);
     expect(missing).not.toHaveProperty("rateLimitKeySecret");
 
-    process.env.RATE_LIMIT_KEY_SECRET = `  ${"s".repeat(32)}  `;
+    process.env.RATE_LIMIT_KEY_SECRET = "R7vY0M5sK8qN2bF9xW4cL6jH1pT3dG5zA9uE";
     const configured = (await (await GET()).json()) as Record<string, unknown>;
     expect(configured.rateLimitKeySecretConfigured).toBe(true);
     expect(configured).not.toHaveProperty("rateLimitKeySecret");
+  });
+
+  it("reports only the account-deletion cron switch state", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "false";
+    const disabled = (await (await GET()).json()) as Record<string, unknown>;
+    expect(disabled.accountDeletionCronEnabled).toBe(false);
+
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "TRUE";
+    const invalid = (await (await GET()).json()) as Record<string, unknown>;
+    expect(invalid.accountDeletionCronEnabled).toBe(false);
+
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "true";
+    const enabled = (await (await GET()).json()) as Record<string, unknown>;
+    expect(enabled.accountDeletionCronEnabled).toBe(true);
+    expect(enabled).not.toHaveProperty("accountDeletionCronSecret");
   });
 });

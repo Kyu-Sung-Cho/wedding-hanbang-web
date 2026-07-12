@@ -25,6 +25,9 @@ describe("analytics URL privacy", () => {
     expect(redactSensitiveUrl("#/auth?access_token=secret&next=%2Fhome")).toBe(
       "#/auth?access_token=%5BREDACTED%5D&next=%2Fhome"
     );
+    expect(redactSensitiveUrl("https://hanbang.ai/beta/verify#token=capability")).toBe(
+      "https://hanbang.ai/beta/verify#token=%5BREDACTED%5D"
+    );
   });
 
   it("scrubs pageleave and nested replay properties without mutating the input", () => {

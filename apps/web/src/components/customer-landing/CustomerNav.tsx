@@ -9,8 +9,11 @@ interface CustomerNavProps {
   darkAtTop?: boolean;
 }
 
-const ACCOUNT_HREF = "/login?mode=signup";
-const EXAMPLE_APP_HREF = "/demo/login";
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const ACCOUNT_HREF = isComingSoon ? "/beta" : "/login?mode=signup";
+const ACCOUNT_LABEL = isComingSoon ? "사용자 연구 신청" : "베타 계정 만들기";
+const EXAMPLE_APP_HREF = isComingSoon ? "/about" : "/demo/login";
+const EXAMPLE_APP_LABEL = isComingSoon ? "서비스 운영 원칙" : "예시 앱 체험";
 
 export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNavProps = {}) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -68,13 +71,20 @@ export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNav
     document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const navLinks = [
-    { href: weddingPath(), label: "커뮤니티", scroll: false },
-    { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
-    { href: weddingPath("/etiquette"), label: "결혼 예절", scroll: false },
-    { href: "/about", label: "소개", scroll: false },
-    { href: "#cta", label: "시작하기", scroll: true },
-  ];
+  const navLinks = isComingSoon
+    ? [
+        { href: "/demo", label: "서비스 소개", scroll: false },
+        { href: "/about", label: "운영 원칙", scroll: false },
+        { href: "/privacy", label: "개인정보", scroll: false },
+        { href: "#cta", label: "사용자 연구", scroll: true },
+      ]
+    : [
+        { href: weddingPath(), label: "커뮤니티", scroll: false },
+        { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
+        { href: weddingPath("/etiquette"), label: "결혼 예절", scroll: false },
+        { href: "/about", label: "소개", scroll: false },
+        { href: "#cta", label: "시작하기", scroll: true },
+      ];
   const useDarkColors = darkAtTop && !scrolled && !menuOpen;
 
   return (
@@ -114,13 +124,13 @@ export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNav
           href={EXAMPLE_APP_HREF}
           className={`text-[13px] font-medium no-underline transition-colors ${useDarkColors ? "text-white/85 hover:text-white" : "text-[#36534E] hover:text-[#263832]"}`}
         >
-          예시 앱 체험
+          {EXAMPLE_APP_LABEL}
         </a>
         <a
           href={ACCOUNT_HREF}
           className="px-6 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
         >
-          베타 계정 만들기
+          {ACCOUNT_LABEL}
         </a>
       </div>
 
@@ -177,14 +187,14 @@ export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNav
                 onClick={closeMenu}
                 className="flex items-center justify-center w-full py-3.5 border border-[#36534E]/30 text-[#36534E] rounded-full text-[14px] font-medium no-underline"
               >
-                예시 앱 체험
+                {EXAMPLE_APP_LABEL}
               </a>
               <a
                 href={ACCOUNT_HREF}
                 onClick={closeMenu}
                 className="flex items-center justify-center gap-2 w-full py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[14px] font-medium no-underline shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
               >
-                베타 계정 만들기
+                {ACCOUNT_LABEL}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>

@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 const steps = [
   {
     num: "01",
@@ -10,9 +12,11 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
       </svg>
     ),
-    title: "베타 계정 만들기",
-    desc: "이메일로 내 준비 공간을 만들거나, 가입 전 예시 앱을 먼저 둘러보세요.",
-    highlight: "계정과 예시 앱 분리",
+    title: isComingSoon ? "베타 계정 만들기 (예정)" : "베타 계정 만들기",
+    desc: isComingSoon
+      ? "정식 베타가 열리면 이메일로 내 준비 공간을 만드는 단계입니다."
+      : "이메일로 내 준비 공간을 만들거나, 가입 전 예시 앱을 먼저 둘러보세요.",
+    highlight: isComingSoon ? "정식 베타 예정" : "계정과 예시 앱 분리",
   },
   {
     num: "02",
@@ -69,15 +73,21 @@ export default function CustomerHowItWorks() {
           시작은 간단합니다
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          4단계로 준비 공간을 만들고 아모라와 커플 도구를
-          <br className="hidden md:block" />
-          필요한 만큼 이용할 수 있습니다.
+          {isComingSoon
+            ? "정식 베타에서 제공할 4단계 준비 흐름을 미리 확인하세요."
+            : "4단계로 준비 공간을 만들고 아모라와 커플 도구를"}
+          {!isComingSoon && (
+            <>
+              <br className="hidden md:block" />
+              필요한 만큼 이용할 수 있습니다.
+            </>
+          )}
         </p>
         <a
-          href="/demo/login"
+          href={isComingSoon ? "/beta" : "/demo/login"}
           className="mt-5 inline-flex text-[13px] font-medium text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 hover:decoration-[#36534E]"
         >
-          가입 전 예시 앱부터 체험하기
+          {isComingSoon ? "별도 사용자 연구 참여 조건 보기" : "가입 전 예시 앱부터 체험하기"}
         </a>
       </motion.div>
 

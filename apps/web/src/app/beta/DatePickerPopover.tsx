@@ -146,8 +146,8 @@ export default function DatePickerPopover({
     <div ref={containerRef} className="relative">
       {/* Trigger button */}
       <div
-        className={`flex w-full items-center gap-2 rounded-xl border bg-transparent px-3.5 text-[15px] font-light transition-colors ${
-          open ? "border-rose-light/60" : "border-white/15 hover:border-white/25"
+        className={`flex w-full items-center gap-2 rounded-xl border bg-transparent px-3.5 text-[15px] font-normal transition-colors ${
+          open ? "border-rose-light/70" : "border-white/25 hover:border-white/40"
         } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
         <button
@@ -160,10 +160,10 @@ export default function DatePickerPopover({
           aria-controls={open ? popoverId : undefined}
           className="flex min-h-11 flex-1 items-center justify-between gap-2 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-light/60"
         >
-          <span className={selectedDate ? "text-white" : "text-white/30"}>
+          <span className={selectedDate ? "text-white" : "text-white/50"}>
             {selectedDate ? format(selectedDate, "yyyy년 M월 d일 (EEE)", { locale: ko }) : placeholder}
           </span>
-          {!selectedDate && <Calendar className="w-4 h-4 text-white/40 shrink-0" aria-hidden />}
+          {!selectedDate && <Calendar className="h-4 w-4 shrink-0 text-white/60" aria-hidden />}
         </button>
         {selectedDate ? (
           <button

@@ -59,7 +59,10 @@ function Get-ReconciliationArtifactFingerprint {
       ForEach-Object { $_.FullName }
   ) + @(
     (Resolve-Path "scripts/release-targets.json").Path,
+    (Resolve-Path "scripts/run-reviewed-powershell.mjs").Path,
     (Resolve-Path "scripts/supabase-reconcile-core-baseline.ps1").Path,
+    (Resolve-Path "scripts/supabase-write-fence.ps1").Path,
+    (Resolve-Path "scripts/supabase-recovery-safe.mjs").Path,
     (Resolve-Path "scripts/sql/supabase-core-baseline-preflight.sql").Path
   )
   return (($paths | ForEach-Object {
@@ -84,17 +87,30 @@ function Assert-ReconciliationArtifactsUnchanged {
   Assert-LinkedProject
 }
 
+function ConvertFrom-SupabaseQueryRows {
+  param([Parameter(Mandatory = $true)] $Raw)
+
+  $document = ($Raw -join "`n") | ConvertFrom-Json
+  if ($document -is [Array]) {
+    return @($document)
+  }
+  if ($document.PSObject.Properties.Name -contains "rows") {
+    return @($document.rows)
+  }
+  throw "Supabase query JSON did not contain a supported row collection."
+}
+
 function Read-BaselinePreflight {
   Assert-LinkedProject
   $raw = Invoke-Checked "Core baseline catalog preflight" {
     corepack pnpm exec supabase db query --linked `
       --file scripts/sql/supabase-core-baseline-preflight.sql --output json
   }
-  $document = ($raw -join "`n") | ConvertFrom-Json
-  if (-not $document.rows -or $document.rows.Count -ne 1) {
+  $rows = @(ConvertFrom-SupabaseQueryRows $raw)
+  if ($rows.Count -ne 1) {
     throw "Baseline preflight returned an unexpected result shape."
   }
-  return $document.rows[0].baseline_preflight
+  return $rows[0].baseline_preflight
 }
 
 function Get-ReviewedPendingSuffix {
@@ -152,8 +168,22 @@ Set-Location $repoRoot
 $targets = Get-Content -Raw -LiteralPath "scripts/release-targets.json" |
   ConvertFrom-Json
 if ($ExpectedProjectRef -in @($targets.productionSupabaseProjectRefs) -and
-  $targets.productionDatabaseWriteFence -ne "verified-v1") {
-  throw "Production baseline reconciliation is disabled until the direct-write fence is verified."
+  ($targets.productionDatabaseWriteFence -ne "verified-v1" -or
+    $targets.productionDatabaseWriteFenceContract -ne
+      "database-readonly-realtime-cron-v1")) {
+  throw "Production baseline reconciliation is disabled until the reviewed direct-write fence is verified."
+}
+if ($ExpectedProjectRef -in @($targets.productionSupabaseProjectRefs) -and
+  $targets.backupPolicy.status -ne "verified-v1") {
+  throw "Production baseline reconciliation is disabled until encrypted recovery and an isolated restore drill are verified."
+}
+if ($ExpectedProjectRef -in @($targets.productionSupabaseProjectRefs)) {
+  throw "Production baseline reconciliation remains disabled until it is bound to one live write-fence lifecycle."
+}
+$approvedNonProductionRefs = @($targets.approvedNonProductionSupabaseProjectRefs |
+  ForEach-Object { [string]$_ })
+if ($ExpectedProjectRef -notin $approvedNonProductionRefs) {
+  throw "Baseline reconciliation requires a checked-in approved non-production project ref."
 }
 
 $linkedRefPath = Join-Path $repoRoot "supabase/.temp/project-ref"

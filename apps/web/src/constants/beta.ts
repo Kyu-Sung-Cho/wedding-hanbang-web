@@ -1,4 +1,5 @@
 export const USER_RESEARCH_COHORT_TOTAL = 50;
+export const USER_RESEARCH_COHORT_CODE = "research-2026-h2";
 // Internal compatibility alias for the existing preregistration counter.
 export const BETA_TOTAL = USER_RESEARCH_COHORT_TOTAL;
 export const BETA_COUNTER_MIN = 10;

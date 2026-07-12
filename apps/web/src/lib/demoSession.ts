@@ -7,13 +7,8 @@ const DEMO_MAX_AGE_SECONDS = 24 * 60 * 60;
 const LOCAL_DEMO_SECRET = "wedding-hanbang-local-demo-session-v1";
 
 function getDemoSecret(): string | null {
-  const configured = (
-    process.env.DEMO_SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.ADMIN_PASSWORD ||
-    null
-  );
-  if (configured) return configured;
+  const configured = process.env.DEMO_SESSION_SECRET || null;
+  if (configured && configured.length >= 32) return configured;
   // 계정·Supabase 없이 예시 앱을 점검할 수 있게 로컬/테스트에서만
   // 고정 fallback을 쓴다. production은 전용 secret이 없으면 fail-closed다.
   return process.env.NODE_ENV === "production" ? null : LOCAL_DEMO_SECRET;

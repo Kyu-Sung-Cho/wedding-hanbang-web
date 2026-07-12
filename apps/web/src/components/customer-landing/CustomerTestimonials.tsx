@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 const scenarios = [
   {
     text: "늦은 시간 떠오른 질문도 아모라에게 남겨 비교 기준을 정리할 수 있어요. 중요한 정보는 다음 날 업체나 원문으로 다시 확인해요.",
@@ -67,9 +69,9 @@ export default function CustomerTestimonials() {
           이렇게 활용할 수 있어요
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          현재 제공 중인 도구를 준비 상황에 맞게
+          {isComingSoon ? "정식 베타에서 준비 중인 도구를" : "현재 제공 중인 도구를 준비 상황에 맞게"}
           <br className="hidden md:block" />
-          필요한 순서로 활용해보세요.
+          {isComingSoon ? "활용할 수 있는 상황을 미리 살펴보세요." : "필요한 순서로 활용해보세요."}
         </p>
       </motion.div>
 

@@ -146,6 +146,7 @@ describe("rateLimitKey", () => {
 
 describe("checkRateLimitPersistent", () => {
   const userId = "123e4567-e89b-42d3-a456-426614174000";
+  const strongRateLimitSecret = "R7vY0M5sK8qN2bF9xW4cL6jH1pT3dG5zA9uE";
 
   beforeEach(() => {
     vi.resetModules();
@@ -158,13 +159,15 @@ describe("checkRateLimitPersistent", () => {
     });
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
-    process.env.RATE_LIMIT_KEY_SECRET = "12345678901234567890123456789012";
+    process.env.RATE_LIMIT_KEY_SECRET = strongRateLimitSecret;
   });
 
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.RATE_LIMIT_KEY_SECRET;
+    delete process.env.ADMIN_PASSWORD;
+    vi.restoreAllMocks();
   });
 
   it("passes an authenticated UUID separately from the opaque key", async () => {
@@ -254,5 +257,147 @@ describe("checkRateLimitPersistent", () => {
     const result = await check("chat:subject", { maxRequests: 3, windowMs: 60_000 }, userId);
 
     expect(result?.status).toBe(503);
+  });
+
+  it("never persists an anonymous limiter key without a strong dedicated secret", async () => {
+    delete process.env.RATE_LIMIT_KEY_SECRET;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistent: check } = await import("../rateLimit");
+
+    const result = await check("signup-email:user@example.com", {
+      maxRequests: 3,
+      windowMs: 60_000,
+    });
+
+    expect(result).toBeNull();
+    expect(createClientMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "RATE_LIMIT_PERSISTENCE_CONFIGURATION_UNAVAILABLE"
+    );
+  });
+
+  it("fails closed for an authenticated subject before persistence when its secret is weak", async () => {
+    process.env.RATE_LIMIT_KEY_SECRET = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistent: check } = await import("../rateLimit");
+
+    const result = await check(
+      "chat:subject",
+      { maxRequests: 3, windowMs: 60_000 },
+      userId
+    );
+
+    expect(result?.status).toBe(503);
+    expect(createClientMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "RATE_LIMIT_PERSISTENCE_CONFIGURATION_UNAVAILABLE"
+    );
+  });
+
+  it("does not log database detail from the non-strict persistent limiter", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: {
+        code: "XX000",
+        message: "postgresql://operator:do-not-log@example.invalid/internal",
+      },
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistent: check } = await import("../rateLimit");
+
+    const result = await check("signup:203.0.113.9", {
+      maxRequests: 3,
+      windowMs: 60_000,
+    });
+
+    expect(result).toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith("RATE_LIMIT_PERSISTENCE_FAILED");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("do-not-log");
+  });
+
+  it("fails closed for strict operational boundaries instead of using local memory", async () => {
+    rpcMock.mockRejectedValue(new Error("database unavailable"));
+    const { checkRateLimitPersistentStrict: check } = await import("../rateLimit");
+
+    const result = await check("admin-auth:203.0.113.9", {
+      maxRequests: 8,
+      windowMs: 15 * 60_000,
+    });
+
+    expect(result?.status).toBe(503);
+    expect(result?.headers.get("Retry-After")).toBe("5");
+  });
+
+  it("keeps strict operational limiter subjects anonymous in the database", async () => {
+    const { checkRateLimitPersistentStrict: check } = await import("../rateLimit");
+
+    await check("admin-auth:203.0.113.9", { maxRequests: 8, windowMs: 15 * 60_000 });
+
+    expect(rpcMock).toHaveBeenCalledWith("check_rate_limit", expect.objectContaining({
+      p_subject_user_id: null,
+    }));
+  });
+
+  it.each<[string | undefined]>([
+    [undefined],
+    ["replace-with-a-random-secret-value-123456"],
+    ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  ])("fails before database access when the strict secret is %s", async (secret) => {
+    if (secret === undefined) delete process.env.RATE_LIMIT_KEY_SECRET;
+    else process.env.RATE_LIMIT_KEY_SECRET = secret;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistentStrict: check } = await import("../rateLimit");
+
+    const result = await check("admin-auth:203.0.113.9", {
+      maxRequests: 8,
+      windowMs: 15 * 60_000,
+    });
+
+    expect(result?.status).toBe(503);
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "RATE_LIMIT_STRICT_CONFIGURATION_UNAVAILABLE"
+    );
+  });
+
+  it("rejects a strict secret reused by another trust boundary before database access", async () => {
+    process.env.ADMIN_PASSWORD = strongRateLimitSecret;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistentStrict: check } = await import("../rateLimit");
+
+    const result = await check("admin-auth:203.0.113.9", {
+      maxRequests: 8,
+      windowMs: 15 * 60_000,
+    });
+
+    expect(result?.status).toBe(503);
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "RATE_LIMIT_STRICT_CONFIGURATION_UNAVAILABLE"
+    );
+  });
+
+  it("logs only a symbolic error when strict persistence returns sensitive detail", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: {
+        code: "XX000",
+        message: "postgresql://operator:do-not-log@example.invalid/internal",
+      },
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkRateLimitPersistentStrict: check } = await import("../rateLimit");
+
+    const result = await check("admin-auth:203.0.113.9", {
+      maxRequests: 8,
+      windowMs: 15 * 60_000,
+    });
+
+    expect(result?.status).toBe(503);
+    expect(errorSpy).toHaveBeenCalledWith("RATE_LIMIT_STRICT_PERSISTENCE_FAILED");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("do-not-log");
+    errorSpy.mockRestore();
   });
 });

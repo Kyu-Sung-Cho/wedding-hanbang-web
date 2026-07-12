@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +11,10 @@ const packageJson = JSON.parse(readRepo("package.json")) as {
 };
 const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
   productionSupabaseProjectRefs: string[];
+  approvedNonProductionSupabaseProjectRefs: string[];
   productionDatabaseWriteFence: string;
+  productionDatabaseWriteFenceContract: string;
+  backupPolicy: { status: string; allowedRestoreProjectRefs: string[] };
 };
 const ship = readRepo("scripts/supabase-ship-safe.ps1");
 const reconcile = readRepo("scripts/supabase-reconcile-core-baseline.ps1");
@@ -47,6 +51,29 @@ const invitationRetirement = readRepo(
   "supabase/migrations/20260704131000_drop_dead_invitation_tables.sql"
 );
 const settingsPage = readRepo("apps/web/src/app/(app)/settings/page.tsx");
+const adminAuth = readRepo("apps/web/src/app/api/admin/auth/route.ts");
+const demoSession = readRepo("apps/web/src/lib/demoSession.ts");
+const reviewedPowerShellLauncher = readRepo("scripts/run-reviewed-powershell.mjs");
+const repositorySecretScan = readRepo("scripts/scan-tracked-secrets.mjs");
+const mobileReleaseReadiness = readRepo("scripts/mobile-release-readiness.mjs");
+const liveSmoke = readRepo("scripts/live-smoke-test.mjs");
+const researchCohortMigration = readRepo(
+  "supabase/migrations/20260712100000_research_cohort_application_identity.sql"
+);
+const accountDeletionEmailScopeMigration = readRepo(
+  "supabase/migrations/20260712101000_durable_account_deletion_email_scope.sql"
+);
+
+function functionSourceMd5(sql: string, functionName: string): string {
+  const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = sql.match(new RegExp(
+    `CREATE OR REPLACE FUNCTION public\\.${escapedName}\\([\\s\\S]*?AS \\$\\$(?<body>[\\s\\S]*?)\\$\\$;`
+  ));
+  if (!match?.groups?.body) throw new Error(`Missing function body: ${functionName}`);
+  return createHash("md5")
+    .update(match.groups.body.replace(/\r/g, ""), "utf8")
+    .digest("hex");
+}
 
 describe("release safety contract", () => {
   it("keeps protected production blocked until a direct database write fence is verified", () => {
@@ -54,17 +81,102 @@ describe("release safety contract", () => {
       "slrtobkksjmxgzatjyqb"
     );
     expect(releaseTargets.productionDatabaseWriteFence).toBe("not_configured");
+    expect(releaseTargets.approvedNonProductionSupabaseProjectRefs).toEqual([]);
+    expect(releaseTargets.productionDatabaseWriteFenceContract).toBe(
+      "database-readonly-realtime-cron-v1"
+    );
+    expect(releaseTargets.backupPolicy).toMatchObject({
+      status: "not_configured",
+      allowedRestoreProjectRefs: [],
+    });
     for (const script of [ship, reconcile]) {
       expect(script).toContain('productionDatabaseWriteFence -ne "verified-v1"');
+      expect(script).toContain('backupPolicy.status -ne "verified-v1"');
     }
+    expect(ship).toContain(
+      "Production push remains disabled until ship is bound to a live fence snapshot"
+    );
+    expect(reconcile).toContain(
+      "Production baseline reconciliation remains disabled until it is bound to one live write-fence lifecycle"
+    );
   });
 
   it("does not expose raw mutation aliases or include-all in guarded release commands", () => {
-    expect(packageJson.scripts).not.toHaveProperty("supabase:push");
-    expect(packageJson.scripts).not.toHaveProperty("supabase:apply:pending");
-    expect(packageJson.scripts).not.toHaveProperty("supabase:baseline:history");
+    for (const retiredAlias of [
+      "supabase:push",
+      "supabase:push:dry",
+      "supabase:apply:pending",
+      "supabase:baseline:history",
+      "supabase:login",
+      "supabase:link",
+      "supabase:migrations",
+      "supabase:setup:safe",
+      "supabase:check:safe",
+    ]) {
+      expect(packageJson.scripts).not.toHaveProperty(retiredAlias);
+    }
     expect(ship).not.toMatch(/db push[^\r\n]*--include-all/);
     expect(reconcile).not.toMatch(/db push[^\r\n]*--include-all/);
+  });
+
+  it("launches reviewed PowerShell workflows without a shell or OS-specific package alias", () => {
+    for (const scriptName of [
+      "supabase:baseline:core",
+      "supabase:ship:safe",
+      "supabase:fence",
+    ]) {
+      expect(packageJson.scripts[scriptName]).toContain("run-reviewed-powershell.mjs");
+      expect(packageJson.scripts[scriptName]).not.toMatch(/^(?:powershell|pwsh)\s/);
+    }
+    expect(reviewedPowerShellLauncher).toContain('process.platform === "win32"');
+    expect(reviewedPowerShellLauncher).toContain('"powershell.exe" : "pwsh"');
+    expect(reviewedPowerShellLauncher).toContain("spawnSync(executable");
+    expect(reviewedPowerShellLauncher).not.toContain("shell:");
+  });
+
+  it("keeps administrator and demo-session secrets on separate strong boundaries", () => {
+    expect(adminAuth).toContain("value.length >= 24");
+    expect(adminAuth).toContain("isStrongAdminAccessSecret(ADMIN_PASSWORD)");
+    expect(adminAuth).toContain('new Set(["login", "initial-setup", "create-admin"])');
+    expect(adminAuth).toContain('rateLimitKey("admin-auth", req)');
+    expect(adminAuth).not.toContain("admin-auth:${action}");
+    expect(demoSession).toContain("configured.length >= 32");
+    expect(demoSession).not.toContain("process.env.SUPABASE_SERVICE_ROLE_KEY");
+    expect(demoSession).not.toContain("process.env.ADMIN_PASSWORD");
+  });
+
+  it("scans both tracked and untracked repository files before a commit", () => {
+    expect(repositorySecretScan).toContain('"--cached", "--others", "--exclude-standard"');
+    expect(repositorySecretScan).toContain("[repository-secret-scan]");
+  });
+
+  it("never lets the static mobile checker self-certify a store release", () => {
+    const storeGate = mobileReleaseReadiness.slice(
+      mobileReleaseReadiness.indexOf("if (storeReleaseMode)"),
+      mobileReleaseReadiness.indexOf("} else {", mobileReleaseReadiness.indexOf("if (storeReleaseMode)")),
+    );
+    expect(storeGate).toContain("expect(");
+    expect(storeGate).toContain("false");
+    expect(storeGate).toContain("physical-device evidence are machine-verified");
+  });
+
+  it("binds the coming-soon live canary to the exact deployment and server gate", () => {
+    expect(liveSmoke).toContain('--launch-mode=<mode>');
+    expect(liveSmoke).toContain('--expected-sha=<sha>');
+    expect(liveSmoke).toContain('--research-intake=<state>');
+    expect(liveSmoke).toContain('options.launchMode === "coming_soon"');
+    expect(liveSmoke).toContain('body?.code !== "SERVICE_NOT_LAUNCHED"');
+    expect(liveSmoke).toContain('intakeBody?.code !== "RESEARCH_INTAKE_CLOSED"');
+    expect(liveSmoke).toContain('options.researchIntake === "closed"');
+    expect(liveSmoke).toContain('final.searchParams.has("next")');
+    expect(liveSmoke).toContain('healthBody?.deployment !== options.expectedSha.slice(0, 12)');
+    for (const associationPath of [
+      "/apple-app-site-association",
+      "/.well-known/apple-app-site-association",
+      "/.well-known/assetlinks.json",
+    ]) {
+      expect(liveSmoke).toContain(associationPath);
+    }
   });
 
   it("forbids destructive lifecycle smoke tests on every protected production ref", () => {
@@ -121,9 +233,9 @@ describe("release safety contract", () => {
     const preflightSignatures = extractSignatures(preflightFunctions);
     const postDeploySignatures = extractSignatures(postDeployFunctions);
 
-    expect(preflightSignatures).toHaveLength(50);
+    expect(preflightSignatures).toHaveLength(52);
     expect(postDeploySignatures).toEqual(preflightSignatures);
-    expect(ship).toContain("$script:expectedDependencyFunctionCount = 50");
+    expect(ship).toContain("$script:expectedDependencyFunctionCount = 52");
     expect(ship).toContain("$script:expectedDependencyCronCount = 5");
     expect(ship).toContain(
       "$script:expectedClientDeniedTriggerFunctionCount = 8"
@@ -141,6 +253,8 @@ describe("release safety contract", () => {
       "public.guard_account_deletion_rate_limit_write()",
       "public.account_deletion_queue_health()",
       "public.requeue_dead_account_deletion_job(uuid)",
+      "public.account_deletion_email_scopes_are_canonical(text[])",
+      "public.renew_account_deletion_job_lease(uuid,uuid,integer)",
       "public.insert_amora_user_message(uuid,uuid,text,text,text)",
       "public.reconcile_stale_amora_chat_requests(integer)",
       "public.delete_expired_amora_request_claims()",
@@ -172,7 +286,116 @@ describe("release safety contract", () => {
       expect(sql).toContain("delete-expired-rate-limit-buckets");
       expect(sql).toContain("dbaddace99dcf6ddbe99da5eefe0797a");
       expect(sql).toContain("7583f22c1daf9cebea4f7a847a6a507f");
+      expect(sql).toContain("04d9b06eedd9eec0c19cf29e5b1a9968");
+      expect(sql).toContain("08f9136df3b8fc79f1abf1ee33a0bb95");
+      expect(sql).toContain("7224cdd797c3db1613059d9fc79e7fb4");
+      expect(sql).toContain("ba6534442ff7bc582d4bdefc396bc841");
     }
+    expect(productionPreflight).toMatch(
+      /public\.enforce_application_survey_retention\(\)[\s\S]*?04d9b06eedd9eec0c19cf29e5b1a9968[\s\S]*?20260711141000'[\s\S]*?20260712100000'/
+    );
+    expect(productionPreflight).toContain(
+      "'20260710070000', '20260712101000'"
+    );
+  });
+
+  it("derives forward-migration function hashes from the reviewed SQL bodies", () => {
+    const contracts = [
+      [researchCohortMigration, "enforce_application_survey_retention"],
+      [accountDeletionEmailScopeMigration, "account_deletion_email_scopes_are_canonical"],
+      [accountDeletionEmailScopeMigration, "request_account_deletion"],
+      [accountDeletionEmailScopeMigration, "renew_account_deletion_job_lease"],
+      [accountDeletionEmailScopeMigration, "complete_account_deletion_job"],
+    ] as const;
+
+    for (const [migration, functionName] of contracts) {
+      const hash = functionSourceMd5(migration, functionName);
+      expect(productionPreflight, functionName).toContain(hash);
+      expect(postDeploy, functionName).toContain(hash);
+    }
+  });
+
+  it("pins the research cohort table's defaults, constraints, indexes, trigger, RLS, and ACL", () => {
+    const contract = postDeploy.slice(
+      postDeploy.indexOf("'research_cohort_application_identity_exact'"),
+      postDeploy.indexOf("'rate_limit_subject_contract_exact'")
+    );
+
+    for (const expected of [
+      "pg_get_userbyid(table_row.relowner) = 'postgres'",
+      "pg_get_expr(default_row.adbin, default_row.adrelid)",
+      "AND 18 = (",
+      "research_cohort_applications_pkey",
+      "CHECK (cohort_code = ''research-2026-h2''::text)",
+      "research_cohort_applications_email_identity_check",
+      "research_cohort_applications_wedding_date_window_check",
+      "CHECK (role = ANY",
+      "research_cohort_applications_privacy_consent_timestamp_check",
+      "research_cohort_applications_privacy_policy_check",
+      "research_cohort_applications_receipt_lifecycle_check",
+      "CHECK (receipt_email_status = ANY",
+      "research_cohort_applications_retention_cap",
+      "research_cohort_applications_email_verification_window_check",
+      "pg_get_constraintdef(constraint_row.oid, true)",
+      "idx_research_cohort_applications_expires_at",
+      "idx_research_cohort_applications_current",
+      "pg_get_indexdef(index_class.oid)",
+      "trigger_row.tgenabled = 'O'",
+      "pg_get_triggerdef(trigger_row.oid, true)",
+      "FROM pg_catalog.pg_policies policy_row",
+    ]) {
+      expect(contract).toContain(expected);
+    }
+    for (const role of ["anon", "authenticated"]) {
+      for (const privilege of [
+        "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",
+      ]) {
+        expect(contract).toContain(
+          `NOT has_table_privilege('${role}', 'public.research_cohort_applications', '${privilege}')`
+        );
+      }
+      for (const privilege of ["SELECT", "INSERT", "UPDATE", "REFERENCES"]) {
+        expect(contract).toContain(
+          `NOT has_any_column_privilege('${role}', 'public.research_cohort_applications', '${privilege}')`
+        );
+      }
+    }
+    for (const privilege of ["TRUNCATE", "REFERENCES", "TRIGGER"]) {
+      expect(contract).toContain(
+        `NOT has_table_privilege('service_role', 'public.research_cohort_applications', '${privilege}')`
+      );
+    }
+    expect(contract).toContain(
+      "NOT has_any_column_privilege('service_role', 'public.research_cohort_applications', 'REFERENCES')"
+    );
+  });
+
+  it("requires a durable account-deletion email attestation before auth removal", () => {
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("email_scopes");
+      expect(sql).toContain("email_snapshot_at");
+    }
+    expect(productionPreflight).toContain("active_jobs_missing_auth_subject");
+    expect(ship).toContain("active_deletion_jobs_missing_auth_subject");
+    expect(ship).toContain("account_deletion_email_attestation");
+    expect(ship).toContain('Creator = "20260712101000"');
+    expect(postDeploy).toContain(
+      "account_deletion_jobs_email_snapshot_lifecycle_check"
+    );
+    expect(postDeploy).toContain(
+      "account_deletion_jobs_email_scopes_bounded_check"
+    );
+    expect(postDeploy).toContain(
+      "account_deletion_jobs_email_scopes_canonical_check"
+    );
+    expect(postDeploy).toContain(
+      "account_deletion_email_scopes_are_canonical(email_scopes)"
+    );
+    expect(postDeploy).toContain("attribute_row.attidentity = ''");
+    expect(postDeploy).toContain("attribute_row.attgenerated = ''");
+    expect(postDeploy).toContain(
+      "attribute_row.attname IN ('email_scopes', 'email_snapshot_at')"
+    );
   });
 
   it("handles a production database where pg_cron is created by a pending migration", () => {
@@ -362,7 +585,7 @@ describe("release safety contract", () => {
     expect(ship.slice(finalDryRun, push)).toContain("$reviewedDeployment");
     expect(ship).toContain("$status.rateLimitKeySecretConfigured -ne $true");
     expect(ship).toContain(
-      "Live deployment is missing a RATE_LIMIT_KEY_SECRET of at least 32 trimmed characters."
+      "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
     );
     expect(ship.slice(finalDryRun, push)).toContain(
       "Compare-Object $pendingVersions $pushPending"

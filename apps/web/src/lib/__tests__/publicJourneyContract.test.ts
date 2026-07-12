@@ -245,4 +245,59 @@ describe("public journey contract", () => {
     });
     expect(disallow).not.toContain("/demo");
   });
+
+  it("publishes only launch-safe pages while coming-soon mode is active", async () => {
+    vi.stubEnv("NEXT_PUBLIC_LAUNCH_MODE", "coming_soon");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
+
+    const urls = (await sitemap()).map((page) => page.url);
+    expect(urls).toEqual([
+      "https://hanbang.ai/demo",
+      "https://hanbang.ai/about",
+      "https://hanbang.ai/beta",
+    ]);
+
+    const rules = robots().rules;
+    const ruleList = Array.isArray(rules) ? rules : [rules];
+    expect(ruleList).toEqual([
+      expect.objectContaining({
+        userAgent: "*",
+        disallow: expect.arrayContaining(["/", "/beta/verify"]),
+        allow: expect.arrayContaining(["/demo", "/beta", "/privacy"]),
+      }),
+    ]);
+  });
+
+  it("keeps coming-soon footer links inside the server allowlist", () => {
+    const footer = readSource("src/components/landing/Footer.tsx");
+    expect(footer).toContain("COMING_SOON_LINKS");
+    for (const destination of ["/demo", "/beta", "/about", "/support"]) {
+      expect(footer).toContain(`href: "${destination}"`);
+    }
+    expect(footer).toContain("아직 로그인·앱 기능은 제공하지 않으며");
+  });
+
+  it("does not send coming-soon visitors into the gated example app", () => {
+    const howItWorks = readSource("src/components/customer-landing/CustomerHowItWorks.tsx");
+    const features = readSource("src/components/customer-landing/CustomerFeatures.tsx");
+    const scenarios = readSource("src/components/customer-landing/CustomerTestimonials.tsx");
+    const betaForm = readSource("src/app/beta/BetaForm.tsx");
+    const comingSoonCtas = [
+      "src/components/customer-landing/CustomerNav.tsx",
+      "src/components/customer-landing/CustomerHero.tsx",
+      "src/components/customer-landing/CustomerCTA.tsx",
+      "src/components/customer-landing/CustomerHowItWorks.tsx",
+    ].map(readSource).join("\n");
+
+    expect(howItWorks).toContain('isComingSoon ? "/beta" : "/demo/login"');
+    expect(howItWorks).toContain("정식 베타에서 제공할 4단계 준비 흐름");
+    expect(features).toContain("정식 베타에서 준비 중인 주요 기능");
+    expect(scenarios).toContain("정식 베타에서 준비 중인 도구");
+    expect(comingSoonCtas).toContain("사용자 연구");
+    expect(comingSoonCtas).toContain("6주간 심층 피드백");
+    expect(comingSoonCtas).not.toContain("베타 소식 신청");
+    expect(betaForm).toContain('COMING_SOON ? "/demo" : weddingPath()');
+    expect(betaForm).toContain("서비스 소개로 돌아가기");
+  });
 });

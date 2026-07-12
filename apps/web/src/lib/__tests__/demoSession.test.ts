@@ -27,6 +27,15 @@ describe("demo session secret boundary", () => {
 
   it("fails closed in production when no signing secret exists", () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-must-not-sign-demo-sessions");
+    vi.stubEnv("ADMIN_PASSWORD", "admin-secret-must-not-sign-demo-sessions");
+
+    expect(createDemoSessionToken()).toBeNull();
+  });
+
+  it("rejects a short dedicated production signing secret", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_SESSION_SECRET", "too-short");
 
     expect(createDemoSessionToken()).toBeNull();
   });

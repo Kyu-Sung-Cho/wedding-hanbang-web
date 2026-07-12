@@ -4,14 +4,10 @@ import { motion } from "framer-motion";
 
 const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-interface CustomerCTAProps {
-  demoMode?: boolean;
-}
-
-export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
-  const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const accountHref = "/login?mode=signup";
-  const exampleAppHref = "/demo/login";
+export default function CustomerCTA() {
+  const isComingSoon = isComingSoonEnv;
+  const accountHref = isComingSoon ? "/beta" : "/login?mode=signup";
+  const secondaryHref = isComingSoon ? "/about" : "/demo/login";
   return (
     <section id="cta" className="relative py-[clamp(80px,10vw,140px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
       {/* 배경 */}
@@ -43,9 +39,9 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
           <p className="text-[clamp(14px,1.8vw,16px)] text-charcoal leading-relaxed font-light mb-10">
             {isComingSoon ? (
               <>
-                베타 계정 제공 상황과 별개로
+                정식 베타 전, 6주간 심층 피드백에 참여할 최대 50명을 모집합니다.
                 <br className="hidden md:block" />
-                예시 앱은 계정 없이 바로 둘러볼 수 있습니다.
+                참여 조건과 개인정보 안내를 확인한 뒤 신청해 주세요.
               </>
             ) : (
               <>
@@ -61,25 +57,25 @@ export default function CustomerCTA({ demoMode }: CustomerCTAProps = {}) {
               href={accountHref}
               className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
-              베타 계정 만들기
+              {isComingSoon ? "사용자 연구 조건 확인하기" : "베타 계정 만들기"}
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>
             </a>
             <a
-              href={exampleAppHref}
+              href={secondaryHref}
               className="inline-flex items-center justify-center px-10 py-4 border border-[#36534E]/30 text-[#36534E] rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:border-[#36534E] hover:bg-white/40 transition-all duration-300"
             >
-              계정 없이 예시 앱 체험
+              {isComingSoon ? "서비스 운영 원칙 보기" : "계정 없이 예시 앱 체험"}
             </a>
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-taupe-500">
             {isComingSoon ? (
               <>
-                <span>✦ 계정 없는 예시 앱</span>
-                <span>✦ 주요 기능 미리보기</span>
-                <span>✦ 예시 데이터 사용</span>
+                <span>✦ 6주 사용자 연구</span>
+                <span>✦ 선정 결과는 이메일로</span>
+                <span>✦ 신청 정보 180일 보관</span>
               </>
             ) : (
               <>

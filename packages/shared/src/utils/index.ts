@@ -5,4 +5,5 @@ export * from "./chatPrivacy";
 export * from "./dateOnly";
 export * from "./money";
 export * from "./mobileAuthReturnPath";
+export * from "./mobileAppLink";
 export * from "./passwordPolicy";

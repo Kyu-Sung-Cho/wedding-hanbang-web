@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 const features = [
   {
     icon: (
@@ -85,7 +87,7 @@ export default function CustomerFeatures() {
           이것만으로 끝이 아닙니다
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          현재 제공 중인 주요 기능을
+          {isComingSoon ? "정식 베타에서 준비 중인 주요 기능을" : "현재 제공 중인 주요 기능을"}
           <br className="hidden md:block" />
           하나의 준비 공간에서 확인하세요.
         </p>

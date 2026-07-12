@@ -321,9 +321,29 @@ WITH orphan_slots AS (
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'completed_at', 'timestamp with time zone', false),
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'created_at', 'timestamp with time zone', true),
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'updated_at', 'timestamp with time zone', true),
+    ('account_deletion_email_attestation', 'account_deletion_jobs', 'email_scopes', 'text[]', false),
+    ('account_deletion_email_attestation', 'account_deletion_jobs', 'email_snapshot_at', 'timestamp with time zone', false),
     -- 111410 intentionally changes expires_at to NOT NULL, so only its stable
     -- type is part of the 111350 creator contract.
-    ('preregistration_expiry', 'preregistrations', 'expires_at', 'timestamp with time zone', NULL::boolean)
+    ('preregistration_expiry', 'preregistrations', 'expires_at', 'timestamp with time zone', NULL::boolean),
+    ('research_cohort_applications', 'research_cohort_applications', 'id', 'uuid', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'cohort_code', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'email', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'name', 'text', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'wedding_date', 'date', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'role', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'message', 'text', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'source', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'utm_source', 'text', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'utm_medium', 'text', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'utm_campaign', 'text', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'privacy_consent_at', 'timestamp with time zone', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'privacy_policy_version', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'email_verified_at', 'timestamp with time zone', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'receipt_email_status', 'text', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'receipt_email_attempted_at', 'timestamp with time zone', false),
+    ('research_cohort_applications', 'research_cohort_applications', 'created_at', 'timestamp with time zone', true),
+    ('research_cohort_applications', 'research_cohort_applications', 'expires_at', 'timestamp with time zone', true)
 ), actual_dynamic_columns AS (
   SELECT table_row.relname AS table_name,
          attribute_row.attname AS column_name,
@@ -506,8 +526,8 @@ WITH orphan_slots AS (
       '20260710010000', '20260711145000'),
     ('public.enforce_application_survey_retention()',
       'TABLE(preregistrations_deleted integer, survey_responses_deleted integer)',
-      'search_path=public', 'bfd5bc045ed108c9d06eadbaa8493459',
-      '20260711141000', '20260711145000'),
+      'search_path=public', '04d9b06eedd9eec0c19cf29e5b1a9968',
+      '20260711141000', '20260712100000'),
     ('public.delete_expired_rate_limit_buckets()', 'integer',
       'search_path=public', '667f711d08313c214c99cf4a8023b513',
       '20260711141000', '20260711145000'),
@@ -549,9 +569,12 @@ WITH orphan_slots AS (
     ('public.guard_account_deletion_rate_limit_write()', 'trigger',
       'search_path=public, pg_temp', 'b8ebd5bbf8df5b250d36404f4d6f0a5c',
       '20260710070000', '20260711147000'),
+    ('public.account_deletion_email_scopes_are_canonical(text[])', 'boolean',
+      'search_path=pg_catalog, pg_temp', '221d594a0a3f55f12d8baf2d8b18ce91',
+      '20260712101000', NULL::text),
     ('public.request_account_deletion(uuid,text)', 'jsonb',
-      'search_path=public, pg_temp', '23b1de98bf90bf1469bb3cc17775d255',
-      '20260710070000', NULL::text),
+      'search_path=public, pg_temp', '08f9136df3b8fc79f1abf1ee33a0bb95',
+      '20260710070000', '20260712101000'),
     ('public.claim_account_deletion_jobs(uuid,integer,integer)',
       'TABLE(job_id uuid, user_id uuid, reason text, attempts integer, storage_inventory jsonb)',
       'search_path=public, pg_temp', '2f21c2198582104158923a9726cf6d8f',
@@ -562,9 +585,12 @@ WITH orphan_slots AS (
     ('public.fail_account_deletion_job(uuid,uuid,text)', 'text',
       'search_path=public, pg_temp', '9795091031826ac0a932ec01249834a8',
       '20260710070000', NULL::text),
+    ('public.renew_account_deletion_job_lease(uuid,uuid,integer)', 'boolean',
+      'search_path=public, pg_temp', 'ba6534442ff7bc582d4bdefc396bc841',
+      '20260712101000', NULL::text),
     ('public.complete_account_deletion_job(uuid,uuid)', 'boolean',
-      'search_path=public, pg_temp', 'd7ac53e76d1c8cf1b1e318a78d67a10a',
-      '20260710070000', NULL::text),
+      'search_path=public, pg_temp', '7224cdd797c3db1613059d9fc79e7fb4',
+      '20260710070000', '20260712101000'),
     ('public.requeue_dead_account_deletion_job(uuid)', 'boolean',
       'search_path=public, pg_temp', '29fe1226857032d271e78f585f887956',
       '20260710070000', NULL::text),
@@ -1116,7 +1142,15 @@ WITH orphan_slots AS (
     coalesce((SELECT all_present FROM dynamic_column_contracts WHERE contract_name = 'preregistration_expiry'), false)
       AS preregistration_expiry_present,
     coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'preregistration_expiry'), false)
-      AS preregistration_expiry_contract_exact
+      AS preregistration_expiry_contract_exact,
+    coalesce((SELECT all_present FROM dynamic_column_contracts WHERE contract_name = 'account_deletion_email_attestation'), false)
+      AS account_deletion_email_attestation_present,
+    coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'account_deletion_email_attestation'), false)
+      AS account_deletion_email_attestation_contract_exact,
+    coalesce((SELECT all_present FROM dynamic_column_contracts WHERE contract_name = 'research_cohort_applications'), false)
+      AS research_cohort_applications_present,
+    coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'research_cohort_applications'), false)
+      AS research_cohort_applications_contract_exact
 )
 SELECT jsonb_build_object(
   'dynamic_sources', (SELECT to_jsonb(c) FROM schema_capabilities c),
@@ -1142,6 +1176,15 @@ SELECT jsonb_build_object(
   ),
   'account_deletion_gate', jsonb_build_object(
     'jobs_table_present', to_regclass('public.account_deletion_jobs') IS NOT NULL,
+    'active_jobs_missing_auth_subject', (SELECT count(*)
+      FROM public.account_deletion_jobs AS job
+      LEFT JOIN auth.users AS auth_user ON auth_user.id = job.user_id
+      WHERE job.status <> 'completed'
+        AND (job.user_id IS NULL OR auth_user.id IS NULL)),
+    'email_snapshot_backfills', (SELECT count(*)
+      FROM public.account_deletion_jobs AS job
+      WHERE job.status <> 'completed'
+        AND to_jsonb(job)->>'email_snapshot_at' IS NULL),
     'legacy_rows_scrubbed', (SELECT count(*) FROM public.account_deletions
       WHERE user_id IS NOT NULL OR email IS NOT NULL OR reason IS NULL
          OR reason NOT IN ('unsatisfied', 'alternative', 'wedding_done', 'privacy', 'low_usage', 'other', 'unknown')),

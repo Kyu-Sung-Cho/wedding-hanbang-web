@@ -6,10 +6,57 @@ import { createHash, createHmac } from "node:crypto";
 // Vercel 서버리스에서는 인스턴스당 메모리 — 완벽하지 않지만 기본 방어용
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-function protectedRateLimitKey(rawKey: string): string {
-  const secret = process.env.RATE_LIMIT_KEY_SECRET?.trim();
-  const digest = secret && secret.length >= 32
-    ? createHmac("sha256", secret).update(`weddinghanbang-rate-limit-v1\0${rawKey}`).digest("hex")
+const RATE_LIMIT_SECRET_PLACEHOLDER_PATTERN =
+  /(?:change|replace|insert|your|example|sample|placeholder|todo|at[-_ ]?least|random[-_ ]?characters|secret[-_ ]?here)/i;
+
+function entropyBitsPerCharacter(value: string): number {
+  const counts = new Map<string, number>();
+  for (const character of value) {
+    counts.set(character, (counts.get(character) ?? 0) + 1);
+  }
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const probability = count / value.length;
+    entropy -= probability * Math.log2(probability);
+  }
+  return entropy;
+}
+
+function strongRateLimitKeySecret(): string | null {
+  const secret = process.env.RATE_LIMIT_KEY_SECRET;
+  const reusedByAnotherBoundary = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.ADMIN_PASSWORD,
+    process.env.DEMO_SESSION_SECRET,
+    process.env.CRON_SECRET,
+    process.env.AMORA_IDEMPOTENCY_SECRET,
+    process.env.RESEARCH_EMAIL_VERIFICATION_SECRET,
+    process.env.OPENAI_API_KEY,
+    process.env.NAVER_CLIENT_SECRET,
+    process.env.RESEND_API_KEY,
+    process.env.TURNSTILE_SECRET_KEY,
+  ].some((candidate) => candidate === secret);
+  if (
+    !secret
+    || secret.length < 32
+    || secret.length > 512
+    || secret !== secret.trim()
+    || RATE_LIMIT_SECRET_PLACEHOLDER_PATTERN.test(secret)
+    || entropyBitsPerCharacter(secret) < 3
+    || reusedByAnotherBoundary
+  ) {
+    return null;
+  }
+  return secret;
+}
+
+export function hasStrongRateLimitKeySecretConfig(): boolean {
+  return strongRateLimitKeySecret() !== null;
+}
+
+function protectedRateLimitKey(rawKey: string, strongSecret: string | null): string {
+  const digest = strongSecret
+    ? createHmac("sha256", strongSecret).update(`weddinghanbang-rate-limit-v1\0${rawKey}`).digest("hex")
     : createHash("sha256").update(`weddinghanbang-rate-limit-v1\0${rawKey}`).digest("hex");
   return `rl:${digest}`;
 }
@@ -84,7 +131,7 @@ export function checkRateLimit(
   config: RateLimitConfig,
 ): NextResponse | null {
   cleanup();
-  const protectedKey = protectedRateLimitKey(key);
+  const protectedKey = protectedRateLimitKey(key, strongRateLimitKeySecret());
 
   const now = Date.now();
   const bucket = buckets.get(protectedKey);
@@ -126,13 +173,20 @@ export async function checkRateLimitPersistent(
   config: RateLimitConfig,
   subjectUserId?: string | null,
 ): Promise<NextResponse | null> {
+  const strongSecret = strongRateLimitKeySecret();
+  if (!strongSecret) {
+    console.error("RATE_LIMIT_PERSISTENCE_CONFIGURATION_UNAVAILABLE");
+    return subjectUserId
+      ? protectedSubjectRateLimitResponse()
+      : checkRateLimit(key, config);
+  }
   const admin = getAdminClient();
   if (!admin) {
     return subjectUserId
       ? protectedSubjectRateLimitResponse()
       : checkRateLimit(key, config);
   }
-  const protectedKey = protectedRateLimitKey(key);
+  const protectedKey = protectedRateLimitKey(key, strongSecret);
 
   try {
     const { data, error } = await admin.rpc("check_rate_limit", {
@@ -142,7 +196,7 @@ export async function checkRateLimitPersistent(
       p_subject_user_id: subjectUserId ?? null,
     });
     if (error) {
-      console.error("[rateLimit] persistent check failed:", error.message);
+      console.error("RATE_LIMIT_PERSISTENCE_FAILED");
       return subjectUserId
         ? protectedSubjectRateLimitResponse(error.code)
         : checkRateLimit(key, config);
@@ -154,11 +208,52 @@ export async function checkRateLimitPersistent(
 
     const retryAfter = Number(result?.retry_after_seconds ?? Math.ceil(config.windowMs / 1000));
     return rateLimitResponse(retryAfter);
-  } catch (err) {
-    console.error("[rateLimit] persistent check exception:", err);
+  } catch {
+    console.error("RATE_LIMIT_PERSISTENCE_EXCEPTION");
     return subjectUserId
       ? protectedSubjectRateLimitResponse()
       : checkRateLimit(key, config);
+  }
+}
+
+/**
+ * 관리자·운영 경계용 distributed limiter. 영속 limiter가 없거나 실패하면
+ * 인스턴스 로컬 fallback으로 약화하지 않고 요청을 중단한다.
+ */
+export async function checkRateLimitPersistentStrict(
+  key: string,
+  config: RateLimitConfig,
+): Promise<NextResponse | null> {
+  const strictSecret = strongRateLimitKeySecret();
+  if (!strictSecret) {
+    console.error("RATE_LIMIT_STRICT_CONFIGURATION_UNAVAILABLE");
+    return protectedSubjectRateLimitResponse();
+  }
+  const admin = getAdminClient();
+  if (!admin) return protectedSubjectRateLimitResponse();
+  const protectedKey = protectedRateLimitKey(key, strictSecret);
+
+  try {
+    const { data, error } = await admin.rpc("check_rate_limit", {
+      p_key: protectedKey,
+      p_max_requests: config.maxRequests,
+      p_window_ms: config.windowMs,
+      p_subject_user_id: null,
+    });
+    if (error) {
+      console.error("RATE_LIMIT_STRICT_PERSISTENCE_FAILED");
+      return protectedSubjectRateLimitResponse();
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result?.allowed === true) return null;
+    const retryAfter = Number(
+      result?.retry_after_seconds ?? Math.ceil(config.windowMs / 1000)
+    );
+    return rateLimitResponse(retryAfter);
+  } catch {
+    console.error("RATE_LIMIT_STRICT_PERSISTENCE_EXCEPTION");
+    return protectedSubjectRateLimitResponse();
   }
 }
 

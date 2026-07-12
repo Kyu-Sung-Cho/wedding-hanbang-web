@@ -13,7 +13,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$script:expectedDependencyFunctionCount = 50
+$script:expectedDependencyFunctionCount = 52
 $script:expectedDependencyCronCount = 5
 $script:expectedClientDeniedTriggerFunctionCount = 8
 $script:expectedClientDeniedTriggerBindingCount = 8
@@ -76,7 +76,10 @@ function Get-ReleaseArtifactFingerprint {
       ForEach-Object { $_.FullName }
   ) + @(
     (Resolve-Path "scripts/release-targets.json").Path,
+    (Resolve-Path "scripts/run-reviewed-powershell.mjs").Path,
     (Resolve-Path "scripts/supabase-ship-safe.ps1").Path,
+    (Resolve-Path "scripts/supabase-write-fence.ps1").Path,
+    (Resolve-Path "scripts/supabase-recovery-safe.mjs").Path,
     (Resolve-Path "scripts/retire-invitation-bucket.mjs").Path,
     (Resolve-Path "scripts/supabase-anon-probe.mjs").Path
   ) + @(
@@ -105,6 +108,19 @@ function Assert-ReleaseArtifactsUnchanged {
   }
 }
 
+function ConvertFrom-SupabaseQueryRows {
+  param([Parameter(Mandatory = $true)] $Raw)
+
+  $document = ($Raw -join "`n") | ConvertFrom-Json
+  if ($document -is [Array]) {
+    return @($document)
+  }
+  if ($document.PSObject.Properties.Name -contains "rows") {
+    return @($document.rows)
+  }
+  throw "Supabase query JSON did not contain a supported row collection."
+}
+
 function Read-JsonQueryRow {
   param(
     [Parameter(Mandatory = $true)] [string]$Name,
@@ -115,11 +131,11 @@ function Read-JsonQueryRow {
   $raw = Invoke-Step $Name {
     corepack pnpm exec supabase db query --linked --file $File --output json
   }
-  $document = ($raw -join "`n") | ConvertFrom-Json
-  if (-not $document.rows -or $document.rows.Count -ne 1) {
+  $rows = @(ConvertFrom-SupabaseQueryRows $raw)
+  if ($rows.Count -ne 1) {
     throw "$Name returned an unexpected result shape."
   }
-  return $document.rows[0]
+  return $rows[0]
 }
 
 function Read-JsonSqlRow {
@@ -138,11 +154,11 @@ function Read-JsonSqlRow {
   $raw = Invoke-Step $Name {
     corepack pnpm exec supabase db query --linked --output json $singleLineSql
   }
-  $document = ($raw -join "`n") | ConvertFrom-Json
-  if (-not $document.rows -or $document.rows.Count -ne 1) {
+  $rows = @(ConvertFrom-SupabaseQueryRows $raw)
+  if ($rows.Count -ne 1) {
     throw "$Name returned an unexpected result shape."
   }
-  return $document.rows[0]
+  return $rows[0]
 }
 
 function Complete-DependencyCronInventory {
@@ -368,10 +384,20 @@ function Assert-PreflightDynamicSourceTopology {
       Exact = $Preflight.dynamic_sources.account_deletion_jobs_base_contract_exact
       Creator = "20260710070000"
     }
+    account_deletion_email_attestation = [pscustomobject]@{
+      Present = $Preflight.dynamic_sources.account_deletion_email_attestation_present
+      Exact = $Preflight.dynamic_sources.account_deletion_email_attestation_contract_exact
+      Creator = "20260712101000"
+    }
     preregistration_expiry = [pscustomobject]@{
       Present = $Preflight.dynamic_sources.preregistration_expiry_present
       Exact = $Preflight.dynamic_sources.preregistration_expiry_contract_exact
       Creator = "20260711135000"
+    }
+    research_cohort_applications = [pscustomobject]@{
+      Present = $Preflight.dynamic_sources.research_cohort_applications_present
+      Exact = $Preflight.dynamic_sources.research_cohort_applications_contract_exact
+      Creator = "20260712100000"
     }
   }
 
@@ -553,6 +579,7 @@ function Assert-ProductionPreflight {
     profiles_over_500_scopes = [long]$Preflight.account_deletion_gate.profiles_over_500_scopes
     storage_scopes_over_20000 = [long]$Preflight.account_deletion_gate.storage_scopes_over_20000
     legacy_storage_objects = [long]$Preflight.account_deletion_gate.legacy_storage_objects
+    active_deletion_jobs_missing_auth_subject = [long]$Preflight.account_deletion_gate.active_jobs_missing_auth_subject
     invalid_phones = [long]$Preflight.data_rewrites.invalid_phones
     tool_idempotency_groups = [long]$Preflight.unique_blockers.tool_idempotency_groups
     active_booking_groups = [long]$Preflight.unique_blockers.active_booking_groups
@@ -573,6 +600,7 @@ function Assert-ProductionPreflight {
 
   return [ordered]@{
     account_deletion_rows_scrubbed = [long]$Preflight.account_deletion_gate.legacy_rows_scrubbed
+    account_deletion_email_snapshots_backfilled = [long]$Preflight.account_deletion_gate.email_snapshot_backfills
     vendor_demotions = [long]$Preflight.data_rewrites.vendor_demotions
     ai_redactions = [long]$Preflight.data_rewrites.ai_redactions
     ai_deletes = [long]$Preflight.data_rewrites.ai_deletes
@@ -659,9 +687,8 @@ FROM public.invitation_templates;
     $raw = Invoke-Step "Count retirement rows in $($entry.Key)" {
       corepack pnpm exec supabase db query --linked --output json $sql
     }
-    $document = ($raw -join "`n") | ConvertFrom-Json
-    if (-not $document.rows -or $document.rows.Count -ne 1 -or
-      [long]$document.rows[0].row_count -ne 0) {
+    $rows = @(ConvertFrom-SupabaseQueryRows $raw)
+    if ($rows.Count -ne 1 -or [long]$rows[0].row_count -ne 0) {
       throw "Invitation table $($entry.Key) requires export/cleanup before retirement."
     }
   }
@@ -693,6 +720,7 @@ function Assert-PostDeployContract {
     ($Contract.unproven_vendor_upload_objects_absent -ne $true) -or
     ($Contract.all_columns_present -ne $true) -or
     ($Contract.rate_limit_subject_contract_exact -ne $true) -or
+    ($Contract.research_cohort_application_identity_exact -ne $true) -or
     ($Contract.blocked_invite_constraint_valid -ne $true) -or
     ($Contract.public_schema_create_locked -ne $true) -or
     ($Contract.internal_service_acl_exact -ne $true) -or
@@ -728,7 +756,7 @@ function Assert-MaintenanceHealth {
     throw "Live app is not in maintenance mode for the expected Supabase project."
   }
   if ($status.rateLimitKeySecretConfigured -ne $true) {
-    throw "Live deployment is missing a RATE_LIMIT_KEY_SECRET of at least 32 trimmed characters."
+    throw "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
   }
   $startedAt = [DateTimeOffset]::MinValue
   if (-not [DateTimeOffset]::TryParse(
@@ -816,6 +844,23 @@ if ($isProductionTarget -and ($SkipBuild -or $SkipLint -or $SkipAudit)) {
 if ($isProductionTarget -and
   $targets.productionDatabaseWriteFence -ne "verified-v1") {
   throw "Production push is disabled until the DB/Storage direct-write fence is implemented and verified."
+}
+if ($isProductionTarget -and
+  $targets.productionDatabaseWriteFenceContract -ne
+    "database-readonly-realtime-cron-v1") {
+  throw "Production push is disabled because the reviewed write-fence contract identity changed."
+}
+if ($isProductionTarget -and
+  $targets.backupPolicy.status -ne "verified-v1") {
+  throw "Production push is disabled until encrypted DB/Storage recovery and an isolated restore drill are verified."
+}
+if ($isProductionTarget) {
+  throw "Production push remains disabled until ship is bound to a live fence snapshot and an automated black-box evidence producer."
+}
+$approvedNonProductionRefs = @($targets.approvedNonProductionSupabaseProjectRefs |
+  ForEach-Object { [string]$_ })
+if ($ExpectedProjectRef -notin $approvedNonProductionRefs) {
+  throw "Remote migration requires a checked-in approved non-production project ref."
 }
 
 $linkedRefPath = Join-Path $repoRoot "supabase/.temp/project-ref"

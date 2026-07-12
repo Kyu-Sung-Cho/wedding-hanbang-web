@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MOBILE_APP_SHARE_ROUTE_CONTRACTS } from "@hanbang/shared";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -67,6 +68,23 @@ const nextConfig: NextConfig = {
       {
         source: "/check",
         destination: "/wedding/community/quote-check",
+        permanent: false,
+      },
+      {
+        source: "/app",
+        destination: "/wedding",
+        permanent: false,
+      },
+      ...Object.values(MOBILE_APP_SHARE_ROUTE_CONTRACTS).map(
+        ({ source, destination }) => ({
+          source,
+          destination,
+          permanent: false,
+        })
+      ),
+      {
+        source: "/app/:path*",
+        destination: "/wedding",
         permanent: false,
       },
       {

@@ -17,6 +17,12 @@ function parseArgs(argv) {
     browserPath: process.env.LIVE_SMOKE_BROWSER_PATH || "",
     headed: process.env.LIVE_SMOKE_HEADED === "1",
     json: false,
+    launchMode: process.env.LIVE_SMOKE_LAUNCH_MODE || "full",
+    expectedSha: process.env.LIVE_SMOKE_EXPECTED_SHA || "",
+    appleTeamId: process.env.LIVE_SMOKE_APPLE_TEAM_ID || "",
+    playSigningSha256: process.env.LIVE_SMOKE_PLAY_SIGNING_SHA256 || "",
+    researchIntake: process.env.LIVE_SMOKE_RESEARCH_INTAKE || "closed",
+    accountDeletionCron: process.env.LIVE_SMOKE_ACCOUNT_DELETION_CRON || "closed",
     skipDemo: process.env.LIVE_SMOKE_SKIP_DEMO === "1",
     timeoutMs: Number(process.env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
   };
@@ -25,6 +31,12 @@ function parseArgs(argv) {
     if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
     else if (arg.startsWith("--browser-path=")) options.browserPath = arg.slice("--browser-path=".length);
     else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
+    else if (arg.startsWith("--launch-mode=")) options.launchMode = arg.slice("--launch-mode=".length);
+    else if (arg.startsWith("--expected-sha=")) options.expectedSha = arg.slice("--expected-sha=".length);
+    else if (arg.startsWith("--apple-team-id=")) options.appleTeamId = arg.slice("--apple-team-id=".length);
+    else if (arg.startsWith("--play-signing-sha256=")) options.playSigningSha256 = arg.slice("--play-signing-sha256=".length);
+    else if (arg.startsWith("--research-intake=")) options.researchIntake = arg.slice("--research-intake=".length);
+    else if (arg.startsWith("--account-deletion-cron=")) options.accountDeletionCron = arg.slice("--account-deletion-cron=".length);
     else if (arg === "--headed") options.headed = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--skip-demo") options.skipDemo = true;
@@ -40,6 +52,24 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 5_000) {
     throw new Error("--timeout-ms must be a number greater than or equal to 5000");
   }
+  if (!["full", "coming_soon"].includes(options.launchMode)) {
+    throw new Error("--launch-mode must be full or coming_soon");
+  }
+  if (!["closed", "open"].includes(options.researchIntake)) {
+    throw new Error("--research-intake must be closed or open");
+  }
+  if (!["closed", "open"].includes(options.accountDeletionCron)) {
+    throw new Error("--account-deletion-cron must be closed or open");
+  }
+  if (options.launchMode === "coming_soon" && !/^[0-9a-f]{40}$/i.test(options.expectedSha)) {
+    throw new Error("--expected-sha must be the exact 40-character deployment commit in coming_soon mode");
+  }
+  if (options.launchMode === "coming_soon" && !/^[A-Z0-9]{10}$/.test(options.appleTeamId)) {
+    throw new Error("--apple-team-id must match the signed 10-character Apple Team ID in coming_soon mode");
+  }
+  if (options.launchMode === "coming_soon" && !/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(options.playSigningSha256)) {
+    throw new Error("--play-signing-sha256 must match the Play App Signing SHA-256 in coming_soon mode");
+  }
   return options;
 }
 
@@ -50,6 +80,12 @@ Options:
   --base-url=<url>       Target origin. Default: ${DEFAULT_BASE_URL}
   --browser-path=<path>  Chrome or Edge executable path.
   --timeout-ms=<ms>      Per-page timeout. Default: ${DEFAULT_TIMEOUT_MS}
+  --launch-mode=<mode>   full or coming_soon. Default: full
+  --expected-sha=<sha>   Exact 40-character deployed commit; required for coming_soon.
+  --apple-team-id=<id>   Signed 10-character Apple Team ID; required for coming_soon.
+  --play-signing-sha256=<fingerprint>  Play App Signing SHA-256; required for coming_soon.
+  --research-intake=<state>  closed or open. Default: closed.
+  --account-deletion-cron=<state>  closed or open. Default: closed.
   --headed               Show the browser window.
   --skip-demo            Skip demo login flow.
   --json                 Print JSON result only.
@@ -58,6 +94,12 @@ Environment:
   LIVE_SMOKE_BASE_URL
   LIVE_SMOKE_BROWSER_PATH
   LIVE_SMOKE_TIMEOUT_MS
+  LIVE_SMOKE_LAUNCH_MODE
+  LIVE_SMOKE_EXPECTED_SHA
+  LIVE_SMOKE_APPLE_TEAM_ID
+  LIVE_SMOKE_PLAY_SIGNING_SHA256
+  LIVE_SMOKE_RESEARCH_INTAKE
+  LIVE_SMOKE_ACCOUNT_DELETION_CRON
   LIVE_SMOKE_HEADED=1
   LIVE_SMOKE_SKIP_DEMO=1`);
 }
@@ -244,7 +286,7 @@ function hasPathEnding(url, expectedEnding) {
   return new URL(url).pathname.endsWith(expectedEnding);
 }
 
-function buildChecks(skipDemo) {
+function buildFullChecks(skipDemo) {
   const checks = [
     {
       name: "wedding-home",
@@ -379,6 +421,136 @@ function buildChecks(skipDemo) {
   return checks;
 }
 
+function normalizeSha256Fingerprint(value) {
+  return value.replaceAll(":", "").toUpperCase().match(/.{2}/g).join(":");
+}
+
+function buildComingSoonChecks() {
+  return [
+    {
+      name: "coming-soon-demo",
+      path: "/demo?utm_source=live-smoke",
+      async assert(page, result, options) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo" || final.searchParams.get("utm_source") !== "live-smoke") {
+          addFailure(result, `Expected launch-safe /demo with UTM preserved, got ${result.finalUrl}`);
+        }
+        if (!result.title || !result.h1) addFailure(result, "Expected the service introduction to render a title and h1");
+
+        for (const publicPath of ["/beta", "/about", "/privacy", "/terms", "/ai-policy", "/support"]) {
+          const response = await page.request.get(`${options.baseUrl}${publicPath}`, { maxRedirects: 0 });
+          if (response.status() !== 200) {
+            addFailure(result, `Expected public allowlist ${publicPath} to return 200, got ${response.status()}`);
+          }
+        }
+
+        for (const associationPath of [
+          "/apple-app-site-association",
+          "/.well-known/apple-app-site-association",
+          "/.well-known/assetlinks.json",
+        ]) {
+          const response = await page.request.get(`${options.baseUrl}${associationPath}`, { maxRedirects: 0 });
+          if (response.status() !== 200) {
+            addFailure(result, `Expected signed-app association ${associationPath} to return direct 200, got ${response.status()}`);
+            continue;
+          }
+          const body = await response.json().catch(() => null);
+          if (associationPath.endsWith("assetlinks.json")) {
+            const expectedFingerprint = normalizeSha256Fingerprint(options.playSigningSha256);
+            const matchingTarget = Array.isArray(body) && body.some((entry) =>
+              entry?.target?.package_name === "ai.hanbang.wedding" &&
+              entry?.target?.sha256_cert_fingerprints?.includes(expectedFingerprint)
+            );
+            if (!matchingTarget) {
+              addFailure(result, "Asset Links does not match the approved Android package and Play signing fingerprint");
+            }
+          } else {
+            const details = body?.applinks?.details;
+            const matchingApp = Array.isArray(details) && details.some((entry) =>
+              entry?.appID === `${options.appleTeamId}.ai.hanbang.wedding` &&
+              ["/app", "/app/community/post/*", "/app/vendors/*"].every((path) => entry?.paths?.includes(path))
+            );
+            if (!matchingApp) {
+              addFailure(result, "AASA does not match the signed iOS app ID and approved share routes");
+            }
+          }
+        }
+
+        const health = await page.request.get(`${options.baseUrl}/api/health/maintenance`, { maxRedirects: 0 });
+        const healthBody = await health.json().catch(() => null);
+        if (health.status() !== 200 || healthBody?.deployment !== options.expectedSha.slice(0, 12)) {
+          addFailure(result, `Expected health deployment ${options.expectedSha.slice(0, 12)}, got ${healthBody?.deployment ?? "none"}`);
+        }
+        const expectedAccountDeletionCron = options.accountDeletionCron === "open";
+        if (healthBody?.accountDeletionCronEnabled !== expectedAccountDeletionCron) {
+          addFailure(
+            result,
+            `Expected account-deletion cron ${options.accountDeletionCron}, got ${String(healthBody?.accountDeletionCronEnabled)}`
+          );
+        }
+      },
+    },
+    {
+      name: "coming-soon-login-redirect",
+      path: "/login?utm_campaign=live-smoke&next=%2Fadmin",
+      async assert(_page, result) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo") {
+          addFailure(result, `Expected /login to redirect to /demo, got ${result.finalUrl}`);
+        }
+        if (final.searchParams.get("utm_campaign") !== "live-smoke" || final.searchParams.has("next")) {
+          addFailure(result, `Expected only bounded campaign parameters after redirect, got ${final.search}`);
+        }
+      },
+    },
+    {
+      name: "coming-soon-app-redirect",
+      path: "/wedding?utm_source=live-smoke&next=%2Fadmin",
+      async assert(_page, result) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo" || final.searchParams.get("utm_source") !== "live-smoke" || final.searchParams.has("next")) {
+          addFailure(result, `Expected gated app route to land on sanitized /demo, got ${result.finalUrl}`);
+        }
+      },
+    },
+    {
+      name: "coming-soon-api-closed",
+      path: "/demo",
+      async assert(page, result, options) {
+        const response = await page.request.post(`${options.baseUrl}/api/auth/signup`, {
+          data: { email: "live-smoke@example.invalid", password: "not-a-real-password" },
+          maxRedirects: 0,
+        });
+        const body = await response.json().catch(() => null);
+        if (response.status() !== 503 || body?.code !== "SERVICE_NOT_LAUNCHED") {
+          addFailure(result, `Expected general API to fail closed with SERVICE_NOT_LAUNCHED, got ${response.status()}`);
+        }
+        if (response.headers()["cache-control"]?.includes("no-store") !== true) {
+          addFailure(result, "Expected blocked API response to disable caching");
+        }
+
+        const betaResponse = await page.request.get(`${options.baseUrl}/beta`, { maxRedirects: 0 });
+        const betaHtml = await betaResponse.text();
+        if (options.researchIntake === "closed") {
+          if (!betaHtml.includes("준비가 끝나기 전에는 개인정보를 받지 않습니다")) {
+            addFailure(result, "Expected the closed research page to omit its PII form");
+          }
+          const intakeResponse = await page.request.post(`${options.baseUrl}/api/preregister`, {
+            data: {},
+            maxRedirects: 0,
+          });
+          const intakeBody = await intakeResponse.json().catch(() => null);
+          if (intakeResponse.status() !== 503 || intakeBody?.code !== "RESEARCH_INTAKE_CLOSED") {
+            addFailure(result, `Expected research intake to fail closed, got ${intakeResponse.status()}`);
+          }
+        } else if (!betaHtml.includes("사용자 연구 신청하기")) {
+          addFailure(result, "Expected the approved research application form to be visible");
+        }
+      },
+    },
+  ];
+}
+
 function markdownReport({ options, browserPath, startedAt, finishedAt, results }) {
   const passed = results.filter((result) => result.ok).length;
   const failed = results.length - passed;
@@ -461,7 +633,9 @@ async function main() {
     headless: !options.headed,
   });
 
-  const checks = buildChecks(options.skipDemo);
+  const checks = options.launchMode === "coming_soon"
+    ? buildComingSoonChecks()
+    : buildFullChecks(options.skipDemo);
   const results = [];
   try {
     for (const check of checks) {

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ResearchApplicationStats from "@/components/admin/ResearchApplicationStats";
+import type { DailyResearchApplicationCount } from "@/lib/admin/researchApplicationStats";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
@@ -11,14 +13,20 @@ import {
 
 interface Registration {
   id: string;
+  cohort_code: string;
   email: string;
+  name: string | null;
+  wedding_date: string | null;
+  role: "bride" | "groom";
+  message: string | null;
   source: string;
+  privacy_consent_at: string;
+  privacy_policy_version: string;
+  email_verified_at: string | null;
+  receipt_email_status: "pending" | "sent" | "failed";
+  receipt_email_attempted_at: string | null;
   created_at: string;
-}
-
-interface DailyCount {
-  date: string;
-  count: number;
+  expires_at: string;
 }
 
 interface AdminVendor {
@@ -176,6 +184,15 @@ const REPORT_STATUS_LABEL: Record<ReportStatus, { text: string; cls: string }> =
   resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
   dismissed: { text: "기각", cls: "bg-noir-800/10 text-noir-800" },
 };
+
+const RECEIPT_STATUS_LABEL: Record<
+  Registration["receipt_email_status"],
+  { text: string; cls: string }
+> = {
+  pending: { text: "발송 대기", cls: "bg-gold/10 text-gold" },
+  sent: { text: "접수 메일 발송", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
+  failed: { text: "발송 실패", cls: "bg-red-500/10 text-red-500" },
+};
 type AuthState = "loading" | "not_authenticated" | "admin";
 
 const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -191,7 +208,8 @@ export default function AdminPage() {
 
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
+  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
+  const [dailyCounts, setDailyCounts] = useState<DailyResearchApplicationCount[]>([]);
 
   const [activeTab, setActiveTab] = useState<TabKey>("registrations");
 
@@ -333,7 +351,8 @@ export default function AdminPage() {
         const data = await res.json();
         setRegistrations(data.registrations);
         setTotalCount(data.total);
-        setDailyCounts(data.dailyCounts);
+        setPendingVerificationCount(data.pendingVerificationTotal ?? 0);
+        setDailyCounts(Array.isArray(data.dailyCounts) ? data.dailyCounts : []);
       }
     } catch { /* ignore */ }
   }, []);
@@ -527,14 +546,15 @@ export default function AdminPage() {
     );
   }
 
-  const maxDailyCount = Math.max(...dailyCounts.map((d) => d.count), 1);
-
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString("ko-KR") : "-";
+  const formatDateTime = (d: string | null) => d
+    ? new Date(d).toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" })
+    : "-";
   const formatBudget = (b: number | null) =>
     b ? `${(b / 10000).toLocaleString()}만원` : "-";
 
   const TAB_ITEMS: { key: TabKey; label: string; icon: typeof Users; badge?: number }[] = [
-    { key: "registrations", label: "사전등록", icon: Users, badge: totalCount },
+    { key: "registrations", label: "사용자 연구", icon: Users, badge: totalCount },
     { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors || undefined },
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
@@ -585,69 +605,91 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* ===== 사전등록 탭 ===== */}
+        {/* ===== 사용자 연구 신청 탭 ===== */}
         {activeTab === "registrations" && (
           <>
-            <div className="grid grid-cols-3 gap-6 mb-10 max-md:grid-cols-1">
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
-                <p className="text-sm text-taupe-500 mb-2">총 사전등록</p>
-                <p className="font-display text-4xl font-light text-noir-800">{totalCount}</p>
-              </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
-                <p className="text-sm text-taupe-500 mb-2">오늘 등록</p>
-                <p className="font-display text-4xl font-light text-noir-800">
-                  {dailyCounts.length > 0 ? dailyCounts[dailyCounts.length - 1]?.count || 0 : 0}
-                </p>
-              </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
-                <p className="text-sm text-taupe-500 mb-2">최근 7일 평균</p>
-                <p className="font-display text-4xl font-light text-noir-800">
-                  {dailyCounts.length > 0
-                    ? Math.round(dailyCounts.slice(-7).reduce((sum, d) => sum + d.count, 0) / Math.min(dailyCounts.length, 7))
-                    : 0}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-8 border border-black/[0.04] mb-10">
-              <h2 className="font-serif-kr text-lg font-normal mb-6">날짜별 등록 현황</h2>
-              <div className="flex items-end gap-2 h-[200px]">
-                {dailyCounts.slice(-14).map((day) => (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
-                    <span className="text-[11px] text-taupe-500 font-medium">{day.count}</span>
-                    <div
-                      className="w-full bg-gradient-to-t from-rose-500 to-rose-light rounded-t-md transition-all duration-500"
-                      style={{ height: `${(day.count / maxDailyCount) * 160}px`, minHeight: day.count > 0 ? "4px" : "0" }}
-                    />
-                    <span className="text-[10px] text-taupe-400 -rotate-45 origin-top-left whitespace-nowrap">{day.date.slice(5)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ResearchApplicationStats
+              totalCount={totalCount}
+              pendingVerificationCount={pendingVerificationCount}
+              dailyCounts={dailyCounts}
+            />
 
             <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
-              <div className="p-8 pb-4"><h2 className="font-serif-kr text-lg font-normal">등록자 목록</h2></div>
+              <div className="p-8 pb-4">
+                <h2 className="font-serif-kr text-lg font-normal">사용자 연구 신청 목록</h2>
+                <p className="mt-2 text-[12px] leading-relaxed text-taupe-500">
+                  신청 내용은 참여 검토 목적으로만 확인하고, 보관 만료일과 접수 메일 상태를 함께 점검하세요.
+                </p>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-platinum">
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">#</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">이메일</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">소스</th>
-                      <th className="px-8 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">신청자</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">참여 정보</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">메시지</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">접수 메일</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">동의·보관</th>
+                      <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">신청 시각</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {registrations.map((reg, i) => (
+                    {registrations.map((reg) => {
+                      const receipt = RECEIPT_STATUS_LABEL[reg.receipt_email_status] ?? RECEIPT_STATUS_LABEL.pending;
+                      return (
                       <tr key={reg.id} className="border-b border-black/[0.02] hover:bg-ivory-warm/50 transition-colors">
-                        <td className="px-8 py-4 text-sm text-taupe-500">{i + 1}</td>
-                        <td className="px-8 py-4 text-sm text-noir-800 font-medium">{reg.email}</td>
-                        <td className="px-8 py-4 text-sm text-taupe-500">{reg.source}</td>
-                        <td className="px-8 py-4 text-sm text-taupe-500">{formatDate(reg.created_at)}</td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="text-sm font-medium text-noir-800">{reg.name || "이름 미입력"}</p>
+                          <p className="mt-1 text-[12px] text-taupe-500">{reg.email}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-[12px] leading-relaxed text-taupe-500">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
+                            reg.role === "bride" ? "bg-rose-500/10 text-rose-500" : "bg-blue-500/10 text-blue-500"
+                          }`}>
+                            {reg.role === "bride" ? "신부" : "신랑"}
+                          </span>
+                          <p className="mt-2">예식일 {formatDate(reg.wedding_date)}</p>
+                        </td>
+                        <td className="max-w-[280px] px-6 py-4 align-top">
+                          <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-charcoal">
+                            {reg.message || "-"}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 align-top">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            reg.email_verified_at
+                              ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
+                              : "bg-amber-500/10 text-amber-700"
+                          }`}>
+                            {reg.email_verified_at ? "이메일 확인 · 선정 검토 가능" : "미확인 · 선정 제외"}
+                          </span>
+                          <p className="mt-2 text-[11px] text-taupe-400">
+                            {reg.email_verified_at
+                              ? formatDateTime(reg.email_verified_at)
+                              : "확인 시각 없음"}
+                          </p>
+                          <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${receipt.cls}`}>
+                            {receipt.text}
+                          </span>
+                          <p className="mt-2 text-[11px] text-taupe-400">
+                            {reg.receipt_email_attempted_at
+                              ? formatDateTime(reg.receipt_email_attempted_at)
+                              : "시도 기록 없음"}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-[11px] leading-relaxed text-taupe-500">
+                          <p>동의 {formatDateTime(reg.privacy_consent_at)}</p>
+                          <p className="mt-1">정책 {reg.privacy_policy_version}</p>
+                          <p className="mt-1 text-red-500/80">만료 {formatDate(reg.expires_at)}</p>
+                        </td>
+                        <td className="px-6 py-4 align-top text-[12px] text-taupe-500">
+                          {formatDateTime(reg.created_at)}
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {registrations.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-taupe-400 text-sm">아직 등록된 사용자가 없습니다.</td></tr>
+                      <tr><td colSpan={6} className="px-8 py-12 text-center text-taupe-400 text-sm">아직 접수된 사용자 연구 신청이 없습니다.</td></tr>
                     )}
                   </tbody>
                 </table>

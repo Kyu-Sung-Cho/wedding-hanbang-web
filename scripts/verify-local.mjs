@@ -17,8 +17,12 @@ function createCommand(args) {
 
 const checks = [
   {
-    name: "tracked secret scan",
+    name: "tracked and untracked secret scan",
     args: ["pnpm", "security:secrets"],
+  },
+  {
+    name: "Supabase recovery safety tests",
+    args: ["pnpm", "supabase:recovery:test"],
   },
   {
     name: "web typecheck",

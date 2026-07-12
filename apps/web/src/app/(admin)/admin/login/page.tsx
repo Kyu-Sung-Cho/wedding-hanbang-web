@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Shield, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-type PageMode = "loading" | "initial-setup" | "login";
+type PageMode = "loading" | "initial-setup" | "setup-unavailable" | "login";
 
 export default function AdminLoginPage() {
   const [pageMode, setPageMode] = useState<PageMode>("loading");
@@ -25,8 +25,15 @@ export default function AdminLoginPage() {
     async function checkAdminExists() {
       try {
         const res = await fetch("/api/admin/auth?check=exists");
+        if (!res.ok) throw new Error("admin inventory unavailable");
         const data = await res.json();
-        setPageMode(data.hasAdmin ? "login" : "initial-setup");
+        setPageMode(
+          data.hasAdmin
+            ? "login"
+            : data.initialSetupEnabled === true
+              ? "initial-setup"
+              : "setup-unavailable"
+        );
       } catch {
         setPageMode("login");
       }
@@ -41,8 +48,14 @@ export default function AdminLoginPage() {
       setError("모든 필드를 입력해주세요.");
       return;
     }
-    if (loginPassword.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.");
+    if (
+      loginPassword.length < 12 ||
+      !/[a-z]/.test(loginPassword) ||
+      !/[A-Z]/.test(loginPassword) ||
+      !/\d/.test(loginPassword) ||
+      !/[^A-Za-z0-9]/.test(loginPassword)
+    ) {
+      setError("비밀번호는 12자 이상이며 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다.");
       return;
     }
     setLoading(true);
@@ -173,6 +186,7 @@ export default function AdminLoginPage() {
   };
 
   const isInitialSetup = pageMode === "initial-setup";
+  const isSetupUnavailable = pageMode === "setup-unavailable";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-noir-900 via-[#1a1520] to-noir-900 flex items-center justify-center px-5">
@@ -212,16 +226,29 @@ export default function AdminLoginPage() {
         {pageMode !== "loading" && (
           <div className="bg-white/[0.06] backdrop-blur-[20px] rounded-3xl border border-white/[0.08] p-8">
             <h2 className="text-[18px] font-medium text-white text-center mb-1">
-              {isInitialSetup ? "최초 관리자 설정" : "관리자 로그인"}
+              {isInitialSetup
+                ? "최초 관리자 설정"
+                : isSetupUnavailable
+                  ? "초기 설정 잠김"
+                  : "관리자 로그인"}
             </h2>
             <p className="text-[12px] text-white/40 text-center mb-8">
               {isInitialSetup
                 ? "시스템의 첫 번째 관리자 계정을 생성합니다"
+                : isSetupUnavailable
+                  ? "운영 관리자 계정은 검토된 수동 절차로만 생성합니다"
                 : "관리자 계정으로 로그인하세요"}
             </p>
 
             {/* 비밀번호 재설정 모드 */}
-            {resetMode ? (
+            {isSetupUnavailable ? (
+              <div className="rounded-2xl border border-gold/20 bg-gold/[0.05] px-5 py-6 text-center">
+                <p className="text-[13px] leading-7 text-white/70">
+                  관리자 계정이 보이지 않으면 운영 배포를 중단하고
+                  검토된 계정 복구 절차를 진행해 주세요.
+                </p>
+              </div>
+            ) : resetMode ? (
               resetSent ? (
                 <div className="text-center py-4 mb-4">
                   <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/20 flex items-center justify-center mx-auto mb-4">
@@ -302,7 +329,7 @@ export default function AdminLoginPage() {
                       type="password"
                       value={loginPassword}
                       onChange={(e) => { setLoginPassword(e.target.value); setError(""); }}
-                      placeholder={isInitialSetup ? "6자 이상 설정" : "비밀번호"}
+                      placeholder={isInitialSetup ? "12자 이상 · 대소문자·숫자·특수문자" : "비밀번호"}
                       className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                     />
                   </div>

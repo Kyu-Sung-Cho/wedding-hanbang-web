@@ -4,7 +4,11 @@ import {
   AccountDeletionError,
   processAccountDeletionJob,
 } from "@/lib/accountDeletion";
-import { GET, isAccountDeletionCronAuthorized } from "../route";
+import {
+  GET,
+  isAccountDeletionCronAuthorized,
+  isAccountDeletionCronEnabled,
+} from "../route";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(),
@@ -33,6 +37,7 @@ describe("/api/cron/account-deletions GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "test-cron-secret";
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "true";
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
   });
@@ -42,6 +47,26 @@ describe("/api/cron/account-deletions GET", () => {
     const response = await GET(cronRequest("wrong"));
 
     expect(response.status).toBe(401);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit production enablement before touching Supabase", async () => {
+    expect(isAccountDeletionCronEnabled({ NODE_ENV: "production" })).toBe(false);
+    expect(isAccountDeletionCronEnabled({
+      NODE_ENV: "production",
+      ACCOUNT_DELETION_CRON_ENABLED: "TRUE",
+    })).toBe(false);
+    expect(isAccountDeletionCronEnabled({
+      NODE_ENV: "production",
+      ACCOUNT_DELETION_CRON_ENABLED: "true",
+    })).toBe(true);
+    expect(isAccountDeletionCronEnabled({ NODE_ENV: "development" })).toBe(true);
+
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "false";
+    const response = await GET(cronRequest());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: "worker_disabled" });
     expect(createClient).not.toHaveBeenCalled();
   });
 

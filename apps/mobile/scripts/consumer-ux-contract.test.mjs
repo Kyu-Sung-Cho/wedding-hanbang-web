@@ -10,6 +10,17 @@ function readSource(relativePath) {
   return readFileSync(resolve(mobileRoot, relativePath), "utf8");
 }
 
+test("root bundle includes only Paperlogy weights referenced by runtime aliases", () => {
+  const source = readSource("app/_layout.tsx");
+
+  for (const weight of ["3Light", "4Regular", "5Medium", "6SemiBold", "7Bold"]) {
+    assert.match(source, new RegExp(`Paperlogy-${weight}\\.ttf`));
+  }
+  for (const unusedWeight of ["1Thin", "2ExtraLight", "8ExtraBold", "9Black"]) {
+    assert.doesNotMatch(source, new RegExp(`Paperlogy-${unusedWeight}\\.ttf`));
+  }
+});
+
 test("dashboard partner activity affordance opens the schedule", () => {
   const source = readSource("app/(tabs)/dashboard.tsx");
   const banner = source.match(/\{data\?\.partnerActivity && \([\s\S]*?\n\s*\)\}/)?.[0] ?? "";

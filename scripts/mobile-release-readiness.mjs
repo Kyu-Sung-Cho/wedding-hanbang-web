@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
+const storeReleaseMode = process.argv.includes("--store-ready");
 
 function readText(relativePath) {
   return readFileSync(path.join(root, relativePath), "utf8");
@@ -95,13 +96,36 @@ const androidUniversalLink = appConfig.android?.intentFilters?.some((filter) =>
   filter.autoVerify === true &&
   filter.category?.includes("BROWSABLE") &&
   filter.category?.includes("DEFAULT") &&
+  !filter.data?.some((entry) =>
+    entry.scheme === "https" &&
+    entry.host === "hanbang.ai" &&
+    (entry.pathPrefix === "/app" || entry.pathPrefix === "/app/")
+  ) &&
   filter.data?.some((entry) =>
     entry.scheme === "https" &&
     entry.host === "hanbang.ai" &&
-    entry.pathPrefix === "/app"
+    entry.path === "/app"
+  ) && [
+    "/app/community/post/",
+    "/app/vendors/",
+  ].every((pathPrefix) =>
+    filter.data?.some((entry) =>
+      entry.scheme === "https" &&
+      entry.host === "hanbang.ai" &&
+      entry.pathPrefix === pathPrefix
+    )
   )
 );
-expect(androidUniversalLink, "Android universal-link intent filter targets https://hanbang.ai/app");
+expect(
+  androidUniversalLink,
+  "Android universal-link intent filter targets only the approved share routes"
+);
+
+const nativeIntent = readText("apps/mobile/app/+native-intent.tsx");
+expect(
+  nativeIntent.includes("rewriteMobileAppLink(path)"),
+  "Expo native intent rewrites the public /app namespace"
+);
 
 const pluginNames = appConfig.plugins?.map((plugin) => Array.isArray(plugin) ? plugin[0] : plugin) ?? [];
 for (const pluginName of [
@@ -175,7 +199,7 @@ for (const envName of [
   expect(mobileEnvExample.includes(envName), `.env.example documents ${envName}`);
 }
 
-expect(
+const mobileOAuthHardDisabled =
   /export async function signInWithOAuth[\s\S]*?\{\s*void provider;\s*throw new Error\(/.test(mobileAuth) &&
     [
       "expo-web-browser",
@@ -187,14 +211,23 @@ expect(
       ".auth.setSession(",
       "access_token",
       "refresh_token",
-    ].every((forbidden) => !mobileAuth.includes(forbidden)),
-  "Mobile OAuth implementation remains hard-disabled"
-);
-expect(
+    ].every((forbidden) => !mobileAuth.includes(forbidden));
+const mobileSocialEntryPointsDisabled =
   /onPress=\{\(\) => handleSocialLogin\("kakao"\)\}\s+disabled(?:\s|>)/.test(mobileLogin) &&
-    /onPress=\{\(\) => handleSocialLogin\("apple"\)\}\s+disabled(?:\s|>)/.test(mobileLogin),
-  "Mobile social-login entry points remain disabled"
-);
+    /onPress=\{\(\) => handleSocialLogin\("apple"\)\}\s+disabled(?:\s|>)/.test(mobileLogin);
+
+if (storeReleaseMode) {
+  expect(
+    false,
+    mobileOAuthHardDisabled || mobileSocialEntryPointsDisabled
+      ? "Store release requires implemented and device-verified social login entry points"
+      : "Store release remains blocked until signed association endpoints, store builds, and physical-device evidence are machine-verified"
+  );
+} else {
+  expect(mobileOAuthHardDisabled, "Mobile OAuth implementation remains hard-disabled");
+  expect(mobileSocialEntryPointsDisabled, "Mobile social-login entry points remain disabled");
+  warn("Static mobile checks do not certify store release while social login is hard-disabled");
+}
 expect(
   mobileSupabase.includes('flowType: "pkce"') &&
     mobileSupabase.includes("detectSessionInUrl: false") &&

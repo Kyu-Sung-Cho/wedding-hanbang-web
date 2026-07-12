@@ -36,12 +36,16 @@ function lineNumberAt(text, index) {
   return line;
 }
 
-function trackedFiles() {
-  const output = execFileSync("git", ["ls-files", "-z"], {
+function repositoryFiles() {
+  const output = execFileSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
     cwd: process.cwd(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
-  });
+    },
+  );
   return output.split("\0").filter(Boolean);
 }
 
@@ -63,7 +67,7 @@ export function scanText(file, text) {
 }
 
 function main() {
-  const files = trackedFiles();
+  const files = repositoryFiles();
   const findings = [];
 
   for (const file of files) {
@@ -78,7 +82,7 @@ function main() {
   }
 
   if (findings.length > 0) {
-    console.error("[tracked-secret-scan] possible credentials found (values redacted):");
+    console.error("[repository-secret-scan] possible credentials found (values redacted):");
     for (const finding of findings) {
       console.error(`- ${finding.category}: ${finding.file}:${finding.line} [REDACTED]`);
     }
@@ -87,7 +91,7 @@ function main() {
     return;
   }
 
-  console.log(`[tracked-secret-scan] passed (${files.length} tracked files, current tree)`);
+  console.log(`[repository-secret-scan] passed (${files.length} tracked or untracked files, current tree)`);
 }
 
 const directRun = process.argv[1]

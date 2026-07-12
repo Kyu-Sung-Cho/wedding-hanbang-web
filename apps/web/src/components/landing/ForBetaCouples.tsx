@@ -19,7 +19,6 @@ interface ForBetaCouplesProps {
 export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCouplesProps) {
   const BETA_CURRENT = current;
   const BETA_TOTAL = total;
-  const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
   const showCounter = shouldShowBetaCounter(BETA_CURRENT);
 
   return (
@@ -50,7 +49,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
             6주간 함께해 주실
             <br />
-            <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
+            <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
           </h2>
           <p className="mt-6 max-w-2xl text-[14px] font-light leading-[1.8] text-white/65 md:text-[15px]">
             일반 베타 계정 이용과 별도로, 선정 후 안내되는 시작일부터 6주간 심층 피드백에 참여하는 연구입니다.
@@ -113,7 +112,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           >
             <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
               <p className="text-[12px] md:text-[13px] tracking-[0.28em] text-rose-light font-medium mb-8">
-                사용자 연구 코호트 · 50쌍
+                사용자 연구 코호트 · 최대 {BETA_TOTAL}명 선정
               </p>
 
               {showCounter ? (
@@ -123,26 +122,19 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                     <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
                       {BETA_CURRENT}
                     </span>
-                    <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
-                      / {BETA_TOTAL}쌍
+                    <span className="text-white/50 text-lg md:text-xl font-light">
+                      건 접수
                     </span>
                   </div>
                   <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-8 font-medium">
-                    현재 신청
+                    신청자를 검토해 최대 {BETA_TOTAL}명을 선정합니다
                   </p>
 
-                  {/* Progress bar */}
-                  <div className="h-px bg-white/10 w-full relative overflow-hidden mb-12">
-                    <div
-                      className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-                      style={{ width: `${Math.max(progress, 3)}%` }}
-                      aria-hidden
-                    />
-                  </div>
+                  <div className="h-px bg-white/10 w-full mb-12" aria-hidden />
                 </>
               ) : (
                 <p className="mb-12 text-[13px] font-medium tracking-[0.16em] text-white/55">
-                  사용자 연구 신청 접수 중
+                  사용자 연구 신청 접수 중 · 최대 {BETA_TOTAL}명 선정
                 </p>
               )}
 

@@ -56,7 +56,7 @@ WITH required_functions(
     ('public.redact_user_ai_data(uuid)', 'integer', 'search_path=public', '7bef551a2dc6c927e7c95bd0d7c2ba3f'),
     ('public.redact_old_ai_interactions(interval)', 'integer', 'search_path=public', '571f7b3674ee36b941bb19064f8b1cb0'),
     ('public.enforce_ai_interaction_retention()', 'TABLE(redacted integer, deleted integer)', 'search_path=public', '85cb9b5ccafca3cca9b3cdf74ee4eddc'),
-    ('public.enforce_application_survey_retention()', 'TABLE(preregistrations_deleted integer, survey_responses_deleted integer)', 'search_path=public', 'bfd5bc045ed108c9d06eadbaa8493459'),
+    ('public.enforce_application_survey_retention()', 'TABLE(preregistrations_deleted integer, survey_responses_deleted integer)', 'search_path=public', '04d9b06eedd9eec0c19cf29e5b1a9968'),
     ('public.delete_expired_rate_limit_buckets()', 'integer', 'search_path=public', '667f711d08313c214c99cf4a8023b513'),
     ('public.count_active_community_upload_leases(uuid)', 'bigint', 'search_path=public, pg_temp', 'b1594dc15e570d225357dd90e10930f2'),
     ('public.prevent_profile_membership_self_change()', 'trigger', 'search_path=public', 'e3c62718b1fbc242933e9d83acbbce1a'),
@@ -73,7 +73,8 @@ WITH required_functions(
     ('public.guard_account_deletion_rate_limit_write()', 'trigger', 'search_path=public, pg_temp', 'b8ebd5bbf8df5b250d36404f4d6f0a5c'),
     ('public.account_deletion_queue_health()', 'jsonb', 'search_path=public, pg_temp', 'b0184ebdb2888d329ef714726d7f76f6'),
     ('public.requeue_dead_account_deletion_job(uuid)', 'boolean', 'search_path=public, pg_temp', '29fe1226857032d271e78f585f887956'),
-    ('public.request_account_deletion(uuid,text)', 'jsonb', 'search_path=public, pg_temp', '23b1de98bf90bf1469bb3cc17775d255'),
+    ('public.account_deletion_email_scopes_are_canonical(text[])', 'boolean', 'search_path=pg_catalog, pg_temp', '221d594a0a3f55f12d8baf2d8b18ce91'),
+    ('public.request_account_deletion(uuid,text)', 'jsonb', 'search_path=public, pg_temp', '08f9136df3b8fc79f1abf1ee33a0bb95'),
     (
       'public.claim_account_deletion_jobs(uuid,integer,integer)',
       'TABLE(job_id uuid, user_id uuid, reason text, attempts integer, storage_inventory jsonb)',
@@ -81,7 +82,8 @@ WITH required_functions(
     ),
     ('public.save_account_deletion_storage_inventory(uuid,uuid,jsonb)', 'boolean', 'search_path=public, pg_temp', '14602d5c4e9ccc3eb90f4c5618549f9d'),
     ('public.fail_account_deletion_job(uuid,uuid,text)', 'text', 'search_path=public, pg_temp', '9795091031826ac0a932ec01249834a8'),
-    ('public.complete_account_deletion_job(uuid,uuid)', 'boolean', 'search_path=public, pg_temp', 'd7ac53e76d1c8cf1b1e318a78d67a10a')
+    ('public.renew_account_deletion_job_lease(uuid,uuid,integer)', 'boolean', 'search_path=public, pg_temp', 'ba6534442ff7bc582d4bdefc396bc841'),
+    ('public.complete_account_deletion_job(uuid,uuid)', 'boolean', 'search_path=public, pg_temp', '7224cdd797c3db1613059d9fc79e7fb4')
 ), service_denied_functions(signature) AS (
   VALUES
     ('public.guard_account_deletion_user_reference()'),
@@ -270,7 +272,27 @@ WITH required_functions(
     ('account_deletion_jobs', 'dead_lettered_at', 'timestamp with time zone', false),
     ('account_deletion_jobs', 'completed_at', 'timestamp with time zone', false),
     ('account_deletion_jobs', 'created_at', 'timestamp with time zone', true),
-    ('account_deletion_jobs', 'updated_at', 'timestamp with time zone', true)
+    ('account_deletion_jobs', 'updated_at', 'timestamp with time zone', true),
+    ('account_deletion_jobs', 'email_scopes', 'text[]', false),
+    ('account_deletion_jobs', 'email_snapshot_at', 'timestamp with time zone', false),
+    ('research_cohort_applications', 'id', 'uuid', true),
+    ('research_cohort_applications', 'cohort_code', 'text', true),
+    ('research_cohort_applications', 'email', 'text', true),
+    ('research_cohort_applications', 'name', 'text', false),
+    ('research_cohort_applications', 'wedding_date', 'date', false),
+    ('research_cohort_applications', 'role', 'text', true),
+    ('research_cohort_applications', 'message', 'text', false),
+    ('research_cohort_applications', 'source', 'text', true),
+    ('research_cohort_applications', 'utm_source', 'text', false),
+    ('research_cohort_applications', 'utm_medium', 'text', false),
+    ('research_cohort_applications', 'utm_campaign', 'text', false),
+    ('research_cohort_applications', 'privacy_consent_at', 'timestamp with time zone', true),
+    ('research_cohort_applications', 'privacy_policy_version', 'text', true),
+    ('research_cohort_applications', 'email_verified_at', 'timestamp with time zone', false),
+    ('research_cohort_applications', 'receipt_email_status', 'text', true),
+    ('research_cohort_applications', 'receipt_email_attempted_at', 'timestamp with time zone', false),
+    ('research_cohort_applications', 'created_at', 'timestamp with time zone', true),
+    ('research_cohort_applications', 'expires_at', 'timestamp with time zone', true)
 ), column_status AS (
   SELECT required.table_name,
          required.column_name,
@@ -293,7 +315,8 @@ WITH required_functions(
   VALUES
     ('amora_request_claims'),
     ('amora_provider_leases'),
-    ('amora_usage_reservations')
+    ('amora_usage_reservations'),
+    ('research_cohort_applications')
 ), table_status AS (
   SELECT required.table_name,
          table_row.relkind,
@@ -312,7 +335,8 @@ WITH required_functions(
     ('community_reports', false),
     ('cohort_member_reports', false),
     ('cohort_members', false),
-    ('cohort_messages', false)
+    ('cohort_messages', false),
+    ('research_cohort_applications', false)
 ), sensitive_status AS (
   SELECT required.table_name,
          table_row.relkind,
@@ -389,7 +413,11 @@ WITH required_functions(
   LEFT JOIN pg_class table_row
     ON table_row.oid = to_regclass('public.' || required.table_name)
 ), account_deletion_job_defaults AS (
-  SELECT NOT EXISTS (
+  SELECT 6 = (
+    SELECT count(*)
+    FROM pg_attrdef default_row
+    WHERE default_row.adrelid = to_regclass('public.account_deletion_jobs')
+  ) AND NOT EXISTS (
     SELECT 1
     FROM (VALUES
       ('id', 'gen_random_uuid()'),
@@ -410,6 +438,19 @@ WITH required_functions(
     WHERE default_row.oid IS NULL
        OR pg_get_expr(default_row.adbin, default_row.adrelid)
          IS DISTINCT FROM expected.expected_default
+  ) AND 2 = (
+    SELECT count(*)
+    FROM pg_attribute attribute_row
+    LEFT JOIN pg_attrdef default_row
+      ON default_row.adrelid = attribute_row.attrelid
+     AND default_row.adnum = attribute_row.attnum
+    WHERE attribute_row.attrelid = to_regclass('public.account_deletion_jobs')
+      AND attribute_row.attname IN ('email_scopes', 'email_snapshot_at')
+      AND attribute_row.attnum > 0
+      AND NOT attribute_row.attisdropped
+      AND attribute_row.attidentity = ''
+      AND attribute_row.attgenerated = ''
+      AND default_row.oid IS NULL
   ) AS exact
 ), account_deletion_job_constraints AS (
   SELECT EXISTS (
@@ -440,7 +481,13 @@ WITH required_functions(
         ('account_deletion_jobs_last_error_code_check',
           'CHECK (last_error_code IS NULL OR last_error_code ~ ''^[A-Z0-9_]{1,64}$''::text)'),
         ('account_deletion_jobs_storage_inventory_check',
-          'CHECK (storage_inventory IS NULL OR jsonb_typeof(storage_inventory) = ''array''::text)')
+          'CHECK (storage_inventory IS NULL OR jsonb_typeof(storage_inventory) = ''array''::text)'),
+        ('account_deletion_jobs_email_snapshot_lifecycle_check',
+          'CHECK (status = ''completed''::text AND email_scopes IS NULL AND email_snapshot_at IS NULL OR status <> ''completed''::text AND email_scopes IS NOT NULL AND email_snapshot_at IS NOT NULL)'),
+        ('account_deletion_jobs_email_scopes_bounded_check',
+          'CHECK (email_scopes IS NULL OR cardinality(email_scopes) >= 0 AND cardinality(email_scopes) <= 8 AND array_position(email_scopes, NULL::text) IS NULL)'),
+        ('account_deletion_jobs_email_scopes_canonical_check',
+          'CHECK (email_scopes IS NULL OR account_deletion_email_scopes_are_canonical(email_scopes))')
       ) expected(constraint_name, expected_definition)
       LEFT JOIN pg_constraint constraint_row
         ON constraint_row.conrelid = to_regclass('public.account_deletion_jobs')
@@ -613,6 +660,189 @@ SELECT jsonb_build_object(
     )
     FROM column_status status_row
   ),
+  'research_cohort_application_identity_exact',
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class table_row
+      WHERE table_row.oid = to_regclass('public.research_cohort_applications')
+        AND table_row.relkind = 'r'
+        AND table_row.relrowsecurity
+        AND NOT table_row.relforcerowsecurity
+        AND pg_get_userbyid(table_row.relowner) = 'postgres'
+    )
+    AND 5 = (
+      SELECT count(*)
+      FROM pg_catalog.pg_attrdef default_row
+      WHERE default_row.adrelid = to_regclass('public.research_cohort_applications')
+    )
+    AND NOT EXISTS (
+      SELECT count(*)
+      FROM (VALUES
+        ('id', 'gen_random_uuid()'),
+        ('source', '''research''::text'),
+        ('receipt_email_status', '''pending''::text'),
+        ('created_at', 'now()'),
+        ('expires_at', '(now() + ''180 days''::interval)')
+      ) expected(column_name, expected_default)
+      LEFT JOIN pg_catalog.pg_attribute attribute_row
+        ON attribute_row.attrelid = to_regclass('public.research_cohort_applications')
+       AND attribute_row.attname = expected.column_name
+       AND attribute_row.attnum > 0
+       AND NOT attribute_row.attisdropped
+      LEFT JOIN pg_catalog.pg_attrdef default_row
+        ON default_row.adrelid = attribute_row.attrelid
+       AND default_row.adnum = attribute_row.attnum
+      WHERE default_row.oid IS NULL
+         OR pg_get_expr(default_row.adbin, default_row.adrelid)
+           IS DISTINCT FROM expected.expected_default
+      HAVING count(*) > 0
+    )
+    AND 18 = (
+      SELECT count(*)
+      FROM pg_catalog.pg_constraint constraint_row
+      WHERE constraint_row.conrelid = to_regclass('public.research_cohort_applications')
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM (VALUES
+        ('research_cohort_applications_pkey',
+          'p'::"char", 'PRIMARY KEY (id)'),
+        ('research_cohort_applications_identity_key',
+          'u'::"char", 'UNIQUE (cohort_code, email)'),
+        ('research_cohort_applications_cohort_check',
+          'c'::"char", 'CHECK (cohort_code = ''research-2026-h2''::text)'),
+        ('research_cohort_applications_email_identity_check',
+          'c'::"char", 'CHECK (email = lower(btrim(email)) AND char_length(email) >= 3 AND char_length(email) <= 254 AND email ~ ''^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$''::text)'),
+        ('research_cohort_applications_name_check',
+          'c'::"char", 'CHECK (name IS NULL OR name = btrim(name) AND char_length(name) >= 1 AND char_length(name) <= 60)'),
+        ('research_cohort_applications_wedding_date_window_check',
+          'c'::"char", 'CHECK (wedding_date IS NULL OR wedding_date >= ''2026-07-01''::date AND wedding_date <= ''2026-12-31''::date)'),
+        ('research_cohort_applications_role_check',
+          'c'::"char", 'CHECK (role = ANY (ARRAY[''bride''::text, ''groom''::text]))'),
+        ('research_cohort_applications_message_check',
+          'c'::"char", 'CHECK (message IS NULL OR message = btrim(message) AND char_length(message) >= 1 AND char_length(message) <= 500)'),
+        ('research_cohort_applications_source_check',
+          'c'::"char", 'CHECK (source = ''research''::text)'),
+        ('research_cohort_applications_utm_source_check',
+          'c'::"char", 'CHECK (utm_source IS NULL OR utm_source = btrim(utm_source) AND char_length(utm_source) >= 1 AND char_length(utm_source) <= 80)'),
+        ('research_cohort_applications_utm_medium_check',
+          'c'::"char", 'CHECK (utm_medium IS NULL OR utm_medium = btrim(utm_medium) AND char_length(utm_medium) >= 1 AND char_length(utm_medium) <= 80)'),
+        ('research_cohort_applications_utm_campaign_check',
+          'c'::"char", 'CHECK (utm_campaign IS NULL OR utm_campaign = btrim(utm_campaign) AND char_length(utm_campaign) >= 1 AND char_length(utm_campaign) <= 120)'),
+        ('research_cohort_applications_privacy_consent_timestamp_check',
+          'c'::"char", 'CHECK (privacy_consent_at = created_at)'),
+        ('research_cohort_applications_privacy_policy_check',
+          'c'::"char", 'CHECK (privacy_policy_version = ''2026-07-12''::text)'),
+        ('research_cohort_applications_receipt_status_check',
+          'c'::"char", 'CHECK (receipt_email_status = ANY (ARRAY[''pending''::text, ''sent''::text, ''failed''::text]))'),
+        ('research_cohort_applications_receipt_lifecycle_check',
+          'c'::"char", 'CHECK (receipt_email_status = ''pending''::text AND receipt_email_attempted_at IS NULL OR (receipt_email_status = ANY (ARRAY[''sent''::text, ''failed''::text])) AND receipt_email_attempted_at IS NOT NULL AND receipt_email_attempted_at >= created_at AND receipt_email_attempted_at <= expires_at)'),
+        ('research_cohort_applications_retention_cap',
+          'c'::"char", 'CHECK (expires_at >= created_at AND expires_at <= (created_at + ''180 days''::interval))'),
+        ('research_cohort_applications_email_verification_window_check',
+          'c'::"char", 'CHECK (email_verified_at IS NULL OR email_verified_at >= created_at AND email_verified_at <= expires_at)')
+      ) expected(constraint_name, constraint_type, expected_definition)
+      LEFT JOIN pg_catalog.pg_constraint constraint_row
+        ON constraint_row.conrelid = to_regclass('public.research_cohort_applications')
+       AND constraint_row.conname = expected.constraint_name
+      WHERE constraint_row.oid IS NULL
+         OR constraint_row.contype IS DISTINCT FROM expected.constraint_type
+         OR NOT constraint_row.convalidated
+         OR pg_get_constraintdef(constraint_row.oid, true)
+           IS DISTINCT FROM expected.expected_definition
+    )
+    AND 4 = (
+      SELECT count(*)
+      FROM pg_catalog.pg_index index_row
+      WHERE index_row.indrelid = to_regclass('public.research_cohort_applications')
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM (VALUES
+        ('idx_research_cohort_applications_expires_at',
+          'CREATE INDEX idx_research_cohort_applications_expires_at ON public.research_cohort_applications USING btree (expires_at)'),
+        ('idx_research_cohort_applications_current',
+          'CREATE INDEX idx_research_cohort_applications_current ON public.research_cohort_applications USING btree (cohort_code, created_at DESC) WHERE (privacy_consent_at IS NOT NULL AND email_verified_at IS NOT NULL)')
+      ) expected(index_name, expected_definition)
+      LEFT JOIN pg_catalog.pg_class index_class
+        ON index_class.relnamespace = 'public'::regnamespace
+       AND index_class.relname = expected.index_name
+      LEFT JOIN pg_catalog.pg_index index_row
+        ON index_row.indexrelid = index_class.oid
+       AND index_row.indrelid = to_regclass('public.research_cohort_applications')
+      WHERE index_class.oid IS NULL
+         OR index_row.indexrelid IS NULL
+         OR NOT index_row.indisvalid
+         OR NOT index_row.indisready
+         OR pg_get_indexdef(index_class.oid)
+           IS DISTINCT FROM expected.expected_definition
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_index index_row
+      JOIN pg_catalog.pg_attribute email_column
+        ON email_column.attrelid = index_row.indrelid
+       AND email_column.attname = 'email'
+       AND email_column.attnum > 0
+       AND NOT email_column.attisdropped
+      WHERE index_row.indrelid = to_regclass('public.research_cohort_applications')
+        AND index_row.indisunique
+        AND index_row.indnkeyatts = 1
+        AND index_row.indkey[0] = email_column.attnum
+    )
+    AND 1 = (
+      SELECT count(*)
+      FROM pg_catalog.pg_trigger trigger_row
+      WHERE trigger_row.tgrelid = to_regclass('public.research_cohort_applications')
+        AND NOT trigger_row.tgisinternal
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_trigger trigger_row
+      WHERE trigger_row.tgrelid = to_regclass('public.research_cohort_applications')
+        AND trigger_row.tgname = 'trg_clamp_research_cohort_application_retention'
+        AND NOT trigger_row.tgisinternal
+        AND trigger_row.tgenabled = 'O'
+        AND trigger_row.tgfoid = to_regprocedure('public.clamp_preregistration_retention()')
+        AND pg_get_triggerdef(trigger_row.oid, true) =
+          'CREATE TRIGGER trg_clamp_research_cohort_application_retention BEFORE INSERT OR UPDATE OF created_at, expires_at ON research_cohort_applications FOR EACH ROW EXECUTE FUNCTION clamp_preregistration_retention()'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_policies policy_row
+      WHERE policy_row.schemaname = 'public'
+        AND policy_row.tablename = 'research_cohort_applications'
+    )
+    AND has_table_privilege('service_role', 'public.research_cohort_applications', 'SELECT')
+    AND has_table_privilege('service_role', 'public.research_cohort_applications', 'INSERT')
+    AND has_table_privilege('service_role', 'public.research_cohort_applications', 'UPDATE')
+    AND has_table_privilege('service_role', 'public.research_cohort_applications', 'DELETE')
+    AND NOT has_table_privilege('service_role', 'public.research_cohort_applications', 'TRUNCATE')
+    AND NOT has_table_privilege('service_role', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_any_column_privilege('service_role', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_table_privilege('service_role', 'public.research_cohort_applications', 'TRIGGER')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'SELECT')
+    AND NOT has_any_column_privilege('anon', 'public.research_cohort_applications', 'SELECT')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'INSERT')
+    AND NOT has_any_column_privilege('anon', 'public.research_cohort_applications', 'INSERT')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'UPDATE')
+    AND NOT has_any_column_privilege('anon', 'public.research_cohort_applications', 'UPDATE')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'DELETE')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'TRUNCATE')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_any_column_privilege('anon', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_table_privilege('anon', 'public.research_cohort_applications', 'TRIGGER')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'SELECT')
+    AND NOT has_any_column_privilege('authenticated', 'public.research_cohort_applications', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'INSERT')
+    AND NOT has_any_column_privilege('authenticated', 'public.research_cohort_applications', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'UPDATE')
+    AND NOT has_any_column_privilege('authenticated', 'public.research_cohort_applications', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'DELETE')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'TRUNCATE')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_any_column_privilege('authenticated', 'public.research_cohort_applications', 'REFERENCES')
+    AND NOT has_table_privilege('authenticated', 'public.research_cohort_applications', 'TRIGGER'),
   'rate_limit_subject_contract_exact', EXISTS (
     SELECT 1
     FROM pg_catalog.pg_attribute attribute_row

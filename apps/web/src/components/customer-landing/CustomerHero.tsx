@@ -4,14 +4,10 @@ import { motion } from "framer-motion";
 
 const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
-interface CustomerHeroProps {
-  demoMode?: boolean;
-}
-
-export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
-  const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const accountHref = "/login?mode=signup";
-  const exampleAppHref = "/demo/login";
+export default function CustomerHero() {
+  const isComingSoon = isComingSoonEnv;
+  const accountHref = isComingSoon ? "/beta" : "/login?mode=signup";
+  const secondaryHref = isComingSoon ? "/about" : "/demo/login";
   return (
     <section className="min-h-[100svh] flex items-center justify-center relative overflow-hidden bg-ivory-50">
       {/* 배경 */}
@@ -43,7 +39,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
 
         {/* 배지 */}
         <motion.a
-          href={exampleAppHref}
+          href={isComingSoon ? "/beta" : secondaryHref}
           initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
@@ -51,7 +47,7 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? "bg-gold" : "bg-emerald-500"} animate-pulse`} />
           <span className="text-[13px] text-charcoal tracking-wide font-light">
-            {isComingSoon ? "베타 준비중 · 예시 앱 체험 가능" : "베타 계정 · 예시 앱 별도 체험"}
+            {isComingSoon ? "베타 준비 중 · 사용자 연구 모집" : "베타 계정 · 예시 앱 별도 체험"}
           </span>
         </motion.a>
 
@@ -93,16 +89,16 @@ export default function CustomerHero({ demoMode }: CustomerHeroProps = {}) {
             href={accountHref}
             className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
-            베타 계정 만들기
+            {isComingSoon ? "사용자 연구 신청하기" : "베타 계정 만들기"}
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
           </a>
           <a
-            href={exampleAppHref}
+            href={secondaryHref}
             className="inline-flex items-center gap-2.5 px-10 py-4 bg-transparent text-charcoal border border-platinum rounded-full text-[15px] font-light hover:border-rose-500 hover:text-rose-500 hover:-translate-y-0.5 transition-all duration-300"
           >
-            계정 없이 예시 앱 체험
+            {isComingSoon ? "서비스 운영 원칙 보기" : "계정 없이 예시 앱 체험"}
           </a>
         </motion.div>
 

@@ -45,6 +45,21 @@ type DatabaseResult = {
   error: { code?: string; message?: string; status?: number } | null;
 };
 
+type LeaseHeartbeat = () => Promise<void>;
+
+const EMAIL_SCOPED_APPLICATION_DELETION_TARGETS = [
+  {
+    table: "preregistrations",
+    deleteFailureCode: "PREREGISTRATION_DELETE_FAILED",
+    verifyFailureCode: "PREREGISTRATION_DELETE_VERIFY_FAILED",
+  },
+  {
+    table: "research_cohort_applications",
+    deleteFailureCode: "RESEARCH_COHORT_APPLICATION_DELETE_FAILED",
+    verifyFailureCode: "RESEARCH_COHORT_APPLICATION_DELETE_VERIFY_FAILED",
+  },
+] as const;
+
 export class AccountDeletionError extends Error {
   readonly code: string;
 
@@ -68,6 +83,36 @@ function fail(code: string): never {
 async function must(code: string, operation: PromiseLike<DatabaseResult>): Promise<void> {
   const { error } = await operation;
   if (error) fail(code);
+}
+
+async function deleteAndVerifyEmailScopedApplicationData(
+  admin: SupabaseClient,
+  emails: readonly string[],
+  renewLease: LeaseHeartbeat,
+): Promise<void> {
+  // Each DELETE is an atomic Postgres statement. The durable job is not
+  // completed until every target is deleted and independently observed empty,
+  // so a partial network/database failure is safe to retry idempotently.
+  for (const email of emails) {
+    for (const target of EMAIL_SCOPED_APPLICATION_DELETION_TARGETS) {
+      await renewLease();
+      await must(
+        target.deleteFailureCode,
+        admin.from(target.table).delete().eq("email", email),
+      );
+    }
+  }
+
+  for (const email of emails) {
+    for (const target of EMAIL_SCOPED_APPLICATION_DELETION_TARGETS) {
+      await renewLease();
+      const { count, error } = await admin
+        .from(target.table)
+        .select("id", { count: "exact", head: true })
+        .eq("email", email);
+      if (error || count !== 0) fail(target.verifyFailureCode);
+    }
+  }
 }
 
 function isMissingAuthUser(error: unknown): boolean {
@@ -190,24 +235,104 @@ function assertSafeStorageEntryName(name: unknown): asserts name is string {
   }
 }
 
-async function discoverStorageObjects(
+async function deleteStorageObjectsPass(
   admin: SupabaseClient,
   scope: AccountDeletionStorageScope,
-): Promise<string[]> {
+  renewLease: LeaseHeartbeat,
+): Promise<number> {
   const pendingDirectories = [scope.prefix];
+  const scheduledDirectories = new Set(pendingDirectories);
   const visitedDirectories = new Set<string>();
-  const files: string[] = [];
+  const attemptedFiles = new Set<string>();
+  let removedObjects = 0;
 
   while (pendingDirectories.length > 0) {
     if (visitedDirectories.size >= MAX_DIRECTORIES_PER_SCOPE) {
       fail("STORAGE_DIRECTORY_LIMIT");
     }
-    const directory = pendingDirectories.shift()!;
+    // Depth-first traversal reaches a real object quickly even when the root
+    // contains only virtual folders. Every successful remove is durable
+    // progress if the serverless invocation is terminated later.
+    const directory = pendingDirectories.pop()!;
     if (visitedDirectories.has(directory)) continue;
     visitedDirectories.add(directory);
 
     let offset = 0;
     while (true) {
+      await renewLease();
+      const { data, error } = await admin.storage.from(scope.bucket).list(directory, {
+        limit: STORAGE_PAGE_SIZE,
+        offset,
+        sortBy: { column: "name", order: "asc" },
+      });
+      if (error) fail("STORAGE_LIST_FAILED");
+
+      const entries = data ?? [];
+      const files: string[] = [];
+      let persistentDirectoryEntries = 0;
+      for (const entry of entries) {
+        assertSafeStorageEntryName(entry.name);
+        const path = `${directory}/${entry.name}`;
+        if (typeof entry.id === "string" && entry.id.length > 0) {
+          if (attemptedFiles.has(path)) fail("STORAGE_REMOVE_UNCONFIRMED");
+          attemptedFiles.add(path);
+          files.push(path);
+        } else {
+          persistentDirectoryEntries += 1;
+          if (!scheduledDirectories.has(path)) {
+            if (scheduledDirectories.size >= MAX_DIRECTORIES_PER_SCOPE) {
+              fail("STORAGE_DIRECTORY_LIMIT");
+            }
+            scheduledDirectories.add(path);
+            pendingDirectories.push(path);
+          }
+        }
+      }
+
+      if (removedObjects + files.length > MAX_OBJECTS_PER_SCOPE) {
+        fail("STORAGE_OBJECT_LIMIT");
+      }
+      if (files.length > 0) {
+        // Do not build an invocation-sized inventory. Delete this bounded page
+        // before asking storage for another page so a hard timeout cannot erase
+        // all progress. Directory entries persist while files shift left, hence
+        // only persistent directories advance the next offset.
+        await renewLease();
+        const { error: removeError } = await admin.storage
+          .from(scope.bucket)
+          .remove(files);
+        if (removeError) fail("STORAGE_REMOVE_FAILED");
+        removedObjects += files.length;
+      }
+
+      if (entries.length < STORAGE_PAGE_SIZE) break;
+      offset += persistentDirectoryEntries;
+    }
+  }
+
+  return removedObjects;
+}
+
+async function storageScopeHasObjects(
+  admin: SupabaseClient,
+  scope: AccountDeletionStorageScope,
+  renewLease: LeaseHeartbeat,
+): Promise<boolean> {
+  const pendingDirectories = [scope.prefix];
+  const scheduledDirectories = new Set(pendingDirectories);
+  const visitedDirectories = new Set<string>();
+
+  while (pendingDirectories.length > 0) {
+    if (visitedDirectories.size >= MAX_DIRECTORIES_PER_SCOPE) {
+      fail("STORAGE_DIRECTORY_LIMIT");
+    }
+    const directory = pendingDirectories.pop()!;
+    if (visitedDirectories.has(directory)) continue;
+    visitedDirectories.add(directory);
+
+    let offset = 0;
+    while (true) {
+      await renewLease();
       const { data, error } = await admin.storage.from(scope.bucket).list(directory, {
         limit: STORAGE_PAGE_SIZE,
         offset,
@@ -218,40 +343,35 @@ async function discoverStorageObjects(
       const entries = data ?? [];
       for (const entry of entries) {
         assertSafeStorageEntryName(entry.name);
+        if (typeof entry.id === "string" && entry.id.length > 0) return true;
         const path = `${directory}/${entry.name}`;
-        if (typeof entry.id === "string" && entry.id.length > 0) {
-          files.push(path);
-          if (files.length > MAX_OBJECTS_PER_SCOPE) fail("STORAGE_OBJECT_LIMIT");
-        } else {
+        if (!scheduledDirectories.has(path)) {
+          if (scheduledDirectories.size >= MAX_DIRECTORIES_PER_SCOPE) {
+            fail("STORAGE_DIRECTORY_LIMIT");
+          }
+          scheduledDirectories.add(path);
           pendingDirectories.push(path);
         }
       }
-
       if (entries.length < STORAGE_PAGE_SIZE) break;
       offset += entries.length;
     }
   }
 
-  return files;
+  return false;
 }
 
 async function removeOwnedStorageScope(
   admin: SupabaseClient,
   scope: AccountDeletionStorageScope,
+  renewLease: LeaseHeartbeat,
 ): Promise<void> {
   for (let pass = 0; pass < MAX_STORAGE_DELETE_PASSES; pass++) {
-    const files = await discoverStorageObjects(admin, scope);
-    if (files.length === 0) return;
-
-    for (let index = 0; index < files.length; index += STORAGE_PAGE_SIZE) {
-      const { error } = await admin.storage
-        .from(scope.bucket)
-        .remove(files.slice(index, index + STORAGE_PAGE_SIZE));
-      if (error) fail("STORAGE_REMOVE_FAILED");
-    }
+    const removedObjects = await deleteStorageObjectsPass(admin, scope, renewLease);
+    if (removedObjects === 0) return;
   }
 
-  if ((await discoverStorageObjects(admin, scope)).length > 0) {
+  if (await storageScopeHasObjects(admin, scope, renewLease)) {
     fail("STORAGE_NOT_QUIESCENT");
   }
 }
@@ -260,6 +380,89 @@ async function loadAuthUser(admin: SupabaseClient, userId: string): Promise<User
   const { data, error } = await admin.auth.admin.getUserById(userId);
   if (error && !isMissingAuthUser(error)) fail("AUTH_LOOKUP_FAILED");
   return data?.user ?? null;
+}
+
+function normalizedDeletionEmail(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") fail("EMAIL_SNAPSHOT_INVALID");
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized.length < 3
+    || normalized.length > 320
+    || !/^[^\s@]+@[^\s@]+$/.test(normalized)
+  ) {
+    fail("EMAIL_SNAPSHOT_INVALID");
+  }
+  return normalized;
+}
+
+async function resolveDurableDeletionEmails(
+  admin: SupabaseClient,
+  job: AccountDeletionJob,
+  workerToken: string,
+  authUser: User | null,
+): Promise<string[]> {
+  const observedAt = new Date().toISOString();
+  const { data, error } = await admin
+    .from("account_deletion_jobs")
+    .select("email_scopes, email_snapshot_at")
+    .eq("id", job.job_id)
+    .eq("status", "processing")
+    .eq("lock_token", workerToken)
+    .gt("locked_until", observedAt)
+    .maybeSingle();
+  if (error || !data?.email_snapshot_at) fail("EMAIL_SNAPSHOT_LOAD_FAILED");
+  const snapshotTime = Date.parse(data.email_snapshot_at);
+  if (!Number.isFinite(snapshotTime)) fail("EMAIL_SNAPSHOT_INVALID");
+  if (!Array.isArray(data.email_scopes) || data.email_scopes.length > 8) {
+    fail("EMAIL_SNAPSHOT_INVALID");
+  }
+
+  const emailScopes = data.email_scopes.map((scope: unknown) => {
+    const normalized = normalizedDeletionEmail(scope);
+    if (!normalized || scope !== normalized) fail("EMAIL_SNAPSHOT_INVALID");
+    return normalized;
+  });
+  const uniqueScopes = [...new Set(emailScopes)].sort();
+  if (uniqueScopes.length !== emailScopes.length) fail("EMAIL_SNAPSHOT_INVALID");
+
+  const currentAuthEmail = authUser
+    ? normalizedDeletionEmail(authUser.email)
+    : null;
+  if (currentAuthEmail && !uniqueScopes.includes(currentAuthEmail)) {
+    const extendedScopes = [...uniqueScopes, currentAuthEmail].sort();
+    if (extendedScopes.length > 8) fail("EMAIL_SNAPSHOT_LIMIT");
+    const capturedAt = new Date().toISOString();
+    const { data: saved, error: saveError } = await admin
+      .from("account_deletion_jobs")
+      .update({ email_scopes: extendedScopes, email_snapshot_at: capturedAt })
+      .eq("id", job.job_id)
+      .eq("status", "processing")
+      .eq("lock_token", workerToken)
+      .gt("locked_until", capturedAt)
+      .select("id")
+      .maybeSingle();
+    if (saveError || saved?.id !== job.job_id) fail("EMAIL_SNAPSHOT_SAVE_FAILED");
+    return extendedScopes;
+  }
+
+  return uniqueScopes;
+}
+
+async function renewDeletionLease(
+  admin: SupabaseClient,
+  jobId: string,
+  workerToken: string,
+): Promise<void> {
+  const { data, error } = await admin.rpc(
+    "renew_account_deletion_job_lease",
+    {
+      p_job_id: jobId,
+      p_worker_token: workerToken,
+      p_lease_seconds: 600,
+    },
+  );
+  if (error || data !== true) fail("WORKER_LEASE_RENEW_FAILED");
 }
 
 async function deleteAuthUser(admin: SupabaseClient, userId: string): Promise<void> {
@@ -312,38 +515,52 @@ async function assertProviderLeasesDrained(
 async function deleteDirectUserData(
   admin: SupabaseClient,
   userId: string,
-  email: string | undefined,
+  emails: readonly string[],
+  renewLease: LeaseHeartbeat,
 ): Promise<void> {
-  await must("AMORA_LEAVE_FAILED", admin.rpc("leave_amora_couple_safely", {
+  const runPhase = async (
+    code: string,
+    operation: () => PromiseLike<DatabaseResult>,
+  ) => {
+    // Database statements are individually atomic, but the whole deletion is
+    // not one transaction. Prove worker ownership before every side effect.
+    await renewLease();
+    await must(code, operation());
+  };
+
+  await runPhase("AMORA_LEAVE_FAILED", () => admin.rpc("leave_amora_couple_safely", {
     p_user_id: userId,
     p_mode: "account_delete",
   }));
 
-  await must("CHAT_SUMMARIES_DELETE_FAILED", admin.from("chat_summaries").delete().eq("user_id", userId));
-  await must("CHAT_FEEDBACK_DELETE_FAILED", admin.from("chat_feedback").delete().eq("user_id", userId));
-  await must("SEARCH_LOGS_DELETE_FAILED", admin.from("search_logs").delete().eq("user_id", userId));
-  await must("VENDOR_PHOTO_LIKES_DELETE_FAILED", admin.from("vendor_photo_likes").delete().eq("user_id", userId));
-  await must("CUSTOMER_EVENTS_DELETE_FAILED", admin.from("customer_events").delete().eq("user_id", userId));
-  await must("QUOTE_CHECKS_DELETE_FAILED", admin.from("amora_quote_checks").delete().eq("user_id", userId));
-  await must("CHAT_MESSAGES_DELETE_FAILED", admin.from("chat_messages").delete().eq("sender_id", userId));
-  await must("VENDOR_REVIEWS_DELETE_FAILED", admin.from("vendor_reviews").delete().eq("customer_id", userId));
-  await must("VENDOR_VIEWS_DELETE_FAILED", admin.from("vendor_views").delete().eq("viewer_id", userId));
-  await must("RATE_LIMIT_DELETE_FAILED", admin
+  await runPhase("CHAT_SUMMARIES_DELETE_FAILED", () => admin.from("chat_summaries").delete().eq("user_id", userId));
+  await runPhase("CHAT_FEEDBACK_DELETE_FAILED", () => admin.from("chat_feedback").delete().eq("user_id", userId));
+  await runPhase("SEARCH_LOGS_DELETE_FAILED", () => admin.from("search_logs").delete().eq("user_id", userId));
+  await runPhase("VENDOR_PHOTO_LIKES_DELETE_FAILED", () => admin.from("vendor_photo_likes").delete().eq("user_id", userId));
+  await runPhase("CUSTOMER_EVENTS_DELETE_FAILED", () => admin.from("customer_events").delete().eq("user_id", userId));
+  await runPhase("QUOTE_CHECKS_DELETE_FAILED", () => admin.from("amora_quote_checks").delete().eq("user_id", userId));
+  await runPhase("CHAT_MESSAGES_DELETE_FAILED", () => admin.from("chat_messages").delete().eq("sender_id", userId));
+  await runPhase("VENDOR_REVIEWS_DELETE_FAILED", () => admin.from("vendor_reviews").delete().eq("customer_id", userId));
+  await runPhase("VENDOR_VIEWS_DELETE_FAILED", () => admin.from("vendor_views").delete().eq("viewer_id", userId));
+  await runPhase("RATE_LIMIT_DELETE_FAILED", () => admin
     .from("rate_limit_buckets")
     .delete()
     .eq("subject_user_id", userId));
-  await must("LEGACY_DELETION_USER_SCRUB_FAILED", admin
+  await runPhase("LEGACY_DELETION_USER_SCRUB_FAILED", () => admin
     .from("account_deletions")
     .update({ user_id: null, email: null, reason: "unknown" })
     .eq("user_id", userId));
-  if (email) {
-    await must("LEGACY_DELETION_EMAIL_SCRUB_FAILED", admin
+  for (const email of emails) {
+    await runPhase("LEGACY_DELETION_EMAIL_SCRUB_FAILED", () => admin
       .from("account_deletions")
       .update({ user_id: null, email: null, reason: "unknown" })
       .eq("email", email));
-    await must("PREREGISTRATION_DELETE_FAILED", admin.from("preregistrations").delete().eq("email", email));
   }
-  await must("AI_REDACTION_FAILED", admin.rpc("redact_user_ai_data", { p_user_id: userId }));
+  await deleteAndVerifyEmailScopedApplicationData(admin, emails, renewLease);
+  await runPhase("AI_REDACTION_FAILED", () => admin.rpc(
+    "redact_user_ai_data",
+    { p_user_id: userId },
+  ));
 }
 
 export async function processAccountDeletionJob(
@@ -365,6 +582,14 @@ export async function processAccountDeletionJob(
     // shared data, so require operator reconciliation instead.
     fail("SUBJECT_MISSING_BEFORE_INVENTORY");
   }
+  await renewDeletionLease(admin, job.job_id, workerToken);
+  const renewLease = () => renewDeletionLease(admin, job.job_id, workerToken);
+  const deletionEmails = await resolveDurableDeletionEmails(
+    admin,
+    job,
+    workerToken,
+    authUser,
+  );
 
   const membership = await loadCurrentMembership(admin, job.user_id);
   await assertProviderLeasesDrained(admin, job.user_id, membership.coupleId);
@@ -382,11 +607,14 @@ export async function processAccountDeletionJob(
     if (error || saved !== true) fail("STORAGE_INVENTORY_SAVE_FAILED");
   }
 
+  await renewDeletionLease(admin, job.job_id, workerToken);
   for (const scope of inventory) {
-    await removeOwnedStorageScope(admin, scope);
+    await removeOwnedStorageScope(admin, scope, renewLease);
   }
 
-  await deleteDirectUserData(admin, job.user_id, authUser?.email);
+  await renewDeletionLease(admin, job.job_id, workerToken);
+  await deleteDirectUserData(admin, job.user_id, deletionEmails, renewLease);
+  await renewDeletionLease(admin, job.job_id, workerToken);
   await deleteAuthUser(admin, job.user_id);
 
   const { data: completed, error: completionError } = await admin.rpc(

@@ -15,15 +15,11 @@ import ErrorRetry from "@/components/ErrorRetry";
 import OfflineBanner from "@/components/OfflineBanner";
 
 const paperlogyFonts = {
-  Paperlogy_100Thin: require("../assets/fonts/paperlogy/Paperlogy-1Thin.ttf"),
-  Paperlogy_200ExtraLight: require("../assets/fonts/paperlogy/Paperlogy-2ExtraLight.ttf"),
   Paperlogy_300Light: require("../assets/fonts/paperlogy/Paperlogy-3Light.ttf"),
   Paperlogy_400Regular: require("../assets/fonts/paperlogy/Paperlogy-4Regular.ttf"),
   Paperlogy_500Medium: require("../assets/fonts/paperlogy/Paperlogy-5Medium.ttf"),
   Paperlogy_600SemiBold: require("../assets/fonts/paperlogy/Paperlogy-6SemiBold.ttf"),
   Paperlogy_700Bold: require("../assets/fonts/paperlogy/Paperlogy-7Bold.ttf"),
-  Paperlogy_800ExtraBold: require("../assets/fonts/paperlogy/Paperlogy-8ExtraBold.ttf"),
-  Paperlogy_900Black: require("../assets/fonts/paperlogy/Paperlogy-9Black.ttf"),
 };
 
 const NotoSerifKR_300Light = paperlogyFonts.Paperlogy_300Light;
