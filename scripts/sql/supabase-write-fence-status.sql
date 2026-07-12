@@ -1,5 +1,5 @@
 -- One sanitized JSON row for database-readonly-realtime-cron-v1.
--- Never return activity query text, cron command text, config file paths, or credentials.
+-- Never return activity query text, cron command text, client addresses, config paths, or credentials.
 WITH required_roles(role_name) AS (
   VALUES
     ('authenticator'::text),
@@ -68,8 +68,49 @@ WITH required_roles(role_name) AS (
           'supabase_storage_admin',
           'dashboard_user'
         )
-    ) AS oldest_protected_role_session_at_utc
+    ) AS oldest_protected_role_session_at_utc,
+    count(*) FILTER (
+      WHERE activity.pid <> pg_backend_pid()
+        AND activity.backend_type = 'client backend'
+    )::bigint AS client_backend_sessions,
+    count(*) FILTER (
+      WHERE activity.pid <> pg_backend_pid()
+        AND (
+          activity.backend_type IS NULL
+          OR (
+            activity.backend_type = 'client backend'
+            AND (
+              activity.backend_start IS NULL
+              OR activity.usename IS NULL
+              OR session_role.oid IS NULL
+            )
+          )
+        )
+    )::bigint AS unclassified_client_backends,
+    count(*) FILTER (
+      WHERE activity.pid <> pg_backend_pid()
+        AND activity.backend_type = 'client backend'
+        AND (
+          session_role.oid IS NULL
+          OR activity.usename NOT IN (
+            'authenticator',
+            'supabase_auth_admin',
+            'supabase_storage_admin',
+            'dashboard_user'
+          )
+        )
+    )::bigint AS unclassified_writer_sessions,
+    min(activity.backend_start) FILTER (
+      WHERE activity.pid <> pg_backend_pid()
+        AND activity.backend_type = 'client backend'
+    ) AS oldest_client_backend_start_at_utc,
+    max(activity.backend_start) FILTER (
+      WHERE activity.pid <> pg_backend_pid()
+        AND activity.backend_type = 'client backend'
+    ) AS newest_client_backend_start_at_utc
   FROM pg_catalog.pg_stat_activity activity
+  LEFT JOIN pg_catalog.pg_roles session_role
+    ON session_role.rolname = activity.usename
   WHERE activity.datname = current_database()
 ), cron_drain AS (
   SELECT count(*)::bigint AS running_cron_jobs
@@ -100,11 +141,36 @@ SELECT jsonb_build_object(
     'runningCronJobs', (SELECT running_cron_jobs FROM cron_drain),
     'protectedRoleSessions', (SELECT protected_role_sessions FROM drain_status),
     'oldestProtectedRoleSessionAtUtc',
-      (SELECT oldest_protected_role_session_at_utc FROM drain_status)
+      (SELECT oldest_protected_role_session_at_utc FROM drain_status),
+    'clientBackendSessions', (SELECT client_backend_sessions FROM drain_status),
+    'unclassifiedClientBackends',
+      (SELECT unclassified_client_backends FROM drain_status),
+    'unclassifiedWriterSessions',
+      (SELECT unclassified_writer_sessions FROM drain_status),
+    'oldestClientBackendStartAtUtc',
+      (SELECT oldest_client_backend_start_at_utc FROM drain_status),
+    'newestClientBackendStartAtUtc',
+      (SELECT newest_client_backend_start_at_utc FROM drain_status)
+  ),
+  'backendBoundary', jsonb_build_object(
+    'observedAtUtc', statement_timestamp(),
+    'postmasterStartedAtUtc', pg_postmaster_start_time(),
+    'clientBackendSessions', (SELECT client_backend_sessions FROM drain_status),
+    'unclassifiedClientBackends',
+      (SELECT unclassified_client_backends FROM drain_status),
+    'unclassifiedWriterSessions',
+      (SELECT unclassified_writer_sessions FROM drain_status),
+    'oldestClientBackendStartAtUtc',
+      (SELECT oldest_client_backend_start_at_utc FROM drain_status),
+    'newestClientBackendStartAtUtc',
+      (SELECT newest_client_backend_start_at_utc FROM drain_status)
   ),
   'releaseConnection', jsonb_build_object(
-    'sessionUser', session_user,
-    'currentUser', current_user,
-    'transactionReadOnly', current_setting('transaction_read_only')
+    'roleClass', CASE
+      WHEN session_user = 'postgres' AND current_user = 'postgres'
+        THEN 'supabase_project_postgres'
+      ELSE 'unexpected'
+    END,
+    'transactionReadOnly', current_setting('transaction_read_only') = 'on'
   )
 ) AS write_fence_status;

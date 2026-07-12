@@ -32,7 +32,10 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     const permanentGuard = fence.indexOf("Protected production write-fence actions remain disabled", productionGuard);
     const credentialPrompt = fence.indexOf("Read-Host", productionGuard);
     const managementRequest = fence.indexOf("Invoke-RestMethod", productionGuard);
-    const databaseQuery = fence.indexOf("supabase db query", productionGuard);
+    const databaseQuery = fence.indexOf(
+      '"/v1/projects/$ExpectedProjectRef/database/query"',
+      productionGuard
+    );
 
     expect(productionGuard).toBeGreaterThanOrEqual(0);
     expect(permanentGuard).toBeGreaterThan(productionGuard);
@@ -186,17 +189,21 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain('$_.status -in @("pending", "applied")');
   });
 
-  it("scopes both hidden credentials to child-process environment and restores prior values", () => {
-    expect(fence).toContain("$previousManagementAccessToken = $env:SUPABASE_ACCESS_TOKEN");
-    expect(fence).toContain("$env:SUPABASE_ACCESS_TOKEN = $managementToken");
-    expect(fence).toContain("Remove-Item Env:SUPABASE_ACCESS_TOKEN -ErrorAction SilentlyContinue");
-    expect(fence).toContain("$env:SUPABASE_ACCESS_TOKEN = $previousManagementAccessToken");
+  it("keeps the hidden Management token process-local and out of child-process environments", () => {
+    expect(fence).toContain("$script:ManagementAccessToken = $managementToken");
+    expect(fence).toContain("$script:ManagementAccessToken = $null");
+    expect(fence).not.toContain("$env:SUPABASE_ACCESS_TOKEN = $managementToken");
+    expect(fence).not.toContain("$env:SUPABASE_DB_PASSWORD");
 
     const queryHelper = fence.slice(
-      fence.indexOf("function Invoke-FenceDatabaseQuery"),
+      fence.indexOf("function Invoke-FenceDatabaseApiRequest"),
       fence.indexOf("function Read-FenceDatabaseStatus")
     );
-    expect(queryHelper).not.toContain("-AccessToken");
+    expect(queryHelper).toContain("$script:ManagementAccessToken");
+    expect(queryHelper).toContain(
+      '"/v1/projects/$ExpectedProjectRef/database/query"'
+    );
+    expect(queryHelper).not.toContain("corepack pnpm exec supabase db query");
     expect(queryHelper).not.toContain("-DatabasePassword");
   });
 
@@ -206,7 +213,9 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("function Wait-NetworkFenceEnforced");
     expect(fence).toContain("Network restriction status cannot prove enforcement");
     expect(fence).toContain("Network restriction did not become enforced before the bounded timeout");
-    expect(fence).toContain('entitlement = [string](Get-OptionalProperty $Response "entitlement" "")');
+    expect(fence).toContain(
+      '$entitlement = Get-RequiredManagementString $Response "entitlement"'
+    );
     expect(fence).toContain('$networkEntitlement -ne "allowed"');
     expect(fence).toContain("Captured network baseline is not proven applied and entitled");
 
@@ -227,12 +236,14 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("terminationFailures");
   });
 
-  it("holds the linked-project lock and accepts both pinned CLI JSON row shapes", () => {
+  it("keeps the linked ref as an intent check while pinning DB rows to the explicit project API", () => {
     expect(fence).toContain("[IO.FileShare]::Read");
     expect(fence).toContain("$linkLock.Dispose()");
     expect(fence).toContain("function ConvertFrom-SupabaseQueryRows");
     expect(fence).toContain("$document -is [Array]");
-    expect(fence).toContain('$document.PSObject.Properties.Name -contains "rows"');
+    expect(fence).toContain("The old CLI wrapper is deliberately recognized only to reject it");
+    expect(fence).toContain("read_only = [bool]$ReadOnly");
+    expect(fence).toContain("StatusCode -ne 201");
   });
 
   it("requires separate post-migration evidence before a started migration can release the fence", () => {
@@ -250,7 +261,8 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     ]) {
       expect(fence).toContain(`"${check}"`);
     }
-    expect(fence).toContain("Get-FileHash -LiteralPath $Path -Algorithm SHA256");
+    expect(fence).toContain("$payload = Read-FenceJournalPayloadBounded $Path");
+    expect(fence).toContain("digestSha256 = $payload.digestSha256");
     expect(fence).toContain('$snapshot.state = "migration_verified"');
     expect(fence).toContain("$snapshot.migrationVerified = $true");
     expect(fence).toContain(
@@ -264,6 +276,52 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     const credentialBoundary = fence.indexOf("Assert-LinkedProject", verificationAction);
     expect(verificationAction).toBeGreaterThanOrEqual(0);
     expect(credentialBoundary).toBeGreaterThan(verificationAction);
+  });
+
+  it("binds journal JSON and evidence digests to one bounded, strict UTF-8 file handle", () => {
+    const payloadReader = fence.slice(
+      fence.indexOf("function Read-FenceJournalPayloadBounded"),
+      fence.indexOf("function Read-PostMigrationEvidence")
+    );
+    expect(payloadReader).toContain("[IO.File]::Open(");
+    expect(payloadReader).toContain("[IO.FileShare]::Read");
+    expect(payloadReader).toContain("$script:MaximumJournalArtifactBytes");
+    expect(payloadReader).toContain("$sha256.ComputeHash($bytes)");
+    expect(payloadReader).toContain("[Text.UTF8Encoding]::new($false, $true).GetString($bytes)");
+    expect(payloadReader).not.toContain("Get-Content");
+    expect(payloadReader).not.toContain("Get-FileHash");
+  });
+
+  it("rejects forged lifecycle graphs and rebinds verified evidence before credentials", () => {
+    expect(fence).toContain("function Assert-FenceLifecycleGraph");
+    expect(fence).toContain("function Assert-PostMigrationEvidenceSummary");
+    expect(fence).toContain("Write-fence snapshot contains duplicate journal steps");
+    expect(fence).toContain('captured = @()');
+    expect(fence).toContain('active = $activeControlSteps');
+    expect(fence).toContain('migration_in_progress = @($activeControlSteps + "migration")');
+    expect(fence).toContain("function Assert-RestoreEvidenceBoundary");
+    expect(fence).toContain("Assert-PostMigrationEvidenceRebound $reboundEvidencePath $Snapshot");
+
+    const restorePreflight = fence.slice(
+      fence.indexOf('if ($Action -in @("Deactivate", "Recover"))'),
+      fence.indexOf("$managementToken = $null")
+    );
+    expect(restorePreflight).toContain("Assert-RestoreTransitionAllowed");
+    expect(restorePreflight).toContain("Assert-RestoreEvidenceBoundary");
+    expect(fence.indexOf("Assert-RestoreEvidenceBoundary $preflightRestoreSnapshot"))
+      .toBeLessThan(fence.indexOf('Read-FenceSecret "Paste a project-scoped Supabase Management token'));
+  });
+
+  it("enforces owner-only journal directories, locks, payloads, and snapshots", () => {
+    expect(fence).toContain("function Set-FenceJournalPathPrivate");
+    expect(fence).toContain("function Assert-FenceJournalPathPrivate");
+    expect(fence).toContain("SetAccessRuleProtection($true, $false)");
+    expect(fence).toContain('"UserRead, UserWrite, UserExecute"');
+    expect(fence).toContain('"UserRead, UserWrite"');
+    expect(fence).toContain('$_.Name -eq "SetUnixFileMode"');
+    expect(fence).toContain('$_.Name -eq "GetUnixFileMode"');
+    expect(fence).toContain("Set-FenceJournalPathPrivate -Path $Path");
+    expect(fence).toContain("Assert-FenceJournalPathPrivate -Path $fullPath -Directory:$Directory");
   });
 
   it("binds snapshot production identity to protected refs and defaults unknown remote refs to denied", () => {

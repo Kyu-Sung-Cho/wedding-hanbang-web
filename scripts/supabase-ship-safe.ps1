@@ -984,7 +984,7 @@ if ($isProductionTarget -and
   throw "Production push is disabled until encrypted DB/Storage recovery and an isolated restore drill are verified."
 }
 if ($isProductionTarget) {
-  throw "Production push remains disabled until ship is bound to a live fence snapshot and an automated black-box evidence producer."
+  throw "Production push remains disabled until ship is bound to a live fence snapshot, an automated black-box evidence producer, and an integrated reviewed exact-target direct DB runner."
 }
 $approvedNonProductionRefs = @($targets.approvedNonProductionSupabaseProjectRefs |
   ForEach-Object { [string]$_ })
