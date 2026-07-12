@@ -262,6 +262,9 @@ describe("release safety contract", () => {
       `--play-signing-sha256=${validFingerprint}`,
     ]);
     expect(sequentialTeam.status).not.toBe(0);
+    expect(`${sequentialTeam.stdout}\n${sequentialTeam.stderr}`).toContain(
+      "--apple-team-id must match"
+    );
 
     const sequentialFingerprint = run([
       `--expected-sha=${validSha}`,
@@ -269,6 +272,19 @@ describe("release safety contract", () => {
       `--play-signing-sha256=${"0123456789abcdef".repeat(4)}`,
     ]);
     expect(sequentialFingerprint.status).not.toBe(0);
+    expect(`${sequentialFingerprint.stdout}\n${sequentialFingerprint.stderr}`).toContain(
+      "--play-signing-sha256 must match"
+    );
+
+    const sequentialSha = run([
+      `--expected-sha=${"0123456789abcdef".repeat(3).slice(0, 40)}`,
+      `--apple-team-id=${validTeamId}`,
+      `--play-signing-sha256=${validFingerprint}`,
+    ]);
+    expect(sequentialSha.status).not.toBe(0);
+    expect(`${sequentialSha.stdout}\n${sequentialSha.stderr}`).toContain(
+      "--expected-sha must be"
+    );
   });
 
   it("forbids destructive lifecycle smoke tests on every protected production ref", () => {
