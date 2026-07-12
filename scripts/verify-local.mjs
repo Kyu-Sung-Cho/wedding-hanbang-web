@@ -33,6 +33,14 @@ const checks = [
     args: ["pnpm", "supabase:auth-config:test"],
   },
   {
+    name: "Supabase write-fence lifecycle tests",
+    args: ["pnpm", "supabase:fence:test"],
+  },
+  {
+    name: "Vercel release inventory redaction tests",
+    args: ["pnpm", "vercel:release-inventory:test"],
+  },
+  {
     name: "live release smoke contract tests",
     args: ["pnpm", "qa:live:test"],
   },

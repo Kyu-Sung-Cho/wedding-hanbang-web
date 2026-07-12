@@ -64,6 +64,10 @@ const adminAuth = readRepo("apps/web/src/app/api/admin/auth/route.ts");
 const demoSession = readRepo("apps/web/src/lib/demoSession.ts");
 const reviewedPowerShellLauncher = readRepo("scripts/run-reviewed-powershell.mjs");
 const repositorySecretScan = readRepo("scripts/scan-tracked-secrets.mjs");
+const vercelReleaseInventory = readRepo(
+  "scripts/vercel-release-inventory.mjs"
+);
+const verifyLocal = readRepo("scripts/verify-local.mjs");
 const ciWorkflow = readRepo(".github/workflows/ci.yml");
 const mobileReleaseReadiness = readRepo("scripts/mobile-release-readiness.mjs");
 const liveSmoke = readRepo("scripts/live-smoke-test.mjs");
@@ -166,6 +170,62 @@ describe("release safety contract", () => {
     expect(reconcile).toContain(
       "Production baseline reconciliation remains disabled until it is bound to one live write-fence lifecycle"
     );
+    expect(packageJson.scripts["supabase:fence:test"]).toContain(
+      "supabase-write-fence-offline.test.mjs"
+    );
+    expect(packageJson.scripts["supabase:fence:test"]).not.toContain(
+      "supabase-write-fence-evidence"
+    );
+    expect(verifyLocal).toContain(
+      "Supabase write-fence lifecycle tests"
+    );
+    expect(packageJson.scripts).not.toHaveProperty("supabase:fence:evidence");
+  });
+
+  it("sanitizes Vercel release inventory without treating an omitted bypass field as empty", () => {
+    expect(packageJson.scripts["vercel:release-inventory:test"]).toContain(
+      "vercel-release-inventory.test.mjs"
+    );
+    expect(verifyLocal).toContain("Vercel release inventory redaction tests");
+    expect(vercelReleaseInventory).toContain("automationBypassFieldObserved");
+    expect(vercelReleaseInventory).toContain("nextCursorPresent");
+    expect(vercelReleaseInventory).toContain("previousCursorPresent");
+    expect(vercelReleaseInventory).toContain("singlePageComplete");
+    expect(vercelReleaseInventory).toContain("deploymentHasCustomEnvironment");
+    expect(vercelReleaseInventory).toContain("configurationSourceObserved");
+    expect(vercelReleaseInventory).toContain("unscopedTargetOwners");
+    expect(vercelReleaseInventory).toContain("branchOwners");
+    expect(vercelReleaseInventory).toContain("customEnvironmentOwners");
+    expect(vercelReleaseInventory).toContain("customEnvironmentCount");
+    expect(vercelReleaseInventory).toContain(
+      'evaluationMode: "offline-local-artifacts"'
+    );
+    expect(vercelReleaseInventory).toContain("sourceAttestationVerified: false");
+    expect(vercelReleaseInventory).toContain("productionProof: false");
+    expect(vercelReleaseInventory).toContain("releaseEligible: false");
+    expect(vercelReleaseInventory).toContain('["count", "next", "prev"]');
+    expect(vercelReleaseInventory).not.toContain("localeCompare");
+    expect(vercelReleaseInventory).toContain("lstatLocalPathWithoutRedirects");
+    expect(vercelReleaseInventory).toContain("await lstat(current)");
+    expect(vercelReleaseInventory).toContain("metadata.isSymbolicLink()");
+    expect(vercelReleaseInventory).toContain(
+      "constants.O_RDONLY | constants.O_NOFOLLOW"
+    );
+    expect(vercelReleaseInventory).toContain("await handle.readFile()");
+    for (const metadataField of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      expect(vercelReleaseInventory).toContain(
+        `left.${metadataField} === right.${metadataField}`
+      );
+    }
+    expect(vercelReleaseInventory).not.toContain("await readFile(resolvedPath)");
+    expect(vercelReleaseInventory).toContain("fieldObserved: false");
+    expect(vercelReleaseInventory).toContain("configured: null");
+    expect(vercelReleaseInventory).toContain("count: null");
+    expect(vercelReleaseInventory).not.toMatch(/\bfetch\s*\(/);
+    expect(vercelReleaseInventory).not.toMatch(
+      /node:(?:http|https|net|tls|child_process)/
+    );
+    expect(vercelReleaseInventory).not.toMatch(/\bchild_process\b/);
   });
 
   it("does not expose raw mutation aliases or include-all in guarded release commands", () => {

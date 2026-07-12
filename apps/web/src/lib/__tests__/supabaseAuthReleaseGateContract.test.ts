@@ -61,10 +61,41 @@ describe("Supabase hosted Auth release gate", () => {
     expect(hostedPreflight).toContain(
       "config.password_required_characters ==="
     );
+    expect(hostedPreflight).toContain(
+      "config.site_url === expected.redirectTokenPolicy.canonicalSiteUrl"
+    );
+    expect(hostedPreflight).toContain(
+      "arraysEqual(actualRedirectUrls, expected.additionalRedirectUrls)"
+    );
+    expect(hostedPreflight).toContain(
+      "config.jwt_exp === expected.redirectTokenPolicy.jwtExpirySeconds"
+    );
+    expect(hostedPreflight).toContain(
+      "config.refresh_token_rotation_enabled ==="
+    );
+    expect(hostedPreflight).toContain(
+      "config.security_refresh_token_reuse_interval ==="
+    );
+    expect(hostedPreflight).toContain(
+      "config.mailer_otp_length === expected.redirectTokenPolicy.emailOtpLength"
+    );
+    expect(hostedPreflight).toContain(
+      "config.mailer_otp_exp === expected.redirectTokenPolicy.emailOtpExpirySeconds"
+    );
+    expect(hostedPreflight).toContain("config.rate_limit_email_sent ===");
+    expect(hostedPreflight).toContain("config.rate_limit_token_refresh ===");
+    expect(hostedPreflight).toContain("config.rate_limit_otp ===");
+    expect(hostedPreflight).toContain("config.rate_limit_verify ===");
+    expect(hostedPreflight).toContain(
+      "/^external_([a-z0-9_]+)_enabled$/"
+    );
     expect(hostedPreflight).toContain('method: "GET"');
     expect(hostedPreflight).not.toContain('method: "PATCH"');
     expect(hostedPreflight).not.toContain('method: "POST"');
     expect(hostedPreflightTests).toContain('"--write"');
+    expect(hostedPreflightTests).toContain(
+      "attests the exact hosted redirect, token, rate-limit, and OAuth boundary"
+    );
     expect(hostedPreflightTests).toContain("prints only project identity and boolean evidence");
   });
 
@@ -106,11 +137,22 @@ describe("Supabase hosted Auth release gate", () => {
       contract: "hosted-public-email-boundary-v1",
       approvedMode: null,
     });
-    expect(releaseTargets.productionSupabaseRedirectTokenPolicy).toMatchObject({
+    expect(releaseTargets.productionSupabaseRedirectTokenPolicy).toEqual({
       status: "not_attested",
       contract: "hosted-auth-redirect-token-v1",
       canonicalSiteUrl: "https://hanbang.ai",
       exactAdditionalRedirectUrls: [],
+      jwtExpirySeconds: 3600,
+      refreshTokenRotation: true,
+      refreshTokenReuseSeconds: 10,
+      emailOtpLength: 6,
+      emailOtpExpirySeconds: 3600,
+      rateLimits: {
+        emailSentPerHour: 2,
+        tokenRefreshPerFiveMinutesPerIp: 150,
+        signInSignUpsPerFiveMinutesPerIp: 30,
+        tokenVerificationsPerFiveMinutesPerIp: 30,
+      },
     });
     expect(releaseTargets.productionOAuthProviderContract).toEqual({
       status: "not_attested",
