@@ -8,6 +8,8 @@
   "build": {
     "development": {
       "environment": "development",
+      "node": "22.13.0",
+      "pnpm": "11.7.0",
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
@@ -19,6 +21,8 @@
     },
     "preview": {
       "environment": "preview",
+      "node": "22.13.0",
+      "pnpm": "11.7.0",
       "distribution": "internal",
       "ios": {
         "simulator": false
