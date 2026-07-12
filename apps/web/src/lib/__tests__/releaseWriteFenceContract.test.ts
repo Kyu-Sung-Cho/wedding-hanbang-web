@@ -20,6 +20,8 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(releaseTargets.productionDatabaseWriteFence).toBe("not_configured");
     expect(releaseTargets.approvedNonProductionSupabaseProjectRefs).toEqual([]);
     expect(fence).toContain('$script:Contract = "database-readonly-realtime-cron-v1"');
+    expect(fence).toContain("$script:RunningOnWindows");
+    expect(fence).not.toMatch(/\$script:IsWindows\b/i);
     expect(fence).toContain('productionDatabaseWriteFence -ne "verified-v1"');
 
     const productionGuard = fence.indexOf('productionDatabaseWriteFence -ne "verified-v1"');

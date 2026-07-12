@@ -14,7 +14,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $script:Contract = "database-readonly-realtime-cron-v1"
-$script:IsWindows = [Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+$script:RunningOnWindows = [Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
   [Runtime.InteropServices.OSPlatform]::Windows
 )
 
@@ -154,7 +154,7 @@ function Assert-ReleaseCidr {
 }
 
 function Get-SnapshotRoot {
-  $stateRoot = if ($script:IsWindows) {
+  $stateRoot = if ($script:RunningOnWindows) {
     $env:LOCALAPPDATA
   } elseif (-not [string]::IsNullOrWhiteSpace($env:XDG_STATE_HOME)) {
     $env:XDG_STATE_HOME
@@ -182,7 +182,7 @@ function Test-PathInsideJournalRoot {
     [IO.Path]::AltDirectorySeparatorChar
   )
   $rootWithSeparator = $trimmedRoot + [IO.Path]::DirectorySeparatorChar
-  $comparison = if ($script:IsWindows) {
+  $comparison = if ($script:RunningOnWindows) {
     [StringComparison]::OrdinalIgnoreCase
   } else {
     [StringComparison]::Ordinal
