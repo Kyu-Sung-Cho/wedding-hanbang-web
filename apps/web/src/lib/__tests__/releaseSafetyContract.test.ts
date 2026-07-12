@@ -187,6 +187,7 @@ describe("release safety contract", () => {
     );
     const qualityJob = ciWorkflow.slice(ciWorkflow.indexOf("  quality:"));
     expect(historyJob).toContain("fetch-depth: 0");
+    expect(historyJob).toContain("package-manager-cache: false");
     expect(historyJob).toContain("node ./scripts/scan-tracked-secrets.mjs");
     expect(historyJob).not.toContain("pnpm install");
     expect(historyJob).not.toContain("pnpm/action-setup");

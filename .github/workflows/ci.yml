@@ -30,6 +30,10 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24.x
+          # setup-node v5 enables package-manager cache discovery by default.
+          # This dependency-free gate intentionally runs before pnpm exists, so
+          # caching must be disabled explicitly or the gate fails before scanning.
+          package-manager-cache: false
 
       # This scanner uses only Node built-ins. It must run before any package
       # manager or repository-controlled dependency lifecycle script.
