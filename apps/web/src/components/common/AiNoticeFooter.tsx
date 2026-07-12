@@ -12,11 +12,11 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
   const isDark = variant === "dark";
 
   const borderCls = isDark ? "border-white/10" : "border-[#e5dcdc]";
-  const textCls = isDark ? "text-white/60" : "text-[#504444]";
+  const textCls = isDark ? "text-white/80" : "text-[#504444]";
   const iconBgCls = isDark
     ? "bg-white/10 text-white/80"
     : "bg-[#795252]/10 text-[#795252]";
-  const labelCls = isDark ? "text-white/80" : "text-[#1b1c1c]";
+  const labelCls = isDark ? "text-white/90" : "text-[#1b1c1c]";
   const linkHoverCls = isDark ? "hover:text-white" : "hover:text-[#795252]";
 
   return (
@@ -36,7 +36,7 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
           </p>
           <p>
             생성형 AI 사용 사실과 AI 생성 결과를 화면에 표시하며, 안전·개인정보 원칙을 계속 점검합니다.
-            <Link href="/ai-policy" className={`underline ml-1 ${linkHoverCls} transition-colors`}>
+            <Link href="/ai-policy" className={`ml-1 inline-flex min-h-11 items-center px-2 underline ${linkHoverCls} transition-colors`}>
               자세히
             </Link>
           </p>

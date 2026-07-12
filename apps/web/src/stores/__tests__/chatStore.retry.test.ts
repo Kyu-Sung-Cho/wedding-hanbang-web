@@ -131,4 +131,56 @@ describe("useChatStore AI response retry", () => {
     expect(useChatStore.getState().error).toContain("입력 내용과 첨부는 그대로");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it("lets the user stop a slow AI response while preserving an exact retry", async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(201, { message: messageRow }))
+      .mockImplementationOnce((_, init?: RequestInit) => new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error("missing abort signal"));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }));
+
+    const sendPromise = useChatStore.getState().sendMessage(sendParams);
+    await vi.waitFor(() => expect(useChatStore.getState().isStreaming).toBe(true));
+
+    useChatStore.getState().cancelAiResponse();
+    await expect(sendPromise).resolves.toBe(true);
+
+    const state = useChatStore.getState();
+    expect(state.isStreaming).toBe(false);
+    expect(state.error).toContain("답변 생성을 멈췄어요");
+    expect(state.pendingAiRequest).not.toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("never restores the previous user's pending request after a reset abort", async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(201, { message: messageRow }))
+      .mockImplementationOnce((_, init?: RequestInit) => new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error("missing abort signal"));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }));
+
+    const sendPromise = useChatStore.getState().sendMessage(sendParams);
+    await vi.waitFor(() => expect(useChatStore.getState().isStreaming).toBe(true));
+    expect(useChatStore.getState().pendingAiRequest?.payload.attachments).toHaveLength(1);
+
+    useChatStore.getState().reset();
+    await expect(sendPromise).resolves.toBe(true);
+
+    const state = useChatStore.getState();
+    expect(state.messages).toEqual([]);
+    expect(state.pendingAiRequest).toBeNull();
+    expect(state.streamingContent).toBe("");
+    expect(state.error).toBeNull();
+    expect(state.isStreaming).toBe(false);
+  });
 });

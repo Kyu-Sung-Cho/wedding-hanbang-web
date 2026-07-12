@@ -5,26 +5,30 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 
 const DEFAULT_BASE_URL = "https://hanbang.ai";
 const DEFAULT_TIMEOUT_MS = 45_000;
 const REPORT_ROOT = ".gstack/qa-reports/live-smoke";
 
-function parseArgs(argv) {
+export function parseArgs(argv, env = process.env) {
   const options = {
-    baseUrl: process.env.LIVE_SMOKE_BASE_URL || DEFAULT_BASE_URL,
-    browserPath: process.env.LIVE_SMOKE_BROWSER_PATH || "",
-    headed: process.env.LIVE_SMOKE_HEADED === "1",
+    baseUrl: env.LIVE_SMOKE_BASE_URL || DEFAULT_BASE_URL,
+    browserPath: env.LIVE_SMOKE_BROWSER_PATH || "",
+    headed: env.LIVE_SMOKE_HEADED === "1",
     json: false,
-    launchMode: process.env.LIVE_SMOKE_LAUNCH_MODE || "full",
-    expectedSha: process.env.LIVE_SMOKE_EXPECTED_SHA || "",
-    appleTeamId: process.env.LIVE_SMOKE_APPLE_TEAM_ID || "",
-    playSigningSha256: process.env.LIVE_SMOKE_PLAY_SIGNING_SHA256 || "",
-    researchIntake: process.env.LIVE_SMOKE_RESEARCH_INTAKE || "closed",
-    accountDeletionCron: process.env.LIVE_SMOKE_ACCOUNT_DELETION_CRON || "closed",
-    skipDemo: process.env.LIVE_SMOKE_SKIP_DEMO === "1",
-    timeoutMs: Number(process.env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
+    launchMode: env.LIVE_SMOKE_LAUNCH_MODE || "full",
+    expectedSha: env.LIVE_SMOKE_EXPECTED_SHA || "",
+    expectedSupabaseProjectRef:
+      env.LIVE_SMOKE_EXPECTED_SUPABASE_PROJECT_REF || "",
+    appleTeamId: env.LIVE_SMOKE_APPLE_TEAM_ID || "",
+    playSigningSha256: env.LIVE_SMOKE_PLAY_SIGNING_SHA256 || "",
+    researchIntake: env.LIVE_SMOKE_RESEARCH_INTAKE || "closed",
+    accountDeletionCron: env.LIVE_SMOKE_ACCOUNT_DELETION_CRON || "closed",
+    skipDemo: env.LIVE_SMOKE_SKIP_DEMO === "1",
+    allowUnboundLocal: env.LIVE_SMOKE_ALLOW_UNBOUND_LOCAL === "1",
+    timeoutMs: Number(env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
   };
 
   for (const arg of argv) {
@@ -36,6 +40,11 @@ function parseArgs(argv) {
     else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
     else if (arg.startsWith("--launch-mode=")) options.launchMode = arg.slice("--launch-mode=".length);
     else if (arg.startsWith("--expected-sha=")) options.expectedSha = arg.slice("--expected-sha=".length);
+    else if (arg.startsWith("--expected-supabase-project-ref=")) {
+      options.expectedSupabaseProjectRef = arg.slice(
+        "--expected-supabase-project-ref=".length
+      );
+    }
     else if (arg.startsWith("--apple-team-id=")) options.appleTeamId = arg.slice("--apple-team-id=".length);
     else if (arg.startsWith("--play-signing-sha256=")) options.playSigningSha256 = arg.slice("--play-signing-sha256=".length);
     else if (arg.startsWith("--research-intake=")) options.researchIntake = arg.slice("--research-intake=".length);
@@ -43,6 +52,7 @@ function parseArgs(argv) {
     else if (arg === "--headed") options.headed = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--skip-demo") options.skipDemo = true;
+    else if (arg === "--allow-unbound-local") options.allowUnboundLocal = true;
     else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -64,17 +74,29 @@ function parseArgs(argv) {
   if (!["closed", "open"].includes(options.accountDeletionCron)) {
     throw new Error("--account-deletion-cron must be closed or open");
   }
+  const baseHostname = new URL(options.baseUrl).hostname;
+  const isLocalTarget = ["localhost", "127.0.0.1", "::1"].includes(baseHostname);
+  if (options.allowUnboundLocal && !isLocalTarget) {
+    throw new Error("--allow-unbound-local is restricted to localhost targets");
+  }
+  if (!options.allowUnboundLocal && !isPlausibleCommitSha(options.expectedSha)) {
+    throw new Error(
+      "--expected-sha must be the exact non-placeholder 40-character deployment commit"
+    );
+  }
   if (
-    options.launchMode === "coming_soon"
-    && !isPlausibleCommitSha(options.expectedSha)
+    !options.allowUnboundLocal
+    && !/^[a-z0-9]{20}$/.test(options.expectedSupabaseProjectRef)
   ) {
-    throw new Error("--expected-sha must be the exact 40-character deployment commit in coming_soon mode");
+    throw new Error(
+      "--expected-supabase-project-ref must be the exact 20-character Supabase project ref"
+    );
   }
-  if (options.launchMode === "coming_soon" && !isPlausibleAppleTeamId(options.appleTeamId)) {
-    throw new Error("--apple-team-id must match the signed 10-character Apple Team ID in coming_soon mode");
+  if (!options.allowUnboundLocal && !isPlausibleAppleTeamId(options.appleTeamId)) {
+    throw new Error("--apple-team-id must match the signed 10-character Apple Team ID for every remote release");
   }
-  if (options.launchMode === "coming_soon" && !isPlausibleSigningFingerprint(options.playSigningSha256)) {
-    throw new Error("--play-signing-sha256 must match the Play App Signing SHA-256 in coming_soon mode");
+  if (!options.allowUnboundLocal && !isPlausibleSigningFingerprint(options.playSigningSha256)) {
+    throw new Error("--play-signing-sha256 must match the Play App Signing SHA-256 for every remote release");
   }
   return options;
 }
@@ -87,13 +109,15 @@ Options:
   --browser-path=<path>  Chrome or Edge executable path.
   --timeout-ms=<ms>      Per-page timeout. Default: ${DEFAULT_TIMEOUT_MS}
   --launch-mode=<mode>   full or coming_soon. Default: full
-  --expected-sha=<sha>   Exact 40-character deployed commit; required for coming_soon.
-  --apple-team-id=<id>   Signed 10-character Apple Team ID; required for coming_soon.
-  --play-signing-sha256=<fingerprint>  Play App Signing SHA-256; required for coming_soon.
+  --expected-sha=<sha>   Exact non-placeholder 40-character deployed commit; required for remote targets.
+  --expected-supabase-project-ref=<ref>  Exact 20-character Supabase project ref; required for remote targets.
+  --apple-team-id=<id>   Signed 10-character Apple Team ID; required for every remote release.
+  --play-signing-sha256=<fingerprint>  Play App Signing SHA-256; required for every remote release.
   --research-intake=<state>  closed or open. Default: closed.
   --account-deletion-cron=<state>  closed or open. Default: closed.
   --headed               Show the browser window.
   --skip-demo            Skip demo login flow.
+  --allow-unbound-local  Skip SHA/project identity only for localhost development.
   --json                 Print JSON result only.
 
 Environment:
@@ -102,10 +126,12 @@ Environment:
   LIVE_SMOKE_TIMEOUT_MS
   LIVE_SMOKE_LAUNCH_MODE
   LIVE_SMOKE_EXPECTED_SHA
+  LIVE_SMOKE_EXPECTED_SUPABASE_PROJECT_REF
   LIVE_SMOKE_APPLE_TEAM_ID
   LIVE_SMOKE_PLAY_SIGNING_SHA256
   LIVE_SMOKE_RESEARCH_INTAKE
   LIVE_SMOKE_ACCOUNT_DELETION_CRON
+  LIVE_SMOKE_ALLOW_UNBOUND_LOCAL=1
   LIVE_SMOKE_HEADED=1
   LIVE_SMOKE_SKIP_DEMO=1`);
 }
@@ -292,6 +318,87 @@ function hasPathEnding(url, expectedEnding) {
   return new URL(url).pathname.endsWith(expectedEnding);
 }
 
+export function releaseHealthFailures(
+  { status, body, cacheControl = "" },
+  options,
+) {
+  const failures = [];
+  if (status !== 200 || !body || typeof body !== "object" || Array.isArray(body)) {
+    failures.push(`Expected release health JSON with HTTP 200, got ${status ?? "none"}`);
+    return failures;
+  }
+  if (!cacheControl.toLowerCase().includes("no-store")) {
+    failures.push("Expected release health response to disable caching");
+  }
+  if (!options.allowUnboundLocal) {
+    if (body.deployment !== options.expectedSha.toLowerCase()) {
+      failures.push(
+        `Expected health deployment ${options.expectedSha.toLowerCase()}, got ${body.deployment ?? "none"}`
+      );
+    }
+    if (body.supabaseProjectRef !== options.expectedSupabaseProjectRef) {
+      failures.push(
+        `Expected Supabase project ${options.expectedSupabaseProjectRef}, got ${body.supabaseProjectRef ?? "none"}`
+      );
+    }
+  }
+  if (body.rateLimitKeySecretConfigured !== true) {
+    failures.push("Expected a strong configured rate-limit key secret");
+  }
+  if (body.turnstileCredentialsConfigured !== true) {
+    failures.push("Expected a plausible complete Turnstile credential pair");
+  }
+  if (body.turnstileCanonicalHostnameConfigured !== true) {
+    failures.push("Expected the Turnstile configuration hostname to be exactly hanbang.ai");
+  }
+  if (body.turnstileConfigured !== true) {
+    failures.push("Expected complete Turnstile credentials and canonical configuration boundary");
+  }
+  if (body.maintenance !== false) {
+    failures.push(`Expected maintenance mode off, got ${String(body.maintenance)}`);
+  }
+  if (body.maintenanceStartedAt !== null) {
+    failures.push("Expected stale maintenance start metadata to be cleared");
+  }
+
+  const expectedResearchIntake = options.researchIntake === "open";
+  if (body.researchCohortApplicationsEnabled !== expectedResearchIntake) {
+    failures.push(
+      `Expected research intake ${options.researchIntake}, got ${String(body.researchCohortApplicationsEnabled)}`
+    );
+  }
+  const expectedAccountDeletionCron = options.accountDeletionCron === "open";
+  if (body.accountDeletionCronEnabled !== expectedAccountDeletionCron) {
+    failures.push(
+      `Expected account-deletion cron ${options.accountDeletionCron}, got ${String(body.accountDeletionCronEnabled)}`
+    );
+  }
+  return failures;
+}
+
+function buildReleaseHealthCheck() {
+  return {
+    name: "release-health-contract",
+    path: "/api/health/maintenance",
+    async assert(page, result, options) {
+      const response = await page.request.get(
+        `${options.baseUrl}/api/health/maintenance`,
+        { maxRedirects: 0 }
+      );
+      const body = await response.json().catch(() => null);
+      const failures = releaseHealthFailures(
+        {
+          status: response.status(),
+          body,
+          cacheControl: response.headers()["cache-control"] ?? "",
+        },
+        options,
+      );
+      for (const failure of failures) addFailure(result, failure);
+    },
+  };
+}
+
 function buildFullChecks(skipDemo) {
   const checks = [
     {
@@ -460,6 +567,64 @@ function normalizeSha256Fingerprint(value) {
   return value.replaceAll(":", "").toUpperCase().match(/.{2}/g).join(":");
 }
 
+async function assertSignedAppAssociations(page, result, options) {
+  for (const associationPath of [
+    "/apple-app-site-association",
+    "/.well-known/apple-app-site-association",
+    "/.well-known/assetlinks.json",
+  ]) {
+    const response = await page.request.get(
+      `${options.baseUrl}${associationPath}`,
+      { maxRedirects: 0 }
+    );
+    if (response.status() !== 200) {
+      addFailure(
+        result,
+        `Expected signed-app association ${associationPath} to return direct 200, got ${response.status()}`
+      );
+      continue;
+    }
+    const body = await response.json().catch(() => null);
+    if (associationPath.endsWith("assetlinks.json")) {
+      const expectedFingerprint = normalizeSha256Fingerprint(options.playSigningSha256);
+      const matchingTarget = Array.isArray(body) && body.some((entry) =>
+        entry?.target?.package_name === "ai.hanbang.wedding"
+        && entry?.target?.sha256_cert_fingerprints?.includes(expectedFingerprint)
+      );
+      if (!matchingTarget) {
+        addFailure(
+          result,
+          "Asset Links does not match the approved Android package and Play signing fingerprint"
+        );
+      }
+    } else {
+      const details = body?.applinks?.details;
+      const matchingApp = Array.isArray(details) && details.some((entry) =>
+        entry?.appID === `${options.appleTeamId}.ai.hanbang.wedding`
+        && ["/app", "/app/community/post/*", "/app/vendors/*"].every(
+          (path) => entry?.paths?.includes(path)
+        )
+      );
+      if (!matchingApp) {
+        addFailure(
+          result,
+          "AASA does not match the signed iOS app ID and approved share routes"
+        );
+      }
+    }
+  }
+}
+
+function buildAssociationCheck() {
+  return {
+    name: "signed-app-associations",
+    path: "/demo",
+    async assert(page, result, options) {
+      await assertSignedAppAssociations(page, result, options);
+    },
+  };
+}
+
 function buildComingSoonChecks() {
   return [
     {
@@ -479,57 +644,8 @@ function buildComingSoonChecks() {
           }
         }
 
-        for (const associationPath of [
-          "/apple-app-site-association",
-          "/.well-known/apple-app-site-association",
-          "/.well-known/assetlinks.json",
-        ]) {
-          const response = await page.request.get(`${options.baseUrl}${associationPath}`, { maxRedirects: 0 });
-          if (response.status() !== 200) {
-            addFailure(result, `Expected signed-app association ${associationPath} to return direct 200, got ${response.status()}`);
-            continue;
-          }
-          const body = await response.json().catch(() => null);
-          if (associationPath.endsWith("assetlinks.json")) {
-            const expectedFingerprint = normalizeSha256Fingerprint(options.playSigningSha256);
-            const matchingTarget = Array.isArray(body) && body.some((entry) =>
-              entry?.target?.package_name === "ai.hanbang.wedding" &&
-              entry?.target?.sha256_cert_fingerprints?.includes(expectedFingerprint)
-            );
-            if (!matchingTarget) {
-              addFailure(result, "Asset Links does not match the approved Android package and Play signing fingerprint");
-            }
-          } else {
-            const details = body?.applinks?.details;
-            const matchingApp = Array.isArray(details) && details.some((entry) =>
-              entry?.appID === `${options.appleTeamId}.ai.hanbang.wedding` &&
-              ["/app", "/app/community/post/*", "/app/vendors/*"].every((path) => entry?.paths?.includes(path))
-            );
-            if (!matchingApp) {
-              addFailure(result, "AASA does not match the signed iOS app ID and approved share routes");
-            }
-          }
-        }
+        await assertSignedAppAssociations(page, result, options);
 
-        const health = await page.request.get(`${options.baseUrl}/api/health/maintenance`, { maxRedirects: 0 });
-        const healthBody = await health.json().catch(() => null);
-        if (health.status() !== 200 || healthBody?.deployment !== options.expectedSha.toLowerCase()) {
-          addFailure(result, `Expected health deployment ${options.expectedSha.toLowerCase()}, got ${healthBody?.deployment ?? "none"}`);
-        }
-        const expectedResearchIntake = options.researchIntake === "open";
-        if (healthBody?.researchCohortApplicationsEnabled !== expectedResearchIntake) {
-          addFailure(
-            result,
-            `Expected research intake ${options.researchIntake}, got ${String(healthBody?.researchCohortApplicationsEnabled)}`
-          );
-        }
-        const expectedAccountDeletionCron = options.accountDeletionCron === "open";
-        if (healthBody?.accountDeletionCronEnabled !== expectedAccountDeletionCron) {
-          addFailure(
-            result,
-            `Expected account-deletion cron ${options.accountDeletionCron}, got ${String(healthBody?.accountDeletionCronEnabled)}`
-          );
-        }
       },
     },
     {
@@ -678,9 +794,13 @@ async function main() {
     headless: !options.headed,
   });
 
-  const checks = options.launchMode === "coming_soon"
+  const modeChecks = options.launchMode === "coming_soon"
     ? buildComingSoonChecks()
     : buildFullChecks(options.skipDemo);
+  const associationChecks = options.launchMode === "full" && !options.allowUnboundLocal
+    ? [buildAssociationCheck()]
+    : [];
+  const checks = [buildReleaseHealthCheck(), ...associationChecks, ...modeChecks];
   const results = [];
   try {
     for (const check of checks) {
@@ -709,7 +829,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+const invokedPath = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : "";
+if (invokedPath === import.meta.url) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

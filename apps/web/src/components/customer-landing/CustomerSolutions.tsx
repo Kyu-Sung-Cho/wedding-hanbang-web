@@ -13,7 +13,7 @@ const solutions = [
           <div className="w-6 h-6 rounded-full bg-rose-500/30 flex items-center justify-center">
             <div className="w-2 h-2 rounded-full bg-rose-500" />
           </div>
-          <span className="text-[11px] text-white/40">웨딩한방 AI 플래너</span>
+          <span className="text-[11px] text-white/70">웨딩한방 AI 플래너</span>
           <div className="ml-auto flex -space-x-1.5">
             <div className="w-5 h-5 rounded-full bg-rose-500/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신부</div>
             <div className="w-5 h-5 rounded-full bg-gold/60 border border-noir-800 text-[8px] text-white flex items-center justify-center">신랑</div>
@@ -99,7 +99,7 @@ const solutions = [
                   <span className={`text-[11px] font-medium ${item.done ? "text-rose-500" : "text-taupe-400"}`}>{item.dday}</span>
                   {item.done && <span className="text-[10px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-1.5 py-0.5 rounded">완료</span>}
                 </div>
-                <h5 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h5>
+                <h4 className={`text-[13px] font-medium mb-[2px] ${item.done ? "text-noir-800" : "text-taupe-500"}`}>{item.title}</h4>
                 <p className="text-[11px] text-taupe-500">{item.desc}</p>
               </div>
             </div>

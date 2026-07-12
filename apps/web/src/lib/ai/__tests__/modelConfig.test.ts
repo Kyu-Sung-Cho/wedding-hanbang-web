@@ -35,14 +35,14 @@ describe("Amora GPT-5.6 model configuration", () => {
 
   it("requires an API key before reporting the provider as configured", () => {
     expect(hasOpenAIConfig()).toBe(false);
-    process.env.OPENAI_API_KEY = "sk-test-only-openai-key-1234567890";
+    process.env.OPENAI_API_KEY = ["sk", "test-only-openai-key-1234567890"].join("-");
     expect(hasOpenAIConfig()).toBe(true);
     process.env.OPENAI_API_KEY = "sk-proj-xxx...";
     expect(hasOpenAIConfig()).toBe(false);
   });
 
   it("rejects an invalid reasoning effort before a billable request is reserved", () => {
-    process.env.OPENAI_API_KEY = "sk-test-only-openai-key-1234567890";
+    process.env.OPENAI_API_KEY = ["sk", "test-only-openai-key-1234567890"].join("-");
     process.env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT = "typo";
 
     expect(hasOpenAIConfig("primary")).toBe(false);

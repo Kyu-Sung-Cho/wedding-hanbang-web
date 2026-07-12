@@ -11,9 +11,9 @@ interface CustomerNavProps {
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const ACCOUNT_HREF = isComingSoon ? "/beta" : "/login?mode=signup";
-const ACCOUNT_LABEL = isComingSoon ? "사용자 연구 신청" : "베타 계정 만들기";
-const EXAMPLE_APP_HREF = isComingSoon ? "/about" : "/demo/login";
-const EXAMPLE_APP_LABEL = isComingSoon ? "서비스 운영 원칙" : "예시 앱 체험";
+const ACCOUNT_LABEL = isComingSoon ? "사용자 연구 안내" : "베타 계정 만들기";
+const EXAMPLE_APP_HREF = isComingSoon ? "/support" : "/demo/login";
+const EXAMPLE_APP_LABEL = isComingSoon ? "지원 안내" : "예시 앱 체험";
 
 export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNavProps = {}) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -76,14 +76,14 @@ export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNav
         { href: "/demo", label: "서비스 소개", scroll: false },
         { href: "/about", label: "운영 원칙", scroll: false },
         { href: "/privacy", label: "개인정보", scroll: false },
-        { href: "#cta", label: "사용자 연구", scroll: true },
+        { href: "/beta#cta", label: "사용자 연구", scroll: false },
       ]
     : [
         { href: weddingPath(), label: "커뮤니티", scroll: false },
         { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
         { href: weddingPath("/etiquette"), label: "결혼 예절", scroll: false },
         { href: "/about", label: "소개", scroll: false },
-        { href: "#cta", label: "시작하기", scroll: true },
+        { href: demoMode ? "/demo#cta" : "/#cta", label: "시작하기", scroll: false },
       ];
   const useDarkColors = darkAtTop && !scrolled && !menuOpen;
 
@@ -91,7 +91,7 @@ export default function CustomerNav({ demoMode, darkAtTop = false }: CustomerNav
     <nav
       className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(16px,5vw,60px)] h-[72px] flex items-center justify-between transition-all duration-500 ${
         scrolled || menuOpen
-          ? "bg-ivory-50/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+          ? "bg-ivory-50/98 shadow-[0_1px_0_rgba(0,0,0,0.04)]"
           : ""
       }`}
     >

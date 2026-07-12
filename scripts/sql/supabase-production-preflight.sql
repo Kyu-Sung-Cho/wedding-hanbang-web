@@ -198,6 +198,12 @@ WITH orphan_slots AS (
     'invitation-photos', 'chat-image'
   )
   GROUP BY 1, 2
+), owned_storage_groups AS (
+  SELECT lower(owner_id) AS owner_identity, count(*) AS object_count
+  FROM storage.objects
+  WHERE owner_id ~*
+    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  GROUP BY lower(owner_id)
 ), post_rank AS (
   SELECT id,
          row_number() OVER (
@@ -323,6 +329,7 @@ WITH orphan_slots AS (
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'updated_at', 'timestamp with time zone', true),
     ('account_deletion_email_attestation', 'account_deletion_jobs', 'email_scopes', 'text[]', false),
     ('account_deletion_email_attestation', 'account_deletion_jobs', 'email_snapshot_at', 'timestamp with time zone', false),
+    ('account_deletion_auth_ready', 'account_deletion_jobs', 'auth_delete_ready_until', 'timestamp with time zone', false),
     -- 111410 intentionally changes expires_at to NOT NULL, so only its stable
     -- type is part of the 111350 creator contract.
     ('preregistration_expiry', 'preregistrations', 'expires_at', 'timestamp with time zone', NULL::boolean),
@@ -407,7 +414,9 @@ WITH orphan_slots AS (
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'status', '''pending''::text'),
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'attempts', '0'),
     ('account_deletion_jobs_base', 'account_deletion_jobs', 'created_at', 'now()'),
-    ('account_deletion_jobs_base', 'account_deletion_jobs', 'updated_at', 'now()')
+    ('account_deletion_jobs_base', 'account_deletion_jobs', 'updated_at', 'now()'),
+    ('account_deletion_auth_ready', 'account_deletion_jobs',
+      'auth_delete_ready_until', NULL::text)
 ), actual_dynamic_defaults AS (
   SELECT table_row.relname AS table_name,
          attribute_row.attname AS column_name,
@@ -573,8 +582,8 @@ WITH orphan_slots AS (
       'search_path=pg_catalog, pg_temp', '221d594a0a3f55f12d8baf2d8b18ce91',
       '20260712101000', NULL::text),
     ('public.request_account_deletion(uuid,text)', 'jsonb',
-      'search_path=public, pg_temp', '08f9136df3b8fc79f1abf1ee33a0bb95',
-      '20260710070000', '20260712101000'),
+      'search_path=public, pg_temp', 'd375108d46ea6663f58a7fbe80fa3d93',
+      '20260710070000', '20260712104500'),
     ('public.claim_account_deletion_jobs(uuid,integer,integer)',
       'TABLE(job_id uuid, user_id uuid, reason text, attempts integer, storage_inventory jsonb)',
       'search_path=public, pg_temp', '2f21c2198582104158923a9726cf6d8f',
@@ -588,9 +597,16 @@ WITH orphan_slots AS (
     ('public.renew_account_deletion_job_lease(uuid,uuid,integer)', 'boolean',
       'search_path=public, pg_temp', 'ba6534442ff7bc582d4bdefc396bc841',
       '20260712101000', NULL::text),
+    ('public.list_account_deletion_owned_storage_objects(uuid,uuid,text,text,integer)',
+      'TABLE(bucket_id text, object_name text)',
+      'search_path=pg_catalog, pg_temp', '4aee5587c9f133ff8e23609c23bfbd86',
+      '20260712105000', NULL::text),
+    ('public.mark_account_deletion_cleanup_ready(uuid,uuid,integer)', 'boolean',
+      'search_path=pg_catalog, pg_temp', '2bed182fdddecbf115ecd0856e14aed7',
+      '20260712105000', NULL::text),
     ('public.complete_account_deletion_job(uuid,uuid)', 'boolean',
-      'search_path=public, pg_temp', '7224cdd797c3db1613059d9fc79e7fb4',
-      '20260710070000', '20260712101000'),
+      'search_path=public, pg_temp', 'b1e4030efdc81da7dcd4697206221ffc',
+      '20260710070000', '20260712105000'),
     ('public.requeue_dead_account_deletion_job(uuid)', 'boolean',
       'search_path=public, pg_temp', '29fe1226857032d271e78f585f887956',
       '20260710070000', NULL::text),
@@ -676,17 +692,42 @@ WITH orphan_slots AS (
   LEFT JOIN pg_catalog.pg_proc procedure_row
     ON procedure_row.oid = to_regprocedure(required.signature)
 ), required_client_denied_trigger_functions(
-  signature, expected_source_md5, creator_version, forward_version
+  signature, expected_source_md5, expected_search_path,
+  expected_service_role_execute, creator_version, forward_version
 ) AS (
   VALUES
-    ('public.community_recalc_rank()', 'c742d9e87a9c815491d03c574690772c', '20260408000000', '20260711145000'),
-    ('public.create_profile_on_signup()', '84a6f9f7f2c366bb87703fcc25cc2f22', '20260210000000', '20260711145000'),
-    ('public.guard_amora_user_message_insert()', '3b3a72bfb77bfd27a0b7f43b718cb4c0', '20260710050000', '20260711145000'),
-    ('public.guard_profile_self_insert()', 'e1a79bcb72eb8b1df1c5edb70f181e44', '20260710050000', '20260711145000'),
-    ('public.prevent_cohort_membership_client_write()', '5947d166102367678683a8ae71c2b72d', '20260615090000', '20260711145000'),
-    ('public.prevent_couple_ownership_self_change()', '697c40535a23d739a271b0b4e3b2ffbf', '20260612130000', '20260711145000'),
-    ('public.prevent_couple_slot_self_change()', 'c795f37d371b8143d50b45d65de96411', '20260614110000', '20260711145000'),
-    ('public.prevent_is_admin_self_change()', '9395ea55bfc5192e10ef000e0421d7b3', '20260612120000', '20260711145000')
+    ('public.community_recalc_rank()', 'c742d9e87a9c815491d03c574690772c',
+      'search_path=public', true, '20260408000000', '20260711145000'),
+    ('public.create_profile_on_signup()', '84a6f9f7f2c366bb87703fcc25cc2f22',
+      'search_path=public', true, '20260210000000', '20260711145000'),
+    ('public.guard_amora_user_message_insert()', '3b3a72bfb77bfd27a0b7f43b718cb4c0',
+      'search_path=public', true, '20260710050000', '20260711145000'),
+    ('public.guard_profile_self_insert()', 'e1a79bcb72eb8b1df1c5edb70f181e44',
+      'search_path=public', true, '20260710050000', '20260711145000'),
+    ('public.prevent_cohort_membership_client_write()', '5947d166102367678683a8ae71c2b72d',
+      'search_path=public', true, '20260615090000', '20260711145000'),
+    ('public.prevent_couple_ownership_self_change()', '697c40535a23d739a271b0b4e3b2ffbf',
+      'search_path=public', true, '20260612130000', '20260711145000'),
+    ('public.prevent_couple_slot_self_change()', 'c795f37d371b8143d50b45d65de96411',
+      'search_path=public', true, '20260614110000', '20260711145000'),
+    ('public.prevent_is_admin_self_change()', '9395ea55bfc5192e10ef000e0421d7b3',
+      'search_path=public', true, '20260612120000', '20260711145000'),
+    ('public.lock_application_email_lifecycle_write()',
+      '07ad809b73c9daac9ea0ebe7d90e2809',
+      'search_path=pg_catalog, pg_temp', true,
+      '20260712103000', '20260712103000'),
+    ('public.block_auth_user_update_during_account_deletion()',
+      '7ccae1027d97c12b32d9d04c92a54002',
+      'search_path=pg_catalog, pg_temp', false,
+      '20260712104000', '20260712104000'),
+    ('public.block_storage_owner_write_during_account_deletion()',
+      '32d02e88418f75f08d788ab5da07c9af',
+      'search_path=pg_catalog, pg_temp', false,
+      '20260712105000', '20260712105000'),
+    ('public.block_auth_user_delete_until_account_cleanup_ready()',
+      '868a650d26b5bf4aff730c73b99f009e',
+      'search_path=pg_catalog, pg_temp', false,
+      '20260712105000', '20260712105000')
 ), client_denied_trigger_function_status AS (
   SELECT required.signature,
          required.creator_version,
@@ -703,10 +744,13 @@ WITH orphan_slots AS (
            AND pg_get_function_result(procedure_row.oid) = 'trigger'
            AND procedure_row.prosecdef
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
-           AND procedure_row.proconfig @> ARRAY['search_path=public']::text[]
+           AND procedure_row.proconfig
+             @> ARRAY[required.expected_search_path]::text[]
            AND md5(replace(procedure_row.prosrc, chr(13), '')) =
              required.expected_source_md5
-           AND has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')
+           AND has_function_privilege(
+             'service_role', procedure_row.oid, 'EXECUTE'
+           ) = required.expected_service_role_execute
            AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
            AND NOT has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')
            AS exact
@@ -749,7 +793,32 @@ WITH orphan_slots AS (
     ('public', 'profiles', 'trg_prevent_is_admin_self_change',
       'public.prevent_is_admin_self_change()',
       'CREATE TRIGGER trg_prevent_is_admin_self_change BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION prevent_is_admin_self_change()',
-      '20260612120000', '20260711148000')
+      '20260612120000', '20260711148000'),
+    ('public', 'preregistrations',
+      'trg_lock_preregistration_email_lifecycle',
+      'public.lock_application_email_lifecycle_write()',
+      'CREATE TRIGGER trg_lock_preregistration_email_lifecycle BEFORE INSERT OR UPDATE ON preregistrations FOR EACH ROW EXECUTE FUNCTION lock_application_email_lifecycle_write()',
+      '20260712103000', '20260712103000'),
+    ('public', 'research_cohort_applications',
+      'trg_lock_research_cohort_application_email_lifecycle',
+      'public.lock_application_email_lifecycle_write()',
+      'CREATE TRIGGER trg_lock_research_cohort_application_email_lifecycle BEFORE INSERT OR UPDATE ON research_cohort_applications FOR EACH ROW EXECUTE FUNCTION lock_application_email_lifecycle_write()',
+      '20260712103000', '20260712103000'),
+    ('auth', 'users',
+      'trg_block_auth_user_update_during_account_deletion',
+      'public.block_auth_user_update_during_account_deletion()',
+      'CREATE TRIGGER trg_block_auth_user_update_during_account_deletion BEFORE UPDATE ON auth.users FOR EACH ROW EXECUTE FUNCTION block_auth_user_update_during_account_deletion()',
+      '20260712104000', '20260712104000'),
+    ('storage', 'objects',
+      'trg_block_storage_owner_write_during_account_deletion',
+      'public.block_storage_owner_write_during_account_deletion()',
+      'CREATE TRIGGER trg_block_storage_owner_write_during_account_deletion BEFORE INSERT OR UPDATE ON storage.objects FOR EACH ROW EXECUTE FUNCTION block_storage_owner_write_during_account_deletion()',
+      '20260712105000', '20260712105000'),
+    ('auth', 'users',
+      'trg_block_auth_user_delete_until_account_cleanup_ready',
+      'public.block_auth_user_delete_until_account_cleanup_ready()',
+      'CREATE TRIGGER trg_block_auth_user_delete_until_account_cleanup_ready BEFORE DELETE ON auth.users FOR EACH ROW EXECUTE FUNCTION block_auth_user_delete_until_account_cleanup_ready()',
+      '20260712105000', '20260712105000')
 ), client_denied_trigger_binding_status AS (
   SELECT required.schema_name,
          required.table_name,
@@ -777,6 +846,161 @@ WITH orphan_slots AS (
    AND trigger_row.tgname = required.trigger_name
   LEFT JOIN pg_catalog.pg_proc function_row
     ON function_row.oid = to_regprocedure(required.function_signature)
+), amora_reset_read_helper_status AS (
+  SELECT procedure_row.oid IS NOT NULL AS present,
+         procedure_row.oid IS NULL OR (
+           procedure_row.prokind = 'f'
+           AND pg_get_function_result(procedure_row.oid) = 'boolean'
+           AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
+         ) AS existing_replaceable,
+         procedure_row.oid IS NOT NULL
+           AND procedure_row.prokind = 'f'
+           AND language_row.lanname = 'sql'
+           AND pg_get_function_result(procedure_row.oid) = 'boolean'
+           AND procedure_row.prosecdef
+           AND procedure_row.provolatile = 's'
+           AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
+           AND procedure_row.proconfig @> ARRAY[
+             'search_path=pg_catalog, pg_temp',
+             'row_security=off'
+           ]::text[]
+           AND cardinality(procedure_row.proconfig) = 2
+           AND md5(replace(procedure_row.prosrc, chr(13), '')) =
+             '668077b0545119cc3af092bbf4cb98ae'
+           AND has_function_privilege(
+             'authenticated', procedure_row.oid, 'EXECUTE'
+           )
+           AND NOT has_function_privilege('anon', procedure_row.oid, 'EXECUTE')
+           AND NOT has_function_privilege(
+             'service_role', procedure_row.oid, 'EXECUTE'
+           ) AS exact
+  FROM (SELECT to_regprocedure(
+    'public.can_read_amora_couple_data(uuid,text)'
+  ) AS oid) AS target
+  LEFT JOIN pg_catalog.pg_proc AS procedure_row
+    ON procedure_row.oid = target.oid
+  LEFT JOIN pg_catalog.pg_language AS language_row
+    ON language_row.oid = procedure_row.prolang
+), required_amora_reset_read_policies(table_name, policy_name) AS (
+  VALUES
+    ('amora_couple_profiles', 'amora_couple_profiles_select_with_privacy'),
+    ('chat_messages', 'chat_select_with_privacy'),
+    ('chat_summaries', 'chat_summaries_select_with_privacy'),
+    ('decision_nodes', 'decision_nodes_select_with_privacy')
+), amora_reset_read_policy_status AS (
+  SELECT required.table_name,
+         required.policy_name,
+         policy_row.policyname IS NOT NULL AS present,
+         (
+           SELECT count(*)
+           FROM pg_catalog.pg_policies AS client_policy
+           WHERE client_policy.schemaname = 'public'
+             AND client_policy.tablename = required.table_name
+             AND client_policy.cmd IN ('SELECT', 'ALL')
+             AND EXISTS (
+               SELECT 1
+               FROM unnest(client_policy.roles) AS policy_role(role_name)
+               WHERE CASE
+                 WHEN policy_role.role_name = 'public'::name THEN true
+                 ELSE pg_has_role(
+                   'authenticated', policy_role.role_name, 'MEMBER'
+                 )
+               END
+             )
+         ) AS client_read_policy_count,
+         (
+           SELECT count(*)
+           FROM pg_catalog.pg_policies AS client_policy
+           WHERE client_policy.schemaname = 'public'
+             AND client_policy.tablename = required.table_name
+             AND client_policy.policyname <> required.policy_name
+             AND client_policy.cmd IN ('SELECT', 'ALL')
+             AND EXISTS (
+               SELECT 1
+               FROM unnest(client_policy.roles) AS policy_role(role_name)
+               WHERE CASE
+                 WHEN policy_role.role_name = 'public'::name THEN true
+                 ELSE pg_has_role(
+                   'authenticated', policy_role.role_name, 'MEMBER'
+                 )
+               END
+             )
+         ) AS unmanaged_client_read_policy_count,
+         table_row.oid IS NOT NULL
+           AND table_row.relkind = 'r'
+           AND table_row.relrowsecurity
+           AND has_table_privilege(
+             'authenticated', format('public.%I', required.table_name), 'SELECT'
+           )
+           AND NOT has_table_privilege(
+             'anon', format('public.%I', required.table_name), 'SELECT'
+           )
+           AND 0 = (
+             SELECT count(*)
+             FROM pg_catalog.pg_policies AS client_policy
+             WHERE client_policy.schemaname = 'public'
+               AND client_policy.tablename = required.table_name
+               AND client_policy.policyname <> required.policy_name
+               AND client_policy.cmd IN ('SELECT', 'ALL')
+               AND EXISTS (
+                 SELECT 1
+                 FROM unnest(client_policy.roles) AS policy_role(role_name)
+                 WHERE CASE
+                   WHEN policy_role.role_name = 'public'::name THEN true
+                   ELSE pg_has_role(
+                     'authenticated', policy_role.role_name, 'MEMBER'
+                   )
+                 END
+               )
+           ) AS existing_replaceable,
+         table_row.oid IS NOT NULL
+           AND policy_row.policyname IS NOT NULL
+           AND table_row.relkind = 'r'
+           AND table_row.relrowsecurity
+           AND policy_row.permissive = 'PERMISSIVE'
+           AND policy_row.roles = ARRAY['authenticated'::name]
+           AND policy_row.cmd = 'SELECT'
+           AND policy_row.with_check IS NULL
+           AND has_table_privilege(
+             'authenticated', format('public.%I', required.table_name), 'SELECT'
+           )
+           AND NOT has_table_privilege(
+             'anon', format('public.%I', required.table_name), 'SELECT'
+           )
+           AND coalesce((SELECT exact FROM amora_reset_read_helper_status), false)
+           AND replace(replace(replace(
+             regexp_replace(coalesce(policy_row.qual, ''), '[[:space:]]+', '', 'g'),
+             '"', ''
+           ), '(', ''), ')', '') ~ (
+             '^(public\.)?can_read_amora_couple_data'
+             || '((public\.)?' || required.table_name || '\.)?couple_id,'
+             || '((public\.)?' || required.table_name || '\.)?visibility::text$'
+           )
+           AND 1 = (
+             SELECT count(*)
+             FROM pg_catalog.pg_policies AS client_policy
+             WHERE client_policy.schemaname = 'public'
+               AND client_policy.tablename = required.table_name
+               AND client_policy.cmd IN ('SELECT', 'ALL')
+               AND EXISTS (
+                 SELECT 1
+                 FROM unnest(client_policy.roles) AS policy_role(role_name)
+                 WHERE CASE
+                   WHEN policy_role.role_name = 'public'::name THEN true
+                   ELSE pg_has_role(
+                     'authenticated', policy_role.role_name, 'MEMBER'
+                   )
+                 END
+               )
+           ) AS exact
+  FROM required_amora_reset_read_policies AS required
+  LEFT JOIN pg_catalog.pg_class AS table_row
+    ON table_row.oid = to_regclass('public.' || required.table_name)
+   AND table_row.relkind = 'r'
+  LEFT JOIN pg_catalog.pg_policies AS policy_row
+    ON policy_row.schemaname = 'public'
+   AND policy_row.tablename = required.table_name
+   AND policy_row.policyname = required.policy_name
 ), required_dependency_crons(
   job_name, expected_schedule, expected_command, creator_version
 ) AS (
@@ -908,6 +1132,24 @@ WITH orphan_slots AS (
        ORDER BY status.schema_name, status.table_name, status.trigger_name
      ) FROM client_denied_trigger_binding_status status)
       AS client_denied_trigger_binding_status,
+    coalesce((SELECT present FROM amora_reset_read_helper_status), false)
+      AS amora_reset_read_helper_present,
+    coalesce((SELECT existing_replaceable FROM amora_reset_read_helper_status), false)
+      AS amora_reset_read_helper_existing_replaceable,
+    coalesce((SELECT exact FROM amora_reset_read_helper_status), false)
+      AS amora_reset_read_helper_exact,
+    NOT EXISTS (
+      SELECT 1 FROM amora_reset_read_policy_status WHERE NOT existing_replaceable
+    ) AS amora_reset_read_policy_replacement_safe,
+    NOT EXISTS (
+      SELECT 1 FROM amora_reset_read_policy_status WHERE NOT exact
+    ) AS amora_reset_read_policies_exact,
+    (SELECT jsonb_object_agg(
+       status.table_name || '.' || status.policy_name,
+       to_jsonb(status) - 'table_name' - 'policy_name'
+       ORDER BY status.table_name, status.policy_name
+     ) FROM amora_reset_read_policy_status status)
+      AS amora_reset_read_policy_status,
     (SELECT jsonb_object_agg(
        status.job_name,
        to_jsonb(status) - 'job_name'
@@ -1147,6 +1389,22 @@ WITH orphan_slots AS (
       AS account_deletion_email_attestation_present,
     coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'account_deletion_email_attestation'), false)
       AS account_deletion_email_attestation_contract_exact,
+    coalesce((SELECT all_present FROM dynamic_column_contracts WHERE contract_name = 'account_deletion_auth_ready'), false)
+      AS account_deletion_auth_ready_present,
+    coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'account_deletion_auth_ready'), false)
+      AND coalesce((SELECT exact FROM dynamic_default_contracts WHERE contract_name = 'account_deletion_auth_ready'), false)
+      AND EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute attribute_row
+        WHERE attribute_row.attrelid =
+            to_regclass('public.account_deletion_jobs')
+          AND attribute_row.attname = 'auth_delete_ready_until'
+          AND attribute_row.attnum > 0
+          AND NOT attribute_row.attisdropped
+          AND attribute_row.attidentity = ''
+          AND attribute_row.attgenerated = ''
+      )
+      AS account_deletion_auth_ready_contract_exact,
     coalesce((SELECT all_present FROM dynamic_column_contracts WHERE contract_name = 'research_cohort_applications'), false)
       AS research_cohort_applications_present,
     coalesce((SELECT exact FROM dynamic_column_contracts WHERE contract_name = 'research_cohort_applications'), false)
@@ -1176,6 +1434,9 @@ SELECT jsonb_build_object(
   ),
   'account_deletion_gate', jsonb_build_object(
     'jobs_table_present', to_regclass('public.account_deletion_jobs') IS NOT NULL,
+    'processing_jobs', (SELECT count(*)
+      FROM public.account_deletion_jobs AS job
+      WHERE job.status = 'processing'),
     'active_jobs_missing_auth_subject', (SELECT count(*)
       FROM public.account_deletion_jobs AS job
       LEFT JOIN auth.users AS auth_user ON auth_user.id = job.user_id
@@ -1193,6 +1454,26 @@ SELECT jsonb_build_object(
     ) x),
     'profiles_over_500_scopes', (SELECT count(*) FROM profile_inventory WHERE scope_count > 500),
     'storage_scopes_over_20000', (SELECT count(*) FROM storage_groups WHERE object_count > 20000),
+    'owned_storage_owners_over_20000', (SELECT count(*)
+      FROM owned_storage_groups WHERE object_count > 20000),
+    'unattributed_chat_image_objects', (SELECT count(*)
+      FROM storage.objects AS object_row
+      WHERE object_row.bucket_id = 'chat-image'
+        AND COALESCE(object_row.owner_id, '') !~*
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
+    'orphaned_chat_image_objects', (SELECT count(*)
+      FROM storage.objects AS object_row
+      WHERE object_row.bucket_id = 'chat-image'
+        AND CASE
+          WHEN COALESCE(object_row.owner_id, '') ~*
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN NOT EXISTS (
+            SELECT 1
+            FROM auth.users AS auth_owner
+            WHERE auth_owner.id = object_row.owner_id::uuid
+          )
+          ELSE false
+        END),
     'legacy_storage_objects', (SELECT count(*) FROM storage.objects
       WHERE bucket_id IN (
         'guestbook-images', 'cohort-images', 'vendor-images', 'vendor-licenses',

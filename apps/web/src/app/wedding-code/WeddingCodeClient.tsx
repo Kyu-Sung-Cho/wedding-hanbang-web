@@ -13,6 +13,13 @@ import {
   type WeddingCodeV05Question,
 } from "@/constants/weddingCodeV05";
 import { captureEvent } from "@/lib/analytics";
+import {
+  clearWeddingCodeProgress,
+  decodeWeddingCodeProgress,
+  findFirstIncompleteWeddingCodeQuestionIndex,
+  readWeddingCodeProgress,
+  writeWeddingCodeProgress,
+} from "@/lib/weddingCode/progressStorage";
 import { storeWcResultBackup, type WcResultBackup } from "./result/resultBackup";
 
 type Step = "intro" | "questions" | "result";
@@ -22,9 +29,11 @@ type FlowQuestion = WeddingCodeV05Question;
 const WC_V05_INTRO_TITLE = "웨딩 준비 순서 체크";
 const WC_V05_INTRO_BODY = `결혼 준비에서는 둘 다 중요한데 무엇부터 볼지가 자주 달라져요.
 
-16개 장면에서 실제로 먼저 손이 가는 쪽을 고르면, 조건·역할·가족 조율·도움의 순서를 네 가지로 정리해드려요. 정답이나 더 좋은 결과는 없고, 사람이나 관계의 앞날을 판단하지 않습니다.`;
+16개 가상 장면에서 지금 먼저 하고 싶다고 고른 쪽을 바탕으로, 조건·역할·가족 조율·도움의 순서를 네 가지로 정리해드려요. 정답이나 더 좋은 결과는 없고, 실제 행동이나 사람·관계의 앞날을 판단하지 않습니다.`;
 const WC_NO_RIGHT_ANSWER =
-  "둘 다 중요해도 괜찮아요. 지금 실제로 먼저 할 것에 더 가까운 쪽을 골라주세요.";
+  "둘 다 중요해도 괜찮아요. 이 가상 장면에서 지금 먼저 하고 싶은 쪽을 골라주세요.";
+const WC_PROGRESS_KEY = `wedding-code:${WEDDING_CODE_V05_VERSION}:progress`;
+const WC_PROGRESS_TTL_MS = 24 * 60 * 60 * 1000;
 
 const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
@@ -33,7 +42,7 @@ const ghostBtn =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
 const INTRO_POINTS = [
-  { icon: Clock3, label: "약 3분", body: "16개 장면" },
+  { icon: Clock3, label: "내 속도로", body: "16개 장면" },
   { icon: MessageCircle, label: "둘 중 하나", body: "먼저 할 쪽" },
   { icon: ShieldCheck, label: "기기 안", body: "완료 후 30일" },
 ] as const;
@@ -61,7 +70,8 @@ export default function WeddingCodeClient() {
   // 문항
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [qIndex, setQIndex] = useState(0);
-  const advanceTimerRef = useRef<number | null>(null);
+  const [resetPending, setResetPending] = useState(false);
+  const [progressHydrated, setProgressHydrated] = useState(false);
   const submittingRef = useRef(false);
   const questionHeadingRef = useRef<HTMLHeadingElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -70,43 +80,87 @@ export default function WeddingCodeClient() {
 
   const current = flow[qIndex];
   useEffect(() => {
-    return () => {
-      if (advanceTimerRef.current !== null) window.clearTimeout(advanceTimerRef.current);
-    };
-  }, []);
+    try {
+      const raw = readWeddingCodeProgress(WC_PROGRESS_KEY);
+      if (!raw) return;
+      const saved = decodeWeddingCodeProgress(raw, flow);
+      if (!saved) {
+        clearWeddingCodeProgress(WC_PROGRESS_KEY);
+        return;
+      }
+      setAnswers(saved.answers);
+      setQIndex(saved.qIndex);
+      setStep(saved.step);
+    } catch {
+      clearWeddingCodeProgress(WC_PROGRESS_KEY);
+    } finally {
+      setProgressHydrated(true);
+    }
+  }, [flow]);
 
-  // 자동 전환으로 선택 버튼이 사라진 뒤에도 키보드·스크린리더의
-  // 읽기 위치가 새 질문(또는 완료 확인)에 명확히 이어지게 한다.
+  useEffect(() => {
+    if (!progressHydrated) return;
+    if (step === "intro" && Object.keys(answers).length === 0) {
+      clearWeddingCodeProgress(WC_PROGRESS_KEY);
+      return;
+    }
+    writeWeddingCodeProgress(WC_PROGRESS_KEY, JSON.stringify({
+      answers,
+      qIndex,
+      step,
+      expiresAt: Date.now() + WC_PROGRESS_TTL_MS,
+    }));
+  }, [answers, progressHydrated, qIndex, step]);
+
+  // 명시적인 다음/이전 이동 뒤 키보드·스크린리더의 읽기 위치를 새
+  // 질문(또는 완료 확인)에 명확히 이어지게 한다.
   useEffect(() => {
     if (step === "questions") questionHeadingRef.current?.focus();
     else if (step === "result") resultHeadingRef.current?.focus();
   }, [qIndex, step]);
 
-  function cancelPendingAdvance() {
-    if (advanceTimerRef.current === null) return;
-    window.clearTimeout(advanceTimerRef.current);
-    advanceTimerRef.current = null;
+  function selectOption(q: FlowQuestion, value: string) {
+    setResetPending(false);
+    setAnswers((prev) => ({ ...prev, [q.key]: value }));
   }
 
-  function selectOption(q: FlowQuestion, value: string) {
-    cancelPendingAdvance();
-    setAnswers((prev) => ({ ...prev, [q.key]: value }));
-    const selectedIndex = qIndex;
-    advanceTimerRef.current = window.setTimeout(() => {
-      advanceTimerRef.current = null;
-      if (selectedIndex + 1 < flow.length) setQIndex(selectedIndex + 1);
+  function goNextFromQuestion() {
+    setResetPending(false);
+    if (!current || !answers[current.key]) return;
+    if (qIndex + 1 < flow.length) setQIndex((index) => index + 1);
+    else {
+      const firstIncompleteIndex = findFirstIncompleteWeddingCodeQuestionIndex(answers, flow);
+      if (firstIncompleteIndex !== null) setQIndex(firstIncompleteIndex);
       else setStep("result");
-    }, 260);
+    }
   }
 
   function goBackFromQuestion() {
-    cancelPendingAdvance();
+    setResetPending(false);
     if (qIndex > 0) setQIndex((index) => index - 1);
     else setStep("intro");
   }
 
+  function resetProgress() {
+    if (!resetPending) {
+      setResetPending(true);
+      return;
+    }
+    clearWeddingCodeProgress(WC_PROGRESS_KEY);
+    setAnswers({});
+    setQIndex(0);
+    setStep("intro");
+    setResetPending(false);
+  }
+
   function submit() {
     if (submittingRef.current) return;
+    const firstIncompleteIndex = findFirstIncompleteWeddingCodeQuestionIndex(answers, flow);
+    if (firstIncompleteIndex !== null) {
+      setQIndex(firstIncompleteIndex);
+      setStep("questions");
+      return;
+    }
     submittingRef.current = true;
     const resultBackup: WcResultBackup = {
       answers,
@@ -115,6 +169,7 @@ export default function WeddingCodeClient() {
       savedAt: new Date().toISOString(),
     };
     storeWcResultBackup(resultBackup);
+    clearWeddingCodeProgress(WC_PROGRESS_KEY);
     captureEvent("wedding_code_completed", {
       version: WEDDING_CODE_V05_VERSION,
     });
@@ -188,12 +243,14 @@ export default function WeddingCodeClient() {
             </div>
             <div className="p-5 sm:p-8">
               <p className="rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5 text-[12px] font-medium leading-relaxed text-[#6d625a]">
-                ‘내 결과 보기’를 누르면 16개 답변과 결과는 서버로 보내지 않고 이 브라우저에
-                최대 30일 보관해요. 아직 사람 대상 검증 전인 베타 문항입니다.
+                진행 중 답변은 이어서 할 수 있도록 이 브라우저에 최대 24시간 보관해요.
+                ‘내 결과 보기’를 누르면 16개 답변과 결과는 서버로 보내지 않고 최대 30일 보관해요.
+                아직 사람 대상 검증 전인 베타 문항입니다.
               </p>
               <button
                 onClick={() => {
                   captureEvent("wedding_code_started", { version: WEDDING_CODE_V05_VERSION });
+                  setResetPending(false);
                   setStep("questions");
                 }}
                 className={`${primaryBtn} mt-5 w-full`}
@@ -242,14 +299,32 @@ export default function WeddingCodeClient() {
               ))}
             </div>
             <p className="mt-4 text-[12px] font-medium leading-relaxed text-[#6d625a]">{WC_NO_RIGHT_ANSWER}</p>
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex items-center justify-between gap-3">
               <button
                 onClick={goBackFromQuestion}
                 className={ghostBtn}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
               </button>
+              <button
+                onClick={goNextFromQuestion}
+                disabled={!answers[current.key]}
+                className={`${primaryBtn} flex-1`}
+              >
+                {qIndex + 1 < flow.length ? "다음" : "선택 완료"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
+            <button
+              type="button"
+              onClick={resetProgress}
+              aria-live="polite"
+              className={`mt-4 min-h-11 w-full text-center text-[12px] font-medium underline underline-offset-4 ${
+                resetPending ? "text-[#8a4038] hover:text-[#6f302a]" : "text-[#6d625a] hover:text-[#263832]"
+              }`}
+            >
+              {resetPending ? "한 번 더 눌러 답변 모두 지우기" : "처음부터 다시"}
+            </button>
           </div>
         )}
 
@@ -263,7 +338,10 @@ export default function WeddingCodeClient() {
               선택은 서버로 보내지 않아요. 네 가지 준비 순서에서 무엇을 몇 번 먼저 골랐는지 이 브라우저에서 계산합니다.
             </p>
             <div className="mt-5 flex items-center justify-between gap-3">
-              <button onClick={() => setStep("questions")} className={ghostBtn}>
+              <button onClick={() => {
+                setResetPending(false);
+                setStep("questions");
+              }} className={ghostBtn}>
                 <ArrowLeft className="h-3.5 w-3.5" /> 이전
               </button>
               <button onClick={submit} className={`${primaryBtn} flex-1`}>

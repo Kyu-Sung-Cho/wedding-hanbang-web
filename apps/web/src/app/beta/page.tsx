@@ -7,14 +7,22 @@ import {
   USER_RESEARCH_COHORT_CONDITIONS,
 } from "@/constants/beta";
 import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
+import type { Metadata } from "next";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
 
-export const metadata = {
-  title: "사용자 연구 코호트 신청 · 웨딩한방",
-  description: "베타 계정 이용과 별도로, 6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구 참여자 최대 50명을 찾습니다.",
-};
+export function generateMetadata(): Metadata {
+  const applicationsEnabled = isResearchCohortApplicationsEnabled();
+  return {
+    title: applicationsEnabled
+      ? "사용자 연구 코호트 신청 · 웨딩한방"
+      : "사용자 연구 안내 · 웨딩한방",
+    description: applicationsEnabled
+      ? "베타 계정 이용과 별도로, 6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구 참여자 신청을 받습니다."
+      : "6주간 아모라와 준비 흐름을 함께 검증할 사용자 연구의 계획, 조건, 현재 접수 상태를 안내합니다.",
+  };
+}
 
 export default async function BetaPage() {
   const applicationsEnabled = isResearchCohortApplicationsEnabled();
@@ -37,17 +45,37 @@ export default async function BetaPage() {
 
         <div className="relative z-10 max-w-[1240px] mx-auto">
           <p className="text-[11px] tracking-[0.3em] text-rose-light mb-6 font-medium">
-            사용자 연구 코호트 모집
+            {applicationsEnabled ? "사용자 연구 코호트 모집" : "사용자 연구 코호트 안내"}
           </p>
           <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em] max-w-3xl">
-            6주간 함께해 주실
-            <br />
-            <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
+            {applicationsEnabled ? (
+              <>
+                6주간 함께해 주실
+                <br />
+                <em className="not-italic text-rose-light">참여자</em>를 찾습니다.
+              </>
+            ) : (
+              <>
+                6주 사용자 연구를
+                <br />
+                <em className="not-italic text-rose-light">안전하게 준비</em>하고 있습니다.
+              </>
+            )}
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
-            일반 베타 계정 이용과 별도로, 이 페이지에서는
-            <br />
-            6주간 심층 피드백에 참여할 사용자 연구 코호트를 모집합니다.
+            {applicationsEnabled ? (
+              <>
+                일반 베타 계정 이용과 별도로, 이 페이지에서만
+                <br />
+                6주간 사용 피드백에 참여할 신청을 받습니다.
+              </>
+            ) : (
+              <>
+                연구 운영·개인정보·선정 기준을 먼저 확인하고 있습니다.
+                <br />
+                준비가 끝나기 전에는 개인정보를 접수하지 않습니다.
+              </>
+            )}
           </p>
         </div>
       </section>
@@ -95,16 +123,20 @@ export default async function BetaPage() {
             {/* 과정 */}
             <div className="pt-10 border-t border-white/10">
               <p className="text-[11px] tracking-[0.22em] text-rose-light/80 mb-6 font-medium">
-                신청 이후 과정
+                {applicationsEnabled ? "신청 이후 과정" : "접수 재개 시 예정 과정"}
               </p>
               <ul className="space-y-4 text-[14px] md:text-[15px] text-white/70 font-light leading-[1.85]">
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">01</span>
-                  신청 접수 (이 페이지)
+                  {applicationsEnabled
+                    ? "신청 접수 (이 페이지)"
+                    : "접수 재개 공지와 참여 조건 확인"}
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">02</span>
-                  선정 결과와 다음 단계를 이메일로 안내
+                  {applicationsEnabled
+                    ? "선정 결과와 다음 단계를 이메일로 안내"
+                    : "접수 재개 후 신청자에게 선정 여부와 다음 단계 안내"}
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">03</span>

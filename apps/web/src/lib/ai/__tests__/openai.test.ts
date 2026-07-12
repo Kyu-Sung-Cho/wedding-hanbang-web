@@ -451,6 +451,23 @@ describe("OpenAI chat adapter", () => {
     expect(result.fullText).toBe("완성된 전체 답변");
   });
 
+  it("keeps streamed text when the completed SDK object has an empty output_text", async () => {
+    const response = completedResponse([], "");
+    const { client } = fakeClient([
+      { type: "response.output_text.delta", delta: "READY", item_id: "msg_1" },
+      { type: "response.completed", response },
+    ]);
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{ role: "user", content: "provider contract smoke" }],
+      tools: [],
+      client,
+    });
+
+    expect(result.fullText).toBe("READY");
+  });
+
   it("streams a valid model refusal instead of reporting an outage", async () => {
     const response = completedResponse([{
       id: "msg_refusal",

@@ -12,6 +12,8 @@ import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import {
+  MOBILE_CHAT_DELAY_NOTICE_MS,
+  MobileChatCancelledError,
   MobileChatTimeoutError,
   withMobileChatTimeout,
 } from "@/lib/chatRequestTimeout";
@@ -60,6 +62,7 @@ interface PendingAiRequest {
 }
 
 type LoadIssue = "signed_out" | "couple_missing" | "load_failed";
+type AiWaitStage = "preparing" | "delayed" | "cancelling" | null;
 
 interface SendIssue {
   message: string;
@@ -191,6 +194,7 @@ export default function ChatScreen() {
   const [reloadNonce, setReloadNonce] = useState(0);
   const [sendIssue, setSendIssue] = useState<SendIssue | null>(null);
   const [pendingAiRequest, setPendingAiRequest] = useState<PendingAiRequest | null>(null);
+  const [aiWaitStage, setAiWaitStage] = useState<AiWaitStage>(null);
   const [target, setTarget] = useState<MobileChatTarget>("ai_shared");
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
@@ -198,6 +202,8 @@ export default function ChatScreen() {
   const previousMessageCountRef = useRef(0);
   const submitLockRef = useRef(false);
   const aiLockRef = useRef(false);
+  const activeAiAbortRef = useRef<AbortController | null>(null);
+  const aiDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeVisibility = chatVisibilityForMobileTarget(target, userRole);
   const visibleMessages = useMemo(
     () => messages.filter((message) => isMessageVisibleForMobileTarget(message, target, userRole)).reverse(),
@@ -208,6 +214,15 @@ export default function ChatScreen() {
     setTimeout(() => {
       flatListRef.current?.scrollToOffset({ offset: 0, animated });
     }, delay);
+  }, []);
+
+  useEffect(() => () => {
+    if (aiDelayTimerRef.current) {
+      clearTimeout(aiDelayTimerRef.current);
+      aiDelayTimerRef.current = null;
+    }
+    activeAiAbortRef.current?.abort();
+    activeAiAbortRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -362,9 +377,18 @@ export default function ChatScreen() {
   async function requestAiReply(pending: PendingAiRequest) {
     if (aiLockRef.current) return;
     aiLockRef.current = true;
+    const requestAbortController = new AbortController();
+    activeAiAbortRef.current = requestAbortController;
     setPendingAiRequest(pending);
     setSendIssue(null);
     setStreaming(true);
+    setAiWaitStage("preparing");
+    if (aiDelayTimerRef.current) clearTimeout(aiDelayTimerRef.current);
+    aiDelayTimerRef.current = setTimeout(() => {
+      if (activeAiAbortRef.current === requestAbortController && !requestAbortController.signal.aborted) {
+        setAiWaitStage("delayed");
+      }
+    }, MOBILE_CHAT_DELAY_NOTICE_MS);
     setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
       ? { ...message, content: "" }
       : message));
@@ -381,8 +405,10 @@ export default function ChatScreen() {
           throw await readResponseError(response, "아모라 연결에 실패했어요.");
         }
 
-        return readChatSseResponse(response, (next) => applyStreamUpdate(pending, next));
-      });
+        return readChatSseResponse(response, (next) => {
+          if (!signal.aborted) applyStreamUpdate(pending, next);
+        });
+      }, { signal: requestAbortController.signal });
       if (parsed.error) throw new Error(parsed.error);
       if (!parsed.completed) throw new Error("응답 연결이 중간에 끊겼어요.");
 
@@ -392,21 +418,51 @@ export default function ChatScreen() {
       setSendIssue(null);
       scrollToLatest(true);
     } catch (error) {
+      const wasCancelled = error instanceof MobileChatCancelledError;
+      const didTimeOut = error instanceof MobileChatTimeoutError;
       const detail = error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요.";
       setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
-        ? { ...message, content: "아모라 답변을 불러오지 못했어요." }
+        ? {
+            ...message,
+            content: wasCancelled
+              ? "답변 생성을 중단했어요."
+              : didTimeOut
+                ? "답변 대기 시간이 끝났어요."
+                : "아모라 답변을 불러오지 못했어요.",
+          }
         : message));
       setSendIssue({
-        message: `${detail} 입력한 내용은 그대로 두었어요.`,
+        message: wasCancelled
+          ? "답변 생성을 중단했어요. 질문은 저장되어 있어 언제든 다시 시도할 수 있어요."
+          : didTimeOut
+            ? "2분 동안 답변을 받지 못했어요. 질문은 저장되어 있어 다시 시도할 수 있어요."
+            : `${detail} 입력한 내용은 그대로 두었어요.`,
         retry: "ai",
-        claimCode: error instanceof ChatApiError || error instanceof MobileChatTimeoutError
+        claimCode: error instanceof ChatApiError
+          || error instanceof MobileChatTimeoutError
+          || error instanceof MobileChatCancelledError
           ? error.code
           : undefined,
       });
     } finally {
+      if (aiDelayTimerRef.current) {
+        clearTimeout(aiDelayTimerRef.current);
+        aiDelayTimerRef.current = null;
+      }
+      if (activeAiAbortRef.current === requestAbortController) {
+        activeAiAbortRef.current = null;
+      }
       aiLockRef.current = false;
       setStreaming(false);
+      setAiWaitStage(null);
     }
+  }
+
+  function cancelAiReply() {
+    const activeRequest = activeAiAbortRef.current;
+    if (!activeRequest || activeRequest.signal.aborted) return;
+    setAiWaitStage("cancelling");
+    activeRequest.abort();
   }
 
   async function handleSend() {
@@ -610,7 +666,7 @@ export default function ChatScreen() {
               </View>
             ))}
             {item.quotaRemaining !== undefined && (
-              <Text style={st.quotaText}>오늘 아모라 대화 {item.quotaRemaining}회 남았어요.</Text>
+              <Text style={st.quotaText}>베타 무료 상담 총 30회 중 {item.quotaRemaining}회 남았어요.</Text>
             )}
           </View>
           {isAi && Boolean(item.suggestions?.length) && (
@@ -677,7 +733,7 @@ export default function ChatScreen() {
           accessibilityLabel="AI 생성 안내와 AI 정책 열기"
         >
           <Sparkles size={12} color={colors.gold.DEFAULT} />
-          <Text style={st.aiNoticeText}>AI 생성 · {isPrivate ? "나만 보는 대화" : "커플이 함께 보는 대화"} · AI 정책</Text>
+          <Text style={st.aiNoticeText}>AI 생성 · {isPrivate ? "나만 보는 대화" : "커플이 함께 보는 대화"} · 중요한 계약·비용은 직접 확인 · AI 정책</Text>
         </Pressable>
       )}
 
@@ -717,6 +773,32 @@ export default function ChatScreen() {
           </View>
         ) : (
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
+        )}
+
+        {streaming && pendingAiRequest && aiWaitStage && (
+          <View style={st.generationStatus} accessibilityLiveRegion="polite">
+            <View style={st.generationStatusCopy}>
+              <ThinkingDots />
+              <Text style={st.generationStatusText}>
+                {aiWaitStage === "delayed"
+                  ? "여러 정보를 확인하느라 평소보다 오래 걸리고 있어요. 최대 2분까지만 기다릴게요."
+                  : aiWaitStage === "cancelling"
+                    ? "답변 생성을 중단하고 있어요."
+                    : "아모라가 답변을 준비하고 있어요."}
+              </Text>
+            </View>
+            <Pressable
+              style={[st.cancelGenerationBtn, aiWaitStage === "cancelling" && st.cancelGenerationBtnDisabled]}
+              onPress={cancelAiReply}
+              disabled={aiWaitStage === "cancelling"}
+              accessibilityRole="button"
+              accessibilityLabel="아모라 답변 생성 중단"
+              accessibilityHint="작성 중인 답변만 중단하고 저장된 질문은 유지합니다"
+              accessibilityState={{ disabled: aiWaitStage === "cancelling" }}
+            >
+              <Text style={st.cancelGenerationText}>{aiWaitStage === "cancelling" ? "중단 중" : "생성 중단"}</Text>
+            </Pressable>
+          </View>
         )}
 
         {sendIssue && !loadIssue && (
@@ -787,6 +869,12 @@ const st = StyleSheet.create({
   messageSuggestionText: { fontSize: 12, lineHeight: 17, color: colors.noir[800] },
   primaryRetryBtn: { minHeight: 44, minWidth: 160, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, borderRadius: 14, backgroundColor: colors.noir[800] },
   primaryRetryText: { fontSize: 14, fontWeight: "600", color: "#FFF" },
+  generationStatus: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  generationStatusCopy: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  generationStatusText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  cancelGenerationBtn: { minHeight: 44, minWidth: 88, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.noir[800], backgroundColor: colors.surface },
+  cancelGenerationBtnDisabled: { opacity: 0.5 },
+  cancelGenerationText: { fontSize: 12, fontWeight: "700", color: colors.noir[800] },
   sendIssue: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#FFF5F3", borderTopWidth: 1, borderTopColor: colors.rose.light },
   sendIssueText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.noir[800] },
   retryLink: { minHeight: 36, justifyContent: "center", paddingHorizontal: 10 },

@@ -109,7 +109,7 @@ export default function CustomerFeatures() {
             <div className="inline-block text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium mb-3">
               {feat.tag}
             </div>
-            <h4 className="text-[17px] font-medium mb-2.5 text-noir-800">{feat.title}</h4>
+            <h3 className="text-[17px] font-medium mb-2.5 text-noir-800">{feat.title}</h3>
             <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{feat.desc}</p>
           </motion.div>
         ))}

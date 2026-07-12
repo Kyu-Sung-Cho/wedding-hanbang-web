@@ -54,6 +54,25 @@ function request(headers: Record<string, string> = {}) {
   });
 }
 
+function streamedJsonRequest(payload: unknown, chunkSize = 1024) {
+  const encoded = new TextEncoder().encode(JSON.stringify(payload));
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let offset = 0; offset < encoded.byteLength; offset += chunkSize) {
+        controller.enqueue(encoded.slice(offset, offset + chunkSize));
+      }
+      controller.close();
+    },
+  });
+
+  return new Request("http://localhost/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 function successfulLink() {
   return {
     data: {
@@ -78,6 +97,32 @@ describe("/api/auth/signup POST", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
+  it("rejects a chunked oversized body without trusting Content-Length", async () => {
+    const response = await POST(streamedJsonRequest({
+      email: "user@example.com",
+      password: "Strong1!",
+      name: "사용자",
+      turnstileToken: "x".repeat(20 * 1024),
+    }));
+
+    expect(response.status).toBe(413);
+    expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+  });
+
+  it("fails before the Turnstile provider when the persistent limiter denies the request", async () => {
+    mocks.checkRateLimitPersistent.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "rate limited" }), { status: 429 })
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(429);
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+  });
+
   it("does not trust a spoofable mobile header to bypass Turnstile", async () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: false, skipped: false });
 
@@ -86,7 +131,14 @@ describe("/api/auth/signup POST", () => {
 
     expect(response.status).toBe(400);
     expect(body.error).toContain("보안 확인");
-    expect(mocks.verifyTurnstile).toHaveBeenCalledWith("verified-token", "203.0.113.5");
+    expect(mocks.verifyTurnstile).toHaveBeenCalledWith(
+      "verified-token",
+      "203.0.113.5",
+      "signup"
+    );
+    expect(
+      mocks.checkRateLimitPersistent.mock.calls.map(([key]) => key)
+    ).toEqual(["signup:ip"]);
     expect(mocks.generateLink).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
 import { hasStrongRateLimitKeySecretConfig } from "@/utils/rateLimit";
+import {
+  hasCanonicalTurnstileHostname,
+  hasTurnstileConfig,
+  hasTurnstileCredentials,
+} from "@/lib/turnstile";
 
 function configuredSupabaseProjectRef() {
   const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,6 +34,11 @@ export async function GET() {
       supabaseProjectRef: configuredSupabaseProjectRef(),
       deployment: configuredDeploymentCommit(),
       rateLimitKeySecretConfigured: hasStrongRateLimitKeySecretConfig(),
+      // These are configuration-only signals. Actual hostname/action-bound
+      // challenge success remains a separate, human-controlled release gate.
+      turnstileCredentialsConfigured: hasTurnstileCredentials(),
+      turnstileCanonicalHostnameConfigured: hasCanonicalTurnstileHostname(),
+      turnstileConfigured: hasTurnstileConfig(),
       researchCohortApplicationsEnabled: isResearchCohortApplicationsEnabled(),
       accountDeletionCronEnabled: process.env.ACCOUNT_DELETION_CRON_ENABLED === "true",
     },

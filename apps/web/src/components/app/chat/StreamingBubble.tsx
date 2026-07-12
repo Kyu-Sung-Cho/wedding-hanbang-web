@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import ActionCard from "./ActionCard";
@@ -9,13 +10,22 @@ interface StreamingBubbleProps {
   content?: string;
   toolResults: ToolExecutionResult[];
   onSend?: (text: string) => void;
+  onCancel?: () => void;
 }
 
 export default function StreamingBubble({
   content = "",
   toolResults,
   onSend,
+  onCancel,
 }: StreamingBubbleProps) {
+  const [isTakingLonger, setIsTakingLonger] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsTakingLonger(true), 8_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div>
       {/* 도구 실행 결과 카드 — 작업 진행 중임을 시각적으로 알림 */}
@@ -42,13 +52,25 @@ export default function StreamingBubble({
               </p>
             ) : (
               <div className="flex items-center gap-2 py-0.5">
-                <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" />
-                <span className="text-xs sm:text-sm text-[#928980]">
-                  답변을 정리하고 있어요…
+                <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin motion-reduce:animate-none" />
+                <span className="text-xs sm:text-sm text-[#6F665F]">
+                  {isTakingLonger
+                    ? "계약·비용 정보를 한 번 더 확인하고 있어요."
+                    : "답변을 정리하고 있어요…"}
                 </span>
               </div>
             )}
           </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-h-11 self-start rounded-full border border-black/10 bg-white px-4 text-xs font-medium text-[#6F665F] transition-colors hover:bg-[#FAF7F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] focus-visible:ring-offset-2"
+              aria-label="아모라 답변 생성 멈추기"
+            >
+              답변 멈추기
+            </button>
+          )}
         </div>
       </div>
     </div>

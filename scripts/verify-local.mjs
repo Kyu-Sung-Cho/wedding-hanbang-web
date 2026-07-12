@@ -21,8 +21,20 @@ const checks = [
     args: ["pnpm", "security:secrets"],
   },
   {
+    name: "secret scanner contract tests",
+    args: ["pnpm", "security:secrets:test"],
+  },
+  {
     name: "Supabase recovery safety tests",
     args: ["pnpm", "supabase:recovery:test"],
+  },
+  {
+    name: "Supabase hosted Auth config contract tests",
+    args: ["pnpm", "supabase:auth-config:test"],
+  },
+  {
+    name: "live release smoke contract tests",
+    args: ["pnpm", "qa:live:test"],
   },
   {
     name: "web typecheck",
@@ -43,6 +55,10 @@ const checks = [
   {
     name: "mobile release readiness",
     args: ["pnpm", "mobile:release-check"],
+  },
+  {
+    name: "mobile consumer contract tests",
+    args: ["pnpm", "--filter", "@hanbang/mobile", "test"],
   },
   {
     name: "mobile typecheck",

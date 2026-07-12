@@ -6,6 +6,9 @@ import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 import { sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 import { isStrongPassword } from "@hanbang/shared";
+import { ChatRequestError, readBoundedJsonBody } from "@/lib/ai/chatRequest";
+
+const MAX_BODY_BYTES = 16 * 1024;
 
 const GENERIC_SIGNUP_MESSAGE =
   "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다. 받지 못했다면 잠시 후 다시 시도해주세요.";
@@ -86,7 +89,26 @@ async function compensateCreatedUser(
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, password, name: rawName, turnstileToken, marketingAgreed, next: rawNext } = await request.json();
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+      return NextResponse.json({ error: "JSON 요청이 필요합니다." }, { status: 415 });
+    }
+    let body: Record<string, unknown>;
+    try {
+      body = await readBoundedJsonBody(request, { maxBytes: MAX_BODY_BYTES });
+    } catch (error) {
+      if (error instanceof ChatRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+    const rawEmail = body.email;
+    const password = typeof body.password === "string" ? body.password : "";
+    const rawName = body.name;
+    const turnstileToken = typeof body.turnstileToken === "string"
+      ? body.turnstileToken
+      : null;
+    const marketingAgreed = body.marketingAgreed;
+    const rawNext = body.next;
     const email = normalizeEmail(rawEmail);
     const name = cleanOptionalText(rawName, 60);
     const returnPath = sanitizeAuthReturnPath(rawNext);
@@ -103,9 +125,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // 모든 비인증 호출은 출처와 관계없이 서버 검증을 통과해야 한다.
-    // 클라이언트가 임의로 만들 수 있는 헤더는 절대 우회 근거로 사용하지 않는다.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return ipLimited;
+
+    // 먼저 분산 limiter를 통과시켜 oversized/replayed 토큰이 외부 검증
+    // provider 호출을 증폭하지 못하게 한다.
+    const turnstile = await verifyTurnstile(
+      turnstileToken,
+      getClientIp(request),
+      "signup"
+    );
     if (!turnstile.ok) {
       return NextResponse.json(
         { error: "보안 확인을 완료한 뒤 다시 시도해주세요." },
@@ -113,12 +145,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const ipLimited = await checkRateLimitPersistent(rateLimitKey("signup", request), {
-      maxRequests: 5,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (ipLimited) return ipLimited;
-
+    // 이메일별 제한은 CAPTCHA를 통과한 요청만 소비한다. 그렇지 않으면
+    // 공격자가 피해자 이메일만 알고도 가입 가능 시간을 고갈시킬 수 있다.
     const emailLimited = await checkRateLimitPersistent(`signup-email:${normalizeEmailForRateLimit(email)}`, {
       maxRequests: 3,
       windowMs: 60 * 60 * 1000,

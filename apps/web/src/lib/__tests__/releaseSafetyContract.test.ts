@@ -56,6 +56,7 @@ const adminAuth = readRepo("apps/web/src/app/api/admin/auth/route.ts");
 const demoSession = readRepo("apps/web/src/lib/demoSession.ts");
 const reviewedPowerShellLauncher = readRepo("scripts/run-reviewed-powershell.mjs");
 const repositorySecretScan = readRepo("scripts/scan-tracked-secrets.mjs");
+const ciWorkflow = readRepo(".github/workflows/ci.yml");
 const mobileReleaseReadiness = readRepo("scripts/mobile-release-readiness.mjs");
 const liveSmoke = readRepo("scripts/live-smoke-test.mjs");
 const researchCohortMigration = readRepo(
@@ -64,6 +65,22 @@ const researchCohortMigration = readRepo(
 const accountDeletionEmailScopeMigration = readRepo(
   "supabase/migrations/20260712101000_durable_account_deletion_email_scope.sql"
 );
+const amoraResetReadFenceMigration = readRepo(
+  "supabase/migrations/20260712102000_close_amora_reset_read_fence.sql"
+);
+const applicationEmailLifecycleMigration = readRepo(
+  "supabase/migrations/20260712103000_serialize_application_email_lifecycle.sql"
+);
+const authMutationFenceMigration = readRepo(
+  "supabase/migrations/20260712104000_block_auth_mutation_during_account_deletion.sql"
+);
+const authIdentityDeletionStartMigration = readRepo(
+  "supabase/migrations/20260712104500_serialize_auth_identity_with_deletion_start.sql"
+);
+const accountDeletionStorageAuthRaceMigration = readRepo(
+  "supabase/migrations/20260712105000_close_account_deletion_storage_auth_race.sql"
+);
+const vercelConfig = JSON.parse(readRepo("apps/web/vercel.json"));
 
 function functionSourceMd5(sql: string, functionName: string): string {
   const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -77,6 +94,10 @@ function functionSourceMd5(sql: string, functionName: string): string {
 }
 
 describe("release safety contract", () => {
+  it("prevents a main merge from racing production database gates", () => {
+    expect(vercelConfig.git?.deploymentEnabled).toBe(false);
+  });
+
   it("keeps protected production blocked until a direct database write fence is verified", () => {
     expect(releaseTargets.productionSupabaseProjectRefs).toContain(
       "slrtobkksjmxgzatjyqb"
@@ -146,9 +167,34 @@ describe("release safety contract", () => {
     expect(demoSession).not.toContain("process.env.ADMIN_PASSWORD");
   });
 
-  it("scans both tracked and untracked repository files before a commit", () => {
+  it("scans the full Git history plus tracked and untracked files before a commit", () => {
     expect(repositorySecretScan).toContain('"--cached", "--others", "--exclude-standard"');
+    expect(repositorySecretScan).toContain('["rev-list", "--all"]');
+    expect(repositorySecretScan).toContain('"--no-textconv"');
+    expect(repositorySecretScan).toContain('"--root"');
+    expect(repositorySecretScan).toContain('"-m"');
+    expect(repositorySecretScan).toContain('"--format=%x1e%H%x00%B"');
+    expect(repositorySecretScan).toContain('"refs/tags"');
+    expect(repositorySecretScan).toContain('"cat-file", "tag"');
+    expect(repositorySecretScan).toContain("maxBuffer: 64 * 1024 * 1024");
     expect(repositorySecretScan).toContain("[repository-secret-scan]");
+  });
+
+  it("runs the no-install history gate before any CI dependency lifecycle", () => {
+    const historyJob = ciWorkflow.slice(
+      ciWorkflow.indexOf("  secret-history:"),
+      ciWorkflow.indexOf("  quality:")
+    );
+    const qualityJob = ciWorkflow.slice(ciWorkflow.indexOf("  quality:"));
+    expect(historyJob).toContain("fetch-depth: 0");
+    expect(historyJob).toContain("node ./scripts/scan-tracked-secrets.mjs");
+    expect(historyJob).not.toContain("pnpm install");
+    expect(historyJob).not.toContain("pnpm/action-setup");
+    expect(qualityJob).toContain("needs: secret-history");
+    expect(qualityJob).toContain("fetch-depth: 1");
+    expect(qualityJob.indexOf("node ./scripts/scan-tracked-secrets.mjs"))
+      .toBeLessThan(qualityJob.indexOf("pnpm install --frozen-lockfile"));
+    expect(qualityJob).toContain("pnpm audit --prod --audit-level high");
   });
 
   it("never lets the static mobile checker self-certify a store release", () => {
@@ -171,9 +217,12 @@ describe("release safety contract", () => {
     expect(liveSmoke).toContain('intakeBody?.code !== "RESEARCH_INTAKE_CLOSED"');
     expect(liveSmoke).toContain('intakeResponse.headers()["cache-control"]?.includes("no-store")');
     expect(liveSmoke).toContain('options.researchIntake === "closed"');
-    expect(liveSmoke).toContain("healthBody?.researchCohortApplicationsEnabled");
+    expect(liveSmoke).toContain("body.researchCohortApplicationsEnabled");
     expect(liveSmoke).toContain('final.searchParams.has("next")');
-    expect(liveSmoke).toContain('healthBody?.deployment !== options.expectedSha.toLowerCase()');
+    expect(liveSmoke).toContain('body.deployment !== options.expectedSha.toLowerCase()');
+    expect(liveSmoke).toContain(
+      "body.supabaseProjectRef !== options.expectedSupabaseProjectRef"
+    );
     expect(liveSmoke).toContain("isPlausibleCommitSha(options.expectedSha)");
     expect(liveSmoke).toContain("isPlausibleAppleTeamId(options.appleTeamId)");
     expect(liveSmoke).toContain("isPlausibleSigningFingerprint(options.playSigningSha256)");
@@ -215,11 +264,17 @@ describe("release safety contract", () => {
     const script = resolve(repoRoot, "scripts/live-smoke-test.mjs");
     const validSha = "76a644031180216a7f3c7a4e3a4a8cf18b11463e";
     const validTeamId = "6RSK726532";
+    const validSupabaseProjectRef = "abcdefghijklmnopqrst";
     const validFingerprint =
       "85:25:B7:5F:66:FC:6A:85:0D:A7:57:A2:CA:D2:47:B9:F6:EB:C7:81:10:D3:2F:B7:2C:84:42:0D:AE:B6:40:0D";
     const run = (identityArgs: string[]) => spawnSync(
       process.execPath,
-      [script, "--launch-mode=coming_soon", ...identityArgs],
+      [
+        script,
+        "--launch-mode=coming_soon",
+        `--expected-supabase-project-ref=${validSupabaseProjectRef}`,
+        ...identityArgs,
+      ],
       { cwd: repoRoot, encoding: "utf8", shell: false, timeout: 10_000 }
     );
 
@@ -282,7 +337,7 @@ describe("release safety contract", () => {
     expect(`${sequentialSha.stdout}\n${sequentialSha.stderr}`).toContain(
       "--expected-sha must be"
     );
-  });
+  }, 15_000);
 
   it("forbids destructive lifecycle smoke tests on every protected production ref", () => {
     expect(lifecycleSmoke).toContain(
@@ -320,6 +375,9 @@ describe("release safety contract", () => {
     expect(postDeploy).toContain(
       "pg_get_triggerdef(trigger_row.oid, true) = required.definition"
     );
+    expect(postDeploy).toMatch(
+      /AND 2 = \(\s*SELECT count\(\*\)\s*FROM pg_catalog\.pg_trigger trigger_row\s*WHERE trigger_row\.tgrelid = to_regclass\('public\.research_cohort_applications'\)/
+    );
   });
 
   it("keeps the preflight and post-deploy dependency closures synchronized", () => {
@@ -337,16 +395,50 @@ describe("release safety contract", () => {
         .sort();
     const preflightSignatures = extractSignatures(preflightFunctions);
     const postDeploySignatures = extractSignatures(postDeployFunctions);
+    const preflightTriggerFunctions = productionPreflight.slice(
+      productionPreflight.indexOf("required_client_denied_trigger_functions("),
+      productionPreflight.indexOf("client_denied_trigger_function_status AS")
+    );
+    const postDeployTriggerFunctions = postDeploy.slice(
+      postDeploy.indexOf("required_client_denied_trigger_functions("),
+      postDeploy.indexOf("client_denied_trigger_function_status AS")
+    );
+    const preflightTriggerBindings = productionPreflight.slice(
+      productionPreflight.indexOf("required_client_denied_trigger_bindings("),
+      productionPreflight.indexOf("client_denied_trigger_binding_status AS")
+    );
+    const postDeployTriggerBindings = postDeploy.slice(
+      postDeploy.indexOf("required_client_denied_trigger_bindings("),
+      postDeploy.indexOf("client_denied_trigger_binding_status AS")
+    );
+    const extractBindingNames = (sql: string) =>
+      [...sql.matchAll(
+        /\(\s*'(?:auth|public|storage)'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g
+      )].map((match) => match[1]).sort();
 
-    expect(preflightSignatures).toHaveLength(52);
+    expect(preflightSignatures).toHaveLength(54);
     expect(postDeploySignatures).toEqual(preflightSignatures);
-    expect(ship).toContain("$script:expectedDependencyFunctionCount = 52");
+    const preflightTriggerFunctionSignatures = extractSignatures(
+      preflightTriggerFunctions
+    );
+    expect(preflightTriggerFunctionSignatures).toHaveLength(12);
+    expect(extractSignatures(postDeployTriggerFunctions)).toEqual(
+      preflightTriggerFunctionSignatures
+    );
+    const preflightTriggerBindingNames = extractBindingNames(
+      preflightTriggerBindings
+    );
+    expect(preflightTriggerBindingNames).toHaveLength(13);
+    expect(extractBindingNames(postDeployTriggerBindings)).toEqual(
+      preflightTriggerBindingNames
+    );
+    expect(ship).toContain("$script:expectedDependencyFunctionCount = 54");
     expect(ship).toContain("$script:expectedDependencyCronCount = 5");
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerFunctionCount = 8"
+      "$script:expectedClientDeniedTriggerFunctionCount = 12"
     );
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerBindingCount = 8"
+      "$script:expectedClientDeniedTriggerBindingCount = 13"
     );
     expect(ship).toContain("dependency_function_status");
     expect(ship).toContain("dependency_cron_status");
@@ -360,6 +452,8 @@ describe("release safety contract", () => {
       "public.requeue_dead_account_deletion_job(uuid)",
       "public.account_deletion_email_scopes_are_canonical(text[])",
       "public.renew_account_deletion_job_lease(uuid,uuid,integer)",
+      "public.list_account_deletion_owned_storage_objects(uuid,uuid,text,text,integer)",
+      "public.mark_account_deletion_cleanup_ready(uuid,uuid,integer)",
       "public.insert_amora_user_message(uuid,uuid,text,text,text)",
       "public.reconcile_stale_amora_chat_requests(integer)",
       "public.delete_expired_amora_request_claims()",
@@ -392,32 +486,165 @@ describe("release safety contract", () => {
       expect(sql).toContain("dbaddace99dcf6ddbe99da5eefe0797a");
       expect(sql).toContain("7583f22c1daf9cebea4f7a847a6a507f");
       expect(sql).toContain("04d9b06eedd9eec0c19cf29e5b1a9968");
-      expect(sql).toContain("08f9136df3b8fc79f1abf1ee33a0bb95");
-      expect(sql).toContain("7224cdd797c3db1613059d9fc79e7fb4");
       expect(sql).toContain("ba6534442ff7bc582d4bdefc396bc841");
     }
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("d375108d46ea6663f58a7fbe80fa3d93");
+      expect(sql).toContain("b1e4030efdc81da7dcd4697206221ffc");
+      expect(sql).toContain("07ad809b73c9daac9ea0ebe7d90e2809");
+      expect(sql).toContain("7ccae1027d97c12b32d9d04c92a54002");
+      expect(sql).toContain("4aee5587c9f133ff8e23609c23bfbd86");
+      expect(sql).toContain("2bed182fdddecbf115ecd0856e14aed7");
+      expect(sql).toContain("32d02e88418f75f08d788ab5da07c9af");
+      expect(sql).toContain("868a650d26b5bf4aff730c73b99f009e");
+      for (const triggerName of [
+        "trg_lock_preregistration_email_lifecycle",
+        "trg_lock_research_cohort_application_email_lifecycle",
+        "trg_block_auth_user_update_during_account_deletion",
+        "trg_block_storage_owner_write_during_account_deletion",
+        "trg_block_auth_user_delete_until_account_cleanup_ready",
+      ]) {
+        expect(sql).toContain(triggerName);
+      }
+    }
+    expect(productionPreflight).not.toContain("08f9136df3b8fc79f1abf1ee33a0bb95");
+    expect(productionPreflight).not.toContain("7224cdd797c3db1613059d9fc79e7fb4");
+    expect(productionPreflight).toContain("required.expected_search_path");
+    expect(productionPreflight).toContain(
+      "required.expected_service_role_execute"
+    );
     expect(productionPreflight).toMatch(
       /public\.enforce_application_survey_retention\(\)[\s\S]*?04d9b06eedd9eec0c19cf29e5b1a9968[\s\S]*?20260711141000'[\s\S]*?20260712100000'/
     );
-    expect(productionPreflight).toContain(
-      "'20260710070000', '20260712101000'"
+    expect(productionPreflight).toMatch(
+      /public\.request_account_deletion\(uuid,text\)[\s\S]*?d375108d46ea6663f58a7fbe80fa3d93[\s\S]*?'20260710070000', '20260712104500'/
+    );
+    expect(productionPreflight).toMatch(
+      /public\.complete_account_deletion_job\(uuid,uuid\)[\s\S]*?b1e4030efdc81da7dcd4697206221ffc[\s\S]*?'20260710070000', '20260712105000'/
     );
   });
 
   it("derives forward-migration function hashes from the reviewed SQL bodies", () => {
-    const contracts = [
+    const sharedContracts = [
       [researchCohortMigration, "enforce_application_survey_retention"],
       [accountDeletionEmailScopeMigration, "account_deletion_email_scopes_are_canonical"],
-      [accountDeletionEmailScopeMigration, "request_account_deletion"],
       [accountDeletionEmailScopeMigration, "renew_account_deletion_job_lease"],
-      [accountDeletionEmailScopeMigration, "complete_account_deletion_job"],
+      [accountDeletionStorageAuthRaceMigration, "list_account_deletion_owned_storage_objects"],
+      [accountDeletionStorageAuthRaceMigration, "mark_account_deletion_cleanup_ready"],
     ] as const;
 
-    for (const [migration, functionName] of contracts) {
+    for (const [migration, functionName] of sharedContracts) {
       const hash = functionSourceMd5(migration, functionName);
       expect(productionPreflight, functionName).toContain(hash);
       expect(postDeploy, functionName).toContain(hash);
     }
+
+    for (const [migration, functionName] of [
+      [applicationEmailLifecycleMigration, "lock_application_email_lifecycle_write"],
+      [authMutationFenceMigration, "block_auth_user_update_during_account_deletion"],
+      [authIdentityDeletionStartMigration, "request_account_deletion"],
+      [accountDeletionStorageAuthRaceMigration, "block_storage_owner_write_during_account_deletion"],
+      [accountDeletionStorageAuthRaceMigration, "block_auth_user_delete_until_account_cleanup_ready"],
+      [accountDeletionStorageAuthRaceMigration, "complete_account_deletion_job"],
+    ] as const) {
+      const hash = functionSourceMd5(migration, functionName);
+      expect(productionPreflight, functionName).toContain(hash);
+      expect(postDeploy, functionName).toContain(hash);
+    }
+  });
+
+  it("attests every Amora reset read fence without a permissive client bypass", () => {
+    const expectedPolicies = [
+      ["amora_couple_profiles", "amora_couple_profiles_select_with_privacy"],
+      ["chat_messages", "chat_select_with_privacy"],
+      ["chat_summaries", "chat_summaries_select_with_privacy"],
+      ["decision_nodes", "decision_nodes_select_with_privacy"],
+    ] as const;
+
+    for (const [tableName, policyName] of expectedPolicies) {
+      expect(amoraResetReadFenceMigration).toContain(
+        `CREATE POLICY "${policyName}"`
+      );
+      expect(postDeploy).toContain(`('${tableName}', '${policyName}')`);
+      expect(productionPreflight).toContain(`('${tableName}', '${policyName}')`);
+    }
+    const helperHash = functionSourceMd5(
+      amoraResetReadFenceMigration,
+      "can_read_amora_couple_data"
+    );
+    expect(helperHash).toBe("668077b0545119cc3af092bbf4cb98ae");
+    expect(postDeploy).toContain(helperHash);
+    expect(productionPreflight).toContain(helperHash);
+    for (const marker of [
+      "policy_row.permissive = 'PERMISSIVE'",
+      "policy_row.roles = ARRAY['authenticated'::name]",
+      "policy_row.cmd = 'SELECT'",
+      "policy_row.with_check IS NULL",
+      "procedure_row.prosecdef",
+      "procedure_row.provolatile = 's'",
+      "'search_path=pg_catalog, pg_temp'",
+      "'row_security=off'",
+      "cardinality(procedure_row.proconfig) = 2",
+      "'authenticated', procedure_row.oid, 'EXECUTE'",
+      "'anon', procedure_row.oid, 'EXECUTE'",
+      "'service_role', procedure_row.oid, 'EXECUTE'",
+      "'authenticated', format('public.%I', required.table_name), 'SELECT'",
+      "'anon', format('public.%I', required.table_name), 'SELECT'",
+      "regexp_replace(coalesce(policy_row.qual, '')",
+      "'^(public\\.)?can_read_amora_couple_data'",
+      "client_policy.cmd IN ('SELECT', 'ALL')",
+      "pg_has_role(",
+      "'authenticated', policy_role.role_name, 'MEMBER'",
+      "policy_role.role_name = 'public'::name",
+      "client_read_policy_count",
+      "amora_reset_read_helper_exact",
+      "all_amora_reset_read_policies_exact",
+    ]) {
+      expect(postDeploy).toContain(marker);
+    }
+    for (const marker of [
+      "amora_reset_read_helper_present",
+      "amora_reset_read_helper_existing_replaceable",
+      "amora_reset_read_helper_exact",
+      "amora_reset_read_policy_replacement_safe",
+      "amora_reset_read_policies_exact",
+      '"20260712102000" -in $PendingVersions',
+      "$Contract.amora_reset_read_helper_exact -ne $true",
+      "$Contract.all_amora_reset_read_policies_exact -ne $true",
+    ]) {
+      expect(`${productionPreflight}\n${ship}`).toContain(marker);
+    }
+    expect(postDeploy).toMatch(
+      /'all_sensitive_rls_present',[\s\S]*?amora_reset_read_policy_status WHERE NOT exact[\s\S]*?amora_reset_read_helper_status/
+    );
+  });
+
+  it("attests application-email and auth-deletion trigger bodies and bindings", () => {
+    for (const [migration, functionName] of [
+      [applicationEmailLifecycleMigration, "lock_application_email_lifecycle_write"],
+      [authMutationFenceMigration, "block_auth_user_update_during_account_deletion"],
+      [accountDeletionStorageAuthRaceMigration, "block_storage_owner_write_during_account_deletion"],
+      [accountDeletionStorageAuthRaceMigration, "block_auth_user_delete_until_account_cleanup_ready"],
+    ] as const) {
+      expect(postDeploy).toContain(functionSourceMd5(migration, functionName));
+    }
+    for (const triggerName of [
+      "trg_lock_preregistration_email_lifecycle",
+      "trg_lock_research_cohort_application_email_lifecycle",
+      "trg_block_auth_user_update_during_account_deletion",
+      "trg_block_storage_owner_write_during_account_deletion",
+      "trg_block_auth_user_delete_until_account_cleanup_ready",
+    ]) {
+      expect(postDeploy).toContain(triggerName);
+    }
+    expect(postDeploy).toContain("'search_path=pg_catalog, pg_temp', true");
+    expect(postDeploy).toContain("'search_path=pg_catalog, pg_temp', false");
+    expect(postDeploy).toContain(
+      "= required.expected_service_role_execute"
+    );
+    expect(postDeploy).toContain(
+      "pg_get_triggerdef(trigger_row.oid, true) = required.definition"
+    );
   });
 
   it("pins the research cohort table's defaults, constraints, indexes, trigger, RLS, and ACL", () => {
@@ -498,9 +725,13 @@ describe("release safety contract", () => {
     );
     expect(postDeploy).toContain("attribute_row.attidentity = ''");
     expect(postDeploy).toContain("attribute_row.attgenerated = ''");
-    expect(postDeploy).toContain(
-      "attribute_row.attname IN ('email_scopes', 'email_snapshot_at')"
-    );
+    for (const column of [
+      "email_scopes",
+      "email_snapshot_at",
+      "auth_delete_ready_until",
+    ]) {
+      expect(postDeploy).toContain(`'${column}'`);
+    }
   });
 
   it("handles a production database where pg_cron is created by a pending migration", () => {
@@ -551,6 +782,10 @@ describe("release safety contract", () => {
     expect(dependencyCronPreflight).toContain(
       "LEFT JOIN cron.job job_row ON job_row.jobname = required.job_name"
     );
+    expect(dependencyCronPreflight).toContain(
+      "job_row.database = current_database()"
+    );
+    expect(dependencyCronPreflight).toContain("job_row.username = 'postgres'");
     const placeholderContracts = extractPreflightCronContracts(
       productionPreflight
     );
@@ -566,6 +801,16 @@ describe("release safety contract", () => {
         command: contract.command,
       }))
     );
+    expect(postDeploy).toContain(
+      "job_row.database = current_database()"
+    );
+    expect(postDeploy).toContain("job_row.username = 'postgres'");
+    expect(postDeploy).toContain(
+      "current_setting('cron.launch_active_jobs', true)"
+    );
+    expect(postDeploy).toContain("current_setting('cron.timezone', true)");
+    expect(postDeploy).toContain("all_maintenance_cron_definitions_exact");
+    expect(postDeploy).toContain("all_maintenance_crons_inactive_exact");
     for (const jobName of [
       "delete-expired-amora-request-claims",
       "reconcile-stale-amora-chat-requests",
@@ -659,6 +904,10 @@ describe("release safety contract", () => {
       "Assert-Backup $ExpectedProjectRef $BackupRef $maintenanceIdentity.StartedAt",
       immediateAnonIdentity
     );
+    const immediateAccountDeletionDrain = ship.indexOf(
+      "Assert-NoProcessingAccountDeletionJobs",
+      finalDryRun
+    );
     const lastMomentTopology = ship.indexOf(
       '"Last-moment pre-push migration topology"'
     );
@@ -675,6 +924,7 @@ describe("release safety contract", () => {
       immediateServiceIdentity,
       immediateAnonIdentity,
       immediateBackup,
+      immediateAccountDeletionDrain,
       lastMomentTopology,
       lastMomentArtifacts,
     ]) {
@@ -694,6 +944,9 @@ describe("release safety contract", () => {
     expect(ship).toContain("$status.rateLimitKeySecretConfigured -ne $true");
     expect(ship).toContain("$status.researchCohortApplicationsEnabled -ne $false");
     expect(ship).toContain("$status.accountDeletionCronEnabled -ne $false");
+    expect(ship).toContain("$script:accountDeletionWorkerLeaseSeconds = 600");
+    expect(ship).toContain("$script:accountDeletionMaxInvocationSeconds = 120");
+    expect(ship).toContain("Assert-AccountDeletionWorkerDrainWindow");
     expect(ship).toContain(
       "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
     );
@@ -702,6 +955,8 @@ describe("release safety contract", () => {
     );
     const lastMomentGap = ship.slice(lastMomentTopology, push);
     expect(lastMomentTopology).toBeGreaterThan(immediateHealth);
+    expect(immediateAccountDeletionDrain).toBeGreaterThan(immediateHealth);
+    expect(immediateAccountDeletionDrain).toBeLessThan(lastMomentTopology);
     expect(lastMomentArtifacts).toBeGreaterThan(lastMomentTopology);
     expect(lastMomentGap).toContain(
       "Compare-Object $pendingVersions $lastMomentPending"
@@ -834,6 +1089,41 @@ describe("release safety contract", () => {
     }
     expect(postDeploy).toContain("account_deletion_jobs_catalog_exact");
     expect(ship).toContain("$Contract.account_deletion_jobs_catalog_exact -ne $true");
+    for (const sql of [
+      productionPreflight,
+      postDeploy,
+      accountDeletionStorageAuthRaceMigration,
+    ]) {
+      expect(sql).toContain("auth_delete_ready_until");
+    }
+    expect(productionPreflight).toContain("owned_storage_owners_over_20000");
+    expect(productionPreflight).toContain("unattributed_chat_image_objects");
+    expect(productionPreflight).toContain("orphaned_chat_image_objects");
+    expect(productionPreflight).toContain("'processing_jobs'");
+    expect(postDeploy).toContain("unattributed_chat_image_objects");
+    expect(postDeploy).toContain("orphaned_chat_image_objects");
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("WHERE auth_owner.id = object_row.owner_id::uuid");
+      expect(sql).toMatch(
+        /'orphaned_chat_image_objects'[\s\S]*?CASE[\s\S]*?NOT EXISTS \([\s\S]*?FROM auth\.users AS auth_owner[\s\S]*?ELSE false[\s\S]*?END/
+      );
+    }
+    expect(ship).toContain(
+      "owned_storage_owners_over_20000 = [long]$Preflight.account_deletion_gate.owned_storage_owners_over_20000"
+    );
+    expect(ship).toContain(
+      "unattributed_chat_image_objects = [long]$Preflight.account_deletion_gate.unattributed_chat_image_objects"
+    );
+    expect(ship).toContain(
+      "orphaned_chat_image_objects = [long]$Preflight.account_deletion_gate.orphaned_chat_image_objects"
+    );
+    expect(ship).toContain(
+      "([long]$Contract.orphaned_chat_image_objects -ne 0)"
+    );
+    expect(ship).toContain(
+      "processing_account_deletion_jobs = [long]$Preflight.account_deletion_gate.processing_jobs"
+    );
+    expect(ship).toContain('Creator = "20260712105000"');
   });
 
   it("will not retire customized invitation template thumbnails as canonical seed data", () => {

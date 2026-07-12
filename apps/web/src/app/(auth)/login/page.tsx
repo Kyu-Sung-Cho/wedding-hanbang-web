@@ -10,6 +10,16 @@ import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+const TURNSTILE_WIDGET_ERROR =
+  "보안 확인을 불러오지 못했습니다. 다시 시도 버튼을 눌러주세요.";
+const EMAIL_DELIVERY_ACTIONS_AVAILABLE =
+  TURNSTILE_ENABLED || process.env.NODE_ENV !== "production";
+const VERIFIED_OAUTH_PROVIDERS = {
+  kakao: process.env.NEXT_PUBLIC_OAUTH_KAKAO_ENABLED === "true",
+  google: process.env.NEXT_PUBLIC_OAUTH_GOOGLE_ENABLED === "true",
+  apple: process.env.NEXT_PUBLIC_OAUTH_APPLE_ENABLED === "true",
+} as const;
+const HAS_VERIFIED_OAUTH_PROVIDER = Object.values(VERIFIED_OAUTH_PROVIDERS).some(Boolean);
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -76,12 +86,8 @@ export default function LoginPage() {
     const hashError = hashParams.get("error");
     const hashDescription = hashParams.get("error_description");
 
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    if (hashDescription || hashError || callbackError) {
+      setError("로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
   }, []);
 
@@ -103,19 +109,22 @@ export default function LoginPage() {
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
         setLoading(null);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("OAuth catch error:", msg);
+      console.error("OAuth catch error:", err);
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode !== "login" && !EMAIL_DELIVERY_ACTIONS_AVAILABLE) {
+      setError("보안 확인을 점검 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     if (mode === "forgot") {
       if (!email) { setError("이메일을 입력해주세요."); return; }
       if (TURNSTILE_ENABLED && !turnstileToken) { setError("봇 확인을 완료해주세요."); return; }
@@ -196,7 +205,7 @@ export default function LoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError("로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
           }
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
@@ -225,9 +234,8 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      console.error("Auth error:", err);
+      setError("요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(null);
       if (mode === "signup" || mode === "forgot") {
@@ -254,7 +262,7 @@ export default function LoginPage() {
       >
         {/* 로고 */}
         <div className="text-center mb-10">
-          <Link href="/wedding">
+          <Link href="/wedding" className="inline-flex min-h-11 items-center justify-center">
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-[#635b51] font-light mt-3">
@@ -432,12 +440,28 @@ export default function LoginPage() {
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
                   <TurnstileWidget
                     key={`${mode}-${turnstileAttempt}`}
-                    onVerify={setTurnstileToken}
+                    action={mode === "signup" ? "signup" : "forgot_password"}
+                    onVerify={(token) => {
+                      setTurnstileToken(token);
+                      if (token) {
+                        setError((current) =>
+                          current === TURNSTILE_WIDGET_ERROR ? "" : current
+                        );
+                      }
+                    }}
+                    onError={() => setError(TURNSTILE_WIDGET_ERROR)}
                   />
                 )}
 
                 {error && (
                   <p className="text-[12px] text-[#9A6B62] px-1" role="alert" aria-live="assertive">{error}</p>
+                )}
+                {(mode === "signup" || mode === "forgot") && !EMAIL_DELIVERY_ACTIONS_AVAILABLE && (
+                  <div className="rounded-xl border border-[#9A6B62]/25 bg-[#9A6B62]/5 px-4 py-3" role="alert">
+                    <p className="text-[13px] leading-5 text-[#795252]">
+                      보안 확인을 점검 중이라 지금은 이메일 요청을 받을 수 없습니다. 잠시 후 다시 시도해주세요.
+                    </p>
+                  </div>
                 )}
                 {success && (
                   <div className="bg-[#36534E]/5 border border-[#36534E]/20 rounded-xl px-4 py-3" role="status" aria-live="polite">
@@ -451,11 +475,11 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
+                  disabled={loading !== null || (mode !== "login" && !EMAIL_DELIVERY_ACTIONS_AVAILABLE) || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim())) || (mode === "forgot" && !email)}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
-                    ? "처리 중..."
+                    ? "처리 중…"
                     : mode === "login"
                       ? "로그인"
                       : mode === "signup"
@@ -464,8 +488,8 @@ export default function LoginPage() {
                 </button>
                 {mode === "signup" && (
                   <p className="px-2 text-center text-[11px] leading-5 text-[#635b51]">
-                    회원가입을 누르면 <Link href="/terms" className="underline underline-offset-2">이용약관</Link>과{" "}
-                    <Link href="/privacy" className="underline underline-offset-2">개인정보처리방침</Link>에 동의합니다.
+                    회원가입을 누르면 <Link href="/terms" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2">이용약관</Link>과{" "}
+                    <Link href="/privacy" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2">개인정보처리방침</Link>에 동의합니다.
                   </p>
                 )}
               </form>
@@ -477,16 +501,18 @@ export default function LoginPage() {
                     <p>
                       아직 계정이 없으신가요?{" "}
                       <button
+                        type="button"
                         onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                        className="text-[#36534E] font-medium hover:underline"
+                        className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                       >
                         회원가입
                       </button>
                     </p>
                     <p>
                       <button
+                        type="button"
                         onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                        className="text-[#635b51] hover:text-[#36534E] hover:underline transition-colors"
+                        className="inline-flex min-h-11 items-center px-2 text-[#635b51] hover:text-[#36534E] hover:underline transition-colors"
                       >
                         비밀번호를 잊으셨나요?
                       </button>
@@ -497,8 +523,9 @@ export default function LoginPage() {
                   <p>
                     이미 계정이 있으신가요?{" "}
                     <button
+                      type="button"
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                      className="text-[#36534E] font-medium hover:underline"
+                      className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                     >
                       로그인
                     </button>
@@ -507,8 +534,9 @@ export default function LoginPage() {
                 {mode === "forgot" && (
                   <p>
                     <button
+                      type="button"
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                      className="text-[#36534E] font-medium hover:underline"
+                      className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                     >
                       ← 로그인으로 돌아가기
                     </button>
@@ -516,16 +544,18 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* 구분선 */}
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex-1 h-px bg-platinum" />
-                <span className="text-[11px] text-[#928980]">소셜 로그인</span>
-                <div className="flex-1 h-px bg-platinum" />
-              </div>
+              {HAS_VERIFIED_OAUTH_PROVIDER && (
+                <>
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="flex-1 h-px bg-platinum" />
+                    <span className="text-[11px] text-[#6F665F]">기존 연결 계정으로 소셜 로그인</span>
+                    <div className="flex-1 h-px bg-platinum" />
+                  </div>
 
-              {/* 소셜 로그인 */}
-              <div className="flex gap-3 mb-5">
+                  <div className="flex gap-3 mb-5">
+                {VERIFIED_OAUTH_PROVIDERS.kakao && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("kakao")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-[#FEE500] text-[#191919] hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
@@ -535,7 +565,10 @@ export default function LoginPage() {
                   </svg>
                   카카오
                 </button>
+                )}
+                {VERIFIED_OAUTH_PROVIDERS.google && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("google")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-white border border-black/[0.08] text-[#071629] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
@@ -548,7 +581,10 @@ export default function LoginPage() {
                   </svg>
                   Google
                 </button>
+                )}
+                {VERIFIED_OAUTH_PROVIDERS.apple && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("apple")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-black text-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
@@ -558,7 +594,13 @@ export default function LoginPage() {
                   </svg>
                   Apple
                 </button>
+                )}
               </div>
+              <p className="-mt-2 mb-5 text-center text-[11px] leading-relaxed text-[#6F665F]">
+                새 계정은 이메일로 가입해 주세요. 소셜 로그인은 기존에 연결한 계정만 사용할 수 있어요.
+              </p>
+                </>
+              )}
 
               {/* 구분선 */}
               <div className="flex items-center gap-4 mb-5">
@@ -586,7 +628,7 @@ export default function LoginPage() {
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-4 mt-6">
-          <Link href="/wedding" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
+          <Link href="/wedding" className="inline-flex min-h-11 items-center px-3 text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
             ← 홈으로
           </Link>
         </div>

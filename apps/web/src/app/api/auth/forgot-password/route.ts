@@ -4,6 +4,9 @@ import { Resend } from "resend";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { normalizeEmail } from "@/utils/requestValidation";
+import { ChatRequestError, readBoundedJsonBody } from "@/lib/ai/chatRequest";
+
+const MAX_BODY_BYTES = 4 * 1024;
 
 const GENERIC_RECOVERY_MESSAGE =
   "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다.";
@@ -43,26 +46,48 @@ function safeErrorMetadata(error: unknown): Record<string, unknown> {
 
 export async function POST(request: Request) {
   try {
-    const { email: rawEmail, turnstileToken } = await request.json();
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+      return NextResponse.json({ error: "JSON 요청이 필요합니다." }, { status: 415 });
+    }
+    let body: Record<string, unknown>;
+    try {
+      body = await readBoundedJsonBody(request, { maxBytes: MAX_BODY_BYTES });
+    } catch (error) {
+      if (error instanceof ChatRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+    const rawEmail = body.email;
+    const turnstileToken = typeof body.turnstileToken === "string"
+      ? body.turnstileToken
+      : null;
     const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return NextResponse.json({ error: "이메일을 입력해주세요." }, { status: 400 });
     }
 
-    // 모든 비인증 호출은 출처와 관계없이 서버 검증을 통과해야 한다.
-    const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
+    const ipLimited = await checkRateLimitPersistent(rateLimitKey("forgot", request), {
+      maxRequests: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (ipLimited) return genericRecoveryResponse();
+
+    const turnstile = await verifyTurnstile(
+      turnstileToken,
+      getClientIp(request),
+      "forgot_password"
+    );
     if (!turnstile.ok) {
       return NextResponse.json(
         { error: "보안 확인을 완료한 뒤 다시 시도해주세요." },
         { status: 400 }
       );
     }
-    const ipLimited = await checkRateLimitPersistent(rateLimitKey("forgot", request), {
-      maxRequests: 5,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (ipLimited) return genericRecoveryResponse();
+
+    // CAPTCHA를 통과하지 않은 공격자가 피해자의 복구 quota를 소진하지
+    // 못하도록 이메일 단위 제한은 검증 성공 뒤에만 계산한다.
     const emailLimited = await checkRateLimitPersistent(`forgot-email:${normalizeEmailForRateLimit(email)}`, {
       maxRequests: 3,
       windowMs: 60 * 60 * 1000,

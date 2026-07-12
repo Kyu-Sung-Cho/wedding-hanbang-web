@@ -3,6 +3,11 @@ import { resolve } from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
+const TEST_TURNSTILE_SECRET = [
+  "0x4AAAAAAADDDDDDDD",
+  "EEEEEEEEEEEEEEEE",
+].join("");
+
 const repoRoot = resolve(process.cwd(), "../..");
 const proxySource = readFileSync(
   resolve(repoRoot, "apps/web/src/proxy.ts"),
@@ -31,6 +36,9 @@ const originalAccountDeletionCronEnabled = process.env.ACCOUNT_DELETION_CRON_ENA
 const originalResearchCohortApplicationsEnabled =
   process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED;
 const originalVercelGitCommitSha = process.env.VERCEL_GIT_COMMIT_SHA;
+const originalTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const originalTurnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
+const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 afterEach(() => {
   if (originalRateLimitKeySecret === undefined) {
@@ -63,6 +71,21 @@ afterEach(() => {
     delete process.env.VERCEL_GIT_COMMIT_SHA;
   } else {
     process.env.VERCEL_GIT_COMMIT_SHA = originalVercelGitCommitSha;
+  }
+  if (originalTurnstileSiteKey === undefined) {
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  } else {
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = originalTurnstileSiteKey;
+  }
+  if (originalTurnstileSecretKey === undefined) {
+    delete process.env.TURNSTILE_SECRET_KEY;
+  } else {
+    process.env.TURNSTILE_SECRET_KEY = originalTurnstileSecretKey;
+  }
+  if (originalSiteUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+  } else {
+    process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
   }
 });
 
@@ -177,6 +200,9 @@ describe("maintenance release contract", () => {
     expect(healthSource).toContain('supabaseProjectRef: configuredSupabaseProjectRef()');
     expect(healthSource).toContain('maintenanceStartedAt: process.env.MAINTENANCE_STARTED_AT_UTC');
     expect(healthSource).toContain("rateLimitKeySecretConfigured:");
+    expect(healthSource).toContain("turnstileCredentialsConfigured:");
+    expect(healthSource).toContain("turnstileCanonicalHostnameConfigured:");
+    expect(healthSource).toContain("turnstileConfigured:");
     expect(healthSource).toContain("deployment: configuredDeploymentCommit()");
     expect(healthSource).toContain("researchCohortApplicationsEnabled:");
     expect(healthSource).toContain("accountDeletionCronEnabled:");
@@ -203,6 +229,37 @@ describe("maintenance release contract", () => {
     const configured = (await (await GET()).json()) as Record<string, unknown>;
     expect(configured.rateLimitKeySecretConfigured).toBe(true);
     expect(configured).not.toHaveProperty("rateLimitKeySecret");
+  });
+
+  it("reports only whether both Turnstile credentials meet the strict boundary", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SECRET_KEY;
+    const missing = (await (await GET()).json()) as Record<string, unknown>;
+    expect(missing.turnstileCredentialsConfigured).toBe(false);
+    expect(missing.turnstileCanonicalHostnameConfigured).toBe(false);
+    expect(missing.turnstileConfigured).toBe(false);
+    expect(missing).not.toHaveProperty("turnstileSiteKey");
+    expect(missing).not.toHaveProperty("turnstileSecretKey");
+
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY =
+      "0x4AAAAAAABBBBBBBBCCCCCCCC";
+    process.env.TURNSTILE_SECRET_KEY = TEST_TURNSTILE_SECRET;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://hanbang.ai";
+    const configured = (await (await GET()).json()) as Record<string, unknown>;
+    expect(configured.turnstileCredentialsConfigured).toBe(true);
+    expect(configured.turnstileCanonicalHostnameConfigured).toBe(true);
+    expect(configured.turnstileConfigured).toBe(true);
+    expect(configured).not.toHaveProperty("turnstileSiteKey");
+    expect(configured).not.toHaveProperty("turnstileSecretKey");
+
+    process.env.NEXT_PUBLIC_SITE_URL = "https://untrusted.example";
+    const wrongHostname = (await (await GET()).json()) as Record<string, unknown>;
+    expect(wrongHostname.turnstileCredentialsConfigured).toBe(true);
+    expect(wrongHostname.turnstileCanonicalHostnameConfigured).toBe(false);
+    expect(wrongHostname.turnstileConfigured).toBe(false);
   });
 
   it("reports only the account-deletion cron switch state", async () => {

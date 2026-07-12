@@ -148,6 +148,28 @@ test("mobile onboarding copy distinguishes examples from real activity", () => {
   assert.doesNotMatch(dashboard, /다음 업체 추천이 더 정확해져요/);
 });
 
+test("Amora makes long generation honest, cancellable, and retryable", () => {
+  const chat = readSource("app/(tabs)/chat.tsx");
+  const timeout = readSource("src/lib/chatRequestTimeout.ts");
+
+  assert.match(timeout, /MOBILE_CHAT_DELAY_NOTICE_MS = 9_000/);
+  assert.match(timeout, /MOBILE_CHAT_TIMEOUT_MS = 120_000/);
+  assert.match(timeout, /class MobileChatCancelledError/);
+  assert.match(timeout, /code = "request_cancelled"/);
+  assert.match(timeout, /externalSignal\.addEventListener\("abort"/);
+  assert.match(timeout, /externalSignal\?\.removeEventListener\("abort"/);
+  assert.match(timeout, /clearTimeout\(timeout\)/);
+
+  assert.match(chat, /여러 정보를 확인하느라 평소보다 오래 걸리고 있어요\. 최대 2분까지만 기다릴게요/);
+  assert.match(chat, /accessibilityLabel="아모라 답변 생성 중단"/);
+  assert.match(chat, /accessibilityHint="작성 중인 답변만 중단하고 저장된 질문은 유지합니다"/);
+  assert.match(chat, /activeRequest\.abort\(\)/);
+  assert.match(chat, /질문은 저장되어 있어 언제든 다시 시도할 수 있어요/);
+  assert.match(chat, /retry: "ai"/);
+  assert.match(chat, /setPendingAiRequest\(null\)/);
+  assert.doesNotMatch(chat, /wasCancelled[\s\S]{0,500}setPendingAiRequest\(null\)/);
+});
+
 test("settings reconciles replacement-couple requests before showing failure", () => {
   const source = readSource("app/settings/index.tsx");
   const unlockStart = source.indexOf("async function unlockLegacyInvite()");

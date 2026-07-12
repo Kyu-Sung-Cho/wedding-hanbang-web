@@ -1,8 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { normalizeEmailForRateLimit, verifyTurnstile } from "../turnstile";
+import {
+  hasCanonicalTurnstileHostname,
+  hasTurnstileConfig,
+  hasTurnstileCredentials,
+  normalizeEmailForRateLimit,
+  PRODUCTION_TURNSTILE_HOSTNAME,
+  verifyTurnstile,
+} from "../turnstile";
+
+const TEST_TURNSTILE_SECRET = [
+  "0x4AAAAAAADDDDDDDD",
+  "EEEEEEEEEEEEEEEE",
+].join("");
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("normalizeEmailForRateLimit — 이메일 폭탄 우회 방어", () => {
@@ -48,6 +61,116 @@ describe("normalizeEmailForRateLimit — 이메일 폭탄 우회 방어", () => 
 });
 
 describe("verifyTurnstile — production guard", () => {
+  it("reports only a complete, non-test credential pair as configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://hanbang.ai");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAABBBBBBBBCCCCCCCC");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", TEST_TURNSTILE_SECRET);
+    expect(hasTurnstileCredentials()).toBe(true);
+    expect(hasCanonicalTurnstileHostname()).toBe(true);
+    expect(hasTurnstileConfig()).toBe(true);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "");
+    expect(hasTurnstileConfig()).toBe(false);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA");
+    expect(hasTurnstileConfig()).toBe(false);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "placeholder-turnstile-secret-value");
+    expect(hasTurnstileConfig()).toBe(false);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", ` ${TEST_TURNSTILE_SECRET}`);
+    expect(hasTurnstileCredentials()).toBe(false);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "0x4AAAAAAABBBBBBBBCCCCCCCC");
+    expect(hasTurnstileCredentials()).toBe(false);
+
+    vi.stubEnv("TURNSTILE_SECRET_KEY", TEST_TURNSTILE_SECRET);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://hanbang.ai");
+    expect(hasTurnstileConfig()).toBe(false);
+
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://untrusted.example");
+    expect(hasTurnstileCredentials()).toBe(true);
+    expect(hasCanonicalTurnstileHostname()).toBe(false);
+    expect(hasTurnstileConfig()).toBe(false);
+
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", " https://hanbang.ai");
+    expect(hasCanonicalTurnstileHostname()).toBe(false);
+    expect(PRODUCTION_TURNSTILE_HOSTNAME).toBe("hanbang.ai");
+  });
+
+  it("never derives the accepted production hostname from a mutable site URL", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://untrusted.example");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAABBBBBBBBCCCCCCCC");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", TEST_TURNSTILE_SECRET);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      verifyTurnstile("attacker-controlled-host-token", null, "signup")
+    ).resolves.toEqual({ ok: false, skipped: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("binds a successful token to the canonical hostname and expected action", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://hanbang.ai");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAABBBBBBBBCCCCCCCC");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", TEST_TURNSTILE_SECRET);
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        success: true,
+        hostname: "hanbang.ai",
+        action: "signup",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      verifyTurnstile("single-use-token", "203.0.113.5", "signup")
+    ).resolves.toEqual({ ok: true, skipped: false });
+    const request = fetchMock.mock.calls[0]?.[1] as { body?: URLSearchParams };
+    expect(request.body?.get("secret")).toBe(
+      TEST_TURNSTILE_SECRET
+    );
+    expect(request.body?.get("response")).toBe("single-use-token");
+    expect(request.body?.get("remoteip")).toBe("203.0.113.5");
+  });
+
+  it("fails closed on hostname mismatch, action mismatch, or oversized input", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://hanbang.ai");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAABBBBBBBBCCCCCCCC");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", TEST_TURNSTILE_SECRET);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue({
+          success: true,
+          hostname: "untrusted.example",
+          action: "signup",
+        }),
+      })
+      .mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue({
+          success: true,
+          hostname: "hanbang.ai",
+          action: "survey",
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      verifyTurnstile("hostname-token", null, "signup")
+    ).resolves.toEqual({ ok: false, skipped: false });
+    await expect(
+      verifyTurnstile("action-token", null, "signup")
+    ).resolves.toEqual({ ok: false, skipped: false });
+    await expect(
+      verifyTurnstile("x".repeat(2049), null, "signup")
+    ).resolves.toEqual({ ok: false, skipped: false });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("allows local no-op when the secret is missing", async () => {
     vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("VERCEL_ENV", "");

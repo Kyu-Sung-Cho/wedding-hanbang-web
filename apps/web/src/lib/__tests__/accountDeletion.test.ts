@@ -8,6 +8,7 @@ import {
 
 const USER_ID = "123e4567-e89b-42d3-a456-426614174000";
 const COUPLE_ID = "223e4567-e89b-42d3-a456-426614174000";
+const PARTNER_ID = "523e4567-e89b-42d3-a456-426614174000";
 const JOB_ID = "323e4567-e89b-42d3-a456-426614174000";
 const WORKER_TOKEN = "423e4567-e89b-42d3-a456-426614174000";
 
@@ -21,11 +22,13 @@ const BASE_JOB: AccountDeletionJob = {
 
 type MockAdminOptions = {
   authMissing?: boolean;
+  authLookupError?: { status?: number; code?: string };
   profile?: { couple_id: string | null; role: string | null } | null;
   deleteErrors?: Partial<Record<string, { code: string }>>;
   verificationErrors?: Partial<Record<string, { code: string }>>;
   remainingEmailRows?: Partial<Record<string, number>>;
   authEmail?: string | null;
+  authEmailSequence?: Array<string | null>;
   snapshotScopes?: string[] | null;
   snapshotAt?: string | null;
   snapshotSaveError?: { code: string };
@@ -34,6 +37,13 @@ type MockAdminOptions = {
   leaseRenewErrorAfterEvent?: string;
   allowedEmailScopes?: string[];
   storageFiles?: string[];
+  storageScopeFiles?: Record<string, string[]>;
+  couple?: { bride_id: string | null; groom_id: string | null };
+  ownedStorageObjects?: Array<{ bucket_id: string; object_name: string }>;
+  ownedStorageListError?: { code: string };
+  retainOwnedStorageMetadata?: boolean;
+  cleanupReadyResult?: boolean;
+  cleanupReadyError?: { code: string };
 };
 
 function createMockAdmin(options: MockAdminOptions = {}) {
@@ -42,13 +52,27 @@ function createMockAdmin(options: MockAdminOptions = {}) {
   let savedInventory: unknown;
   let leaseRenewalCount = 0;
   let eventTriggeredLeaseFailure = false;
+  let authLookupCount = 0;
+  let durableSnapshotScopes = options.snapshotScopes === undefined
+    ? ["delete-me@example.com"]
+    : options.snapshotScopes;
+  let durableSnapshotAt = options.snapshotAt === undefined
+    ? "2026-07-12T00:00:00.000Z"
+    : options.snapshotAt;
   const removedBatchSizes: number[] = [];
+  const removedStoragePaths: Array<{ bucket: string; path: string }> = [];
+  let ownedStorageObjects = (options.ownedStorageObjects ?? []).map((object) => ({
+    ...object,
+  }));
   const storageObjects = new Map<string, Set<string>>([
     [
       `community-images:${USER_ID}`,
       new Set(options.storageFiles ?? ["photo.jpg"]),
     ],
   ]);
+  for (const [scope, files] of Object.entries(options.storageScopeFiles ?? {})) {
+    storageObjects.set(scope, new Set(files));
+  }
 
   function queryResult(table: string) {
     if (table === "guestbooks") return { data: [], error: null };
@@ -63,6 +87,8 @@ function createMockAdmin(options: MockAdminOptions = {}) {
     let verifyingCount = false;
     let savingEmailSnapshot = false;
     let loadingEmailSnapshot = false;
+    let pendingSnapshotScopes: string[] | null = null;
+    let pendingSnapshotAt: string | null = null;
     let deletionEmail: string | null = null;
     let verificationEmail: string | null = null;
     const query = {
@@ -86,6 +112,12 @@ function createMockAdmin(options: MockAdminOptions = {}) {
         events.push(`db:update:${table}`);
         if (table === "account_deletion_jobs" && payload?.email_snapshot_at) {
           savingEmailSnapshot = true;
+          pendingSnapshotScopes = Array.isArray(payload.email_scopes)
+            ? payload.email_scopes as string[]
+            : null;
+          pendingSnapshotAt = typeof payload.email_snapshot_at === "string"
+            ? payload.email_snapshot_at
+            : null;
           events.push("db:snapshot-save");
         }
         return query;
@@ -105,6 +137,10 @@ function createMockAdmin(options: MockAdminOptions = {}) {
       gt: () => query,
       maybeSingle: async () => {
         if (table === "account_deletion_jobs" && savingEmailSnapshot) {
+          if (!options.snapshotSaveError) {
+            durableSnapshotScopes = pendingSnapshotScopes;
+            durableSnapshotAt = pendingSnapshotAt;
+          }
           return {
             data: options.snapshotSaveError ? null : { id: JOB_ID },
             error: options.snapshotSaveError ?? null,
@@ -113,12 +149,8 @@ function createMockAdmin(options: MockAdminOptions = {}) {
         if (table === "account_deletion_jobs" && loadingEmailSnapshot) {
           return {
             data: options.snapshotLoadError ? null : {
-              email_scopes: options.snapshotScopes === undefined
-                ? ["delete-me@example.com"]
-                : options.snapshotScopes,
-              email_snapshot_at: options.snapshotAt === undefined
-                ? "2026-07-12T00:00:00.000Z"
-                : options.snapshotAt,
+              email_scopes: durableSnapshotScopes,
+              email_snapshot_at: durableSnapshotAt,
             },
             error: options.snapshotLoadError ?? null,
           };
@@ -132,7 +164,10 @@ function createMockAdmin(options: MockAdminOptions = {}) {
           };
         }
         if (table === "couples") {
-          return { data: { bride_id: USER_ID, groom_id: null }, error: null };
+          return {
+            data: options.couple ?? { bride_id: USER_ID, groom_id: null },
+            error: null,
+          };
         }
         return queryResult(table);
       },
@@ -176,6 +211,28 @@ function createMockAdmin(options: MockAdminOptions = {}) {
         savedInventory = args?.p_inventory;
         return { data: true, error: null };
       }
+      if (name === "list_account_deletion_owned_storage_objects") {
+        if (options.ownedStorageListError) {
+          return { data: null, error: options.ownedStorageListError };
+        }
+        const afterBucket = typeof args?.p_after_bucket === "string"
+          ? args.p_after_bucket
+          : null;
+        const afterName = typeof args?.p_after_name === "string"
+          ? args.p_after_name
+          : null;
+        const limit = typeof args?.p_limit === "number" ? args.p_limit : 500;
+        const sorted = [...ownedStorageObjects].sort((left, right) =>
+          left.bucket_id.localeCompare(right.bucket_id)
+          || left.object_name.localeCompare(right.object_name)
+        );
+        const page = sorted.filter((object) => {
+          if (afterBucket === null || afterName === null) return true;
+          return object.bucket_id > afterBucket
+            || (object.bucket_id === afterBucket && object.object_name > afterName);
+        }).slice(0, limit);
+        return { data: page, error: null };
+      }
       if (name === "renew_account_deletion_job_lease") {
         leaseRenewalCount += 1;
         events.push(`db:lease-renew:${leaseRenewalCount}`);
@@ -188,6 +245,17 @@ function createMockAdmin(options: MockAdminOptions = {}) {
         return failed
           ? { data: false, error: { code: "lease_expired" } }
           : { data: true, error: null };
+      }
+      if (name === "mark_account_deletion_cleanup_ready") {
+        if (options.cleanupReadyError) {
+          return { data: null, error: options.cleanupReadyError };
+        }
+        if (options.cleanupReadyResult !== undefined) {
+          return { data: options.cleanupReadyResult, error: null };
+        }
+        return ownedStorageObjects.length === 0
+          ? { data: true, error: null }
+          : { data: null, error: { code: "owned_storage_remains" } };
       }
       if (name === "complete_account_deletion_job") return { data: true, error: null };
       return { data: null, error: null };
@@ -215,9 +283,16 @@ function createMockAdmin(options: MockAdminOptions = {}) {
           events.push(`storage:remove:${bucket}`);
           removedBatchSizes.push(paths.length);
           for (const path of paths) {
+            removedStoragePaths.push({ bucket, path });
             const parts = path.split("/");
             const name = parts.pop()!;
             storageObjects.get(`${bucket}:${parts.join("/")}`)?.delete(name);
+          }
+          if (!options.retainOwnedStorageMetadata) {
+            const removed = new Set(paths);
+            ownedStorageObjects = ownedStorageObjects.filter((object) =>
+              object.bucket_id !== bucket || !removed.has(object.object_name)
+            );
           }
           return { data: paths, error: null };
         },
@@ -227,17 +302,26 @@ function createMockAdmin(options: MockAdminOptions = {}) {
       admin: {
         getUserById: async () => {
           events.push("auth:get");
+          if (options.authLookupError) {
+            return { data: { user: null }, error: options.authLookupError };
+          }
           if (options.authMissing) {
             return {
               data: { user: null },
               error: { status: 404, code: "user_not_found" },
             };
           }
+          const sequencedEmail = options.authEmailSequence?.[
+            Math.min(authLookupCount, options.authEmailSequence.length - 1)
+          ];
+          authLookupCount += 1;
           return {
             data: {
               user: {
                 id: USER_ID,
-                email: options.authEmail === undefined
+                email: options.authEmailSequence
+                  ? sequencedEmail
+                  : options.authEmail === undefined
                   ? "delete-me@example.com"
                   : options.authEmail,
               },
@@ -264,10 +348,26 @@ function createMockAdmin(options: MockAdminOptions = {}) {
       ...(storageObjects.get(`community-images:${USER_ID}`) ?? new Set<string>()),
     ],
     getRemovedBatchSizes: () => [...removedBatchSizes],
+    getRemovedStoragePaths: () => [...removedStoragePaths],
+    getOwnedStorageObjects: () => [...ownedStorageObjects],
+    getStorageFiles: (bucket: string, directory: string) => [
+      ...(storageObjects.get(`${bucket}:${directory}`) ?? new Set<string>()),
+    ],
   };
 }
 
 describe("processAccountDeletionJob", () => {
+  it("does not mistake a generic Auth-route 404 for a deleted user", async () => {
+    const mock = createMockAdmin({
+      authLookupError: { status: 404, code: "route_not_found" },
+    });
+
+    await expect(
+      processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN)
+    ).rejects.toMatchObject({ code: "AUTH_LOOKUP_FAILED" });
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
+  });
+
   it("persists inventory before storage purge, then leaves/redacts, deletes auth, and completes", async () => {
     const mock = createMockAdmin();
 
@@ -277,8 +377,8 @@ describe("processAccountDeletionJob", () => {
     expect(saved).toEqual(expect.arrayContaining([
       { bucket: "community-images", prefix: USER_ID },
       { bucket: "community-videos", prefix: USER_ID },
-      { bucket: "chat-image", prefix: COUPLE_ID },
     ]));
+    expect(saved).not.toContainEqual({ bucket: "chat-image", prefix: COUPLE_ID });
     expect(mock.fromCalls).not.toContain("invitations");
 
     const inventorySave = mock.events.indexOf("rpc:save_account_deletion_storage_inventory");
@@ -309,6 +409,140 @@ describe("processAccountDeletionJob", () => {
     expect(authDelete).toBeGreaterThan(researchApplicationVerify);
     expect(authDelete).toBeGreaterThan(redact);
     expect(complete).toBeGreaterThan(authDelete);
+  });
+
+  it("deletes every owner_id object, including only this member's shared-chat object, before leaving", async () => {
+    const mock = createMockAdmin({
+      couple: { bride_id: USER_ID, groom_id: PARTNER_ID },
+      storageScopeFiles: {
+        [`chat-image:${COUPLE_ID}`]: ["mine.jpg", "partner.jpg"],
+      },
+      ownedStorageObjects: [
+        {
+          bucket_id: "community-images",
+          object_name: `${USER_ID}/owner-only.jpg`,
+        },
+        {
+          bucket_id: "chat-image",
+          object_name: `${COUPLE_ID}/mine.jpg`,
+        },
+      ],
+    });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    const saved = mock.getSavedInventory() as Array<{ bucket: string; prefix: string }>;
+    expect(saved).not.toContainEqual({ bucket: "chat-image", prefix: COUPLE_ID });
+    expect(mock.getRemovedStoragePaths()).toEqual(expect.arrayContaining([
+      { bucket: "community-images", path: `${USER_ID}/owner-only.jpg` },
+      { bucket: "chat-image", path: `${COUPLE_ID}/mine.jpg` },
+    ]));
+    expect(mock.getRemovedStoragePaths()).not.toContainEqual({
+      bucket: "chat-image",
+      path: `${COUPLE_ID}/partner.jpg`,
+    });
+    expect(mock.getStorageFiles("chat-image", COUPLE_ID)).toEqual(["partner.jpg"]);
+    expect(mock.getOwnedStorageObjects()).toEqual([]);
+
+    const inventoryRead = mock.events.indexOf(
+      "rpc:list_account_deletion_owned_storage_objects",
+    );
+    const ownerRemove = mock.events.indexOf("storage:remove:chat-image");
+    const ownerZeroRecheck = mock.events.lastIndexOf(
+      "rpc:list_account_deletion_owned_storage_objects",
+    );
+    const leave = mock.events.indexOf("rpc:leave_amora_couple_safely");
+    const cleanupReady = mock.events.indexOf(
+      "rpc:mark_account_deletion_cleanup_ready",
+    );
+    const authDelete = mock.events.indexOf("auth:delete");
+    expect(ownerRemove).toBeGreaterThan(inventoryRead);
+    expect(ownerZeroRecheck).toBeGreaterThan(ownerRemove);
+    expect(leave).toBeGreaterThan(ownerZeroRecheck);
+    expect(cleanupReady).toBeGreaterThan(
+      mock.events.lastIndexOf("rpc:redact_user_ai_data"),
+    );
+    expect(authDelete).toBeGreaterThan(cleanupReady);
+  });
+
+  it("fails before leaving when Storage API removal does not clear owner metadata", async () => {
+    const mock = createMockAdmin({
+      ownedStorageObjects: [{
+        bucket_id: "chat-image",
+        object_name: `${COUPLE_ID}/stuck.jpg`,
+      }],
+      retainOwnedStorageMetadata: true,
+    });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "OWNED_STORAGE_NOT_QUIESCENT",
+      });
+    expect(mock.events).not.toContain("rpc:leave_amora_couple_safely");
+    expect(mock.events).not.toContain("auth:delete");
+  });
+
+  it("never replays a legacy whole-chat prefix after exact owner provenance is available", async () => {
+    const mock = createMockAdmin({
+      storageScopeFiles: {
+        [`chat-image:${COUPLE_ID}`]: ["mine.jpg", "partner.jpg"],
+      },
+      ownedStorageObjects: [{
+        bucket_id: "chat-image",
+        object_name: `${COUPLE_ID}/mine.jpg`,
+      }],
+    });
+    const legacyJob = {
+      ...BASE_JOB,
+      storage_inventory: [{ bucket: "chat-image", prefix: COUPLE_ID }],
+    };
+
+    await processAccountDeletionJob(mock.admin, legacyJob, WORKER_TOKEN);
+
+    expect(mock.events).not.toContain(`storage:list:chat-image:${COUPLE_ID}`);
+    expect(mock.getStorageFiles("chat-image", COUPLE_ID)).toEqual(["partner.jpg"]);
+    expect(mock.getRemovedStoragePaths()).toContainEqual({
+      bucket: "chat-image",
+      path: `${COUPLE_ID}/mine.jpg`,
+    });
+    expect(mock.getRemovedStoragePaths()).not.toContainEqual({
+      bucket: "chat-image",
+      path: `${COUPLE_ID}/partner.jpg`,
+    });
+  });
+
+  it("pages and removes the complete bounded owner inventory in Storage API batches", async () => {
+    const ownedStorageObjects = Array.from({ length: 501 }, (_, index) => ({
+      bucket_id: "chat-image",
+      object_name: `${COUPLE_ID}/owned-${String(index).padStart(3, "0")}.jpg`,
+    }));
+    const mock = createMockAdmin({ ownedStorageObjects });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    const inventoryReads = mock.events.filter(
+      (event) => event === "rpc:list_account_deletion_owned_storage_objects",
+    );
+    expect(inventoryReads).toHaveLength(3);
+    expect(mock.getOwnedStorageObjects()).toEqual([]);
+    expect(mock.getRemovedBatchSizes().every((size) => size <= 100)).toBe(true);
+    expect(mock.getRemovedStoragePaths().filter(
+      ({ bucket }) => bucket === "chat-image",
+    )).toHaveLength(501);
+  });
+
+  it("does not delete Auth when the short cleanup-ready proof cannot be created", async () => {
+    const mock = createMockAdmin({ cleanupReadyResult: false });
+
+    await expect(processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN))
+      .rejects.toMatchObject({
+        name: AccountDeletionError.name,
+        code: "AUTH_DELETE_READY_FAILED",
+      });
+    expect(mock.events).toContain("rpc:mark_account_deletion_cleanup_ready");
+    expect(mock.events).not.toContain("auth:delete");
+    expect(mock.events).not.toContain("rpc:complete_account_deletion_job");
   });
 
   it("deletes each bounded storage page before listing the next page", async () => {
@@ -457,6 +691,36 @@ describe("processAccountDeletionJob", () => {
       );
     }
     expect(mock.events).toContain("auth:delete");
+  });
+
+  it("re-reads auth after storage cleanup and deletes a newly observed email scope", async () => {
+    const mock = createMockAdmin({
+      authEmailSequence: ["delete-me@example.com", "final-address@example.com"],
+      allowedEmailScopes: ["delete-me@example.com", "final-address@example.com"],
+    });
+
+    await processAccountDeletionJob(mock.admin, BASE_JOB, WORKER_TOKEN);
+
+    const authLookups = mock.events
+      .map((event, index) => event === "auth:get" ? index : -1)
+      .filter((index) => index >= 0);
+    const finalAuthLookup = authLookups.at(-1)!;
+    const finalSnapshotSave = mock.events.lastIndexOf("db:snapshot-save");
+    const firstDirectDelete = mock.events.indexOf("rpc:leave_amora_couple_safely");
+
+    expect(authLookups).toHaveLength(2);
+    expect(finalAuthLookup).toBeGreaterThan(
+      mock.events.lastIndexOf(`storage:list:community-images:${USER_ID}`),
+    );
+    expect(finalSnapshotSave).toBeGreaterThan(finalAuthLookup);
+    expect(firstDirectDelete).toBeGreaterThan(finalSnapshotSave);
+    for (const email of ["delete-me@example.com", "final-address@example.com"]) {
+      expect(mock.events).toContain(`db:delete-scope:preregistrations:${email}`);
+      expect(mock.events).toContain(
+        `db:delete-scope:research_cohort_applications:${email}`,
+      );
+    }
+    expect(mock.events.indexOf("auth:delete")).toBeGreaterThan(firstDirectDelete);
   });
 
   it("stops before destructive account removal when the worker lease cannot renew", async () => {

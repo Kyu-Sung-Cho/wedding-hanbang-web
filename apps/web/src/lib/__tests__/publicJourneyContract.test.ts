@@ -75,6 +75,62 @@ describe("public journey contract", () => {
     );
   });
 
+  it("does not present a failed community fetch as a genuine empty community", () => {
+    const community = readSource("src/components/community/CommunityLandingClient.tsx");
+
+    expect(community).toContain(
+      "posts.length === 0 ? (\n        errorMessage ? null : isSearching ? ("
+    );
+    expect(community.indexOf("errorMessage ? null : isSearching")).toBeLessThan(
+      community.indexOf("<EmptyFeedStarter />")
+    );
+  });
+
+  it("keeps primary community actions comfortable on touch screens", () => {
+    const community = readSource("src/components/community/CommunityLandingClient.tsx");
+    const communityNav = readSource("src/components/community/CommunityNav.tsx");
+    const communityLayout = readSource("src/app/(community)/layout.tsx");
+    const globals = readSource("src/app/globals.css");
+
+    expect(community).toContain(
+      'aria-label="검색"\n            className="absolute right-1 top-1/2 inline-flex h-11 w-11'
+    );
+    expect(community).toContain("inline-flex min-h-11 items-center px-2");
+    expect(communityNav).toContain("inline-flex min-h-11 shrink-0 items-center");
+    expect(communityLayout).toContain("inline-flex h-11 w-11 items-center");
+    expect(communityLayout).toContain("inline-flex min-h-11 items-center text-[13px]");
+    expect(globals).toMatch(
+      /button:not\(\.no-min-tap\)[\s\S]*?min-height:\s*44px/
+    );
+    expect(globals).not.toContain("min-height: 40px");
+  });
+
+  it("keeps auth consent and Amora panel controls touch-sized on mobile", () => {
+    const login = readSource("src/app/(auth)/login/page.tsx");
+    const chatPanel = readSource("src/components/app/chat/ChatSidePanel.tsx");
+    const aiNotice = readSource("src/components/common/AiNoticeFooter.tsx");
+    const community = readSource("src/components/community/CommunityLandingClient.tsx");
+
+    expect(login).toContain(
+      '<Link href="/wedding" className="inline-flex min-h-11 items-center justify-center">'
+    );
+    expect(login).toContain(
+      'href="/terms" className="inline-flex min-h-11 items-center px-2'
+    );
+    expect(login).toContain(
+      'href="/privacy" className="inline-flex min-h-11 items-center px-2'
+    );
+    expect(chatPanel.match(/className="w-11 h-11 flex items-center justify-center/g))
+      .toHaveLength(2);
+    expect(chatPanel).toContain(
+      'href="/ai-policy" className="inline-flex min-h-11 items-center px-2'
+    );
+    expect(aiNotice).toContain("inline-flex min-h-11 items-center px-2");
+    expect(community).toContain(
+      'className="inline-flex h-11 shrink-0 items-center rounded-full'
+    );
+  });
+
   it("boots a server-verified example session without initializing Supabase first", () => {
     const serverLayout = readSource("src/app/(app)/layout.tsx");
     const clientLayout = readSource("src/app/(app)/AppClientLayout.tsx");
@@ -275,7 +331,7 @@ describe("public journey contract", () => {
     for (const destination of ["/demo", "/beta", "/about", "/support"]) {
       expect(footer).toContain(`href: "${destination}"`);
     }
-    expect(footer).toContain("아직 로그인·앱 기능은 제공하지 않으며");
+    expect(footer).toContain("아직 로그인·앱 기능은 제공하지 않습니다");
   });
 
   it("does not send coming-soon visitors into the gated example app", () => {
@@ -295,7 +351,8 @@ describe("public journey contract", () => {
     expect(features).toContain("정식 베타에서 준비 중인 주요 기능");
     expect(scenarios).toContain("정식 베타에서 준비 중인 도구");
     expect(comingSoonCtas).toContain("사용자 연구");
-    expect(comingSoonCtas).toContain("6주간 심층 피드백");
+    expect(comingSoonCtas).toContain('/beta#cta');
+    expect(comingSoonCtas).toContain("6주 사용자 연구");
     expect(comingSoonCtas).not.toContain("베타 소식 신청");
     expect(betaForm).toContain('COMING_SOON ? "/demo" : weddingPath()');
     expect(betaForm).toContain("서비스 소개로 돌아가기");

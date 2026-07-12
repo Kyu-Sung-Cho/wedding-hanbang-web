@@ -565,7 +565,7 @@ function SearchHub({
           <button
             type="submit"
             aria-label="검색"
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#36534E]"
+            className="absolute right-1 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[#36534E] transition-colors hover:bg-[#EEF4F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
           >
             <Search className="h-6 w-6" />
           </button>
@@ -855,7 +855,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               {...weddingLinkProps(fullFeedHref)}
-              className="inline-flex h-10 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
+            className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
               aria-label={feedMoreLabel}
             >
               더보기
@@ -883,7 +883,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={() => useCommunityStore.getState().fetchPosts(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               다시 불러오기
@@ -891,7 +891,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={clearError}
-              className="rounded-full px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
+              className="min-h-11 rounded-full px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
             >
               닫기
             </button>
@@ -906,7 +906,7 @@ function LatestPosts({
           ))}
         </div>
       ) : posts.length === 0 ? (
-        isSearching ? (
+        errorMessage ? null : isSearching ? (
           <EmptyState
             message={`"${searchQuery}"에 대한 검색 결과가 없습니다`}
             description="다른 키워드로 검색해 보세요."
@@ -1218,7 +1218,7 @@ function BestPostsPanel() {
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
-        <Link {...weddingLinkProps(moreHref)} className="text-[13px] font-medium text-[#9d6f36]">
+        <Link {...weddingLinkProps(moreHref)} className="inline-flex min-h-11 items-center px-2 text-[13px] font-medium text-[#9d6f36]">
           더보기
         </Link>
       </div>
@@ -1325,7 +1325,7 @@ function MarketSnapshotPanel() {
         </div>
         <Link
           {...weddingLinkProps("/market-prices")}
-          className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
+          className="inline-flex h-11 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
         >
           자세히
           <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
@@ -1472,7 +1472,7 @@ function CohortPreviewPanel() {
         </div>
         <Link
           {...weddingLinkProps("/community/cohort")}
-          className="shrink-0 text-[13px] font-medium text-[#36534E]"
+          className="inline-flex min-h-11 shrink-0 items-center px-2 text-[13px] font-medium text-[#36534E]"
         >
           더보기
         </Link>

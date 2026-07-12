@@ -24,6 +24,7 @@ export type WeddingCodeV05IndividualReport = {
   titleKo: string;
   subtitleKo: string;
   shareSummaryKo: string;
+  shareNoteKo: string;
   sharePromptKo: string;
   axisReports: WeddingCodeV05AxisReport[];
   talkStarters: string[];
@@ -43,7 +44,8 @@ export function buildWeddingCodeV05IndividualReport(
     titleKo: "이번 답변에서 먼저 고른 것들",
     subtitleKo: `${score.answeredCount}개 장면을 네 가지 준비 순서로 나눠, 고른 횟수 그대로 보여드려요.`,
     shareSummaryKo: axisReports.map(shareLabel).join(" · "),
-    sharePromptKo: "너는 결혼 준비에서 무엇부터 시작해?",
+    shareNoteKo: "16개 가상 장면에서 고른 횟수예요. 성격·관계 진단이 아니에요.",
+    sharePromptKo: "가상 장면에서 너는 무엇을 먼저 골라?",
     axisReports,
     // 특정 축을 "가장 강한" 대화 주제로 자동 승격하지 않는다. 사용자가
     // 현재 필요한 주제를 직접 고르게 해 동률의 첫 축 편향도 피한다.
@@ -92,14 +94,15 @@ function shareLabel(axis: WeddingCodeV05AxisReport): string {
   if (axis.leftCount === axis.rightCount) {
     switch (axis.key) {
       case "decisionCriteria":
-        return "조건·장면 반반";
+        return "조건·장면 2:2";
       case "preparationMode":
-        return "같이·분담 반반";
+        return "같이·분담 2:2";
       case "coordinationScope":
-        return "둘·주변 반반";
+        return "둘·주변 2:2";
       case "supportOrder":
-        return "마음·할 일 반반";
+        return "마음·할 일 2:2";
     }
   }
-  return axis.leftCount > axis.rightCount ? axis.leftLabelKo : axis.rightLabelKo;
+  const selectedLabel = axis.leftCount > axis.rightCount ? axis.leftLabelKo : axis.rightLabelKo;
+  return `${selectedLabel} ${Math.max(axis.leftCount, axis.rightCount)}/4`;
 }

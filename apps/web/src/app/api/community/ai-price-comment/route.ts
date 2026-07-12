@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     void logAIInteraction({
       interactionType: "community_amora_comment",
       success: false,
-      errorMessage: err instanceof Error ? err.message : String(err),
+      errorMessage: "ai_interaction_failed",
       metadata: { endpoint: "ai-price-comment" },
     });
     return NextResponse.json(

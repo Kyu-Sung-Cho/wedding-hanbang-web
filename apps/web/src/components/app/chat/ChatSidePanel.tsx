@@ -58,6 +58,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     loadMessages,
     sendMessage,
     retryAiResponse,
+    cancelAiResponse,
     dismissAiError,
     clearMessages,
     subscribeToMessages,
@@ -416,7 +417,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             )}
             <button
               onClick={handleExpand}
-              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="전체 화면으로 보기"
               aria-label="아모라 채팅 전체 화면으로 보기"
             >
@@ -424,7 +425,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </button>
             <button
               onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="닫기"
               aria-label="아모라 상담 패널 닫기"
             >
@@ -439,7 +440,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             AI 생성 · GPT-5.6
           </span>
           <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
-          <a href="/ai-policy" className="underline underline-offset-2 hover:text-[#795252]">
+          <a href="/ai-policy" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2 hover:text-[#795252]">
             AI 정책
           </a>
         </div>
@@ -564,7 +565,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
               {isStreaming && (
                 <div className="animate-fade-in">
-                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} />
+                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} onCancel={cancelAiResponse} />
                 </div>
               )}
 
@@ -624,10 +625,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </div>
                     )}
                     <button
+                      type="button"
                       onClick={() => removeAttachment(i)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label={`${att.fileName} 첨부 삭제`}
+                      className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center rounded-full text-white opacity-100 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-sm">
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
                     </button>
                   </div>
                 ))}

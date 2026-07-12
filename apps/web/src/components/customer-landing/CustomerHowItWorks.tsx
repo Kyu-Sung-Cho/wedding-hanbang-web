@@ -113,7 +113,7 @@ export default function CustomerHowItWorks() {
               </div>
               <div className="max-md:flex-1">
                 <span className="font-display text-[12px] text-rose-500 font-semibold block mb-2">{step.num}</span>
-                <h4 className="text-[16px] font-medium text-noir-800 mb-2">{step.title}</h4>
+                <h3 className="text-[16px] font-medium text-noir-800 mb-2">{step.title}</h3>
                 <p className="text-[13px] text-taupe-500 font-light leading-relaxed mb-3">{step.desc}</p>
                 <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                   {step.highlight}

@@ -39,9 +39,9 @@ export default function CustomerCTA() {
           <p className="text-[clamp(14px,1.8vw,16px)] text-charcoal leading-relaxed font-light mb-10">
             {isComingSoon ? (
               <>
-                정식 베타 전, 6주간 심층 피드백에 참여할 최대 50명을 모집합니다.
+                정식 베타 전 진행할 6주 사용자 연구의 계획과 참여 조건을 안내합니다.
                 <br className="hidden md:block" />
-                참여 조건과 개인정보 안내를 확인한 뒤 신청해 주세요.
+                현재 접수 가능 여부는 안내 페이지에서 정확히 확인해 주세요.
               </>
             ) : (
               <>
@@ -57,7 +57,7 @@ export default function CustomerCTA() {
               href={accountHref}
               className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
-              {isComingSoon ? "사용자 연구 조건 확인하기" : "베타 계정 만들기"}
+              {isComingSoon ? "사용자 연구 안내 보기" : "베타 계정 만들기"}
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>
@@ -74,7 +74,7 @@ export default function CustomerCTA() {
             {isComingSoon ? (
               <>
                 <span>✦ 6주 사용자 연구</span>
-                <span>✦ 선정 결과는 이메일로</span>
+                <span>✦ 접수 상태는 안내 페이지에서</span>
                 <span>✦ 신청 정보 180일 보관</span>
               </>
             ) : (

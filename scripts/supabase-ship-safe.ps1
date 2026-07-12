@@ -13,10 +13,16 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$script:expectedDependencyFunctionCount = 52
+$script:expectedDependencyFunctionCount = 54
 $script:expectedDependencyCronCount = 5
-$script:expectedClientDeniedTriggerFunctionCount = 8
-$script:expectedClientDeniedTriggerBindingCount = 8
+$script:expectedClientDeniedTriggerFunctionCount = 12
+$script:expectedClientDeniedTriggerBindingCount = 13
+$script:accountDeletionWorkerLeaseSeconds = 600
+$script:accountDeletionMaxInvocationSeconds = 120
+$script:accountDeletionWorkerDrainSeconds = [Math]::Max(
+  $script:accountDeletionWorkerLeaseSeconds,
+  $script:accountDeletionMaxInvocationSeconds
+)
 
 function Show-Help {
   Write-Host ""
@@ -81,7 +87,8 @@ function Get-ReleaseArtifactFingerprint {
     (Resolve-Path "scripts/supabase-write-fence.ps1").Path,
     (Resolve-Path "scripts/supabase-recovery-safe.mjs").Path,
     (Resolve-Path "scripts/retire-invitation-bucket.mjs").Path,
-    (Resolve-Path "scripts/supabase-anon-probe.mjs").Path
+    (Resolve-Path "scripts/supabase-anon-probe.mjs").Path,
+    (Resolve-Path "scripts/supabase-auth-config-preflight.mjs").Path
   ) + @(
     Get-ChildItem -LiteralPath "scripts/sql" -Filter "supabase-*.sql" |
       Sort-Object FullName |
@@ -273,6 +280,22 @@ function Assert-PreflightDynamicSourceTopology {
       throw "Applied trigger binding $($bindingProperty.Name) is missing, disabled, or points to the wrong function."
     }
   }
+  $amoraResetReadBoundaryPending =
+    "20260712102000" -in $PendingVersions
+  if ($amoraResetReadBoundaryPending) {
+    if ($Preflight.dynamic_sources.amora_reset_read_helper_present -eq $true -and
+      $Preflight.dynamic_sources.amora_reset_read_helper_existing_replaceable -ne $true) {
+      throw "Amora reset read helper cannot be safely replaced by pending migration 20260712102000."
+    }
+    if ($Preflight.dynamic_sources.amora_reset_read_policy_replacement_safe -ne $true) {
+      throw "Amora reset read policies have unmanaged client reads or incompatible table ACL/RLS prerequisites."
+    }
+  } elseif (
+    $Preflight.dynamic_sources.amora_reset_read_helper_exact -ne $true -or
+    $Preflight.dynamic_sources.amora_reset_read_policies_exact -ne $true
+  ) {
+    throw "Applied Amora reset read helper or policies drifted from the exact privacy-revocation contract."
+  }
   $dependencyCrons = $Preflight.dynamic_sources.dependency_cron_status
   if ($null -eq $dependencyCrons) {
     throw "Production preflight omitted its dependency cron contracts."
@@ -388,6 +411,11 @@ function Assert-PreflightDynamicSourceTopology {
       Present = $Preflight.dynamic_sources.account_deletion_email_attestation_present
       Exact = $Preflight.dynamic_sources.account_deletion_email_attestation_contract_exact
       Creator = "20260712101000"
+    }
+    account_deletion_auth_ready = [pscustomobject]@{
+      Present = $Preflight.dynamic_sources.account_deletion_auth_ready_present
+      Exact = $Preflight.dynamic_sources.account_deletion_auth_ready_contract_exact
+      Creator = "20260712105000"
     }
     preregistration_expiry = [pscustomobject]@{
       Present = $Preflight.dynamic_sources.preregistration_expiry_present
@@ -571,6 +599,16 @@ function Assert-ProductionPreflight {
   if ($missingDynamicCounts.Count -gt 0) {
     throw "Production preflight dynamic inventory was not completed."
   }
+  foreach ($requiredAccountDeletionCount in @(
+      "processing_jobs",
+      "owned_storage_owners_over_20000",
+      "unattributed_chat_image_objects",
+      "orphaned_chat_image_objects"
+    )) {
+    if ($null -eq $Preflight.account_deletion_gate.$requiredAccountDeletionCount) {
+      throw "Production preflight omitted account-deletion evidence: $requiredAccountDeletionCount."
+    }
+  }
 
   $hardBlockers = [ordered]@{
     amora_legacy_gate = -not [bool]$Preflight.amora_legacy_gate.gate_will_pass
@@ -578,6 +616,10 @@ function Assert-ProductionPreflight {
     guestbook_owners_over_498 = [long]$Preflight.account_deletion_gate.guestbook_owners_over_498
     profiles_over_500_scopes = [long]$Preflight.account_deletion_gate.profiles_over_500_scopes
     storage_scopes_over_20000 = [long]$Preflight.account_deletion_gate.storage_scopes_over_20000
+    owned_storage_owners_over_20000 = [long]$Preflight.account_deletion_gate.owned_storage_owners_over_20000
+    unattributed_chat_image_objects = [long]$Preflight.account_deletion_gate.unattributed_chat_image_objects
+    orphaned_chat_image_objects = [long]$Preflight.account_deletion_gate.orphaned_chat_image_objects
+    processing_account_deletion_jobs = [long]$Preflight.account_deletion_gate.processing_jobs
     legacy_storage_objects = [long]$Preflight.account_deletion_gate.legacy_storage_objects
     active_deletion_jobs_missing_auth_subject = [long]$Preflight.account_deletion_gate.active_jobs_missing_auth_subject
     invalid_phones = [long]$Preflight.data_rewrites.invalid_phones
@@ -601,6 +643,10 @@ function Assert-ProductionPreflight {
   return [ordered]@{
     account_deletion_rows_scrubbed = [long]$Preflight.account_deletion_gate.legacy_rows_scrubbed
     account_deletion_email_snapshots_backfilled = [long]$Preflight.account_deletion_gate.email_snapshot_backfills
+    account_deletion_owned_storage_oversized_owners = [long]$Preflight.account_deletion_gate.owned_storage_owners_over_20000
+    account_deletion_unattributed_chat_images = [long]$Preflight.account_deletion_gate.unattributed_chat_image_objects
+    account_deletion_orphaned_chat_images = [long]$Preflight.account_deletion_gate.orphaned_chat_image_objects
+    account_deletion_processing_jobs = [long]$Preflight.account_deletion_gate.processing_jobs
     vendor_demotions = [long]$Preflight.data_rewrites.vendor_demotions
     ai_redactions = [long]$Preflight.data_rewrites.ai_redactions
     ai_deletes = [long]$Preflight.data_rewrites.ai_deletes
@@ -715,6 +761,8 @@ function Assert-PostDeployContract {
     ($Contract.all_functions_present -ne $true) -or
     ($Contract.all_client_denied_trigger_functions_exact -ne $true) -or
     ($Contract.all_client_denied_trigger_bindings_exact -ne $true) -or
+    ($Contract.amora_reset_read_helper_exact -ne $true) -or
+    ($Contract.all_amora_reset_read_policies_exact -ne $true) -or
     ($Contract.all_maintenance_crons_exact -ne $true) -or
     ($Contract.vendor_upload_insert_policies_absent -ne $true) -or
     ($Contract.unproven_vendor_upload_objects_absent -ne $true) -or
@@ -733,6 +781,8 @@ function Assert-PostDeployContract {
     ($Contract.tables.invitations_retired -ne $true) -or
     ([long]$Contract.legacy_invitation_photo_objects -ne 0) -or
     ($Contract.legacy_invitation_bucket_present -ne $false) -or
+    ([long]$Contract.unattributed_chat_image_objects -ne 0) -or
+    ([long]$Contract.orphaned_chat_image_objects -ne 0) -or
     ([long]$Contract.retired_invitation_inventory_jobs -ne 0)) {
     throw "Post-deploy contract failed. $($Contract | ConvertTo-Json -Depth 8 -Compress)"
   }
@@ -758,6 +808,11 @@ function Assert-MaintenanceHealth {
   if ($status.rateLimitKeySecretConfigured -ne $true) {
     throw "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
   }
+  if ($status.turnstileCredentialsConfigured -ne $true -or
+    $status.turnstileCanonicalHostnameConfigured -ne $true -or
+    $status.turnstileConfigured -ne $true) {
+    throw "Live deployment is missing the complete Turnstile site/secret pair or the exact hanbang.ai configuration binding. This configuration signal does not replace real hostname/action challenge evidence."
+  }
   if ($status.researchCohortApplicationsEnabled -ne $false -or
     $status.accountDeletionCronEnabled -ne $false) {
     throw "Live deployment must keep research intake and account-deletion cron disabled during migration."
@@ -780,6 +835,33 @@ function Assert-MaintenanceHealth {
   return [pscustomobject]@{
     StartedAt = $startedAt
     Deployment = [string]$status.deployment
+  }
+}
+
+function Assert-AccountDeletionWorkerDrainWindow {
+  param(
+    [Parameter(Mandatory = $true)] [DateTimeOffset]$MaintenanceStartedAt
+  )
+
+  $elapsedSeconds = [DateTimeOffset]::UtcNow.Subtract(
+    $MaintenanceStartedAt
+  ).TotalSeconds
+  if ($elapsedSeconds -lt $script:accountDeletionWorkerDrainSeconds) {
+    $remainingSeconds = [Math]::Ceiling(
+      $script:accountDeletionWorkerDrainSeconds - $elapsedSeconds
+    )
+    throw "Account-deletion cron is disabled, but the previous worker lease/invocation drain window has not elapsed. Retry after at least $remainingSeconds seconds."
+  }
+}
+
+function Assert-NoProcessingAccountDeletionJobs {
+  $row = Read-JsonSqlRow "Immediate account-deletion worker drain recheck" @"
+SELECT count(*)::bigint AS processing_jobs
+FROM public.account_deletion_jobs
+WHERE status = 'processing';
+"@
+  if ($null -eq $row.processing_jobs -or [long]$row.processing_jobs -ne 0) {
+    throw "Account-deletion workers are not fully drained. processing_jobs=$($row.processing_jobs)"
   }
 }
 
@@ -844,6 +926,49 @@ if ($Production -and -not $isProductionTarget) {
 }
 if ($isProductionTarget -and ($SkipBuild -or $SkipLint -or $SkipAudit)) {
   throw "Protected production refs forbid -SkipBuild, -SkipLint, and -SkipAudit."
+}
+if ($isProductionTarget -and
+  $targets.productionSupabaseAuthConfigContract -ne
+    "direct-signup-disabled-general-password-v1") {
+  throw "Production push is disabled because the reviewed hosted Auth config contract identity changed."
+}
+if ($isProductionTarget -and
+  ($targets.productionSupabasePublicEmailBoundary.status -ne "verified-v1" -or
+    $targets.productionSupabasePublicEmailBoundary.contract -ne
+      "hosted-public-email-boundary-v1" -or
+    [string]::IsNullOrWhiteSpace(
+      [string]$targets.productionSupabasePublicEmailBoundary.approvedMode
+    ))) {
+  throw "Production push is disabled until public GoTrue recovery, resend, magic-link, and OTP email paths cannot bypass the reviewed CAPTCHA, limiter, neutral-response, and delivery boundary."
+}
+if ($isProductionTarget -and
+  ($targets.productionSupabaseRedirectTokenPolicy.status -ne "verified-v1" -or
+    $targets.productionSupabaseRedirectTokenPolicy.contract -ne
+      "hosted-auth-redirect-token-v1")) {
+  throw "Production push is disabled until the hosted site URL, exact redirect allow-list, JWT/refresh policy, email OTP policy, and Auth rate limits are read-only attested."
+}
+if ($isProductionTarget -and
+  ($targets.productionOAuthProviderContract.status -ne "verified-v1" -or
+    $targets.productionOAuthProviderContract.contract -ne
+      "verified-visible-oauth-providers-v1")) {
+  throw "Production push is disabled until every visible OAuth provider and redirect round-trip is independently attested."
+}
+if ($isProductionTarget -and
+  ($targets.productionTurnstileBoundary.status -ne "verified-v1" -or
+    $targets.productionTurnstileBoundary.contract -ne
+      "siteverify-hostname-action-v1" -or
+    $targets.productionTurnstileBoundary.canonicalHostname -cne "hanbang.ai" -or
+    ((@($targets.productionTurnstileBoundary.requiredActions |
+          ForEach-Object { [string]$_ })) -join ",") -cne
+      "signup,forgot_password,preregister,survey")) {
+  throw "Production push is disabled until Turnstile credentials, the hanbang.ai widget hostname, and all four hostname/action-bound Siteverify flows are independently attested."
+}
+if ($isProductionTarget -and
+  ($targets.productionAdminPasswordLifecycle.status -ne "verified-v1" -or
+    $targets.productionAdminPasswordLifecycle.contract -ne
+      "role-aware-admin-password-v1" -or
+    [int]$targets.productionAdminPasswordLifecycle.minimumLength -ne 12)) {
+  throw "Production push is disabled until admin creation, recovery, and authenticated password updates enforce the role-aware 12-character policy at a non-bypassable boundary."
 }
 if ($isProductionTarget -and
   $targets.productionDatabaseWriteFence -ne "verified-v1") {
@@ -922,6 +1047,12 @@ $previousSupabaseUrl = $env:NEXT_PUBLIC_SUPABASE_URL
 
 try {
   Assert-LinkedProject
+  if ($isProductionTarget) {
+    Invoke-Step "Exact hosted Auth config preflight" {
+      node ./scripts/supabase-auth-config-preflight.mjs `
+        --expected-project-ref $ExpectedProjectRef
+    } | Out-Null
+  }
   $localVersions = @(Get-ChildItem -LiteralPath "supabase/migrations" -Filter "*.sql" |
     ForEach-Object { $_.BaseName.Split('_')[0] } |
     Sort-Object -Unique)
@@ -1016,6 +1147,8 @@ try {
     $maintenanceIdentity = Assert-MaintenanceHealth `
       ([string]$targets.productionWebBaseUrl) $ExpectedProjectRef `
       $reviewedDeployment
+    Assert-AccountDeletionWorkerDrainWindow $maintenanceIdentity.StartedAt
+    Assert-NoProcessingAccountDeletionJobs
     Assert-Backup $ExpectedProjectRef $BackupRef $maintenanceIdentity.StartedAt
     $drainConfirmation = Read-Host "Type DRAINED_AND_MAINTENANCE_ACTIVE"
     if ($drainConfirmation -ne "DRAINED_AND_MAINTENANCE_ACTIVE") {
@@ -1042,6 +1175,8 @@ try {
       $verifiedMaintenanceIdentity.Deployment -ne $maintenanceIdentity.Deployment) {
       throw "Maintenance deployment changed after backup approval."
     }
+    Assert-AccountDeletionWorkerDrainWindow $verifiedMaintenanceIdentity.StartedAt
+    Assert-NoProcessingAccountDeletionJobs
     Assert-Backup $ExpectedProjectRef $BackupRef $maintenanceIdentity.StartedAt
   }
 
@@ -1094,6 +1229,10 @@ try {
       node ./scripts/supabase-anon-probe.mjs `
         --expected-project-ref $ExpectedProjectRef --verify-key-only
     } | Out-Null
+    Invoke-Step "Immediate hosted Auth config recheck" {
+      node ./scripts/supabase-auth-config-preflight.mjs `
+        --expected-project-ref $ExpectedProjectRef
+    } | Out-Null
     Assert-Backup $ExpectedProjectRef $BackupRef $maintenanceIdentity.StartedAt
     $pushMaintenanceIdentity = Assert-MaintenanceHealth `
       ([string]$targets.productionWebBaseUrl) $ExpectedProjectRef `
@@ -1102,6 +1241,8 @@ try {
       $pushMaintenanceIdentity.Deployment -ne $maintenanceIdentity.Deployment) {
       throw "Maintenance identity changed immediately before push."
     }
+    Assert-AccountDeletionWorkerDrainWindow $pushMaintenanceIdentity.StartedAt
+    Assert-NoProcessingAccountDeletionJobs
     if ([DateTimeOffset]::UtcNow -ge $authorizationExpiry) {
       throw "Maintenance authorization expired during immediate pre-push verification."
     }

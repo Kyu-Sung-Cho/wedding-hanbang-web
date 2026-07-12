@@ -2,8 +2,8 @@
 
 > **중간 스냅샷·현재 판정 아님:** 이후 업체 연결·문의·결과 저장이 코드에서 하드 비활성화되고, 견적·가격·아모라 비용 경계와 검증 수치가 다시 바뀌었다. 현재 서비스와 출시 판정은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)만 따른다. 아래 예약 문구·점수·테스트 수를 현재 운영 증거로 사용하지 않는다.
 
-감사 기준일: 2026-07-11  
-대상: 웹, 모바일, 공유 패키지, Supabase migration/RLS/RPC, AI 런타임, 공개 문구, 개인정보·약관, 저장소 문서와 Git 이력  
+감사 기준일: 2026-07-11
+대상: 웹, 모바일, 공유 패키지, Supabase migration/RLS/RPC, AI 런타임, 공개 문구, 개인정보·약관, 저장소 문서와 Git 이력
 판정 원칙: 코드와 자동 검증이 문서·데모보다 우선한다. 키·원격 DB·실기기 없이 확인하지 못한 항목은 통과로 간주하지 않는다.
 
 ## 결론

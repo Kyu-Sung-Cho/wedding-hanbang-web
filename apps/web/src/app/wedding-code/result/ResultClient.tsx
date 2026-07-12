@@ -142,11 +142,11 @@ export default function WeddingCodeResultClient() {
     setSaveFeedback(null);
     try {
       const canvas = await renderShareCard({
-        scenario: "나의 웨딩 준비 시작점",
+        scenario: "이번 16개 가상 장면에서 먼저 고른 것",
         quote: report.shareSummaryKo,
-        factText: `${report.sharePromptKo}\nhanbang.ai/wedding-code`,
+        factText: `${report.shareNoteKo}\nhanbang.ai/wedding-code`,
         factSource: null,
-        factLabel: "같이 해보기",
+        factLabel: "베타 · 같이 해보기",
         brand: "웨딩코드 · hanbang.ai",
       });
 
@@ -155,15 +155,15 @@ export default function WeddingCodeResultClient() {
         const file = new File([blob], "weddingcode-result.png", { type: "image/png" });
         const shareData = {
           files: [file],
-          title: "나의 웨딩 준비 시작점",
-          text: `${report.sharePromptKo}\nhttps://hanbang.ai/wedding-code`,
+          title: "웨딩 준비 순서 체크 · 베타",
+          text: `${report.shareNoteKo}\n${report.sharePromptKo}\nhttps://hanbang.ai/wedding-code`,
         };
         const shareOutcome = await shareFileThenText({
           shareNavigator: navigator,
           fileData: shareData,
           textData: {
-            title: "나의 웨딩 준비 시작점",
-            text: report.sharePromptKo,
+            title: "웨딩 준비 순서 체크 · 베타",
+            text: `${report.shareNoteKo}\n${report.sharePromptKo}`,
             url: "https://hanbang.ai/wedding-code",
           },
         });
@@ -358,7 +358,7 @@ export default function WeddingCodeResultClient() {
         </section>
 
         <section className={`${card} p-5 sm:p-6`}>
-          <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">다음 행동 카드</p>
+          <p className="text-[12px] font-semibold tracking-wide text-[#7b5528]">결과와 상관없이 확인할 것</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {report.actionCards.map((action) => (
               <div key={action.id} className="rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-4">

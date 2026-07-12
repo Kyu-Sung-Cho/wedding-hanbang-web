@@ -45,9 +45,9 @@ export default function CustomerHero() {
           transition={{ duration: 0.7, delay: 0.2 }}
           className="inline-flex items-center gap-3 px-5 py-2.5 bg-white/80 backdrop-blur-sm border border-platinum rounded-full mb-8 cursor-pointer hover:bg-white hover:border-rose-500/30 transition-all"
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? "bg-gold" : "bg-emerald-500"} animate-pulse`} />
+          <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? "bg-gold" : "bg-emerald-500"} animate-pulse motion-reduce:animate-none`} />
           <span className="text-[13px] text-charcoal tracking-wide font-light">
-            {isComingSoon ? "베타 준비 중 · 사용자 연구 모집" : "베타 계정 · 예시 앱 별도 체험"}
+            {isComingSoon ? "베타 준비 중 · 사용자 연구 안내" : "베타 계정 · 예시 앱 별도 체험"}
           </span>
         </motion.a>
 
@@ -89,7 +89,7 @@ export default function CustomerHero() {
             href={accountHref}
             className="group inline-flex items-center gap-2.5 px-10 py-4 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[15px] font-medium hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(121,82,82,0.25)] transition-all duration-300 shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
-            {isComingSoon ? "사용자 연구 신청하기" : "베타 계정 만들기"}
+            {isComingSoon ? "사용자 연구 알아보기" : "베타 계정 만들기"}
             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
@@ -134,7 +134,7 @@ export default function CustomerHero() {
         <span className="text-[10px] tracking-[0.2em] uppercase text-taupe-400">
           Scroll
         </span>
-        <div className="w-px h-8 bg-gradient-to-b from-taupe-400 to-transparent animate-[scrollLine_2s_ease-in-out_infinite]" />
+        <div className="w-px h-8 bg-gradient-to-b from-taupe-400 to-transparent animate-[scrollLine_2s_ease-in-out_infinite] motion-reduce:animate-none" />
       </motion.div>
     </section>
   );

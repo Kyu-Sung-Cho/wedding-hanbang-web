@@ -32,7 +32,7 @@ export default function CommunityLayout({
 
 function FooterBrand() {
   return (
-    <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+    <Link {...weddingLinkProps()} className="inline-flex min-h-11 items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
       <Logo size="md" variant="white" />
     </Link>
   );
@@ -58,7 +58,7 @@ function CommunityFooter() {
                 target={item.href.startsWith("http") ? "_blank" : undefined}
                 rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
                 <item.icon className="h-4 w-4" />
               </a>
@@ -112,7 +112,7 @@ function CommunityFooter() {
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -137,7 +137,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
             : { href: item.href };
 
           return (
-            <Link key={item.label} {...linkProps} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+            <Link key={item.label} {...linkProps} className="inline-flex min-h-11 items-center text-[13px] font-medium text-white/65 hover:text-[#f2e8c8] md:min-h-0">
               {item.label}
             </Link>
           );

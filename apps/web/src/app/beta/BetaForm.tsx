@@ -11,6 +11,10 @@ import { readStoredUtm } from "@/utils/utm";
 import { ymdInKst } from "@/lib/utils/kstDate";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+const TURNSTILE_ACTION_AVAILABLE =
+  TURNSTILE_ENABLED || process.env.NODE_ENV !== "production";
+const TURNSTILE_WIDGET_ERROR =
+  "보안 확인을 불러오지 못했습니다. 다시 시도 버튼을 눌러주세요.";
 const COMING_SOON = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
 interface BetaFormProps {
@@ -34,6 +38,7 @@ export default function BetaForm({ current, applicationsEnabled }: BetaFormProps
   const [success, setSuccess] = useState(false);
   const [verificationEmailSent, setVerificationEmailSent] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
 
   useEffect(() => {
     setEarliestWeddingDate(ymdInKst());
@@ -81,6 +86,10 @@ export default function BetaForm({ current, applicationsEnabled }: BetaFormProps
       setError("개인정보 수집·이용 안내를 확인하고 동의해주세요.");
       return;
     }
+    if (!TURNSTILE_ACTION_AVAILABLE) {
+      setError("보안 확인을 점검 중이라 지금은 신청을 받을 수 없습니다.");
+      return;
+    }
     if (TURNSTILE_ENABLED && !turnstileToken) {
       setError("봇 확인을 완료해주세요.");
       return;
@@ -123,6 +132,12 @@ export default function BetaForm({ current, applicationsEnabled }: BetaFormProps
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setSubmitting(false);
+      if (TURNSTILE_ENABLED) {
+        // Siteverify tokens are single-use. A downstream failure after
+        // verification must never strand the next attempt with a spent token.
+        setTurnstileToken("");
+        setTurnstileAttempt((attempt) => attempt + 1);
+      }
     }
   }
 
@@ -300,7 +315,28 @@ export default function BetaForm({ current, applicationsEnabled }: BetaFormProps
           </span>
         </label>
 
-        {TURNSTILE_ENABLED && <TurnstileWidget onVerify={setTurnstileToken} />}
+        {TURNSTILE_ENABLED && (
+          <TurnstileWidget
+            key={`preregister-${turnstileAttempt}`}
+            action="preregister"
+            theme="dark"
+            onVerify={(token) => {
+              setTurnstileToken(token);
+              if (token) {
+                setError((current) =>
+                  current === TURNSTILE_WIDGET_ERROR ? null : current
+                );
+              }
+            }}
+            onError={() => setError(TURNSTILE_WIDGET_ERROR)}
+          />
+        )}
+
+        {!TURNSTILE_ACTION_AVAILABLE && (
+          <p className="text-[13px] text-rose-light leading-relaxed" role="alert">
+            보안 확인을 점검 중이라 지금은 신청을 받을 수 없습니다. 잠시 후 다시 시도해주세요.
+          </p>
+        )}
 
         {error && (
           <p className="text-[13px] text-rose-light leading-relaxed" role="alert">{error}</p>

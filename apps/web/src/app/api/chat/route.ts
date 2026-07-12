@@ -1391,7 +1391,6 @@ export async function POST(request: Request) {
         if (
           visibleQuotaSent
           || visibleQuotaRemaining === null
-          || visibleQuotaRemaining > 15
         ) return;
         visibleQuotaSent = true;
         send({ type: "quota", remaining: visibleQuotaRemaining });

@@ -31,10 +31,42 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/i;
+const GIT_SHA_RE = /^[0-9a-f]{40}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const AGE_RECIPIENT_RE = /^age1[0-9a-z]{20,}$/;
 const DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_STORAGE_CONCURRENCY = 8;
+const RECOVERY_FORMAT_VERSION = 2;
+const APPROVED_CRON_ARTIFACT_PATH = "operations/approved-cron-contract.json";
+const APPROVED_CRON_CONTRACT_VERSION = "hanbang-approved-maintenance-crons-v1";
+const APPROVED_CRON_CONTRACT_SHA256 =
+  "5c9b4bbd3ba20e564016b3fb196df81aa254e3ff849523bebf9bf269c1c77ff8";
+const CRON_REPLAY_STRATEGY =
+  "launcher-off-drained-unschedule-and-replay-inactive-v2";
+const APPROVED_CRON_REPLAY_SQL_SHA256 =
+  "cc8a78b3130ea2ed6c2b26af3a867c8f4c9a501f32fb1863bbb4ca2a6628c577";
+const CRON_ACTIVATION_STRATEGY =
+  "evidence-complete-enable-approved-jobs-and-launcher-v1";
+const APPROVED_CRON_ACTIVATION_SQL_SHA256 =
+  "d421d92aa57c2df43e5ebeafae7eebfc4abb5009a9b66ef6e48c536577027553";
+const APPROVED_CRON_TIMEZONE = "GMT";
+const APPROVED_CRON_SCHEDULER_ROLE = "postgres";
+const RESTORE_EVIDENCE_IDENTITY_CONTRACT =
+  "isolated-restore-evidence-identity-v1";
+const RESTORE_EVIDENCE_ITEM_CONTRACT = "isolated-restore-evidence-item-v1";
+const RESTORE_EVIDENCE_KINDS = new Set([
+  "database-restore",
+  "storage-restore",
+  "cron-inactive-replay",
+  "post-deploy-inactive-contract",
+  "database-storage-parity",
+  "rto-measurement",
+]);
+const ARCHIVE_AUTHENTICITY_CONTRACT =
+  "age-sender-signature-external-immutable-anchor-v1";
+const BLOCKED_ARCHIVE_AUTHENTICITY_STATUS =
+  "blocked-key-custody-and-immutable-anchor-not-approved";
 const BASE_CHILD_ENV_KEYS = Object.freeze([
   "SystemRoot",
   "WINDIR",
@@ -76,6 +108,50 @@ const REQUIRED_DATABASE_ARTIFACTS = Object.freeze({
   "migration-history-schema": "db/migration-history-schema.sql",
   "migration-history-data": "db/migration-history-data.sql",
   "managed-auth-storage-changes": "db/managed-auth-storage-changes.sql",
+});
+
+export const APPROVED_CRON_CONTRACT = Object.freeze({
+  schemaVersion: 1,
+  contract: APPROVED_CRON_CONTRACT_VERSION,
+  executionEnvironment: Object.freeze({
+    preActivationLauncherState: "off",
+    runningJobCount: 0,
+    timezone: APPROVED_CRON_TIMEZONE,
+    schedulerRole: APPROVED_CRON_SCHEDULER_ROLE,
+    databaseBinding: "current_database",
+  }),
+  jobs: Object.freeze([
+    Object.freeze({
+      jobName: "delete-expired-amora-request-claims",
+      schedule: "29 18 * * *",
+      command: "SELECT public.delete_expired_amora_request_claims();",
+      active: true,
+    }),
+    Object.freeze({
+      jobName: "delete-expired-rate-limit-buckets",
+      schedule: "47 18 * * *",
+      command: "SELECT public.delete_expired_rate_limit_buckets();",
+      active: true,
+    }),
+    Object.freeze({
+      jobName: "enforce-ai-interaction-retention",
+      schedule: "17 18 * * *",
+      command: "SELECT public.enforce_ai_interaction_retention();",
+      active: true,
+    }),
+    Object.freeze({
+      jobName: "enforce-application-survey-retention",
+      schedule: "41 18 * * *",
+      command: "SELECT public.enforce_application_survey_retention();",
+      active: true,
+    }),
+    Object.freeze({
+      jobName: "reconcile-stale-amora-chat-requests",
+      schedule: "*/5 * * * *",
+      command: "SELECT public.reconcile_stale_amora_chat_requests(100);",
+      active: true,
+    }),
+  ]),
 });
 
 const SECRET_RULES = [
@@ -212,6 +288,50 @@ function captureTransform(scanner, capture, passThrough) {
   });
 }
 
+async function terminateNativeProcessTree(child) {
+  const pid = child?.pid;
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+
+  if (process.platform === "win32") {
+    const windowsRoot = process.env.SystemRoot || process.env.WINDIR;
+    const taskkill = windowsRoot
+      ? path.join(windowsRoot, "System32", "taskkill.exe")
+      : "";
+    if (!taskkill || !path.isAbsolute(taskkill) || !(await fileExists(taskkill))) {
+      child.kill("SIGKILL");
+      return false;
+    }
+    const exitCode = await new Promise((resolve) => {
+      const killer = spawn(
+        taskkill,
+        ["/PID", String(pid), "/T", "/F"],
+        {
+          shell: false,
+          windowsHide: true,
+          stdio: "ignore",
+          env: buildMinimalChildEnv(process.env),
+        },
+      );
+      killer.once("error", () => resolve(null));
+      killer.once("close", (code) => resolve(code));
+    });
+    if (exitCode === 0) return true;
+    child.kill("SIGKILL");
+    return false;
+  }
+
+  try {
+    // Unix children are spawned in a dedicated process group below. A negative
+    // pid terminates every process in that group before plaintext cleanup.
+    process.kill(-pid, "SIGKILL");
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && error.code === "ESRCH") return true;
+    child.kill("SIGKILL");
+    return false;
+  }
+}
+
 /**
  * Executes a native process without a shell. Raw output never reaches the
  * terminal. Callers may consume a bounded stdout Buffer only after the stream
@@ -251,6 +371,7 @@ export async function runBoundedRedacted({
       env,
       shell: false,
       windowsHide: true,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (error) {
@@ -272,15 +393,39 @@ export async function runBoundedRedacted({
     child.once("error", (error) => reject(error));
     child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  const timer = setTimeout(() => {
-    timedOut = true;
-    child.kill("SIGKILL");
-  }, timeoutMs);
+  let timeoutResolve;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutResolve = resolve;
+  });
+  const timer = setTimeout(() => timeoutResolve({ timedOut: true }), timeoutMs);
   timer.unref?.();
 
   let exit;
+  let treeTerminationVerified = true;
   try {
-    exit = await exitPromise;
+    const outcome = await Promise.race([
+      exitPromise.then((value) => ({ exit: value })),
+      timeoutPromise,
+    ]);
+    if (outcome.timedOut) {
+      timedOut = true;
+      treeTerminationVerified = await terminateNativeProcessTree(child);
+      exit = await Promise.race([
+        exitPromise,
+        new Promise((_, reject) => {
+          const graceTimer = setTimeout(
+            () => reject(recoveryError(
+              "PROCESS_TREE_TERMINATION_FAILED",
+              "Timed-out native process tree did not terminate within the safety window.",
+            )),
+            5_000,
+          );
+          graceTimer.unref?.();
+        }),
+      ]);
+    } else {
+      exit = outcome.exit;
+    }
     await Promise.all([stdoutPipeline, stderrPipeline]);
   } catch (error) {
     if (stdoutFile) await rm(stdoutFile, { force: true }).catch(() => {});
@@ -298,6 +443,12 @@ export async function runBoundedRedacted({
   }
   if (timedOut) {
     if (stdoutFile) await rm(stdoutFile, { force: true }).catch(() => {});
+    if (!treeTerminationVerified) {
+      throw recoveryError(
+        "PROCESS_TREE_TERMINATION_FAILED",
+        "Timed-out native process tree could not be verified as terminated.",
+      );
+    }
     throw recoveryError("CHILD_TIMEOUT", "Native process exceeded its time limit.");
   }
   if (!expectedExitCodes.includes(exit.code)) {
@@ -694,6 +845,71 @@ function sha256Text(text) {
   return createHash("sha256").update(text).digest("hex");
 }
 
+export function canonicalizePgDumpForComparison(sqlText) {
+  if (typeof sqlText !== "string" || sqlText.includes("\uFFFD")) {
+    throw recoveryError(
+      "DATABASE_DUMP_COMPARISON_INVALID",
+      "Database dump is not valid UTF-8 text for stability comparison.",
+    );
+  }
+
+  const directiveLines = [...sqlText.matchAll(
+    /^\\(?:restrict|unrestrict)\b[^\r\n]*(?:\r?$)/gm,
+  )];
+  if (directiveLines.length === 0) return sqlText;
+  if (directiveLines.length !== 2) {
+    throw recoveryError(
+      "DATABASE_DUMP_RESTRICT_MARKER_INVALID",
+      "Database dump contains an invalid number of restrict markers.",
+    );
+  }
+
+  const parsed = directiveLines.map((match) => {
+    const line = match[0];
+    const exact = line.match(/^\\(restrict|unrestrict)[ \t]+([^\s]+)[ \t]*(\r?)$/);
+    if (!exact || !Number.isSafeInteger(match.index)) {
+      throw recoveryError(
+        "DATABASE_DUMP_RESTRICT_MARKER_INVALID",
+        "Database dump contains a malformed restrict marker.",
+      );
+    }
+    return {
+      command: exact[1],
+      key: exact[2],
+      carriageReturn: exact[3],
+      index: match.index,
+      length: line.length,
+    };
+  });
+
+  if (
+    parsed[0].command !== "restrict"
+    || parsed[1].command !== "unrestrict"
+    || parsed[0].key !== parsed[1].key
+    || parsed[0].index >= parsed[1].index
+  ) {
+    throw recoveryError(
+      "DATABASE_DUMP_RESTRICT_MARKER_INVALID",
+      "Database dump restrict markers are not a matching ordered pair.",
+    );
+  }
+
+  const normalizedKey = "[canonical-pg-dump-restrict-key]";
+  let normalized = sqlText;
+  for (const marker of [...parsed].reverse()) {
+    const replacement = `\\${marker.command} ${normalizedKey}${marker.carriageReturn}`;
+    normalized = normalized.slice(0, marker.index)
+      + replacement
+      + normalized.slice(marker.index + marker.length);
+  }
+  return normalized;
+}
+
+async function databaseArtifactComparisonSha256(filePath) {
+  const sqlText = await readFile(filePath, "utf8");
+  return sha256Text(canonicalizePgDumpForComparison(sqlText));
+}
+
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === "object") {
@@ -708,6 +924,427 @@ function canonicalize(value) {
 
 function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
+}
+
+function exactIsoTimestamp(value) {
+  if (typeof value !== "string") return null;
+  const milliseconds = Date.parse(value);
+  if (!Number.isFinite(milliseconds)) return null;
+  return new Date(milliseconds).toISOString() === value ? milliseconds : null;
+}
+
+function restoreEvidenceIdentityPayload(value) {
+  return {
+    contract: value?.contract,
+    restoreAttemptId: value?.restoreAttemptId,
+    artifactId: value?.artifactId,
+    archiveSha256: value?.archiveSha256,
+    sourceProjectRef: value?.sourceProjectRef,
+    targetProjectRef: value?.targetProjectRef,
+    targetDatabase: value?.targetDatabase,
+    sourceGitSha: value?.sourceGitSha,
+    sourceCompletedAt: value?.sourceCompletedAt,
+    restoreStartedAt: value?.restoreStartedAt,
+    databaseSnapshotSha256: value?.databaseSnapshotSha256,
+    storageMetadataSha256: value?.storageMetadataSha256,
+    storageObjectCount: value?.storageObjectCount,
+    storageTotalBytes: value?.storageTotalBytes,
+  };
+}
+
+function assertRestoreEvidenceIdentity(value) {
+  const payload = restoreEvidenceIdentityPayload(value);
+  const sourceCompletedAt = exactIsoTimestamp(payload.sourceCompletedAt);
+  const restoreStartedAt = exactIsoTimestamp(payload.restoreStartedAt);
+  const expectedIdentitySha256 = sha256Text(canonicalJson(payload));
+  const expected = { ...payload, identitySha256: expectedIdentitySha256 };
+  if (
+    payload.contract !== RESTORE_EVIDENCE_IDENTITY_CONTRACT
+    || !UUID_RE.test(payload.restoreAttemptId ?? "")
+    || !UUID_RE.test(payload.artifactId ?? "")
+    || !SHA256_RE.test(payload.archiveSha256 ?? "")
+    || !PROJECT_REF_RE.test(payload.sourceProjectRef ?? "")
+    || !PROJECT_REF_RE.test(payload.targetProjectRef ?? "")
+    || payload.sourceProjectRef === payload.targetProjectRef
+    || !/^[a-z_][a-z0-9_$]{0,62}$/.test(payload.targetDatabase ?? "")
+    || !GIT_SHA_RE.test(payload.sourceGitSha ?? "")
+    || sourceCompletedAt === null
+    || restoreStartedAt === null
+    || restoreStartedAt < sourceCompletedAt
+    || !SHA256_RE.test(payload.databaseSnapshotSha256 ?? "")
+    || !SHA256_RE.test(payload.storageMetadataSha256 ?? "")
+    || !Number.isSafeInteger(payload.storageObjectCount)
+    || payload.storageObjectCount < 0
+    || !Number.isSafeInteger(payload.storageTotalBytes)
+    || payload.storageTotalBytes < 0
+    || canonicalJson(value) !== canonicalJson(expected)
+  ) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_IDENTITY_INVALID",
+      "Restore evidence identity is incomplete, non-canonical, or internally inconsistent.",
+    );
+  }
+  return expected;
+}
+
+export function createRestoreEvidenceIdentity({
+  archiveEvidence,
+  restoreAttemptId,
+  sourceProjectRef,
+  targetProjectRef,
+  targetDatabase,
+  restoreStartedAt,
+}) {
+  if (
+    archiveEvidence?.sourceProjectRef !== sourceProjectRef
+    || !UUID_RE.test(archiveEvidence?.artifactId ?? "")
+    || !SHA256_RE.test(archiveEvidence?.archiveSha256 ?? "")
+    || !GIT_SHA_RE.test(archiveEvidence?.sourceGitSha ?? "")
+    || exactIsoTimestamp(archiveEvidence?.sourceCompletedAt) === null
+    || !SHA256_RE.test(archiveEvidence?.databaseSnapshotSha256 ?? "")
+    || !SHA256_RE.test(archiveEvidence?.storageMetadataSha256 ?? "")
+    || !Number.isSafeInteger(archiveEvidence?.storageObjectCount)
+    || archiveEvidence.storageObjectCount < 0
+    || !Number.isSafeInteger(archiveEvidence?.storageTotalBytes)
+    || archiveEvidence.storageTotalBytes < 0
+  ) {
+    throw recoveryError(
+      "RESTORE_ARCHIVE_IDENTITY_INVALID",
+      "Verified archive evidence cannot seed an exact restore evidence identity.",
+    );
+  }
+  const payload = {
+    contract: RESTORE_EVIDENCE_IDENTITY_CONTRACT,
+    restoreAttemptId,
+    artifactId: archiveEvidence.artifactId,
+    archiveSha256: archiveEvidence.archiveSha256.toLowerCase(),
+    sourceProjectRef,
+    targetProjectRef,
+    targetDatabase,
+    sourceGitSha: archiveEvidence.sourceGitSha.toLowerCase(),
+    sourceCompletedAt: archiveEvidence.sourceCompletedAt,
+    restoreStartedAt,
+    databaseSnapshotSha256: archiveEvidence.databaseSnapshotSha256.toLowerCase(),
+    storageMetadataSha256: archiveEvidence.storageMetadataSha256.toLowerCase(),
+    storageObjectCount: archiveEvidence.storageObjectCount,
+    storageTotalBytes: archiveEvidence.storageTotalBytes,
+  };
+  return assertRestoreEvidenceIdentity({
+    ...payload,
+    identitySha256: sha256Text(canonicalJson(payload)),
+  });
+}
+
+export function bindRestoreEvidence({
+  identity,
+  kind,
+  previousEvidenceSha256,
+  payload,
+}) {
+  const exactIdentity = assertRestoreEvidenceIdentity(identity);
+  if (
+    !RESTORE_EVIDENCE_KINDS.has(kind)
+    || !SHA256_RE.test(previousEvidenceSha256 ?? "")
+    || !payload
+    || typeof payload !== "object"
+    || Array.isArray(payload)
+  ) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_ITEM_INVALID",
+      "Restore evidence item has an invalid kind, predecessor, or payload.",
+    );
+  }
+  const body = {
+    contract: RESTORE_EVIDENCE_ITEM_CONTRACT,
+    kind,
+    identitySha256: exactIdentity.identitySha256,
+    previousEvidenceSha256: previousEvidenceSha256.toLowerCase(),
+    payload: canonicalize(payload),
+  };
+  return {
+    ...body,
+    evidenceSha256: sha256Text(canonicalJson(body)),
+  };
+}
+
+function assertBoundRestoreEvidence({
+  evidence,
+  identity,
+  kind,
+  previousEvidenceSha256,
+}) {
+  const exactIdentity = assertRestoreEvidenceIdentity(identity);
+  if (evidence?.identitySha256 !== exactIdentity.identitySha256) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_IDENTITY_MISMATCH",
+      "Restore evidence belongs to another archive, source, target, or attempt.",
+    );
+  }
+  if (evidence?.previousEvidenceSha256 !== previousEvidenceSha256) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_CHAIN_MISMATCH",
+      "Restore evidence does not extend the exact preceding evidence item.",
+    );
+  }
+  const rebound = bindRestoreEvidence({
+    identity: exactIdentity,
+    kind,
+    previousEvidenceSha256,
+    payload: evidence?.payload,
+  });
+  if (canonicalJson(evidence) !== canonicalJson(rebound)) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_DIGEST_MISMATCH",
+      "Restore evidence payload or digest is not canonical and intact.",
+    );
+  }
+  return rebound;
+}
+
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function exactCronRowsMismatchSql(contract, expectedActive) {
+  const expectedValues = contract.jobs.map((job) =>
+    `      (${sqlLiteral(job.jobName)}, ${sqlLiteral(job.schedule)}, ${sqlLiteral(job.command)})`)
+    .join(",\n");
+  return [
+    "EXISTS (",
+    "    SELECT 1",
+    "    FROM (VALUES",
+    expectedValues,
+    "    ) expected(job_name, expected_schedule, expected_command)",
+    "    LEFT JOIN cron.job job_row ON job_row.jobname = expected.job_name",
+    "    GROUP BY expected.job_name, expected.expected_schedule, expected.expected_command",
+    "    HAVING count(job_row.jobid) <> 1",
+    "       OR NOT bool_and(",
+    "         job_row.schedule = expected.expected_schedule",
+    "         AND job_row.command = expected.expected_command",
+    `         AND job_row.active IS ${expectedActive ? "TRUE" : "FALSE"}`,
+    "         AND job_row.database = pg_catalog.current_database()",
+    `         AND job_row.username = ${sqlLiteral(APPROVED_CRON_SCHEDULER_ROLE)}`,
+    "       )",
+    "  )",
+  ].join("\n");
+}
+
+export function assertApprovedCronContract(value) {
+  const expected = canonicalJson(APPROVED_CRON_CONTRACT);
+  if (canonicalJson(value) !== expected) {
+    throw recoveryError(
+      "APPROVED_CRON_CONTRACT_MISMATCH",
+      "Source cron jobs do not match the exact portable definition and execution-environment contract.",
+    );
+  }
+  return JSON.parse(expected);
+}
+
+export function buildApprovedCronReplaySql(value = APPROVED_CRON_CONTRACT) {
+  const contract = assertApprovedCronContract(value);
+  const inactiveRowsMismatch = exactCronRowsMismatchSql(contract, false);
+  const lines = [
+    "BEGIN;",
+    "DO $recovery_cron_replay$",
+    "DECLARE",
+    "  v_job_id bigint;",
+    "BEGIN",
+    "  IF pg_catalog.to_regclass('cron.job') IS NULL THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_CATALOG_MISSING' USING ERRCODE = '55000';",
+    "  END IF;",
+    "  IF pg_catalog.to_regclass('cron.job_run_details') IS NULL THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_RUN_CATALOG_MISSING' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF coalesce(pg_catalog.current_setting('cron.launch_active_jobs', true), '') <> ${sqlLiteral("off")} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_LAUNCHER_NOT_FENCED' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF coalesce(pg_catalog.current_setting('cron.timezone', true), '') <> ${sqlLiteral(APPROVED_CRON_TIMEZONE)} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_TIMEZONE_MISMATCH' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF current_user <> ${sqlLiteral(APPROVED_CRON_SCHEDULER_ROLE)} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_SCHEDULER_ROLE_MISMATCH' USING ERRCODE = '42501';",
+    "  END IF;",
+    "  IF EXISTS (SELECT 1 FROM cron.job_run_details WHERE status = 'running') THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_JOBS_NOT_DRAINED' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname NOT IN (${contract.jobs.map((job) => sqlLiteral(job.jobName)).join(", ")})) THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_TARGET_HAS_UNAPPROVED_JOBS' USING ERRCODE = '55000';",
+    "  END IF;",
+    "  LOCK TABLE cron.job IN SHARE ROW EXCLUSIVE MODE;",
+  ];
+  for (const job of contract.jobs) {
+    lines.push(
+      "",
+      "  FOR v_job_id IN",
+      `    SELECT jobid FROM cron.job WHERE jobname = ${sqlLiteral(job.jobName)}`,
+      "  LOOP",
+      "    PERFORM cron.unschedule(v_job_id);",
+      "  END LOOP;",
+      "  PERFORM cron.schedule_in_database(",
+      `    ${sqlLiteral(job.jobName)},`,
+      `    ${sqlLiteral(job.schedule)},`,
+      `    ${sqlLiteral(job.command)},`,
+      "    pg_catalog.current_database(),",
+      `    ${sqlLiteral(APPROVED_CRON_SCHEDULER_ROLE)},`,
+      "    false",
+      "  );",
+    );
+  }
+  lines.push(
+    "",
+    `  IF (SELECT count(*) FROM cron.job) <> ${contract.jobs.length}`,
+    `     OR ${inactiveRowsMismatch} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_INACTIVE_REPLAY_MISMATCH' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF coalesce(pg_catalog.current_setting('cron.launch_active_jobs', true), '') <> ${sqlLiteral("off")}`,
+    "     OR EXISTS (SELECT 1 FROM cron.job_run_details WHERE status = 'running') THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_FENCE_DRIFT' USING ERRCODE = '55000';",
+    "  END IF;",
+    "END;",
+    "$recovery_cron_replay$;",
+    "COMMIT;",
+    "",
+  );
+  return lines.join("\n");
+}
+
+export function buildApprovedCronActivationSql(value = APPROVED_CRON_CONTRACT) {
+  const contract = assertApprovedCronContract(value);
+  const inactiveRowsMismatch = exactCronRowsMismatchSql(contract, false);
+  const activeRowsMismatch = exactCronRowsMismatchSql(contract, true);
+  const lines = [
+    "BEGIN;",
+    "DO $recovery_cron_activation$",
+    "DECLARE",
+    "  v_job_id bigint;",
+    "BEGIN",
+    "  IF pg_catalog.to_regclass('cron.job') IS NULL",
+    "     OR pg_catalog.to_regclass('cron.job_run_details') IS NULL THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_CATALOG_MISSING' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF coalesce(pg_catalog.current_setting('cron.launch_active_jobs', true), '') <> ${sqlLiteral("off")}`,
+    `     OR coalesce(pg_catalog.current_setting('cron.timezone', true), '') <> ${sqlLiteral(APPROVED_CRON_TIMEZONE)}`,
+    `     OR current_user <> ${sqlLiteral(APPROVED_CRON_SCHEDULER_ROLE)}`,
+    "     OR EXISTS (SELECT 1 FROM cron.job_run_details WHERE status = 'running') THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_ACTIVATION_FENCE_INVALID' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF (SELECT count(*) FROM cron.job) <> ${contract.jobs.length}`,
+    `     OR ${inactiveRowsMismatch} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_PREACTIVATION_CONTRACT_MISMATCH' USING ERRCODE = '55000';",
+    "  END IF;",
+    "  LOCK TABLE cron.job IN SHARE ROW EXCLUSIVE MODE;",
+  ];
+  for (const job of contract.jobs) {
+    lines.push(
+      "",
+      `  SELECT jobid INTO STRICT v_job_id FROM cron.job WHERE jobname = ${sqlLiteral(job.jobName)};`,
+      "  PERFORM cron.alter_job(v_job_id, active := true);",
+    );
+  }
+  lines.push(
+    "",
+    `  IF (SELECT count(*) FROM cron.job) <> ${contract.jobs.length}`,
+    `     OR ${activeRowsMismatch} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_ACTIVATION_ROW_MISMATCH' USING ERRCODE = '55000';",
+    "  END IF;",
+    `  IF coalesce(pg_catalog.current_setting('cron.launch_active_jobs', true), '') <> ${sqlLiteral("off")}`,
+    `     OR coalesce(pg_catalog.current_setting('cron.timezone', true), '') <> ${sqlLiteral(APPROVED_CRON_TIMEZONE)}`,
+    "     OR EXISTS (SELECT 1 FROM cron.job_run_details WHERE status = 'running') THEN",
+    "    RAISE EXCEPTION 'RECOVERY_CRON_ACTIVATION_FENCE_DRIFT' USING ERRCODE = '55000';",
+    "  END IF;",
+    "END;",
+    "$recovery_cron_activation$;",
+    "COMMIT;",
+    "ALTER SYSTEM SET cron.launch_active_jobs TO on;",
+    "SELECT pg_catalog.pg_reload_conf();",
+    "DO $recovery_cron_activation_verify$",
+    "BEGIN",
+    `  IF coalesce(pg_catalog.current_setting('cron.launch_active_jobs', true), '') <> ${sqlLiteral("on")} THEN`,
+    "    RAISE EXCEPTION 'RECOVERY_CRON_LAUNCHER_ACTIVATION_FAILED' USING ERRCODE = '55000';",
+    "  END IF;",
+    "END;",
+    "$recovery_cron_activation_verify$;",
+    "",
+  );
+  return lines.join("\n");
+}
+
+function approvedCronContractSha256() {
+  const actual = sha256Text(canonicalJson(APPROVED_CRON_CONTRACT));
+  if (actual !== APPROVED_CRON_CONTRACT_SHA256) {
+    throw recoveryError(
+      "APPROVED_CRON_IMPLEMENTATION_DRIFT",
+      "Approved cron data changed without a recovery contract version update.",
+    );
+  }
+  return APPROVED_CRON_CONTRACT_SHA256;
+}
+
+function approvedCronReplaySqlSha256() {
+  const actual = sha256Text(buildApprovedCronReplaySql());
+  if (actual !== APPROVED_CRON_REPLAY_SQL_SHA256) {
+    throw recoveryError(
+      "APPROVED_CRON_IMPLEMENTATION_DRIFT",
+      "Approved cron replay SQL changed without a recovery contract version update.",
+    );
+  }
+  return APPROVED_CRON_REPLAY_SQL_SHA256;
+}
+
+function approvedCronActivationSqlSha256() {
+  const actual = sha256Text(buildApprovedCronActivationSql());
+  if (actual !== APPROVED_CRON_ACTIVATION_SQL_SHA256) {
+    throw recoveryError(
+      "APPROVED_CRON_IMPLEMENTATION_DRIFT",
+      "Approved cron activation SQL changed without a recovery contract version update.",
+    );
+  }
+  return APPROVED_CRON_ACTIVATION_SQL_SHA256;
+}
+
+export function approvedCronRecoveryContractMetadata() {
+  return {
+    contractVersion: APPROVED_CRON_CONTRACT_VERSION,
+    contractSha256: approvedCronContractSha256(),
+    jobCount: APPROVED_CRON_CONTRACT.jobs.length,
+    replayStrategy: CRON_REPLAY_STRATEGY,
+    replaySqlSha256: approvedCronReplaySqlSha256(),
+    preActivationLauncherState: "off",
+    postActivationLauncherState: "on",
+    preActivationRunningJobCount: 0,
+    replayedJobsActive: false,
+    targetDatabaseBinding: "current_database",
+    schedulerRole: APPROVED_CRON_SCHEDULER_ROLE,
+    timezone: APPROVED_CRON_TIMEZONE,
+    replayRequired: true,
+    postDeployRecheckRequired: true,
+    activationStrategy: CRON_ACTIVATION_STRATEGY,
+    activationSqlSha256: approvedCronActivationSqlSha256(),
+    activationRequired: true,
+    activationAfterParityRequired: true,
+    postActivationRecheckRequired: true,
+  };
+}
+
+function archiveAuthenticityDescriptor(policy) {
+  const configured = policy?.archiveAuthenticity;
+  if (
+    configured?.contract !== ARCHIVE_AUTHENTICITY_CONTRACT
+    || configured?.status !== BLOCKED_ARCHIVE_AUTHENTICITY_STATUS
+    || configured?.senderSigningKeyRef !== null
+    || configured?.externalImmutableAnchorRef !== null
+  ) {
+    throw recoveryError(
+      "ARCHIVE_AUTHENTICITY_POLICY_INVALID",
+      "Recovery policy must remain explicitly blocked until sender-key custody and an external immutable anchor are approved.",
+    );
+  }
+  return {
+    contract: ARCHIVE_AUTHENTICITY_CONTRACT,
+    status: BLOCKED_ARCHIVE_AUTHENTICITY_STATUS,
+    senderSignatureVerified: false,
+    externalImmutableAnchorVerified: false,
+  };
 }
 
 async function loadReleaseTargets(repoRoot = REPO_ROOT) {
@@ -836,6 +1473,67 @@ async function captureInventory(binary, repoRoot = REPO_ROOT) {
   return inventory;
 }
 
+async function queryApprovedCronContract(binary, repoRoot = REPO_ROOT) {
+  const result = await runSupabase(
+    binary,
+    [
+      "db",
+      "query",
+      "--linked",
+      "--file",
+      path.join(repoRoot, "scripts", "sql", "supabase-recovery-cron-contract.sql"),
+      "--output",
+      "json",
+    ],
+    { captureStdout: true, maxOutputBytes: 1024 * 1024 },
+  );
+  const document = parseJsonOutput(result.stdoutBuffer, "Recovery cron contract");
+  const rows = extractQueryRows(document, "Recovery cron contract");
+  if (rows.length !== 1) {
+    throw recoveryError(
+      "CRON_CONTRACT_SHAPE_INVALID",
+      "Recovery cron contract returned an unexpected row count.",
+    );
+  }
+  return assertApprovedCronContract(rows[0].recovery_cron_contract);
+}
+
+export function assertApprovedCronSnapshotsStable(primary, verification) {
+  const primaryContract = assertApprovedCronContract(primary);
+  const verificationContract = assertApprovedCronContract(verification);
+  const primaryCanonical = canonicalJson(primaryContract);
+  if (primaryCanonical !== canonicalJson(verificationContract)) {
+    throw recoveryError(
+      "CRON_CONTRACT_DRIFT",
+      "Approved cron jobs changed during recovery export.",
+    );
+  }
+  return sha256Text(primaryCanonical);
+}
+
+async function writeApprovedCronContractArtifact(contract, workspace) {
+  const approved = assertApprovedCronContract(contract);
+  const operationsDirectory = path.join(workspace, "operations");
+  const artifactPath = path.join(
+    workspace,
+    ...APPROVED_CRON_ARTIFACT_PATH.split("/"),
+  );
+  await mkdir(operationsDirectory, { recursive: true, mode: 0o700 });
+  await writeFile(
+    artifactPath,
+    `${canonicalJson(approved)}\n`,
+    { encoding: "utf8", mode: 0o600, flag: "wx" },
+  );
+  const artifactDigest = await sha256File(artifactPath);
+  return {
+    ...approvedCronRecoveryContractMetadata(),
+    artifact: {
+      path: APPROVED_CRON_ARTIFACT_PATH,
+      ...artifactDigest,
+    },
+  };
+}
+
 async function listStorageObjects(binary, pageSize = 500) {
   const objects = [];
   for (let offset = 0; ; offset += pageSize) {
@@ -895,6 +1593,7 @@ function databaseSnapshotProjection(snapshot) {
       || typeof artifact.kind !== "string"
       || typeof artifact.path !== "string"
       || !SHA256_RE.test(artifact.sha256 ?? "")
+      || !SHA256_RE.test(artifact.comparisonSha256 ?? "")
       || !Number.isSafeInteger(artifact.size)
       || artifact.size < 0
     ) {
@@ -906,8 +1605,7 @@ function databaseSnapshotProjection(snapshot) {
     return {
       kind: artifact.kind,
       path: artifact.path,
-      sha256: artifact.sha256.toLowerCase(),
-      size: artifact.size,
+      comparisonSha256: artifact.comparisonSha256.toLowerCase(),
     };
   }).sort((left, right) =>
     left.kind.localeCompare(right.kind) || left.path.localeCompare(right.path));
@@ -928,7 +1626,8 @@ function databaseSnapshotProjection(snapshot) {
 
 /**
  * Proves that every SQL artifact, including row-bearing dumps, is identical
- * across two independent captures. Row counts alone cannot detect an UPDATE
+ * across two independent captures after validating and normalizing only the
+ * random pg_dump restrict-key pair. Row counts alone cannot detect an UPDATE
  * that keeps table cardinality unchanged.
  */
 export function assertDatabaseSnapshotStable(primary, verification) {
@@ -1166,6 +1865,7 @@ async function dumpDatabase(binary, workspace, repoRoot = REPO_ROOT) {
       kind: definition.name,
       path: path.posix.join("db", definition.file),
       ...digest,
+      comparisonSha256: await databaseArtifactComparisonSha256(target),
     });
   }
 
@@ -1180,6 +1880,7 @@ async function dumpDatabase(binary, workspace, repoRoot = REPO_ROOT) {
     kind: "managed-auth-storage-changes",
     path: path.posix.join("db", "managed-auth-storage-changes.sql"),
     ...(await sha256File(managedChanges)),
+    comparisonSha256: await databaseArtifactComparisonSha256(managedChanges),
   });
 
   const copyTableDigests = {};
@@ -1307,13 +2008,53 @@ async function createEncryptedArchive({ workspace, outputRoot, artifactId, ageRe
 
 function privateManifestFileEntries(privateManifest) {
   const databaseFiles = privateManifest.database?.files ?? [];
+  const operationalArtifacts = privateManifest.operations?.approvedCron?.artifact
+    ? [privateManifest.operations.approvedCron.artifact]
+    : [];
   const blobMap = new Map();
   for (const entry of privateManifest.storage?.objects ?? []) {
     if (!blobMap.has(entry.blob)) {
       blobMap.set(entry.blob, { path: entry.blob, sha256: entry.byteSha256, size: entry.byteSize });
     }
   }
-  return [...databaseFiles, ...blobMap.values()];
+  return [...databaseFiles, ...operationalArtifacts, ...blobMap.values()];
+}
+
+export async function verifyPrivateManifestArtifactDigests(
+  privateManifest,
+  extractedDirectory,
+) {
+  const databasePaths = new Set(
+    (privateManifest.database?.files ?? []).map((entry) => entry.path),
+  );
+  for (const entry of privateManifestFileEntries(privateManifest)) {
+    if (!validateTarEntry(entry.path)) {
+      throw recoveryError(
+        "PRIVATE_MANIFEST_PATH_INVALID",
+        "Private manifest contains an unsafe artifact path.",
+      );
+    }
+    const artifactPath = path.join(extractedDirectory, ...entry.path.split("/"));
+    const digest = await sha256File(artifactPath);
+    if (digest.sha256 !== entry.sha256 || digest.size !== entry.size) {
+      throw recoveryError(
+        "PRIVATE_ARTIFACT_DIGEST_MISMATCH",
+        "Decrypted recovery artifact failed checksum verification.",
+      );
+    }
+
+    // comparisonSha256 canonicalizes pg_dump text and is meaningful only for
+    // database SQL artifacts. Storage blobs are arbitrary binary files; their
+    // exact raw SHA-256 and byte size above are the complete integrity proof.
+    if (!databasePaths.has(entry.path)) continue;
+    const comparisonSha256 = await databaseArtifactComparisonSha256(artifactPath);
+    if (comparisonSha256 !== entry.comparisonSha256) {
+      throw recoveryError(
+        "DATABASE_ARTIFACT_COMPARISON_DIGEST_MISMATCH",
+        "Decrypted database artifact failed stability-digest verification.",
+      );
+    }
+  }
 }
 
 function normalizeArchivePath(value) {
@@ -1338,6 +2079,88 @@ function assertUniqueArchiveEntries(entries) {
     }
     seen.add(collisionKey);
   }
+}
+
+export function assertApprovedCronRecoveryManifest(value) {
+  if (
+    value?.contractVersion !== APPROVED_CRON_CONTRACT_VERSION
+    || value?.artifact?.path !== APPROVED_CRON_ARTIFACT_PATH
+    || !SHA256_RE.test(value?.artifact?.sha256 ?? "")
+    || !Number.isSafeInteger(value?.artifact?.size)
+    || value.artifact.size <= 0
+    || value.contractSha256 !== approvedCronContractSha256()
+    || value.jobCount !== APPROVED_CRON_CONTRACT.jobs.length
+    || value.replayStrategy !== CRON_REPLAY_STRATEGY
+    || value.replaySqlSha256 !== approvedCronReplaySqlSha256()
+    || value.preActivationLauncherState !== "off"
+    || value.postActivationLauncherState !== "on"
+    || value.preActivationRunningJobCount !== 0
+    || value.replayedJobsActive !== false
+    || value.targetDatabaseBinding !== "current_database"
+    || value.schedulerRole !== APPROVED_CRON_SCHEDULER_ROLE
+    || value.timezone !== APPROVED_CRON_TIMEZONE
+    || value.replayRequired !== true
+    || value.postDeployRecheckRequired !== true
+    || value.activationStrategy !== CRON_ACTIVATION_STRATEGY
+    || value.activationSqlSha256 !== approvedCronActivationSqlSha256()
+    || value.activationRequired !== true
+    || value.activationAfterParityRequired !== true
+    || value.postActivationRecheckRequired !== true
+  ) {
+    throw recoveryError(
+      "CRON_RECOVERY_ARTIFACT_INVALID",
+      "Recovery archive is missing the exact approved cron artifact and replay contract.",
+    );
+  }
+  return value;
+}
+
+export async function verifyApprovedCronRecoveryArtifact(
+  privateManifest,
+  extractedDirectory,
+) {
+  const manifest = assertApprovedCronRecoveryManifest(
+    privateManifest.operations?.approvedCron,
+  );
+  const artifactPath = path.join(
+    extractedDirectory,
+    ...manifest.artifact.path.split("/"),
+  );
+  const artifactText = await readFile(artifactPath, "utf8");
+  let contract;
+  try {
+    contract = assertApprovedCronContract(JSON.parse(artifactText));
+  } catch (error) {
+    if (error instanceof RecoveryError) throw error;
+    throw recoveryError(
+      "CRON_RECOVERY_ARTIFACT_JSON_INVALID",
+      "Approved cron recovery artifact is not valid JSON.",
+      { cause: error },
+    );
+  }
+  if (artifactText !== `${canonicalJson(contract)}\n`) {
+    throw recoveryError(
+      "CRON_RECOVERY_ARTIFACT_NONCANONICAL",
+      "Approved cron recovery artifact is not in canonical portable form.",
+    );
+  }
+  return { contract, manifest };
+}
+
+function assertBlockedArchiveAuthenticityDescriptor(value) {
+  const expected = {
+    contract: ARCHIVE_AUTHENTICITY_CONTRACT,
+    status: BLOCKED_ARCHIVE_AUTHENTICITY_STATUS,
+    senderSignatureVerified: false,
+    externalImmutableAnchorVerified: false,
+  };
+  if (canonicalJson(value) !== canonicalJson(expected)) {
+    throw recoveryError(
+      "ARCHIVE_AUTHENTICITY_DESCRIPTOR_INVALID",
+      "Recovery metadata must explicitly preserve the blocked archive-authenticity gate.",
+    );
+  }
+  return value;
 }
 
 export function assertPrivateManifestArchiveCoverage(privateManifest, extractedFiles) {
@@ -1397,6 +2220,12 @@ export function assertPrivateManifestArchiveCoverage(privateManifest, extractedF
     );
   }
 
+  const approvedCron = assertApprovedCronRecoveryManifest(
+    privateManifest.operations?.approvedCron,
+  );
+  assertBlockedArchiveAuthenticityDescriptor(privateManifest.authenticity);
+  declaredPaths.add(approvedCron.artifact.path);
+
   const consistency = privateManifest.consistency;
   const boundDatabaseSnapshotSha256 = sha256Text(canonicalJson(
     databaseSnapshotProjection({
@@ -1405,8 +2234,17 @@ export function assertPrivateManifestArchiveCoverage(privateManifest, extractedF
     }),
   ));
   if (
+    consistency?.cronSnapshotMethod !== "independent-exact-query-v1"
+    || consistency.cronContractSha256 !== approvedCron.contractSha256
+  ) {
+    throw recoveryError(
+      "CRON_STABILITY_EVIDENCE_INVALID",
+      "Recovery archive lacks bound independent cron stability evidence.",
+    );
+  }
+  if (
     consistency?.stable !== true
-    || consistency.databaseSnapshotMethod !== "independent-redump-v1"
+    || consistency.databaseSnapshotMethod !== "independent-redump-v2-restrict-canonical"
     || !SHA256_RE.test(consistency.preInventorySha256 ?? "")
     || consistency.preInventorySha256 !== consistency.postInventorySha256
     || consistency.databaseSnapshotSha256 !== boundDatabaseSnapshotSha256
@@ -1476,6 +2314,31 @@ export function assertPrivateManifestArchiveCoverage(privateManifest, extractedF
   }
 }
 
+function publicApprovedCronSummary(privateCron) {
+  return {
+    contractVersion: privateCron?.contractVersion,
+    jobCount: privateCron?.jobCount,
+    contractSha256: privateCron?.contractSha256,
+    privateArtifactSha256: privateCron?.artifact?.sha256,
+    replayStrategy: privateCron?.replayStrategy,
+    replaySqlSha256: privateCron?.replaySqlSha256,
+    preActivationLauncherState: privateCron?.preActivationLauncherState,
+    postActivationLauncherState: privateCron?.postActivationLauncherState,
+    preActivationRunningJobCount: privateCron?.preActivationRunningJobCount,
+    replayedJobsActive: privateCron?.replayedJobsActive,
+    targetDatabaseBinding: privateCron?.targetDatabaseBinding,
+    schedulerRole: privateCron?.schedulerRole,
+    timezone: privateCron?.timezone,
+    replayRequired: privateCron?.replayRequired,
+    postDeployRecheckRequired: privateCron?.postDeployRecheckRequired,
+    activationStrategy: privateCron?.activationStrategy,
+    activationSqlSha256: privateCron?.activationSqlSha256,
+    activationRequired: privateCron?.activationRequired,
+    activationAfterParityRequired: privateCron?.activationAfterParityRequired,
+    postActivationRecheckRequired: privateCron?.postActivationRecheckRequired,
+  };
+}
+
 export function assertPublicPrivateManifestConsistency(
   publicManifest,
   privateManifest,
@@ -1492,15 +2355,23 @@ export function assertPublicPrivateManifestConsistency(
     totalBytes: privateManifest.storage?.totalBytes,
     privateMetadataSha256: privateManifest.storage?.metadataSha256,
   };
+  const expectedOperations = {
+    approvedCron: publicApprovedCronSummary(
+      privateManifest.operations?.approvedCron,
+    ),
+  };
   if (
-    privateManifest.formatVersion !== 1 ||
-    publicManifest.formatVersion !== 1 ||
+    privateManifest.formatVersion !== RECOVERY_FORMAT_VERSION ||
+    publicManifest.formatVersion !== RECOVERY_FORMAT_VERSION ||
     privateManifest.artifactId !== publicManifest.artifactId ||
     canonicalJson(privateManifest.source) !== canonicalJson(publicManifest.source) ||
     canonicalJson(privateManifest.consistency) !==
       canonicalJson(publicManifest.consistency) ||
     canonicalJson(expectedDatabase) !== canonicalJson(publicManifest.database) ||
     canonicalJson(expectedStorage) !== canonicalJson(publicManifest.storage) ||
+    canonicalJson(expectedOperations) !== canonicalJson(publicManifest.operations) ||
+    canonicalJson(privateManifest.authenticity) !==
+      canonicalJson(publicManifest.authenticity) ||
     publicManifest.releaseEligible !== false ||
     publicManifest.restoreDrillVerified !== false
   ) {
@@ -1558,7 +2429,10 @@ export async function verifyArchive({
 }) {
   await assertSensitiveFilePath(identityFile);
   const publicManifest = JSON.parse(await readFile(publicManifestPath, "utf8"));
-  if (publicManifest.formatVersion !== 1 || !publicManifest.archive?.sha256) {
+  if (
+    publicManifest.formatVersion !== RECOVERY_FORMAT_VERSION
+    || !publicManifest.archive?.sha256
+  ) {
     throw recoveryError("PUBLIC_MANIFEST_INVALID", "Public recovery manifest is invalid.");
   }
   if (expectedSourceProjectRef && publicManifest.source?.projectRef !== expectedSourceProjectRef) {
@@ -1574,6 +2448,9 @@ export async function verifyArchive({
   }
 
   const targets = await loadReleaseTargets();
+  const configuredAuthenticity = archiveAuthenticityDescriptor(
+    targets.backupPolicy,
+  );
   const tools = await resolveRecoveryTools({
     isProduction: protectedRefs(targets).includes(publicManifest.source?.projectRef),
     policy: targets.backupPolicy,
@@ -1622,6 +2499,15 @@ export async function verifyArchive({
     assertPublicPrivateManifestConsistency(publicManifest, privateManifest);
     assertPrivateManifestArchiveCoverage(privateManifest, extractedFiles);
     if (
+      canonicalJson(privateManifest.authenticity) !==
+      canonicalJson(configuredAuthenticity)
+    ) {
+      throw recoveryError(
+        "ARCHIVE_AUTHENTICITY_POLICY_MISMATCH",
+        "Archive authenticity metadata does not match the checked-in blocked policy.",
+      );
+    }
+    if (
       expectedSourceProjectRef &&
       privateManifest.source?.projectRef !== expectedSourceProjectRef
     ) {
@@ -1630,15 +2516,7 @@ export async function verifyArchive({
         "Encrypted recovery source project does not match expectation.",
       );
     }
-    for (const entry of privateManifestFileEntries(privateManifest)) {
-      if (!validateTarEntry(entry.path)) {
-        throw recoveryError("PRIVATE_MANIFEST_PATH_INVALID", "Private manifest contains an unsafe artifact path.");
-      }
-      const digest = await sha256File(path.join(extractDirectory, ...entry.path.split("/")));
-      if (digest.sha256 !== entry.sha256 || digest.size !== entry.size) {
-        throw recoveryError("PRIVATE_ARTIFACT_DIGEST_MISMATCH", "Decrypted recovery artifact failed checksum verification.");
-      }
-    }
+    await verifyPrivateManifestArtifactDigests(privateManifest, extractDirectory);
     const actualCopyTableDigests = {};
     for (const entry of privateManifest.database.files.filter(({ kind }) => kind.includes("data"))) {
       Object.assign(
@@ -1655,13 +2533,51 @@ export async function verifyArchive({
         "Recovery COPY table digests do not match the decrypted database artifacts.",
       );
     }
+    const { manifest: approvedCronManifest } =
+      await verifyApprovedCronRecoveryArtifact(
+        privateManifest,
+        extractDirectory,
+      );
     return {
       ok: true,
+      archiveIntegrityVerified: true,
       artifactId: publicManifest.artifactId,
       sourceProjectRef: privateManifest.source.projectRef,
+      sourceGitSha: privateManifest.source.gitSha,
+      sourceCompletedAt: privateManifest.source.completedAt,
+      databaseSnapshotSha256:
+        privateManifest.consistency.databaseSnapshotSha256,
       databaseFileCount: privateManifest.database.files.length,
       storageObjectCount: privateManifest.storage.objects.length,
       storageTotalBytes: privateManifest.storage.totalBytes,
+      storageMetadataSha256: privateManifest.storage.metadataSha256,
+      cronContractVerified: true,
+      cronContractVersion: approvedCronManifest.contractVersion,
+      cronContractSha256: approvedCronManifest.contractSha256,
+      cronJobCount: approvedCronManifest.jobCount,
+      cronReplayStrategy: approvedCronManifest.replayStrategy,
+      cronReplaySqlSha256: approvedCronManifest.replaySqlSha256,
+      cronPreActivationLauncherState:
+        approvedCronManifest.preActivationLauncherState,
+      cronPostActivationLauncherState:
+        approvedCronManifest.postActivationLauncherState,
+      cronPreActivationRunningJobCount:
+        approvedCronManifest.preActivationRunningJobCount,
+      cronReplayedJobsActive: approvedCronManifest.replayedJobsActive,
+      cronTargetDatabaseBinding: approvedCronManifest.targetDatabaseBinding,
+      cronSchedulerRole: approvedCronManifest.schedulerRole,
+      cronTimezone: approvedCronManifest.timezone,
+      cronReplayRequired: true,
+      postDeployRecheckRequired: true,
+      cronActivationStrategy: approvedCronManifest.activationStrategy,
+      cronActivationSqlSha256: approvedCronManifest.activationSqlSha256,
+      cronActivationRequired: true,
+      cronActivationAfterParityRequired: true,
+      postActivationRecheckRequired: true,
+      archiveAuthenticityVerified: false,
+      senderSignatureVerified: false,
+      externalImmutableAnchorVerified: false,
+      archiveAuthenticityStatus: configuredAuthenticity.status,
       archiveSha256: archiveDigest.sha256,
     };
   } finally {
@@ -1671,7 +2587,7 @@ export async function verifyArchive({
 
 function publicManifestFromPrivate(privateManifest, encryptedArchive, ageRecipient) {
   return {
-    formatVersion: 1,
+    formatVersion: RECOVERY_FORMAT_VERSION,
     artifactId: privateManifest.artifactId,
     source: privateManifest.source,
     consistency: privateManifest.consistency,
@@ -1685,6 +2601,12 @@ function publicManifestFromPrivate(privateManifest, encryptedArchive, ageRecipie
       totalBytes: privateManifest.storage.totalBytes,
       privateMetadataSha256: privateManifest.storage.metadataSha256,
     },
+    operations: {
+      approvedCron: publicApprovedCronSummary(
+        privateManifest.operations.approvedCron,
+      ),
+    },
+    authenticity: privateManifest.authenticity,
     crypto: {
       format: "age",
       recipientFingerprint: sha256Text(ageRecipient),
@@ -1735,6 +2657,7 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
     maintenanceStartedAt: args["maintenance-started-at"],
     writeFenceEvidenceSha256: args["write-fence-evidence-sha256"],
   });
+  const authenticity = archiveAuthenticityDescriptor(gate.policy);
   const ageRecipient = ageRecipientFromArgs(args, gate.policy, gate.isProduction);
   const stagingRoot = assertSafeStagingRoot(args["staging-root"]);
   const outputRoot = assertSafeFinalOutputRoot(args["output-root"], repoRoot);
@@ -1763,6 +2686,7 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
   try {
     const preInventory = await captureInventory(binary, repoRoot);
     const preObjects = await listStorageObjects(binary);
+    const preCronContract = await queryApprovedCronContract(binary, repoRoot);
     const preDigest = stableInventoryDigest(preInventory, preObjects);
     const database = await dumpDatabase(binary, workspace, repoRoot);
     const storageObjects = await exportStorageObjects({
@@ -1781,13 +2705,28 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
     );
     const postInventory = await captureInventory(binary, repoRoot);
     const postObjects = await listStorageObjects(binary);
+    const postCronContract = await queryApprovedCronContract(binary, repoRoot);
     const postDigest = stableInventoryDigest(postInventory, postObjects);
     if (preDigest !== postDigest) {
       throw recoveryError("SOURCE_INVENTORY_DRIFT", "Source DB or Storage inventory changed during export.");
     }
+    const cronContractSha256 = assertApprovedCronSnapshotsStable(
+      preCronContract,
+      postCronContract,
+    );
+    const approvedCron = await writeApprovedCronContractArtifact(
+      preCronContract,
+      workspace,
+    );
+    if (approvedCron.contractSha256 !== cronContractSha256) {
+      throw recoveryError(
+        "CRON_CONTRACT_DIGEST_MISMATCH",
+        "Approved cron artifact digest does not match its stable source snapshot.",
+      );
+    }
     const totalBytes = storageObjects.reduce((sum, entry) => sum + entry.byteSize, 0);
     const privateManifest = {
-      formatVersion: 1,
+      formatVersion: RECOVERY_FORMAT_VERSION,
       artifactId,
       source: {
         projectRef: expectedProjectRef,
@@ -1803,8 +2742,10 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
         writeFenceEvidenceSha256: args["write-fence-evidence-sha256"] ?? null,
         preInventorySha256: preDigest,
         postInventorySha256: postDigest,
-        databaseSnapshotMethod: "independent-redump-v1",
+        databaseSnapshotMethod: "independent-redump-v2-restrict-canonical",
         databaseSnapshotSha256,
+        cronSnapshotMethod: "independent-exact-query-v1",
+        cronContractSha256,
         stable: true,
       },
       database: {
@@ -1818,6 +2759,8 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
         totalBytes,
         metadataSha256: storageMetadataDigest(preObjects),
       },
+      operations: { approvedCron },
+      authenticity,
     };
     await writeFile(
       path.join(workspace, "manifest.private.json"),
@@ -1855,6 +2798,262 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
   }
 }
 
+function assertArchiveCronEvidence(archiveEvidence) {
+  if (
+    archiveEvidence?.cronContractVerified !== true
+    || archiveEvidence.cronContractVersion !== APPROVED_CRON_CONTRACT_VERSION
+    || archiveEvidence.cronContractSha256 !== approvedCronContractSha256()
+    || archiveEvidence.cronJobCount !== APPROVED_CRON_CONTRACT.jobs.length
+    || archiveEvidence.cronReplayStrategy !== CRON_REPLAY_STRATEGY
+    || archiveEvidence.cronReplaySqlSha256 !== approvedCronReplaySqlSha256()
+    || archiveEvidence.cronPreActivationLauncherState !== "off"
+    || archiveEvidence.cronPostActivationLauncherState !== "on"
+    || archiveEvidence.cronPreActivationRunningJobCount !== 0
+    || archiveEvidence.cronReplayedJobsActive !== false
+    || archiveEvidence.cronTargetDatabaseBinding !== "current_database"
+    || archiveEvidence.cronSchedulerRole !== APPROVED_CRON_SCHEDULER_ROLE
+    || archiveEvidence.cronTimezone !== APPROVED_CRON_TIMEZONE
+    || archiveEvidence.cronReplayRequired !== true
+    || archiveEvidence.postDeployRecheckRequired !== true
+    || archiveEvidence.cronActivationStrategy !== CRON_ACTIVATION_STRATEGY
+    || archiveEvidence.cronActivationSqlSha256 !== approvedCronActivationSqlSha256()
+    || archiveEvidence.cronActivationRequired !== true
+    || archiveEvidence.cronActivationAfterParityRequired !== true
+    || archiveEvidence.postActivationRecheckRequired !== true
+  ) {
+    throw recoveryError(
+      "ARCHIVE_CRON_CONTRACT_UNVERIFIED",
+      "Restore planning requires a verified five-job cron artifact and mandatory replay/recheck contract.",
+    );
+  }
+  return archiveEvidence;
+}
+
+function assertArchiveAuthenticityForRestore(targets, archiveEvidence) {
+  const policy = targets.backupPolicy?.archiveAuthenticity;
+  if (
+    policy?.contract !== ARCHIVE_AUTHENTICITY_CONTRACT
+    || policy?.status !== "verified-v1"
+    || typeof policy.senderSigningKeyRef !== "string"
+    || !policy.senderSigningKeyRef
+    || typeof policy.externalImmutableAnchorRef !== "string"
+    || !policy.externalImmutableAnchorRef
+    || archiveEvidence?.archiveAuthenticityVerified !== true
+    || archiveEvidence.senderSignatureVerified !== true
+    || archiveEvidence.externalImmutableAnchorVerified !== true
+  ) {
+    throw recoveryError(
+      "ARCHIVE_AUTHENTICITY_UNVERIFIED",
+      "Restore is blocked until an approved sender signature and external immutable anchor are independently verified.",
+    );
+  }
+}
+
+export function buildRestorePlan(archiveEvidence) {
+  assertArchiveCronEvidence(archiveEvidence);
+  return {
+    contract: "isolated-db-storage-cron-restore-v1",
+    artifactId: archiveEvidence.artifactId ?? null,
+    cron: {
+      contractVersion: archiveEvidence.cronContractVersion,
+      contractSha256: archiveEvidence.cronContractSha256,
+      jobCount: archiveEvidence.cronJobCount,
+      replayStrategy: archiveEvidence.cronReplayStrategy,
+      replaySqlSha256: archiveEvidence.cronReplaySqlSha256,
+      preActivationLauncherState:
+        archiveEvidence.cronPreActivationLauncherState,
+      postActivationLauncherState:
+        archiveEvidence.cronPostActivationLauncherState,
+      preActivationRunningJobCount:
+        archiveEvidence.cronPreActivationRunningJobCount,
+      replayedJobsActive: archiveEvidence.cronReplayedJobsActive,
+      targetDatabaseBinding: archiveEvidence.cronTargetDatabaseBinding,
+      schedulerRole: archiveEvidence.cronSchedulerRole,
+      timezone: archiveEvidence.cronTimezone,
+      activationStrategy: archiveEvidence.cronActivationStrategy,
+      activationSqlSha256: archiveEvidence.cronActivationSqlSha256,
+      activationRequired: archiveEvidence.cronActivationRequired,
+    },
+    requiredSequence: [
+      "set-cron-launcher-off-and-drain",
+      "restore-database-and-migration-ledger",
+      "restore-storage-metadata-and-bytes",
+      "replay-approved-cron-contract-inactive",
+      "run-exact-post-deploy-contract-with-crons-inactive",
+      "verify-database-storage-parity-and-rto",
+      "activate-approved-crons-after-bound-evidence",
+      "run-exact-post-activation-contract",
+    ],
+    restored: false,
+    releaseEligible: false,
+  };
+}
+
+export function assertRestoreCompletionEvidence({
+  restoreIdentity,
+  archiveEvidence,
+  databaseRestoreEvidence,
+  storageRestoreEvidence,
+  cronReplayEvidence,
+  postDeployEvidence,
+  parityEvidence,
+  rtoEvidence,
+}) {
+  const identity = assertRestoreEvidenceIdentity(restoreIdentity);
+  const archiveBoundIdentity = createRestoreEvidenceIdentity({
+    archiveEvidence,
+    restoreAttemptId: identity.restoreAttemptId,
+    sourceProjectRef: identity.sourceProjectRef,
+    targetProjectRef: identity.targetProjectRef,
+    targetDatabase: identity.targetDatabase,
+    restoreStartedAt: identity.restoreStartedAt,
+  });
+  if (canonicalJson(identity) !== canonicalJson(archiveBoundIdentity)) {
+    throw recoveryError(
+      "RESTORE_EVIDENCE_IDENTITY_MISMATCH",
+      "Restore identity does not match the verified archive and selected target.",
+    );
+  }
+  const plan = buildRestorePlan(archiveEvidence);
+  const databaseBoundEvidence = assertBoundRestoreEvidence({
+    evidence: databaseRestoreEvidence,
+    identity,
+    kind: "database-restore",
+    previousEvidenceSha256: identity.identitySha256,
+  });
+  const storageBoundEvidence = assertBoundRestoreEvidence({
+    evidence: storageRestoreEvidence,
+    identity,
+    kind: "storage-restore",
+    previousEvidenceSha256: databaseBoundEvidence.evidenceSha256,
+  });
+  const cronBoundEvidence = assertBoundRestoreEvidence({
+    evidence: cronReplayEvidence,
+    identity,
+    kind: "cron-inactive-replay",
+    previousEvidenceSha256: storageBoundEvidence.evidenceSha256,
+  });
+  const postDeployBoundEvidence = assertBoundRestoreEvidence({
+    evidence: postDeployEvidence,
+    identity,
+    kind: "post-deploy-inactive-contract",
+    previousEvidenceSha256: cronBoundEvidence.evidenceSha256,
+  });
+  const parityBoundEvidence = assertBoundRestoreEvidence({
+    evidence: parityEvidence,
+    identity,
+    kind: "database-storage-parity",
+    previousEvidenceSha256: postDeployBoundEvidence.evidenceSha256,
+  });
+  const rtoBoundEvidence = assertBoundRestoreEvidence({
+    evidence: rtoEvidence,
+    identity,
+    kind: "rto-measurement",
+    previousEvidenceSha256: parityBoundEvidence.evidenceSha256,
+  });
+  const databaseRestorePayload = databaseBoundEvidence.payload;
+  const storageRestorePayload = storageBoundEvidence.payload;
+  const cronReplayPayload = cronBoundEvidence.payload;
+  const postDeployPayload = postDeployBoundEvidence.payload;
+  const parityPayload = parityBoundEvidence.payload;
+  const rtoPayload = rtoBoundEvidence.payload;
+  const restoreStartedAt = exactIsoTimestamp(identity.restoreStartedAt);
+  const databaseRestoredAt = exactIsoTimestamp(databaseRestorePayload?.restoredAt);
+  const storageRestoredAt = exactIsoTimestamp(storageRestorePayload?.restoredAt);
+  if (
+    archiveEvidence.archiveIntegrityVerified !== true
+    || archiveEvidence.archiveAuthenticityVerified !== true
+    || archiveEvidence.senderSignatureVerified !== true
+    || archiveEvidence.externalImmutableAnchorVerified !== true
+    || databaseRestorePayload?.ok !== true
+    || databaseRestorePayload.databaseSnapshotSha256 !== identity.databaseSnapshotSha256
+    || databaseRestoredAt === null
+    || databaseRestoredAt < restoreStartedAt
+    || storageRestorePayload?.ok !== true
+    || storageRestorePayload.storageMetadataSha256 !== identity.storageMetadataSha256
+    || storageRestorePayload.storageObjectCount !== identity.storageObjectCount
+    || storageRestorePayload.storageTotalBytes !== identity.storageTotalBytes
+    || storageRestoredAt === null
+    || storageRestoredAt < databaseRestoredAt
+  ) {
+    throw recoveryError(
+      "RESTORE_COMPLETION_EVIDENCE_INCOMPLETE",
+      "Database, Storage, integrity, and archive-authenticity evidence are all required before restored status.",
+    );
+  }
+  const replayedAt = exactIsoTimestamp(cronReplayPayload?.replayedAt);
+  if (
+    cronReplayPayload?.ok !== true
+    || cronReplayPayload.contractSha256 !== plan.cron.contractSha256
+    || cronReplayPayload.jobCount !== plan.cron.jobCount
+    || cronReplayPayload.replaySqlSha256 !== plan.cron.replaySqlSha256
+    || cronReplayPayload.launcherState !== plan.cron.preActivationLauncherState
+    || cronReplayPayload.runningJobCount !== plan.cron.preActivationRunningJobCount
+    || cronReplayPayload.jobsActive !== plan.cron.replayedJobsActive
+    || cronReplayPayload.targetDatabase !== identity.targetDatabase
+    || cronReplayPayload.schedulerRole !== plan.cron.schedulerRole
+    || cronReplayPayload.timezone !== plan.cron.timezone
+    || replayedAt === null
+    || replayedAt < storageRestoredAt
+  ) {
+    throw recoveryError(
+      "CRON_REPLAY_EVIDENCE_MISSING",
+      "The approved cron contract must be replayed exactly before restored status.",
+    );
+  }
+  const postDeployCheckedAt = exactIsoTimestamp(postDeployPayload?.checkedAt);
+  if (
+    postDeployPayload?.ok !== true
+    || postDeployPayload.allNonCronContractsExact !== true
+    || postDeployPayload.allMaintenanceCronDefinitionsExact !== true
+    || postDeployPayload.allMaintenanceCronsInactiveExact !== true
+    || postDeployPayload.cronContractSha256 !== plan.cron.contractSha256
+    || postDeployPayload.launcherState !== "off"
+    || postDeployPayload.runningJobCount !== 0
+    || postDeployCheckedAt === null
+    || postDeployCheckedAt < replayedAt
+  ) {
+    throw recoveryError(
+      "POST_RESTORE_CONTRACT_RECHECK_FAILED",
+      "An exact post-deploy contract recheck after cron replay is required before restored status.",
+    );
+  }
+  const parityCheckedAt = exactIsoTimestamp(parityPayload?.checkedAt);
+  const rtoMeasuredAt = exactIsoTimestamp(rtoPayload?.measuredAt);
+  const rtoStartedAt = exactIsoTimestamp(rtoPayload?.restoreStartedAt);
+  const rtoCompletedAt = exactIsoTimestamp(rtoPayload?.restoreCompletedAt);
+  const measuredRtoSeconds = rtoStartedAt === null || rtoCompletedAt === null
+    ? null
+    : (rtoCompletedAt - rtoStartedAt) / 1000;
+  if (
+    parityPayload?.ok !== true
+    || parityPayload.databaseSnapshotSha256 !== identity.databaseSnapshotSha256
+    || parityPayload.storageMetadataSha256 !== identity.storageMetadataSha256
+    || parityPayload.storageObjectCount !== identity.storageObjectCount
+    || parityPayload.storageTotalBytes !== identity.storageTotalBytes
+    || parityCheckedAt === null
+    || parityCheckedAt < postDeployCheckedAt
+    || rtoPayload?.ok !== true
+    || rtoPayload.restoreStartedAt !== identity.restoreStartedAt
+    || rtoMeasuredAt === null
+    || rtoCompletedAt === null
+    || rtoCompletedAt < parityCheckedAt
+    || rtoMeasuredAt < rtoCompletedAt
+    || !Number.isFinite(rtoPayload.rtoSeconds)
+    || rtoPayload.rtoSeconds < 0
+    || rtoPayload.rtoSeconds !== measuredRtoSeconds
+  ) {
+    throw recoveryError(
+      "RESTORE_COMPLETION_EVIDENCE_INCOMPLETE",
+      "Database/Storage parity and measured RTO evidence are required before restored status.",
+    );
+  }
+  throw recoveryError(
+    "RESTORE_COMPLETION_ATTESTATION_NOT_ENABLED",
+    "All modeled evidence is present, but no implemented restore runner may attest restored status yet.",
+  );
+}
+
 export async function restoreVerifyReadiness({
   sourceProjectRef,
   targetProjectRef,
@@ -1863,25 +3062,21 @@ export async function restoreVerifyReadiness({
 }) {
   assertRestoreTargetAllowed({ sourceProjectRef, targetProjectRef, targets });
   const archiveEvidence = await archiveVerifier();
-  if (archiveEvidence?.ok !== true) {
+  if (
+    archiveEvidence?.ok !== true
+    || archiveEvidence.archiveIntegrityVerified !== true
+  ) {
     throw recoveryError(
       "ARCHIVE_VERIFICATION_FAILED",
       "Archive verification did not produce successful evidence.",
     );
   }
-  return {
-    ok: true,
-    phase: "phase-a-scaffold",
-    sourceProjectRef,
-    targetProjectRef,
-    archiveVerified: true,
-    databaseRestored: false,
-    storageRestored: false,
-    parityVerified: false,
-    rtoVerified: false,
-    releaseEligible: false,
-    status: "archive_verified_restore_execution_not_enabled",
-  };
+  buildRestorePlan(archiveEvidence);
+  assertArchiveAuthenticityForRestore(targets, archiveEvidence);
+  throw recoveryError(
+    "RESTORE_EXECUTION_NOT_ENABLED",
+    "Archive integrity, authenticity, and cron planning passed, but DB/Storage restore execution remains intentionally disabled.",
+  );
 }
 
 function parseCliArgs(argv) {

@@ -22,6 +22,8 @@ WITH required_dependency_crons(
          count(job_row.jobid) = 1 AND bool_and(
            job_row.schedule = required.expected_schedule
            AND job_row.command = required.expected_command
+           AND job_row.database = current_database()
+           AND job_row.username = 'postgres'
            AND job_row.active
          ) AS exact
   FROM required_dependency_crons required

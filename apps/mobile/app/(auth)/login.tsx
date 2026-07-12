@@ -198,7 +198,7 @@ export default function LoginScreen() {
                   }
                 </Pressable>
               </View>
-              <Text style={styles.fieldHint}>6자 이상</Text>
+              <Text style={styles.fieldHint}>8자 이상</Text>
             </View>
 
             <Pressable

@@ -16,7 +16,7 @@
     "eas:submit:android": "corepack pnpm dlx eas-cli@20.5.1 submit --platform android --profile production",
     "release:check": "node ../../scripts/mobile-release-readiness.mjs",
     "release:store-check": "node ../../scripts/mobile-release-readiness.mjs --store-ready",
-    "test": "node --test ./scripts/consumer-ux-contract.test.mjs",
+    "test": "node --experimental-strip-types --test ./scripts/consumer-ux-contract.test.mjs ./scripts/chat-request-timeout.test.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf node_modules .expo"

@@ -1,5 +1,7 @@
 # WeddingCode Fable-Adapted Protocol v0.1
 
+> **HISTORICAL / PARTIALLY SUPERSEDED (2026-07-11):** 일반적인 주장 감사 원칙은 참고할 수 있지만, 이 문서의 구 문항·가중치·완료 조건은 candidate.10 실행 계약이 아니다. 현재 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 작성일: 2026-07-07  
 출처: 사용자 데스크톱의 `fable-mode-v2.1.zip` 핵심 문서 검토 후, 웨딩코드 제품 개발에 맞게 이식.  
 상태: 웨딩코드 문항/점수/결과 카피 작업에 적용할 운영 프로토콜.

@@ -46,6 +46,25 @@ function request(headers: Record<string, string> = {}) {
   });
 }
 
+function streamedJsonRequest(payload: unknown, chunkSize = 512) {
+  const encoded = new TextEncoder().encode(JSON.stringify(payload));
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let offset = 0; offset < encoded.byteLength; offset += chunkSize) {
+        controller.enqueue(encoded.slice(offset, offset + chunkSize));
+      }
+      controller.close();
+    },
+  });
+
+  return new Request("http://localhost/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 describe("/api/auth/forgot-password POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,6 +81,31 @@ describe("/api/auth/forgot-password POST", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
+  it("rejects a chunked oversized body without trusting Content-Length", async () => {
+    const response = await POST(streamedJsonRequest({
+      email: "user@example.com",
+      turnstileToken: "x".repeat(5 * 1024),
+    }));
+
+    expect(response.status).toBe(413);
+    expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+  });
+
+  it("does not call Turnstile or Auth when the persistent limiter denies the request", async () => {
+    mocks.checkRateLimitPersistent.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "limiter unavailable" }), { status: 503 })
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true, message: GENERIC_MESSAGE });
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+  });
+
   it("does not trust a spoofable mobile header to bypass Turnstile", async () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: false, skipped: false });
 
@@ -70,6 +114,14 @@ describe("/api/auth/forgot-password POST", () => {
 
     expect(response.status).toBe(400);
     expect(body.error).toContain("보안 확인");
+    expect(mocks.verifyTurnstile).toHaveBeenCalledWith(
+      "verified-token",
+      "203.0.113.5",
+      "forgot_password"
+    );
+    expect(
+      mocks.checkRateLimitPersistent.mock.calls.map(([key]) => key)
+    ).toEqual(["forgot:ip"]);
     expect(mocks.generateLink).not.toHaveBeenCalled();
   });
 

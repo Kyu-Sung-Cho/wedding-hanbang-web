@@ -9,6 +9,7 @@ import CustomerStats from "@/components/customer-landing/CustomerStats";
 import CustomerTestimonials from "@/components/customer-landing/CustomerTestimonials";
 import CustomerCTA from "@/components/customer-landing/CustomerCTA";
 import Footer from "@/components/landing/Footer";
+import ReducedMotionProvider from "@/components/common/ReducedMotionProvider";
 
 export const metadata = {
   title: "웨딩한방 서비스 소개 — AI와 함께 정리하는 결혼 준비",
@@ -21,18 +22,26 @@ export const metadata = {
 
 export default function DemoPage() {
   return (
-    <>
+    <ReducedMotionProvider>
+      <a
+        href="#main-content"
+        className="sr-only fixed left-4 top-4 z-[2000] rounded-lg bg-white px-4 py-3 font-semibold text-noir-800 shadow-lg focus:not-sr-only"
+      >
+        본문으로 건너뛰기
+      </a>
       <CustomerNav demoMode />
-      <CustomerHero />
-      <CustomerPainPoints />
-      <CustomerSolutions />
-      <CustomerFeatures />
-      <CustomerComparison />
-      <CustomerHowItWorks />
-      <CustomerStats />
-      <CustomerTestimonials />
-      <CustomerCTA />
+      <main id="main-content">
+        <CustomerHero />
+        <CustomerPainPoints />
+        <CustomerSolutions />
+        <CustomerFeatures />
+        <CustomerComparison />
+        <CustomerHowItWorks />
+        <CustomerStats />
+        <CustomerTestimonials />
+        <CustomerCTA />
+      </main>
       <Footer />
-    </>
+    </ReducedMotionProvider>
   );
 }

@@ -124,6 +124,11 @@ describe("/api/preregister POST", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(400);
+    expect(mocks.verifyTurnstile).toHaveBeenCalledWith(
+      "verified-token",
+      "203.0.113.10",
+      "preregister"
+    );
     expect(mocks.checkRateLimitPersistent).toHaveBeenCalledTimes(1);
     expect(mocks.checkRateLimitPersistent).toHaveBeenCalledWith(
       "preregister:ip",

@@ -133,6 +133,42 @@ const accountDeletionEmailScopeMigration = readFileSync(
   ),
   "utf8"
 );
+const amoraResetReadFenceMigration = readFileSync(
+  resolve(migrationsDir, "20260712102000_close_amora_reset_read_fence.sql"),
+  "utf8"
+);
+const aiLogRetentionCommentMigration = readFileSync(
+  resolve(migrationsDir, "20260712102500_align_ai_log_retention_comments.sql"),
+  "utf8"
+);
+const applicationEmailLifecycleMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712103000_serialize_application_email_lifecycle.sql"
+  ),
+  "utf8"
+);
+const authDeletionUpdateFenceMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712104000_block_auth_mutation_during_account_deletion.sql"
+  ),
+  "utf8"
+);
+const authIdentityDeletionStartMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712104500_serialize_auth_identity_with_deletion_start.sql"
+  ),
+  "utf8"
+);
+const accountDeletionStorageAuthRaceMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260712105000_close_account_deletion_storage_auth_race.sql"
+  ),
+  "utf8"
+);
 
 const activePendingMigrationNames = readdirSync(migrationsDir)
   .filter((name) => name.endsWith(".sql") && name >= "20260710000000")
@@ -186,6 +222,11 @@ describe("expand-only mobile migration contract", () => {
       clientDeniedTriggerBindingMigration,
       researchCohortIdentityMigration,
       accountDeletionEmailScopeMigration,
+      amoraResetReadFenceMigration,
+      aiLogRetentionCommentMigration,
+      applicationEmailLifecycleMigration,
+      authDeletionUpdateFenceMigration,
+      authIdentityDeletionStartMigration,
     ];
 
     for (const migration of atomicMigrations) {
@@ -196,7 +237,7 @@ describe("expand-only mobile migration contract", () => {
       expect(migration).toContain("SET LOCAL lock_timeout = '5s';");
       expect(migration).toMatch(/SET LOCAL statement_timeout = '\d+s';/);
       expect(migration.indexOf("SET LOCAL lock_timeout")).toBeLessThan(
-        migration.search(/^(?:CREATE|ALTER|UPDATE|DELETE|LOCK|DO)\b/m)
+        migration.search(/^(?:CREATE|ALTER|UPDATE|DELETE|LOCK|COMMENT|DO)\b/m)
       );
     }
   });
@@ -432,6 +473,279 @@ describe("expand-only mobile migration contract", () => {
     );
     expect(rateLimitSubjectMigration).toContain(
       "RATE_LIMIT_SUBJECT_TRIGGER_CONTRACT_MISMATCH"
+    );
+  });
+
+  it("revokes every direct Amora read while a membership reset is pending", () => {
+    for (const [policy, table] of [
+      ["amora_couple_profiles_select_with_privacy", "amora_couple_profiles"],
+      ["chat_select_with_privacy", "chat_messages"],
+      ["chat_summaries_select_with_privacy", "chat_summaries"],
+      ["decision_nodes_select_with_privacy", "decision_nodes"],
+    ]) {
+      expect(amoraResetReadFenceMigration).toContain(
+        `DROP POLICY IF EXISTS \"${policy}\" ON public.${table};`
+      );
+      expect(amoraResetReadFenceMigration).toContain(
+        `CREATE POLICY \"${policy}\"`
+      );
+    }
+
+    expect(amoraResetReadFenceMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.can_read_amora_couple_data("
+    );
+    expect(amoraResetReadFenceMigration).toContain("SECURITY DEFINER");
+    expect(amoraResetReadFenceMigration).toContain(
+      "SET search_path = pg_catalog, pg_temp"
+    );
+    expect(amoraResetReadFenceMigration).toContain("SET row_security = off");
+    expect(amoraResetReadFenceMigration).toContain(
+      "profile.account_deleting_at IS NULL"
+    );
+    expect(
+      amoraResetReadFenceMigration.match(
+        /profile\.amora_membership_resetting_at IS NULL/g
+      )
+    ).toHaveLength(1);
+    expect(
+      amoraResetReadFenceMigration.match(
+        /couple\.amora_shared_resetting_at IS NULL/g
+      )
+    ).toHaveLength(1);
+    expect(
+      amoraResetReadFenceMigration.match(
+        /public\.can_read_amora_couple_data\(couple_id, visibility::text\)/g
+      )
+    ).toHaveLength(4);
+    expect(amoraResetReadFenceMigration).toContain(
+      "REVOKE ALL ON FUNCTION public.can_read_amora_couple_data(uuid, text)"
+    );
+    expect(amoraResetReadFenceMigration).toContain(
+      "GRANT EXECUTE ON FUNCTION public.can_read_amora_couple_data(uuid, text)"
+    );
+    expect(amoraResetReadFenceMigration).toContain(
+      "LOCK TABLE public.amora_couple_profiles IN SHARE ROW EXCLUSIVE MODE;"
+    );
+    expect(amoraResetReadFenceMigration.trimStart().startsWith("BEGIN;")).toBe(true);
+    expect(amoraResetReadFenceMigration.trimEnd().endsWith("COMMIT;")).toBe(true);
+  });
+
+  it("keeps AI audit catalog comments aligned with executable retention", () => {
+    for (const column of ["user_input", "ai_output", "error_message", "metadata"]) {
+      expect(aiLogRetentionCommentMigration).toContain(
+        `COMMENT ON COLUMN public.ai_interactions_log.${column} IS`
+      );
+    }
+    expect(aiLogRetentionCommentMigration).toContain("redacted after 90 days");
+    expect(aiLogRetentionCommentMigration).toContain("deleted after 1 year");
+    expect(aiLogRetentionCommentMigration).not.toContain("5년");
+    expect(aiLogRetentionCommentMigration).not.toContain("statutory retention");
+  });
+
+  it("serializes application inserts while keeping status updates deadlock-free", () => {
+    expect(
+      applicationEmailLifecycleMigration.match(
+        /hanbang:application-email-lifecycle:/g
+      )
+    ).toHaveLength(2);
+    for (const trigger of [
+      "trg_lock_preregistration_email_lifecycle",
+      "trg_lock_research_cohort_application_email_lifecycle",
+    ]) {
+      expect(applicationEmailLifecycleMigration).toContain(
+        `CREATE TRIGGER ${trigger}`
+      );
+    }
+    expect(applicationEmailLifecycleMigration).toContain(
+      "BEFORE INSERT OR UPDATE ON"
+    );
+    const updateBranch = applicationEmailLifecycleMigration.indexOf(
+      "IF TG_OP = 'UPDATE' THEN"
+    );
+    const advisoryLock = applicationEmailLifecycleMigration.indexOf(
+      "pg_catalog.pg_advisory_xact_lock("
+    );
+    expect(updateBranch).toBeGreaterThan(-1);
+    expect(updateBranch).toBeLessThan(advisoryLock);
+    expect(applicationEmailLifecycleMigration).toContain(
+      "NEW.email IS DISTINCT FROM OLD.email"
+    );
+    expect(applicationEmailLifecycleMigration).toContain(
+      "RAISE EXCEPTION 'application email is immutable'"
+    );
+    expect(applicationEmailLifecycleMigration).toMatch(
+      /IF TG_OP = 'UPDATE' THEN[\s\S]*?RETURN NEW;[\s\S]*?END IF;[\s\S]*?pg_catalog\.pg_advisory_xact_lock\(/
+    );
+    expect(applicationEmailLifecycleMigration).toContain(
+      "SELECT DISTINCT lower(btrim(scope.value))"
+    );
+    expect(applicationEmailLifecycleMigration).toContain(
+      "WHERE lower(btrim(email)) = ANY(v_email_scopes);"
+    );
+    expect(applicationEmailLifecycleMigration).toContain(
+      "APPLICATION_EMAIL_LIFECYCLE_TRIGGER_CONTRACT_MISMATCH"
+    );
+  });
+
+  it("blocks direct GoTrue mutation after account deletion begins", () => {
+    expect(authDeletionUpdateFenceMigration).toContain(
+      "BEFORE UPDATE ON auth.users"
+    );
+    expect(authDeletionUpdateFenceMigration).toContain(
+      "profile.account_deleting_at IS NOT NULL"
+    );
+    expect(authDeletionUpdateFenceMigration).toContain(
+      "job.status <> 'completed'"
+    );
+    expect(authDeletionUpdateFenceMigration).toContain(
+      "REVOKE ALL ON FUNCTION public.block_auth_user_update_during_account_deletion()"
+    );
+    expect(authDeletionUpdateFenceMigration).toContain(
+      "AUTH_DELETION_UPDATE_FENCE_CONTRACT_MISMATCH"
+    );
+    expect(authDeletionUpdateFenceMigration).not.toContain(
+      "BEFORE DELETE ON auth.users"
+    );
+  });
+
+  it("drains provider identity updates before the deletion email snapshot", () => {
+    const identityLock = authIdentityDeletionStartMigration.indexOf(
+      "FOR UPDATE OF auth_user"
+    );
+    const jobInsert = authIdentityDeletionStartMigration.indexOf(
+      "INSERT INTO public.account_deletion_jobs"
+    );
+    const lifecycleStart = authIdentityDeletionStartMigration.indexOf(
+      "public.begin_account_deletion(p_user_id)"
+    );
+
+    expect(identityLock).toBeGreaterThan(-1);
+    expect(identityLock).toBeLessThan(jobInsert);
+    expect(jobInsert).toBeLessThan(lifecycleStart);
+    expect(authIdentityDeletionStartMigration).toContain(
+      "FROM auth.users AS auth_user"
+    );
+    expect(authIdentityDeletionStartMigration).toContain(
+      "GRANT EXECUTE ON FUNCTION public.request_account_deletion(uuid, text)"
+    );
+  });
+
+  it("closes Storage ownership and external Auth deletion races", () => {
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "ADD COLUMN IF NOT EXISTS auth_delete_ready_until timestamptz"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "ACCOUNT_DELETION_OWNED_STORAGE_REPAIR_REQUIRED"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "ACCOUNT_DELETION_CHAT_STORAGE_PROVENANCE_REPAIR_REQUIRED"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.list_account_deletion_owned_storage_objects("
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "lower(object_row.owner_id) = v_user_id::text"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "lower(object_row.owner_id) = OLD.id::text"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "GROUP BY lower(object_row.owner_id)"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).not.toContain(
+      "WHERE object_row.owner_id ="
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "GRANT EXECUTE ON FUNCTION public.list_account_deletion_owned_storage_objects("
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.mark_account_deletion_cleanup_ready("
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "auth_delete_ready_until = pg_catalog.clock_timestamp() +"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "BEFORE INSERT OR UPDATE ON storage.objects"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "chat image owner provenance is required"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "chat image owner auth subject is missing"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "invalid or orphaned chat storage objects block auth deletion"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "invalid or orphaned chat storage objects block deletion completion"
+    );
+    expect(
+      accountDeletionStorageAuthRaceMigration.match(
+        /WHERE auth_owner\.id = object_row\.owner_id::uuid/g
+      )
+    ).toHaveLength(4);
+    expect(accountDeletionStorageAuthRaceMigration).toMatch(
+      /FROM auth\.users AS auth_owner\s+WHERE auth_owner\.id = NEW\.owner_id::uuid\s+FOR KEY SHARE;/
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "profile.account_deleting_at INTO v_deleting_at"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "job.status <> 'completed'"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "REVOKE ALL ON FUNCTION public.block_storage_owner_write_during_account_deletion()"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "BEFORE DELETE ON auth.users"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "v_job.auth_delete_ready_until <= pg_catalog.clock_timestamp()"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "SET auth_delete_ready_until = NULL"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "REVOKE ALL ON FUNCTION public.block_auth_user_delete_until_account_cleanup_ready()"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "IF EXISTS (SELECT 1 FROM auth.users WHERE id = v_user_id)"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "auth_delete_ready_until = NULL,"
+    );
+    const authDeleteFence = accountDeletionStorageAuthRaceMigration.slice(
+      accountDeletionStorageAuthRaceMigration.indexOf(
+        "CREATE OR REPLACE FUNCTION public.block_auth_user_delete_until_account_cleanup_ready()"
+      ),
+      accountDeletionStorageAuthRaceMigration.indexOf(
+        "ALTER FUNCTION public.block_auth_user_delete_until_account_cleanup_ready()"
+      )
+    );
+    expect(
+      authDeleteFence.indexOf("lower(object_row.owner_id) = OLD.id::text")
+    ).toBeLessThan(
+      authDeleteFence.indexOf("IF NOT v_profile_deleting AND NOT v_job_found")
+    );
+    expect(accountDeletionStorageAuthRaceMigration).not.toContain(
+      "console."
+    );
+  });
+
+  it("treats mixed-case Storage owner UUIDs as the same deletion subject", () => {
+    expect(
+      accountDeletionStorageAuthRaceMigration.match(
+        /lower\(object_row\.owner_id\) = (?:v_user_id|OLD\.id)::text/g
+      )
+    ).toHaveLength(4);
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "GROUP BY lower(object_row.owner_id)"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).toContain(
+      "SELECT DISTINCT lower(candidate.value)"
+    );
+    expect(accountDeletionStorageAuthRaceMigration).not.toMatch(
+      /WHERE object_row\.owner_id = (?:v_user_id|OLD\.id)::text/
     );
   });
 

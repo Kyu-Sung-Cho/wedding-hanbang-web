@@ -46,7 +46,7 @@ describe("웨딩코드 현재 결과 공유 카드 레이아웃", () => {
   });
 
   it("현재 공유 카드 안내와 URL이 4줄 안에 들어간다", () => {
-    const text = "너는 결혼 준비에서 무엇부터 시작해?\nhanbang.ai/wedding-code";
+    const text = "16개 가상 장면에서 고른 횟수예요. 성격·관계 진단이 아니에요.\nhanbang.ai/wedding-code";
     const lines = wrapText(text, MAX_WIDTH, 38, approxMeasure);
     expect(lines.length).toBeLessThanOrEqual(4);
     expect(lines.join(" ")).toContain("hanbang.ai/wedding-code");

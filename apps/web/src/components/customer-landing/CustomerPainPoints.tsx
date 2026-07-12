@@ -72,7 +72,7 @@ export default function CustomerPainPoints() {
           <br />
           지치기 쉬울까요?
         </h2>
-        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/50 font-light mx-auto max-w-[520px]">
+        <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-white/80 font-light mx-auto max-w-[520px]">
           복잡한 절차, 서로 다른 기준, 달라지는 예산, 소통의 어려움까지
           <br className="hidden md:block" />
           우리가 주목한 4가지 핵심 문제입니다.
@@ -98,7 +98,7 @@ export default function CustomerPainPoints() {
             <h3 className="font-serif-kr text-[clamp(17px,2.5vw,20px)] font-normal text-white leading-snug mb-3 tracking-tight">
               {pain.title}
             </h3>
-            <p className="text-[13px] text-white/50 font-light leading-relaxed mb-6">
+            <p className="text-[13px] text-white/80 font-light leading-relaxed mb-6">
               {pain.desc}
             </p>
 
@@ -106,7 +106,7 @@ export default function CustomerPainPoints() {
               <span className="font-display text-[24px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
                 {pain.stat}
               </span>
-              <span className="text-[12px] text-white/30 font-light">{pain.statLabel}</span>
+              <span className="text-[12px] text-white/75 font-light">{pain.statLabel}</span>
             </div>
           </motion.div>
         ))}
@@ -121,7 +121,7 @@ export default function CustomerPainPoints() {
               href={source.href}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] text-white/40 font-light underline decoration-white/20 underline-offset-2 transition-colors hover:text-white/70"
+              className="text-[11px] text-white/80 font-light underline decoration-white/50 underline-offset-2 transition-colors hover:text-white"
             >
               {source.label}
             </a>

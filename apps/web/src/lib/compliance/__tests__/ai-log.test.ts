@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcCostUsd } from "../ai-log";
+import { calcCostUsd, sanitizeAIErrorCode } from "../ai-log";
 
 describe("calcCostUsd", () => {
   it("prices OpenAI cached input without double charging total input tokens", () => {
@@ -54,5 +54,17 @@ describe("calcCostUsd", () => {
 
   it("returns null when the model is not priced", () => {
     expect(calcCostUsd("deterministic-price-benchmark-v1", 1_000, 1_000)).toBeNull();
+  });
+});
+
+describe("sanitizeAIErrorCode", () => {
+  it("keeps reviewed categories but never persists free-text provider or user data", () => {
+    expect(
+      sanitizeAIErrorCode("provider_request_failed:name_APIError:status_429")
+    ).toBe("provider_request_failed");
+    expect(sanitizeAIErrorCode("empty_response")).toBe("empty_response");
+    expect(
+      sanitizeAIErrorCode("victim@example.com Failing row contains (private payload)")
+    ).toBe("ai_interaction_failed");
   });
 });

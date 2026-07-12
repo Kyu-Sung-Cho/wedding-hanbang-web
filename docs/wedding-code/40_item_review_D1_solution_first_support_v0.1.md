@@ -1,4 +1,7 @@
 # WeddingCode D1 Item Review - 걱정을 말했는데 방법부터 나올 때
+
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 리뷰의 문항·선택지·가중치는 현재 D1과 다르며 candidate.10 검증 결과가 아니다. 현재 D1과 검증 경계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 작성일: 2026-07-07  
 상태: v0.5 문항 후보 확정 전 심층 리뷰  
 대상: D축 `지원 순서` 1번 문항, 기존 q09

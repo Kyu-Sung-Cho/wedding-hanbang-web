@@ -31,7 +31,7 @@ export default function CustomerStats() {
               {stat.value}{stat.suffix}
             </div>
             <div className="text-[clamp(13px,1.5vw,14px)] text-white font-medium mb-1">{stat.label}</div>
-            <div className="text-[clamp(11px,1.2vw,12px)] text-white/40 font-light">{stat.desc}</div>
+            <div className="text-[clamp(11px,1.2vw,12px)] text-white/70 font-light">{stat.desc}</div>
           </motion.div>
         ))}
       </div>

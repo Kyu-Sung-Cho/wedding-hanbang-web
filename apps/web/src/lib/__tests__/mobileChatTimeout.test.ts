@@ -29,13 +29,11 @@ describe("mobile chat request timeout", () => {
       expect.objectContaining({
         name: "MobileChatTimeoutError",
         code: "request_timeout",
-        message: "응답이 예상보다 오래 걸려 연결을 멈췄어요. 네트워크 상태를 확인하고 다시 시도해 주세요.",
+        message: "2분 동안 답변을 받지 못해 연결을 멈췄어요. 입력한 질문으로 다시 시도할 수 있어요.",
       })
     );
 
-    await vi.advanceTimersByTimeAsync(1_000);
-
-    await rejection;
+    await Promise.all([vi.advanceTimersByTimeAsync(1_000), rejection]);
     expect(requestSignal?.aborted).toBe(true);
     expect(MobileChatTimeoutError).toBeTypeOf("function");
   });

@@ -1,5 +1,7 @@
 # 소비자 여정·보안·아모라 출시 감사
 
+> **역사적 스냅샷:** 아래 테스트 수·107개 migration·preview `/api/chat` 결과는 2026-07-11 당시 후보의 증거이며 현재 작업트리나 출시 승인서가 아니다. 현재 NO-GO 사유와 최신 수치는 [`codex-tasks/FULL_QA_2026-07-12.md`](./codex-tasks/FULL_QA_2026-07-12.md), 실제 운영 순서는 [`PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`](./PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md)를 우선한다.
+
 ## 2026-07-11 재검증 업데이트
 
 이 절이 아래의 초기 감사 기록보다 우선한다. 초기 기록은 당시의 보수적 판단과 발견 경위를 보존하되, 현재 검증 상태는 다음 증거로 판단한다.

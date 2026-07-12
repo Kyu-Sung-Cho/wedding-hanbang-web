@@ -69,7 +69,7 @@ describe("WeddingCode candidate.10 individual report", () => {
 
     expect(report.axisReports.every((axis) => axis.responsePattern === "mixed")).toBe(true);
     expect(report.shareSummaryKo).toBe(
-      "조건·장면 반반 · 같이·분담 반반 · 둘·주변 반반 · 마음·할 일 반반"
+      "조건·장면 2:2 · 같이·분담 2:2 · 둘·주변 2:2 · 마음·할 일 2:2"
     );
     expect(report.shareSummaryKo.split(" · ")).toHaveLength(4);
   });
@@ -77,9 +77,22 @@ describe("WeddingCode candidate.10 individual report", () => {
   it("공유 요약은 네 시작점만 담고 개별 비용·가족 갈등 응답을 노출하지 않는다", () => {
     const report = buildWeddingCodeV05IndividualReport(scoreWeddingCodeV05(answersWithPattern(4)));
 
-    expect(report.shareSummaryKo).toBe("조건 먼저 · 같이 맞춤 · 둘의 기준 먼저 · 마음 먼저");
+    expect(report.shareSummaryKo).toBe(
+      "조건 먼저 4/4 · 같이 맞춤 4/4 · 둘의 기준 먼저 4/4 · 마음 먼저 4/4"
+    );
     expect(report.sharePromptKo).toContain("너는");
+    expect(report.shareNoteKo).toContain("16개 가상 장면");
+    expect(report.shareNoteKo).toContain("진단이 아니");
     expect(report.shareSummaryKo).not.toMatch(/원|만원|부모|가족|업체|취소/);
+  });
+
+  it("공유에서도 3:1과 4:0을 같은 유형 라벨로 뭉개지 않고 실제 횟수를 남긴다", () => {
+    const leaning = buildWeddingCodeV05IndividualReport(scoreWeddingCodeV05(answersWithPattern(3)));
+    const consistent = buildWeddingCodeV05IndividualReport(scoreWeddingCodeV05(answersWithPattern(4)));
+
+    expect(leaning.shareSummaryKo).toContain("3/4");
+    expect(consistent.shareSummaryKo).toContain("4/4");
+    expect(leaning.shareSummaryKo).not.toBe(consistent.shareSummaryKo);
   });
 
   it("안전한 예약 확인 카드는 위험 성향 점수 없이 모든 결과에 똑같이 제공한다", () => {

@@ -224,6 +224,27 @@ export interface AIInteractionLogInput {
 
 const getAdminClient = createAdminClient;
 
+const SAFE_AI_ERROR_CODE_PREFIXES = [
+  "provider_request_failed",
+  "provider_request_aborted",
+  "openai_response_error",
+  "openai_input_token_limit",
+  "empty_response",
+  "chat_request_failed",
+  "cost_guard_",
+  "tool_claim_",
+  "request_aborted",
+  "ai_interaction_failed",
+] as const;
+
+export function sanitizeAIErrorCode(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const base = value.split(":", 1)[0];
+  return SAFE_AI_ERROR_CODE_PREFIXES.some((prefix) => base.startsWith(prefix))
+    ? base.slice(0, 120)
+    : "ai_interaction_failed";
+}
+
 // -------------------------------------------
 // 공개 헬퍼: logAIInteraction
 // -------------------------------------------
@@ -274,7 +295,7 @@ export async function logAIInteraction(
       tool_output: params.toolOutput ?? null,
       latency_ms: params.latencyMs ?? null,
       success: params.success ?? true,
-      error_message: params.errorMessage ?? null,
+      error_message: sanitizeAIErrorCode(params.errorMessage),
       model: params.model ?? null,
       tokens_input: params.tokensInput ?? null,
       tokens_output: params.tokensOutput ?? null,
@@ -283,13 +304,13 @@ export async function logAIInteraction(
     });
 
     if (error) {
-      console.error("[ai-log] INSERT 실패 (무시됨):", error.message);
+      console.error("AI_LOG_INSERT_FAILED", error);
       if (params.required) {
-        throw new Error(`[ai-log] 필수 감사 장부 기록 실패: ${error.message}`);
+        throw new Error("AI_LOG_REQUIRED_INSERT_FAILED");
       }
     }
   } catch (err) {
-    console.error("[ai-log] 예외 (무시됨):", err);
+    console.error("AI_LOG_UNEXPECTED_FAILURE", err);
     if (params.required) throw err;
   }
 }

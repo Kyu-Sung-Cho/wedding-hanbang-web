@@ -9,9 +9,19 @@
 
 ## 현재 출시 판정 (2026-07-12)
 
-- OpenAI Luna·Terra 런타임과 `20260711148000`까지의 107개 migration 체인은 폐기 가능한 Supabase preview에서 검증했다.
+- `20260711148000`까지의 107개 migration 체인은 폐기 가능한 Supabase preview에서 역사적으로 검증했다. 현재 후보의 Luna·Terra는 사용자 데이터 없는 provider-only token-count/streaming smoke만 통과했으며, 폐기 가능한 Supabase에 묶인 실제 `/api/chat`·감사 로그·visibility·replay·일일 한도 통합 검증은 아직 blocker다.
 - 폐기 가능한 preview에서 baseline부터 `20260711148000`까지 migration 107개를 빈 DB에 연속 재실행했다. DB lint, 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, lifecycle smoke와 anon 10-table probe가 모두 통과했다. 함수 source hash는 CRLF를 제거한 뒤 비교해 Windows/Linux replay 결과가 같고, rate-limit bucket은 service role도 직접 INSERT/UPDATE하지 못하며 canonical RPC만 사용한다.
-- 새 `20260712100000_research_cohort_application_identity.sql`과 `20260712101000_durable_account_deletion_email_scope.sql`은 각각 연구 신청의 목적·이메일 확인 경계와 계정 삭제 재시도의 이메일 범위 증명을 추가하는 forward migration이며, 아직 폐기 가능 원격 DB에서 fresh replay·연속 upgrade를 통과하지 않았다. 따라서 위 107개 증거에 포함되지 않고 둘 다 별도 blocker다.
+- `20260711148000` 뒤에는 아래 forward migration 8개가 추가됐다. 어느 것도 위 107개 fresh replay 증거에 포함되지 않으며, 8개 전체가 같은 폐기 가능 원격 DB에서 blank fresh replay와 직전 107개 상태로부터의 연속 upgrade를 모두 통과하기 전까지 별도 blocker다.
+  - `20260712100000_research_cohort_application_identity.sql`: 연구 신청의 별도 목적·이메일 확인 경계
+  - `20260712101000_durable_account_deletion_email_scope.sql`: 계정 삭제 재시도의 이메일 범위 증명
+  - `20260712102000_close_amora_reset_read_fence.sql`: 커플 reset 즉시 아모라·채팅 파생정보 SELECT 차단
+  - `20260712102500_align_ai_log_retention_comments.sql`: AI 감사 로그 catalog 설명과 실제 보유 정책 정렬
+  - `20260712103000_serialize_application_email_lifecycle.sql`: 연구·사전등록과 계정 삭제의 정규화 이메일 lifecycle 직렬화
+  - `20260712104000_block_auth_mutation_during_account_deletion.sql`: 계정 삭제 중 공개 GoTrue identity 변경 차단
+  - `20260712104500_serialize_auth_identity_with_deletion_start.sql`: identity 변경과 삭제 시작 snapshot의 직렬화
+  - `20260712105000_close_account_deletion_storage_auth_race.sql`: 계정 삭제 중 소유 Storage 신규 쓰기와 외부 Auth 삭제 경합 차단
+- `20260712105000`은 `owner_id` UUID를 대소문자와 무관한 동일 주체로 취급하고, 공유 `chat-image`의 ownerless/비UUID 객체 또는 UUID 형식은 맞지만 대응 `auth.users`가 없는 고아 객체가 하나라도 있으면 migration, cleanup-ready, Auth 삭제, completion을 모두 fail-closed한다. 새 chat 쓰기는 owner 형식뿐 아니라 실제 Auth 주체 존재를 row lock으로 확인한다. 직접 `auth.users` SQL 삭제도 Supabase 문서의 동작과 맞춰 소유 Storage가 남아 있으면 job 유무와 관계없이 거부한다. production preflight/postdeploy/safe-ship은 `unattributed_chat_image_objects=0`, `orphaned_chat_image_objects=0`, `processing_jobs=0`을 증명해야 하며, cron을 끈 maintenance 시작 후 기존 600초 lease/120초 invocation 중 더 긴 600초가 지난 뒤 push 직전에 다시 확인한다. 이 SQL은 아직 실제 hosted Storage/Auth에서 2-connection race와 fresh/upgrade replay를 통과하지 않았으므로 운영 blocker는 유지한다.
+- 현재 local migration은 총 115개다. 과거 운영 ledger 71개와 exact core baseline history 1개 reconcile을 가정하면 예상 pending suffix는 기존 35개에 위 8개를 더한 43개지만, 이는 실행 증거가 아니다. 운영 직전 read-only preflight로 remote history를 다시 읽고 exact 연속 prefix를 확인해야 한다.
 - Vercel Production에는 다른 경계와 재사용하지 않은 고엔트로피 `RESEARCH_EMAIL_VERIFICATION_SECRET`을 값 노출 없이 추가했고, `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`와 `ACCOUNT_DELETION_CRON_ENABLED=false`를 유지했다. 아직 이 변수를 사용하는 운영 deployment와 실제 Resend 전달은 검증하지 않았다. `ADMIN_PASSWORD`와 노출된 OpenAI 키 회전, Resend click tracking 비활성화, signed `APPLE_TEAM_ID`, Play App Signing SHA-256도 별도로 확인해야 한다. 값은 기록하지 않는다.
 - 새 코드의 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`은 소개·사용자 연구 안내·정책·association 경로만 허용하고 로그인·앱·일반 API를 서버에서 차단한다. 실제 연구 정보 접수는 별도 서버 전용 `RESEARCH_COHORT_APPLICATIONS_ENABLED=true`가 있어야만 열리며, production/preview에서 미설정은 fail-closed다. 일반 베타 알림 신청과 연구 코호트를 같은 동의로 취급하지 않는다. 이 동작은 아직 운영 deployment에 반영되지 않았다.
 - 운영 배포는 **NO-GO**다. `database-readonly-realtime-cron-v1` 도구는 연결 lock, clean HEAD/tree, 기존 pooled session 경계와 exact restore를 검사하지만 실제 disposable black-box 증거가 없어 fence는 `not_configured`다. production ship/reconcile과 operator 작성 evidence도 코드에서 추가로 hard-stop한다. 암호화 export 도구도 Phase A이며 실제 isolated restore를 실행하지 않았으므로 `backupPolicy.status=not_configured`다.
@@ -25,7 +35,7 @@
 - `scripts/release-targets.json`에 등록된 보호 대상과 검증된 직접 쓰기 차단 증거
 - 승인된 age recipient, protected production이 아닌 restore project allowlist, 실제 DB/Storage restore drill 증거
 - 원격 작업 대상은 `approvedNonProductionSupabaseProjectRefs`에 별도 승인된 폐기 가능 project ref만 허용한다. 현재 allowlist는 비어 있으므로 모든 non-production 원격 변경도 fail-closed다.
-- maintenance 시작 이후 생성되고 완료된 30분 이내 물리 백업 또는 사전 승인된 동등 복구 증거
+- maintenance 시작 이후 생성되고 완료된 30분 이내 physical backup ID. 현재 guarded ship은 이것만 수용하며, PITR·논리 export 같은 동등 증거는 별도 구현과 같은 종류의 isolated restore rehearsal이 코드 gate에 들어오기 전까지 대체물로 사용할 수 없다.
 - 배포 commit과 동일한 Vercel maintenance deployment
 - production preflight에서 요구하는 데이터 정리·명시적 ACK
 
@@ -56,6 +66,9 @@ corepack pnpm amora:openai:smoke
 corepack pnpm supabase:fence -- -Action Plan -ExpectedProjectRef <preview-project-ref>
 corepack pnpm supabase:recovery:test
 ```
+
+복구 archive v2의 cron 비활성 재생, 실행 환경, evidence hash chain과
+최종 hard stop은 [Supabase recovery artifact contract](./SUPABASE_RECOVERY_ARTIFACT_CONTRACT.md)를 따른다.
 
 blank reset처럼 파괴적인 preview 검증은 URL에 예상 preview ref가 포함되고 보호 대상 ref가 아님을 자동·수동으로 모두 확인한 경우에만 수행한다.
 
@@ -88,7 +101,7 @@ corepack pnpm supabase:ship:safe -- -ExpectedProjectRef <production-project-ref>
 7. maintenance 시작 뒤의 최신 백업이 완료됐고 30분 이내다.
 8. dry-run과 명시적 ACK가 실제 rewrite/delete inventory와 일치한다.
 9. migration 후 exact post-deploy contract가 함수·ACL·trigger·RLS·retired object 부재를 검증한다.
-10. fence 해제 뒤 폐기 bucket은 공식 Storage API로 제거되고, anon key probe가 민감 테이블 10개의 접근 거부를 확인한다.
+10. fence가 **활성인 동안** 폐기 bucket을 공식 Storage API로 제거하고 normal deployment를 승격해 apex alias·SHA·Supabase ref를 확인한다. 그 뒤에만 fence를 해제하고 anon key 민감 테이블 10개 거부와 승인된 정상/거부 write 경계를 다시 probe한다.
 
 어느 gate든 실패하면 작업은 실패이며, SQL Editor에서 수동으로 이어서 적용하지 않는다. 원인을 수정하고 같은 commit 기준으로 처음부터 다시 실행한다.
 

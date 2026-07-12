@@ -163,10 +163,23 @@ function getAdminClient(): SupabaseClient | null {
   return adminClient;
 }
 
+function persistentLimiterUnavailable(
+  key: string,
+  config: RateLimitConfig,
+  subjectUserId?: string | null,
+  errorCode?: string,
+): NextResponse | null {
+  const failClosed = process.env.NODE_ENV === "production"
+    || process.env.RATE_LIMIT_PERSISTENCE_FAIL_CLOSED === "true";
+  return subjectUserId || failClosed
+    ? protectedSubjectRateLimitResponse(errorCode)
+    : checkRateLimit(key, config);
+}
+
 /**
  * 서버리스 인스턴스를 넘어 공유되는 rate limit.
- * 익명/IP/이메일 limiter만 RPC 장애 시 인스턴스 로컬 limiter로 fallback한다.
- * 인증된 subject는 계정 lifecycle 보호를 우회하지 않도록 403/409/503으로 fail closed한다.
+ * production에서는 익명/IP/이메일 limiter도 RPC·secret 장애 시 fail closed한다.
+ * 인스턴스 로컬 fallback은 명시적인 비운영 개발 환경에서만 허용한다.
  */
 export async function checkRateLimitPersistent(
   key: string,
@@ -176,15 +189,11 @@ export async function checkRateLimitPersistent(
   const strongSecret = strongRateLimitKeySecret();
   if (!strongSecret) {
     console.error("RATE_LIMIT_PERSISTENCE_CONFIGURATION_UNAVAILABLE");
-    return subjectUserId
-      ? protectedSubjectRateLimitResponse()
-      : checkRateLimit(key, config);
+    return persistentLimiterUnavailable(key, config, subjectUserId);
   }
   const admin = getAdminClient();
   if (!admin) {
-    return subjectUserId
-      ? protectedSubjectRateLimitResponse()
-      : checkRateLimit(key, config);
+    return persistentLimiterUnavailable(key, config, subjectUserId);
   }
   const protectedKey = protectedRateLimitKey(key, strongSecret);
 
@@ -197,9 +206,7 @@ export async function checkRateLimitPersistent(
     });
     if (error) {
       console.error("RATE_LIMIT_PERSISTENCE_FAILED");
-      return subjectUserId
-        ? protectedSubjectRateLimitResponse(error.code)
-        : checkRateLimit(key, config);
+      return persistentLimiterUnavailable(key, config, subjectUserId, error.code);
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -210,9 +217,7 @@ export async function checkRateLimitPersistent(
     return rateLimitResponse(retryAfter);
   } catch {
     console.error("RATE_LIMIT_PERSISTENCE_EXCEPTION");
-    return subjectUserId
-      ? protectedSubjectRateLimitResponse()
-      : checkRateLimit(key, config);
+    return persistentLimiterUnavailable(key, config, subjectUserId);
   }
 }
 

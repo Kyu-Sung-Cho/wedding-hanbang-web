@@ -72,6 +72,7 @@ corepack pnpm mobile:release-check
 - 2026-07-10 보수적 전체 감사와 출시 경계: [`docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md`](docs/AUDIT_2026-07-10_CONSERVATIVE_FULL_REVIEW.md)
 - 최신 광역 문서-코드 대조: [`docs/DOC_VS_CODE_AUDIT_2026-07-03.md`](docs/DOC_VS_CODE_AUDIT_2026-07-03.md)
 - 보안 감사 묶음: [`docs/SECURITY_AUDIT_2.1_ADMIN_AUTH_2026-07-03.md`](docs/SECURITY_AUDIT_2.1_ADMIN_AUTH_2026-07-03.md)부터 `2.5_RLS`까지
+- WeddingCode candidate.10 독립 최종 감사와 광범위 출시 NO-GO 근거: [`docs/wedding-code/65_candidate10_independent_final_audit_2026-07-12.md`](docs/wedding-code/65_candidate10_independent_final_audit_2026-07-12.md)
 - WeddingCode candidate.10 문항·계산·UX 전면 재설계: [`docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`](docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md)
 - WeddingCode 최소 32문항 연구 풀: [`docs/wedding-code/64_candidate10_32_item_research_pool_2026-07-11.md`](docs/wedding-code/64_candidate10_32_item_research_pool_2026-07-11.md)
 - WeddingCode candidate.8~9 카피 감사와 인수인계: [`docs/wedding-code/60_candidate8_full_item_plain_language_audit_2026-07-09.md`](docs/wedding-code/60_candidate8_full_item_plain_language_audit_2026-07-09.md), [`docs/wedding-code/61_2026-07-09_worklog_handoff.md`](docs/wedding-code/61_2026-07-09_worklog_handoff.md), [`docs/wedding-code/62_candidate9_conservative_copy_pass_2026-07-09.md`](docs/wedding-code/62_candidate9_conservative_copy_pass_2026-07-09.md) (역사 기록)

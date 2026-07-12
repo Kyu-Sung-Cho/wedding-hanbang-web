@@ -34,7 +34,7 @@ export default function CustomerLogoShowcase() {
         </h2>
 
         {/* 태그라인 */}
-        <p className="text-[clamp(13px,1.5vw,15px)] text-white/40 font-light tracking-wide">
+        <p className="text-[clamp(13px,1.5vw,15px)] text-white/70 font-light tracking-wide">
           AI와 함께 차근차근 정리하는 결혼 준비
         </p>
       </div>

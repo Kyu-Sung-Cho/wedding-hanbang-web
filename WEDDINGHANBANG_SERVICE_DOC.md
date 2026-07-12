@@ -1,7 +1,7 @@
 # 웨딩한방 서비스 기준서
 
 > 마지막 코드 대조: 2026-07-12
-> 이 문서는 현재 베타에서 실제로 제공하는 범위만 설명한다. 장기 아이디어는 별도 전략 문서에 남기되, 제품 안내·QA·출시 판단에는 이 문서와 `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 우선한다.
+> 이 문서는 현재 베타의 제품 범위와 도메인 의미를 설명한다. 최신 출시 상태·테스트 수·NO-GO 판정은 `docs/codex-tasks/FULL_QA_2026-07-12.md`, 실제 운영 순서는 `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`를 최우선으로 한다. `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`의 수치는 역사적 스냅샷이다.
 > 2026-07-11에 추가한 비용·권한·보존 migration은 저장소 코드일 뿐 운영 Supabase 적용이 확인되지 않았다. 아래에서 `코드 계약`과 `운영 검증`을 구분한다.
 
 ## 한 줄 설명

@@ -6,6 +6,9 @@ const MAX_STORAGE_SCOPES = 500;
 const MAX_DIRECTORIES_PER_SCOPE = 2_000;
 const MAX_OBJECTS_PER_SCOPE = 20_000;
 const MAX_STORAGE_DELETE_PASSES = 3;
+const OWNED_STORAGE_PAGE_SIZE = 500;
+const OWNED_STORAGE_REMOVE_BATCH_SIZE = 100;
+const MAX_OWNED_STORAGE_OBJECTS = 20_000;
 
 export const ACCOUNT_DELETION_ALLOWED_REASONS = [
   "unsatisfied",
@@ -31,6 +34,11 @@ type SafeStorageBucket = (typeof SAFE_STORAGE_BUCKETS)[number];
 export type AccountDeletionStorageScope = {
   bucket: SafeStorageBucket;
   prefix: string;
+};
+
+type AccountDeletionOwnedStorageObject = {
+  bucket: string;
+  name: string;
 };
 
 export type AccountDeletionJob = {
@@ -117,8 +125,11 @@ async function deleteAndVerifyEmailScopedApplicationData(
 
 function isMissingAuthUser(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const candidate = error as { status?: unknown; code?: unknown };
-  return candidate.status === 404 || candidate.code === "user_not_found";
+  const candidate = error as { code?: unknown };
+  // A generic 404 can come from an Auth edge/proxy route and does not prove
+  // that auth.users is absent. Only the provider's explicit semantic code is
+  // safe to treat as an idempotent already-deleted result.
+  return candidate.code === "user_not_found";
 }
 
 function parseStorageInventory(value: unknown): AccountDeletionStorageScope[] | null {
@@ -156,6 +167,140 @@ function parseStorageInventory(value: unknown): AccountDeletionStorageScope[] | 
   return scopes;
 }
 
+function parseOwnedStoragePage(value: unknown): AccountDeletionOwnedStorageObject[] {
+  if (!Array.isArray(value) || value.length > OWNED_STORAGE_PAGE_SIZE) {
+    fail("OWNED_STORAGE_INVENTORY_INVALID");
+  }
+
+  return value.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      fail("OWNED_STORAGE_INVENTORY_INVALID");
+    }
+    const record = item as Record<string, unknown>;
+    const bucket = record.bucket_id;
+    const name = record.object_name;
+    if (
+      typeof bucket !== "string"
+      || bucket.length === 0
+      || bucket.length > 100
+      || bucket.includes("/")
+      || bucket.includes("\\")
+      || /[\u0000-\u001f\u007f]/.test(bucket)
+      || typeof name !== "string"
+      || name.length === 0
+      || name.length > 1_024
+      || name.startsWith("/")
+      || name.includes("\\")
+      || /[\u0000-\u001f\u007f]/.test(name)
+    ) {
+      fail("OWNED_STORAGE_INVENTORY_INVALID");
+    }
+    return { bucket, name };
+  });
+}
+
+async function listOwnedStoragePage(
+  admin: SupabaseClient,
+  jobId: string,
+  workerToken: string,
+  cursor: AccountDeletionOwnedStorageObject | null,
+  limit: number,
+): Promise<AccountDeletionOwnedStorageObject[]> {
+  const { data, error } = await admin.rpc(
+    "list_account_deletion_owned_storage_objects",
+    {
+      p_job_id: jobId,
+      p_worker_token: workerToken,
+      p_after_bucket: cursor?.bucket ?? null,
+      p_after_name: cursor?.name ?? null,
+      p_limit: limit,
+    },
+  );
+  if (error) fail("OWNED_STORAGE_INVENTORY_FAILED");
+  return parseOwnedStoragePage(data ?? []);
+}
+
+async function collectOwnedStorageInventory(
+  admin: SupabaseClient,
+  jobId: string,
+  workerToken: string,
+  renewLease: LeaseHeartbeat,
+): Promise<AccountDeletionOwnedStorageObject[]> {
+  const inventory: AccountDeletionOwnedStorageObject[] = [];
+  const seen = new Set<string>();
+  let cursor: AccountDeletionOwnedStorageObject | null = null;
+
+  for (;;) {
+    await renewLease();
+    const page = await listOwnedStoragePage(
+      admin,
+      jobId,
+      workerToken,
+      cursor,
+      OWNED_STORAGE_PAGE_SIZE,
+    );
+    if (page.length === 0) return inventory;
+
+    for (const object of page) {
+      const key = `${object.bucket}\u0000${object.name}`;
+      if (seen.has(key)) fail("OWNED_STORAGE_INVENTORY_INVALID");
+      seen.add(key);
+      inventory.push(object);
+      if (inventory.length > MAX_OWNED_STORAGE_OBJECTS) {
+        fail("OWNED_STORAGE_OBJECT_LIMIT");
+      }
+    }
+
+    const nextCursor = page.at(-1)!;
+    if (cursor
+      && nextCursor.bucket === cursor.bucket
+      && nextCursor.name === cursor.name) {
+      fail("OWNED_STORAGE_INVENTORY_INVALID");
+    }
+    cursor = nextCursor;
+    if (page.length < OWNED_STORAGE_PAGE_SIZE) return inventory;
+  }
+}
+
+async function removeOwnedStorageObjects(
+  admin: SupabaseClient,
+  inventory: readonly AccountDeletionOwnedStorageObject[],
+  renewLease: LeaseHeartbeat,
+): Promise<void> {
+  const byBucket = new Map<string, string[]>();
+  for (const object of inventory) {
+    const paths = byBucket.get(object.bucket) ?? [];
+    paths.push(object.name);
+    byBucket.set(object.bucket, paths);
+  }
+
+  for (const [bucket, paths] of byBucket) {
+    for (let offset = 0; offset < paths.length; offset += OWNED_STORAGE_REMOVE_BATCH_SIZE) {
+      const batch = paths.slice(offset, offset + OWNED_STORAGE_REMOVE_BATCH_SIZE);
+      await renewLease();
+      const { error } = await admin.storage.from(bucket).remove(batch);
+      if (error) fail("OWNED_STORAGE_REMOVE_FAILED");
+    }
+  }
+}
+
+async function assertOwnedStorageEmpty(
+  admin: SupabaseClient,
+  jobId: string,
+  workerToken: string,
+  renewLease: LeaseHeartbeat,
+): Promise<void> {
+  await renewLease();
+  const remaining = await listOwnedStoragePage(
+    admin,
+    jobId,
+    workerToken,
+    null,
+    1,
+  );
+  if (remaining.length !== 0) fail("OWNED_STORAGE_NOT_QUIESCENT");
+}
+
 async function loadCurrentMembership(admin: SupabaseClient, userId: string): Promise<{
   coupleId: string | null;
   role: string | null;
@@ -179,7 +324,6 @@ async function loadCurrentMembership(admin: SupabaseClient, userId: string): Pro
 async function collectSafeStorageInventory(
   admin: SupabaseClient,
   userId: string,
-  membership: { coupleId: string | null; role: string | null },
 ): Promise<AccountDeletionStorageScope[]> {
   const scopes: AccountDeletionStorageScope[] = [
     { bucket: "community-images", prefix: userId },
@@ -196,27 +340,6 @@ async function collectSafeStorageInventory(
       fail("GUESTBOOK_INVENTORY_INVALID");
     }
     scopes.push({ bucket: "guestbook-uploads", prefix: guestbook.id });
-  }
-
-  if (membership.coupleId && (membership.role === "bride" || membership.role === "groom")) {
-    const { data: couple, error: coupleError } = await admin
-      .from("couples")
-      .select("bride_id, groom_id")
-      .eq("id", membership.coupleId)
-      .maybeSingle();
-    if (coupleError) fail("COUPLE_INVENTORY_FAILED");
-
-    const ownsSlot = membership.role === "bride"
-      ? couple?.bride_id === userId
-      : couple?.groom_id === userId;
-    const partnerId = membership.role === "bride" ? couple?.groom_id : couple?.bride_id;
-    const isSoleOwner = ownsSlot && partnerId === null;
-
-    // A couple with another member is shared. No chat object is deleted in
-    // that case because historical objects have no per-author provenance.
-    if (isSoleOwner) {
-      scopes.push({ bucket: "chat-image", prefix: membership.coupleId });
-    }
   }
 
   return parseStorageInventory(scopes) ?? [];
@@ -584,7 +707,7 @@ export async function processAccountDeletionJob(
   }
   await renewDeletionLease(admin, job.job_id, workerToken);
   const renewLease = () => renewDeletionLease(admin, job.job_id, workerToken);
-  const deletionEmails = await resolveDurableDeletionEmails(
+  let deletionEmails = await resolveDurableDeletionEmails(
     admin,
     job,
     workerToken,
@@ -595,7 +718,7 @@ export async function processAccountDeletionJob(
   await assertProviderLeasesDrained(admin, job.user_id, membership.coupleId);
 
   if (inventory === null) {
-    inventory = await collectSafeStorageInventory(admin, job.user_id, membership);
+    inventory = await collectSafeStorageInventory(admin, job.user_id);
     const { data: saved, error } = await admin.rpc(
       "save_account_deletion_storage_inventory",
       {
@@ -607,14 +730,60 @@ export async function processAccountDeletionJob(
     if (error || saved !== true) fail("STORAGE_INVENTORY_SAVE_FAILED");
   }
 
-  await renewDeletionLease(admin, job.job_id, workerToken);
-  for (const scope of inventory) {
-    await removeOwnedStorageScope(admin, scope, renewLease);
-  }
+  const ownedStorageInventory = await collectOwnedStorageInventory(
+    admin,
+    job.job_id,
+    workerToken,
+    renewLease,
+  );
+  await removeOwnedStorageObjects(admin, ownedStorageInventory, renewLease);
 
   await renewDeletionLease(admin, job.job_id, workerToken);
+  for (const scope of inventory) {
+    // A durable inventory created by an older worker may contain the whole
+    // shared chat prefix from when the member appeared to be alone. owner_id is
+    // now the only accepted provenance for chat objects, so never replay that
+    // broad prefix deletion after a partner may have joined or been restored.
+    if (scope.bucket === "chat-image") continue;
+    await removeOwnedStorageScope(admin, scope, renewLease);
+  }
+  // The database write fence makes this owner_id inventory stable after the
+  // deletion marker. Re-read through the service-only RPC before leaving the
+  // couple or deleting Auth so shared chat objects owned by the partner remain
+  // untouched while every object owned by this subject is proven absent.
+  await assertOwnedStorageEmpty(
+    admin,
+    job.job_id,
+    workerToken,
+    renewLease,
+  );
+
+  // Storage cleanup can take several minutes. Re-read the provider identity
+  // after it finishes so an email observed later in this job is durably added
+  // to the deletion scope before any email-keyed application data is removed.
+  // The database auth-mutation fence serializes this final observation with
+  // updates that race an active account-deletion job.
+  await renewDeletionLease(admin, job.job_id, workerToken);
+  const finalAuthUser = await loadAuthUser(admin, job.user_id);
+  deletionEmails = await resolveDurableDeletionEmails(
+    admin,
+    job,
+    workerToken,
+    finalAuthUser,
+  );
   await deleteDirectUserData(admin, job.user_id, deletionEmails, renewLease);
   await renewDeletionLease(admin, job.job_id, workerToken);
+  const { data: cleanupReady, error: cleanupReadyError } = await admin.rpc(
+    "mark_account_deletion_cleanup_ready",
+    {
+      p_job_id: job.job_id,
+      p_worker_token: workerToken,
+      p_ttl_seconds: 60,
+    },
+  );
+  if (cleanupReadyError || cleanupReady !== true) {
+    fail("AUTH_DELETE_READY_FAILED");
+  }
   await deleteAuthUser(admin, job.user_id);
 
   const { data: completed, error: completionError } = await admin.rpc(

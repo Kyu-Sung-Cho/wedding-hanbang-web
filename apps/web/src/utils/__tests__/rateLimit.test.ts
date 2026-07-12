@@ -166,6 +166,7 @@ describe("checkRateLimitPersistent", () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.RATE_LIMIT_KEY_SECRET;
+    delete process.env.RATE_LIMIT_PERSISTENCE_FAIL_CLOSED;
     delete process.env.ADMIN_PASSWORD;
     vi.restoreAllMocks();
   });
@@ -247,6 +248,20 @@ describe("checkRateLimitPersistent", () => {
     const result = await check("signup:203.0.113.9", { maxRequests: 3, windowMs: 60_000 });
 
     expect(result).toBeNull();
+  });
+
+  it("fails closed for anonymous side effects under the production policy", async () => {
+    process.env.RATE_LIMIT_PERSISTENCE_FAIL_CLOSED = "true";
+    rpcMock.mockRejectedValue(new Error("database unavailable"));
+    const { checkRateLimitPersistent: check } = await import("../rateLimit");
+
+    const result = await check("signup:203.0.113.9", {
+      maxRequests: 3,
+      windowMs: 60_000,
+    });
+
+    expect(result?.status).toBe(503);
+    expect(result?.headers.get("Retry-After")).toBe("5");
   });
 
   it("fails closed for subjects when persistent limiter configuration is absent", async () => {
