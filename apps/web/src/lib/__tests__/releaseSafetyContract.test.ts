@@ -187,14 +187,9 @@ describe("release safety contract", () => {
   });
 
   it("preserves pnpm argument forwarding while rejecting unknown live-smoke options", () => {
+    const script = resolve(repoRoot, "scripts/live-smoke-test.mjs");
     const run = (lastArgument: "--help" | "--definitely-unknown-live-smoke-option") => {
-      const executable = process.platform === "win32"
-        ? process.env.ComSpec ?? "cmd.exe"
-        : "corepack";
-      const args = process.platform === "win32"
-        ? ["/d", "/s", "/c", `corepack pnpm qa:live -- ${lastArgument}`]
-        : ["pnpm", "qa:live", "--", lastArgument];
-      return spawnSync(executable, args, {
+      return spawnSync(process.execPath, [script, "--", lastArgument], {
         cwd: repoRoot,
         encoding: "utf8",
         shell: false,
@@ -202,6 +197,7 @@ describe("release safety contract", () => {
       });
     };
 
+    expect(packageJson.scripts["qa:live"]).toBe("node ./scripts/live-smoke-test.mjs");
     const help = run("--help");
     expect(help.error).toBeUndefined();
     expect(help.status).toBe(0);

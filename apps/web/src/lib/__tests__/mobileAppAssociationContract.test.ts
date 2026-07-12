@@ -68,7 +68,8 @@ describe("mobile app association contract", () => {
     ]);
 
     const assetLinks = (await createAssetLinksResponse({
-      PLAY_APP_SIGNING_SHA256: "01".repeat(32),
+      PLAY_APP_SIGNING_SHA256:
+        "85:25:B7:5F:66:FC:6A:85:0D:A7:57:A2:CA:D2:47:B9:F6:EB:C7:81:10:D3:2F:B7:2C:84:42:0D:AE:B6:40:0D",
     }).json()) as Array<{ target: { package_name: string } }>;
     expect(assetLinks[0]?.target.package_name).toBe(mobileConfig.android?.package);
   });
