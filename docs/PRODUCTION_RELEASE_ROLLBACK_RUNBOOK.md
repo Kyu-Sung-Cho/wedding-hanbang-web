@@ -79,6 +79,14 @@ full-history scanner는 과거 commit에서 Kakao platform key 형태 값 3개�
 5. 노출 시각 전후의 bypass 사용 로그를 검토하고 승인되지 않은 접근 여부와 대응을 기록한다.
 6. 이후 project protection 감사는 allowlist한 필드만 메모리에서 선택한다. `protectionBypass` object 자체와 `Object.keys(...)` 결과를 stdout/stderr에 보내지 않는다.
 
+저장소의 오프라인 정규화기 계약은 먼저 아래처럼 검증한다.
+
+```powershell
+corepack pnpm vercel:release-inventory:test
+```
+
+`vercel:release-inventory`는 `{project, env, deployments}` JSON envelope를 stdin으로 받거나 명시한 로컬 fixture 3개만 읽고 provider API를 호출하지 않는 **정규화기**다. 운영 감사에서는 raw project 응답을 파일로 저장하지 않고 인증된 읽기 전용 producer의 메모리에서 stdin으로 즉시 전달해야 하지만, 그 producer와 신뢰 attestation은 아직 구현되지 않았다. fixture mode는 final file뿐 아니라 기존 ancestor component도 symlink/junction/reparse가 아닌지 검사하지만 portable handle-relative `openat`이 없어 검사 뒤 ancestor 교체 race까지 증명하지 못하므로 운영 증거 입력으로 사용하지 않는다. 출력은 allowlist한 project/account 식별자, 배포 SHA·상태·개수·pagination 관측 여부, 환경 변수 **이름·target·type·시각과 값 없는 scope marker**, protection mode, bypass 관측 여부·boolean·개수와 redacted digest뿐이다. 모든 출력은 `evaluationMode=offline-local-artifacts`, `sourceAttestationVerified=false`, `productionProof=false`, `releaseEligible=false`이며 CLI exit 0은 입력 정규화 성공만 뜻한다. `protectionBypass` 필드가 응답에 없으면 0개로 단정하지 않고 `automationBypassFieldObserved=false`, configured/count `null`로 보존한다. env/deployment row나 provider alias가 malformed·충돌하면 전체 입력을 거부한다. branch-specific 변수는 정확히 preview target 하나만 가져야 하며, 같은 이름과 같은 branch 또는 같은 custom-environment ID의 중복 owner도 거부한다. base preview와 branch override는 함께 존재할 수 있고 custom-environment ID는 일반 target에 더해지는 별도 scope이므로 Production target과 함께 존재할 수 있지만, 공개 요약에는 branch·custom-environment 식별자를 복사하지 않고 boolean과 custom scope 개수만 남긴다. pagination object는 own `count`, `next`, `prev` 세 필드와 정확한 row count를 모두 가져야 관측된 것으로 인정한다. `fieldObserved=true`, `singlePageComplete=true`(즉 두 cursor가 모두 null), `byState.unknown=0`은 필요한 일관성 신호일 뿐 “배포 없음”이나 “해당 SHA의 모든 배포 확인”으로 승격하지 않는다. 신뢰 producer가 expected project ID·account ID·candidate SHA를 외부에서 고정하고 `withoutSha=0`, 유일한 matching SHA group, 모든 관련 page 완료를 증명하는 gate가 구현되기 전에는 exact-SHA deployment inventory가 blocker다. 환경변수 API가 pagination을 주지 않는 경우 sanitizer도 이를 `fieldObserved=false`로 보존하며, 변수 이름 존재만 exact deployment snapshot 적용 증거로 사용하지 않는다. 각 필수 변수의 수정 시각이 staged deployment 생성 이전인지 확인하고, Vercel 문서대로 변경 뒤 새 deployment를 만들며, 최종 값·모델·feature flag는 exact runtime health/canary로 검증한다. 이 출력은 비밀 회전·구 비밀 거부·사용 로그 검토를 대신하지 않는다.
+
 이 회전은 Vercel 배포 자격증명, OpenAI, Kakao, Supabase 자격증명 회전과 별개다. 하나의 회전 증거를 다른 공급자의 증거로 재사용하지 않는다.
 
 ## 정상 출시 순서
@@ -178,7 +186,10 @@ PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소�
 - `MAINTENANCE_MODE=false`
 - `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`
 - `ACCOUNT_DELETION_CRON_ENABLED=false`
+- 새 런타임에는 `OPENAI_API_KEY`와 고정된 Luna/Terra model 설정만 두고 `ANTHROPIC_API_KEY`는 Production 환경에서 제거
 - 검토된 production Supabase ref와 회전·검증된 비밀만 사용
+
+`ANTHROPIC_API_KEY` 제거는 현재 코드에 Anthropic runtime consumer가 없고 OpenAI staged canary가 성공한다는 사실을 먼저 확인한 뒤 수행한다. 과거 Claude 가격표와 감사 row 호환 코드는 credential consumer가 아니다. 새 deployment의 환경 inventory에서 이름이 사라졌고 구 Anthropic key가 공급자에서 폐기됐다는 증거를 모두 남긴다. 과거 production deployment에 의존해 되돌리는 rollback은 금지하고, 회전된 OpenAI 환경을 가진 exact-SHA rollback anchor만 사용한다.
 
 저장소 루트에서 clean exact SHA를 확인한 뒤 `apps/web`의 이미 검토된 Vercel project link를 사용한다. Vercel CLI는 release ticket에 버전을 고정하고 `latest`를 사용하지 않는다. 아래 변수는 같은 통제된 운영 shell에서 유지하거나 release evidence에 기록한 exact 값을 다시 주입하며, 움직이는 branch에서 다시 추론하지 않는다.
 
@@ -322,12 +333,19 @@ try {
 저장소의 `supabase:fence`는 `database-readonly-realtime-cron-v1` 계약의 스냅샷·활성화·검증·복구 경계를 구현한다. 단, 이것은 로컬 계약 구현일 뿐 운영 검증 완료가 아니다.
 
 ```powershell
+corepack pnpm supabase:fence:test
 corepack pnpm supabase:fence -- -Action Plan -ExpectedProjectRef <20-char-non-production-ref>
 ```
 
+현재 lifecycle은 project별 exclusive lock을 모든 non-Plan journal 접근보다 먼저 잡고 linked-ref read lock을 유지한다. snapshot schema v2는 clean HEAD/tree, 5분 capture freshness, sanitized management/DB baseline, 모든 기존 client backend의 cutoff·종료 개수와 no-query-text 상태를 묶는다. 각 원격 mutation 전 pending journal을 같은 디렉터리의 unique temp에 file-flush한 뒤 no-clobber create 또는 atomic replace하고, 첫 network mutation 직전 management/DB baseline을 반복 재조회한다. journal publish는 Windows에서 write-through rename을 요청하고 Linux/macOS에서 새 directory 계층의 parent와 containing directory를 fsync하도록 구현한다. 이는 코드 경로와 오프라인 fault injection의 증거이며 실제 파일시스템·가상화·전원 손실 환경의 crash-consistency 시험을 대신하지 않는다.
+
+다음 여섯 경계는 아직 코드만으로 닫히지 않았으므로 운영 blocker다. (1) Supabase Management API와 PostgreSQL baseline 사이에는 provider ETag나 transaction형 change-freeze가 없어 마지막 재조회와 첫 mutation 사이의 cross-system TOCTOU가 남는다. (2) fence의 DB query는 URL의 `ExpectedProjectRef`에 직접 고정됐지만 실제 migration preflight와 push는 여전히 `supabase-ship-safe.ps1`의 repository `--linked` 연결을 사용한다. 두 경로가 같은 불변 project·database·role을 사용한다는 증거가 없으므로 fence PASS를 migration 연결의 PASS로 승격하지 않는다. 비밀번호 없는 명시적 URL과 child-only credential만으로는 충분하지 않다. release allowlist/fuse, exact command grammar, reviewed native binary SHA-256, Git exact-HEAD 전체 migration inventory, 같은 DB connection 안의 provider-attested project/role fingerprint를 하나의 ship 경계에 묶어야 한다. 독립 runner 초안은 이 모든 조건을 만족하지 않아 채택하지 않았다. (3) 현재 지속 read-only 설정은 알려진 service role 네 개에만 적용되므로 fence 활성 뒤 다른 writable LOGIN/internal role이 새로 연결하는 경로를 DB-wide default와 release 예외 또는 provider-attested 전체 role inventory로 닫아야 한다. (4) staged restore는 여러 provider에 걸친 원자적 reopen이 아니므로 maintenance·black-box probe·실패 시 재격리의 실제 연습이 필요하다. (5) lifecycle lock과 journal은 한 컴퓨터의 local state에만 있으므로 다른 PC나 CI runner와의 동시 실행을 막지 못한다. project별 provider-side single-generation CAS/lease와 모든 원격 mutation 직전 ownership 재검증이 필요하다. (6) `MarkMigrationStarted`와 실제 `supabase-ship-safe` push가 같은 lease·connection·process에 묶이지 않아 둘 사이 또는 push 중 다른 실행이 fence를 해제할 수 있다. fresh live fence와 black-box denial 검증, migration-start CAS, exact-target push, post evidence가 하나의 shared ownership 구간이어야 한다. 이 여섯 항목과 disposable rehearsal이 끝나기 전에는 `productionDatabaseWriteFence`를 변경하지 않는다.
+
+offline evidence v2 초안은 경로·digest·체인 검사를 구현했지만, untrusted input identity를 expected 값으로 되복사하는 self-pin과 restored baseline을 active genesis baseline에 묶지 않은 비교가 적대적 검토에서 재현됐다. 운영 consumer가 없는 상태에서 `ok`·`allRequiredChecksPassed`·`chainVerified`라는 성공 표면이 오인될 위험이 더 크므로 초안·테스트·명령을 출시 변경에서 제거했다. trusted producer가 별도 서명된 expected manifest를 제공하고 active baseline digest를 전체 계보에 보존하는 새 설계가 독립 검토되기 전에는 자동 post-migration evidence가 운영 blocker다.
+
 `scripts/release-targets.json`의 `productionDatabaseWriteFence`는 현재 `not_configured`이고 `approvedNonProductionSupabaseProjectRefs`도 비어 있다. 사용자가 명시적으로 승인한 폐기 가능한 Supabase 프로젝트 ref를 allowlist에 넣기 전에는 원격 fence·migration·recovery export가 모두 중단된다. 그 프로젝트에서 Management API network status, 역할별 read-only, 기존 pooled session 종료 경계, `ALTER SYSTEM`, cron drain, release writer와 Data API/Auth/Storage black-box 거부, 실패 복구를 모두 연습하고 증거를 독립 검토하기 전에는 운영 fuse를 바꾸지 않는다.
 
-현재 구현은 production에서 operator가 작성한 `post-migration-release-evidence-v1`을 거부하고, `supabase:ship:safe`와 `supabase:baseline:core`도 활성 snapshot·자동 probe producer가 연결될 때까지 무조건 중단한다. 따라서 아래 lifecycle은 **아직 실행 명령이 아니라 disposable 검증에서 완성해야 할 계약**이다.
+현재 구현은 production에서 operator가 작성한 `post-migration-release-evidence-v1`을 운영 증거로 받지 않으며, `supabase:ship:safe`와 `supabase:baseline:core`도 활성 snapshot·자동 probe producer가 연결될 때까지 무조건 중단한다. 따라서 아래 lifecycle은 **아직 실행 명령이 아니라 disposable 검증에서 완성해야 할 계약**이다.
 
 ```text
 Capture → Activate → Verify → MarkMigrationStarted
@@ -359,7 +377,7 @@ Phase-A 안전 도구는 아래처럼 로컬 보안 경계를 검증한다.
 corepack pnpm supabase:recovery:test
 ```
 
-`supabase:recovery:safe`는 pinned CLI와 native tool hash 정책, 최소 child 환경, 위험 플래그 차단, age 암호화, DB dump와 Storage byte manifest, exact archive 검증, plaintext cleanup 검증, 격리 대상 allowlist를 제공한다. cron 복구는 launcher off·running 0에서 다섯 job을 inactive로만 재생하고, DB/Storage/post-deploy/parity/RTO가 동일 restore-attempt·artifact·source·target SHA-256 chain에 묶인 뒤 별도 activation 단계로만 켜는 [Recovery artifact contract](./SUPABASE_RECOVERY_ARTIFACT_CONTRACT.md)를 따른다. database는 target의 `current_database()`에 다시 묶고, scheduler role `postgres`와 timezone `GMT`는 실행 의미를 바꾸므로 fail-closed로 검증한다. 현재 `restore-verify`는 DB/Storage restore나 cron activation을 실행하지 않고 성공 상태도 반환하지 않는다. archive integrity/authenticity/cron 계획 검사를 통과해도 `RESTORE_EXECUTION_NOT_ENABLED`, modeled completion evidence가 모두 있어도 `RESTORE_COMPLETION_ATTESTATION_NOT_ENABLED`로 중단한다. 운영 export도 live fence snapshot·자동 black-box evidence와 cryptographically binding되기 전까지 fuse 문자열과 무관하게 hard-stop한다. 현재 머신에는 `age`가 없고 운영 tool path/hash·recipient·restore allowlist도 비어 있다. 따라서 `backupPolicy.status`는 `not_configured`로 유지한다. 승인된 key custody, 유료 격리 프로젝트, 실제 restore·Storage 재업로드·parity·RPO/RTO 증거가 모두 생긴 뒤에만 정책을 변경한다.
+`supabase:recovery:safe`는 pinned CLI와 native tool hash 정책, 최소 child 환경, 위험 플래그 차단, age 암호화, DB dump와 Storage byte manifest, exact archive 검증, plaintext cleanup 검증, 격리 대상 allowlist를 제공한다. cron 복구는 launcher off·running 0에서 다섯 job을 inactive로만 재생하고, DB/Storage/post-deploy/parity/RTO가 동일 restore-attempt·artifact·source·target SHA-256 chain에 묶인 뒤 별도 activation 단계로만 켜는 [Recovery artifact contract](./SUPABASE_RECOVERY_ARTIFACT_CONTRACT.md)를 따른다. database는 target의 `current_database()`에 다시 묶고, scheduler role `postgres`와 timezone `GMT`는 실행 의미를 바꾸므로 fail-closed로 검증한다. 현재 export/diff/query 명령은 여전히 mutable `--linked` 연결을 사용하므로 fence의 명시적 project-ref DB query와 같은 대상·role이라는 증거가 없으며, 이 target-binding gap 자체도 운영 blocker다. 현재 `restore-verify`는 DB/Storage restore나 cron activation을 실행하지 않고 성공 상태도 반환하지 않는다. archive integrity/authenticity/cron 계획 검사를 통과해도 `RESTORE_EXECUTION_NOT_ENABLED`, modeled completion evidence가 모두 있어도 `RESTORE_COMPLETION_ATTESTATION_NOT_ENABLED`로 중단한다. 운영 export도 live fence snapshot·자동 black-box evidence와 cryptographically binding되기 전까지 fuse 문자열과 무관하게 hard-stop한다. 현재 머신에는 `age`가 없고 운영 tool path/hash·recipient·restore allowlist도 비어 있다. 따라서 `backupPolicy.status`는 `not_configured`로 유지한다. 승인된 key custody, 유료 격리 프로젝트, 실제 restore·Storage 재업로드·parity·RPO/RTO 증거가 모두 생긴 뒤에만 정책을 변경한다.
 
 공식 기준: [Supabase Database Backups](https://supabase.com/docs/guides/platform/backups), [CLI backup/restore](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
 

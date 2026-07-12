@@ -17,6 +17,7 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 - 제3자 웹·모바일 텔레메트리는 처리계약·리전·보존·국외이전 고지 승인 전까지 코드에서 하드 비활성이다.
 - 2026-07-12 검증에 사용한 OpenAI 키와 당시 Supabase CLI login role/PAT는 폐기 대상으로 취급한다. 기존 자격 증명 인증 거부·사용량 감사, 새 자격 증명, 승인된 non-production target, write fence·암호화 백업·격리 복구 증거 전에는 운영 DB나 실제 사용자 AI canary를 실행하지 않는다.
 - 운영 연구 접수와 계정 삭제 cron은 각각 `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`, `ACCOUNT_DELETION_CRON_ENABLED=false`를 유지한다. 출시 절차는 `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`를 따른다.
+- 아래 역사 기록의 `SQL Editor`, 수동 Management API 실행, 과거 remote 검증 서술은 당시 사실을 보존할 뿐 현재 실행 지침이 아니다. 원격 DB에는 canonical runbook 밖의 명령·붙여넣기·수동 삭제를 실행하지 않는다.
 
 ## 📍 현재 상태 (2026-07-11 기준 — 새 세션은 여기부터)
 - **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG + SESSION_SYNTHESIS_2026-06-11 (전부 docs/).

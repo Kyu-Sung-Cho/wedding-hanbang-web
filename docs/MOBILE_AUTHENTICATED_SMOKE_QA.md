@@ -26,11 +26,7 @@ corepack pnpm qa:local
 corepack pnpm qa:live -- --base-url=https://hanbang.ai
 ```
 
-Confirm Supabase Realtime publication includes both shared planning tables:
-
-```bash
-corepack pnpm exec supabase db query --linked "select schemaname, tablename from pg_publication_tables where pubname = 'supabase_realtime' and tablename in ('vendor_bookings','wedding_journeys') order by tablename;"
-```
+Confirm Supabase Realtime publication includes both shared planning tables only through the exact-target, read-only production preflight approved by [the remote operations policy](./SUPABASE_REMOTE_OPERATIONS.md). Do **not** run an ad-hoc `db query --linked`: the current write-fence query and migration/recovery connection are not yet bound to one immutable project/database/role, and the previously exposed CLI login role/PAT must be rotated first. Until those gates pass, record this check as `blocked / not run` rather than querying production manually. The approved preflight must return only the allowlisted table names or booleans and must not print query text, credentials, provider bodies, or unrelated catalog data.
 
 Expected rows:
 
