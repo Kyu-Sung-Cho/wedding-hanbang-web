@@ -81,6 +81,11 @@ const accountDeletionStorageAuthRaceMigration = readRepo(
   "supabase/migrations/20260712105000_close_account_deletion_storage_auth_race.sql"
 );
 const vercelConfig = JSON.parse(readRepo("apps/web/vercel.json"));
+const agentsGuide = readRepo("AGENTS.md");
+const productionReleaseRunbook = readRepo(
+  "docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md"
+);
+const fullQaReport = readRepo("docs/codex-tasks/FULL_QA_2026-07-12.md");
 
 function functionSourceMd5(sql: string, functionName: string): string {
   const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -96,6 +101,31 @@ function functionSourceMd5(sql: string, functionName: string): string {
 describe("release safety contract", () => {
   it("prevents a main merge from racing production database gates", () => {
     expect(vercelConfig.git?.deploymentEnabled).toBe(false);
+  });
+
+  it("pins the manual Vercel release path without logging protection bypass secrets", () => {
+    expect(agentsGuide).toContain(
+      "## Deploy Configuration (configured by /setup-deploy)"
+    );
+    expect(agentsGuide).toContain("project `wedding-hanbang-web`");
+    expect(agentsGuide).toContain("vercel@55.0.0 inspect");
+    expect(agentsGuide).toContain("`--prod --skip-domain`");
+    expect(agentsGuide).toContain("자동 Git 배포는 계속 비활성");
+    expect(productionReleaseRunbook).toContain(
+      '$VercelCliVersion = "55.0.0"'
+    );
+    expect(productionReleaseRunbook).not.toContain(
+      "<reviewed-vercel-cli-version>"
+    );
+    expect(productionReleaseRunbook).toContain(
+      "`automationBypassConfigured` boolean과 개수만"
+    );
+    expect(productionReleaseRunbook).toContain(
+      "`Object.keys(...)` 결과를 stdout/stderr에 보내지 않는다"
+    );
+    expect(fullQaReport).toContain(
+      "automation-bypass 비밀이 내부 도구 출력에 한 번 노출"
+    );
   });
 
   it("keeps protected production blocked until a direct database write fence is verified", () => {

@@ -20,6 +20,23 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 - 디자인 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹에 실제 적용된 값은 `apps/web/src/app/globals.css`가 기준이다. 충돌하면 실행 코드의 현재 동작을 먼저 확인하고 문서를 함께 동기화한다.
 - 저장소 명령은 루트에서 `corepack pnpm ...` 형식을 사용한다. 실제 스크립트는 루트와 각 앱의 `package.json`을 확인한다.
 
+## Deploy Configuration (configured by /setup-deploy)
+
+- Platform: Vercel, team `hanbang`, project `wedding-hanbang-web`, root directory `apps/web`
+- Production URL: `https://hanbang.ai`
+- Deploy workflow: Git 자동 배포와 deploy hook은 비활성이다. `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`의 clean exact-SHA 수동 staged deploy와 promote 절차만 사용한다.
+- Deploy status command: release에 고정한 `corepack pnpm dlx vercel@55.0.0 inspect <recorded-staged-url> --scope hanbang`
+- Merge method: GitHub merge commit only. `gh pr merge 38 --merge --match-head-commit <candidate-sha>` 외 squash, rebase, force-push를 사용하지 않는다.
+- Project type: Next.js web app/API와 같은 저장소의 Expo mobile companion
+- Post-deploy health check: staged URL과 `https://hanbang.ai/api/health/maintenance`에서 exact SHA, Supabase ref, launch/maintenance/Turnstile boolean을 검사한 뒤 `corepack pnpm qa:live`를 실행한다.
+
+### Custom deploy hooks
+
+- Pre-merge: full-history secret gate와 `corepack pnpm qa:local`이 모두 통과하고, runbook의 candidate-bound 운영 선행 증거가 있어야 한다.
+- Deploy trigger: clean post-merge release SHA에서 Vercel Production target을 `--prod --skip-domain`으로 수동 생성한다. 검증 전 custom domain에 연결하지 않는다.
+- Deploy status: Vercel CLI `55.0.0`으로 기록된 immutable deployment URL을 inspect하고 project, target, deployment ID, Git SHA를 대조한다.
+- Health check: staged URL 검증 후 같은 deployment ID만 promote하고 apex에서 동일 canary를 다시 실행한다. 자동 Git 배포는 계속 비활성으로 둔다.
+
 ---
 
 # 웨딩한방 모노레포 (hanbang.ai) - Codex 가이드

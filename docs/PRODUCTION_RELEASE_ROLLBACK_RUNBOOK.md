@@ -13,6 +13,7 @@
 - DB 변경 전부터 최종 canary가 끝날 때까지 정확한 Git SHA, migration 목록과 backup/recovery point가 바뀌지 않아야 한다. Anchor와 maintenance ID는 DB 변경 전에, normal ID는 fence 해제 전에 staged·검증·기록한다. Vercel alias는 아래 순서에 따라 기록된 ID로만 이동할 수 있으며, 예상하지 않은 새 deployment나 재빌드가 생기면 중단한다.
 - 사용자 데이터의 삭제·가명화·소유권 변경은 수량만 맞는다고 자동 승인하지 않는다. 제품·개인정보 책임자의 명시적 결정을 release evidence에 남긴다.
 - 현재 운영 `ship`과 baseline reconcile은 fence snapshot·자동 black-box evidence가 한 lifecycle로 연결되기 전까지 코드에서 의도적으로 중단된다. fuse 문자열만 바꿔 우회할 수 없다.
+- Vercel project 원문 JSON은 출력하거나 evidence에 붙이지 않는다. `protectionBypass`는 실제 automation 비밀을 JSON key로 반환할 수 있으므로 key 열거도 금지하고, `automationBypassConfigured` boolean과 개수만 메모리에서 산출한다.
 
 ## GO 조건
 
@@ -38,6 +39,7 @@
 18. Supabase의 공개 recovery·resend·magic-link·OTP 메일 경로가 앱의 CAPTCHA·영속 limiter·중립 응답·전달 경계를 우회하지 않는 승인 모드를 실제 hosted 설정과 black-box probe로 증명했고, `productionSupabasePublicEmailBoundary`가 `verified-v1`이다.
 19. hosted Auth의 canonical site URL, exact redirect allow-list, JWT/refresh 회전·재사용, OTP 길이·만료와 rate limit을 read-only로 증명했고 `productionSupabaseRedirectTokenPolicy`가 `verified-v1`이다.
 20. 화면에 보이는 OAuth 공급자가 checked-in 목록과 정확히 같고 각 공급자의 실제 redirect round-trip 또는 의도된 비노출·비활성 상태를 증명해 `productionOAuthProviderContract`가 `verified-v1`이다.
+21. 2026-07-12 read-only Vercel 감사 중 내부 도구 출력에 노출된 Deployment Protection automation-bypass 비밀을 회전했다. 기존 consumer를 값 없이 inventory하고, 새 비밀을 승인된 consumer에 먼저 배포해 성공을 확인한 뒤 구 비밀의 거부와 사용 로그를 검증했다. raw `protectionBypass` object나 key는 어느 로그·문서에도 다시 출력하지 않는다.
 
 ## OpenAI 키 노출 사고 복구 — 회전 선행 gate와 exact-SHA 후행 canary
 
@@ -65,6 +67,19 @@ full-history scanner는 과거 commit에서 Kakao platform key 형태 값 3개�
 7. 그 뒤 `security:secrets`를 다시 실행한다. 이력 재작성은 저장소 소유자·협업자 영향과 force-push를 명시 승인한 경우에만 하고, fingerprint allowlist는 회전·제한 증거와 보안 책임자의 승인이 있을 때만 사용한다. CI를 초록색으로 만들기 위한 무근거 allowlist는 금지한다.
 
 회전·환경 갱신·과거 값 거부·history 처리 승인은 선행 gate이고 OAuth round-trip은 새 코드가 apex에 있을 때만 가능한 후행 canary다. 서로 다른 증거이며 하나라도 없으면 release 완료를 NO-GO로 유지한다.
+
+## Vercel Deployment Protection bypass 노출 대응 — 선행 hard gate
+
+2026-07-12 project protection을 읽기 전용으로 감사하는 과정에서 Vercel API의 `protectionBypass` map key에 들어 있던 automation-bypass 비밀이 내부 도구 출력에 한 번 노출됐다. 값은 문서에 기록하지 않고 노출된 자격증명으로 취급한다. 다음 순서가 끝나기 전에는 Preview 보호 우회나 운영 출시를 승인하지 않는다.
+
+1. 저장소, GitHub Actions, Vercel 환경 변수와 알려진 외부 자동화에서 consumer의 **이름·용도·소유자**만 inventory한다. 비밀값 비교나 raw project JSON 출력은 금지한다.
+2. 기존 consumer를 알 수 없거나 새 비밀을 먼저 배포할 수 없으면 구 비밀을 즉시 삭제해 가용성을 깨뜨리지 않고 책임자에게 교체 창을 승인받는다.
+3. Vercel에서 새 automation-bypass 비밀을 발급하고 승인된 consumer에만 저장한다. 채팅, 명령행 인수, release evidence, shell history에 값을 넣지 않는다.
+4. 새 비밀의 승인된 Preview 접근 성공을 확인한 뒤 구 비밀을 폐기하고, 구 비밀의 접근 거부를 확인한다. 실패 시 구 비밀을 복원하지 말고 새 비밀 배포 오류를 수정한다.
+5. 노출 시각 전후의 bypass 사용 로그를 검토하고 승인되지 않은 접근 여부와 대응을 기록한다.
+6. 이후 project protection 감사는 allowlist한 필드만 메모리에서 선택한다. `protectionBypass` object 자체와 `Object.keys(...)` 결과를 stdout/stderr에 보내지 않는다.
+
+이 회전은 Vercel 배포 자격증명, OpenAI, Kakao, Supabase 자격증명 회전과 별개다. 하나의 회전 증거를 다른 공급자의 증거로 재사용하지 않는다.
 
 ## 정상 출시 순서
 
@@ -140,7 +155,7 @@ guarded ship은 `productionSupabasePublicEmailBoundary`, `productionSupabaseRedi
 PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소는 merge commit·squash·rebase를 모두 허용하므로 일반 병합은 새 SHA를 만든다. 이 release에서는 provenance를 단순하게 유지하기 위해 GitHub의 **Create a merge commit** 방식만 사용하고 force-push·squash·rebase merge를 사용하지 않는다.
 
 1. 병합 전 `$CandidateSha = gh pr view 38 --json headRefOid --jq .headRefOid`를 고정하고 CI·독립 승인·비운영 빌드를 이 SHA에 묶는다.
-2. GO 1~4의 코드·환경 identity, 13~20의 사업/보안/공급자 선행 승인, 그리고 GO 5~12의 disposable 리허설·production read-only inventory가 모두 candidate SHA에 묶여야 한다. 실제 production DB 변경은 하지 않되, post-merge 단계에서 처음 발견할 blocker가 남아 있으면 병합하지 않는다. 현재 Turnstile/Auth attester, secret 회전, backup/restore, fence, 모바일 서명 같은 blocker가 하나라도 있으면 이 단계에 도달하지 않는다.
+2. GO 1~4의 코드·환경 identity, 13~21의 사업/보안/공급자 선행 승인, 그리고 GO 5~12의 disposable 리허설·production read-only inventory가 모두 candidate SHA에 묶여야 한다. 실제 production DB 변경은 하지 않되, post-merge 단계에서 처음 발견할 blocker가 남아 있으면 병합하지 않는다. 현재 Turnstile/Auth attester, secret 회전, backup/restore, fence, 모바일 서명 같은 blocker가 하나라도 있으면 이 단계에 도달하지 않는다.
 3. 병합 직전 PR head가 바뀌는 TOCTOU를 막기 위해 `gh pr merge 38 --merge --match-head-commit $CandidateSha`만 사용한다.
 4. 병합 후 원격을 다시 fetch하고 GitHub의 `mergeCommit.oid`, `origin/main`, 로컬 checkout이 모두 같은 40자 `$ReleaseSha`인지 확인한다. `$CandidateSha`가 `$ReleaseSha`의 ancestor가 아니면 중단한다.
 5. clean `$ReleaseSha`에서 secret gate, 전체 test/lint/typecheck/build, migration fingerprints, EAS release build와 staged Vercel identity를 전부 다시 실행한다. 이후 이 문서의 `$ReviewedSha`는 `$ReleaseSha`만 뜻한다.
@@ -167,7 +182,7 @@ if ($ReviewedSha -notmatch '^[0-9a-f]{40}$') { throw "Invalid reviewed SHA" }
 $Dirty = @(git status --porcelain=v1 --untracked-files=all)
 if ($Dirty.Count -ne 0) { throw "Worktree must be clean" }
 
-$VercelCliVersion = "<reviewed-vercel-cli-version>"
+$VercelCliVersion = "55.0.0" # PR #38 release audit pin, reviewed 2026-07-12
 function Assert-NativeSuccess([string]$Step) {
   if ($LASTEXITCODE -ne 0) { throw "$Step failed" }
 }
@@ -478,6 +493,7 @@ PR / candidate SHA / merge method / merge commit / post-merge release SHA:
 Candidate exact-SHA CI / test / lint / typecheck / production build / dependency audit:
 Post-merge exact-SHA CI / test / lint / typecheck / production build / dependency audit:
 Vercel CLI version / linked team / project:
+Vercel automation-bypass consumer inventory / new-secret rollout / old-secret denial / usage review:
 Live smoke expected SHA / expected Supabase project ref:
 Launch-gate anchor staged URL / deployment ID / env snapshot / promoted UTC / canary:
 Maintenance staged URL / deployment ID / env snapshot / promoted UTC / canary:
