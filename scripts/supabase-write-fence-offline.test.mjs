@@ -1,17 +1,38 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import test, { after } from "node:test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fenceScript = path.join(repoRoot, "scripts", "supabase-write-fence.ps1");
+const fenceSource = readFileSync(fenceScript, "utf8");
+const dotSourceGuard = [
+  'if ($MyInvocation.InvocationName -eq ".") {',
+  '  throw "The operational write-fence entrypoint cannot be dot-sourced."',
+  "}",
+].join("\n");
+const offlineHarnessRoot = mkdtempSync(path.join(tmpdir(), "hanbang-fence-harness-"));
+const offlineFenceScript = path.join(offlineHarnessRoot, "supabase-write-fence.ps1");
+const offlineFenceSource = fenceSource.replace(dotSourceGuard, "");
+if (offlineFenceSource === fenceSource) {
+  throw new Error("The operational dot-source rejection was not found.");
+}
+writeFileSync(offlineFenceScript, offlineFenceSource, {
+  encoding: "utf8",
+  flag: "wx",
+  mode: 0o600,
+});
+after(() => rmSync(offlineHarnessRoot, { recursive: true, force: true }));
 const powershell = process.platform === "win32" ? "powershell" : "pwsh";
 const offlineProjectRef = "abcdefghijklmnopqrst";
+const productionProjectRef = JSON.parse(
+  readFileSync(path.join(repoRoot, "scripts", "release-targets.json"), "utf8"),
+).productionSupabaseProjectRefs[0];
 
 function journalRootFor(stateRoot) {
   return path.join(stateRoot, "WeddingHanbang", "release-fence", offlineProjectRef);
@@ -145,9 +166,9 @@ function quotePowerShell(value) {
 
 function importFencePrefix(stateRoot) {
   return [
-    `$env:LOCALAPPDATA = ${quotePowerShell(stateRoot)}`,
-    `$env:XDG_STATE_HOME = ${quotePowerShell(stateRoot)}`,
-    `. ${quotePowerShell(fenceScript)} -Action Plan -ExpectedProjectRef ${quotePowerShell(offlineProjectRef)}`,
+    `$ReviewedEntrypointRoot = ${quotePowerShell(path.dirname(fenceScript))}`,
+    `. ${quotePowerShell(offlineFenceScript)} -Action Plan -ExpectedProjectRef ${quotePowerShell(offlineProjectRef)}`,
+    `$script:OfflineTestFenceStateRoot = ${quotePowerShell(stateRoot)}`,
   ].join("; ");
 }
 
@@ -158,6 +179,78 @@ function runPowerShell(script, stateRoot) {
     { cwd: repoRoot, encoding: "utf8", timeout: 20_000 }
   );
 }
+
+test("production journal root ignores mutable environment namespaces", () => {
+  const source = fenceSource;
+  assert.match(source, /GetFolderPath\([\s\S]*SpecialFolder\]::LocalApplicationData/);
+  assert.doesNotMatch(source, /\$env:(?:LOCALAPPDATA|XDG_STATE_HOME)/);
+  assert.match(source, /offline journal root override is restricted to non-production Plan tests/i);
+});
+
+test("operational entrypoint rejects dot-sourcing before exporting remote mutators", () => {
+  const mutators = [
+    "New-FenceSnapshot",
+    "Invoke-FenceActivation",
+    "Set-NetworkFence",
+    "Set-AuthFence",
+    "Set-DatabaseRoleFence",
+    "Set-CronFence",
+  ];
+  const command = [
+    "$rejected = $false",
+    `try { . ${quotePowerShell(fenceScript)} -Action Recover -ExpectedProjectRef ${quotePowerShell(productionProjectRef)} } catch { if ($_.Exception.Message -notmatch 'cannot be dot-sourced') { throw }; $rejected = $true }`,
+    "if (-not $rejected) { throw 'dot-source rejection did not run' }",
+    ...mutators.map((name) => (
+      `if (Get-Command -Name ${quotePowerShell(name)} -CommandType Function -ErrorAction SilentlyContinue) { throw ${quotePowerShell(`${name} leaked`)} }`
+    )),
+  ].join("; ");
+  const result = spawnSync(
+    powershell,
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+    { cwd: repoRoot, encoding: "utf8", timeout: 20_000 },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(
+    fenceSource.indexOf("cannot be dot-sourced")
+      < fenceSource.indexOf("function Convert-SecureStringToPlainText"),
+  );
+});
+
+test("Windows journal root uses the OS known folder and rejects override misuse", {
+  skip: process.platform !== "win32",
+}, async () => {
+  const poison = await mkdtemp(path.join(tmpdir(), "hanbang-fence-poison-"));
+  try {
+    const command = [
+      `$env:LOCALAPPDATA = ${quotePowerShell(path.join(poison, "local"))}`,
+      `$env:XDG_STATE_HOME = ${quotePowerShell(path.join(poison, "xdg"))}`,
+      `$env:HOME = ${quotePowerShell(path.join(poison, "home"))}`,
+      `$ReviewedEntrypointRoot = ${quotePowerShell(path.dirname(fenceScript))}`,
+      `. ${quotePowerShell(offlineFenceScript)} -Action Plan -ExpectedProjectRef ${quotePowerShell(offlineProjectRef)}`,
+      "$expected = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData))",
+      "$actual = Get-FenceStateRoot",
+      "if ($actual -ne $expected) { throw 'canonical known-folder root was not used' }",
+      `$script:OfflineTestFenceStateRoot = ${quotePowerShell(poison)}`,
+      "$script:Action = 'Capture'",
+      "$rejectedAction = $false",
+      "try { Get-FenceStateRoot | Out-Null } catch { $rejectedAction = $true }",
+      "if (-not $rejectedAction) { throw 'non-Plan override was accepted' }",
+      "$script:Action = 'Plan'",
+      "$script:isProductionTarget = $true",
+      "$rejectedProduction = $false",
+      "try { Get-FenceStateRoot | Out-Null } catch { $rejectedProduction = $true }",
+      "if (-not $rejectedProduction) { throw 'production override was accepted' }",
+    ].join("; ");
+    const result = spawnSync(
+      powershell,
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+      { cwd: repoRoot, encoding: "utf8", timeout: 20_000 },
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  } finally {
+    await rm(poison, { recursive: true, force: true });
+  }
+});
 
 async function waitForLine(stream, expected, stderr) {
   let output = "";
@@ -868,7 +961,7 @@ test("remote polling stays below the provider limit and preserves a recovery res
     assert.doesNotMatch(restoredNetworkWait, /Get-LiveManagementState/);
     const activation = fence.slice(
       fence.indexOf("function Invoke-FenceActivation"),
-      fence.indexOf("# Offline contract tests")
+      fence.indexOf("# The offline test harness")
     );
     const rollback = activation.indexOf("Restore-Fence $AccessToken $Snapshot $Path");
     assert.ok(rollback >= 0);
@@ -888,23 +981,23 @@ test("remote polling stays below the provider limit and preserves a recovery res
   }
 });
 
-test("every journal lifecycle action enters the project lock before resolving or reading a snapshot", () => {
+test("operational entrypoint exposes Plan only and has no remote dispatcher", () => {
   const fence = readFileSync(fenceScript, "utf8");
+  const remoteStop = fence.indexOf('if ($Action -ne "Plan")');
+  const companionBoundary = fence.indexOf("$injectedReleaseTargetsJson");
+  const firstFunction = fence.indexOf("function Convert-SecureStringToPlainText");
   const planBoundary = fence.indexOf('if ($Action -eq "Plan")');
-  const lockBoundary = fence.indexOf("$lifecycleLock = Enter-ProjectFenceLifecycleLock", planBoundary);
-  const linkBoundary = fence.indexOf("$linkLock = Enter-LinkedProjectReadLock", lockBoundary);
-  const migrationStart = fence.indexOf('if ($Action -eq "MarkMigrationStarted")', planBoundary);
-  const migrationVerify = fence.indexOf('if ($Action -eq "MarkMigrationVerified")', planBoundary);
-  const remoteBoundary = fence.indexOf("Assert-LinkedProject", migrationVerify);
-  const lockDispose = fence.lastIndexOf("$lifecycleLock.Dispose()");
+  const operationalTail = fence.slice(planBoundary);
 
+  assert.ok(remoteStop >= 0);
+  assert.ok(companionBoundary > remoteStop);
+  assert.ok(firstFunction > remoteStop);
   assert.ok(planBoundary >= 0);
-  assert.ok(lockBoundary > planBoundary);
-  assert.ok(linkBoundary > lockBoundary);
-  assert.ok(migrationStart > linkBoundary);
-  assert.ok(migrationVerify > migrationStart);
-  assert.ok(remoteBoundary > migrationVerify);
-  assert.ok(lockDispose > remoteBoundary);
+  assert.equal(fence.indexOf('if ($Action -eq "MarkMigrationStarted")', planBoundary), -1);
+  assert.equal(fence.indexOf('if ($Action -eq "MarkMigrationVerified")', planBoundary), -1);
+  assert.equal(fence.indexOf("$snapshot.state = \"migration_in_progress\"", planBoundary), -1);
+  assert.doesNotMatch(operationalTail, /Read-FenceSecret|switch \(\$Action\)|Restore-Fence/);
+  assert.match(operationalTail, /invalid post-Plan state/);
 });
 
 test("restore verifies Auth and Realtime, roles, network, then cron in fail-closed order", () => {
@@ -995,24 +1088,19 @@ test("restore transitions reject released, wrong-state, untouched recovery, and 
   }
 });
 
-test("restore rebinds verified evidence before any credential or remote boundary", () => {
+test("remote hard-stop precedes companion, Git, journal, credential, and remote boundaries", () => {
   const fence = readFileSync(fenceScript, "utf8");
-  const dispatcher = fence.slice(
-    fence.indexOf('if ($Action -in @("Deactivate", "Recover"))'),
-    fence.indexOf("} finally {", fence.indexOf("$managementToken = $null"))
-  );
-  const transition = dispatcher.indexOf(
-    "Assert-RestoreTransitionAllowed $preflightRestoreSnapshot $Action"
-  );
-  const rebind = dispatcher.indexOf(
-    "Assert-RestoreEvidenceBoundary $preflightRestoreSnapshot"
-  );
-  const credential = dispatcher.indexOf("Read-FenceSecret");
-  const remoteSwitch = dispatcher.indexOf("switch ($Action)");
-  assert.ok(transition >= 0);
-  assert.ok(rebind > transition);
-  assert.ok(credential > rebind);
-  assert.ok(remoteSwitch > credential);
+  const remoteStop = fence.indexOf('if ($Action -ne "Plan")');
+  for (const boundary of [
+    "$injectedReleaseTargetsJson",
+    'Get-Content -Raw -LiteralPath "scripts/release-targets.json"',
+    "function Get-CleanReviewedGitIdentity",
+    "function Enter-ProjectFenceLifecycleLock",
+    "function Read-FenceSecret",
+    'function Invoke-FenceDatabaseApiRequest',
+  ]) {
+    assert.ok(fence.indexOf(boundary) > remoteStop, `${boundary} must follow the stop`);
+  }
 });
 
 test("a visible final journal payload preserves the no-refence durability marker", async () => {
@@ -1206,7 +1294,7 @@ test("project journal inventory prevents split-brain captures and multiple unres
     assert.match(capture, /Assert-NoUnresolvedFenceJournalForCapture/);
     const activation = fence.slice(
       fence.indexOf("function Invoke-FenceActivation"),
-      fence.indexOf("# Offline contract tests")
+      fence.indexOf("# The offline test harness")
     );
     assert.match(activation, /Assert-SnapshotIsSoleUnresolvedJournal/);
   } finally {
@@ -1226,7 +1314,7 @@ test("schema v2 rechecks two stable management and DB samples immediately before
 
   const activation = fence.slice(
     fence.indexOf("function Invoke-FenceActivation"),
-    fence.indexOf("# Offline contract tests")
+    fence.indexOf("# The offline test harness")
   );
   const pending = activation.indexOf('Set-FenceStep $Snapshot "network" "pending"');
   const baseline = activation.indexOf("Assert-ActivationBaselineUnchanged $AccessToken $Snapshot");
@@ -1256,5 +1344,8 @@ test("Plan admits local-only coordination and names the provider lease required 
   assert.ok(plan.productionBlockers.includes("same_lease_migration_started_exact_target_push_evidence_restore"));
 
   const fence = readFileSync(fenceScript, "utf8");
-  assert.match(fence, /provider-side project lease\/CAS owns fence activation, migrationStarted, the exact-target push, evidence, and restore/i);
+  assert.match(
+    fence,
+    /provider-side lease\/CAS, exact-target connection, cross-version recovery receipt, and disposable rehearsal/i,
+  );
 });

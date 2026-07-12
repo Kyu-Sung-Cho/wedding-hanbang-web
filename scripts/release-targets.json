@@ -52,10 +52,16 @@
   "productionDatabaseWriteFenceContract": "database-readonly-realtime-cron-v1",
   "backupPolicy": {
     "status": "not_configured",
+    "rehearsalStatus": "not_configured",
     "requiredCliVersion": "2.106.0",
     "allowedRestoreProjectRefs": [],
     "ageRecipients": [],
     "maxStorageConcurrency": 4,
+    "rpoObjectiveSeconds": null,
+    "rtoObjectiveSeconds": null,
+    "restoreDrillVerifiedAt": null,
+    "maxRestoreDrillAgeDays": null,
+    "retentionDays": null,
     "archiveAuthenticity": {
       "status": "blocked-key-custody-and-immutable-anchor-not-approved",
       "contract": "age-sender-signature-external-immutable-anchor-v1",

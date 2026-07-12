@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,8 +65,19 @@ const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx"
 const expectedEasCliVersion = "20.5.1";
 const repositoryNodeVersion = rootPackage.engines?.node?.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1];
 const repositoryPnpmVersion = rootPackage.packageManager?.match(/^pnpm@(.+)$/)?.[1];
+const competingRootExpoConfigs = [
+  "app.json",
+  "app.config.json",
+  "app.config.js",
+  "app.config.ts",
+  "eas.json",
+];
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
+expect(
+  competingRootExpoConfigs.every((file) => !existsSync(path.join(root, file))),
+  "Repository root has no competing Expo or EAS configuration",
+);
 expect(appConfig.name === expectedAppName, `Expo app name is ${expectedAppName}`);
 expect(appConfig.slug === "wedding-hanbang", "Expo slug is wedding-hanbang");
 expect(appConfig.scheme === "hanbang", "App scheme is hanbang");

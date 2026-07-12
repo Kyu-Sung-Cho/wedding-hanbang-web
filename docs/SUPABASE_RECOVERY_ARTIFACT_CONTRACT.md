@@ -5,6 +5,12 @@ Recovery archive format v2 requires the encrypted
 Supabase migration ledger do not preserve operational rows from `cron.job`, so
 an archive without this artifact is incomplete and must be rejected.
 
+The checked-in exporter is currently a non-executable Phase-A design:
+`export` fails with `RECOVERY_EXPORT_NOT_ENABLED` before credentials or Git are
+inspected. An exact-target producer, filter-free worktree attestation, signed
+backup lifecycle, and disposable rehearsal must be implemented and independently
+reviewed before this contract may create a real archive.
+
 The artifact contains exactly five approved jobs. Each job contains only
 `jobName`, `schedule`, `command`, and the desired final `active` state. It does
 not copy a source `jobid`, database name, host, or port into the target.
@@ -79,8 +85,42 @@ the business approves both sender-signing-key custody and an external immutable
 anchor provider/reference. No signing key or external anchor is generated or
 uploaded by the recovery tool.
 
-Archive integrity verification may report the exact files and digests, but an
-isolated restore must stop with `ARCHIVE_AUTHENTICITY_UNVERIFIED` until both
-independent proofs are implemented and verified. Even mocked authenticity
-evidence reaches a separate `RESTORE_EXECUTION_NOT_ENABLED` hard stop because
-actual DB/Storage restore execution is intentionally not implemented yet.
+`verify-archive` requires an explicit trusted `--expected-project-ref`. The
+public manifest can never select production/non-production tool policy, and
+both public and encrypted private manifests must match the trusted ref. The ref
+must also be a checked-in protected production or approved non-production
+source. This prevents an attacker-controlled manifest from downgrading a
+production archive to unpinned local `age`/`tar` tooling.
+
+The encrypted archive pathname is never hashed and then reopened by `age`.
+Verification accepts one bounded regular file with no links, copies and hashes
+that fixed file identity into the private secure workspace, streams the same
+open staged handle to `age` over stdin, and rehashes the handle afterward. A
+rename or replacement of the caller-controlled pathname therefore cannot bind
+one public digest to different decrypted bytes.
+
+Archive integrity verification reports only
+`verificationScope=encrypted-archive-self-consistency-v1` and
+`archiveSelfConsistencyVerified=true`. Until sender authenticity and the
+external immutable anchor are implemented it returns `ok=false`,
+`producerAuthenticityVerified=false`, `restoreEligible=false`, and
+`releaseEligible=false`; the CLI also exits nonzero. Consumers must never interpret
+`archiveIntegrityVerified` alone as restore approval.
+
+The checked-in policy separates `backupPolicy.rehearsalStatus` from the
+production `backupPolicy.status`. An isolated target may be allowlisted only
+after rehearsal status is explicitly `approved-v1`; this does not claim
+production recovery readiness. A strict policy validator rejects malformed,
+coercible, duplicate, or overlapping production/source/restore refs. Until a
+trusted rehearsal producer binds the exact source, target, artifact, provider
+recovery point, RPO/RTO measurement, signer, and immutable anchor, it also
+rejects every `rehearsalStatus=verified-v1`, production `status=verified-v1`,
+or archive-authenticity `status=verified-v1` declaration.
+
+Even mocked authenticity evidence reaches a separate
+`RESTORE_EXECUTION_NOT_ENABLED` hard stop because actual DB/Storage restore
+execution is intentionally not implemented yet. The modeled evidence chain
+also still ends before bound cron activation, post-activation verification,
+restored-service canary, and provider-backed RPO proof. The final completion
+hard stop must remain until those trusted producers and a disposable restore
+rehearsal exist.

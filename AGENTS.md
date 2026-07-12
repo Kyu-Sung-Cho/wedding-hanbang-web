@@ -24,18 +24,18 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 
 - Platform: Vercel, team `hanbang`, project `wedding-hanbang-web`, root directory `apps/web`
 - Production URL: `https://hanbang.ai`
-- Deploy workflow: Git 자동 배포와 deploy hook은 비활성이다. `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`의 clean exact-SHA 수동 staged deploy와 promote 절차만 사용한다.
-- Deploy status command: release에 고정한 `corepack pnpm dlx vercel@55.0.0 inspect <recorded-staged-url> --scope hanbang`
+- Deploy workflow: Git 자동 배포와 deploy hook은 비활성이다. 운영 환경 변경·staged create·promote는 별도의 보호된 `release-control` 또는 동등한 외부 controller가 독립 승인된 exact SHA와 서명 receipt로만 수행한다. 로컬 Vercel CLI는 운영 proof를 만들지 않는다.
+- Deploy status: controller가 Vercel API의 allowlisted team/project/repository ID, `gitSource` type/repo/ref/SHA, target, state, immutable deployment ID와 alias를 strict schema로 검증한다. 로컬 `inspect` 판독을 증거로 사용하지 않는다.
 - Merge method: GitHub merge commit only. `gh pr merge 38 --merge --match-head-commit <candidate-sha>` 외 squash, rebase, force-push를 사용하지 않는다.
 - Project type: Next.js web app/API와 같은 저장소의 Expo mobile companion
 - Post-deploy health check: staged URL과 `https://hanbang.ai/api/health/maintenance`에서 exact SHA, Supabase ref, launch/maintenance/Turnstile boolean을 검사한 뒤 `corepack pnpm qa:live`를 실행한다.
 
 ### Custom deploy hooks
 
-- Pre-merge: full-history secret gate와 `corepack pnpm qa:local`이 모두 통과하고, runbook의 candidate-bound 운영 선행 증거가 있어야 한다.
-- Deploy trigger: clean post-merge release SHA에서 Vercel Production target을 `--prod --skip-domain`으로 수동 생성한다. 검증 전 custom domain에 연결하지 않는다.
-- Deploy status: Vercel CLI `55.0.0`으로 기록된 immutable deployment URL을 inspect하고 project, target, deployment ID, Git SHA를 대조한다.
-- Health check: staged URL 검증 후 같은 deployment ID만 promote하고 apex에서 동일 canary를 다시 실행한다. 자동 Git 배포는 계속 비활성으로 둔다.
+- Pre-merge: full-history secret gate, Windows reviewed-launcher contract, `corepack pnpm qa:local`, 독립 코드 승인과 runbook의 candidate-bound 운영 선행 증거가 모두 통과해야 한다.
+- Deploy trigger: 보호된 controller가 create 직전 `main` HEAD와 독립 승인 receipt를 다시 확인한 exact post-merge SHA만 Vercel Production target으로 staged한다. 검증 전 custom domain에 연결하지 않는다.
+- Deploy status: provider API에서 immutable deployment ID와 type/repo/ref/SHA/project/team/target/state를 대조하고, alias의 예상 이전 ID가 바뀌면 중단한다.
+- Health check: staged URL의 SHA·Supabase ref·기능 상태와 provider alias의 deployment ID를 별도로 검증한다. promote 직전에 `main`·승인·alias 이전 ID를 다시 확인하고 같은 deployment ID만 promote한 뒤 apex canary를 다시 실행한다. 자동 Git 배포는 계속 비활성으로 둔다.
 
 ---
 

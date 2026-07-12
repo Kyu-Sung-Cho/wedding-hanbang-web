@@ -60,6 +60,7 @@ function Get-ReconciliationArtifactFingerprint {
   ) + @(
     (Resolve-Path "scripts/release-targets.json").Path,
     (Resolve-Path "scripts/run-reviewed-powershell.mjs").Path,
+    (Resolve-Path "scripts/invoke-reviewed-powershell.ps1").Path,
     (Resolve-Path "scripts/supabase-reconcile-core-baseline.ps1").Path,
     (Resolve-Path "scripts/supabase-write-fence.ps1").Path,
     (Resolve-Path "scripts/supabase-recovery-safe.mjs").Path,
@@ -162,7 +163,17 @@ if ([string]::IsNullOrWhiteSpace($ExpectedProjectRef)) {
   throw "-ExpectedProjectRef is required."
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+throw "Remote baseline reconciliation is disabled before any credential prompt until a provider-side lease, exact-target connection, filter-free worktree attestation, and reviewed PowerShell module boundary are verified."
+
+$injectedEntrypointRoot = $ExecutionContext.SessionState.PSVariable.GetValue(
+  "ReviewedEntrypointRoot"
+)
+$entrypointRoot = if ([string]::IsNullOrWhiteSpace($injectedEntrypointRoot)) {
+  $PSScriptRoot
+} else {
+  [string]$injectedEntrypointRoot
+}
+$repoRoot = Resolve-Path (Join-Path $entrypointRoot "..")
 Set-Location $repoRoot
 
 $targets = Get-Content -Raw -LiteralPath "scripts/release-targets.json" |

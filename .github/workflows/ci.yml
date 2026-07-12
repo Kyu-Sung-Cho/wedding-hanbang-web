@@ -40,9 +40,36 @@ jobs:
       - name: Scan the complete repository history
         run: node ./scripts/scan-tracked-secrets.mjs
 
+  windows-launcher-contract:
+    name: Windows reviewed launcher contract (no dependency install)
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout candidate without credentials
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.x
+          package-manager-cache: false
+
+      - name: Exercise fixed Windows runtime, path, and journal boundaries
+        run: node --test ./scripts/run-reviewed-powershell.test.mjs ./scripts/supabase-write-fence-offline.test.mjs
+
+      - name: Exercise Windows recovery stream and process-tree boundaries
+        run: >-
+          node --test
+          --test-name-pattern="native children consume only|archive staging streams|decrypt-stream digest|timeout terminates a descendant"
+          ./scripts/supabase-recovery-safe.test.mjs
+
   quality:
     name: Quality Gate (Node 24 production parity)
-    needs: secret-history
+    needs: [secret-history, windows-launcher-contract]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

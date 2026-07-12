@@ -27,6 +27,8 @@ const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
 };
 const ship = readRepo("scripts/supabase-ship-safe.ps1");
 const reconcile = readRepo("scripts/supabase-reconcile-core-baseline.ps1");
+const writeFence = readRepo("scripts/supabase-write-fence.ps1");
+const recoverySafe = readRepo("scripts/supabase-recovery-safe.mjs");
 const lifecycleSmoke = readRepo("scripts/supabase-lifecycle-smoke.mjs");
 const baseline = readRepo(
   "supabase/migrations/20260202000000_legacy_core_baseline.sql"
@@ -115,17 +117,19 @@ describe("release safety contract", () => {
     expect(vercelConfig.git?.deploymentEnabled).toBe(false);
   });
 
-  it("pins the manual Vercel release path without logging protection bypass secrets", () => {
+  it("pins the controller-only Vercel release path without logging protection bypass secrets", () => {
     expect(agentsGuide).toContain(
       "## Deploy Configuration (configured by /setup-deploy)"
     );
     expect(agentsGuide).toContain("project `wedding-hanbang-web`");
-    expect(agentsGuide).toContain("vercel@55.0.0 inspect");
-    expect(agentsGuide).toContain("`--prod --skip-domain`");
+    expect(agentsGuide).toContain("별도의 보호된 `release-control`");
+    expect(agentsGuide).toContain("로컬 Vercel CLI는 운영 proof를 만들지 않는다");
+    expect(agentsGuide).not.toContain("vercel@55.0.0 inspect");
+    expect(agentsGuide).not.toContain("`--prod --skip-domain`");
     expect(agentsGuide).toContain("자동 Git 배포는 계속 비활성");
-    expect(productionReleaseRunbook).toContain(
-      '$VercelCliVersion = "55.0.0"'
-    );
+    expect(productionReleaseRunbook).toContain("controller-only 실행 계약");
+    expect(productionReleaseRunbook).toContain("로컬 CLI 실행 금지");
+    expect(productionReleaseRunbook).not.toContain("$VercelCliVersion");
     expect(productionReleaseRunbook).not.toContain(
       "<reviewed-vercel-cli-version>"
     );
@@ -256,9 +260,63 @@ describe("release safety contract", () => {
       expect(packageJson.scripts[scriptName]).not.toMatch(/^(?:powershell|pwsh)\s/);
     }
     expect(reviewedPowerShellLauncher).toContain('process.platform === "win32"');
-    expect(reviewedPowerShellLauncher).toContain('"powershell.exe" : "pwsh"');
+    expect(reviewedPowerShellLauncher).toContain("resolvePowerShellExecutable()");
+    expect(reviewedPowerShellLauncher).toContain('const WINDOWS_ROOT = "C:\\\\Windows"');
+    expect(reviewedPowerShellLauncher).toContain(
+      "Reviewed release PowerShell execution is disabled outside"
+    );
     expect(reviewedPowerShellLauncher).toContain("spawnSync(executable");
     expect(reviewedPowerShellLauncher).not.toContain("shell:");
+  });
+
+  it("hard-stops every remote Supabase mutation and export before credentials", () => {
+    const shipStop = ship.indexOf("Remote migration execution is disabled");
+    expect(shipStop).toBeGreaterThan(0);
+    expect(shipStop).toBeLessThan(ship.indexOf('Read-Host "Paste Supabase database password'));
+
+    const reconcileStop = reconcile.indexOf(
+      "Remote baseline reconciliation is disabled"
+    );
+    expect(reconcileStop).toBeGreaterThan(0);
+    expect(reconcileStop).toBeLessThan(
+      reconcile.indexOf('Read-Host "Paste Supabase database password')
+    );
+
+    const fenceStop = writeFence.indexOf("All remote write-fence execution is disabled");
+    expect(fenceStop).toBeGreaterThan(0);
+    for (const boundary of [
+      "$injectedReleaseTargetsJson",
+      'Get-Content -Raw -LiteralPath "scripts/release-targets.json"',
+      "function Read-FenceSecret",
+      "function Enter-ProjectFenceLifecycleLock",
+      "function Invoke-FenceDatabaseApiRequest",
+    ]) {
+      expect(writeFence.indexOf(boundary)).toBeGreaterThan(fenceStop);
+    }
+    expect(writeFence.indexOf('if ($Action -eq "MarkMigrationStarted")')).toBe(-1);
+    expect(writeFence.indexOf('if ($Action -eq "MarkMigrationVerified")')).toBe(-1);
+    const fenceOperationalTail = writeFence.slice(
+      writeFence.indexOf('if ($Action -eq "Plan")')
+    );
+    expect(fenceOperationalTail).not.toContain("switch ($Action)");
+    expect(fenceOperationalTail).not.toContain("Restore-Fence");
+
+    const exportBody = recoverySafe.slice(
+      recoverySafe.indexOf("async function exportRecovery"),
+      recoverySafe.indexOf("async function main")
+    );
+    const recoveryExportStop = exportBody.indexOf(
+      "assertRecoveryExportExecutionEnabled();"
+    );
+    const recoveryCredentialBoundary = exportBody.indexOf(
+      "process.env.SUPABASE_SERVICE_ROLE_KEY"
+    );
+    const recoveryTargetsBoundary = exportBody.indexOf("loadReleaseTargets(");
+    const recoveryGitBoundary = exportBody.indexOf("captureGitState(");
+    expect(recoveryExportStop).toBeGreaterThanOrEqual(0);
+    expect(recoveryCredentialBoundary).toBeGreaterThan(recoveryExportStop);
+    expect(recoveryTargetsBoundary).toBeGreaterThan(recoveryExportStop);
+    expect(recoveryGitBoundary).toBeGreaterThan(recoveryExportStop);
   });
 
   it("keeps administrator and demo-session secrets on separate strong boundaries", () => {
@@ -290,13 +348,30 @@ describe("release safety contract", () => {
       ciWorkflow.indexOf("  secret-history:"),
       ciWorkflow.indexOf("  quality:")
     );
+    const windowsJob = ciWorkflow.slice(
+      ciWorkflow.indexOf("  windows-launcher-contract:"),
+      ciWorkflow.indexOf("  quality:")
+    );
     const qualityJob = ciWorkflow.slice(ciWorkflow.indexOf("  quality:"));
     expect(historyJob).toContain("fetch-depth: 0");
     expect(historyJob).toContain("package-manager-cache: false");
     expect(historyJob).toContain("node ./scripts/scan-tracked-secrets.mjs");
     expect(historyJob).not.toContain("pnpm install");
     expect(historyJob).not.toContain("pnpm/action-setup");
-    expect(qualityJob).toContain("needs: secret-history");
+    expect(windowsJob).toContain("windows-launcher-contract:");
+    expect(windowsJob).toContain("runs-on: windows-latest");
+    expect(windowsJob).toContain(
+      "node --test ./scripts/run-reviewed-powershell.test.mjs"
+    );
+    expect(windowsJob).toContain("./scripts/supabase-write-fence-offline.test.mjs");
+    expect(windowsJob).toContain("./scripts/supabase-recovery-safe.test.mjs");
+    expect(windowsJob).toContain("native children consume only");
+    expect(windowsJob).toContain("archive staging streams");
+    expect(windowsJob).toContain("decrypt-stream digest");
+    expect(windowsJob).toContain("timeout terminates a descendant");
+    expect(qualityJob).toContain(
+      "needs: [secret-history, windows-launcher-contract]"
+    );
     expect(qualityJob).toContain("fetch-depth: 1");
     expect(qualityJob.indexOf("node ./scripts/scan-tracked-secrets.mjs"))
       .toBeLessThan(qualityJob.indexOf("pnpm install --frozen-lockfile"));

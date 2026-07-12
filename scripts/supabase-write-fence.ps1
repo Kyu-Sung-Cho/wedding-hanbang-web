@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("Plan", "Capture", "Activate", "Verify", "MarkMigrationStarted", "MarkMigrationVerified", "Deactivate", "Recover")]
+  [ValidateSet("Plan", "Capture", "Activate", "Verify", "Deactivate", "Recover")]
   [string]$Action = "Plan",
   [Parameter(Mandatory = $true)]
   [string]$ExpectedProjectRef,
@@ -13,6 +13,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ($MyInvocation.InvocationName -eq ".") {
+  throw "The operational write-fence entrypoint cannot be dot-sourced."
+}
 $script:Contract = "database-readonly-realtime-cron-v1"
 $script:SnapshotSchemaVersion = 2
 $script:ExpectedReleaseDatabaseRoleClass = "supabase_project_postgres"
@@ -31,33 +34,50 @@ $script:ManagementAccessToken = $null
 $script:RunningOnWindows = [Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
   [Runtime.InteropServices.OSPlatform]::Windows
 )
+$script:OfflineTestFenceStateRoot = $null
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$injectedEntrypointRoot = $ExecutionContext.SessionState.PSVariable.GetValue(
+  "ReviewedEntrypointRoot"
+)
+$entrypointRoot = if ([string]::IsNullOrWhiteSpace($injectedEntrypointRoot)) {
+  $PSScriptRoot
+} else {
+  [string]$injectedEntrypointRoot
+}
+$repoRoot = Resolve-Path (Join-Path $entrypointRoot "..")
 Set-Location $repoRoot
 
 if ($ExpectedProjectRef -notmatch '^[a-z0-9]{20}$') {
   throw "-ExpectedProjectRef must be a 20-character Supabase project ref."
 }
+if ($Action -ne "Plan") {
+  throw "All remote write-fence execution is disabled before any companion file, credential, journal, Git, or remote boundary. Only Plan is operational until a provider-side lease/CAS, exact-target connection, cross-version recovery receipt, and disposable rehearsal are independently verified."
+}
 
-$targets = Get-Content -Raw -LiteralPath "scripts/release-targets.json" |
-  ConvertFrom-Json
+$injectedReleaseTargetsJson = $ExecutionContext.SessionState.PSVariable.GetValue(
+  "ReviewedReleaseTargetsJson"
+)
+$injectedFenceStatusSql = $ExecutionContext.SessionState.PSVariable.GetValue(
+  "ReviewedFenceStatusSql"
+)
+$releaseTargetsJson = if ([string]::IsNullOrWhiteSpace($injectedReleaseTargetsJson)) {
+  Get-Content -Raw -LiteralPath "scripts/release-targets.json"
+} else {
+  [string]$injectedReleaseTargetsJson
+}
+$script:StatusSql = if ([string]::IsNullOrWhiteSpace($injectedFenceStatusSql)) {
+  Get-Content -Raw -LiteralPath "scripts/sql/supabase-write-fence-status.sql"
+} else {
+  [string]$injectedFenceStatusSql
+}
+try {
+  $targets = $releaseTargetsJson | ConvertFrom-Json
+} catch {
+  throw "The reviewed release-target policy is invalid."
+}
 $isProductionTarget = $ExpectedProjectRef -in @(
   $targets.productionSupabaseProjectRefs | ForEach-Object { [string]$_ }
 )
-if ($isProductionTarget -and
-  $targets.productionDatabaseWriteFence -ne "verified-v1") {
-  throw "Protected production remains blocked while the checked-in write-fence fuse is not verified-v1. Verification requires a provider-side project lease/CAS that owns fence activation, migrationStarted, the exact-target push, evidence, and restore across every computer and CI runner."
-}
-if ($isProductionTarget) {
-  throw "Protected production write-fence actions remain disabled until the Beta database API is rehearsed, the exact migration connection is pinned, continuous writer-role coverage and provider change-freeze guarantees are verified, and one provider-side project lease/CAS owns fence activation, migrationStarted, the exact-target push, evidence, and restore across every computer and CI runner."
-}
-$approvedNonProductionRefs = @(
-  $targets.approvedNonProductionSupabaseProjectRefs |
-    ForEach-Object { [string]$_ }
-)
-if ($Action -ne "Plan" -and $ExpectedProjectRef -notin $approvedNonProductionRefs) {
-  throw "Remote write-fence actions require a checked-in approved non-production project ref."
-}
 
 # Keep the production fuse above every credential prompt and remote boundary.
 $script:ManagementApiBase = "https://api.supabase.com"
@@ -78,7 +98,6 @@ $script:RequiredPostMigrationChecks = @(
   "releaseConnectionWritable"
 )
 $script:LinkedRefPath = Join-Path $repoRoot "supabase/.temp/project-ref"
-$script:StatusSqlPath = Join-Path $repoRoot "scripts/sql/supabase-write-fence-status.sql"
 
 function Convert-SecureStringToPlainText {
   param([Parameter(Mandatory = $true)] [Security.SecureString]$Secure)
@@ -365,17 +384,20 @@ function Assert-ReleaseCidr {
 }
 
 function Get-FenceStateRoot {
-  $stateRoot = if ($script:RunningOnWindows) {
-    $env:LOCALAPPDATA
-  } elseif (-not [string]::IsNullOrWhiteSpace($env:XDG_STATE_HOME)) {
-    $env:XDG_STATE_HOME
-  } elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
-    Join-Path $HOME ".local/state"
-  } else {
-    ""
+  if (-not [string]::IsNullOrWhiteSpace($script:OfflineTestFenceStateRoot)) {
+    if ($Action -ne "Plan" -or $isProductionTarget) {
+      throw "The offline journal root override is restricted to non-production Plan tests."
+    }
+    return [IO.Path]::GetFullPath($script:OfflineTestFenceStateRoot)
   }
+  if (-not $script:RunningOnWindows) {
+    throw "Write-fence lifecycle state is supported only on the approved Windows release workstation."
+  }
+  $stateRoot = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::LocalApplicationData
+  )
   if ([string]::IsNullOrWhiteSpace($stateRoot)) {
-    throw "A platform-local application state directory is required for the write-fence journal."
+    throw "The canonical Windows LocalApplicationData directory is required for the write-fence journal."
   }
   return [IO.Path]::GetFullPath($stateRoot)
 }
@@ -2037,8 +2059,7 @@ function Invoke-FenceDatabaseQuery {
 }
 
 function Read-FenceDatabaseStatus {
-  $sql = Get-Content -Raw -LiteralPath $script:StatusSqlPath
-  $row = Invoke-FenceDatabaseQuery -Sql $sql -ReadOnly -ExpectSingleJsonRow
+  $row = Invoke-FenceDatabaseQuery -Sql $script:StatusSql -ReadOnly -ExpectSingleJsonRow
   $statusProperty = if ($null -eq $row) {
     $null
   } else {
@@ -3143,8 +3164,9 @@ function Invoke-FenceActivation {
   }
 }
 
-# Offline contract tests dot-source the reviewed functions without entering
-# any credential prompt, journal lifecycle, or remote boundary.
+# The offline test harness evaluates an isolated, credential-free copy after
+# removing the entrypoint-only dot-source rejection above. The checked-in
+# operational entrypoint itself never exports these remote mutation functions.
 if ($MyInvocation.InvocationName -eq ".") {
   return
 }
@@ -3175,120 +3197,4 @@ if ($Action -eq "Plan") {
   exit 0
 }
 
-Assert-FenceRemoteBudgetContract
-$lifecycleLock = Enter-ProjectFenceLifecycleLock
-$linkLock = $null
-try {
-$linkLock = Enter-LinkedProjectReadLock
-if ($Action -eq "MarkMigrationStarted") {
-  $path = Resolve-FenceSnapshotPath
-  $snapshot = Read-FenceSnapshot $path
-  Assert-SnapshotIsSoleUnresolvedJournal -Path $path -Snapshot $snapshot
-  Assert-SnapshotHead $snapshot
-  if ($snapshot.state -ne "active" -or $snapshot.migrationStarted -eq $true) {
-    throw "Migration can only be marked once from an active verified fence."
-  }
-  $snapshot.migrationStarted = $true
-  $snapshot.migrationVerified = $false
-  $snapshot.postMigrationEvidence = $null
-  $snapshot.state = "migration_in_progress"
-  Set-FenceStep $snapshot "migration" "started"
-  Write-FenceSnapshot $path $snapshot
-  Write-Output "Migration start was journaled; automatic fence restoration is now disabled."
-  return
-}
-
-if ($Action -eq "MarkMigrationVerified") {
-  $path = Resolve-FenceSnapshotPath
-  $snapshot = Read-FenceSnapshot $path
-  Assert-SnapshotIsSoleUnresolvedJournal -Path $path -Snapshot $snapshot
-  Assert-SnapshotHead $snapshot
-  if ($snapshot.state -ne "migration_in_progress" -or
-    $snapshot.migrationStarted -ne $true -or
-    $snapshot.migrationVerified -eq $true) {
-    throw "Post-migration evidence can only verify one in-progress migration."
-  }
-  if ($isProductionTarget) {
-    throw "Production cannot accept operator-authored post-migration evidence; the automated black-box producer is not yet verified."
-  }
-  $evidencePath = Resolve-PostMigrationEvidencePath
-  $summary = Read-PostMigrationEvidence $evidencePath $snapshot
-  $snapshot.postMigrationEvidence = $summary
-  $snapshot.migrationVerified = $true
-  $snapshot.state = "migration_verified"
-  Set-FenceStep $snapshot "migration_verification" "applied"
-  Write-FenceSnapshot $path $snapshot
-  Write-Output "Separate post-migration evidence was validated and journaled."
-  return
-}
-
-Assert-LinkedProject
-$preflightRestorePath = $null
-$preflightRestoreSnapshot = $null
-if ($Action -eq "Capture") {
-  if ([string]::IsNullOrWhiteSpace($ReleaseIpv4Cidr)) {
-    throw "Capture requires an explicit single-host -ReleaseIpv4Cidr."
-  }
-  Assert-NoUnresolvedFenceJournalForCapture
-}
-if ($Action -in @("Deactivate", "Recover")) {
-  $preflightRestorePath = Resolve-FenceSnapshotPath
-  $preflightRestoreSnapshot = Read-FenceSnapshot $preflightRestorePath
-  Assert-SnapshotIsSoleUnresolvedJournal `
-    -Path $preflightRestorePath -Snapshot $preflightRestoreSnapshot
-  Assert-RestoreTransitionAllowed $preflightRestoreSnapshot $Action
-  Assert-RestoreEvidenceBoundary $preflightRestoreSnapshot
-}
-
-$managementToken = $null
-try {
-  # Recheck the operator's local link for intent. Every remote target remains
-  # independently pinned to ExpectedProjectRef in its Management API path.
-  Assert-LinkedProject
-  $managementToken = Read-FenceSecret "Paste a project-scoped Supabase Management token (hidden)"
-  $script:ManagementAccessToken = $managementToken
-
-  switch ($Action) {
-    "Capture" {
-      $path = Resolve-FenceSnapshotPath -ForCapture
-      New-FenceSnapshot $path $managementToken | Out-Null
-      Write-Output $path
-    }
-    "Activate" {
-      $path = Resolve-FenceSnapshotPath
-      $snapshot = Read-FenceSnapshot $path
-      Invoke-FenceActivation $managementToken $snapshot $path
-      Write-Output "Write fence is active."
-    }
-    "Verify" {
-      $path = Resolve-FenceSnapshotPath
-      $snapshot = Read-FenceSnapshot $path
-      Assert-SnapshotIsSoleUnresolvedJournal -Path $path -Snapshot $snapshot
-      Assert-SnapshotHead $snapshot
-      Assert-FenceActive $managementToken $snapshot
-      Write-Output "Write fence verification passed."
-    }
-    "Deactivate" {
-      $path = $preflightRestorePath
-      $snapshot = $preflightRestoreSnapshot
-      Restore-Fence $managementToken $snapshot $path "Deactivate"
-      Write-Output "Write fence was restored to its captured state."
-    }
-    "Recover" {
-      $path = $preflightRestorePath
-      $snapshot = $preflightRestoreSnapshot
-      Restore-Fence $managementToken $snapshot $path "Recover"
-      Write-Output "Write fence recovery completed."
-    }
-  }
-} finally {
-  $script:ManagementAccessToken = $null
-  $managementToken = $null
-  $preflightRestoreSnapshot = $null
-}
-} finally {
-  if ($null -ne $linkLock) {
-    $linkLock.Dispose()
-  }
-  $lifecycleLock.Dispose()
-}
+throw "The write-fence entrypoint reached an invalid post-Plan state."

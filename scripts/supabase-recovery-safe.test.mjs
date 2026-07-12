@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +12,8 @@ import {
   APPROVED_CRON_CONTRACT,
   RecoveryError,
   approvedCronRecoveryContractMetadata,
+  assertArchiveStreamDigest,
+  assertArchiveSourceExpectation,
   assertApprovedCronContract,
   assertApprovedNonProductionSource,
   assertApprovedCronRecoveryManifest,
@@ -18,6 +22,8 @@ import {
   assertPrivateManifestArchiveCoverage,
   assertProductionExportAllowed,
   assertPublicPrivateManifestConsistency,
+  assertRecoveryPolicyShape,
+  assertRecoveryExportExecutionEnabled,
   assertRestoreTargetAllowed,
   assertRestoreCompletionEvidence,
   assertSafeStagingRoot,
@@ -31,6 +37,7 @@ import {
   canonicalizePgDumpForComparison,
   containsCredentialMaterial,
   createRestoreEvidenceIdentity,
+  createDigestingPassThrough,
   exportStorageObjects,
   extractQueryRows,
   parseCopyTableDigests,
@@ -41,8 +48,10 @@ import {
   resolvePinnedSupabaseBinary,
   resolveRecoveryTools,
   runBoundedRedacted,
+  stageStableArchiveInput,
   stableInventoryDigest,
   validateVerboseTarListing,
+  verifyArchive,
   verifyApprovedCronRecoveryArtifact,
   verifyPrivateManifestArtifactDigests,
   verifyPinnedSupabaseInstallation,
@@ -63,7 +72,8 @@ const BLOCKED_AUTHENTICITY = Object.freeze({
 function cronArchiveEvidence(overrides = {}) {
   const metadata = approvedCronRecoveryContractMetadata();
   return {
-    ok: true,
+    ok: false,
+    archiveSelfConsistencyVerified: true,
     archiveIntegrityVerified: true,
     artifactId: ARTIFACT_ID,
     archiveSha256: "a".repeat(64),
@@ -194,6 +204,194 @@ async function fakeChild(t, source) {
 function expectRecoveryCode(code) {
   return (error) => error instanceof RecoveryError && error.code === code;
 }
+
+test("archive verification binds tool policy to a trusted approved source ref", async () => {
+  const targets = {
+    productionSupabaseProjectRefs: [PRODUCTION_REF],
+    approvedNonProductionSupabaseProjectRefs: [SOURCE_REF],
+  };
+
+  assert.throws(
+    () => assertArchiveSourceExpectation({
+      manifestSourceProjectRef: SOURCE_REF,
+      targets,
+    }),
+    expectRecoveryCode("SOURCE_PROJECT_REF_INVALID"),
+  );
+  await assert.rejects(
+    () => verifyArchive({}),
+    expectRecoveryCode("SOURCE_PROJECT_REF_INVALID"),
+  );
+  assert.throws(
+    () => assertArchiveSourceExpectation({
+      expectedSourceProjectRef: "x".repeat(20),
+      manifestSourceProjectRef: "x".repeat(20),
+      targets,
+    }),
+    expectRecoveryCode("SOURCE_PROJECT_NOT_APPROVED"),
+  );
+  assert.throws(
+    () => assertArchiveSourceExpectation({
+      expectedSourceProjectRef: PRODUCTION_REF,
+      manifestSourceProjectRef: SOURCE_REF,
+      targets,
+    }),
+    expectRecoveryCode("ARCHIVE_SOURCE_MISMATCH"),
+  );
+  assert.deepEqual(
+    assertArchiveSourceExpectation({
+      expectedSourceProjectRef: PRODUCTION_REF,
+      manifestSourceProjectRef: PRODUCTION_REF,
+      targets,
+    }),
+    { isProduction: true },
+  );
+  assert.deepEqual(
+    assertArchiveSourceExpectation({
+      expectedSourceProjectRef: SOURCE_REF,
+      manifestSourceProjectRef: SOURCE_REF,
+      targets,
+    }),
+    { isProduction: false },
+  );
+});
+
+test("recovery policy separates rehearsal approval from production verification", () => {
+  const policy = {
+    productionSupabaseProjectRefs: [PRODUCTION_REF],
+    approvedNonProductionSupabaseProjectRefs: [SOURCE_REF],
+    backupPolicy: {
+      status: "not_configured",
+      rehearsalStatus: "approved-v1",
+      requiredCliVersion: "2.106.0",
+      allowedRestoreProjectRefs: [RESTORE_REF],
+      ageRecipients: [],
+      maxStorageConcurrency: 4,
+      rpoObjectiveSeconds: null,
+      rtoObjectiveSeconds: null,
+      restoreDrillVerifiedAt: null,
+      maxRestoreDrillAgeDays: null,
+      retentionDays: null,
+      archiveAuthenticity: {
+        contract: "age-sender-signature-external-immutable-anchor-v1",
+        status: "blocked-key-custody-and-immutable-anchor-not-approved",
+        senderSigningKeyRef: null,
+        externalImmutableAnchorRef: null,
+      },
+    },
+  };
+
+  assert.equal(assertRecoveryPolicyShape(policy), policy);
+  assert.doesNotThrow(() => assertRestoreTargetAllowed({
+    sourceProjectRef: SOURCE_REF,
+    targetProjectRef: RESTORE_REF,
+    targets: policy,
+  }));
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      backupPolicy: {
+        ...policy.backupPolicy,
+        rehearsalStatus: "not_configured",
+      },
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      backupPolicy: {
+        ...policy.backupPolicy,
+        allowedRestoreProjectRefs: [SOURCE_REF],
+      },
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      backupPolicy: {
+        ...policy.backupPolicy,
+        status: "verified-v1",
+      },
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      backupPolicy: {
+        ...policy.backupPolicy,
+        rehearsalStatus: "verified-v1",
+      },
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      backupPolicy: {
+        ...policy.backupPolicy,
+        archiveAuthenticity: {
+          ...policy.backupPolicy.archiveAuthenticity,
+          status: "verified-v1",
+          senderSigningKeyRef: "kms://recovery-signer",
+          externalImmutableAnchorRef: "worm://recovery-receipt",
+        },
+      },
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+});
+
+test("recovery policy rejects coercible and non-string project refs", () => {
+  const policy = {
+    productionSupabaseProjectRefs: [12345678901234567890],
+    approvedNonProductionSupabaseProjectRefs: [SOURCE_REF],
+    backupPolicy: {
+      status: "not_configured",
+      rehearsalStatus: "not_configured",
+      requiredCliVersion: "2.106.0",
+      allowedRestoreProjectRefs: [],
+      ageRecipients: [],
+      maxStorageConcurrency: 4,
+      archiveAuthenticity: {
+        contract: "age-sender-signature-external-immutable-anchor-v1",
+        status: "blocked-key-custody-and-immutable-anchor-not-approved",
+        senderSigningKeyRef: null,
+        externalImmutableAnchorRef: null,
+      },
+    },
+  };
+
+  assert.throws(
+    () => assertRecoveryPolicyShape(policy),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertRecoveryPolicyShape({
+      ...policy,
+      productionSupabaseProjectRefs: [{ toString: () => PRODUCTION_REF }],
+    }),
+    expectRecoveryCode("RECOVERY_POLICY_INVALID"),
+  );
+  assert.throws(
+    () => assertArchiveSourceExpectation({
+      expectedSourceProjectRef: { toString: () => SOURCE_REF },
+      manifestSourceProjectRef: SOURCE_REF,
+      targets: policy,
+    }),
+    expectRecoveryCode("SOURCE_PROJECT_REF_INVALID"),
+  );
+  assert.throws(
+    () => assertRestoreTargetAllowed({
+      sourceProjectRef: SOURCE_REF,
+      targetProjectRef: { toString: () => RESTORE_REF },
+      targets: policy,
+    }),
+    expectRecoveryCode("TARGET_PROJECT_REF_INVALID"),
+  );
+});
 
 function privateManifestCoverageFixture() {
   const files = [
@@ -344,16 +542,34 @@ test("resolves a package-declared JS CLI entry instead of guessed native paths",
 });
 
 test("child environments omit unrelated credentials and executable overrides", () => {
-  assert.deepEqual(
-    buildMinimalChildEnv({
-      PATH: "safe-path",
-      OPENAI_API_KEY: "openai-canary",
-      SUPABASE_SERVICE_ROLE_KEY: "service-role-canary",
-      SUPABASE_GO_BINARY: "untrusted-binary",
-      NODE_OPTIONS: "--require untrusted-module",
-    }),
-    { PATH: "safe-path" },
-  );
+  const child = buildMinimalChildEnv({
+    SystemRoot: "C:\\attacker-windows",
+    PATH: "C:\\attacker-bin",
+    HTTP_PROXY: "http://attacker.invalid:8080",
+    NODE_EXTRA_CA_CERTS: "C:\\attacker-ca.pem",
+    OPENAI_API_KEY: "openai-canary",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-canary",
+    SUPABASE_ACCESS_TOKEN: "access-token-canary",
+    SUPABASE_GO_BINARY: "untrusted-binary",
+    SUPABASE_HOME: "C:\\attacker-supabase",
+    DOCKER_HOST: "tcp://attacker.invalid:2376",
+    NODE_OPTIONS: "--require untrusted-module",
+  }, ["SUPABASE_ACCESS_TOKEN", "OPENAI_API_KEY"]);
+  assert.notEqual(child.PATH, "C:\\attacker-bin");
+  assert.equal(child.SUPABASE_TELEMETRY_DISABLED, "1");
+  assert.equal(child.SUPABASE_ACCESS_TOKEN, "access-token-canary");
+  for (const key of [
+    "HTTP_PROXY",
+    "NODE_EXTRA_CA_CERTS",
+    "OPENAI_API_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_GO_BINARY",
+    "SUPABASE_HOME",
+    "DOCKER_HOST",
+    "NODE_OPTIONS",
+  ]) {
+    assert.equal(child[key], undefined, `${key} must not cross the recovery child boundary`);
+  }
 });
 
 test("native children receive the minimal environment by default", async (t) => {
@@ -375,6 +591,111 @@ test("native children receive the minimal environment by default", async (t) => 
     if (previousCanary === undefined) delete process.env.RECOVERY_ENV_CANARY;
     else process.env.RECOVERY_ENV_CANARY = previousCanary;
   }
+});
+
+test("native children consume only an explicitly supplied stdin stream", async (t) => {
+  const child = await fakeChild(t, "process.stdin.pipe(process.stdout);");
+  const result = await runBoundedRedacted({
+    executable: process.execPath,
+    args: [child],
+    stdinStream: Readable.from(["encrypted-archive-canary"]),
+    captureStdout: true,
+    timeoutMs: 5_000,
+  });
+  assert.equal(result.stdoutBuffer.toString("utf8"), "encrypted-archive-canary");
+});
+
+test("archive staging streams the original open identity after pathname replacement", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "hanbang-archive-stage-"));
+  const source = path.join(directory, "source.age");
+  const stagedPath = path.join(directory, "staged.age");
+  const movedStagedPath = path.join(directory, "staged-original.age");
+  const original = Buffer.from("encrypted-archive-original");
+  const replacement = Buffer.from("encrypted-archive-replacement");
+  let staged;
+  try {
+    await writeFile(source, original, { flag: "wx", mode: 0o600 });
+    staged = await stageStableArchiveInput(source, stagedPath);
+    await rename(stagedPath, movedStagedPath);
+    await writeFile(stagedPath, replacement, { flag: "wx", mode: 0o600 });
+    assert.equal(staged.sha256, createHash("sha256").update(original).digest("hex"));
+    assert.equal(staged.size, original.length);
+    assert.deepEqual(await readFile(stagedPath), replacement);
+
+    const digestingInput = createDigestingPassThrough();
+    const child = await fakeChild(t, "process.stdin.pipe(process.stdout);");
+    const result = await runBoundedRedacted({
+      executable: process.execPath,
+      args: [child],
+      stdinStream: staged.handle
+        .createReadStream({ start: 0, autoClose: false })
+        .pipe(digestingInput.stream),
+      captureStdout: true,
+      timeoutMs: 5_000,
+    });
+    assert.deepEqual(result.stdoutBuffer, original);
+    assert.doesNotThrow(() => assertArchiveStreamDigest(staged, digestingInput.digest()));
+  } finally {
+    await staged?.handle.close().catch(() => {});
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("decrypt-stream digest rejects bytes changed and restored before a final rehash", async () => {
+  const expected = Buffer.from("verified-encrypted-bytes");
+  const transient = Buffer.from("temporarily-modified-bytes");
+  const digestingInput = createDigestingPassThrough();
+  for await (const _chunk of Readable.from([transient]).pipe(digestingInput.stream)) {
+    // Drain the exact bytes a decryptor would consume.
+  }
+  assert.throws(
+    () => assertArchiveStreamDigest(
+      {
+        sha256: createHash("sha256").update(expected).digest("hex"),
+        size: expected.length,
+      },
+      digestingInput.digest(),
+    ),
+    expectRecoveryCode("ARCHIVE_SOURCE_CHANGED"),
+  );
+});
+
+test("recovery export remains disabled before credentials and Git inspection", () => {
+  assert.throws(
+    () => assertRecoveryExportExecutionEnabled(),
+    expectRecoveryCode("RECOVERY_EXPORT_NOT_ENABLED"),
+  );
+
+  const recoveryScript = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "supabase-recovery-safe.mjs",
+  );
+  const serviceRoleCanary = "service-role-canary-must-not-escape";
+  const gitCanary = "git-config-canary-must-not-escape";
+  const result = spawnSync(process.execPath, [recoveryScript, "export"], {
+    cwd: path.resolve(path.dirname(recoveryScript), ".."),
+    encoding: "utf8",
+    timeout: 5_000,
+    windowsHide: true,
+    env: {
+      PATH: process.env.PATH ?? "",
+      PATHEXT: process.env.PATHEXT ?? "",
+      SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+      WINDIR: process.env.WINDIR ?? "C:\\Windows",
+      TEMP: process.env.TEMP ?? tmpdir(),
+      TMP: process.env.TMP ?? tmpdir(),
+      SUPABASE_SERVICE_ROLE_KEY: serviceRoleCanary,
+      GIT_CONFIG_NOSYSTEM: "0",
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "core.fsmonitor",
+      GIT_CONFIG_VALUE_0: gitCanary,
+    },
+  });
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 1);
+  assert.match(output, /RECOVERY_EXPORT_NOT_ENABLED/);
+  assert.doesNotMatch(output, new RegExp(`${serviceRoleCanary}|${gitCanary}`));
 });
 
 test("production recovery tools require absolute hash-pinned policy", async () => {
@@ -515,8 +836,7 @@ test("timeout terminates a descendant before it can recreate plaintext", async (
   const lateArtifact = path.join(directory, "late-plaintext.sql");
   const grandchildSource = `
     const { writeFileSync } = require("node:fs");
-    setTimeout(() => writeFileSync(${JSON.stringify(lateArtifact)}, "late"), 300);
-    setTimeout(() => {}, 60_000);
+    setInterval(() => writeFileSync(${JSON.stringify(lateArtifact)}, "late"), 50);
   `;
   const parent = await fakeChild(t, `
     import { spawn } from "node:child_process";
@@ -531,11 +851,12 @@ test("timeout terminates a descendant before it can recreate plaintext", async (
     runBoundedRedacted({
       executable: process.execPath,
       args: [parent],
-      timeoutMs: 75,
+      timeoutMs: 1_000,
     }),
     expectRecoveryCode("CHILD_TIMEOUT"),
   );
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await rm(lateArtifact, { force: true });
+  await new Promise((resolve) => setTimeout(resolve, 750));
   await assert.rejects(readFile(lateArtifact), { code: "ENOENT" });
 });
 
@@ -1194,6 +1515,7 @@ test("production restore is forbidden before archive verification can run", asyn
         productionSupabaseProjectRefs: [PRODUCTION_REF],
         backupPolicy: {
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [PRODUCTION_REF],
         },
       },
@@ -1235,6 +1557,7 @@ test("isolated restore planning requires the bound cron artifact", async () => {
         productionSupabaseProjectRefs: [PRODUCTION_REF],
         backupPolicy: {
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [RESTORE_REF],
           archiveAuthenticity: {
             status: "verified-v1",
@@ -1245,7 +1568,8 @@ test("isolated restore planning requires the bound cron artifact", async () => {
         },
       },
       archiveVerifier: async () => ({
-        ok: true,
+        ok: false,
+        archiveSelfConsistencyVerified: true,
         archiveIntegrityVerified: true,
       }),
     }),
@@ -1274,6 +1598,7 @@ test("checked-in recovery policy explicitly blocks unimplemented authenticity", 
         backupPolicy: {
           ...targets.backupPolicy,
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [RESTORE_REF],
         },
       },
@@ -1292,6 +1617,7 @@ test("restore execution remains a hard stop even with mocked external authentici
         productionSupabaseProjectRefs: [PRODUCTION_REF],
         backupPolicy: {
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [RESTORE_REF],
           archiveAuthenticity: {
             status: "verified-v1",
@@ -1422,6 +1748,7 @@ test("isolated restore readiness rejects unsuccessful archive evidence", async (
         productionSupabaseProjectRefs: [PRODUCTION_REF],
         backupPolicy: {
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [RESTORE_REF],
         },
       },
@@ -1440,6 +1767,7 @@ test("restore allowlist cannot override production protection", () => {
         productionSupabaseProjectRefs: [PRODUCTION_REF],
         backupPolicy: {
           status: "verified-v1",
+          rehearsalStatus: "approved-v1",
           allowedRestoreProjectRefs: [PRODUCTION_REF],
         },
       },

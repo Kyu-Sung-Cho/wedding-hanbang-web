@@ -237,6 +237,7 @@ describe("maintenance release contract", () => {
     );
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_SECRET_KEY;
+    delete process.env.NEXT_PUBLIC_SITE_URL;
     const missing = (await (await GET()).json()) as Record<string, unknown>;
     expect(missing.turnstileCredentialsConfigured).toBe(false);
     expect(missing.turnstileCanonicalHostnameConfigured).toBe(false);

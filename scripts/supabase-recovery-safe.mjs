@@ -12,6 +12,7 @@ import {
   chmod,
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   realpath,
@@ -27,6 +28,12 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+  buildReviewedChildEnv,
+  buildTrustedToolPath,
+  resolveWindowsSystemExecutable,
+} from "./run-reviewed-powershell.mjs";
+
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const PROJECT_REF_RE = /^[a-z0-9]{20}$/;
@@ -37,6 +44,7 @@ const AGE_RECIPIENT_RE = /^age1[0-9a-z]{20,}$/;
 const DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_STORAGE_CONCURRENCY = 8;
+const MAX_ENCRYPTED_ARCHIVE_BYTES = 256 * 1024 * 1024 * 1024;
 const RECOVERY_FORMAT_VERSION = 2;
 const APPROVED_CRON_ARTIFACT_PATH = "operations/approved-cron-contract.json";
 const APPROVED_CRON_CONTRACT_VERSION = "hanbang-approved-maintenance-crons-v1";
@@ -67,39 +75,12 @@ const ARCHIVE_AUTHENTICITY_CONTRACT =
   "age-sender-signature-external-immutable-anchor-v1";
 const BLOCKED_ARCHIVE_AUTHENTICITY_STATUS =
   "blocked-key-custody-and-immutable-anchor-not-approved";
-const BASE_CHILD_ENV_KEYS = Object.freeze([
-  "SystemRoot",
-  "WINDIR",
-  "COMSPEC",
-  "PATHEXT",
-  "PATH",
-  "TEMP",
-  "TMP",
-  "HOME",
-  "USERPROFILE",
-  "APPDATA",
-  "LOCALAPPDATA",
-  "USERNAME",
-  "USERDOMAIN",
-  "LANG",
-  "LC_ALL",
-  "LC_CTYPE",
-  "TZ",
-  "NODE_EXTRA_CA_CERTS",
-  "SSL_CERT_FILE",
-  "SSL_CERT_DIR",
-]);
-const SUPABASE_CHILD_ENV_KEYS = Object.freeze([
-  ...BASE_CHILD_ENV_KEYS,
-  "SUPABASE_ACCESS_TOKEN",
-  "SUPABASE_PROFILE",
-  "SUPABASE_HOME",
-  "SUPABASE_NO_KEYRING",
-  "DOCKER_HOST",
-  "DOCKER_CONTEXT",
-  "DOCKER_CERT_PATH",
-  "DOCKER_TLS_VERIFY",
-]);
+
+function isExactProjectRef(value) {
+  return typeof value === "string" && PROJECT_REF_RE.test(value);
+}
+const SUPABASE_CHILD_ENV_KEYS = Object.freeze(["SUPABASE_ACCESS_TOKEN"]);
+const APPROVED_ADDITIONAL_CHILD_ENV_KEYS = new Set(SUPABASE_CHILD_ENV_KEYS);
 const REQUIRED_DATABASE_ARTIFACTS = Object.freeze({
   roles: "db/roles.sql",
   schema: "db/schema.sql",
@@ -203,9 +184,10 @@ function recoveryError(code, message, options) {
   return new RecoveryError(code, message, options);
 }
 
-export function buildMinimalChildEnv(source = process.env, allowedKeys = BASE_CHILD_ENV_KEYS) {
-  const result = {};
+export function buildMinimalChildEnv(source = process.env, allowedKeys = []) {
+  const result = buildReviewedChildEnv(source);
   for (const key of allowedKeys) {
+    if (!APPROVED_ADDITIONAL_CHILD_ENV_KEYS.has(key)) continue;
     const value = source?.[key];
     if (typeof value === "string" && value) result[key] = value;
   }
@@ -293,11 +275,10 @@ async function terminateNativeProcessTree(child) {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
 
   if (process.platform === "win32") {
-    const windowsRoot = process.env.SystemRoot || process.env.WINDIR;
-    const taskkill = windowsRoot
-      ? path.join(windowsRoot, "System32", "taskkill.exe")
-      : "";
-    if (!taskkill || !path.isAbsolute(taskkill) || !(await fileExists(taskkill))) {
+    let taskkill;
+    try {
+      taskkill = resolveWindowsSystemExecutable("taskkill.exe");
+    } catch {
       child.kill("SIGKILL");
       return false;
     }
@@ -346,6 +327,7 @@ export async function runBoundedRedacted({
   maxOutputBytes = DEFAULT_OUTPUT_LIMIT,
   captureStdout = false,
   stdoutFile,
+  stdinStream,
   expectedExitCodes = [0],
 }) {
   if (!path.isAbsolute(executable)) {
@@ -356,6 +338,9 @@ export async function runBoundedRedacted({
   }
   if (stdoutFile && captureStdout) {
     throw recoveryError("INVALID_OUTPUT_MODE", "stdoutFile and captureStdout are mutually exclusive.");
+  }
+  if (stdinStream && typeof stdinStream.pipe !== "function") {
+    throw recoveryError("INVALID_INPUT_STREAM", "Native stdin must be a readable stream.");
   }
 
   const stdoutScanner = new SensitiveScanner();
@@ -372,7 +357,7 @@ export async function runBoundedRedacted({
       shell: false,
       windowsHide: true,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [stdinStream ? "pipe" : "ignore", "pipe", "pipe"],
     });
   } catch (error) {
     throw recoveryError("CHILD_START_FAILED", "Native process could not be started.", { cause: error });
@@ -388,6 +373,9 @@ export async function runBoundedRedacted({
     child.stderr,
     captureTransform(stderrScanner, stderrCapture, false),
   );
+  const stdinPipeline = stdinStream
+    ? pipeline(stdinStream, child.stdin)
+    : Promise.resolve();
 
   const exitPromise = new Promise((resolve, reject) => {
     child.once("error", (error) => reject(error));
@@ -426,7 +414,7 @@ export async function runBoundedRedacted({
     } else {
       exit = outcome.exit;
     }
-    await Promise.all([stdoutPipeline, stderrPipeline]);
+    await Promise.all([stdinPipeline, stdoutPipeline, stderrPipeline]);
   } catch (error) {
     if (stdoutFile) await rm(stdoutFile, { force: true }).catch(() => {});
     throw recoveryError("CHILD_IO_FAILED", "Native process I/O failed.", { cause: error });
@@ -597,7 +585,12 @@ async function lockDownDirectory(directoryPath) {
   if (process.platform !== "win32") return;
   const username = process.env.USERNAME;
   if (!username) throw recoveryError("WINDOWS_IDENTITY_MISSING", "Windows user identity is unavailable.");
-  const icacls = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "icacls.exe");
+  let icacls;
+  try {
+    icacls = resolveWindowsSystemExecutable("icacls.exe");
+  } catch {
+    throw recoveryError("WINDOWS_ACL_TOOL_MISSING", "The reviewed Windows ACL runtime is unavailable.");
+  }
   await runBoundedRedacted({
     executable: icacls,
     args: [
@@ -742,9 +735,9 @@ async function runSupabase(binary, args, options = {}) {
 
 async function resolveExecutableFromPath(name) {
   const extensions = process.platform === "win32"
-    ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";")
+    ? [".EXE", ".CMD", ".BAT"]
     : [""];
-  for (const directory of (process.env.PATH ?? "").split(path.delimiter)) {
+  for (const directory of buildTrustedToolPath().split(path.delimiter)) {
     if (!directory) continue;
     for (const extension of extensions) {
       const candidate = path.join(directory, process.platform === "win32" ? `${name}${extension}` : name);
@@ -839,6 +832,146 @@ async function sha256File(filePath) {
     size += chunk.length;
   }
   return { sha256: hash.digest("hex"), size };
+}
+
+async function sha256FileHandle(handle) {
+  const hash = createHash("sha256");
+  let size = 0;
+  for await (const chunk of handle.createReadStream({ start: 0, autoClose: false })) {
+    hash.update(chunk);
+    size += chunk.length;
+  }
+  return { sha256: hash.digest("hex"), size };
+}
+
+export function createDigestingPassThrough() {
+  const hash = createHash("sha256");
+  let size = 0;
+  let completed;
+  const stream = new Transform({
+    transform(chunk, _encoding, callback) {
+      hash.update(chunk);
+      size += chunk.length;
+      callback(null, chunk);
+    },
+    flush(callback) {
+      completed = { sha256: hash.digest("hex"), size };
+      callback();
+    },
+  });
+  return {
+    stream,
+    digest() {
+      if (!completed) {
+        throw recoveryError(
+          "ARCHIVE_STREAM_INCOMPLETE",
+          "Encrypted archive stdin did not finish before verification.",
+        );
+      }
+      return completed;
+    },
+  };
+}
+
+export function assertArchiveStreamDigest(expected, actual) {
+  if (
+    !expected
+    || !actual
+    || expected.sha256 !== actual.sha256
+    || expected.size !== actual.size
+  ) {
+    throw recoveryError(
+      "ARCHIVE_SOURCE_CHANGED",
+      "Encrypted bytes consumed by the decryptor differ from the verified staged archive.",
+    );
+  }
+}
+
+function sameStableFileIdentity(left, right) {
+  return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"]
+    .every((key) => left[key] === right[key]);
+}
+
+export async function stageStableArchiveInput(sourcePath, destinationPath) {
+  let sourceHandle;
+  let destinationHandle;
+  try {
+    const pathIdentity = await lstat(sourcePath, { bigint: true });
+    if (
+      !pathIdentity.isFile()
+      || pathIdentity.nlink !== 1n
+      || pathIdentity.size <= 0n
+      || pathIdentity.size > BigInt(MAX_ENCRYPTED_ARCHIVE_BYTES)
+    ) {
+      throw recoveryError(
+        "ARCHIVE_SOURCE_UNSAFE",
+        "Encrypted archive input must be one bounded regular file without links.",
+      );
+    }
+    sourceHandle = await open(sourcePath, "r");
+    const before = await sourceHandle.stat({ bigint: true });
+    if (
+      !before.isFile()
+      || before.dev !== pathIdentity.dev
+      || before.ino !== pathIdentity.ino
+      || before.nlink !== 1n
+    ) {
+      throw recoveryError(
+        "ARCHIVE_SOURCE_CHANGED",
+        "Encrypted archive input changed while its file identity was being fixed.",
+      );
+    }
+
+    destinationHandle = await open(destinationPath, "wx+", 0o600);
+    const hash = createHash("sha256");
+    let size = 0;
+    for await (const chunk of sourceHandle.createReadStream({ start: 0, autoClose: false })) {
+      hash.update(chunk);
+      let offset = 0;
+      while (offset < chunk.length) {
+        const { bytesWritten } = await destinationHandle.write(
+          chunk,
+          offset,
+          chunk.length - offset,
+          size + offset,
+        );
+        if (bytesWritten <= 0) {
+          throw recoveryError("ARCHIVE_STAGE_SHORT_WRITE", "Encrypted archive staging stopped early.");
+        }
+        offset += bytesWritten;
+      }
+      size += chunk.length;
+      if (size > MAX_ENCRYPTED_ARCHIVE_BYTES) {
+        throw recoveryError("ARCHIVE_SOURCE_UNSAFE", "Encrypted archive exceeds the verified size limit.");
+      }
+    }
+    await destinationHandle.sync();
+    const after = await sourceHandle.stat({ bigint: true });
+    if (!sameStableFileIdentity(before, after) || BigInt(size) !== before.size) {
+      throw recoveryError(
+        "ARCHIVE_SOURCE_CHANGED",
+        "Encrypted archive input changed while it was copied into the secure workspace.",
+      );
+    }
+    await sourceHandle.close();
+    sourceHandle = undefined;
+    return {
+      handle: destinationHandle,
+      sha256: hash.digest("hex"),
+      size,
+    };
+  } catch (error) {
+    await destinationHandle?.close().catch(() => {});
+    await rm(destinationPath, { force: true }).catch(() => {});
+    if (error instanceof RecoveryError) throw error;
+    throw recoveryError(
+      "ARCHIVE_STAGE_FAILED",
+      "Encrypted archive could not be fixed inside the secure workspace.",
+      { cause: error },
+    );
+  } finally {
+    await sourceHandle?.close().catch(() => {});
+  }
 }
 
 function sha256Text(text) {
@@ -963,8 +1096,8 @@ function assertRestoreEvidenceIdentity(value) {
     || !UUID_RE.test(payload.restoreAttemptId ?? "")
     || !UUID_RE.test(payload.artifactId ?? "")
     || !SHA256_RE.test(payload.archiveSha256 ?? "")
-    || !PROJECT_REF_RE.test(payload.sourceProjectRef ?? "")
-    || !PROJECT_REF_RE.test(payload.targetProjectRef ?? "")
+    || !isExactProjectRef(payload.sourceProjectRef)
+    || !isExactProjectRef(payload.targetProjectRef)
     || payload.sourceProjectRef === payload.targetProjectRef
     || !/^[a-z_][a-z0-9_$]{0,62}$/.test(payload.targetDatabase ?? "")
     || !GIT_SHA_RE.test(payload.sourceGitSha ?? "")
@@ -1347,15 +1480,132 @@ function archiveAuthenticityDescriptor(policy) {
   };
 }
 
+function exactProjectRefList(value, label) {
+  if (!Array.isArray(value)) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", `${label} must be an array.`);
+  }
+  if (
+    value.some((ref) => !isExactProjectRef(ref))
+    || new Set(value).size !== value.length
+  ) {
+    throw recoveryError(
+      "RECOVERY_POLICY_INVALID",
+      `${label} must contain unique exact Supabase project refs.`,
+    );
+  }
+  return [...value];
+}
+
+export function assertRecoveryPolicyShape(targets) {
+  if (!targets || typeof targets !== "object" || Array.isArray(targets)) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "Recovery target policy must be an object.");
+  }
+  const production = exactProjectRefList(
+    targets.productionSupabaseProjectRefs,
+    "productionSupabaseProjectRefs",
+  );
+  const nonProduction = exactProjectRefList(
+    targets.approvedNonProductionSupabaseProjectRefs,
+    "approvedNonProductionSupabaseProjectRefs",
+  );
+  const policy = targets.backupPolicy;
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy must be an object.");
+  }
+  const restore = exactProjectRefList(
+    policy.allowedRestoreProjectRefs,
+    "backupPolicy.allowedRestoreProjectRefs",
+  );
+  const allRefs = [...production, ...nonProduction, ...restore];
+  if (new Set(allRefs).size !== allRefs.length) {
+    throw recoveryError(
+      "RECOVERY_POLICY_INVALID",
+      "Production, non-production source, and isolated restore refs must be disjoint.",
+    );
+  }
+  if (policy.status !== "not_configured") {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy.status is unsupported.");
+  }
+  if (!["not_configured", "approved-v1"].includes(policy.rehearsalStatus)) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy.rehearsalStatus is unsupported.");
+  }
+  if (policy.rehearsalStatus === "not_configured" && restore.length !== 0) {
+    throw recoveryError(
+      "RECOVERY_POLICY_INVALID",
+      "Restore refs require an explicitly approved rehearsal policy.",
+    );
+  }
+  if (policy.rehearsalStatus !== "not_configured" && restore.length === 0) {
+    throw recoveryError(
+      "RECOVERY_POLICY_INVALID",
+      "An approved rehearsal policy requires at least one isolated restore ref.",
+    );
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(policy.requiredCliVersion ?? "")) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy.requiredCliVersion is invalid.");
+  }
+  if (
+    !Number.isInteger(policy.maxStorageConcurrency)
+    || policy.maxStorageConcurrency < 1
+    || policy.maxStorageConcurrency > MAX_STORAGE_CONCURRENCY
+  ) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy.maxStorageConcurrency is invalid.");
+  }
+  if (
+    !Array.isArray(policy.ageRecipients)
+    || policy.ageRecipients.some(
+      (recipient) => typeof recipient !== "string" || !AGE_RECIPIENT_RE.test(recipient),
+    )
+    || new Set(policy.ageRecipients).size !== policy.ageRecipients.length
+  ) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "backupPolicy.ageRecipients is invalid.");
+  }
+  const authenticity = policy.archiveAuthenticity;
+  if (!authenticity || authenticity.contract !== ARCHIVE_AUTHENTICITY_CONTRACT) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "Archive authenticity contract is invalid.");
+  }
+  if (
+    authenticity.status !== BLOCKED_ARCHIVE_AUTHENTICITY_STATUS
+    || authenticity.senderSigningKeyRef !== null
+    || authenticity.externalImmutableAnchorRef !== null
+  ) {
+    throw recoveryError("RECOVERY_POLICY_INVALID", "Archive authenticity state is invalid.");
+  }
+  return targets;
+}
+
 async function loadReleaseTargets(repoRoot = REPO_ROOT) {
   const text = await readFile(path.join(repoRoot, "scripts", "release-targets.json"), "utf8");
-  return JSON.parse(text);
+  return assertRecoveryPolicyShape(JSON.parse(text));
 }
 
 function protectedRefs(targets) {
   return Array.isArray(targets.productionSupabaseProjectRefs)
-    ? targets.productionSupabaseProjectRefs.map(String)
+    ? targets.productionSupabaseProjectRefs.filter(isExactProjectRef)
     : [];
+}
+
+export function assertArchiveSourceExpectation({
+  expectedSourceProjectRef,
+  manifestSourceProjectRef,
+  targets,
+}) {
+  if (!isExactProjectRef(expectedSourceProjectRef)) {
+    throw recoveryError(
+      "SOURCE_PROJECT_REF_INVALID",
+      "Archive verification requires an explicit trusted source project ref.",
+    );
+  }
+  assertApprovedNonProductionSource(expectedSourceProjectRef, targets);
+  if (manifestSourceProjectRef !== expectedSourceProjectRef) {
+    throw recoveryError(
+      "ARCHIVE_SOURCE_MISMATCH",
+      "Recovery archive source project does not match expectation.",
+    );
+  }
+  return {
+    isProduction: protectedRefs(targets).includes(expectedSourceProjectRef),
+  };
 }
 
 export function assertProductionExportAllowed({
@@ -1393,7 +1643,7 @@ export function assertProductionExportAllowed({
 
 export function assertApprovedNonProductionSource(expectedProjectRef, targets) {
   const approved = Array.isArray(targets.approvedNonProductionSupabaseProjectRefs)
-    ? targets.approvedNonProductionSupabaseProjectRefs.map(String)
+    ? targets.approvedNonProductionSupabaseProjectRefs.filter(isExactProjectRef)
     : [];
   if (!protectedRefs(targets).includes(expectedProjectRef) && !approved.includes(expectedProjectRef)) {
     throw recoveryError(
@@ -1404,7 +1654,7 @@ export function assertApprovedNonProductionSource(expectedProjectRef, targets) {
 }
 
 export function assertRestoreTargetAllowed({ sourceProjectRef, targetProjectRef, targets }) {
-  if (!PROJECT_REF_RE.test(targetProjectRef ?? "")) {
+  if (!isExactProjectRef(targetProjectRef)) {
     throw recoveryError("TARGET_PROJECT_REF_INVALID", "A valid isolated target project ref is required.");
   }
   if (protectedRefs(targets).includes(targetProjectRef)) {
@@ -1415,9 +1665,12 @@ export function assertRestoreTargetAllowed({ sourceProjectRef, targetProjectRef,
   }
   const policy = targets.backupPolicy;
   const allowlist = Array.isArray(policy?.allowedRestoreProjectRefs)
-    ? policy.allowedRestoreProjectRefs.map(String)
+    ? policy.allowedRestoreProjectRefs.filter(isExactProjectRef)
     : [];
-  if (policy?.status !== "verified-v1" || !allowlist.includes(targetProjectRef)) {
+  if (
+    policy?.rehearsalStatus !== "approved-v1"
+    || !allowlist.includes(targetProjectRef)
+  ) {
     throw recoveryError("RESTORE_TARGET_NOT_APPROVED", "Isolated restore target is not approved by backup policy.");
   }
 }
@@ -2427,6 +2680,12 @@ export async function verifyArchive({
   stagingRoot,
   expectedSourceProjectRef,
 }) {
+  if (!isExactProjectRef(expectedSourceProjectRef)) {
+    throw recoveryError(
+      "SOURCE_PROJECT_REF_INVALID",
+      "Archive verification requires an explicit --expected-project-ref.",
+    );
+  }
   await assertSensitiveFilePath(identityFile);
   const publicManifest = JSON.parse(await readFile(publicManifestPath, "utf8"));
   if (
@@ -2435,36 +2694,52 @@ export async function verifyArchive({
   ) {
     throw recoveryError("PUBLIC_MANIFEST_INVALID", "Public recovery manifest is invalid.");
   }
-  if (expectedSourceProjectRef && publicManifest.source?.projectRef !== expectedSourceProjectRef) {
-    throw recoveryError("ARCHIVE_SOURCE_MISMATCH", "Recovery archive source project does not match expectation.");
-  }
-  const archiveDigest = await sha256File(archivePath);
-  if (
-    publicManifest.archive.file !== path.basename(archivePath) ||
-    archiveDigest.sha256 !== publicManifest.archive.sha256 ||
-    archiveDigest.size !== publicManifest.archive.size
-  ) {
-    throw recoveryError("ARCHIVE_DIGEST_MISMATCH", "Encrypted recovery archive digest does not match its manifest.");
-  }
-
   const targets = await loadReleaseTargets();
+  const sourceExpectation = assertArchiveSourceExpectation({
+    expectedSourceProjectRef,
+    manifestSourceProjectRef: publicManifest.source?.projectRef,
+    targets,
+  });
   const configuredAuthenticity = archiveAuthenticityDescriptor(
     targets.backupPolicy,
   );
   const tools = await resolveRecoveryTools({
-    isProduction: protectedRefs(targets).includes(publicManifest.source?.projectRef),
+    isProduction: sourceExpectation.isProduction,
     policy: targets.backupPolicy,
   });
   const workspace = await createSecureWorkspace(stagingRoot);
+  const stagedArchivePath = path.join(workspace, "archive.encrypted");
   const tarPath = path.join(workspace, "archive.tar");
   const extractDirectory = path.join(workspace, "extracted");
   const { ageExecutable, tarExecutable } = tools;
+  let archiveHandle;
+  let archiveDigest;
   try {
+    const stagedArchive = await stageStableArchiveInput(archivePath, stagedArchivePath);
+    archiveHandle = stagedArchive.handle;
+    archiveDigest = {
+      sha256: stagedArchive.sha256,
+      size: stagedArchive.size,
+    };
+    if (
+      publicManifest.archive.file !== path.basename(archivePath)
+      || archiveDigest.sha256 !== publicManifest.archive.sha256
+      || archiveDigest.size !== publicManifest.archive.size
+    ) {
+      throw recoveryError("ARCHIVE_DIGEST_MISMATCH", "Encrypted recovery archive digest does not match its manifest.");
+    }
+    const decryptInput = createDigestingPassThrough();
     await runBoundedRedacted({
       executable: ageExecutable,
-      args: ["-d", "-i", identityFile, "-o", tarPath, archivePath],
+      args: ["-d", "-i", identityFile, "-o", tarPath],
+      stdinStream: archiveHandle
+        .createReadStream({ start: 0, autoClose: false })
+        .pipe(decryptInput.stream),
       timeoutMs: 30 * 60_000,
     });
+    assertArchiveStreamDigest(archiveDigest, decryptInput.digest());
+    const postDecryptDigest = await sha256FileHandle(archiveHandle);
+    assertArchiveStreamDigest(archiveDigest, postDecryptDigest);
     await assertNonEmptyFile(tarPath);
     const listing = await runBoundedRedacted({
       executable: tarExecutable,
@@ -2507,10 +2782,7 @@ export async function verifyArchive({
         "Archive authenticity metadata does not match the checked-in blocked policy.",
       );
     }
-    if (
-      expectedSourceProjectRef &&
-      privateManifest.source?.projectRef !== expectedSourceProjectRef
-    ) {
+    if (privateManifest.source?.projectRef !== expectedSourceProjectRef) {
       throw recoveryError(
         "ARCHIVE_SOURCE_MISMATCH",
         "Encrypted recovery source project does not match expectation.",
@@ -2539,8 +2811,13 @@ export async function verifyArchive({
         extractDirectory,
       );
     return {
-      ok: true,
+      ok: false,
+      verificationScope: "encrypted-archive-self-consistency-v1",
+      archiveSelfConsistencyVerified: true,
       archiveIntegrityVerified: true,
+      producerAuthenticityVerified: false,
+      restoreEligible: false,
+      releaseEligible: false,
       artifactId: publicManifest.artifactId,
       sourceProjectRef: privateManifest.source.projectRef,
       sourceGitSha: privateManifest.source.gitSha,
@@ -2581,6 +2858,7 @@ export async function verifyArchive({
       archiveSha256: archiveDigest.sha256,
     };
   } finally {
+    await archiveHandle?.close().catch(() => {});
     await removeRecoveryPathVerified(workspace, { recursive: true });
   }
 }
@@ -2643,9 +2921,17 @@ async function captureGitState(repoRoot = REPO_ROOT) {
   return { head };
 }
 
+export function assertRecoveryExportExecutionEnabled() {
+  throw recoveryError(
+    "RECOVERY_EXPORT_NOT_ENABLED",
+    "Recovery export is disabled before any credential or Git boundary until an exact-target producer, filter-free worktree attestation, and signed backup lifecycle are verified.",
+  );
+}
+
 async function exportRecovery(args, repoRoot = REPO_ROOT) {
+  assertRecoveryExportExecutionEnabled();
   const expectedProjectRef = args["expected-project-ref"];
-  if (!PROJECT_REF_RE.test(expectedProjectRef ?? "")) {
+  if (!isExactProjectRef(expectedProjectRef)) {
     throw recoveryError("SOURCE_PROJECT_REF_INVALID", "--expected-project-ref is required.");
   }
   const targets = await loadReleaseTargets(repoRoot);
@@ -2683,6 +2969,8 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
   const startedAt = new Date().toISOString();
   const workspace = await createSecureWorkspace(stagingRoot);
   let encryptedArchive;
+  let partialManifest;
+  let partialManifestCreated = false;
   try {
     const preInventory = await captureInventory(binary, repoRoot);
     const preObjects = await listStorageObjects(binary);
@@ -2775,10 +3063,13 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
       tools,
     });
     const publicManifest = publicManifestFromPrivate(privateManifest, encryptedArchive, ageRecipient);
-    const partialManifest = path.join(outputRoot, `${artifactId}.manifest.json.partial`);
+    partialManifest = path.join(outputRoot, `${artifactId}.manifest.json.partial`);
     const finalManifest = path.join(outputRoot, `${artifactId}.manifest.json`);
     await writeFile(partialManifest, `${canonicalJson(publicManifest)}\n`, { mode: 0o600, flag: "wx" });
+    partialManifestCreated = true;
     await rename(partialManifest, finalManifest);
+    partialManifest = null;
+    partialManifestCreated = false;
     return {
       ok: true,
       artifactId,
@@ -2788,7 +3079,10 @@ async function exportRecovery(args, repoRoot = REPO_ROOT) {
       restoreDrillVerified: false,
     };
   } catch (error) {
-    if (encryptedArchive?.archivePath) await rm(encryptedArchive.archivePath, { force: true }).catch(() => {});
+    await removeRecoveryPathsVerified([
+      { targetPath: encryptedArchive?.archivePath },
+      { targetPath: partialManifestCreated ? partialManifest : null },
+    ]);
     throw error;
   } finally {
     await removeRecoveryPathsVerified([
@@ -3063,12 +3357,12 @@ export async function restoreVerifyReadiness({
   assertRestoreTargetAllowed({ sourceProjectRef, targetProjectRef, targets });
   const archiveEvidence = await archiveVerifier();
   if (
-    archiveEvidence?.ok !== true
+    archiveEvidence?.archiveSelfConsistencyVerified !== true
     || archiveEvidence.archiveIntegrityVerified !== true
   ) {
     throw recoveryError(
       "ARCHIVE_VERIFICATION_FAILED",
-      "Archive verification did not produce successful evidence.",
+      "Archive verification did not produce exact self-consistency evidence.",
     );
   }
   buildRestorePlan(archiveEvidence);
@@ -3116,7 +3410,7 @@ async function main(argv = process.argv.slice(2)) {
   }
   if (command === "restore-verify") {
     const expectedSourceProjectRef = args["expected-project-ref"];
-    if (!PROJECT_REF_RE.test(expectedSourceProjectRef ?? "")) {
+    if (!isExactProjectRef(expectedSourceProjectRef)) {
       throw recoveryError(
         "SOURCE_PROJECT_REF_INVALID",
         "restore-verify requires an explicit --expected-project-ref.",
@@ -3145,7 +3439,10 @@ const directRun = process.argv[1]
 
 if (directRun) {
   main()
-    .then((result) => console.log(JSON.stringify(result)))
+    .then((result) => {
+      console.log(JSON.stringify(result));
+      if (result?.ok === false) process.exitCode = 1;
+    })
     .catch((error) => {
       const code = error instanceof RecoveryError ? error.code : "RECOVERY_UNEXPECTED_ERROR";
       const message = error instanceof RecoveryError

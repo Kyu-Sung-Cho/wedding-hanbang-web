@@ -24,7 +24,8 @@
 - 현재 local migration은 총 115개다. 과거 운영 ledger 71개와 exact core baseline history 1개 reconcile을 가정하면 예상 pending suffix는 기존 35개에 위 8개를 더한 43개지만, 이는 실행 증거가 아니다. 운영 직전 read-only preflight로 remote history를 다시 읽고 exact 연속 prefix를 확인해야 한다.
 - Vercel Production에는 다른 경계와 재사용하지 않은 고엔트로피 `RESEARCH_EMAIL_VERIFICATION_SECRET`을 값 노출 없이 추가했고, `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`와 `ACCOUNT_DELETION_CRON_ENABLED=false`를 유지했다. 아직 이 변수를 사용하는 운영 deployment와 실제 Resend 전달은 검증하지 않았다. `ADMIN_PASSWORD`와 노출된 OpenAI 키 회전, Resend click tracking 비활성화, signed `APPLE_TEAM_ID`, Play App Signing SHA-256도 별도로 확인해야 한다. 값은 기록하지 않는다.
 - 새 코드의 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`은 소개·사용자 연구 안내·정책·association 경로만 허용하고 로그인·앱·일반 API를 서버에서 차단한다. 실제 연구 정보 접수는 별도 서버 전용 `RESEARCH_COHORT_APPLICATIONS_ENABLED=true`가 있어야만 열리며, production/preview에서 미설정은 fail-closed다. 일반 베타 알림 신청과 연구 코호트를 같은 동의로 취급하지 않는다. 이 동작은 아직 운영 deployment에 반영되지 않았다.
-- 운영 배포는 **NO-GO**다. `database-readonly-realtime-cron-v1` 도구는 한 컴퓨터 안의 lifecycle lock, clean HEAD/tree, fresh baseline, 기존 pooled session 종료 경계, durable journal과 exact restore를 검사하지만 실제 disposable black-box 증거가 없어 fence는 `not_configured`다. 또한 Management API/DB 사이의 원자적 change-freeze 부재, 명시적 project-ref Management DB query와 실제 `supabase-ship-safe.ps1 --linked` migration 연결의 identity 불일치, 알려진 네 service role 밖의 새 writable role, 다른 PC/CI를 막는 provider-side lease 부재, migration-start와 push가 같은 shared ownership 구간에 묶이지 않은 경계가 남는다. exact-target runner 초안은 release fuse 우회·동등 flag grammar·reviewed native binary hash 경계를 모두 닫지 못해 채택하지 않았고, production ship/reconcile과 출처 attestation 없는 offline evidence는 코드에서 hard-stop한다. 암호화 export 도구도 Phase A이며 실제 isolated restore를 실행하지 않았으므로 `backupPolicy.status=not_configured`다.
+- 운영 배포는 **NO-GO**다. `database-readonly-realtime-cron-v1`의 내부 모델은 한 컴퓨터 안의 lifecycle lock, clean HEAD/tree, fresh baseline, 기존 pooled session 종료 경계, durable journal과 exact restore를 검사하지만 실제 disposable black-box 증거가 없어 fence는 `not_configured`다. journal root는 환경변수가 아니라 Windows known-folder의 canonical LocalApplicationData로 고정하고 offline Plan test만 별도 process-local override를 허용한다. 또한 Management API/DB 사이의 원자적 change-freeze 부재, 명시적 project-ref Management DB query와 실제 `supabase-ship-safe.ps1 --linked` migration 연결의 identity 불일치, 알려진 네 service role 밖의 새 writable role, 다른 PC/CI를 막는 provider-side lease 부재, migration-start와 push가 같은 shared ownership 구간에 묶이지 않은 경계가 남는다. exact-target runner 초안은 release fuse 우회·동등 flag grammar·reviewed native binary hash 경계를 모두 닫지 못해 채택하지 않았다. reviewed launcher는 비밀·proxy/custom CA·tool override를 제거하고 고정 Windows runtime만 사용한다. 세 entrypoint와 process 내부 bootstrap을 LF-stable SHA-256으로 고정하고, 검증한 bootstrap의 같은 UTF-8 source를 `-Command`로 실행한다. bootstrap은 system module path를 재고정하고 exact OS module manifest만 import한 뒤 auto-loading을 끈다. 모델이 소비하는 `release-targets.json`과 status SQL도 별도 digest에 고정해 같은 읽은 내용을 in-memory envelope로 전달한다. 운영 fence entrypoint의 dot-source는 함수 정의 전에 거부한다. Git system/global config와 fsmonitor를 격리해도 repo-local clean filter의 arbitrary process 실행과 과거 snapshot의 cross-version HEAD 역설이 남는다. 이 컴퓨터의 canonical journal root에는 JSON snapshot과 lifecycle lock이 각각 0개였으므로 **ship, baseline reconcile과 write-fence의 모든 remote action을 companion file·credential·journal·Git·remote boundary 전에 hard-stop**한다. Help와 write-fence `Plan`, credential-free isolated contract test만 남고 운영 dispatcher는 없다. MarkMigrationStarted/Verified action도 제거했다. provider-side same-connection coordinator, filter-free worktree attestation, signed cross-version recovery receipt와 disposable rehearsal 전에는 hard-stop을 제거하지 않는다.
+- 암호화 export 도구는 Phase A다. `verify-archive`는 trusted expected source ref를 필수로 받고 manifest가 tool policy를 낮추지 못하게 했으며 self-consistency 결과도 `ok=false`, `restoreEligible=false`, `releaseEligible=false`다. 외부 archive pathname은 secure workspace에 한 번만 regular-file identity로 고정해 복사·해시하고 같은 open handle의 exact stdin digest와 사후 rehash를 모두 비교한다. backup `export`는 exact-target producer, filter-free worktree attestation과 signed lifecycle이 없어 credential·Git 검사 전에 무조건 hard-stop한다. `backupPolicy.rehearsalStatus`와 production `status`는 strict validator가 `not_configured`로 유지하며 trusted producer 전에는 어떠한 `verified-v1` 선언도 거부한다. 실제 DB/Storage restore, sender signature, immutable anchor, cron activation/post-activation, provider recovery-point RPO와 service-canary RTO도 없다.
 - 이전 CLI 조사 중 임시 login-role credential이 로그에 노출된 사고가 있었으므로, 기존 CLI login role과 PAT를 폐기하고 새 토큰으로 재로그인·재링크하기 전에는 원격 Supabase 명령을 실행하지 않는다.
 - Git에 migration이 존재하는 것과 운영 DB에 적용된 것은 별개다. 아래 gate를 모두 통과하기 전에는 운영 DB를 변경하지 않는다.
 
@@ -39,7 +40,7 @@
 - 배포 commit과 동일한 Vercel maintenance deployment
 - production preflight에서 요구하는 데이터 정리·명시적 ACK
 
-비밀값은 현재 PowerShell 프로세스의 환경 변수로만 넣는다. `.env*`, 문서, 이슈, 채팅, Git에 기록하지 않는다.
+reviewed launcher는 부모 shell의 Supabase/OpenAI/Resend/GitHub 비밀을 자식 PowerShell에 전달하지 않는다. 필요한 DB password, service-role/anon key, Management token은 각 guarded script의 숨김 prompt에서만 입력하고 process lifetime이 끝나면 지운다. token·password·DB URL을 argv, `.env*`, 문서, 이슈, 채팅, Git에 기록하지 않는다.
 
 ## 원격 작업 전 credential 사고 복구 — 선행 hard gate
 
@@ -84,7 +85,7 @@ corepack pnpm supabase:baseline:core -- -ExpectedProjectRef <production-project-
 
 ## 보호된 운영 적용
 
-운영 적용은 아래 guarded workflow만 사용한다. 현재 launcher는 pnpm 인수 구분자 `--`를 제거해 OS별 PowerShell runtime으로 전달한다.
+운영 적용은 아래 guarded workflow만 사용한다. 현재 launcher는 pnpm 인수 구분자 `--`를 제거해 고정된 Windows PowerShell runtime으로 전달하며 다른 OS에서는 실행을 거부한다.
 
 ```powershell
 corepack pnpm supabase:ship:safe -- -ExpectedProjectRef <production-project-ref>

@@ -20,27 +20,24 @@ const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
 };
 
 describe("database-readonly-realtime-cron-v1 write fence", () => {
-  it("hard-stops protected production before credentials or remote operations while the checked-in fuse is open", () => {
+  it("hard-stops every remote action before companion, credential, journal, Git, or network boundaries", () => {
     expect(releaseTargets.productionDatabaseWriteFence).toBe("not_configured");
     expect(releaseTargets.approvedNonProductionSupabaseProjectRefs).toEqual([]);
     expect(fence).toContain('$script:Contract = "database-readonly-realtime-cron-v1"');
     expect(fence).toContain("$script:RunningOnWindows");
     expect(fence).not.toMatch(/\$script:IsWindows\b/i);
-    expect(fence).toContain('productionDatabaseWriteFence -ne "verified-v1"');
-
-    const productionGuard = fence.indexOf('productionDatabaseWriteFence -ne "verified-v1"');
-    const permanentGuard = fence.indexOf("Protected production write-fence actions remain disabled", productionGuard);
-    const credentialPrompt = fence.indexOf("Read-Host", productionGuard);
-    const managementRequest = fence.indexOf("Invoke-RestMethod", productionGuard);
-    const databaseQuery = fence.indexOf(
+    const remoteStop = fence.indexOf("All remote write-fence execution is disabled");
+    expect(remoteStop).toBeGreaterThanOrEqual(0);
+    for (const boundary of [
+      "$injectedReleaseTargetsJson",
+      'Get-Content -Raw -LiteralPath "scripts/release-targets.json"',
+      "function Read-FenceSecret",
+      "function Get-CleanReviewedGitIdentity",
+      "function Enter-ProjectFenceLifecycleLock",
+      "Invoke-RestMethod",
       '"/v1/projects/$ExpectedProjectRef/database/query"',
-      productionGuard
-    );
-
-    expect(productionGuard).toBeGreaterThanOrEqual(0);
-    expect(permanentGuard).toBeGreaterThan(productionGuard);
-    for (const remoteBoundary of [credentialPrompt, managementRequest, databaseQuery]) {
-      expect(remoteBoundary).toBeGreaterThan(productionGuard);
+    ]) {
+      expect(fence.indexOf(boundary)).toBeGreaterThan(remoteStop);
     }
   });
 
@@ -50,6 +47,15 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(statusSql).toContain("cron.launch_active_jobs");
     expect(statusSql).toContain("pg_stat_activity");
     expect(statusSql).toContain("jsonb_build_object");
+    expect(fence).toContain('"ReviewedReleaseTargetsJson"');
+    expect(fence).toContain('"ReviewedFenceStatusSql"');
+    const statusReader = fence.slice(
+      fence.indexOf("function Read-FenceDatabaseStatus"),
+      fence.indexOf("function Get-DatabaseCaptureBaselineProjection")
+    );
+    expect(statusReader).toContain("-Sql $script:StatusSql");
+    expect(statusReader).not.toContain("Get-Content");
+    expect(statusReader).not.toContain("StatusSqlPath");
   });
 
   it("exposes a local Plan action that performs no remote work and never accepts credentials as CLI arguments", () => {
@@ -143,8 +149,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(statusSql).not.toContain("sourcefile',");
   });
 
-  it("rechecks the reviewed HEAD before activation and makes migration start an explicit irreversible journal boundary", () => {
-    expect(fence).toContain('"MarkMigrationStarted"');
+  it("keeps reviewed-HEAD checks inside the offline model while operational execution remains Plan-only", () => {
     expect(fence).toContain("function Assert-SnapshotHead");
     expect(fence).toContain("function Get-CleanReviewedGitIdentity");
     expect(fence).toContain('git status --porcelain=v1 --untracked-files=all');
@@ -155,13 +160,17 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(headCheck).toBeGreaterThan(activation);
     expect(firstRemoteMutation).toBeGreaterThan(headCheck);
 
-    expect(fence).toContain('$snapshot.migrationStarted = $true');
-    expect(fence).toContain('$snapshot.state = "migration_in_progress"');
-    expect(fence).toContain('Set-FenceStep $snapshot "migration" "started"');
-    expect(fence).toContain('$Snapshot.state = "manual_recovery_required"');
-    expect(fence).toContain(
-      "Migration started without separate post-migration evidence; the fence remains active."
-    );
+    const remoteStop = fence.indexOf('if ($Action -ne "Plan")');
+    const firstFunction = fence.indexOf("function Convert-SecureStringToPlainText");
+    const planBoundary = fence.indexOf('if ($Action -eq "Plan")');
+    const operationalTail = fence.slice(planBoundary);
+    expect(remoteStop).toBeGreaterThanOrEqual(0);
+    expect(firstFunction).toBeGreaterThan(remoteStop);
+    expect(operationalTail).not.toContain("switch ($Action)");
+    expect(operationalTail).not.toContain("Restore-Fence");
+    expect(fence).not.toContain("MarkMigrationStarted");
+    expect(fence).not.toContain("MarkMigrationVerified");
+    expect(fence.indexOf('$snapshot.state = "migration_in_progress"', planBoundary)).toBe(-1);
   });
 
   it("journals every mutating step before execution so ambiguous timeouts remain recoverable", () => {
@@ -189,9 +198,9 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain('$_.status -in @("pending", "applied")');
   });
 
-  it("keeps the hidden Management token process-local and out of child-process environments", () => {
-    expect(fence).toContain("$script:ManagementAccessToken = $managementToken");
+  it("keeps modeled Management access process-local while operational code never acquires a token", () => {
     expect(fence).toContain("$script:ManagementAccessToken = $null");
+    expect(fence).not.toContain("$script:ManagementAccessToken = $managementToken");
     expect(fence).not.toContain("$env:SUPABASE_ACCESS_TOKEN = $managementToken");
     expect(fence).not.toContain("$env:SUPABASE_DB_PASSWORD");
 
@@ -205,6 +214,9 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     );
     expect(queryHelper).not.toContain("corepack pnpm exec supabase db query");
     expect(queryHelper).not.toContain("-DatabasePassword");
+    const operationalTail = fence.slice(fence.indexOf('if ($Action -eq "Plan")'));
+    expect(operationalTail).not.toContain("Read-FenceSecret");
+    expect(operationalTail).not.toContain("ManagementAccessToken");
   });
 
   it("waits for positive network-enforcement evidence and a transaction/cron drain", () => {
@@ -236,18 +248,21 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("terminationFailures");
   });
 
-  it("keeps the linked ref as an intent check while pinning DB rows to the explicit project API", () => {
+  it("models a locked linked-ref check without exposing it through the Plan-only dispatcher", () => {
     expect(fence).toContain("[IO.FileShare]::Read");
-    expect(fence).toContain("$linkLock.Dispose()");
+    expect(fence).toContain("function Enter-LinkedProjectReadLock");
+    expect(fence).toContain("$handle.Dispose()");
     expect(fence).toContain("function ConvertFrom-SupabaseQueryRows");
     expect(fence).toContain("$document -is [Array]");
     expect(fence).toContain("The old CLI wrapper is deliberately recognized only to reject it");
     expect(fence).toContain("read_only = [bool]$ReadOnly");
     expect(fence).toContain("StatusCode -ne 201");
+    const operationalTail = fence.slice(fence.indexOf('if ($Action -eq "Plan")'));
+    expect(operationalTail).not.toContain("Enter-LinkedProjectReadLock");
+    expect(operationalTail).not.toContain("Invoke-FenceDatabaseQuery");
   });
 
-  it("requires separate post-migration evidence before a started migration can release the fence", () => {
-    expect(fence).toContain('"MarkMigrationVerified"');
+  it("models bound post-migration evidence without exposing an operational recovery dispatcher", () => {
     expect(fence).toContain("[string]$PostMigrationEvidencePath");
     expect(fence).toContain("function Read-PostMigrationEvidence");
     expect(fence).toContain("post-migration-release-evidence-v1");
@@ -263,19 +278,13 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     }
     expect(fence).toContain("$payload = Read-FenceJournalPayloadBounded $Path");
     expect(fence).toContain("digestSha256 = $payload.digestSha256");
-    expect(fence).toContain('$snapshot.state = "migration_verified"');
-    expect(fence).toContain("$snapshot.migrationVerified = $true");
     expect(fence).toContain(
       "$Snapshot.migrationStarted -eq $true -and $Snapshot.migrationVerified -ne $true"
     );
-    expect(fence).toContain(
-      "Production cannot accept operator-authored post-migration evidence"
-    );
-
-    const verificationAction = fence.indexOf('if ($Action -eq "MarkMigrationVerified")');
-    const credentialBoundary = fence.indexOf("Assert-LinkedProject", verificationAction);
-    expect(verificationAction).toBeGreaterThanOrEqual(0);
-    expect(credentialBoundary).toBeGreaterThan(verificationAction);
+    expect(fence).not.toContain('if ($Action -eq "MarkMigrationVerified")');
+    const operationalTail = fence.slice(fence.indexOf('if ($Action -eq "Plan")'));
+    expect(operationalTail).not.toContain("Assert-RestoreEvidenceBoundary");
+    expect(operationalTail).not.toContain("Read-FenceSecret");
   });
 
   it("binds journal JSON and evidence digests to one bounded, strict UTF-8 file handle", () => {
@@ -292,7 +301,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(payloadReader).not.toContain("Get-FileHash");
   });
 
-  it("rejects forged lifecycle graphs and rebinds verified evidence before credentials", () => {
+  it("rejects forged lifecycle graphs inside the credential-free offline model", () => {
     expect(fence).toContain("function Assert-FenceLifecycleGraph");
     expect(fence).toContain("function Assert-PostMigrationEvidenceSummary");
     expect(fence).toContain("Write-fence snapshot contains duplicate journal steps");
@@ -302,14 +311,9 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("function Assert-RestoreEvidenceBoundary");
     expect(fence).toContain("Assert-PostMigrationEvidenceRebound $reboundEvidencePath $Snapshot");
 
-    const restorePreflight = fence.slice(
-      fence.indexOf('if ($Action -in @("Deactivate", "Recover"))'),
-      fence.indexOf("$managementToken = $null")
-    );
-    expect(restorePreflight).toContain("Assert-RestoreTransitionAllowed");
-    expect(restorePreflight).toContain("Assert-RestoreEvidenceBoundary");
-    expect(fence.indexOf("Assert-RestoreEvidenceBoundary $preflightRestoreSnapshot"))
-      .toBeLessThan(fence.indexOf('Read-FenceSecret "Paste a project-scoped Supabase Management token'));
+    const operationalTail = fence.slice(fence.indexOf('if ($Action -eq "Plan")'));
+    expect(operationalTail).not.toContain("Assert-RestoreTransitionAllowed");
+    expect(operationalTail).not.toContain("Assert-RestoreEvidenceBoundary");
   });
 
   it("enforces owner-only journal directories, locks, payloads, and snapshots", () => {
@@ -324,7 +328,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("Assert-FenceJournalPathPrivate -Path $fullPath -Directory:$Directory");
   });
 
-  it("binds snapshot production identity to protected refs and defaults unknown remote refs to denied", () => {
+  it("models protected snapshot identity and rejects every direct remote action", () => {
     expect(fence).toContain("function Assert-FenceSnapshotSafety");
     expect(fence).toContain("Assert-FenceSnapshotSafety $snapshot");
     expect(fence).toContain("Write-fence snapshot production identity does not match the protected-ref policy");
@@ -343,7 +347,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
         "-File",
         resolve(repoRoot, "scripts/supabase-write-fence.ps1"),
         "-Action",
-        "MarkMigrationStarted",
+        "Recover",
         "-ExpectedProjectRef",
         "abcdefghijklmnopqrst",
         "-SnapshotPath",
@@ -353,7 +357,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     );
     expect(result.status).not.toBe(0);
     const normalizedStderr = normalizeShellDiagnostic(result.stderr);
-    expect(normalizedStderr).toContain("approved non-production project ref");
+    expect(normalizedStderr).toContain("All remote write-fence execution is disabled");
   }, 20_000);
 
   it("keeps service roles read-only until management is verified, resumes cron last, and re-fences on failure", () => {

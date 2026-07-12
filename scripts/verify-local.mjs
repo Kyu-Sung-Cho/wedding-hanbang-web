@@ -29,6 +29,10 @@ const checks = [
     args: ["pnpm", "supabase:recovery:test"],
   },
   {
+    name: "reviewed PowerShell launcher environment tests",
+    args: ["pnpm", "supabase:launcher:test"],
+  },
+  {
     name: "Supabase hosted Auth config contract tests",
     args: ["pnpm", "supabase:auth-config:test"],
   },

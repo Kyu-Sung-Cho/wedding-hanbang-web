@@ -4,7 +4,7 @@
 
 ## 불변 규칙
 
-`apps/web/vercel.json`은 모든 Git push/PR의 자동 Vercel 배포를 차단한다. 과거 Kakao 키가 회전·폐기되고 전체 이력 처리가 승인되기 전에 build dependency가 저장소를 실행하거나 환경 변수를 읽지 못하게 하며, `main` 병합이 DB gate보다 먼저 production 코드를 공개하지 못하게 하는 안전장치다. 이 설정을 다시 켜는 변경은 Kakao 회전 증거와 출시 안전 검토 없이 병합하지 않는다. 모든 Production-target deployment는 clean exact-SHA checkout에서 `--skip-domain`으로 먼저 staged한 뒤 identity와 환경 계약을 확인하고 명시적으로 promote한다. DB 변경 전에는 `coming_soon` rollback anchor와 maintenance deployment만 promote할 수 있고, 일반 서비스 deployment는 backup/write fence/migration/post-contract가 모두 통과한 뒤에만 promote한다.
+`apps/web/vercel.json`은 모든 Git push/PR의 자동 Vercel 배포를 차단한다. 과거 Kakao 키가 회전·폐기되고 전체 이력 처리가 승인되기 전에 build dependency가 저장소를 실행하거나 환경 변수를 읽지 못하게 하며, `main` 병합이 DB gate보다 먼저 production 코드를 공개하지 못하게 하는 안전장치다. 이 설정을 다시 켜는 변경은 Kakao 회전 증거와 출시 안전 검토 없이 병합하지 않는다. 모든 Production-target deployment는 별도의 보호된 trusted controller가 exact SHA로 먼저 staged한 뒤 identity와 환경 계약을 확인하고 같은 deployment ID만 명시적으로 promote한다. 로컬 CLI는 이 증거를 생산하지 않는다. DB 변경 전에는 `coming_soon` rollback anchor와 maintenance deployment만 promote할 수 있고, 일반 서비스 deployment는 backup/write fence/migration/post-contract가 모두 통과한 뒤에만 promote한다.
 
 - 운영 Supabase ref는 `scripts/release-targets.json`의 보호 목록과 실행 인수가 모두 같아야 한다.
 - `productionDatabaseWriteFence`는 실제 웹·모바일의 DB/Storage 직접 쓰기 차단을 자동 probe로 입증하기 전에는 `not_configured`를 유지한다. 형식적으로 `verified-v1`로 바꾸지 않는다.
@@ -178,9 +178,29 @@ PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소�
 
 ### 1. exact-SHA rollback anchor staged 배포
 
-현재 `main`의 과거 Vercel deployment는 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`을 해석하지 않아 Instant Rollback 시 로그인·앱·일반 API가 다시 열릴 수 있다. 따라서 DB 변경 전에 launch gate를 포함한 exact SHA를 Production 환경으로 빌드하되, 검증 전에는 `hanbang.ai`에 연결하지 않는다.
+#### 1-A. trusted deployment producer 선행조건
 
-먼저 Vercel Production 환경을 아래 안전 상태로 맞추고 변수 이름·target·최종 수정 시각만 기록한다. 값은 출력하지 않는다.
+현재 저장소에는 CI workflow만 있고 배포 workflow가 없다. `main` branch protection/ruleset과 GitHub `Production` environment 승인·branch policy도 강제되지 않으며, private repository에서 필요한 보호 기능은 현재 요금제 API가 403으로 거부한다. 이 상태에서 같은 저장소에 Vercel token이나 production environment secret을 넣지 않는다. CODEOWNERS는 보호 규칙이 실제로 켜지기 전에는 승인 강제가 아니라 소유권 선언일 뿐이다.
+
+운영 proof는 별도의 보호된 `release-control` 저장소 또는 동등한 외부 승인 시스템이 생산해야 한다. controller는 앱 저장소나 PR artifact/cache를 credential-bearing job에서 실행하지 않고, create 전에 독립 승인된 exact SHA만 받아 다음을 모두 fail-closed로 확인한다.
+
+1. 입력은 exact 40자 release SHA와 독립 code/release approval receipt이고 GitHub repository ID와 `main` HEAD가 고정된 allowlist와 일치한다. create 직전과 promote 직전에 모두 다시 조회한다.
+2. 앱 저장소가 스스로 주장한 check 이름만 신뢰하지 않는다. 보호된 workflow ID·workflow definition digest·producer identity를 고정하고, release-control의 비밀 없는 독립 gate가 full history, exact SHA, Windows reviewed-launcher contract와 정책을 다시 검사한다. 코드 실행이 필요한 quality 결과는 독립 승인된 no-secret producer의 attestation으로 받는다. `pull_request_target`, PR artifact를 소비하는 privileged `workflow_run`, issue/comment deploy는 사용하지 않는다.
+3. project 단위 controller concurrency는 `cancel-in-progress=false`로 직렬화한다. Vercel create-deployment API에 외부에서 고정한 team/project/GitHub repository ID와 `gitSource={type,repoId,ref,sha}`를 전달하고 응답의 네 필드를 모두 exact 비교한다. custom-domain 자동 할당은 꺼진 상태에서 Production target을 staged로 만들고 apex alias의 예상 이전 deployment ID가 움직이지 않았음을 확인한다.
+4. Vercel API에서 같은 deployment ID의 project/team, `gitSource.sha`, target, `READY`, immutable URL을 확인하고 alias API가 deployment ID를 결합한다. runtime health와 canary는 SHA·Supabase ref·기능 상태를 별도로 결합하며 health가 deployment ID를 반환한다고 가정하지 않는다.
+5. promote 직전에 `main`, 독립 승인 receipt, staged deployment identity와 apex alias의 예상 이전 deployment ID를 다시 읽는다. out-of-band alias 변경이 있으면 controller lock과 무관하게 중단한다. 그 뒤 같은 deployment ID만 promote하고, alias API의 deployment ID와 `hanbang.ai` health의 SHA가 각각 기대값과 일치할 때만 Vercel promotion proof를 발행한다.
+
+staged receipt와 promoted Vercel-only receipt는 모두 `releaseEligible=false`다. promoted receipt의 `productionProof`는 Vercel promotion 범위만 뜻하며 DB fence·backup/restore·mobile 등 전체 gate의 결과를 대신하지 않는다. 별도의 release aggregator만 모든 receipt를 결합해 전역 출시 자격을 판단한다. receipt에는 allowlist된 ID·SHA·run ID·boolean·digest와 외부 서명/attestation만 기록한다. Vercel 원문 응답, header, 환경 변수 값은 evidence에 넣지 않는다.
+
+공식 근거: [GitHub pull_request_target 보안](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target), [GitHub deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments), [Vercel create deployment API](https://vercel.com/docs/rest-api/deployments/create-a-new-deployment), [Vercel staged promotion](https://vercel.com/docs/deployments/promoting-a-deployment).
+
+#### 1-B. controller-only 실행 계약 — 로컬 CLI 실행 금지
+
+이 절 이하의 Vercel 환경 변경·staged create·promote는 보호된 controller와 서명 receipt가 구현되기 전에는 실행하지 않는다. ignored/untracked `.vercel/project.json`, 로컬 credential, 사람의 `inspect` 판독은 공급자 설정 진단에도 보조 자료일 뿐이며 `sourceAttestationVerified`, `productionProof`, `releaseEligible`로 승격하지 않는다. 과거 로컬 `vercel deploy/promote` 명령은 승인 경로에서 제거했다. 실제 장애 중 break-glass가 필요하면 별도의 incident commander 승인, 사전 rollback 대상, 이중 통제, 사후 credential 회전이 있어야 하며 그 실행도 정상 출시 proof가 아니다.
+
+현재 `main`의 과거 Vercel deployment는 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`을 해석하지 않아 Instant Rollback 시 로그인·앱·일반 API가 다시 열릴 수 있다. 따라서 trusted controller는 DB 변경 전에 launch gate를 포함한 exact SHA를 Production target으로 staged하되, 검증 전에는 `hanbang.ai`에 연결하지 않는다.
+
+controller는 승인된 환경 snapshot을 아래 안전 상태로 만들고 변수 이름·target·최종 수정 시각과 redacted digest만 기록한다. 사람이 로컬 CLI로 값을 바꾸지 않으며 값은 출력하지 않는다.
 
 - `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`
 - `MAINTENANCE_MODE=false`
@@ -191,35 +211,7 @@ PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소�
 
 `ANTHROPIC_API_KEY` 제거는 현재 코드에 Anthropic runtime consumer가 없고 OpenAI staged canary가 성공한다는 사실을 먼저 확인한 뒤 수행한다. 과거 Claude 가격표와 감사 row 호환 코드는 credential consumer가 아니다. 새 deployment의 환경 inventory에서 이름이 사라졌고 구 Anthropic key가 공급자에서 폐기됐다는 증거를 모두 남긴다. 과거 production deployment에 의존해 되돌리는 rollback은 금지하고, 회전된 OpenAI 환경을 가진 exact-SHA rollback anchor만 사용한다.
 
-저장소 루트에서 clean exact SHA를 확인한 뒤 `apps/web`의 이미 검토된 Vercel project link를 사용한다. Vercel CLI는 release ticket에 버전을 고정하고 `latest`를 사용하지 않는다. 아래 변수는 같은 통제된 운영 shell에서 유지하거나 release evidence에 기록한 exact 값을 다시 주입하며, 움직이는 branch에서 다시 추론하지 않는다.
-
-```powershell
-$ReviewedSha = (git rev-parse HEAD).Trim()
-if ($ReviewedSha -notmatch '^[0-9a-f]{40}$') { throw "Invalid reviewed SHA" }
-$Dirty = @(git status --porcelain=v1 --untracked-files=all)
-if ($Dirty.Count -ne 0) { throw "Worktree must be clean" }
-
-$VercelCliVersion = "55.0.0" # PR #38 release audit pin, reviewed 2026-07-12
-function Assert-NativeSuccess([string]$Step) {
-  if ($LASTEXITCODE -ne 0) { throw "$Step failed" }
-}
-
-Push-Location apps/web
-try {
-  corepack pnpm dlx "vercel@$VercelCliVersion" --version
-  Assert-NativeSuccess "Vercel CLI version check"
-  $AnchorOutput = @(& corepack pnpm dlx "vercel@$VercelCliVersion" deploy --prod --skip-domain --force --yes --scope hanbang)
-  Assert-NativeSuccess "Anchor staged deployment"
-  $AnchorUrl = ([string]($AnchorOutput | Select-Object -Last 1)).Trim()
-  if ($AnchorUrl -notmatch '^https://[a-z0-9-]+\.vercel\.app/?$') { throw "Unexpected anchor URL" }
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $AnchorUrl --scope hanbang
-  Assert-NativeSuccess "Anchor inspect"
-} finally {
-  Pop-Location
-}
-```
-
-`inspect`에서 project가 `wedding-hanbang-web`, target이 Production이고 새 immutable deployment ID가 생성됐는지 확인한다. 이어서 custom domain이 아니라 `$AnchorUrl`에서 health와 `coming_soon` canary를 실행해 다음을 확인한다.
+controller는 외부 allowlist의 repository/team/project ID와 exact `$ReviewedSha`를 Vercel API에 전달해 immutable anchor를 만들고, 응답의 deployment ID·Production target·SHA·READY를 strict schema로 검증한다. 이어서 custom domain이 아니라 immutable anchor URL에서 health와 `coming_soon` canary를 실행해 다음을 확인한다.
 
 ```text
 deployment = $ReviewedSha 전체 40자리
@@ -234,25 +226,13 @@ accountDeletionCronEnabled = false
 node ./scripts/live-smoke-test.mjs --base-url=$AnchorUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
-SHA, Supabase ref, 환경 계약, deployment ID 중 하나라도 다르면 staged deployment를 promote하지 않는다. 모두 통과한 경우에만 아래처럼 custom domain을 같은 ID로 승격하고, 승격 뒤 `hanbang.ai`에서 같은 canary를 다시 실행한다.
-
-```powershell
-Push-Location apps/web
-try {
-  corepack pnpm dlx "vercel@$VercelCliVersion" promote $AnchorUrl --yes --scope hanbang
-  Assert-NativeSuccess "Anchor promote"
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $AnchorUrl --scope hanbang
-  Assert-NativeSuccess "Promoted anchor inspect"
-} finally {
-  Pop-Location
-}
-```
+SHA, Supabase ref, 환경 계약, deployment ID 중 하나라도 다르면 staged deployment를 promote하지 않는다. 모두 통과하고 독립 승인이 있으면 controller가 create 직전과 같은 `main` SHA를 다시 확인한 뒤 같은 deployment ID만 승격하고, 승격 뒤 alias API와 `hanbang.ai` canary를 다시 실행한다.
 
 승격 전후 deployment ID가 같고 domain alias가 그 ID를 가리키는지 기록한다. 이 ID만 DB 변경 전 rollback anchor로 승인한다. 과거 gate 없는 deployment는 계속 rollback 대상에서 제외한다.
 
 ### 2. exact-SHA maintenance staged 배포
 
-승인된 maintenance 시작 직전에 Vercel Production 환경을 아래 값으로 갱신하고 이름·target·수정 시각을 기록한다. rollback anchor와 같은 clean `$ReviewedSha`에서 새 Production-target deployment를 만들되 먼저 custom domain 연결을 건너뛴다.
+승인된 maintenance 시작 직전에 trusted controller가 Production 환경 snapshot을 아래 값으로 갱신하고 이름·target·수정 시각·redacted digest를 기록한다. rollback anchor와 같은 `$ReviewedSha`에서 새 Production-target deployment를 만들되 custom domain 연결을 건너뛴다. 로컬 CLI로 환경이나 alias를 변경하지 않는다.
 
 - `MAINTENANCE_MODE=true`
 - `MAINTENANCE_STARTED_AT_UTC=<현재 UTC ISO-8601>`
@@ -264,23 +244,7 @@ try {
 - 이번 핵심 출시에서는 `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`; 실제 연구 접수 공개는 선정·통지·삭제 운영 승인과 전용 E2E를 갖춘 별도 exact-SHA staged release에서만 수행
 - 이번 핵심 출시에서는 `ACCOUNT_DELETION_CRON_ENABLED=false`; fresh/upgrade migration, encrypted backup, isolated restore drill, queue health와 삭제 canary를 갖춘 별도 exact-SHA staged release에서만 활성화
 
-```powershell
-$CurrentSha = (git rev-parse HEAD).Trim()
-$Dirty = @(git status --porcelain=v1 --untracked-files=all)
-if ($CurrentSha -ne $ReviewedSha -or $Dirty.Count -ne 0) { throw "Reviewed source changed" }
-
-Push-Location apps/web
-try {
-  $MaintenanceOutput = @(& corepack pnpm dlx "vercel@$VercelCliVersion" deploy --prod --skip-domain --force --yes --scope hanbang)
-  Assert-NativeSuccess "Maintenance staged deployment"
-  $MaintenanceUrl = ([string]($MaintenanceOutput | Select-Object -Last 1)).Trim()
-  if ($MaintenanceUrl -notmatch '^https://[a-z0-9-]+\.vercel\.app/?$') { throw "Unexpected maintenance URL" }
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $MaintenanceUrl --scope hanbang
-  Assert-NativeSuccess "Maintenance inspect"
-} finally {
-  Pop-Location
-}
-```
+controller는 create 직전 `main` HEAD와 exact SHA를 다시 확인하고 외부 allowlist의 team/project/repository ID로 maintenance deployment를 staged한다. strict provider response 검증이 실패하면 URL이나 receipt를 생산하지 않는다.
 
 먼저 `$MaintenanceUrl`에서 다음을 확인한다.
 
@@ -294,25 +258,9 @@ researchCohortApplicationsEnabled = false
 accountDeletionCronEnabled = false
 ```
 
-페이지와 일반 API는 503이어야 한다. app association 세 경로와 health endpoint만 직접 응답한다. health endpoint가 404이거나 SHA·Supabase ref·flag·deployment ID 중 하나라도 다르면 promote하지 않는다. 모두 통과한 뒤에만 maintenance ID를 기록하고 승격한다.
+페이지와 일반 API는 503이어야 한다. app association 세 경로와 health endpoint만 직접 응답한다. health endpoint가 404이거나 SHA·Supabase ref·flag 중 하나라도 다르거나 provider API의 deployment ID 결합이 다르면 promote하지 않는다. 모두 통과하고 독립 승인이 있으면 controller가 `main` HEAD를 다시 확인하고 같은 maintenance ID만 승격한다.
 
-```powershell
-$CurrentSha = (git rev-parse HEAD).Trim()
-$Dirty = @(git status --porcelain=v1 --untracked-files=all)
-if ($CurrentSha -ne $ReviewedSha -or $Dirty.Count -ne 0) { throw "Reviewed source changed" }
-
-Push-Location apps/web
-try {
-  corepack pnpm dlx "vercel@$VercelCliVersion" promote $MaintenanceUrl --yes --scope hanbang
-  Assert-NativeSuccess "Maintenance promote"
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $MaintenanceUrl --scope hanbang
-  Assert-NativeSuccess "Promoted maintenance inspect"
-} finally {
-  Pop-Location
-}
-```
-
-승격 뒤 `https://hanbang.ai/api/health/maintenance`와 503 경계를 다시 검사하고 domain alias가 같은 maintenance deployment ID를 가리키는지 기록한다. 실패하면 DB를 건드리지 말고 사전에 canary한 `$AnchorUrl`을 다시 promote한 뒤 공개 경계를 재검증한다.
+승격 뒤 `https://hanbang.ai/api/health/maintenance`와 503 경계를 다시 검사하고 domain alias가 같은 maintenance deployment ID를 가리키는지 기록한다. 실패하면 DB를 건드리지 말고 trusted controller가 사전에 canary한 anchor deployment ID만 다시 promote한 뒤 공개 경계를 재검증한다.
 
 계정 삭제 migration 전에는 `ACCOUNT_DELETION_CRON_ENABLED=false`만 확인하고 바로 진행하지 않는다. maintenance의 authoritative 시작 시각부터 기존 worker lease 600초와 serverless 최대 실행 120초 중 더 긴 600초가 모두 지나야 하며, 그 뒤 `account_deletion_jobs.status='processing'`가 0인지 확인한다. safe-ship은 이 조건을 최초 maintenance 확인, 최종 preflight, 실제 push 직전 원격 재조회에서 반복한다. 하나라도 남아 있으면 과거 worker가 공유 `chat-image` prefix 삭제를 계속할 수 있으므로 DB를 변경하지 않고 해당 job을 별도 조사한다.
 
@@ -339,7 +287,7 @@ corepack pnpm supabase:fence -- -Action Plan -ExpectedProjectRef <20-char-non-pr
 
 현재 lifecycle은 project별 exclusive lock을 모든 non-Plan journal 접근보다 먼저 잡고 linked-ref read lock을 유지한다. snapshot schema v2는 clean HEAD/tree, 5분 capture freshness, sanitized management/DB baseline, 모든 기존 client backend의 cutoff·종료 개수와 no-query-text 상태를 묶는다. 각 원격 mutation 전 pending journal을 같은 디렉터리의 unique temp에 file-flush한 뒤 no-clobber create 또는 atomic replace하고, 첫 network mutation 직전 management/DB baseline을 반복 재조회한다. journal publish는 Windows에서 write-through rename을 요청하고 Linux/macOS에서 새 directory 계층의 parent와 containing directory를 fsync하도록 구현한다. 이는 코드 경로와 오프라인 fault injection의 증거이며 실제 파일시스템·가상화·전원 손실 환경의 crash-consistency 시험을 대신하지 않는다.
 
-다음 여섯 경계는 아직 코드만으로 닫히지 않았으므로 운영 blocker다. (1) Supabase Management API와 PostgreSQL baseline 사이에는 provider ETag나 transaction형 change-freeze가 없어 마지막 재조회와 첫 mutation 사이의 cross-system TOCTOU가 남는다. (2) fence의 DB query는 URL의 `ExpectedProjectRef`에 직접 고정됐지만 실제 migration preflight와 push는 여전히 `supabase-ship-safe.ps1`의 repository `--linked` 연결을 사용한다. 두 경로가 같은 불변 project·database·role을 사용한다는 증거가 없으므로 fence PASS를 migration 연결의 PASS로 승격하지 않는다. 비밀번호 없는 명시적 URL과 child-only credential만으로는 충분하지 않다. release allowlist/fuse, exact command grammar, reviewed native binary SHA-256, Git exact-HEAD 전체 migration inventory, 같은 DB connection 안의 provider-attested project/role fingerprint를 하나의 ship 경계에 묶어야 한다. 독립 runner 초안은 이 모든 조건을 만족하지 않아 채택하지 않았다. (3) 현재 지속 read-only 설정은 알려진 service role 네 개에만 적용되므로 fence 활성 뒤 다른 writable LOGIN/internal role이 새로 연결하는 경로를 DB-wide default와 release 예외 또는 provider-attested 전체 role inventory로 닫아야 한다. (4) staged restore는 여러 provider에 걸친 원자적 reopen이 아니므로 maintenance·black-box probe·실패 시 재격리의 실제 연습이 필요하다. (5) lifecycle lock과 journal은 한 컴퓨터의 local state에만 있으므로 다른 PC나 CI runner와의 동시 실행을 막지 못한다. project별 provider-side single-generation CAS/lease와 모든 원격 mutation 직전 ownership 재검증이 필요하다. (6) `MarkMigrationStarted`와 실제 `supabase-ship-safe` push가 같은 lease·connection·process에 묶이지 않아 둘 사이 또는 push 중 다른 실행이 fence를 해제할 수 있다. fresh live fence와 black-box denial 검증, migration-start CAS, exact-target push, post evidence가 하나의 shared ownership 구간이어야 한다. 이 여섯 항목과 disposable rehearsal이 끝나기 전에는 `productionDatabaseWriteFence`를 변경하지 않는다.
+다음 여섯 경계는 아직 코드만으로 닫히지 않았으므로 운영 blocker다. (1) Supabase Management API와 PostgreSQL baseline 사이에는 provider ETag나 transaction형 change-freeze가 없어 마지막 재조회와 첫 mutation 사이의 cross-system TOCTOU가 남는다. (2) fence의 DB query는 URL의 `ExpectedProjectRef`에 직접 고정됐지만 실제 migration preflight와 push는 여전히 `supabase-ship-safe.ps1`의 repository `--linked` 연결을 사용한다. 두 경로가 같은 불변 project·database·role을 사용한다는 증거가 없으므로 fence PASS를 migration 연결의 PASS로 승격하지 않는다. 비밀번호 없는 명시적 URL과 child-only credential만으로는 충분하지 않다. release allowlist/fuse, exact command grammar, reviewed native binary SHA-256, Git exact-HEAD 전체 migration inventory, 같은 DB connection 안의 provider-attested project/role fingerprint를 하나의 ship 경계에 묶어야 한다. 독립 runner 초안은 이 모든 조건을 만족하지 않아 채택하지 않았다. (3) 현재 지속 read-only 설정은 알려진 service role 네 개에만 적용되므로 fence 활성 뒤 다른 writable LOGIN/internal role이 새로 연결하는 경로를 DB-wide default와 release 예외 또는 provider-attested 전체 role inventory로 닫아야 한다. (4) staged restore는 여러 provider에 걸친 원자적 reopen이 아니므로 maintenance·black-box probe·실패 시 재격리의 실제 연습이 필요하다. (5) lifecycle lock과 journal은 한 컴퓨터의 local state에만 있으므로 다른 PC나 CI runner와의 동시 실행을 막지 못한다. project별 provider-side single-generation CAS/lease와 모든 원격 mutation 직전 ownership 재검증이 필요하다. (6) migration-start CAS 자체와 exact-target ship을 같은 lease·connection·process에 묶는 coordinator가 아직 없으며, 현재의 Mark action은 오인 방지를 위해 제거했다. fresh live fence와 black-box denial 검증, migration-start CAS, exact-target push, post evidence가 하나의 shared ownership 구간이어야 한다. 이 여섯 항목과 disposable rehearsal이 끝나기 전에는 `productionDatabaseWriteFence`를 변경하지 않는다.
 
 offline evidence v2 초안은 경로·digest·체인 검사를 구현했지만, untrusted input identity를 expected 값으로 되복사하는 self-pin과 restored baseline을 active genesis baseline에 묶지 않은 비교가 적대적 검토에서 재현됐다. 운영 consumer가 없는 상태에서 `ok`·`allRequiredChecksPassed`·`chainVerified`라는 성공 표면이 오인될 위험이 더 크므로 초안·테스트·명령을 출시 변경에서 제거했다. trusted producer가 별도 서명된 expected manifest를 제공하고 active baseline digest를 전체 계보에 보존하는 새 설계가 독립 검토되기 전에는 자동 post-migration evidence가 운영 blocker다.
 
@@ -348,9 +296,9 @@ offline evidence v2 초안은 경로·digest·체인 검사를 구현했지만, 
 현재 구현은 production에서 operator가 작성한 `post-migration-release-evidence-v1`을 운영 증거로 받지 않으며, `supabase:ship:safe`와 `supabase:baseline:core`도 활성 snapshot·자동 probe producer가 연결될 때까지 무조건 중단한다. 따라서 아래 lifecycle은 **아직 실행 명령이 아니라 disposable 검증에서 완성해야 할 계약**이다.
 
 ```text
-Capture → Activate → Verify → MarkMigrationStarted
-→ guarded baseline/ship → automated black-box evidence
-→ MarkMigrationVerified → Deactivate → exact restore-state verification
+provider-coordinated capture/activate/verify → migration-start CAS
+→ exact-target guarded baseline/ship → signed automated black-box evidence
+→ verified recovery authorization → exact restore-state verification
 ```
 
 ### 4. backup·restore 증거
@@ -377,7 +325,11 @@ Phase-A 안전 도구는 아래처럼 로컬 보안 경계를 검증한다.
 corepack pnpm supabase:recovery:test
 ```
 
-`supabase:recovery:safe`는 pinned CLI와 native tool hash 정책, 최소 child 환경, 위험 플래그 차단, age 암호화, DB dump와 Storage byte manifest, exact archive 검증, plaintext cleanup 검증, 격리 대상 allowlist를 제공한다. cron 복구는 launcher off·running 0에서 다섯 job을 inactive로만 재생하고, DB/Storage/post-deploy/parity/RTO가 동일 restore-attempt·artifact·source·target SHA-256 chain에 묶인 뒤 별도 activation 단계로만 켜는 [Recovery artifact contract](./SUPABASE_RECOVERY_ARTIFACT_CONTRACT.md)를 따른다. database는 target의 `current_database()`에 다시 묶고, scheduler role `postgres`와 timezone `GMT`는 실행 의미를 바꾸므로 fail-closed로 검증한다. 현재 export/diff/query 명령은 여전히 mutable `--linked` 연결을 사용하므로 fence의 명시적 project-ref DB query와 같은 대상·role이라는 증거가 없으며, 이 target-binding gap 자체도 운영 blocker다. 현재 `restore-verify`는 DB/Storage restore나 cron activation을 실행하지 않고 성공 상태도 반환하지 않는다. archive integrity/authenticity/cron 계획 검사를 통과해도 `RESTORE_EXECUTION_NOT_ENABLED`, modeled completion evidence가 모두 있어도 `RESTORE_COMPLETION_ATTESTATION_NOT_ENABLED`로 중단한다. 운영 export도 live fence snapshot·자동 black-box evidence와 cryptographically binding되기 전까지 fuse 문자열과 무관하게 hard-stop한다. 현재 머신에는 `age`가 없고 운영 tool path/hash·recipient·restore allowlist도 비어 있다. 따라서 `backupPolicy.status`는 `not_configured`로 유지한다. 승인된 key custody, 유료 격리 프로젝트, 실제 restore·Storage 재업로드·parity·RPO/RTO 증거가 모두 생긴 뒤에만 정책을 변경한다.
+`supabase:recovery:safe`의 Phase-A 설계와 계약 테스트는 pinned CLI/native tool, 최소 child 환경, 위험 플래그 차단, age 암호화, DB dump·Storage byte manifest, self-consistency와 cleanup 경계를 모델링한다. 그러나 실제 `export` 명령은 exact-target producer, filter-free worktree attestation과 signed lifecycle이 없어 credential·Git 경계 전에 `RECOVERY_EXPORT_NOT_ENABLED`로 중단한다. `verify-archive`는 trusted `--expected-project-ref`를 필수로 받고 public/private manifest를 모두 그 값에 결합한다. 외부 archive pathname은 regular-file identity를 secure workspace에 복사하면서 해시하고 같은 open handle의 exact stdin digest와 사후 rehash를 비교한다. 현재 authenticity producer가 없으므로 검증을 마쳐도 `ok=false`, `producerAuthenticityVerified=false`, `restoreEligible=false`, `releaseEligible=false`를 반환한다.
+
+`backupPolicy.rehearsalStatus`는 격리 target 사용 승인(`approved-v1`)을 production `backupPolicy.status`와 분리한다. status가 `not_configured`인 채 restore allowlist만 채우는 것, production/source/restore ref의 중복, 숫자·객체를 ref 문자열로 강제 변환하는 입력을 strict policy validator가 거부한다. 현재는 exact source/target/artifact, provider recovery point, RPO/RTO, signer와 immutable anchor를 묶는 trusted rehearsal producer가 없으므로 `rehearsalStatus=verified-v1`, production `status=verified-v1`, authenticity `status=verified-v1` 선언을 모두 거부한다. 필드를 수동으로 채워도 운영 복구 준비로 승격되지 않는다.
+
+cron 복구는 launcher off·running 0에서 다섯 job을 inactive로 재생하고, DB/Storage/post-deploy/parity/RTO가 같은 restore-attempt·artifact·source·target SHA-256 chain에 묶이는 [Recovery artifact contract](./SUPABASE_RECOVERY_ARTIFACT_CONTRACT.md)를 따른다. 다만 현재 chain은 실제 cron activation·post-activation contract·restored-service canary와 provider recovery-point 기반 RPO까지 완성하지 못했다. export/diff/query도 mutable `--linked`를 사용하므로 fence의 명시적 project-ref DB query와 같은 대상·role이라는 증거가 없다. `restore-verify`는 DB/Storage restore나 cron activation을 실행하지 않고 `RESTORE_EXECUTION_NOT_ENABLED`, modeled evidence를 합성해도 `RESTORE_COMPLETION_ATTESTATION_NOT_ENABLED`로 중단한다. 운영 export 역시 live fence snapshot·provider lease·자동 black-box evidence와 암호학적으로 결합되기 전까지 hard-stop한다. 현재 머신에는 `age`가 없고 운영 tool path/hash·recipient·restore allowlist도 비어 있다. 따라서 `backupPolicy.rehearsalStatus`와 `backupPolicy.status`를 모두 `not_configured`로 유지한다.
 
 공식 기준: [Supabase Database Backups](https://supabase.com/docs/guides/platform/backups), [CLI backup/restore](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
 
@@ -400,31 +352,13 @@ corepack pnpm supabase:ship:safe -- `
   -MaintenanceAuthorizedUntilUtc <UTC-within-30m>
 ```
 
-현재 두 production 명령은 lifecycle 통합 전용 hard stop에서 실패해야 정상이다. 이 hard stop을 삭제하거나 fuse만 바꾸지 않는다. 향후 통합된 스크립트가 요구하는 `ACK_REWRITES`, drain, apply 확인은 실제 inventory와 책임자 승인 기록이 있을 때만 입력한다. 실패 후 수동 SQL로 이어서 적용하지 않는다.
+현재 ship과 baseline reconcile은 production/non-production 모두 credential prompt 전에 hard-stop한다. write-fence는 repo-local clean filter의 arbitrary process 실행과 과거 snapshot의 cross-version HEAD 역설이 재현됐으므로 **모든 remote action을 companion file·credential·journal·Git·remote boundary 전에 중단**한다. 이 컴퓨터의 canonical journal root에는 JSON snapshot과 lifecycle lock이 각각 0개였다. Help, write-fence `Plan`, credential-free isolated contract test만 허용하며 운영 dispatcher는 없다. MarkMigrationStarted/Verified action도 제거했다. 모델이 읽는 release-target policy와 status SQL은 launcher의 LF-stable SHA-256에 고정하고 검증한 같은 UTF-8 내용을 process 안에서 사용한다. 운영 entrypoint는 dot-source를 거부한다. filter-free worktree attestation, process 내부 system-module bootstrap, provider lease, signed cross-version recovery receipt와 disposable rehearsal이 독립 검토되기 전에는 hard-stop을 삭제하거나 fuse만 바꾸지 않는다. 실패 후 수동 SQL로 이어서 적용하지 않는다.
 
 ### 6. exact-SHA normal staged 배포와 fence 해제
 
-자동 evidence producer가 post-deploy DB contract, migration dry-run 0개, Data API/Auth/Storage write denial, release writer, anon denial을 같은 fence ID와 SHA에 묶어야 한다. `MarkMigrationVerified` 전에는 normal deployment를 custom domain에 연결하지 않는다.
+자동 evidence producer가 post-deploy DB contract, migration dry-run 0개, Data API/Auth/Storage write denial, release writer, anon denial을 같은 fence ID와 SHA에 묶어야 한다. 현재는 이를 수용하는 trusted coordinator와 signed receipt가 없으므로 normal deployment를 custom domain에 연결하지 않는다.
 
-Vercel Production 환경을 `MAINTENANCE_MODE=false`와 승인된 `NEXT_PUBLIC_LAUNCH_MODE=<coming_soon-or-full>`로 갱신한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. `full` 공개에서는 다른 경계와 재사용하지 않은 32자 이상 `DEMO_SESSION_SECRET`이 Production snapshot에 있어야 하며 demo login smoke를 생략하지 않는다. 연구 접수·계정 삭제 cron은 각각의 별도 운영 gate가 통과하지 않았다면 계속 `false`다. 변수 이름·target·삭제 시각을 기록하고 같은 clean `$ReviewedSha`로 normal 후보를 staged해 identity를 확인한다.
-
-```powershell
-$CurrentSha = (git rev-parse HEAD).Trim()
-$Dirty = @(git status --porcelain=v1 --untracked-files=all)
-if ($CurrentSha -ne $ReviewedSha -or $Dirty.Count -ne 0) { throw "Reviewed source changed" }
-
-Push-Location apps/web
-try {
-  $NormalOutput = @(& corepack pnpm dlx "vercel@$VercelCliVersion" deploy --prod --skip-domain --force --yes --scope hanbang)
-  Assert-NativeSuccess "Normal staged deployment"
-  $NormalUrl = ([string]($NormalOutput | Select-Object -Last 1)).Trim()
-  if ($NormalUrl -notmatch '^https://[a-z0-9-]+\.vercel\.app/?$') { throw "Unexpected normal URL" }
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $NormalUrl --scope hanbang
-  Assert-NativeSuccess "Normal inspect"
-} finally {
-  Pop-Location
-}
-```
+trusted controller가 Vercel Production 환경 snapshot을 `MAINTENANCE_MODE=false`와 승인된 `NEXT_PUBLIC_LAUNCH_MODE=<coming_soon-or-full>`로 갱신한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. `full` 공개에서는 다른 경계와 재사용하지 않은 32자 이상 `DEMO_SESSION_SECRET`이 Production snapshot에 있어야 하며 demo login smoke를 생략하지 않는다. 연구 접수·계정 삭제 cron은 각각의 별도 운영 gate가 통과하지 않았다면 계속 `false`다. controller는 변수 이름·target·삭제 시각·redacted digest를 기록하고 create 직전 재확인한 같은 `$ReviewedSha`로 normal 후보를 staged해 provider identity를 확인한다. 로컬 CLI는 이 작업을 수행하지 않는다.
 
 `$NormalUrl`의 health가 `$ReviewedSha`, protected Supabase ref, `maintenance=false`, 승인된 연구 접수·삭제 cron 상태를 반환해야 한다. 선택한 launch mode에 맞춰 아래 둘 중 정확히 하나의 live smoke를 staged URL에서 실행하고, 아직 fence가 활성인 동안 쓰기 거부가 유지되는지도 확인한다.
 
@@ -438,19 +372,7 @@ node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=full --re
 
 staged deployment ID·SHA·환경 계약 중 하나라도 다르면 fence를 해제하지 않는다.
 
-`MarkMigrationVerified`와 exact restore 확인 뒤에만 Storage retirement를 별도 공식 API 단계로 실행한다. 이때도 DB write fence는 유지한다. 공개 key를 재활성화해야 한다면 기존 모바일·오래 열린 세션이 즉시 접근할 수 있으므로 fence가 활성인 상태에서만 수행하고, `$NormalUrl`에서는 거부 경계와 read-only identity만 먼저 확인한다. 같은 normal deployment ID를 production domain에 승격하고 `hanbang.ai` alias·SHA·Supabase ref가 정확히 일치함을 다시 확인하기 전에는 fence를 해제하지 않는다.
-
-```powershell
-Push-Location apps/web
-try {
-  corepack pnpm dlx "vercel@$VercelCliVersion" promote $NormalUrl --yes --scope hanbang
-  Assert-NativeSuccess "Normal promote"
-  corepack pnpm dlx "vercel@$VercelCliVersion" inspect $NormalUrl --scope hanbang
-  Assert-NativeSuccess "Promoted normal inspect"
-} finally {
-  Pop-Location
-}
-```
+signed post-migration evidence와 exact restore 전제의 독립 확인 뒤에만 Storage retirement를 별도 공식 API 단계로 실행한다. 이때도 DB write fence는 유지한다. 공개 key를 재활성화해야 한다면 기존 모바일·오래 열린 세션이 즉시 접근할 수 있으므로 fence가 활성인 상태에서만 수행하고, `$NormalUrl`에서는 거부 경계와 read-only identity만 먼저 확인한다. controller는 promote 직전 `main` HEAD·승인·fence receipt를 다시 확인하고 같은 normal deployment ID만 production domain에 승격한다. alias API의 deployment ID와 `hanbang.ai` health의 SHA·Supabase ref가 각각 정확히 일치하기 전에는 fence를 해제하지 않는다.
 
 승격 뒤에도 write fence를 유지한 채 `hanbang.ai`의 domain alias가 같은 normal ID를 가리키는지와 health identity를 먼저 확인한다. 그 확인이 통과한 뒤에만 fence를 해제하고, legacy/publishable key의 정상·거부 probe와 canary를 처음부터 다시 실행한다. 실패하면 **먼저 write fence를 복구한 뒤** 같은 exact SHA의 `$MaintenanceUrl`을 promote한다. 새 임시 deployment를 즉석에서 만들거나 과거 gate 없는 deployment로 돌리지 않는다.
 
@@ -516,7 +438,9 @@ restore 완료는 서비스 완료가 아니다. exact DB contract, Storage inve
 PR / candidate SHA / merge method / merge commit / post-merge release SHA:
 Candidate exact-SHA CI / test / lint / typecheck / production build / dependency audit:
 Post-merge exact-SHA CI / test / lint / typecheck / production build / dependency audit:
-Vercel CLI version / linked team / project:
+Release-control repository / protected environment / exact-SHA push CI run IDs:
+Signed staged/promoted receipt digest / attester / controller run ID:
+Vercel CLI or API version / allowlisted team / project / GitHub repository ID:
 Vercel automation-bypass consumer inventory / new-secret rollout / old-secret denial / usage review:
 Live smoke expected SHA / expected Supabase project ref:
 Launch-gate anchor staged URL / deployment ID / env snapshot / promoted UTC / canary:
