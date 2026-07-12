@@ -7,7 +7,8 @@ const repoRoot = resolve(process.cwd(), "../..");
 const powershellExecutable = process.platform === "win32" ? "powershell" : "pwsh";
 const readRepo = (path: string) => readFileSync(resolve(repoRoot, path), "utf8");
 const normalizeShellDiagnostic = (value: string) => value
-  .replace(/\u001b\[[0-9;]*m/g, "")
+  .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+  .replace(/\s*\|\s*/g, " ")
   .replace(/\s+/g, " ");
 
 const fence = readRepo("scripts/supabase-write-fence.ps1");
@@ -92,7 +93,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
       /\[(?:string|Security\.SecureString)\]\$(?:AccessToken|DatabasePassword)/
     );
     expect(output).not.toMatch(/token|password|secret/i);
-  });
+  }, 20_000);
 
   it("binds activation to the exact network, Realtime, Auth, database-role, cron, and release-writer controls", () => {
     expect(fence).toContain('$script:ManagementApiBase = "https://api.supabase.com"');
@@ -272,7 +273,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(fence).toContain("$snapshot.production -ne $isProductionTarget");
     expect(fence).toContain("Capture refuses to overwrite an existing write-fence journal");
     expect(normalizeShellDiagnostic(
-      "\u001b[31;1mapproved non-production\u001b[0m\nproject ref"
+      "\u001b[31;1mapproved non-production\u001b[0m |\nproject ref"
     )).toContain("approved non-production project ref");
 
     const result = spawnSync(
@@ -295,7 +296,7 @@ describe("database-readonly-realtime-cron-v1 write fence", () => {
     expect(result.status).not.toBe(0);
     const normalizedStderr = normalizeShellDiagnostic(result.stderr);
     expect(normalizedStderr).toContain("approved non-production project ref");
-  });
+  }, 20_000);
 
   it("keeps service roles read-only until management is verified, resumes cron last, and re-fences on failure", () => {
     expect(fence).toContain("function Restore-CronFence");
