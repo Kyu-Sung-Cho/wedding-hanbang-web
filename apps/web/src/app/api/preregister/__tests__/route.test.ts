@@ -95,6 +95,7 @@ describe("/api/preregister POST", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({ code: "RESEARCH_INTAKE_CLOSED" });
     expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
     expect(mocks.verifyTurnstile).not.toHaveBeenCalled();

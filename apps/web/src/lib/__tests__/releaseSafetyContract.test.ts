@@ -169,6 +169,7 @@ describe("release safety contract", () => {
     expect(liveSmoke).toContain('options.launchMode === "coming_soon"');
     expect(liveSmoke).toContain('body?.code !== "SERVICE_NOT_LAUNCHED"');
     expect(liveSmoke).toContain('intakeBody?.code !== "RESEARCH_INTAKE_CLOSED"');
+    expect(liveSmoke).toContain('intakeResponse.headers()["cache-control"]?.includes("no-store")');
     expect(liveSmoke).toContain('options.researchIntake === "closed"');
     expect(liveSmoke).toContain("healthBody?.researchCohortApplicationsEnabled");
     expect(liveSmoke).toContain('final.searchParams.has("next")');

@@ -585,6 +585,9 @@ function buildComingSoonChecks() {
           if (intakeResponse.status() !== 503 || intakeBody?.code !== "RESEARCH_INTAKE_CLOSED") {
             addFailure(result, `Expected research intake to fail closed, got ${intakeResponse.status()}`);
           }
+          if (intakeResponse.headers()["cache-control"]?.includes("no-store") !== true) {
+            addFailure(result, "Expected closed research intake response to disable caching");
+          }
         } else if (!betaHtml.includes("사용자 연구 신청하기")) {
           addFailure(result, "Expected the approved research application form to be visible");
         }

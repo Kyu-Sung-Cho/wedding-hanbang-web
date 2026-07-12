@@ -68,7 +68,10 @@ export async function POST(request: NextRequest) {
           code: "RESEARCH_INTAKE_CLOSED",
           error: "사용자 연구 신청은 안전 확인을 마친 뒤 열 예정입니다.",
         },
-        { status: 503 }
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store, max-age=0" },
+        }
       );
     }
     if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
