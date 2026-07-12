@@ -612,7 +612,7 @@ test("a pathname replacement cannot change the digest bound to already-read jour
         + `[IO.File]::WriteAllText(${quotePowerShell(payloadPath)}, ${quotePowerShell(second)}, [Text.UTF8Encoding]::new($false)); `
         + "$sha = [Security.Cryptography.SHA256]::Create(); try { $expected = [BitConverter]::ToString($sha.ComputeHash([Text.UTF8Encoding]::new($false).GetBytes($payload.json))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }; "
         + "if ($payload.json -cne '" + first.replaceAll("'", "''") + "' -or $payload.digestSha256 -cne $expected) { throw 'digest was not bound to the same bytes' }; "
-        + `$currentDigest = (Get-FileHash -LiteralPath ${quotePowerShell(payloadPath)} -Algorithm SHA256).Hash.ToLowerInvariant(); `
+        + `$currentBytes = [IO.File]::ReadAllBytes(${quotePowerShell(payloadPath)}); $currentHasher = [Security.Cryptography.SHA256]::Create(); try { $currentDigest = [BitConverter]::ToString($currentHasher.ComputeHash($currentBytes)).Replace('-', '').ToLowerInvariant() } finally { $currentHasher.Dispose() }; `
         + "if ($currentDigest -ceq $payload.digestSha256) { throw 'test replacement did not change path bytes' }; "
         + "Write-Output 'SAME_BYTES_DIGEST_BOUND'",
       stateRoot
