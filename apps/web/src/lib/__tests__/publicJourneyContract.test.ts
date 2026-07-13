@@ -6,7 +6,10 @@ import sitemap from "@/app/sitemap";
 import { metadata as loginMetadata } from "@/app/(auth)/login/layout";
 
 function readSource(relativePath: string): string {
-  return readFileSync(join(process.cwd(), relativePath), "utf8");
+  return readFileSync(join(process.cwd(), relativePath), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
 }
 
 describe("public journey contract", () => {
@@ -125,6 +128,10 @@ describe("public journey contract", () => {
     expect(chatPanel).toContain(
       'href="/ai-policy" className="inline-flex min-h-11 items-center px-2'
     );
+    expect(chatPanel).toContain("useAccessibleDialog({ isOpen, onClose })");
+    expect(chatPanel).toContain("ref={dialogRef}");
+    expect(chatPanel).toContain("data-dialog-initial-focus");
+    expect(chatPanel).toContain('aria-label="파일 첨부"');
     expect(aiNotice).toContain("inline-flex min-h-11 items-center px-2");
     expect(community).toContain(
       'className="inline-flex h-11 shrink-0 items-center rounded-full'
@@ -199,7 +206,8 @@ describe("public journey contract", () => {
     expect(communityGuide).not.toContain("248명 활동 중");
     expect(communityGuide).not.toContain("광고는 표시하고, 추천에서 제외");
 
-    expect(vendorCommunityPage).toContain("const VENDOR_CONNECTION_ENABLED = false");
+    expect(vendorCommunityPage).toContain("<NoBookingFallback name={decodedName} />");
+    expect(vendorCommunityPage).not.toContain("BookingSection");
     expect(vendorCommunityPage).toContain("현재 웨딩한방에서는 상담 요청이나 예약을 업체에 전송하지 않습니다");
     expect(vendorCommunityPage).not.toContain("실시간 슬롯은 곧 오픈됩니다");
     expect(vendorCommunityPage).not.toContain("이 화면에서 바로 예약합니다");
@@ -237,6 +245,37 @@ describe("public journey contract", () => {
     expect(moments).toContain("피팅 비용·결제수단과 취소 조건 사전 확인");
     expect(moments).toContain("목적지별 유효기간 요건 확인");
     expect(moments).not.toMatch(/10~20만원|샵당 3~5만원|1인 5만원|10명 중 8명|국룰|부부싸움 1순위|호구 잡힐 일 없어/);
+  });
+
+  it("keeps planning guidance source-honest when prices vary", () => {
+    const checklists = readSource("src/constants/checklists.ts");
+    const notifications = readSource("src/constants/notifications.ts");
+    const onboarding = readSource(
+      "src/components/onboarding/WeddingStylePreferences.tsx",
+    );
+    const aiComment = readSource("src/components/community/AiCommentBox.tsx");
+
+    expect(checklists).toContain("노선·시기·수요와 변경 조건에 따라 달라집니다");
+    expect(checklists).toContain("총액·설치비·보증·반품 조건을 함께 비교하세요");
+    expect(checklists).not.toContain("항공권은 빨리 예약할수록 저렴합니다");
+    expect(checklists).not.toContain("수백만원을 아낄 수 있습니다");
+    expect(notifications).toContain("날짜별 총액과 취소·변경 조건을 함께 비교해 보세요");
+    expect(onboarding).toContain("예산을 어떻게 운영하고 싶나요?");
+    expect(aiComment).toContain("AI 참고 의견");
+    expect(aiComment).not.toMatch(/평균 이하|평균 이상|comparisonMeta/);
+  });
+
+  it("does not present failed lounge requests as genuine empty states", () => {
+    const lounge = readSource("src/app/(app)/lounge/page.tsx");
+
+    expect(lounge).toContain("setSavedError(true)");
+    expect(lounge).toContain("저장한 글을 불러오지 못했어요.");
+    expect(lounge).toContain("동기방 소식을 불러오지 못했어요.");
+    expect(lounge).toContain("이번 주 요약 일부를 불러오지 못했어요.");
+    expect(lounge).toContain("다시 불러오기");
+    expect(lounge).toContain("setActionsLoadError(true)");
+    expect(lounge).toContain("할 일 다시 불러오기");
+    expect(lounge).toContain('role={actionsLoadError ? "alert" : "status"}');
   });
 
   it("keeps current principles and design documentation on the actual service boundary", () => {

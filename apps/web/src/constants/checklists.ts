@@ -159,7 +159,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "honeymoon",
     label: "신혼여행",
     icon: "Plane",
-    tip: "항공권은 빨리 예약할수록 저렴합니다. 결혼식 직후 출발이면 공항까지의 동선도 미리 계획하세요.",
+    tip: "항공권 가격은 노선·시기·수요와 변경 조건에 따라 달라집니다. 여러 날짜의 총액과 취소·변경 조건을 함께 비교하세요.",
     ddayStart: 180,
     ddayDeadline: 30,
     items: [
@@ -177,7 +177,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "houseware",
     label: "혼수(가전/가구)",
     icon: "Home",
-    tip: "혼수는 양가 분담 항목을 먼저 정하세요. 가전은 할인 시즌을 노리면 수백만원을 아낄 수 있습니다.",
+    tip: "혼수는 양가 분담 항목을 먼저 정하세요. 가전은 판매처별 총액·설치비·보증·반품 조건을 함께 비교하세요.",
     ddayStart: 180,
     ddayDeadline: 30,
     items: [

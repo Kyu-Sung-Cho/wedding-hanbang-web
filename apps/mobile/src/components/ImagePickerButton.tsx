@@ -35,13 +35,6 @@ export default function ImagePickerButton({
       return;
     }
 
-    // 권한 확인
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "사진 접근 권한이 필요합니다.");
-      return;
-    }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,

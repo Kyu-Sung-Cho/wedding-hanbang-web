@@ -44,6 +44,31 @@ test("profile app version is read-only and uses native binary metadata", () => {
   assert.match(appUi, /right === undefined \? <ChevronRight/);
 });
 
+test("profile reads only its private activity counters through a narrow RPC", () => {
+  const profile = readSource("app/(tabs)/profile.tsx");
+
+  assert.match(profile, /\.rpc\(\s*"get_my_community_activity_stats"\s*\)/);
+  assert.match(profile, /activityStatsError \|\| bookmarkError/);
+  assert.match(profile, /활동 통계를 불러오지 못했어요/);
+  assert.match(profile, /0건으로 표시하지 않고 이전 값을 숨겼어요/);
+  assert.match(profile, /활동 통계 다시 불러오기/);
+  assert.doesNotMatch(
+    profile,
+    /\.from\("community_profiles"\)[\s\S]{0,160}post_count, comment_count/,
+  );
+});
+
+test("image-only library pickers do not request broad media-library permissions", () => {
+  const picker = readSource("src/components/ImagePickerButton.tsx");
+  const postWriter = readSource("app/community/post/write.tsx");
+
+  for (const source of [picker, postWriter]) {
+    assert.match(source, /launchImageLibraryAsync/);
+    assert.doesNotMatch(source, /requestMediaLibraryPermissionsAsync/);
+    assert.doesNotMatch(source, /launchCameraAsync/);
+  }
+});
+
 for (const [name, relativePath, retryMessage] of [
   ["budget", "app/budget/index.tsx", "예산 정보를 불러오지 못했어요"],
   ["schedule", "app/schedule/index.tsx", "체크리스트와 일정을 불러오지 못했어요"],
@@ -146,6 +171,24 @@ test("mobile onboarding copy distinguishes examples from real activity", () => {
   assert.match(login, /회원가입 전 이용약관과 개인정보처리방침/);
   assert.doesNotMatch(dashboard, /설레는 마음, 완벽한 준비/);
   assert.doesNotMatch(dashboard, /다음 업체 추천이 더 정확해져요/);
+});
+
+test("planning guidance avoids unsupported fixed savings and price ranges", () => {
+  const checklists = readSource("src/constants/checklists.ts");
+  const onboarding = readSource("app/onboarding/index.tsx");
+  const budget = readSource("app/budget/index.tsx");
+
+  assert.match(checklists, /노선·시기·수요와 변경 조건에 따라 달라집니다/);
+  assert.match(checklists, /총액·설치비·보증·반품 조건을 함께 비교하세요/);
+  assert.doesNotMatch(checklists, /항공권은 빨리 예약할수록 저렴합니다/);
+  assert.doesNotMatch(checklists, /수백만원을 아낄 수 있습니다/);
+  assert.match(onboarding, /예산을 어떻게 운영하고 싶나요\?/);
+  assert.match(budget, /견적서에서 금액 확인/);
+  assert.match(budget, /예약 조건에서 금액 확인/);
+  assert.doesNotMatch(
+    budget,
+    /\+(?:5|10|20|30|50|100)~(?:20|30|50|80|100|150|200|300)만원/,
+  );
 });
 
 test("Amora makes long generation honest, cancellable, and retryable", () => {

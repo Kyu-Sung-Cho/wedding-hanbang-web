@@ -27,6 +27,7 @@ import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/co
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import {
   cohortRoomName,
   FLEX_COHORT_LABEL,
@@ -37,7 +38,6 @@ import type {
   CohortRoom,
   CohortMessage,
   CohortProfileSummary,
-  CohortContract,
   CohortStat,
   CohortTimelineEvent,
   CohortThreadTopic,
@@ -75,18 +75,6 @@ const EVENT_ITEMS: Array<{ key: CohortEventType; label: string; helper: string }
   { key: "progress_update", label: "준비 업데이트", helper: "체크리스트나 준비 상황을 남겨요" },
   { key: "wedding_done", label: "결혼식 완료", helper: "본식을 마쳤어요" },
 ];
-
-// 국가 평균 (샘플 부족 시 대체)
-const NATIONAL_AVG: Record<CohortContractCategory, number> = {
-  studio: 346,
-  dress: 190,
-  makeup: 85,
-  venue: 1200,
-  snap: 70,
-  ring: 300,
-  honeymoon: 500,
-  other: 0,
-};
 
 const THREAD_LABEL: Record<CohortThreadTopic, string> = {
   price: "가격",
@@ -1318,20 +1306,52 @@ function InfoTab({
   toastFn: ToastFnLike;
 }) {
   const [stats, setStats] = useState<CohortStat[]>([]);
-  const [contracts, setContracts] = useState<CohortContract[]>([]);
+  const [contributorCount, setContributorCount] = useState<number | null>(null);
+  const [contributorCountSuppressed, setContributorCountSuppressed] = useState(false);
+  const [loading, setLoading] = useState(enabled);
+  const [loadError, setLoadError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!enabled) {
       setStats([]);
-      setContracts([]);
+      setContributorCount(null);
+      setContributorCountSuppressed(false);
+      setLoading(false);
+      setLoadError(false);
       return;
     }
-    const res = await fetch(`/api/community/cohort/${roomId}/contracts`);
-    const data = await res.json();
-    if (res.ok) {
-      setStats(data.stats ?? []);
-      setContracts(data.contracts ?? []);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch(`/api/community/cohort/${roomId}/contracts`);
+      const data = (await res.json()) as {
+        stats?: CohortStat[];
+        total_contributor_count?: number | null;
+        total_contributor_count_suppressed?: boolean;
+      };
+      if (!res.ok) throw new Error(`status ${res.status}`);
+
+      setStats(Array.isArray(data.stats) ? data.stats : []);
+      const authorizedContributorCount =
+        typeof data.total_contributor_count === "number" &&
+        Number.isInteger(data.total_contributor_count) &&
+        data.total_contributor_count >= 5
+          ? data.total_contributor_count
+          : null;
+      setContributorCount(authorizedContributorCount);
+      setContributorCountSuppressed(
+        data.total_contributor_count_suppressed === true ||
+          authorizedContributorCount === null
+      );
+    } catch {
+      // 이전에 본 집계가 권한 변경·오류 이후 남지 않도록 fail closed.
+      setStats([]);
+      setContributorCount(null);
+      setContributorCountSuppressed(false);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }, [enabled, roomId]);
 
@@ -1356,6 +1376,10 @@ function InfoTab({
           <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
             견적서나 계약서의 기본금·추가금·조건을 만원 단위로 등록하면,
             업체명은 숨기고 우리 동기방 평균에만 반영돼요.
+          </p>
+          <p className="mt-1 text-[12px] font-medium leading-5 text-[#878680]">
+            한 계정의 같은 카테고리에서는 최신 1건만 반영하고, 서로 다른 계정
+            5개 이상이 모인 항목만 공개해요.
           </p>
         </div>
         <button
@@ -1394,12 +1418,26 @@ function InfoTab({
         ))}
       </div>
 
-      {/* 카테고리별 카드 */}
-      <div className="grid gap-3 md:grid-cols-2">
+      {loading ? (
+        <div className="rounded-[18px] border border-[#e5d8ca] bg-white p-5 text-sm font-medium text-[#635b51]" role="status">
+          익명 가격 평균을 불러오는 중이에요.
+        </div>
+      ) : loadError ? (
+        <div className="rounded-[18px] border border-red-200 bg-red-50 p-5" role="alert">
+          <p className="text-sm font-semibold text-red-800">가격 평균을 불러오지 못했어요.</p>
+          <p className="mt-1 text-xs font-medium text-red-700">표본 부족으로 표시하지 않고, 확인할 수 있을 때까지 값을 숨겼어요.</p>
+          <button type="button" onClick={() => void load()} className="mt-2 min-h-11 rounded-lg px-3 text-xs font-semibold text-red-700 underline underline-offset-2">
+            다시 불러오기
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* 카테고리별 카드 */}
+          <div className="grid gap-3 md:grid-cols-2">
         {CONTRACT_ITEMS.map((cat) => {
           const stat = statByCat[cat.key];
           const sample = stat?.sample_size ?? 0;
-          const enough = sample >= 5;
+          const authorized = Boolean(stat && sample >= 5);
           return (
             <div
               key={cat.key}
@@ -1410,10 +1448,10 @@ function InfoTab({
                   {cat.label}
                 </h3>
                 <span className="rounded-full bg-[#fbf8f2] px-3 py-1 text-xs font-semibold text-[#928980] sm:text-sm">
-                  {sample}명 등록
+                  {authorized ? `${sample}명 집계` : "5명 미만 비공개"}
                 </span>
               </div>
-              {enough && stat ? (
+              {authorized && stat ? (
                 <div>
                   <p className="text-xs sm:text-sm text-[#635b51]">
                     우리 동기 평균 {cat.label} 기본금
@@ -1424,7 +1462,7 @@ function InfoTab({
                       ({sample}명)
                     </span>
                   </p>
-                  {stat.avg_extra_price > 0 && (
+                  {stat.avg_extra_price != null && stat.avg_extra_price > 0 && (
                     <p className="mt-1.5 text-xs sm:text-sm text-[#635b51]">
                       추가금 평균 {stat.avg_extra_price.toLocaleString()}만원
                     </p>
@@ -1435,29 +1473,35 @@ function InfoTab({
                   <div className="mb-2 flex items-start gap-2">
                     <Sparkles className="h-4 w-4 text-[#B89785] shrink-0 mt-0.5" />
                     <p className="text-xs sm:text-sm text-[#635b51] leading-relaxed">
-                      아직 우리 동기 데이터가 부족해요. 등록하면 우리끼리의 평균이 나와요.
+                      아직 우리 동기 데이터가 부족해요. 서로 다른 계정 5개가
+                      모이기 전에는 평균과 정확한 등록 인원을 공개하지 않아요.
                     </p>
                   </div>
-                  {NATIONAL_AVG[cat.key] > 0 && (
-                    <p className="text-xs sm:text-sm text-[#635b51]">
-                      전국 평균:{" "}
-                      <span className="font-medium text-[#263832]">
-                        {NATIONAL_AVG[cat.key].toLocaleString()}
-                        만원
-                      </span>
-                    </p>
-                  )}
+                  <Link
+                    href={weddingPath("/market-prices")}
+                    className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[#36534E] underline-offset-4 hover:underline"
+                  >
+                    출처와 기준기간이 표시된 공식 시세 참고하기
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
                 </div>
               )}
             </div>
           );
         })}
-      </div>
+          </div>
 
-      {contracts.length > 0 && (
-        <div className="mt-4 text-xs text-[#928980] text-center">
-          동기방 내 총 {contracts.length}건의 계약 정보
-        </div>
+          {contributorCount !== null && (
+            <div className="mt-4 text-xs text-[#928980] text-center">
+              서로 다른 계정 {contributorCount}명의 최신 항목만 집계에 반영했어요.
+            </div>
+          )}
+          {contributorCountSuppressed && (
+            <div className="mt-4 text-center text-xs text-[#928980]">
+              참여자 수도 서로 다른 계정 5개가 모이기 전에는 정확한 숫자를 공개하지 않아요.
+            </div>
+          )}
+        </>
       )}
 
       {/* 모달 */}
@@ -1494,6 +1538,7 @@ function ContractModal({
   const [extraPrice, setExtraPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const { dialogRef } = useAccessibleDialog({ isOpen: true, onClose });
 
   async function handleSave() {
     if (!vendorName.trim() || !basePrice) {
@@ -1527,29 +1572,42 @@ function ContractModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#F0EFED] bg-white p-5">
-        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cohort-contract-dialog-title"
+        aria-describedby="cohort-contract-dialog-description"
+        tabIndex={-1}
+        onMouseDown={(event) => event.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-[#F0EFED] bg-white p-5"
+      >
+        <h3 id="cohort-contract-dialog-title" className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
           내 견적·계약 정보 등록
         </h3>
-        <p className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
+        <p id="cohort-contract-dialog-description" className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
           업체명은 다른 사람에게 보이지 않고, 평균 통계 계산에만 사용돼요.
         </p>
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">업체명 (공개 안 됨)</label>
+            <label htmlFor="cohort-contract-vendor" className="mb-1 block text-xs text-[#878680]">업체명 (공개 안 됨)</label>
             <input
+              id="cohort-contract-vendor"
+              data-dialog-initial-focus
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
+              maxLength={200}
               placeholder="예) XX스튜디오"
               className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">카테고리</label>
+            <label htmlFor="cohort-contract-category" className="mb-1 block text-xs text-[#878680]">카테고리</label>
             <select
+              id="cohort-contract-category"
               value={category}
               onChange={(e) =>
                 setCategory(e.target.value as CohortContractCategory)
@@ -1566,34 +1624,44 @@ function ContractModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-[#878680]">
+              <label htmlFor="cohort-contract-base-price" className="mb-1 block text-xs text-[#878680]">
                 기본금 (만원)
               </label>
               <input
+                id="cohort-contract-base-price"
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
+                min={1}
+                max={1_000_000}
+                step={1}
                 className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[#878680]">
+              <label htmlFor="cohort-contract-extra-price" className="mb-1 block text-xs text-[#878680]">
                 추가금 (만원)
               </label>
               <input
+                id="cohort-contract-extra-price"
                 type="number"
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
+                min={0}
+                max={1_000_000}
+                step={1}
                 className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-[#878680]">포함/미포함 메모 (선택)</label>
+            <label htmlFor="cohort-contract-notes" className="mb-1 block text-xs text-[#878680]">포함/미포함 메모 (선택)</label>
             <textarea
+              id="cohort-contract-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              maxLength={1000}
               rows={2}
               placeholder="예) 원본 포함, 헬퍼비 별도"
               className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"

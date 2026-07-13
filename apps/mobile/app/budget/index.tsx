@@ -28,16 +28,16 @@ const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
 
 // 숨겨진 추가 비용 경고 데이터 (웹과 동일)
 const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
-  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
-  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
-  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
-  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
-  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
-  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
-  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
-  ham: { warning: "함진아비 비용, 이바지 포장", extra: "+20~50만원" },
-  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "견적서에서 금액 확인" },
+  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "견적서에서 금액 확인" },
+  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "견적서에서 금액 확인" },
+  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "견적서에서 금액 확인" },
+  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "예약 조건에서 금액 확인" },
+  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "견적서에서 금액 확인" },
+  gift: { warning: "포장, 배송비, 추가 세트", extra: "견적서에서 금액 확인" },
+  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "견적서에서 금액 확인" },
+  ham: { warning: "함진아비 비용, 이바지 포장", extra: "견적서에서 금액 확인" },
+  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "견적서에서 금액 확인" },
 };
 
 // 웹과 동일한 카테고리 비율 상수

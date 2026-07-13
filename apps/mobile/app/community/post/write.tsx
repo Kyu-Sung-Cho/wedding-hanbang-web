@@ -124,12 +124,6 @@ export default function WritePostScreen() {
       return;
     }
 
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "사진 접근 권한을 허용해주세요.");
-      return;
-    }
-
     const remaining = MAX_IMAGES - images.length;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],

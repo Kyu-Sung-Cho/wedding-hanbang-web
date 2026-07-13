@@ -54,7 +54,9 @@ corepack pnpm typecheck
 corepack pnpm lint
 ```
 
-`corepack pnpm qa:local` includes the static mobile foundation check, web tests/build, mobile lint/typecheck, shared packages, and design tokens. `mobile:release-check` currently passes 71 checks with one explicit warning that social OAuth is hard-disabled. `mobile:store-release-check` intentionally fails until provider setup and physical-device login flows are implemented and verified; a green static check is not store readiness.
+`corepack pnpm qa:local` includes the static mobile foundation check, web tests/build, mobile lint/typecheck, shared packages, and design tokens. `mobile:release-check` currently passes 77 checks with one explicit warning that social OAuth is hard-disabled. `mobile:store-release-check` currently passes 75 checks and intentionally fails one store-readiness check until provider setup and physical-device login flows are implemented and verified; a green static check is not store readiness.
+
+The release checker resolves Expo's actual prebuild configuration, not only the raw `app.json`. The current resolved Android permission list contains only `android.permission.INTERNET`; unused camera, microphone, legacy external-storage, modern broad-media, media-location, and all-files permissions are blocked. The iOS configuration keeps only the selected-photo library purpose string. Both image-only picker flows launch the system library directly without requesting broad media-library access first.
 
 ## 3. EAS Build Profiles
 

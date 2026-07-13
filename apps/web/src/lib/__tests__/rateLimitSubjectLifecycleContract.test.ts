@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(process.cwd(), "../..");
-const readRepo = (path: string) => readFileSync(resolve(repoRoot, path), "utf8");
+const readRepo = (path: string) =>
+  readFileSync(resolve(repoRoot, path), "utf8").replace(/\r\n/g, "\n");
 
 const migration = readRepo(
   "supabase/migrations/20260711147000_rate_limit_subject_lifecycle.sql",

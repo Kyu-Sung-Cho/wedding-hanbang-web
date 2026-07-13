@@ -12,7 +12,28 @@ const SENSITIVE_KEYS = new Set([
   "query_string",
   "search",
   "search_params",
+  "email",
+  "user_id",
+  "userid",
+  "user_uuid",
 ]);
+
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+
+function redactUrlPath(pathname: string): string {
+  return pathname.split("/").map((segment) => {
+    let decoded = segment;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      // Preserve malformed path bytes; the text scrub below still handles
+      // any literal identifiers without throwing telemetry processing.
+    }
+    const redacted = redactTelemetryText(decoded);
+    return redacted === decoded ? segment : redacted;
+  }).join("/");
+}
 
 function normalizedKey(key: string): string {
   return key.trim().toLowerCase().replace(/-/g, "_");
@@ -41,19 +62,34 @@ export function stripUrlQueryAndHash(value: string): string {
   try {
     const parsed = new URL(trimmed, "https://telemetry.invalid");
     if (parsed.origin === "https://telemetry.invalid") {
-      return parsed.pathname;
+      return redactUrlPath(parsed.pathname);
     }
-    return `${parsed.origin}${parsed.pathname}`;
+    return `${redactTelemetryText(parsed.origin)}${redactUrlPath(parsed.pathname)}`;
   } catch {
-    return trimmed.split(/[?#]/, 1)[0];
+    return redactUrlPath(trimmed.split(/[?#]/, 1)[0]);
   }
 }
 
 export function redactTelemetryText(value: string): string {
-  return value
+  const redactLiteralIdentifiers = (input: string) => input
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(/([?&#]|\b)(ct|access_token|refresh_token|id_token|token|code)=([^\s&#]+)/gi,
-      (_match, prefix: string, key: string) => `${prefix}${key}=[redacted]`);
+      (_match, prefix: string, key: string) => `${prefix}${key}=[redacted]`)
+    .replace(EMAIL_PATTERN, "[redacted-email]")
+    .replace(UUID_PATTERN, "[redacted-id]");
+
+  return redactLiteralIdentifiers(value).replace(
+    /[^\s?#]*%[0-9a-f]{2}[^\s?#]*/gi,
+    (encodedToken) => {
+      try {
+        const decoded = decodeURIComponent(encodedToken);
+        const redacted = redactLiteralIdentifiers(decoded);
+        return redacted === decoded ? encodedToken : redacted;
+      } catch {
+        return encodedToken;
+      }
+    },
+  );
 }
 
 function sanitizeDiagnosticText(value: string): string {
@@ -101,7 +137,9 @@ type SentryLikeEvent = {
   user?: unknown;
   message?: string;
   transaction?: string;
-  exception?: { values?: Array<{ value?: string; [key: string]: unknown }> };
+  exception?: { values?: Array<SentryLikeException> };
+  stacktrace?: SentryLikeStacktrace;
+  threads?: { values?: Array<{ stacktrace?: SentryLikeStacktrace }> };
   breadcrumbs?: Array<{
     message?: string;
     data?: Record<string, unknown>;
@@ -112,6 +150,24 @@ type SentryLikeEvent = {
   tags?: Record<string, unknown>;
   [key: string]: unknown;
 };
+
+type SentryLikeStacktrace = {
+  frames?: Array<{ vars?: Record<string, unknown>; [key: string]: unknown }>;
+};
+
+type SentryLikeException = {
+  value?: string;
+  stacktrace?: SentryLikeStacktrace;
+  [key: string]: unknown;
+};
+
+function sanitizeStacktrace(stacktrace: SentryLikeStacktrace | undefined): void {
+  stacktrace?.frames?.forEach((frame) => {
+    const sanitizedFrame = sanitizeTelemetryRecord(frame);
+    for (const key of Object.keys(frame)) delete frame[key];
+    Object.assign(frame, sanitizedFrame);
+  });
+}
 
 export function sanitizeSentryEvent<T>(event: T): T {
   const mutable = event as unknown as SentryLikeEvent;
@@ -125,7 +181,10 @@ export function sanitizeSentryEvent<T>(event: T): T {
     if (typeof exception.value === "string") {
       exception.value = sanitizeDiagnosticText(exception.value);
     }
+    sanitizeStacktrace(exception.stacktrace);
   });
+  sanitizeStacktrace(mutable.stacktrace);
+  mutable.threads?.values?.forEach((thread) => sanitizeStacktrace(thread.stacktrace));
   if (mutable.request) {
     if (typeof mutable.request.url === "string") {
       mutable.request.url = stripUrlQueryAndHash(mutable.request.url);

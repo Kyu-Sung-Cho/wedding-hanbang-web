@@ -297,6 +297,24 @@ function Assert-PreflightDynamicSourceTopology {
   ) {
     throw "Applied Amora reset read helper or policies drifted from the exact privacy-revocation contract."
   }
+  $privacyMinimumPending = "20260713100000" -in $PendingVersions
+  foreach ($field in @(
+      "privacy_minimum_contract_exact",
+      "privacy_minimum_invalid_cohort_rows"
+    )) {
+    if ($Preflight.dynamic_sources.PSObject.Properties.Name -notcontains $field) {
+      throw "Production preflight omitted the privacy-minimum release contract."
+    }
+  }
+  $privacyInvalidCohortRows =
+    [long]$Preflight.dynamic_sources.privacy_minimum_invalid_cohort_rows
+  if ($privacyInvalidCohortRows -ne 0) {
+    throw "Existing cohort quotes violate the bounded privacy contract and require explicit review before migration. rows=$privacyInvalidCohortRows"
+  }
+  if (-not $privacyMinimumPending -and
+    $Preflight.dynamic_sources.privacy_minimum_contract_exact -ne $true) {
+    throw "Applied cohort/profile/vendor/survey privacy minimum drifted from its exact remote contract."
+  }
   $dependencyCrons = $Preflight.dynamic_sources.dependency_cron_status
   if ($null -eq $dependencyCrons) {
     throw "Production preflight omitted its dependency cron contracts."
@@ -770,6 +788,7 @@ function Assert-PostDeployContract {
     ($Contract.all_columns_present -ne $true) -or
     ($Contract.rate_limit_subject_contract_exact -ne $true) -or
     ($Contract.research_cohort_application_identity_exact -ne $true) -or
+    ($Contract.privacy_minimum_contract_exact -ne $true) -or
     ($Contract.blocked_invite_constraint_valid -ne $true) -or
     ($Contract.public_schema_create_locked -ne $true) -or
     ($Contract.internal_service_acl_exact -ne $true) -or

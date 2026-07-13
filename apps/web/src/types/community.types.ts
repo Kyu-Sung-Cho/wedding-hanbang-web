@@ -298,8 +298,8 @@ export interface CohortStat {
   category: CohortContractCategory;
   sample_size: number;
   avg_base_price: number;
-  avg_extra_price: number;
-  avg_total: number;
+  avg_extra_price: number | null;
+  avg_total: number | null;
 }
 
 // ────────────────────────────────────────

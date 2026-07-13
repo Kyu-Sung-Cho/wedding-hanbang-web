@@ -62,6 +62,7 @@ interface CohortState {
   lastMessage: string | null;
   loading: boolean;
   digest: CohortDigest | null;
+  error: boolean;
 }
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -321,7 +322,11 @@ export default function LoungePage() {
   const userId = user?.id ?? null;
   const [savedPosts, setSavedPosts] = useState<PostWithAuthor[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
+  const [savedError, setSavedError] = useState(false);
+  const [savedReloadKey, setSavedReloadKey] = useState(0);
   const [storedActions, setStoredActions] = useState<AmoraActionItem[]>([]);
+  const [actionsLoadError, setActionsLoadError] = useState(false);
+  const [actionsReloadKey, setActionsReloadKey] = useState(0);
   const [actionUpdatingId, setActionUpdatingId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [cohortState, setCohortState] = useState<CohortState>({
@@ -329,7 +334,9 @@ export default function LoungePage() {
     lastMessage: null,
     loading: true,
     digest: null,
+    error: false,
   });
+  const [cohortReloadKey, setCohortReloadKey] = useState(0);
 
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const totalBudget = journey?.total_budget ?? 0;
@@ -362,21 +369,27 @@ export default function LoungePage() {
     if (isDemo) {
       setSavedPosts(buildDemoSavedPosts());
       setSavedLoading(false);
+      setSavedError(false);
       return;
     }
     if (!userId) {
       setSavedLoading(false);
+      setSavedError(false);
       return;
     }
 
     setSavedLoading(true);
+    setSavedError(false);
     fetch("/api/community/posts?bookmarked=true&limit=3", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { posts?: PostWithAuthor[] }) => {
         if (!cancelled) setSavedPosts((data.posts ?? []).slice(0, 3));
       })
       .catch(() => {
-        if (!cancelled) setSavedPosts([]);
+        if (!cancelled) {
+          setSavedPosts([]);
+          setSavedError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setSavedLoading(false);
@@ -385,28 +398,38 @@ export default function LoungePage() {
     return () => {
       cancelled = true;
     };
-  }, [isDemo, userId]);
+  }, [isDemo, savedReloadKey, userId]);
 
   useEffect(() => {
     let cancelled = false;
     if (isDemo || !userId) {
       setStoredActions([]);
+      setActionsLoadError(false);
       return;
     }
 
+    setActionsLoadError(false);
+    setActionNotice(null);
     fetch("/api/amora/actions?status=open&limit=8", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { actions?: AmoraActionItem[] }) => {
-        if (!cancelled) setStoredActions(data.actions ?? []);
+        if (!cancelled) {
+          setStoredActions(data.actions ?? []);
+          setActionsLoadError(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setStoredActions([]);
+        if (!cancelled) {
+          setStoredActions([]);
+          setActionsLoadError(true);
+          setActionNotice("아모라가 기억한 할 일을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.");
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isDemo, userId]);
+  }, [actionsReloadKey, isDemo, userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -416,15 +439,16 @@ export default function LoungePage() {
         lastMessage: "스냅 원본 제공 범위는 계약서에 꼭 적어두자는 이야기가 나왔어요.",
         loading: false,
         digest: DEMO_DIGEST,
+        error: false,
       });
       return;
     }
     if (!userId) {
-      setCohortState({ room: null, lastMessage: null, loading: false, digest: null });
+      setCohortState({ room: null, lastMessage: null, loading: false, digest: null, error: false });
       return;
     }
 
-    setCohortState((prev) => ({ ...prev, loading: true }));
+    setCohortState((prev) => ({ ...prev, loading: true, error: false }));
     (async () => {
       try {
         const cohortRes = await fetch("/api/community/cohort", { cache: "no-store" });
@@ -433,12 +457,17 @@ export default function LoungePage() {
         if (cancelled) return;
 
         let digest: CohortDigest | null = null;
+        let digestFailed = false;
         if (cohortData.room?.id) {
           const digestRes = await fetch(
             `/api/community/cohort/${encodeURIComponent(cohortData.room.id)}/digest?period=week`,
             { cache: "no-store" }
           );
-          if (digestRes.ok) digest = (await digestRes.json()) as CohortDigest;
+          if (digestRes.ok) {
+            digest = (await digestRes.json()) as CohortDigest;
+          } else {
+            digestFailed = true;
+          }
         }
 
         if (!cancelled) {
@@ -447,17 +476,20 @@ export default function LoungePage() {
             lastMessage: cohortData.lastMessage ?? null,
             loading: false,
             digest,
+            error: digestFailed,
           });
         }
       } catch {
-        if (!cancelled) setCohortState({ room: null, lastMessage: null, loading: false, digest: null });
+        if (!cancelled) {
+          setCohortState({ room: null, lastMessage: null, loading: false, digest: null, error: true });
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isDemo, userId]);
+  }, [cohortReloadKey, isDemo, userId]);
 
   const handleActionStatus = async (actionId: string, status: Extract<AmoraActionStatus, "done" | "dismissed">) => {
     const target = openActions.find((action) => action.id === actionId);
@@ -571,9 +603,21 @@ export default function LoungePage() {
             ))}
           </div>
           {actionNotice && (
-            <p className="mt-3 rounded-full bg-white/10 px-3 py-2 text-[12px] font-semibold text-white/80">
-              {actionNotice}
-            </p>
+            <div
+              className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-[12px] font-semibold text-white/80"
+              role={actionsLoadError ? "alert" : "status"}
+            >
+              <p>{actionNotice}</p>
+              {actionsLoadError && (
+                <button
+                  type="button"
+                  onClick={() => setActionsReloadKey((key) => key + 1)}
+                  className="mt-1 min-h-11 px-2 text-white underline underline-offset-2"
+                >
+                  할 일 다시 불러오기
+                </button>
+              )}
+            </div>
           )}
         </div>
       </section>
@@ -617,8 +661,16 @@ export default function LoungePage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <SavedPostsPanel posts={savedPosts} loading={savedLoading} />
-        <CohortPulsePanel cohort={cohortState} />
+        <SavedPostsPanel
+          posts={savedPosts}
+          loading={savedLoading}
+          error={savedError}
+          onRetry={() => setSavedReloadKey((key) => key + 1)}
+        />
+        <CohortPulsePanel
+          cohort={cohortState}
+          onRetry={() => setCohortReloadKey((key) => key + 1)}
+        />
       </section>
 
       <section className="grid gap-3 rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-5 md:grid-cols-3">
@@ -872,7 +924,17 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
   );
 }
 
-function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading: boolean }) {
+function SavedPostsPanel({
+  posts,
+  loading,
+  error,
+  onRetry,
+}: {
+  posts: PostWithAuthor[];
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+}) {
   return (
     <section className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <div className="flex items-start justify-between gap-3">
@@ -887,6 +949,13 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
           <div className="flex items-center gap-2 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-4 text-[13px] font-medium text-[#7a8290]">
             <Loader2 className="h-4 w-4 animate-spin" />
             불러오는 중...
+          </div>
+        ) : error ? (
+          <div className="rounded-[14px] border border-red-200 bg-red-50 p-4" role="alert">
+            <p className="text-[13px] font-semibold text-red-800">저장한 글을 불러오지 못했어요.</p>
+            <button type="button" onClick={onRetry} className="mt-2 min-h-11 rounded-lg px-3 text-[12px] font-semibold text-red-700 underline underline-offset-2">
+              다시 불러오기
+            </button>
           </div>
         ) : posts.length > 0 ? (
           posts.map((post) => (
@@ -913,7 +982,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
   );
 }
 
-function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
+function CohortPulsePanel({ cohort, onRetry }: { cohort: CohortState; onRetry: () => void }) {
   return (
     <section className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <div className="flex items-start justify-between gap-3">
@@ -929,8 +998,23 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
             <Loader2 className="h-4 w-4 animate-spin" />
             확인 중...
           </div>
+        ) : cohort.error && !cohort.room ? (
+          <div className="rounded-[14px] border border-red-200 bg-red-50 p-4" role="alert">
+            <p className="text-[13px] font-semibold text-red-800">동기방 소식을 불러오지 못했어요.</p>
+            <button type="button" onClick={onRetry} className="mt-2 min-h-11 rounded-lg px-3 text-[12px] font-semibold text-red-700 underline underline-offset-2">
+              다시 불러오기
+            </button>
+          </div>
         ) : cohort.room ? (
           <div className="space-y-3">
+            {cohort.error && (
+              <div className="rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-[12px] font-medium text-amber-900" role="status">
+                이번 주 요약 일부를 불러오지 못했어요.
+                <button type="button" onClick={onRetry} className="ml-2 min-h-11 px-2 font-semibold underline underline-offset-2">
+                  다시 불러오기
+                </button>
+              </div>
+            )}
             <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[14px] font-semibold text-[#071629]">{cohort.room.name}</p>

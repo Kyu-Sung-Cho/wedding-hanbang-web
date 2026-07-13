@@ -553,7 +553,7 @@ export default function OnboardingScreen() {
               </View>
 
               {/* Q3: 예산 성향 */}
-              <Text style={styles.prefQuestion}>예산 성향은?</Text>
+              <Text style={styles.prefQuestion}>예산을 어떻게 운영하고 싶나요?</Text>
               <View style={styles.prefGrid3}>
                 {BUDGET_OPTIONS.map((opt) => (
                   <Pressable

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -73,6 +74,22 @@ const competingRootExpoConfigs = [
   "eas.json",
 ];
 
+let resolvedPrebuildConfig = null;
+try {
+  const expoCli = path.join(root, "apps/mobile/node_modules/expo/bin/cli");
+  resolvedPrebuildConfig = JSON.parse(execFileSync(
+    process.execPath,
+    [expoCli, "config", "--type", "prebuild", "--json"],
+    {
+      cwd: path.join(root, "apps/mobile"),
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  ));
+} catch {
+  fail("Expo prebuild config resolves for native permission verification");
+}
+
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
 expect(
   competingRootExpoConfigs.every((file) => !existsSync(path.join(root, file))),
@@ -100,6 +117,38 @@ expect(
 expect(
   appConfig.splash?.backgroundColor === "#FBF8F2",
   "Splash background uses Pearl Ivory"
+);
+const forbiddenAndroidPermissions = new Set([
+  "android.permission.CAMERA",
+  "android.permission.RECORD_AUDIO",
+  "android.permission.ACCESS_MEDIA_LOCATION",
+  "android.permission.MANAGE_EXTERNAL_STORAGE",
+  "android.permission.READ_MEDIA_AUDIO",
+  "android.permission.READ_MEDIA_IMAGES",
+  "android.permission.READ_MEDIA_VIDEO",
+  "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+  "android.permission.READ_EXTERNAL_STORAGE",
+  "android.permission.WRITE_EXTERNAL_STORAGE",
+]);
+const resolvedAndroidPermissions = resolvedPrebuildConfig?.android?.permissions;
+expect(
+  resolvedPrebuildConfig !== null &&
+    !(resolvedAndroidPermissions ?? []).some((permission) =>
+      forbiddenAndroidPermissions.has(permission)
+    ),
+  "Resolved Android prebuild excludes unused camera, microphone, and broad media permissions"
+);
+expect(
+  [...forbiddenAndroidPermissions].every((permission) =>
+    appConfig.android?.blockedPermissions?.includes(permission)
+  ),
+  "Android config blocks every unused native media permission"
+);
+expect(
+  !appConfig.ios?.infoPlist?.NSCameraUsageDescription &&
+    !appConfig.ios?.infoPlist?.NSMicrophoneUsageDescription &&
+    typeof appConfig.ios?.infoPlist?.NSPhotoLibraryUsageDescription === "string",
+  "iOS declares photo-library use without unused camera or microphone purpose strings"
 );
 
 const androidUniversalLink = appConfig.android?.intentFilters?.some((filter) =>
@@ -144,11 +193,22 @@ for (const pluginName of [
   "expo-font",
   "expo-secure-store",
   "expo-apple-authentication",
+  "expo-image-picker",
   "expo-splash-screen",
   "expo-notifications",
 ]) {
   expectIncludes(pluginNames, pluginName, `${pluginName} plugin is configured`);
 }
+
+const imagePickerPlugin = appConfig.plugins?.find((plugin) =>
+  Array.isArray(plugin) && plugin[0] === "expo-image-picker"
+);
+expect(
+  Array.isArray(imagePickerPlugin) &&
+    imagePickerPlugin[1]?.cameraPermission === false &&
+    imagePickerPlugin[1]?.microphonePermission === false,
+  "Image picker disables unused camera and microphone permissions"
+);
 
 const notificationPlugin = appConfig.plugins?.find((plugin) =>
   Array.isArray(plugin) && plugin[0] === "expo-notifications"

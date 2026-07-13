@@ -1335,6 +1335,55 @@ describe("release safety contract", () => {
     }
   });
 
+  it("emits and consumes the exact privacy-minimum remote contract", () => {
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("privacy_minimum_contract AS (");
+      expect(sql).toContain("privacy_expected_table_acl(");
+      expect(sql).toContain("privacy_expected_effective_acl AS (");
+      expect(sql).toContain("privacy_effective_acl AS (");
+      expect(sql).toContain("('cohort_contracts', 'PUBLIC', ARRAY[]::text[])");
+      expect(sql).toContain("('community_profiles', 'PUBLIC', ARRAY[]::text[])");
+      expect(sql).toContain("('community_achievements', 'PUBLIC', ARRAY[]::text[])");
+      expect(sql).toContain("('community_vendor_tags', 'PUBLIC', ARRAY[]::text[])");
+      expect(sql).toContain("view_row.reloptions = ARRAY['security_invoker=true']::text[]");
+      expect(sql).toContain("constraint_row.convalidated");
+      expect(sql).toContain("trigger_row.tgtype = 23");
+      expect(sql).toContain("WHERE exact IS DISTINCT FROM true");
+      expect(sql).toContain(
+        "casewhencount\\*>=5thenroundavglatest\\.base_price::integer"
+      );
+      expect(sql).toContain(
+        "casewhencountlatest\\.extra_price>=5andcountlatest\\.extra_price=count\\*thenroundavglatest\\.base_price\\+latest\\.extra_pricefilterwherelatest\\.extra_priceisnotnull::integer"
+      );
+      expect(sql).toContain(
+        "orderbycontract.room_id,contract.category,contract.user_id,contract.created_atdescnullslast,contract.iddesc"
+      );
+      expect(sql).toContain("pg_catalog.has_table_privilege(");
+      expect(sql).toContain("pg_catalog.has_any_column_privilege(");
+      expect(sql).toContain(
+        "AND coalesce((SELECT exact FROM privacy_effective_acl), false)"
+      );
+    }
+    expect(productionPreflight).toContain(
+      "AS privacy_minimum_contract_exact"
+    );
+    expect(productionPreflight).toContain(
+      "AS privacy_minimum_invalid_cohort_rows"
+    );
+    expect(postDeploy).toMatch(
+      /'privacy_minimum_contract_exact', coalesce\(\(\s*SELECT exact FROM privacy_minimum_contract/
+    );
+    expect(ship).toContain(
+      '$privacyMinimumPending = "20260713100000" -in $PendingVersions'
+    );
+    expect(ship).toContain(
+      "$Preflight.dynamic_sources.privacy_minimum_contract_exact -ne $true"
+    );
+    expect(ship).toContain(
+      "$Contract.privacy_minimum_contract_exact -ne $true"
+    );
+  });
+
   it("reloads ambiguous replacement mutations while preserving actionable 4xx errors", () => {
     const dispatchMarker = settingsPage.indexOf(
       "freshSpaceRequestDispatched = isCreatingFreshSpace"
