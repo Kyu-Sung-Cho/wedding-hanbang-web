@@ -31,6 +31,8 @@ export default function AppClientLayout({
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
   const hasContextualAssistant = appPathname.startsWith("/vendors");
+  const isFocusedCourtInput = appPathname === "/couple-court/new"
+    || /^\/couple-court\/cases\/[^/]+\/statement$/u.test(appPathname);
   const { initialize, isInitialized, isLoading, isDemo, initError } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);
@@ -126,7 +128,7 @@ export default function AppClientLayout({
         <ChatSidePanel isOpen onClose={() => setChatPanelOpen(false)} />
       )}
 
-      {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
+      {!isChatPage && !chatPanelOpen && !hasContextualAssistant && !isFocusedCourtInput && (
         <button
           type="button"
           onClick={() => setChatPanelOpen(true)}
