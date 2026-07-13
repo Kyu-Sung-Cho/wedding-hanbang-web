@@ -8,7 +8,7 @@ import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
   UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
-  Flag,
+  Flag, Gavel,
 } from "lucide-react";
 
 interface Registration {
@@ -572,7 +572,10 @@ export default function AdminPage() {
             <h1 className="font-serif-kr text-2xl font-light">관리자 대시보드</h1>
             <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 max-md:flex-wrap max-md:justify-center">
+            <a href="/admin/couple-court" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+              <Gavel className="w-3.5 h-3.5" /> 커플재판소 검토
+            </a>
             <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
