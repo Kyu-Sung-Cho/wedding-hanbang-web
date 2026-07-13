@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 32 * 1024;
 const STATUS_VALUES = ["open", "done", "dismissed"] as const;
 const PRIORITY_VALUES = ["high", "medium", "low"] as const;
-const SOURCE_VALUES = ["chat", "quote", "schedule", "budget", "guardrail", "manual"] as const;
+const SOURCE_VALUES = ["chat", "quote", "schedule", "budget", "guardrail", "manual", "court"] as const;
 
 async function getCoupleIdForUser(admin: ReturnType<typeof createAdminClient>, userId: string) {
   const { data: profile, error } = await admin

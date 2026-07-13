@@ -47,7 +47,7 @@ export interface WeddingJourney {
 
 export type AmoraActionPriority = "high" | "medium" | "low";
 export type AmoraActionStatus = "open" | "done" | "dismissed";
-export type AmoraActionSource = "chat" | "quote" | "schedule" | "budget" | "guardrail" | "manual";
+export type AmoraActionSource = "chat" | "quote" | "schedule" | "budget" | "guardrail" | "manual" | "court";
 
 export interface AmoraAction {
   id: string;
