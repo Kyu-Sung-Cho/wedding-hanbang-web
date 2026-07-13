@@ -12,12 +12,21 @@ const CUSTOMER_PATHS = [
   "/wedding/lounge", "/wedding/dashboard", "/wedding/chat", "/wedding/budget", "/wedding/schedule",
   "/wedding/settings", "/wedding/bookings",
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
-  "/wedding/onboarding",
+  "/wedding/onboarding", "/couple-court", "/wedding/couple-court",
+];
+const PUBLIC_COURT_PATHS = [
+  "/couple-court/public",
+  "/couple-court/invite",
+  "/wedding/couple-court/public",
+  "/wedding/couple-court/invite",
 ];
 // /market-prices·/etiquette 는 의도적 공개 — SEO 유입 자산 (시세·예절 콘텐츠)
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
 // "스드메 시세" 류 검색 유입의 유일한 입구다.
 function isProtectedPath(pathname: string): "customer" | "admin" | null {
+  if (PUBLIC_COURT_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return null;
+  }
   if (CUSTOMER_PATHS.some((p) => pathname.startsWith(p))) return "customer";
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";

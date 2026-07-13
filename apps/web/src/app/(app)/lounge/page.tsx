@@ -15,6 +15,7 @@ import {
   ListChecks,
   Loader2,
   MessageCircle,
+  Scale,
   ShieldCheck,
   Sparkles,
   Users,
@@ -673,8 +674,14 @@ export default function LoungePage() {
         />
       </section>
 
-      <section className="grid gap-3 rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-5 md:grid-cols-3">
+      <section className="grid gap-3 rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-5 md:grid-cols-2 xl:grid-cols-4">
         {[
+          ...(process.env.NEXT_PUBLIC_COUPLE_COURT_ENABLED === "true" ? [{
+            icon: Scale,
+            title: "둘만의 중재실",
+            body: "서운함을 각자 적고 오늘 실행할 합의까지 정리합니다.",
+            href: weddingPath("/couple-court"),
+          }] : []),
           {
             icon: HeartHandshake,
             title: "커뮤니티에서 확인",

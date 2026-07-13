@@ -23,6 +23,7 @@ const contentSecurityPolicy = [
 
 const weddingAppRoutes = [
   "lounge",
+  "couple-court",
   "chat",
   "budget",
   "schedule",
@@ -37,6 +38,12 @@ const weddingAppRoutes = [
 ];
 
 const nextConfig: NextConfig = {
+  // Expose only the non-secret private-feature availability bit so the client
+  // lounge never renders a dead entry while the server gate is closed.
+  env: {
+    NEXT_PUBLIC_COUPLE_COURT_ENABLED:
+      process.env.COUPLE_COURT_ENABLED === "true" ? "true" : "false",
+  },
   turbopack: {
     root: repoRoot,
   },

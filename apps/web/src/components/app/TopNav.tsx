@@ -25,6 +25,7 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
+  { prefix: "/couple-court", title: "한방 커플재판소" },
   { prefix: "/vendors/favorites", title: "찜한 업체" },
   { prefix: "/vendors", title: "업체 탐색" },
   { prefix: "/bookings", title: "예약 관리" },
@@ -47,7 +48,8 @@ interface TopNavProps {
 export default function TopNav({ onMenuToggle }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const title = getPageTitle(stripWeddingBasePath(pathname));
+  const appPathname = stripWeddingBasePath(pathname);
+  const title = getPageTitle(appPathname);
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -81,11 +83,13 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           </button>
           <Link
             {...weddingLinkProps()}
-            className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+            className="flex min-h-11 flex-col justify-center rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
             aria-label="웨딩한방 홈으로 이동"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
-            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
+            {appPathname.startsWith("/couple-court")
+              ? <p className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</p>
+              : <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>}
           </Link>
         </div>
 
