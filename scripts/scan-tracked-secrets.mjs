@@ -45,8 +45,13 @@ const patterns = [
     regex: /\b0x[0-9A-Za-z_-]{30,}\b/g,
   },
   {
-    name: "Kakao platform key",
-    regex: /(?:REST API|네이티브 앱|JavaScript|Admin|어드민)[^\r\n]{0,24}키\s*[:=]\s*[0-9a-f]{32}\b/gi,
+    name: "Kakao Admin key",
+    // Kakao's Native app, JavaScript, and REST API keys are distributed
+    // client identifiers whose protection comes from registered platforms,
+    // domains, redirect URIs, IP restrictions, and (for REST OAuth) a client
+    // secret. The Admin key is the server credential that must never be
+    // committed, so only that credential family belongs in a secret gate.
+    regex: /(?:KAKAO[_ -]?ADMIN(?:[_ -]?(?:APP|API))?[_ -]?KEY|(?:Admin|어드민|관리자)[^\r\n]{0,24}(?:key|키))\s*[:=]\s*[0-9a-f]{32}\b/gi,
   },
   {
     name: "credential-bearing service URL",

@@ -14,6 +14,7 @@ test("detects every high-risk credential family without returning values", () =>
     ["age identity secret", fixture("AGE-SECRET-", "KEY-1", "Q".repeat(40))],
     ["PEM private key", fixture("-----BEGIN ", "PRIVATE KEY-----")],
     ["Cloudflare Turnstile secret key", fixture("0x", "4A".repeat(18))],
+    ["Kakao Admin key", `Kakao Admin 키: ${"a1".repeat(16)}`],
   ];
 
   for (const [category, secret] of fixtures) {
@@ -33,6 +34,37 @@ test("does not flag public Supabase publishable keys or benign text", () => {
     scanText("fixture.txt", [publishable, ...turnstileDummyKeys, "ordinary content"].join("\n")),
     []
   );
+});
+
+test("distinguishes Kakao client identifiers from the server Admin key", () => {
+  const platformKey = "b2".repeat(16);
+  assert.deepEqual(scanText("fixture.txt", [
+    `REST API 키: ${platformKey}`,
+    `네이티브 앱 키: ${platformKey}`,
+    `JavaScript 키: ${platformKey}`,
+  ].join("\n")), []);
+
+  const findings = scanText("fixture.txt", `어드민 키 = ${"c3".repeat(16)}`);
+  assert.deepEqual(findings, [{
+    category: "Kakao Admin key",
+    file: "fixture.txt",
+    line: 1,
+  }]);
+});
+
+test("detects Kakao Admin keys in common environment and English label forms", () => {
+  for (const line of [
+    `KAKAO_ADMIN_KEY=${"d4".repeat(16)}`,
+    `KAKAO_ADMIN_APP_KEY = ${"e5".repeat(16)}`,
+    `Kakao Admin key: ${"f6".repeat(16)}`,
+  ]) {
+    const findings = scanText(".env.fixture", line);
+    assert.deepEqual(findings, [{
+      category: "Kakao Admin key",
+      file: ".env.fixture",
+      line: 1,
+    }]);
+  }
 });
 
 test("exempts only the exact public historical unit-test sentinel", () => {
