@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     // 커플 정보 조회
     const { data: couples } = await admin
       .from("couples")
-      .select("id, invite_code, bride_id, groom_id, created_at");
+      .select("id, bride_id, groom_id, created_at");
 
     // 웨딩 여정 조회 (결혼일, 예산)
     const { data: journeys } = await admin

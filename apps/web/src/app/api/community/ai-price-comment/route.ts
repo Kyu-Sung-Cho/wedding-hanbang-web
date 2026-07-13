@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-price-comment", req, loggingUserId ?? undefined), {
       maxRequests: loggingUserId ? 80 : 30,
       windowMs: 60 * 60 * 1000,
-    });
+    }, loggingUserId);
     if (limited) return limited;
 
     const startedAt = startLatencyClock();
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     void logAIInteraction({
       interactionType: "community_amora_comment",
       success: false,
-      errorMessage: err instanceof Error ? err.message : String(err),
+      errorMessage: "ai_interaction_failed",
       metadata: { endpoint: "ai-price-comment" },
     });
     return NextResponse.json(

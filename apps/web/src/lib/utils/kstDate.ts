@@ -7,6 +7,8 @@
 //
 // 모든 사용자-노출 날짜 계산은 이 헬퍼를 통과시켜 KST 기준으로 일관되게 처리.
 
+import { differenceInDateOnlyDays } from "@hanbang/shared";
+
 const KST_YMD_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Seoul",
   year: "numeric",
@@ -34,9 +36,31 @@ export function koreanDateInKst(d: Date = new Date()): string {
 
 /** "YYYY-MM-DD" → KST 자정의 Date 객체 (range 계산용) */
 export function kstMidnightFromYmd(ymd: string): Date {
+  if (differenceInDateOnlyDays(ymd, ymd) === null) return new Date(Number.NaN);
   // ISO 8601 + KST offset → JS Date는 내부적으로 UTC ms 저장.
   // 비교/일수 가감(setDate/getDate UTC variant)에서 모두 안전.
   return new Date(`${ymd}T00:00:00+09:00`);
+}
+
+/** Date, date-only, or timestamp input normalized to a valid KST calendar date. */
+export function dateLikeToYmdInKst(value: string | Date): string | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : ymdInKst(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return differenceInDateOnlyDays(value, value) === null ? null : value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : ymdInKst(parsed);
+}
+
+/** D-day by Korean calendar days, unaffected by server UTC time or time-of-day. */
+export function ddayInKst(
+  weddingDate: string | Date | null | undefined,
+  now: Date = new Date()
+): number | null {
+  if (!weddingDate || Number.isNaN(now.getTime())) return null;
+  const weddingYmd = dateLikeToYmdInKst(weddingDate);
+  if (!weddingYmd) return null;
+  return differenceInDateOnlyDays(weddingYmd, ymdInKst(now));
 }
 
 /** 오늘(KST 기준) 자정의 Date 객체 */

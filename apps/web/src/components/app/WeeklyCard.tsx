@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarHeart, ClipboardCheck, ListChecks, Sparkles } from "lucide-react";
 import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
-import { HIDDEN_COSTS } from "@/constants/hiddenCosts";
+import { QUOTE_CHECK_ITEMS } from "@/constants/hiddenCosts";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
@@ -12,6 +12,7 @@ import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
+import { parseLocalDateOnly } from "@hanbang/shared";
 
 /**
  * 주차 카드 — 라운지 최상단의 "이번 주 한 장".
@@ -29,18 +30,16 @@ interface WeeklyCardProps {
 export default function WeeklyCard({ weddingDate, totalBudget, progress, actions }: WeeklyCardProps) {
   const data = useMemo(() => {
     const progressRecord = progress as Record<string, unknown>;
-    const weddingDateObj = weddingDate ? new Date(weddingDate) : null;
-    const validWedding =
-      weddingDateObj && !Number.isNaN(weddingDateObj.getTime()) ? weddingDateObj : null;
+    const validWedding = weddingDate ? parseLocalDateOnly(weddingDate) : null;
 
-    // 아모라 한 줄 — 1순위 오늘의 모멘트, 2순위 lifecycle 경고, 3순위 "오늘은 괜찮아"
+    // 아모라 한 줄 — 정적 안내만 제공하며 선제 메시지 전송을 주장하지 않는다.
     const dueCells = buildDueMomentCells({ weddingDate, progress: progressRecord });
     const topCell = dueCells[0];
     const plan = buildAmoraLifecyclePlan({ weddingDate, totalBudget, progress });
     const brief = topCell
       ? topCell.cellKind === "dAfter"
-        ? `어제 ${topCell.momentLabel} 어땠어요? 아모라가 채팅에 안부를 남겨뒀어요.`
-        : `${topCell.momentLabel}이(가) 다가와요 — 챙길 것들을 아모라가 채팅에 정리해뒀어요.`
+        ? `어제 ${topCell.momentLabel} 어땠어요? 필요하면 지금 아모라와 정리해보세요.`
+        : `${topCell.momentLabel}이(가) 다가와요 — 지금 아모라와 확인할 질문을 정리해보세요.`
       : plan.primaryAction.severity === "critical" || plan.primaryAction.severity === "warning"
         ? plan.primaryAction.title
         : "오늘은 급한 일 없어요. 이번 주 것만 천천히 보면 돼요.";
@@ -63,14 +62,14 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       (part) => part.number === (etiquettePartNumber ?? 21)
     );
 
-    // 조심할 함정 1 — 임박 카테고리 매칭 숨은비용 (없으면 common의 critical)
+    // 추가비용 확인 질문 1 — 발생률이나 필수성을 추정하지 않고 계약 확인 질문만 노출한다.
     const trapCategory =
       topCategoryKey === "studio" || topCategoryKey === "dress" || topCategoryKey === "makeup"
         ? topCategoryKey
         : "common";
     const trap =
-      HIDDEN_COSTS.find((item) => item.category === trapCategory && item.severity === "critical") ??
-      HIDDEN_COSTS.find((item) => item.severity === "critical");
+      QUOTE_CHECK_ITEMS.find((item) => item.category === trapCategory) ??
+      QUOTE_CHECK_ITEMS[0];
 
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
     const openActions = (actions ?? getAmoraActions(progressRecord))
@@ -167,24 +166,21 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           </Link>
         )}
 
-        {/* 조심할 함정 */}
+        {/* 추가비용 확인 질문 */}
         {data.trap && (
           <Link
             {...weddingLinkProps("/community/quote-check")}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              조심할 함정
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              추가비용 확인
             </p>
             <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
               {data.trap.name}
-              <span className="ml-1.5 text-[11px] font-semibold text-[#9d6f36]">
-                {Math.round(data.trap.usageRate * 100)}%가 추가로 냄
-              </span>
             </p>
             <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-              {data.trap.disguise}
+              {data.trap.checkQuestion}
             </p>
           </Link>
         )}

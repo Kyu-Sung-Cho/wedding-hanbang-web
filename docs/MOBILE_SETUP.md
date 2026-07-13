@@ -138,7 +138,7 @@ apps/mobile/
 
 - [ ] 카카오 OAuth (네이티브)
 - [ ] Apple Sign In (iOS 심사 필수)
-- [ ] AI 채팅 (Claude 스트리밍) 화면
+- [ ] AI 채팅 (공급자 중립 SSE + OpenAI Responses API) 화면
 - [ ] 대시보드 실제 데이터 연결 (Supabase)
 - [ ] 체크리스트/일정 화면
 - [ ] TanStack Query 도입 (서버 상태)

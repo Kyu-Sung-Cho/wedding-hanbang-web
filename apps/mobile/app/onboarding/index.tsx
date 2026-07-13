@@ -9,7 +9,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  COUPLE_INVITE_CODE_EXAMPLE,
+  COUPLE_INVITE_CODE_LENGTH,
+  isCoupleInviteCode,
+  manwonInputToWon,
+  normalizeCoupleInviteCode,
+} from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
+import ErrorRetry from "@/components/ErrorRetry";
+import { consumePendingMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
+import { supabase } from "@/lib/supabase";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -133,6 +143,8 @@ function CelebrationDots() {
 }
 
 export default function OnboardingScreen() {
+  const [guardStatus, setGuardStatus] = useState<"checking" | "ready" | "error">("checking");
+  const guardRequestIdRef = useRef(0);
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
   const [coupleAction, setCoupleAction] = useState<CoupleAction>("create");
@@ -149,6 +161,51 @@ export default function OnboardingScreen() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [budgetTendency, setBudgetTendency] = useState<BudgetTendency | null>(null);
   const [guestCount, setGuestCount] = useState<GuestCount | null>(null);
+
+  const navigateAfterOnboarding = useCallback(async () => {
+    const pendingPath = await consumePendingMobileAuthReturnPath().catch(() => null);
+    router.replace(pendingPath ?? "/(tabs)/dashboard");
+  }, []);
+
+  const verifyOnboardingState = useCallback(async () => {
+    const requestId = ++guardRequestIdRef.current;
+    setGuardStatus("checking");
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (requestId !== guardRequestIdRef.current) return;
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", sessionData.session.user.id)
+        .maybeSingle();
+      if (requestId !== guardRequestIdRef.current) return;
+      if (profileError) throw profileError;
+
+      if (profile?.onboarding_completed) {
+        await navigateAfterOnboarding();
+        return;
+      }
+
+      setGuardStatus("ready");
+    } catch (error) {
+      if (requestId !== guardRequestIdRef.current) return;
+      console.error("Mobile onboarding guard failed:", error);
+      setGuardStatus("error");
+    }
+  }, [navigateAfterOnboarding]);
+
+  useEffect(() => {
+    void verifyOnboardingState();
+    return () => {
+      guardRequestIdRef.current += 1;
+    };
+  }, [verifyOnboardingState]);
 
   function togglePriority(item: PriorityItem) {
     setPriorities((prev) => {
@@ -196,7 +253,7 @@ export default function OnboardingScreen() {
   function canNext(): boolean {
     switch (step) {
       case 1: return role !== null;
-      case 2: return coupleAction === "create" || (coupleAction === "join" && inviteCode.length >= 6);
+      case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
       case 3: return true;
       case 4: return true; // 선호도는 선택사항
       default: return false;
@@ -224,7 +281,7 @@ export default function OnboardingScreen() {
           partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
           weddingDate: weddingDateUndecided ? null : weddingDate || null,
           venue: venue || null,
-          totalBudget: budget ? parseInt(budget) : 0,
+          totalBudget: budget ? manwonInputToWon(budget) : 0,
           progress,
         }),
       });
@@ -239,7 +296,7 @@ export default function OnboardingScreen() {
         setResultCode(data.inviteCode);
         animateStepTransition(5);
       } else {
-        router.replace("/(tabs)/dashboard");
+        await navigateAfterOnboarding();
       }
     } catch (err) {
       Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
@@ -252,7 +309,7 @@ export default function OnboardingScreen() {
     if (step === 4) {
       handleSubmit();
     } else if (step === 5) {
-      router.replace("/(tabs)/dashboard");
+      void navigateAfterOnboarding();
     } else {
       animateStepTransition(step + 1);
     }
@@ -262,6 +319,25 @@ export default function OnboardingScreen() {
     if (step > 1 && step < 5) {
       animateStepTransition(step - 1);
     }
+  }
+
+  if (guardStatus === "checking") {
+    return (
+      <SafeAreaView style={styles.guardState} accessibilityLiveRegion="polite">
+        <ActivityIndicator color={colors.rose[500]} size="large" />
+      </SafeAreaView>
+    );
+  }
+
+  if (guardStatus === "error") {
+    return (
+      <SafeAreaView style={styles.guardState}>
+        <ErrorRetry
+          message="온보딩 상태를 확인하지 못했어요. 기존 설정은 바꾸지 않고 다시 확인할게요."
+          onRetry={() => void verifyOnboardingState()}
+        />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -354,11 +430,12 @@ export default function OnboardingScreen() {
                 <TextInput
                   style={styles.inviteCodeInput}
                   value={inviteCode}
-                  onChangeText={setInviteCode}
-                  placeholder="초대코드 입력 (예: WH-ABC123)"
-                  placeholderTextColor={colors.taupe[400]}
+                  onChangeText={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
+                  placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_EXAMPLE})`}
+                  placeholderTextColor={colors.textTertiary}
                   autoCapitalize="characters"
-                  maxLength={10}
+                  autoCorrect={false}
+                  maxLength={COUPLE_INVITE_CODE_LENGTH}
                 />
               )}
             </View>
@@ -378,7 +455,7 @@ export default function OnboardingScreen() {
                     value={weddingDate}
                     onChangeText={setWeddingDate}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.taupe[400]}
+                    placeholderTextColor={colors.textTertiary}
                     keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
                     maxLength={10}
                   />
@@ -402,7 +479,7 @@ export default function OnboardingScreen() {
                 value={venue}
                 onChangeText={setVenue}
                 placeholder="예식장 이름 (선택)"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.textTertiary}
               />
 
               <Text style={[styles.fieldLabel, { marginTop: 20 }]}>총 예산</Text>
@@ -412,7 +489,7 @@ export default function OnboardingScreen() {
                   value={budget}
                   onChangeText={setBudget}
                   placeholder="예: 3000"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
                 />
                 <View style={styles.budgetUnitBox}>
@@ -476,7 +553,7 @@ export default function OnboardingScreen() {
               </View>
 
               {/* Q3: 예산 성향 */}
-              <Text style={styles.prefQuestion}>예산 성향은?</Text>
+              <Text style={styles.prefQuestion}>예산을 어떻게 운영하고 싶나요?</Text>
               <View style={styles.prefGrid3}>
                 {BUDGET_OPTIONS.map((opt) => (
                   <Pressable
@@ -520,7 +597,7 @@ export default function OnboardingScreen() {
               </View>
               <Text style={[styles.stepTitle, { textAlign: "center" }]}>준비 완료!</Text>
               <Text style={[styles.stepDesc, { textAlign: "center" }]}>
-                웨딩한방과 함께{"\n"}완벽한 결혼을 준비하세요
+                웨딩한방과 함께{"\n"}우리에게 맞는 준비를 시작하세요
               </Text>
 
               {resultCode ? (
@@ -567,6 +644,12 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  guardState: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+    paddingHorizontal: 24,
+  },
   content: { paddingHorizontal: 24, paddingBottom: 120 },
 
   header: {
@@ -645,7 +728,7 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
   },
-  roleLabelActive: { color: colors.rose[500] },
+  roleLabelActive: { color: colors.noir[800] },
 
   // Step 2: 커플
   optionCard: {
@@ -668,7 +751,7 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     marginBottom: 4,
   },
-  optionTitleActive: { color: colors.rose[500] },
+  optionTitleActive: { color: colors.noir[800] },
   optionDesc: {
     fontSize: 13,
     fontFamily: "NotoSansKR_400Regular",

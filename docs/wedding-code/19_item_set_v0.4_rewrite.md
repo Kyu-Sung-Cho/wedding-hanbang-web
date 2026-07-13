@@ -1,5 +1,7 @@
 # WeddingCode Item Set v0.4 — 표면 리라이트 (2026-07-06)
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 아래 문항과 `weddingCodeForm.ts` 동기화 지시는 폐기된 v0.4 기록이다. 현재 문항·점수의 유일한 기준은 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)와 candidate.10 코드다.
+
 > **v0.4.2 지시어·전제 정합 패치 (2026-07-06, 파운더 전수 재검토 지시 "질문·선택지 싹다 다시봐" → 8건 전부 승인.
 > 신규 응답 form_version="v0.4.2", 의미·매핑·순서·게이팅 불변):**
 > - q05-D → "그 내용이 계약서에 적힌 걸 확인한 뒤에 계약한다" — 기존 "확인될 때까지 결정을 잠깐 미룬다"는

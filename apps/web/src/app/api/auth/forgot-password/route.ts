@@ -3,6 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
+import { normalizeEmail } from "@/utils/requestValidation";
+import { ChatRequestError, readBoundedJsonBody } from "@/lib/ai/chatRequest";
+
+const MAX_BODY_BYTES = 4 * 1024;
+
+const GENERIC_RECOVERY_MESSAGE =
+  "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다.";
 
 function getAdminSupabase() {
   return createClient(
@@ -11,35 +18,81 @@ function getAdminSupabase() {
   );
 }
 
+function genericRecoveryResponse() {
+  return NextResponse.json({ success: true, message: GENERIC_RECOVERY_MESSAGE });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeErrorMetadata(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") {
+    return { errorType: typeof error };
+  }
+
+  const value = error as { name?: unknown; code?: unknown; status?: unknown };
+  return {
+    errorName: typeof value.name === "string" ? value.name : undefined,
+    code: typeof value.code === "string" ? value.code : undefined,
+    status: typeof value.status === "number" ? value.status : undefined,
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    const { email, turnstileToken } = await request.json();
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+      return NextResponse.json({ error: "JSON 요청이 필요합니다." }, { status: 415 });
+    }
+    let body: Record<string, unknown>;
+    try {
+      body = await readBoundedJsonBody(request, { maxBytes: MAX_BODY_BYTES });
+    } catch (error) {
+      if (error instanceof ChatRequestError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+    const rawEmail = body.email;
+    const turnstileToken = typeof body.turnstileToken === "string"
+      ? body.turnstileToken
+      : null;
+    const email = normalizeEmail(rawEmail);
 
     if (!email) {
       return NextResponse.json({ error: "이메일을 입력해주세요." }, { status: 400 });
     }
 
-    // signup과 동일한 발송 표면 — Turnstile + rate limit으로 이메일 폭탄을 막는다.
-    // enumeration 방지를 위해 차단 시에도 동일하게 success를 반환(무발송)한다.
-    // 모바일 앱은 Turnstile 토큰을 만들 수 없어 브라우저 봇 차단만 생략한다 —
-    // rate limit·enumeration 마스킹은 모바일에도 적용된다. (signup 라우트와 동일 정책)
-    const isMobileClient = request.headers.get("x-hanbang-client") === "mobile";
-    if (!isMobileClient) {
-      const turnstile = await verifyTurnstile(turnstileToken, getClientIp(request));
-      if (!turnstile.ok) {
-        return NextResponse.json({ success: true });
-      }
-    }
     const ipLimited = await checkRateLimitPersistent(rateLimitKey("forgot", request), {
       maxRequests: 5,
       windowMs: 10 * 60 * 1000,
     });
-    if (ipLimited) return NextResponse.json({ success: true });
+    if (ipLimited) return genericRecoveryResponse();
+
+    const turnstile = await verifyTurnstile(
+      turnstileToken,
+      getClientIp(request),
+      "forgot_password"
+    );
+    if (!turnstile.ok) {
+      return NextResponse.json(
+        { error: "보안 확인을 완료한 뒤 다시 시도해주세요." },
+        { status: 400 }
+      );
+    }
+
+    // CAPTCHA를 통과하지 않은 공격자가 피해자의 복구 quota를 소진하지
+    // 못하도록 이메일 단위 제한은 검증 성공 뒤에만 계산한다.
     const emailLimited = await checkRateLimitPersistent(`forgot-email:${normalizeEmailForRateLimit(email)}`, {
       maxRequests: 3,
       windowMs: 60 * 60 * 1000,
     });
-    if (emailLimited) return NextResponse.json({ success: true });
+    if (emailLimited) return genericRecoveryResponse();
 
     const supabase = getAdminSupabase();
 
@@ -53,25 +106,33 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      console.error("generateLink recovery error:", error);
-      // 보안상 존재하지 않는 이메일도 성공으로 응답
-      return NextResponse.json({ success: true });
+      console.error("AUTH_RECOVERY_LINK_GENERATION_FAILED", {
+        severity: "error",
+        ...safeErrorMetadata(error),
+      });
+      return genericRecoveryResponse();
     }
 
     if (!data?.properties?.action_link) {
-      // 보안상 성공으로 응답
-      return NextResponse.json({ success: true });
+      console.error("AUTH_RECOVERY_LINK_MISSING", { severity: "error" });
+      return genericRecoveryResponse();
     }
 
     // Resend로 비밀번호 재설정 이메일 발송
     const resetLink = data.properties.action_link;
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const safeResetLink = escapeHtml(resetLink);
 
-    await resend.emails.send({
-      from: "웨딩한방 <noreply@hanbang.ai>",
-      to: email,
-      subject: "웨딩한방 비밀번호 재설정",
-      html: `
+    try {
+      if (!process.env.RESEND_API_KEY) {
+        throw new Error("RESEND_API_KEY is not configured");
+      }
+
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error: emailError } = await resend.emails.send({
+        from: "웨딩한방 <noreply@hanbang.ai>",
+        to: email,
+        subject: "웨딩한방 비밀번호 재설정",
+        html: `
         <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
           <div style="text-align: center; margin-bottom: 32px;">
             <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
@@ -81,10 +142,10 @@ export async function POST(request: Request) {
           </h1>
           <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
             아래 버튼을 클릭하여 새 비밀번호를 설정해주세요.<br>
-            이 링크는 24시간 동안 유효합니다.
+            보안을 위해 링크가 만료될 수 있으니 가능한 빨리 사용해주세요.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
-            <a href="${resetLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            <a href="${safeResetLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
               비밀번호 재설정하기
             </a>
           </div>
@@ -92,7 +153,7 @@ export async function POST(request: Request) {
             버튼이 작동하지 않으면 아래 링크를 복사하여 브라우저에 붙여넣으세요:
           </p>
           <p style="font-size: 12px; color: #B5ADA3; word-break: break-all; text-align: center; margin-bottom: 32px; padding: 16px; background: #FAF7F2; border-radius: 12px;">
-            ${resetLink}
+            ${safeResetLink}
           </p>
           <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
             비밀번호 재설정을 요청하지 않으셨다면 이 메일을 무시하셔도 됩니다.
@@ -101,13 +162,24 @@ export async function POST(request: Request) {
             © 2026 웨딩한방. All rights reserved.
           </p>
         </div>
-      `,
-    });
+        `,
+      });
 
-    return NextResponse.json({ success: true });
+      if (emailError) throw emailError;
+    } catch (error) {
+      // 외부에는 계정 존재 여부와 전달 결과를 숨기고, 운영 로그에만 실패 신호를 남긴다.
+      console.error("AUTH_RECOVERY_EMAIL_DELIVERY_FAILED", {
+        severity: "error",
+        ...safeErrorMetadata(error),
+      });
+    }
+
+    return genericRecoveryResponse();
   } catch (err) {
-    console.error("Forgot password API error:", err);
-    // 보안상 성공으로 응답
-    return NextResponse.json({ success: true });
+    console.error("AUTH_RECOVERY_UNEXPECTED_FAILURE", {
+      severity: "error",
+      ...safeErrorMetadata(err),
+    });
+    return genericRecoveryResponse();
   }
 }

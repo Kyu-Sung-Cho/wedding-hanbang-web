@@ -1,5 +1,7 @@
 # WeddingCode D4 Item Review - 당일 혜택이 있는 상담 후 결정
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 리뷰의 문항·선택지·가중치는 현재 D4와 다르며 candidate.10 검증 결과가 아니다. 현재 D4와 검증 경계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 상태: v0.5 후보 문항 확정 전 심층 리뷰  
 작성일: 2026-07-07  
 관련 문항군: Category 5. 스트레스 상황 대화/회복, Category 1. 돈·조건·계약 리스크

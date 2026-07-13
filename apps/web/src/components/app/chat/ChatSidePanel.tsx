@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
+import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -13,17 +13,18 @@ import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
 import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 
-const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS = 3;
+const MAX_TOTAL_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
+  "image/jpeg": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/png": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/gif": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/webp": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "application/pdf": { maxSize: 2 * 1024 * 1024, label: "PDF" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 2 * 1024 * 1024, label: "DOCX" },
 };
 
 interface AttachmentItem {
@@ -31,6 +32,7 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+  byteSize: number;
 }
 
 function fileInputKey(file: File): string {
@@ -52,10 +54,13 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     streamingToolResults,
     suggestions,
     error,
+    pendingAiRequest,
     initialLoadDone,
     loadMessages,
     sendMessage,
-    requestInitialGreeting,
+    retryAiResponse,
+    cancelAiResponse,
+    dismissAiError,
     clearMessages,
     subscribeToMessages,
   } = useChatStore();
@@ -68,22 +73,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const [showMediationBanner, setShowMediationBanner] = useState(false);
   const [mediationDismissed, setMediationDismissed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const greetingRequested = useRef(false);
   const subscribed = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { dialogRef } = useAccessibleDialog({ isOpen, onClose });
   const coupleId = couple?.id;
   const hasCouplePartner = !!(couple?.bride_id && couple?.groom_id);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !isDemo || !coupleId || !profile) return;
@@ -126,34 +120,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       };
     }
   }, [isOpen, coupleId, isDemo, loadMessages, subscribeToMessages]);
-
-  // 메시지 0개일 때 AI 첫 인사
-  useEffect(() => {
-    if (
-      !isOpen ||
-      !coupleId ||
-      !profile ||
-      isDemo ||
-      !initialLoadDone ||
-      isStreaming ||
-      messages.length > 0 ||
-      greetingRequested.current
-    )
-      return;
-
-    greetingRequested.current = true;
-    requestInitialGreeting({
-      coupleId,
-      senderRole: profile.role ?? "bride",
-      senderName: profile.name ?? "사용자",
-      weddingContext: {
-        weddingDate: journey?.wedding_date ?? null,
-        budget: journey?.total_budget ?? 0,
-        venue: journey?.venue ?? null,
-        progress: journey?.progress ?? {},
-      },
-    });
-  }, [isOpen, coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -218,8 +184,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
     const typeInfo = ALLOWED_TYPES[file.type];
-    if (!typeInfo) return;
-    if (file.size > typeInfo.maxSize) return;
+    if (!typeInfo) {
+      alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, DOCX 가능)`);
+      return;
+    }
+    if (file.size > typeInfo.maxSize) {
+      alert(`${typeInfo.label} 파일은 2MB 이하만 가능해요.`);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -230,11 +202,16 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         mediaType: file.type,
         previewUrl: file.type.startsWith("image/") ? base64Full : "",
         fileName: file.name,
+        byteSize: file.size,
       };
       setAttachments((prev) => {
         if (prev.length >= MAX_ATTACHMENTS) return prev;
         const key = chatAttachmentKey(attachment);
         if (prev.some((item) => chatAttachmentKey(item) === key)) return prev;
+        if (prev.reduce((sum, item) => sum + item.byteSize, 0) + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+          alert("첨부파일 합계는 2MB 이하만 가능해요.");
+          return prev;
+        }
         return [...prev, attachment];
       });
     };
@@ -279,7 +256,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleSend = useCallback(
     async (text?: string) => {
       const content = text ?? input.trim();
-      if (!content || !coupleId || !profile) return;
+      if ((!content && attachments.length === 0) || !coupleId || !profile) return;
 
       const currentAttachments = [...attachments];
       setInput("");
@@ -296,7 +273,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         else finalContent = "이 이미지를 분석해주세요.";
       }
 
-      await sendMessage({
+      const userMessageStored = await sendMessage({
         content: finalContent,
         senderId: profile.id,
         senderRole: profile.role ?? "bride",
@@ -310,6 +287,17 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
         target: messageTarget,
+      });
+
+      if (userMessageStored) return;
+
+      setInput((current) => current || content);
+      setAttachments((current) => {
+        const currentKeys = new Set(current.map(chatAttachmentKey));
+        const restored = currentAttachments.filter(
+          (attachment) => !currentKeys.has(chatAttachmentKey(attachment))
+        );
+        return [...restored, ...current].slice(0, MAX_ATTACHMENTS);
       });
     },
     [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
@@ -338,7 +326,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   const handleClearChat = async () => {
     if (!coupleId) return;
-    greetingRequested.current = false;
     // SidePanel에서는 가장 안전한 default — "내 화면만 정리 (함께 대화)"
     // 진짜 삭제는 메인 채팅 modal에서만 가능
     await clearMessages(coupleId, "view_reset_shared");
@@ -362,10 +349,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* 패널 */}
       <div
+        ref={dialogRef}
         className={`fixed z-50 flex flex-col overflow-hidden bg-ivory-50 shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[0_-18px_45px_rgba(7,22,41,0.18)]
@@ -377,6 +366,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         aria-modal={isOpen}
         aria-hidden={!isOpen}
         aria-label="아모라 AI 상담 패널"
+        tabIndex={-1}
         inert={!isOpen}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -412,28 +402,43 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {messages.length > 0 && (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
                 title="대화 초기화"
+                aria-label="내 화면의 대화 목록 정리"
               >
                 <Trash2 className="w-4 h-4 text-taupe-500 hover:text-red-400" />
               </button>
             )}
             <button
               onClick={handleExpand}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="전체 화면으로 보기"
+              aria-label="아모라 채팅 전체 화면으로 보기"
             >
               <Maximize2 className="w-4 h-4 text-taupe-500" />
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
               title="닫기"
               aria-label="아모라 상담 패널 닫기"
+              data-dialog-initial-focus
             >
               <X className="w-4 h-4 text-taupe-500" />
             </button>
           </div>
+        </div>
+
+        <div className="flex min-h-9 items-center justify-center gap-2 border-b border-black/[0.05] bg-[#FBF8F2] px-4 text-xs text-[#5F5B52]">
+          <span className="inline-flex items-center gap-1.5">
+            <Sparkles className="h-3 w-3 text-gold" aria-hidden="true" />
+            AI 생성 · GPT-5.6
+          </span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
+          <a href="/ai-policy" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2 hover:text-[#795252]">
+            AI 정책
+          </a>
         </div>
 
         {showEmpty ? (
@@ -455,23 +460,58 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-xs text-red-600">대화를 모두 삭제할까요?</p>
+                <p className="text-xs text-red-600">내 화면의 대화 목록을 정리할까요? 서버 데이터는 보존됩니다.</p>
                 <div className="flex gap-1.5">
                   <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button onClick={handleClearChat} className="px-2.5 py-1 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600">화면 정리</button>
                 </div>
               </div>
             )}
 
             {/* 에러 표시 */}
             {error && (
-              <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-xs text-red-600">{error}</p>
+              <div
+                className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5"
+                role="alert"
+                aria-live="assertive"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs leading-relaxed text-red-700">{error}</p>
+                  <button
+                    type="button"
+                    onClick={dismissAiError}
+                    className="flex-shrink-0 rounded p-0.5 text-red-500 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    aria-label="오류 안내 닫기"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                {pendingAiRequest && (
+                  <button
+                    type="button"
+                    onClick={() => void retryAiResponse()}
+                    className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    aria-label="저장된 질문으로 아모라 답변 다시 받기"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                    답변 다시 받기
+                  </button>
+                )}
               </div>
             )}
 
             {/* 메시지 영역 */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {messages.length === 0 && initialLoadDone && (
+                <div className="py-10 text-center" role="status">
+                  <Sparkles className="mx-auto mb-3 h-8 w-8 text-rose-500/30" aria-hidden="true" />
+                  <p className="text-sm font-medium text-noir-800">안녕하세요, 아모라예요.</p>
+                  <p className="mt-2 text-xs leading-relaxed text-taupe-500">
+                    채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.
+                    <br />궁금한 준비를 직접 입력해 주세요.
+                  </p>
+                </div>
+              )}
               {(() => {
                 // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
                 const recentAiIds = new Set(
@@ -521,7 +561,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
               {isStreaming && (
                 <div className="animate-fade-in">
-                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} />
+                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} onCancel={cancelAiResponse} />
                 </div>
               )}
 
@@ -533,10 +573,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <div className="px-3 pb-2">
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-3 py-3 shadow-sm">
                   <button
+                    type="button"
                     onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
                     className="absolute top-2 right-2 w-5 h-5 rounded-full text-[#B5ADA3] hover:text-[#928980] flex items-center justify-center"
+                    aria-label="의견 조율 안내 닫기"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3 h-3" aria-hidden="true" />
                   </button>
                   <div className="flex items-start gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -547,10 +589,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
                       </p>
                       <button
+                        type="button"
                         onClick={requestMediation}
                         className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[0.6875rem] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-colors"
                       >
-                        <Sparkles className="w-3 h-3" />
+                        <Sparkles className="w-3 h-3" aria-hidden="true" />
                         아모라에게 상담 요청하기
                       </button>
                     </div>
@@ -581,10 +624,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </div>
                     )}
                     <button
+                      type="button"
                       onClick={() => removeAttachment(i)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label={`${att.fileName} 첨부 삭제`}
+                      className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center rounded-full text-white opacity-100 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-sm">
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
                     </button>
                   </div>
                 ))}
@@ -596,26 +643,30 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               {/* 대상 토글 (커플 연동 시) */}
               {hasCouplePartner && (
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <button
-                    onClick={() => setMessageTarget("ai")}
+                <button
+                  type="button"
+                  onClick={() => setMessageTarget("ai")}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" />
+                  }`}
+                  aria-pressed={messageTarget === "ai"}
+                >
+                    <Sparkles className="w-3 h-3" aria-hidden="true" />
                     아모라에게
                   </button>
-                  <button
-                    onClick={() => setMessageTarget("partner")}
+                <button
+                  type="button"
+                  onClick={() => setMessageTarget("partner")}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
-                    }`}
-                  >
-                    <Heart className="w-3 h-3" />
+                  }`}
+                  aria-pressed={messageTarget === "partner"}
+                >
+                    <Heart className="w-3 h-3" aria-hidden="true" />
                     상대방에게
                   </button>
                 </div>
@@ -624,12 +675,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex items-center gap-1.5 p-1.5">
                 {/* 첨부파일 버튼 */}
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
                   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors disabled:opacity-30 flex-shrink-0"
                   title="파일 첨부"
+                  aria-label="파일 첨부"
                 >
-                  <Paperclip className="w-4 h-4 text-taupe-400" />
+                  <Paperclip className="w-4 h-4 text-taupe-400" aria-hidden="true" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -657,6 +710,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   onClick={() => handleSend()}
                   disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                  aria-label={messageTarget === "partner" ? "상대방에게 메시지 보내기" : "아모라에게 메시지 보내기"}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"

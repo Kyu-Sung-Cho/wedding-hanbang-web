@@ -15,12 +15,13 @@ import {
   Layers,
   Play,
 } from "lucide-react";
+import { createMobileAppShareUrl } from "@hanbang/shared";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
 import Avatar from "./Avatar";
 import AdDisclosureBadge from "./AdDisclosureBadge";
-import { communityPostPath, communityPostUrl } from "@/lib/community/routes";
+import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -142,7 +143,7 @@ export default function PostCard({ post }: PostCardProps) {
     e.preventDefault();
     e.stopPropagation();
     if (typeof window === "undefined") return;
-    const url = communityPostUrl(window.location.origin, post.id);
+    const url = createMobileAppShareUrl({ kind: "communityPost", id: post.id });
     const title = post.title;
 
     // 모바일 — 네이티브 시트

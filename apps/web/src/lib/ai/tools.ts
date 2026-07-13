@@ -1,6 +1,6 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages";
+import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 
-export const WEDDING_TOOLS: Tool[] = [
+export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "update_budget",
     description:
@@ -521,6 +521,10 @@ export const WEDDING_TOOLS: Tool[] = [
       properties: {
         category: {
           type: "string",
+          enum: [
+            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
+            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
+          ],
           description: "업체 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물', '신혼여행'",
         },
         location: {
@@ -529,10 +533,12 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         price_min: {
           type: "number",
+          minimum: 0,
           description: "최소 가격 (원 단위)",
         },
         price_max: {
           type: "number",
+          minimum: 0,
           description: "최대 가격 (원 단위)",
         },
         search: {
@@ -541,7 +547,9 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "최대 결과 수 (기본 5)",
+          minimum: 1,
+          maximum: 10,
+          description: "최대 결과 수 (기본 5, 최대 10)",
         },
       },
       required: [],
@@ -564,6 +572,8 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         day: {
           type: "number",
+          minimum: 0,
+          maximum: 6,
           description: "특정 요일만 확인 (0=월 ~ 6=일). 생략하면 전체 요일",
         },
       },
@@ -573,29 +583,26 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "recommend_vendors",
     description:
-      "고객의 예산, 선호도, 분위기, 시간 등을 종합적으로 고려하여 맞춤 업체를 추천합니다. 고객이 '업체 추천해줘', '예산에 맞는 스튜디오 찾아줘', '어디가 좋을까?', '모던한 분위기 스튜디오', '토요일 오후에 가능한 업체' 같은 요청에 사용합니다.",
+      "등록된 업체 정보에서 고객이 명시한 카테고리, 분위기 키워드, 지역, 가격 상한과 일치하는 검토 후보를 찾습니다. 품질 순위, 최신 가격, 예약 가능 여부를 보증하지 않으며 일정 가능 여부를 묻는 요청에는 사용하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
         category: {
           type: "string",
-          description: "추천 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물'",
+          enum: [
+            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
+            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
+          ],
+          description: "검토할 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물'",
         },
         mood: {
           type: "string",
           description: "고객이 원하는 분위기/스타일. 예: '모던', '클래식', '내추럴', '로맨틱', '빈티지', '럭셔리', '심플', '화려한', '따뜻한', '감성적인'",
         },
-        preferred_day: {
-          type: "number",
-          description: "선호 요일 (0=월 ~ 6=일). 고객이 특정 요일을 원할 때. 예: 5=토요일",
-        },
-        preferred_time: {
-          type: "string",
-          description: "선호 시간대. 'morning'=오전(9~12), 'afternoon'=오후(12~17), 'evening'=저녁(17~21)",
-        },
         price_max: {
           type: "number",
-          description: "최대 가격 (원 단위). 고객이 구체적인 예산 한도를 말할 때",
+          minimum: 0,
+          description: "사용자가 직접 말한 가격 상한 (원 단위). 등록 최저가 필드에 적용하며 실제 총액을 뜻하지 않고, 총예산에서 임의 추정하지 않음",
         },
         location: {
           type: "string",
@@ -603,7 +610,9 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "추천 업체 수 (기본 3)",
+          minimum: 1,
+          maximum: 10,
+          description: "검토 후보 수 (기본 3, 최대 10)",
         },
       },
       required: ["category"],
@@ -613,7 +622,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "get_vendor_detail",
     description:
-      "특정 업체의 상품(패키지)과 스태프 목록을 조회합니다. 고객이 업체 추천 결과에서 특정 업체의 상세 정보를 요청할 때 사용합니다. 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
+      "특정 업체의 등록 상품(패키지)과 스태프 목록을 조회합니다. 고객이 검토 후보 중 특정 업체의 상세 정보를 요청할 때 사용합니다. 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -661,7 +670,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "create_booking",
     description:
-      "업체에 예약을 생성합니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 슬롯이 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
+      "업체에 상담 예약 요청을 접수합니다. 업체 확인 전에는 예약이 확정되지 않습니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 슬롯이 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -679,15 +688,15 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         date: {
           type: "string",
-          description: "예약 날짜 (YYYY-MM-DD 형식)",
+          description: "상담 요청 날짜 (YYYY-MM-DD 형식)",
         },
         time: {
           type: "string",
-          description: "예약 시간 (HH:00 형식)",
+          description: "상담 요청 시간 (HH:00 형식)",
         },
         memo: {
           type: "string",
-          description: "예약 메모 (선택)",
+          description: "상담 요청 메모 (선택)",
         },
       },
       required: ["vendor_id", "date", "time"],
@@ -702,6 +711,10 @@ export const WEDDING_TOOLS: Tool[] = [
       properties: {
         status: {
           type: "string",
+          enum: [
+            "pending", "confirmed", "contract_sent", "contract_signed", "deposit_paid",
+            "in_service", "service_completed", "settled", "completed", "cancelled",
+          ],
           description: "필터할 예약 상태 (선택). pending, confirmed, cancelled 등. 미지정 시 취소 제외 전체.",
         },
       },
@@ -891,11 +904,11 @@ export const WEDDING_TOOLS: Tool[] = [
       required: ["query"],
     },
   },
-  // 견적 분석 (AI 견적 체크)
+  // 견적 포함 범위 확인
   {
     name: "analyze_quote",
     description:
-      "스드메 견적을 분석합니다. **중요: 2단계 플로우!** 1단계: 사용자가 견적 금액을 말하면 included_items를 반드시 빈 배열([])로 호출 → 체크리스트 카드가 표시됨. 2단계: 사용자가 [quote_analysis] 태그로 체크 결과를 보내면 그때 included_items에 항목을 넣어 재호출. 절대 included_items를 추측해서 넣지 마세요.",
+      "스드메 견적의 포함 범위를 사용자가 직접 확인하도록 질문을 정리합니다. 가격 적정성, 항목별 평균, 발생 가능성, 필수성은 판정하지 않습니다. **중요: 2단계 플로우!** 1단계: 사용자가 견적 금액을 말하면 included_items를 반드시 빈 배열([])로 호출 → 체크리스트 카드가 표시됨. 2단계: 사용자가 [quote_analysis] 태그로 체크 결과를 보내면 그때 included_items에 항목을 넣어 재호출. 절대 included_items를 추측해서 넣지 마세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -920,7 +933,7 @@ export const WEDDING_TOOLS: Tool[] = [
         },
         vendor_name: {
           type: "string",
-          description: "업체명 (선택). 비교 분석에 사용.",
+          description: "업체명 (선택). 결과 라벨에만 사용.",
         },
       },
       required: ["quote_price", "category"],
@@ -929,14 +942,75 @@ export const WEDDING_TOOLS: Tool[] = [
 ];
 
 // =============================================
-// 업체 추천/예약 도구 활성화
+// 업체 조회 도구와 비활성 상담 요청 도구 정의
 // =============================================
-// vendor onboarding 진행되어 활성화. 시드 데이터 부족할 경우 search_vendors 는
+// 조회 도구는 vendor onboarding 데이터에 연결된다. 상담 요청·취소 정의는
+// 서버 확인 토큰 도입 전까지 아래 BETA_DISABLED_TOOL_NAMES에서 모델 노출을 막는다.
+// 시드 데이터가 부족할 경우 search_vendors 는
 // 빈 결과를 반환하므로 AI 는 솔직하게 "현재 등록된 곳 없어요" 안내하도록 prompts 에서 가이드.
 // 환각 방지: prompts.ts 의 "업체 추천 가이드" 섹션이 DB 결과 외 추천 금지 룰을 강제.
-export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([]);
+/**
+ * 모델이 보낸 `confirmed: true`는 사용자의 신뢰 가능한 확인 증거가 아니다.
+ * 별도의 서버 발급 확인 토큰/nonce가 도입되기 전까지 파괴적 도구는 모델에 노출하지 않는다.
+ */
+export const MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "delete_category",
+  "reset_category",
+  "delete_schedule_event",
+  "create_booking",
+  "cancel_booking",
+]);
+
+/** 모델 자유문자열이 제3자 API로 전송되는 외부 도구는 서버 조립 쿼리 전까지 차단. */
+export const MODEL_DISABLED_EXTERNAL_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "search_nearby_places",
+]);
+
+/** 업체 연결·수신 왕복이 없는 동안 등록 슬롯을 실제 예약 가능 정보로 모델이 해석하지 못하게 한다. */
+export const MODEL_DISABLED_AVAILABILITY_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "check_vendor_availability",
+  "get_available_slots",
+]);
+
+/** 공유 상태나 외부 예약을 변경하는 도구. private/첨부 턴에서는 전부 차단한다. */
+export const MODEL_MUTATING_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "update_budget",
+  "update_wedding_date",
+  "update_task_status",
+  "update_venue",
+  "update_category_budget",
+  "apply_budget_plan",
+  "add_custom_category",
+  "delete_category",
+  "reset_category",
+  "add_schedule_event",
+  "update_schedule_event",
+  "delete_schedule_event",
+  "toggle_checklist_item",
+  "add_amora_action",
+  "log_wedding_event",
+  "update_amora_action",
+  "create_booking",
+  "cancel_booking",
+]);
+
+export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  ...MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES,
+  ...MODEL_DISABLED_EXTERNAL_TOOL_NAMES,
+  ...MODEL_DISABLED_AVAILABILITY_TOOL_NAMES,
+  // 계정 삭제/동시성/확인 토큰을 mutation RPC 안에서 검증하기 전까지
+  // 모델 기반 shared 상태 변경은 전부 비활성화한다.
+  ...MODEL_MUTATING_TOOL_NAMES,
+]);
 
 /** 베타용: 비활성 도구를 제외한 안전한 도구 목록 */
-export const BETA_SAFE_TOOLS: Tool[] = WEDDING_TOOLS.filter(
+export const BETA_SAFE_TOOLS: AiToolDefinition[] = WEDDING_TOOLS.filter(
   (t) => !BETA_DISABLED_TOOL_NAMES.has(t.name)
+);
+
+/** 프롬프트 주입이나 비공개 대화가 공유 상태를 바꾸지 못하게 하는 읽기 전용 목록. */
+export const READ_ONLY_SAFE_TOOLS: AiToolDefinition[] = BETA_SAFE_TOOLS.filter(
+  (tool) =>
+    !MODEL_MUTATING_TOOL_NAMES.has(tool.name) &&
+    !MODEL_DISABLED_EXTERNAL_TOOL_NAMES.has(tool.name)
 );

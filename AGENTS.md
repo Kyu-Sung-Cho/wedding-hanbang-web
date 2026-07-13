@@ -1,36 +1,71 @@
 ## 최상위 규칙
 모든 작업은 PRINCIPLES.md의 6개 원칙을 따른다.
 충돌 시 우선순위: P1 > P3 > P2 > P4 > P5 > P6.
-모든 AI 호출은 ai_interactions_log에 기록되며,
-모든 커플 의사결정은 decision_nodes에 기록된다.
+실제 provider 생성 호출은 감사 래퍼를 거쳐 ai_interactions_log에 기록한다.
+decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, 모든 사용자 행동을 자동 수집한다고 가정하지 않는다.
+
+## 현재 소스 오브 트루스 (2026-07-12)
+
+> 이 문서에는 초기 단일 웹앱 계획이 역사 기록으로 남아 있다. 현재 상태를 판단할 때는 아래 목록과 실제 코드·패키지 매니페스트를 우선하며, 오래된 계획 블록을 구현 사실로 인용하지 않는다.
+
+- 저장소는 pnpm/Turbo 모노레포다: `apps/web`, `apps/mobile`, `packages/design-tokens`, `packages/shared`, `supabase`, `scripts`.
+- 웹은 Next.js `16.2.6`/React `19.2.3`/Tailwind CSS 4, 모바일은 Expo 54/React Native 0.81이다. 정확한 버전은 각 `package.json`과 `pnpm-lock.yaml`이 최종 기준이다.
+- 아모라 AI 연동은 OpenAI Responses API다. 일반 상담은 정확히 `gpt-5.6-luna`, 계약·분쟁/안전·반복 교정만 정확히 `gpt-5.6-terra`를 사용하며 reasoning은 코드에서 `none`으로 고정한다. Anthropic/Claude 런타임과 SDK는 제거되었다.
+- 현재 베타의 아모라는 조회·정리 중심이다. 일정·예산·준비 상태 수정과 예약 생성·취소 등 모델 기반 쓰기 도구는 서버 확인 토큰과 동시성 계약이 완성될 때까지 하드 비활성이다. 프롬프트의 과거 기능 설명보다 `runtimeToolContract.ts`와 실제 노출 도구 목록이 우선한다.
+- OpenAI 키가 없어도 정적 테스트는 가능하지만, 출시는 2026-07-12 검증에 사용한 기존 키의 폐기·인증 거부·사용량 감사를 확인하고 GPT-5.6 Luna/Terra 사용 권한이 있는 회전 키로 스트리밍·도구 후속·PDF·거절·중단·예산 상한을 canary 검증한 뒤에만 가능하다.
+- WeddingCode는 candidate.10의 16개 준비 순서 문항을 개인 브라우저에서만 계산한다. 최신 문항·계산·검증 경계는 `docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`가 기준이다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
+- 운영 DB 작업은 `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`와 `docs/SUPABASE_REMOTE_OPERATIONS.md`의 write fence·백업·격리 복구 gate를 모두 통과한 뒤에만 한다. 노출된 Supabase CLI login role/PAT를 폐기하고 승인된 non-production ref를 allowlist에 넣기 전에는 원격 Supabase 명령을 실행하지 않는다.
+- `RESEARCH_COHORT_APPLICATIONS_ENABLED`와 `ACCOUNT_DELETION_CRON_ENABLED`는 운영 검증 전까지 `false`다. 문서·테스트 통과만으로 접수나 삭제 cron을 열지 않는다.
+- EAS의 development·preview·production profile은 모두 저장소 Node 22.13.0과 pnpm 11.7.0을 고정한다. 스토어 빌드는 `mobile:store-release-check`와 실기기 증거가 통과하기 전에는 실행하지 않는다.
+- 디자인 의도는 `DESIGN.md`, 공유 토큰은 `packages/design-tokens/src/`, 웹에 실제 적용된 값은 `apps/web/src/app/globals.css`가 기준이다. 충돌하면 실행 코드의 현재 동작을 먼저 확인하고 문서를 함께 동기화한다.
+- 저장소 명령은 루트에서 `corepack pnpm ...` 형식을 사용한다. 실제 스크립트는 루트와 각 앱의 `package.json`을 확인한다.
+
+## Deploy Configuration (configured by /setup-deploy)
+
+- Platform: Vercel, team `hanbang`, project `wedding-hanbang-web`, root directory `apps/web`
+- Production URL: `https://hanbang.ai`
+- Deploy workflow: Git 자동 배포와 deploy hook은 비활성이다. 운영 환경 변경·staged create·promote는 별도의 보호된 `release-control` 또는 동등한 외부 controller가 독립 승인된 exact SHA와 서명 receipt로만 수행한다. 로컬 Vercel CLI는 운영 proof를 만들지 않는다.
+- Deploy status: controller가 Vercel API의 allowlisted team/project/repository ID, `gitSource` type/repo/ref/SHA, target, state, immutable deployment ID와 alias를 strict schema로 검증한다. 로컬 `inspect` 판독을 증거로 사용하지 않는다.
+- Merge method: GitHub merge commit only. `gh pr merge 38 --merge --match-head-commit <candidate-sha>` 외 squash, rebase, force-push를 사용하지 않는다.
+- Project type: Next.js web app/API와 같은 저장소의 Expo mobile companion
+- Post-deploy health check: staged URL과 `https://hanbang.ai/api/health/maintenance`에서 exact SHA, Supabase ref, launch/maintenance/Turnstile boolean을 검사한 뒤 `corepack pnpm qa:live`를 실행한다.
+
+### Custom deploy hooks
+
+- Pre-merge: full-history secret gate, Windows reviewed-launcher contract, `corepack pnpm qa:local`, 독립 코드 승인과 runbook의 candidate-bound 운영 선행 증거가 모두 통과해야 한다.
+- Deploy trigger: 보호된 controller가 create 직전 `main` HEAD와 독립 승인 receipt를 다시 확인한 exact post-merge SHA만 Vercel Production target으로 staged한다. 검증 전 custom domain에 연결하지 않는다.
+- Deploy status: provider API에서 immutable deployment ID와 type/repo/ref/SHA/project/team/target/state를 대조하고, alias의 예상 이전 ID가 바뀌면 중단한다.
+- Health check: staged URL의 SHA·Supabase ref·기능 상태와 provider alias의 deployment ID를 별도로 검증한다. promote 직전에 `main`·승인·alias 이전 ID를 다시 확인하고 같은 deployment ID만 promote한 뒤 apex canary를 다시 실행한다. 자동 Git 배포는 계속 비활성으로 둔다.
 
 ---
 
-# 웨딩한방 웹 (hanbang.ai) - Codex 가이드
+# 웨딩한방 모노레포 (hanbang.ai) - Codex 가이드
 
 ## 🎯 프로젝트 개요
 
-**한 줄 요약**: 웨딩한방 모바일 앱의 웹 버전 + 마케팅 랜딩페이지. 같은 Supabase 백엔드를 공유하여 앱과 웹 데이터가 실시간 동기화됨.
+**한 줄 요약**: 웹·모바일 앱과 공유 패키지를 함께 관리하는 웨딩한방 모노레포. 웹과 모바일은 같은 Supabase 백엔드를 사용한다.
 
 **도메인**: hanbang.ai (www.hanbang.ai)
 **배포**: Vercel
-**기존 앱**: React Native CLI (별도 레포)
+**모바일 앱**: `apps/mobile` (Expo/React Native, 같은 저장소)
 
 ## 🏗 기술 스택
 
 | 레이어 | 기술 | 이유 |
 |--------|------|------|
-| Framework | Next.js 14 (App Router) | SSR, API Routes, Vercel 최적화 |
+| Framework | Next.js 16.2.6 (App Router) | SSR, Route Handlers, Vercel 배포 |
 | Language | TypeScript | 타입 안정성 |
-| Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
-| State | Zustand | 앱과 동일한 패턴 |
+| Styling | Tailwind CSS 4 | 빠른 개발, 일관된 디자인 |
+| State | Zustand 5 | 웹·모바일의 로컬 상태 관리 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | Codex API (Anthropic) | 웨딩 AI 플래너 채팅 |
+| AI | OpenAI Responses API | 웨딩 AI 플래너 채팅 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
-| 배포 | Vercel | 자동 배포, Edge Functions |
+| 배포 | Vercel | Next.js 웹 배포 |
 | 이메일 | Resend | 사전등록 확인 메일 |
 
-## 📁 프로젝트 구조
+## 📁 폐기된 초기 구조 초안 (현재 구조 아님)
+
+> 아래 트리는 초기 단일 앱 계획의 역사 기록이다. 현재 작업 경로로 사용하지 않는다. 실제 구조는 위의 `현재 소스 오브 트루스`와 `apps/`, `packages/`, `supabase/` 디렉터리에서 확인한다.
 
 ```
 hanbang-web/
@@ -118,7 +153,7 @@ hanbang-web/
 │   │   │   ├── server.ts        # 서버용 클라이언트
 │   │   │   └── middleware.ts    # Auth 미들웨어
 │   │   ├── ai/
-│   │   │   ├── Codex.ts        # Codex API 호출
+│   │   │   ├── openai.ts       # OpenAI Responses API 호출
 │   │   │   └── prompts.ts       # 시스템 프롬프트
 │   │   └── resend.ts            # 이메일 발송
 │   │
@@ -145,9 +180,13 @@ hanbang-web/
 └── middleware.ts                 # Next.js 미들웨어 (인증 체크)
 ```
 
-## 🎨 디자인 시스템
+## 🎨 디자인 시스템 출처
 
-앱과 동일한 컬러 팔레트:
+현재 디자인 판단은 `DESIGN.md`에서 시작하고, 공유 구현 토큰은 `packages/design-tokens/src/`, 웹 런타임 값은 `apps/web/src/app/globals.css`에서 확인한다.
+
+> 아래 색상·폰트 블록은 초기안 기록이며 현재 적용 기준이 아니다.
+
+초기 컬러 팔레트 기록:
 
 ```css
 /* Primary - Noir */
@@ -171,7 +210,7 @@ hanbang-web/
 --gold: #C9A96E;
 ```
 
-폰트:
+초기 폰트 기록:
 - 한글 제목: Noto Serif KR (300, 400, 500)
 - 한글 본문: Noto Sans KR (300, 400, 500, 600)
 - 영문 제목/숫자: Cormorant Garamond (300, 400, 600)
@@ -184,8 +223,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
-# Codex AI
-ANTHROPIC_API_KEY=sk-ant-xxx...
+# OpenAI Responses API
+OPENAI_API_KEY=sk-proj-xxx...
+OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
+OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
 
 # Resend (이메일)
 RESEND_API_KEY=re_xxx...
@@ -197,6 +238,8 @@ NEXT_PUBLIC_SITE_URL=https://hanbang.ai
 ## 🗄 Supabase 공유
 
 모바일 앱과 **같은 Supabase 프로젝트**를 사용합니다.
+
+> 아래 테이블·SQL은 초기 설계 기록이다. 현재 스키마나 실행 지침으로 사용하지 않으며, 실제 구조와 변경 순서는 `supabase/migrations/`, 원격 작업은 검토된 guarded script와 운영 runbook만 따른다.
 기존 테이블: profiles, couples, wedding_journeys, chat_messages, chat_summaries, schedules, budgets, budget_items, vendors, customer_insights, fitting_requests
 
 웹 전용 추가 테이블:
@@ -243,7 +286,9 @@ CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true)
 4. 프로필 체크 → 신규면 온보딩, 기존이면 대시보드
 5. middleware.ts에서 (app) 그룹 페이지 접근 시 인증 체크
 
-## 🛠 개발 순서 (권장)
+## 🛠 초기 개발 순서 기록 (현재 실행 계획 아님)
+
+> 아래 단계는 초기 구축 계획이다. 현재 우선순위와 완료 상태는 최신 `docs/` 기록과 실제 이슈/코드를 확인한다.
 
 ### Phase 1: 기초 셋업 (Day 1)
 1. `npx create-next-app@latest hanbang-web --typescript --tailwind --app --src-dir`
@@ -267,7 +312,7 @@ CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true)
 
 ### Phase 4: 핵심 기능 (Day 3-7)
 1. 대시보드 (D-day, 진행률, 카테고리 현황)
-2. AI 채팅 (Codex API 연동)
+2. AI 채팅 (OpenAI Responses API 연동)
 3. 예산 관리
 4. 일정 관리
 5. 업체 탐색
@@ -301,10 +346,11 @@ chore: 설정, 패키지 등
 
 ## Design System
 
-Always read DESIGN.md before making any visual or UI decisions.
-All font choices, colors, spacing, and aesthetic direction are defined there.
-Do not deviate without explicit user approval.
-In QA mode, flag any code that does not match DESIGN.md.
+Read `DESIGN.md` before making visual or UI decisions. Treat it as the design-intent source.
+Check `packages/design-tokens/src/` for shared tokens and `apps/web/src/app/globals.css` for values actually applied on web.
+If these sources disagree, verify the rendered implementation and update the drift instead of copying an old value from this file.
+Do not deviate from an explicit approved direction without user approval.
+In QA mode, flag mismatches among `DESIGN.md`, shared tokens, and rendered code.
 For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md before changing navigation, screen hierarchy, AI flows, vendor flows, or launch-readiness behavior.
 
 ## Codex Operating Protocol

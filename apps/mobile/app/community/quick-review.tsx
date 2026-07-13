@@ -1,5 +1,5 @@
 // 15초 후기 작성
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable,
   Alert, ActivityIndicator,
@@ -10,6 +10,12 @@ import { Star } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, PrimaryButton } from "@/components/ui/AppUI";
+import {
+  clearQuickReviewDraft,
+  loadQuickReviewDraft,
+  saveQuickReviewDraft,
+} from "@/lib/communityDrafts";
+import { supabase } from "@/lib/supabase";
 
 const CATEGORIES = [
   { key: "venue", label: "예식장" },
@@ -39,6 +45,65 @@ export default function QuickReviewScreen() {
   const [review, setReview] = useState("");
   const [adDisclosure, setAdDisclosure] = useState("general");
   const [submitting, setSubmitting] = useState(false);
+  const [draftOwnerId, setDraftOwnerId] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const draftPersistenceEnabledRef = useRef(true);
+
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getSession()
+      .then(async ({ data, error }) => {
+        if (error) throw error;
+        const userId = data.session?.user.id ?? null;
+        if (!userId) return;
+        if (active) setDraftOwnerId(userId);
+        const draft = await loadQuickReviewDraft(userId);
+        if (!active) return;
+
+        if (draft) {
+          setVendorName(draft.vendorName);
+          setCategory(draft.category);
+          setRating(draft.rating);
+          setReview(draft.review);
+          setAdDisclosure(draft.adDisclosure);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Quick review draft load failed:", error);
+      })
+      .finally(() => {
+        if (active) setDraftReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady || !draftOwnerId) return;
+
+    const timer = setTimeout(() => {
+      if (!draftPersistenceEnabledRef.current) return;
+      const hasContent = Boolean(vendorName.trim() || category || rating || review.trim());
+      const operation = hasContent
+        ? saveQuickReviewDraft(draftOwnerId, {
+            vendorName,
+            category,
+            rating,
+            review,
+            adDisclosure,
+          })
+        : clearQuickReviewDraft(draftOwnerId);
+
+      void operation.catch((error: unknown) => {
+        console.error("Quick review draft save failed:", error);
+      });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [adDisclosure, category, draftOwnerId, draftReady, rating, review, vendorName]);
 
   async function handleSubmit() {
     if (!vendorName.trim()) { Alert.alert("알림", "업체명을 입력해주세요."); return; }
@@ -64,6 +129,13 @@ export default function QuickReviewScreen() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "후기 작성에 실패했어요");
+      }
+
+      if (draftOwnerId) {
+        draftPersistenceEnabledRef.current = false;
+        await clearQuickReviewDraft(draftOwnerId).catch((error: unknown) => {
+          console.error("Quick review draft clear failed:", error);
+        });
       }
 
       Alert.alert("완료", "15초 후기가 등록되었어요!", [
@@ -163,6 +235,10 @@ export default function QuickReviewScreen() {
           })}
         </View>
 
+        <Text style={s.visibilityNotice}>
+          이 후기는 전체 공개되며, 가입 이름 대신 자동 생성된 커뮤니티 닉네임으로 표시됩니다.
+        </Text>
+
         <PrimaryButton
           style={s.submitButton}
           onPress={handleSubmit}
@@ -204,6 +280,17 @@ const s = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: "right",
     marginTop: 4,
+  },
+  visibilityNotice: {
+    marginTop: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.ivory[200],
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: "NotoSansKR_400Regular",
   },
 
   // 카테고리 칩

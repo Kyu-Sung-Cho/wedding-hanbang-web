@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
@@ -18,19 +19,19 @@ import { weddingPath } from "@/lib/weddingPaths";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
-const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS = 3;
+const MAX_TOTAL_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
 
 // 허용 파일 타입
 const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
+  "image/jpeg": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/png": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/gif": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "image/webp": { maxSize: 2 * 1024 * 1024, label: "이미지" },
+  "application/pdf": { maxSize: 2 * 1024 * 1024, label: "PDF" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 2 * 1024 * 1024, label: "DOCX" },
 };
 
 interface AttachmentItem {
@@ -38,6 +39,7 @@ interface AttachmentItem {
   mediaType: string;
   previewUrl: string;
   fileName: string;
+  byteSize: number;
 }
 
 function fileInputKey(file: File): string {
@@ -365,12 +367,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     streamingToolResults,
     suggestions,
     error,
+    pendingAiRequest,
     quotaRemaining,
     initialLoadDone,
     presence,
     loadMessages,
     sendMessage,
-    requestInitialGreeting,
+    retryAiResponse,
+    cancelAiResponse,
+    dismissAiError,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
@@ -447,7 +452,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [searchParams, router]);
-  const greetingRequested = useRef(false);
   const coupleId = couple?.id;
 
   useEffect(() => {
@@ -555,34 +559,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       return () => window.clearTimeout(timer);
     }
   }, [messages.length, showNewChatBanner]);
-
-  // 메시지 0개 + 로딩 완료 시 AI 첫 인사
-  useEffect(() => {
-    if (
-      !coupleId ||
-      !profile ||
-      isDemo ||
-      !initialLoadDone ||
-      isStreaming ||
-      messages.length > 0 ||
-      greetingRequested.current
-    )
-      return;
-
-    greetingRequested.current = true;
-
-    requestInitialGreeting({
-      coupleId,
-      senderRole: profile.role ?? "bride",
-      senderName: profile.name ?? "사용자",
-      weddingContext: {
-        weddingDate: journey?.wedding_date ?? null,
-        budget: journey?.total_budget ?? 0,
-        venue: journey?.venue ?? null,
-        progress: journey?.progress ?? {},
-      },
-    });
-  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤 정책 — 페이지 전체는 절대 안 건드림, 메시지 컨테이너만 움직임.
   // 이전 사고: scrollIntoView()가 부모 체인 모두 끌고 내려가서 페이지까지 같이 움직임.
@@ -711,11 +687,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     followStreamRef.current = false; // 응답 완료 → 다음 발화까지 자동 follow 안 함
   }, [isStreaming, scrollContainerToBottom]);
 
-  // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
-  // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
-  // 서버에서 휴리스틱 + 회상 필터 + 턴 패턴 + (borderline) LLM 검증 → 트리거 시
-  // mediation 메시지를 직접 INSERT 하며 Realtime 으로 양쪽 클라이언트에 자동 전달.
-  // 단일 진실원본이라 양쪽 디바이스 동시 트리거하는 race condition 제거.
+  // 자동 갈등 감지·중재는 현재 비활성이다. 상대방 메시지는 저장·전달만 하며,
+  // 사용자가 아모라에게 직접 요청한 상담만 메인 채팅 비용/삭제 경계를 거친다.
 
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
@@ -752,7 +725,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     uniqueFiles(files).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
-        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word 가능)`);
+        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, DOCX 가능)`);
         return;
       }
       if (file.size > typeInfo.maxSize) {
@@ -766,7 +739,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         const base64 = result.split(",")[1];
         const isImage = file.type.startsWith("image/");
         const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
-        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name };
+        const attachment = { base64, mediaType: file.type, previewUrl, fileName: file.name, byteSize: file.size };
 
         setAttachments((prev) => {
           if (prev.length >= MAX_ATTACHMENTS) {
@@ -776,6 +749,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           const key = chatAttachmentKey(attachment);
           if (prev.some((item) => chatAttachmentKey(item) === key)) {
             revokeObjectPreview(previewUrl);
+            return prev;
+          }
+          if (prev.reduce((sum, item) => sum + item.byteSize, 0) + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+            revokeObjectPreview(previewUrl);
+            alert("첨부파일 합계는 2MB 이하만 가능해요.");
             return prev;
           }
           return [...prev, attachment];
@@ -868,13 +846,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   const handleSend = useCallback(
     async (text?: string) => {
+      // 데모는 로컬 샘플 데이터 탐색 전용이다. 인증되지 않은 유료 AI 호출을
+      // 시도해 401을 보여주거나 비용 우회 경로를 만들지 않는다.
+      if (isDemo) return;
       const content = text ?? input.trim();
       if ((!content && attachments.length === 0) || !coupleId || !profile) return;
 
       const currentAttachments = [...attachments];
       setInput("");
       setAttachments([]);
-      currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
 
       // 기본 메시지 생성
       let defaultMsg = "";
@@ -894,7 +874,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         ? (role === "groom" ? "groom_private" : "bride_private")
         : "shared";
 
-      await sendMessage({
+      const userMessageStored = await sendMessage({
         content: content || defaultMsg,
         senderId: profile.id,
         senderRole: role,
@@ -910,8 +890,25 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         target: messageTarget,
         visibility,
       });
+
+      if (userMessageStored) {
+        currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
+        return;
+      }
+
+      // 사용자 메시지 저장 자체가 실패한 경우에만 초안을 복구한다. AI 응답만
+      // 실패한 경우에는 이미 저장된 사용자 메시지로 store가 재시도한다.
+      setInput((current) => current || content);
+      setAttachments((current) => {
+        const currentKeys = new Set(current.map(chatAttachmentKey));
+        const restored = currentAttachments.filter(
+          (attachment) => !currentKeys.has(chatAttachmentKey(attachment))
+        );
+        return [...restored, ...current].slice(0, MAX_ATTACHMENTS);
+      });
+      requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
+    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate, isDemo]
   );
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
@@ -1026,7 +1023,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const performClear = useCallback(
     async (mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private") => {
       if (!coupleId) return;
-      greetingRequested.current = false;
       try {
         await clearMessages(coupleId, mode);
         setClearStep("closed");
@@ -1181,7 +1177,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   {communityDraft.privacyMode === "redacted_private" && (
                     <div className="mt-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
                       <p className="text-sm leading-relaxed text-[#2F5F51]">
-                        비공개 상담에서 만든 익명화 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 그래도 올리기 전에 개인적인 표현이 남아있는지 한 번만 확인해주세요.
+                        비공개 상담에서 개인정보를 덜어 만든 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 게시물에는 커뮤니티 닉네임이 표시되니 올리기 전에 개인적인 표현이 남아있는지 확인해주세요.
                       </p>
                     </div>
                   )}
@@ -1369,20 +1365,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
           AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
-      <div className="sr-only">
+      <div className="flex justify-center border-b border-black/[0.04] bg-[#FBF8F2] px-4 py-1.5">
         <div
-          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
-          title="아모라 답변은 Anthropic Claude 가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
+          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-tight text-[#5F5B52]"
+          title="아모라 답변은 OpenAI의 GPT 모델이 생성합니다. 자세한 내용은 'AI 정책' 페이지에서 확인하세요."
         >
           <span className="inline-flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/50" />
             AI 생성
           </span>
-          <span className="text-[#D5C9C0]">·</span>
-          <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
-          <span className="text-[#D5C9C0]">·</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
+          <span>참고 데이터: 답변별 상이</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
           <span>전문가 검토 권장</span>
-          <span className="text-[#D5C9C0]">·</span>
+          <span aria-hidden="true" className="text-[#B8AEA6]">·</span>
           <a
             href="/ai-policy"
             className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
@@ -1420,7 +1416,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
         <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 아모라가 더 정확하게 답변할 수 있어요.</p>
+          <p className="text-sm text-[#795252]">대화가 길어졌어요. 새 채팅을 시작하면 주제와 맥락을 나눠 정리하기 쉬워요.</p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
             <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">새 채팅</button>
@@ -1536,8 +1532,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     onClick={() => performClear("delete_private")}
                     className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-red-600 mb-1">영구 삭제</div>
-                    <div className="text-[12px] text-[#504444]">DB에서 완전히 삭제. <strong>복구 불가</strong>.</div>
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">채팅 메시지 삭제</div>
+                    <div className="text-[12px] text-[#504444]">비공개 메시지·요약·AI 기억을 삭제하고 연결된 감사 원문도 즉시 가립니다. <strong>복구 불가</strong>.</div>
                   </button>
                 </div>
                 <div className="mt-5 flex justify-end">
@@ -1599,14 +1595,36 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
-          return filteredMessages.map((msg, index) => {
+          const previousHumanByAiMessageId = new Map<string, ChatMessage>();
+          let previousHuman: ChatMessage | undefined;
+          for (const message of filteredMessages) {
+            if (message.sender_role === "ai") {
+              if (previousHuman) previousHumanByAiMessageId.set(message.id, previousHuman);
+            } else {
+              previousHuman = message;
+            }
+          }
+
+          if (!q && filteredMessages.length === 0 && initialLoadDone) {
+            return (
+              <div className="mx-auto max-w-lg py-12 text-center" role="status">
+                <Sparkles className="mx-auto mb-3 h-9 w-9 text-[#795252]/35" aria-hidden="true" />
+                <p className="text-[15px] font-medium text-[#1A1A1F]">안녕하세요, 아모라예요.</p>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#706963]">
+                  채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.
+                  <br />궁금한 준비를 직접 입력하면 그때 답할게요.
+                </p>
+              </div>
+            );
+          }
+          return filteredMessages.map((msg) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
               msg.metadata.toolResults.length > 0;
             const previousHumanMessage = msg.sender_role === "ai"
-              ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
+              ? previousHumanByAiMessageId.get(msg.id)
               : undefined;
             const isSharedCommunityFallback =
               activeTab === "shared" &&
@@ -1634,8 +1652,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const displayCommunityAskCue = canConsiderCommunityFallback
               ? isPrivateCommunityFallback
                 ? {
-                    label: "익명으로 물어보기",
-                    ariaLabel: "비공개 아모라 상담 내용을 익명화해 커뮤니티에 묻기",
+                    label: "개인정보 가리고 물어보기",
+                    ariaLabel: "비공개 아모라 상담 내용에서 개인정보를 가려 커뮤니티에 묻기",
                   }
                 : communityAskCue ?? {
                     label: "커뮤니티에 물어보기",
@@ -1700,7 +1718,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
         {isStreaming && (
           <div className="animate-fade-in">
-            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={attemptSend} />
+            <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={attemptSend} onCancel={cancelAiResponse} />
           </div>
         )}
 
@@ -1757,7 +1775,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="mx-2 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
             {quotaRemaining > 0
-              ? `베타 무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+              ? `베타 무료 상담 총 30회 중 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
               : "베타 무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
           </p>
           <button
@@ -1772,14 +1790,33 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 에러 메시지 */}
       {error && !isStreaming && (
-        <div className="mx-2 mt-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-red-600">{error}</p>
-          <button
-            onClick={() => useChatStore.setState({ error: null })}
-            className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div
+          className="mx-2 mt-2 flex flex-col items-stretch justify-between gap-3 rounded-xl bg-red-50 p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] sm:flex-row sm:items-center"
+          role="alert"
+          aria-live="assertive"
+        >
+          <p className="text-sm text-red-700">{error}</p>
+          <div className="flex flex-shrink-0 items-center justify-end gap-2">
+            {pendingAiRequest && (
+              <button
+                type="button"
+                onClick={() => void retryAiResponse()}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                aria-label="저장된 질문으로 아모라 답변 다시 받기"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                답변 다시 받기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissAiError}
+              className="rounded-md p-1 text-red-500 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              aria-label="오류 안내 닫기"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1896,8 +1933,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </div>
                 )}
                 <button
+                  type="button"
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  aria-label={`${att.fileName} 첨부 삭제`}
+                  className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white opacity-100 shadow-sm transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1907,7 +1946,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         )}
 
         {/* 대상 토글 — 한 단계 컴팩트 (px/py/font 톤다운) */}
-        {activeTab === "shared" && (
+        {activeTab === "shared" && !isDemo && (
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mb-2 px-0.5 sm:px-1">
             <button
               onClick={() => setMessageTarget("ai")}
@@ -1934,6 +1973,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {isDemo && (
+          <div className="mb-2 flex flex-col gap-2 rounded-xl border border-[#E8DDD3] bg-[#FFF9F4] px-4 py-3 text-sm text-[#504444] sm:flex-row sm:items-center sm:justify-between">
+            <p>이 화면은 샘플 기록을 둘러보는 데모예요. 실제 아모라 상담과 파일 분석은 로그인 후 사용할 수 있어요.</p>
+            <Link
+              href={`/login?redirect=${encodeURIComponent(weddingPath("/chat"))}`}
+              className="shrink-0 rounded-full bg-[#795252] px-4 py-2 text-center font-medium text-white"
+            >
+              로그인하고 상담하기
+            </Link>
+          </div>
+        )}
+
         <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
@@ -1945,14 +1996,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.doc"
+            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx"
             multiple
             onChange={handleFileSelect}
+            disabled={isDemo}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
+            disabled={isDemo || isStreaming || attachments.length >= MAX_ATTACHMENTS}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word)"
           >
@@ -1987,18 +2039,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }}
             onPaste={handlePaste}
             placeholder={
-              messageTarget === "partner"
+              isDemo
+                ? "데모에서는 샘플 대화만 볼 수 있어요"
+                : messageTarget === "partner"
                 ? "상대방에게 메시지…"
                 : isPrivate
                   ? "아모라에게 솔직히…"
                   : "무엇이든 물어보세요…"
             }
-            disabled={isStreaming}
+            disabled={isDemo || isStreaming}
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}
-            disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+            disabled={isDemo || (!input.trim() && attachments.length === 0) || isStreaming}
+            aria-label={
+              isDemo
+                ? "데모에서는 메시지를 보낼 수 없어요"
+                : messageTarget === "partner"
+                  ? "상대방에게 메시지 보내기"
+                  : isPrivate
+                    ? "아모라에게 비공개 메시지 보내기"
+                    : "아모라에게 메시지 보내기"
+            }
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"

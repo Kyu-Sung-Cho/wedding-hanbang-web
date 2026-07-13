@@ -1,5 +1,7 @@
 # WeddingCode Evidence Backbone & Item Taxonomy v0.1
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 문서의 다중 구성개념·유형 설계는 현재 실행 계약이 아니다. 현재 문항, 단일축 계산, 근거 한계는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)를 따른다.
+
 작성일: 2026-07-07
 
 목표: 웨딩코드를 "재미있는 공유 테스트"로 만들되, 근거 없는 성격검사나 궁합 장사로 보이지 않게 한다.  

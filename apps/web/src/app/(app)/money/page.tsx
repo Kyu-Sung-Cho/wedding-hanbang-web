@@ -18,12 +18,33 @@ const METHODS: { key: MoneyMethod; label: string }[] = [
 
 export default function MoneyPage() {
   const { couple } = useAuthStore();
-  const { moneyList, moneyLoading, loadMoney, addMoney, updateMoney, deleteMoney } = useMoneyStore();
+  const {
+    moneyList,
+    moneyLoading,
+    moneyCoupleId,
+    error,
+    errorOperation,
+    loadMoney,
+    addMoney,
+    updateMoney,
+    deleteMoney,
+    clearError,
+  } = useMoneyStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<Side | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const visibleMoneyList = useMemo(
+    () => (moneyCoupleId === couple?.id ? moneyList : []),
+    [couple?.id, moneyCoupleId, moneyList]
+  );
+  const isLedgerLoading = Boolean(couple?.id) && (
+    moneyLoading || moneyCoupleId !== couple?.id
+  );
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -37,12 +58,16 @@ export default function MoneyPage() {
   });
 
   useEffect(() => {
-    if (couple?.id) loadMoney(couple.id);
+    if (couple?.id) {
+      void loadMoney(couple.id).catch(() => {
+        // 스토어의 오류 상태를 화면에서 복구 가능한 형태로 표시한다.
+      });
+    }
   }, [couple?.id, loadMoney]);
 
   // 필터링된 목록
   const filtered = useMemo(() => {
-    let result = moneyList;
+    let result = visibleMoneyList;
     if (filterSide !== "all") {
       result = result.filter((m) => m.side === filterSide);
     }
@@ -53,17 +78,17 @@ export default function MoneyPage() {
       );
     }
     return result;
-  }, [moneyList, filterSide, search]);
+  }, [visibleMoneyList, filterSide, search]);
 
   // 통계
   const stats = useMemo(() => {
-    const total = moneyList.reduce((s, m) => s + m.amount, 0);
-    const groomTotal = moneyList.filter((m) => m.side === "groom").reduce((s, m) => s + m.amount, 0);
-    const brideTotal = moneyList.filter((m) => m.side === "bride").reduce((s, m) => s + m.amount, 0);
-    const count = moneyList.length;
+    const total = visibleMoneyList.reduce((s, m) => s + m.amount, 0);
+    const groomTotal = visibleMoneyList.filter((m) => m.side === "groom").reduce((s, m) => s + m.amount, 0);
+    const brideTotal = visibleMoneyList.filter((m) => m.side === "bride").reduce((s, m) => s + m.amount, 0);
+    const count = visibleMoneyList.length;
     const avg = count > 0 ? Math.round(total / count) : 0;
     return { total, groomTotal, brideTotal, count, avg };
-  }, [moneyList]);
+  }, [visibleMoneyList]);
 
   const resetForm = () => {
     setForm({
@@ -75,37 +100,48 @@ export default function MoneyPage() {
       memo: "",
       received_at: new Date().toISOString().slice(0, 10),
     });
+    setFormError(null);
     setEditId(null);
     setShowForm(false);
   };
 
   const handleSubmit = async () => {
-    if (!form.guest_name.trim() || !form.amount) return;
-    if (editId) {
-      await updateMoney(editId, {
-        guest_name: form.guest_name,
-        amount: parseInt(form.amount),
-        side: form.side,
-        relation: form.relation || null,
-        method: form.method,
-        memo: form.memo || null,
-        received_at: form.received_at,
-      });
-    } else {
-      await addMoney({
-        guest_name: form.guest_name,
-        amount: parseInt(form.amount),
-        side: form.side,
-        relation: form.relation || null,
-        method: form.method,
-        memo: form.memo || null,
-        received_at: form.received_at,
-      });
+    if (isSaving || !form.guest_name.trim() || !form.amount) return;
+
+    const amount = Number(form.amount);
+    if (!Number.isInteger(amount) || amount < 0 || amount > 100_000_000) {
+      setFormError("금액을 0~1억원 사이의 정수로 입력해 주세요.");
+      return;
     }
-    resetForm();
+
+    setFormError(null);
+    setIsSaving(true);
+    try {
+      const data = {
+        guest_name: form.guest_name.trim(),
+        amount,
+        side: form.side,
+        relation: form.relation || null,
+        method: form.method,
+        memo: form.memo || null,
+        received_at: form.received_at,
+      };
+      if (editId) {
+        await updateMoney(editId, data);
+      } else {
+        await addMoney(data);
+      }
+      resetForm();
+    } catch {
+      // 저장 실패 시 폼과 입력값을 그대로 두고 스토어의 오류를 표시한다.
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEdit = (money: CongratulatoryMoney) => {
+    clearError();
+    setFormError(null);
     setForm({
       guest_name: money.guest_name,
       amount: String(money.amount),
@@ -120,14 +156,29 @@ export default function MoneyPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteMoney(id);
-    setDeleteConfirm(null);
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteMoney(id);
+      setDeleteConfirm(null);
+    } catch {
+      // 실패하면 확인 상태를 유지해 사용자가 바로 다시 시도할 수 있게 한다.
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleReload = () => {
+    if (!couple?.id || moneyLoading) return;
+    void loadMoney(couple.id).catch(() => {
+      // 오류 상태는 스토어에서 갱신한다.
+    });
   };
 
   // CSV 다운로드
   const handleExportCSV = () => {
     const header = "이름,금액,신랑/신부,관계,수단,메모,날짜\n";
-    const rows = moneyList.map((m) =>
+    const rows = visibleMoneyList.map((m) =>
       [m.guest_name, m.amount, m.side === "groom" ? "신랑" : m.side === "bride" ? "신부" : "공통", m.relation ?? "", m.method, m.memo ?? "", m.received_at].join(",")
     ).join("\n");
     const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8" });
@@ -152,7 +203,7 @@ export default function MoneyPage() {
         <div className="flex gap-2">
           <button
             onClick={handleExportCSV}
-            disabled={moneyList.length === 0}
+            disabled={visibleMoneyList.length === 0 || isLedgerLoading}
             aria-label="축의금 CSV 다운로드"
             className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[#504444] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
           >
@@ -160,9 +211,10 @@ export default function MoneyPage() {
             CSV
           </button>
           <button
-            onClick={() => { resetForm(); setShowForm(true); }}
+            onClick={() => { clearError(); resetForm(); setShowForm(true); }}
+            disabled={isLedgerLoading}
             aria-label="축의금 추가 폼 열기"
-            className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all"
           >
             <Plus className="w-5 h-5" />
             추가
@@ -200,6 +252,43 @@ export default function MoneyPage() {
         </div>
       </div>
 
+      {error && (errorOperation !== "load" || visibleMoneyList.length > 0) && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"
+        >
+          <div>
+            <p className="text-sm font-semibold">
+              {errorOperation === "load"
+                ? "최신 내역을 불러오지 못했어요"
+                : errorOperation === "delete"
+                  ? "삭제되지 않았어요"
+                  : "저장되지 않았어요"}
+            </p>
+            <p className="mt-0.5 text-sm">{error}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {errorOperation === "load" && (
+              <button
+                type="button"
+                onClick={handleReload}
+                className="min-h-11 rounded-lg px-3 text-sm font-medium text-red-700 hover:bg-red-100"
+              >
+                다시 시도
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={clearError}
+              aria-label="오류 메시지 닫기"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-red-600 hover:bg-red-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 입력 폼 */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6">
@@ -207,7 +296,13 @@ export default function MoneyPage() {
             <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
-            <button onClick={resetForm} className="text-[#B5ADA3] hover:text-[#795252]">
+            <button
+              type="button"
+              onClick={() => { clearError(); resetForm(); }}
+              disabled={isSaving}
+              aria-label="축의금 입력 폼 닫기"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-[#B5ADA3] hover:bg-[#F6F3F2] hover:text-[#795252] disabled:opacity-40"
+            >
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -222,7 +317,13 @@ export default function MoneyPage() {
             <input
               type="number"
               value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, amount: e.target.value });
+                setFormError(null);
+              }}
+              min={0}
+              max={100_000_000}
+              step={1}
               placeholder="금액"
               className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
             />
@@ -274,14 +375,20 @@ export default function MoneyPage() {
             placeholder="메모 (선택)"
             className="w-full mt-3 px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           />
+          {formError && (
+            <p role="alert" className="mt-3 text-sm text-red-600">
+              {formError}
+            </p>
+          )}
           <button
             onClick={handleSubmit}
-            disabled={!form.guest_name.trim() || !form.amount}
+            disabled={!form.guest_name.trim() || !form.amount || isSaving}
+            aria-busy={isSaving}
             aria-label={editId ? "축의금 수정 저장" : "축의금 추가 저장"}
             className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-5 h-5" />
-            {editId ? "수정 완료" : "추가"}
+            {isSaving ? "저장 중..." : editId ? "수정 완료" : "추가"}
           </button>
         </div>
       )}
@@ -316,9 +423,22 @@ export default function MoneyPage() {
       </div>
 
       {/* 목록 */}
-      {moneyLoading ? (
-        <div className="flex items-center justify-center py-20">
+      {isLedgerLoading ? (
+        <div className="flex items-center justify-center py-20" role="status" aria-label="축의금 내역 불러오는 중">
           <div className="w-8 h-8 border-2 border-[#795252] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : error && errorOperation === "load" && visibleMoneyList.length === 0 ? (
+        <div role="alert" className="text-center py-16 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <Wallet className="w-14 h-14 text-[#B5ADA3] mx-auto mb-4" />
+          <p className="text-base font-medium text-[#504444]">축의금 내역을 표시할 수 없어요</p>
+          <p className="mt-1 text-sm text-[#8D837A]">{error}</p>
+          <button
+            type="button"
+            onClick={handleReload}
+            className="mt-5 min-h-11 rounded-xl bg-[#795252] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#684646]"
+          >
+            다시 시도
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -361,33 +481,37 @@ export default function MoneyPage() {
               <div className="flex gap-1 flex-shrink-0">
                 <button
                   onClick={() => handleEdit(money)}
+                  disabled={deletingId === money.id}
                   aria-label={`${money.guest_name} 축의금 수정`}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                  className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[#B5ADA3] hover:text-[#795252] disabled:opacity-40 transition-colors"
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
                 {deleteConfirm === money.id ? (
                   <div className="flex gap-1">
                     <button
-                      onClick={() => setDeleteConfirm(null)}
+                      onClick={() => { clearError(); setDeleteConfirm(null); }}
+                      disabled={deletingId === money.id}
                       aria-label={`${money.guest_name} 축의금 삭제 취소`}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm"
+                      className="h-11 px-3 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm disabled:opacity-40"
                     >
                       취소
                     </button>
                     <button
                       onClick={() => handleDelete(money.id)}
+                      disabled={deletingId === money.id}
+                      aria-busy={deletingId === money.id}
                       aria-label={`${money.guest_name} 축의금 삭제 확정`}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white"
+                      className="w-11 h-11 flex items-center justify-center rounded-lg bg-red-500 text-white disabled:opacity-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => setDeleteConfirm(money.id)}
+                    onClick={() => { clearError(); setDeleteConfirm(money.id); }}
                     aria-label={`${money.guest_name} 축의금 삭제`}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
+                    className="w-11 h-11 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>

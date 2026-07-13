@@ -29,7 +29,6 @@ import {
   Lock,
   LogOut,
   Trash2,
-  FileText,
   X,
   Eye,
   EyeOff,
@@ -38,6 +37,7 @@ import {
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
+import { isStrongPassword, manwonInputToWon, wonToManwonInput } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
@@ -71,6 +71,56 @@ type CommunityProfileResponse = {
   error?: string;
 };
 
+type CoupleInviteState = {
+  inviteCode: string | null;
+  isFullyLinked: boolean;
+  requiresRelinkConfirmation: boolean;
+};
+
+type SettingsLoadResult = {
+  settings: SettingsData;
+  inviteState: CoupleInviteState | null;
+};
+
+type ApiErrorBody = {
+  error?: unknown;
+  message?: unknown;
+};
+
+function apiErrorMessage(body: ApiErrorBody, fallback: string): string {
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  return fallback;
+}
+
+async function readCoupleInviteState(): Promise<CoupleInviteState> {
+  const response = await apiFetch("/api/couple/code");
+  const body = (await response.json().catch(() => ({}))) as ApiErrorBody & {
+    inviteCode?: unknown;
+    isFullyLinked?: unknown;
+    requiresRelinkConfirmation?: unknown;
+  };
+  if (!response.ok) {
+    throw new Error(apiErrorMessage(body, "커플 코드를 확인하지 못했습니다."));
+  }
+
+  const inviteCode = typeof body.inviteCode === "string" ? body.inviteCode : null;
+  const requiresRelinkConfirmation = body.requiresRelinkConfirmation === true;
+  if (
+    typeof body.isFullyLinked !== "boolean"
+    || (inviteCode === null && !requiresRelinkConfirmation)
+    || (inviteCode !== null && !/^WH-[A-F0-9]{12}$/.test(inviteCode))
+  ) {
+    throw new Error("커플 코드 상태를 확인하지 못했습니다.");
+  }
+
+  return {
+    inviteCode,
+    isFullyLinked: body.isFullyLinked,
+    requiresRelinkConfirmation,
+  };
+}
+
 export default function SettingsScreen() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
@@ -97,6 +147,10 @@ export default function SettingsScreen() {
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
+  const [relinking, setRelinking] = useState(false);
+  const [relinkRecoveryRequired, setRelinkRecoveryRequired] = useState(false);
+  const [relinkRecoveryPreviousCoupleId, setRelinkRecoveryPreviousCoupleId] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
 
   // 알림 설정 로드
@@ -134,38 +188,43 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
   }, []);
 
-  // 현재 데이터 로드
-  useEffect(() => {
-    (async () => {
-      try {
+  // 현재 데이터 로드. 새 커플 공간을 만든 직후에도 이 함수 전체를 다시
+  // 실행해 이전 couple/journey를 화면에 남기지 않는다.
+  const loadSettings = useCallback(async (
+    options: { requireInviteState?: boolean } = {}
+  ): Promise<SettingsLoadResult | null> => {
+    setLoading(true);
+    try {
         const {
           data: { user },
+          error: userError,
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (userError) throw userError;
+        if (!user) return null;
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("name, role, couple_id")
           .eq("id", user.id)
           .single();
+        if (profileError) throw profileError;
 
         let weddingDate = "";
         let venue = "";
         let totalBudget = "";
 
         if (profile?.couple_id) {
-          const { data: journey } = await supabase
+          const { data: journey, error: journeyError } = await supabase
             .from("wedding_journeys")
             .select("wedding_date, venue, total_budget")
             .eq("couple_id", profile.couple_id)
             .single();
+          if (journeyError) throw journeyError;
 
           if (journey) {
             weddingDate = journey.wedding_date ?? "";
             venue = journey.venue ?? "";
-            totalBudget = journey.total_budget
-              ? String(journey.total_budget)
-              : "";
+            totalBudget = wonToManwonInput(journey.total_budget);
           }
         }
 
@@ -181,29 +240,35 @@ export default function SettingsScreen() {
           communityNickname = profile?.name ?? "";
         }
 
+        // 이전 커플 화면 상태를 먼저 비운 뒤 새 멤버십을 조회한다.
+        setPartnerName(null);
+        setInviteCode(null);
+        setIsFullyLinked(false);
+        setRequiresRelinkConfirmation(false);
+
+        let currentInviteState: CoupleInviteState | null = null;
+
         // 파트너 정보 로드
         if (profile?.couple_id) {
           try {
             // 파트너 이름 조회
-            const { data: partners } = await supabase
-              .from("profiles")
-              .select("name")
-              .eq("couple_id", profile.couple_id)
-              .neq("id", user.id);
+            const { data: partners } = await supabase.rpc("get_my_partner_public");
 
             if (partners && partners.length > 0) {
               setPartnerName(partners[0]?.name ?? null);
             }
-
-            // 커플 초대 코드 조회
-            const codeRes = await apiFetch("/api/couple/code");
-            if (codeRes.ok) {
-              const codeData = await codeRes.json();
-              setInviteCode(codeData.inviteCode ?? null);
-              setIsFullyLinked(codeData.isFullyLinked ?? false);
-            }
           } catch (err) {
             console.error("파트너 정보 로드 오류:", err);
+          }
+
+          try {
+            currentInviteState = await readCoupleInviteState();
+            setInviteCode(currentInviteState.inviteCode);
+            setIsFullyLinked(currentInviteState.isFullyLinked);
+            setRequiresRelinkConfirmation(currentInviteState.requiresRelinkConfirmation);
+          } catch (err) {
+            console.error("커플 코드 상태 로드 오류:", err);
+            if (options.requireInviteState) throw err;
           }
         }
 
@@ -220,13 +285,21 @@ export default function SettingsScreen() {
 
         setData(loadedData);
         setInitialData(loadedData);
+        return { settings: loadedData, inviteState: currentInviteState };
       } catch (err) {
         console.error("설정 로드 오류:", err);
+        throw err;
       } finally {
         setLoading(false);
       }
-    })();
   }, []);
+
+  useEffect(() => {
+    void loadSettings().catch(() => {
+      // The screen keeps its existing values and exposes the normal retry path
+      // through a remount; mutation flows show a dedicated recovery alert.
+    });
+  }, [loadSettings]);
 
   function updateField(field: keyof SettingsData, value: string) {
     setData((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -297,8 +370,11 @@ export default function SettingsScreen() {
       // 결혼 정보 업데이트
       if (nextData.coupleId) {
         const budgetNum = nextData.totalBudget
-          ? parseInt(nextData.totalBudget, 10)
+          ? manwonInputToWon(nextData.totalBudget)
           : null;
+        if (nextData.totalBudget && !budgetNum) {
+          throw new Error("총 예산을 만원 단위 숫자로 입력해주세요.");
+        }
 
         const { error: journeyError } = await supabase
           .from("wedding_journeys")
@@ -346,8 +422,8 @@ export default function SettingsScreen() {
       Alert.alert("오류", "새 비밀번호를 입력해주세요.");
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert("오류", "비밀번호는 6자 이상이어야 해요.");
+    if (!isStrongPassword(newPassword)) {
+      Alert.alert("오류", "비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 모두 포함해야 해요.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -387,6 +463,134 @@ export default function SettingsScreen() {
     }
   }
 
+  async function unlockLegacyInvite() {
+    let returnedInviteCode: string | null = null;
+    let requestError: string | null = null;
+    const previousCoupleId = data?.coupleId ?? relinkRecoveryPreviousCoupleId;
+    setRelinkRecoveryPreviousCoupleId(previousCoupleId);
+    // Remove all editable old-journey state before dispatch. The mutation can
+    // commit even if its HTTP response is lost.
+    setData(null);
+    setInitialData(null);
+    setRelinkRecoveryRequired(true);
+    setRelinking(true);
+    try {
+      const response = await apiFetch("/api/couple/code", {
+        method: "POST",
+        body: JSON.stringify({ confirmLegacyRelink: true }),
+      });
+      const body = (await response.json().catch(() => ({}))) as ApiErrorBody & {
+        inviteCode?: unknown;
+      };
+      if (!response.ok || typeof body.inviteCode !== "string") {
+        throw new Error(apiErrorMessage(body, "초대 코드를 만들지 못했습니다."));
+      }
+      returnedInviteCode = body.inviteCode;
+    } catch (error) {
+      requestError = error instanceof Error ? error.message : "초대 코드를 만들지 못했습니다.";
+    } finally {
+      try {
+        const refreshed = await loadSettings({ requireInviteState: true });
+        const refreshedSettings = refreshed?.settings ?? null;
+        const refreshedInviteState = refreshed?.inviteState ?? null;
+        const observedFreshCouple = Boolean(
+          refreshedSettings?.coupleId
+          && refreshedSettings.coupleId !== previousCoupleId
+          && refreshedInviteState?.inviteCode
+          && !refreshedInviteState.requiresRelinkConfirmation
+        );
+        const observedOriginalCouple = Boolean(
+          previousCoupleId
+          && refreshedSettings?.coupleId === previousCoupleId
+          && refreshedInviteState?.inviteCode === null
+          && refreshedInviteState.requiresRelinkConfirmation
+        );
+
+        if (observedFreshCouple) {
+          setRelinkRecoveryRequired(false);
+          setInviteCode(returnedInviteCode ?? refreshedInviteState?.inviteCode ?? null);
+          setRequiresRelinkConfirmation(false);
+        } else if (observedOriginalCouple && requestError && returnedInviteCode === null) {
+          // A primary profile/journey read plus the blocked invite state proves
+          // the replacement transaction did not commit. The loaded old state
+          // is therefore safe to edit again.
+          setRelinkRecoveryRequired(false);
+          Alert.alert(
+            "새 커플 공간을 만들지 못했어요",
+            `${requestError} 이전 결혼 정보는 그대로 유지됩니다.`
+          );
+        } else {
+          setData(null);
+          setInitialData(null);
+          setRelinkRecoveryRequired(true);
+        }
+      } catch {
+        // Keep the screen non-editable until a primary read proves which
+        // couple the profile now belongs to.
+        setData(null);
+        setInitialData(null);
+        setRelinkRecoveryRequired(true);
+      }
+      setRelinking(false);
+    }
+  }
+
+  async function recoverLegacyRelinkState() {
+    setRelinking(true);
+    try {
+      const refreshed = await loadSettings({ requireInviteState: true });
+      const refreshedSettings = refreshed?.settings ?? null;
+      const refreshedInviteState = refreshed?.inviteState ?? null;
+      const observedFreshCouple = Boolean(
+        refreshedSettings?.coupleId
+        && refreshedSettings.coupleId !== relinkRecoveryPreviousCoupleId
+        && refreshedInviteState?.inviteCode
+        && !refreshedInviteState.requiresRelinkConfirmation
+      );
+      const observedOriginalCouple = Boolean(
+        relinkRecoveryPreviousCoupleId
+        && refreshedSettings?.coupleId === relinkRecoveryPreviousCoupleId
+        && refreshedInviteState?.inviteCode === null
+        && refreshedInviteState.requiresRelinkConfirmation
+      );
+
+      if (observedFreshCouple) {
+        setRelinkRecoveryRequired(false);
+        return;
+      }
+      if (observedOriginalCouple) {
+        setRelinkRecoveryRequired(false);
+        Alert.alert(
+          "이전 정보가 안전하게 유지되고 있어요",
+          "새 커플 공간 생성은 반영되지 않았습니다. 이전 일정과 예산을 계속 수정할 수 있어요."
+        );
+        return;
+      }
+      throw new Error("authoritative relink state not observable");
+    } catch {
+      setData(null);
+      setInitialData(null);
+      setRelinkRecoveryRequired(true);
+      Alert.alert(
+        "아직 상태를 확인하지 못했어요",
+        "네트워크를 확인한 뒤 다시 시도해 주세요. 확인 전에는 이전 결혼 정보를 수정할 수 없습니다."
+      );
+    } finally {
+      setRelinking(false);
+    }
+  }
+
+  function confirmLegacyRelink() {
+    Alert.alert(
+      "새 커플 공간 만들기",
+      "이전 공간의 일정·예산·대화는 새 파트너에게 공유되지 않습니다. 비어 있는 새 공간으로 시작할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "확인하고 만들기", onPress: () => void unlockLegacyInvite() },
+      ]
+    );
+  }
+
   // 로그아웃
   function handleLogout() {
     Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
@@ -406,7 +610,7 @@ export default function SettingsScreen() {
   function handleDeleteAccount() {
     Alert.alert(
       "회원 탈퇴",
-      "정말 탈퇴하시겠어요?\n모든 데이터가 삭제되며 복구할 수 없어요.",
+      "본인 비공개 상담과 직접 작성한 내용은 삭제됩니다. 파트너의 공동 계획과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있어요.",
       [
         { text: "취소", style: "cancel" },
         {
@@ -416,7 +620,7 @@ export default function SettingsScreen() {
             // 2차 확인
             Alert.alert(
               "최종 확인",
-              "한번 삭제된 계정은 복구할 수 없습니다.\n정말 탈퇴하시겠어요?",
+              "계정은 복구할 수 없습니다. 파트너에게 남는 공동 기록과 법정 보존 항목을 확인했나요?",
               [
                 { text: "취소", style: "cancel" },
                 {
@@ -424,29 +628,21 @@ export default function SettingsScreen() {
                   style: "destructive",
                   onPress: async () => {
                     try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (!session?.access_token) {
-                        Alert.alert("오류", "로그인 상태를 확인해주세요.");
-                        return;
+                      const res = await apiFetch("/api/auth/delete", {
+                        method: "DELETE",
+                        body: JSON.stringify({ reason: "other" }),
+                      });
+
+                      if (res.status !== 202) {
+                        const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
+                        throw new Error(apiErrorMessage(body, "탈퇴 처리 중 오류가 발생했어요"));
                       }
 
-                      const res = await fetch(
-                        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
-                        {
-                          method: "POST",
-                          headers: {
-                            Authorization: `Bearer ${session.access_token}`,
-                            "Content-Type": "application/json",
-                          },
-                        }
-                      );
-
-                      if (!res.ok) {
-                        const body = await res.json().catch(() => ({}));
-                        throw new Error(body.message ?? "탈퇴 처리 중 오류가 발생했어요");
-                      }
-
-                      await supabase.auth.signOut();
+                      // 서버의 영속 큐가 접수했으므로 앱이 닫혀도 삭제는 계속된다.
+                      // 네트워크 로그아웃 실패가 로컬 데이터 정리를 막지 않게 한다.
+                      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+                      clearCommunityCaches();
+                      await AsyncStorage.clear();
                       router.replace("/(auth)/login");
                     } catch (err) {
                       const message =
@@ -475,6 +671,31 @@ export default function SettingsScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <AppHeader title="설정" onBack={() => router.back()} />
         <LoadingState label="설정을 불러오는 중이에요" />
+      </SafeAreaView>
+    );
+  }
+
+  if (relinkRecoveryRequired) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="설정" onBack={() => router.back()} />
+        <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
+          <Surface style={styles.card}>
+            <Text style={styles.sectionTitle}>새 커플 공간을 확인하고 있어요</Text>
+            <Text style={styles.fieldHint}>
+              응답이 끊겨 서버 반영 여부를 다시 확인해야 합니다. 확인 전에는 이전 일정과 예산을 수정할 수 없어요.
+            </Text>
+            <PrimaryButton
+              tone="rose"
+              style={styles.saveButton}
+              onPress={() => void recoverLegacyRelinkState()}
+              disabled={relinking}
+              icon={relinking ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
+            >
+              {relinking ? "확인 중" : "상태 다시 확인"}
+            </PrimaryButton>
+          </Surface>
+        </View>
       </SafeAreaView>
     );
   }
@@ -630,14 +851,20 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>알림 설정</Text>
         </View>
         <Surface style={styles.card}>
+          <Text style={styles.toggleNotice} accessibilityRole="text">
+            알림 종류별 제어는 아직 준비 중이에요. 현재 알림 전체 허용·차단은 휴대폰의 앱 설정에서 변경해 주세요.
+          </Text>
+          <View style={styles.divider} />
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>푸시 알림</Text>
-              <Text style={styles.toggleHint}>일정, 예산 알림을 받아요</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="푸시 알림 설정, 준비 중"
               value={pushEnabled}
               onValueChange={togglePush}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -648,11 +875,13 @@ export default function SettingsScreen() {
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>커뮤니티 알림</Text>
-              <Text style={styles.toggleHint}>댓글, 좋아요 알림을 받아요</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="커뮤니티 알림 설정, 준비 중"
               value={communityNotifEnabled}
               onValueChange={toggleCommunity}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -663,11 +892,13 @@ export default function SettingsScreen() {
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>파트너 메시지 알림</Text>
-              <Text style={styles.toggleHint}>파트너가 보낸 메시지 알림</Text>
+              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
             </View>
             <Switch
+              accessibilityLabel="파트너 메시지 알림 설정, 준비 중"
               value={partnerNotifEnabled}
               onValueChange={togglePartner}
+              disabled
               trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
               thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
             />
@@ -695,6 +926,28 @@ export default function SettingsScreen() {
 
               <View style={styles.field}>
                 <Text style={styles.label}>커플 초대 코드</Text>
+                {requiresRelinkConfirmation && (
+                  <View style={styles.relinkNotice}>
+                    <Text style={styles.relinkTitle}>새 커플 공간으로 시작해 주세요</Text>
+                    <Text style={styles.relinkText}>
+                      이전 자료를 새 파트너에게 넘기지 않고 비어 있는 새 공간을 만듭니다.
+                    </Text>
+                    <Pressable
+                      onPress={confirmLegacyRelink}
+                      disabled={relinking}
+                      style={({ pressed }) => [
+                        styles.relinkButton,
+                        (pressed || relinking) && { opacity: 0.65 },
+                      ]}
+                    >
+                      {relinking ? (
+                        <ActivityIndicator size="small" color={colors.surface} />
+                      ) : (
+                        <Text style={styles.relinkButtonText}>확인하고 새 공간 만들기</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
                 <View style={styles.codeRow}>
                   <View style={styles.codeBox}>
                     <Text style={styles.codeText}>{inviteCode ?? "---"}</Text>
@@ -778,14 +1031,6 @@ export default function SettingsScreen() {
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
 
-          <View style={styles.divider} />
-
-          <ActionRow
-            icon={<FileText size={16} color={colors.noir[800]} />}
-            title="오픈소스 라이선스"
-            onPress={() => Linking.openURL("https://hanbang.ai/licenses")}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
-          />
         </Surface>
 
         {/* 회원 탈퇴 (위험 영역) */}
@@ -896,7 +1141,7 @@ export default function SettingsScreen() {
               disabled={
                 passwordSaving ||
                 !newPassword.trim() ||
-                newPassword.length < 6 ||
+                !isStrongPassword(newPassword) ||
                 newPassword !== confirmPassword
               }
               icon={passwordSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
@@ -976,6 +1221,11 @@ const styles = StyleSheet.create({
   },
 
   // 알림 토글 행
+  toggleNotice: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 19,
+  },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -993,7 +1243,7 @@ const styles = StyleSheet.create({
   },
   toggleHint: {
     fontSize: 12,
-    color: colors.taupe[400],
+    color: colors.textTertiary,
     marginTop: 2,
   },
 
@@ -1016,6 +1266,38 @@ const styles = StyleSheet.create({
     color: colors.noir[800],
     fontFamily: "CormorantGaramond_400Regular",
     letterSpacing: 0,
+  },
+  relinkNotice: {
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.rose.pale,
+    backgroundColor: colors.ivory[100],
+  },
+  relinkTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.noir[900],
+  },
+  relinkText: {
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  relinkButton: {
+    marginTop: 12,
+    minHeight: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.rose[500],
+  },
+  relinkButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "700",
   },
   copyBtn: {
     width: 40,

@@ -407,14 +407,6 @@ export const sections: Section[] = [
           { id: 'q22_budget', label: '스드메 예산', options: ['300만원 미만', '300~500만원', '500~700만원', '700만원 이상'] },
         ],
       },
-      {
-        id: 'q23',
-        type: 'text_input',
-        required: false,
-        question: '서비스 출시 시 안내를 원하시면 연락처를 남겨주세요.',
-        placeholder: '이메일 또는 휴대폰 번호',
-        validation: 'email_or_phone',
-      },
     ],
   },
 ];

@@ -210,15 +210,22 @@ export async function PATCH(request: Request) {
       updates.name = name;
     }
 
-    // 아모라 케어 아웃바운드(모멘트 이메일) 수신 설정 — boolean만 허용
+    // 선제 아웃바운드는 동의 원장·철회·중복방지 E2E가 끝날 때까지 하드 비활성이다.
+    // 오래된 클라이언트가 남긴 opt-in도 서버에서 다시 켜지 못하게 막는다.
     if (body.care_notifications_enabled !== undefined) {
       if (typeof body.care_notifications_enabled !== "boolean") {
         return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
       }
-      updates.care_notifications_enabled = body.care_notifications_enabled;
+      if (body.care_notifications_enabled) {
+        return NextResponse.json(
+          { error: "아모라 선제 알림은 아직 준비 중입니다." },
+          { status: 409 }
+        );
+      }
+      updates.care_notifications_enabled = false;
     }
 
-    // 휴대폰 번호 — 알림톡/문자 케어 채널용. 숫자만 저장, 삭제 시 채널 동의도 함께 해제.
+    // 휴대폰 번호 — 선택 입력 프로필 정보. 업체 연결 비활성 중에는 전송하지 않는다.
     if (body.phone !== undefined) {
       const phone = cleanOptionalKoreanMobile(body.phone);
       if (phone === undefined) {
@@ -228,41 +235,20 @@ export async function PATCH(request: Request) {
         );
       }
       updates.phone = phone;
-      if (phone === null) updates.phone_care_consented_at = null;
+      // A booking contact edit never implies outbound-message consent.
+      updates.phone_care_consented_at = null;
     }
 
-    // 카톡·문자 케어 수신 동의 — 동의 시각을 기록(법적 근거). 번호 없이 동의만은 불가.
+    // 과거 클라이언트 호환 입력은 받되, 새 수신 동의는 기능 출시 전까지 거부한다.
     if (body.phone_care_consent !== undefined) {
       if (typeof body.phone_care_consent !== "boolean") {
         return NextResponse.json({ error: "동의 값이 올바르지 않습니다." }, { status: 400 });
       }
       if (body.phone_care_consent) {
-        const willHavePhone =
-          typeof updates.phone === "string"
-            ? true
-            : updates.phone === null
-              ? false
-              : undefined; // 이 요청에서 번호 변경 없음 → 기존 번호 확인 필요
-        if (willHavePhone === false) {
-          return NextResponse.json(
-            { error: "휴대폰 번호를 먼저 입력해주세요." },
-            { status: 400 }
-          );
-        }
-        if (willHavePhone === undefined) {
-          const { data: current } = await getAdminClient()
-            .from("profiles")
-            .select("phone")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (!current?.phone) {
-            return NextResponse.json(
-              { error: "휴대폰 번호를 먼저 입력해주세요." },
-              { status: 400 }
-            );
-          }
-        }
-        updates.phone_care_consented_at = new Date().toISOString();
+        return NextResponse.json(
+          { error: "문자·알림톡 자동 알림은 아직 준비 중입니다." },
+          { status: 409 }
+        );
       } else {
         updates.phone_care_consented_at = null;
       }

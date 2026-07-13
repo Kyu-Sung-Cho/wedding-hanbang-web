@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useId } from "react";
 import {
   X,
   Check,
@@ -34,6 +34,7 @@ import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteDa
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -80,6 +81,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   const { journey, updateJourney } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const titleId = useId();
+  const { dialogRef } = useAccessibleDialog({ isOpen, onClose });
 
   const template = CHECKLIST_MAP[categoryKey];
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
@@ -133,11 +136,17 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       {/* 오버레이 */}
       <div
         onClick={onClose}
+        aria-hidden="true"
         className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
       />
 
       {/* 모달 */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 max-h-[84vh] flex flex-col overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
@@ -148,7 +157,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 <Icon className="w-5 h-5 text-[#795252]" />
               </div>
               <div>
-                <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{template.label}</h3>
+                <h3 id={titleId} className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[status]}`}>
                     {STATUS_LABELS[status]}
@@ -158,7 +167,10 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               </div>
             </div>
             <button
+              type="button"
+              data-dialog-initial-focus
               onClick={onClose}
+              aria-label={`${template.label} 체크리스트 닫기`}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
             >
               <X className="w-4 h-4" />
@@ -168,6 +180,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           {/* 진행률 바 */}
           <div className="w-full h-2 bg-[#F6F3F2] rounded-full overflow-hidden">
             <div
+              role="progressbar"
+              aria-label={`${template.label} 준비 진행률`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
               className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
               style={{ width: `${percent}%` }}
             />
@@ -179,10 +196,13 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
           <div className="flex flex-col gap-1">
             {checklist.map((item) => (
-              <div
+              <button
                 key={item.id}
+                type="button"
                 onClick={() => toggleItem(item.id)}
-                className="flex items-center gap-3 py-3 px-3 rounded-xl cursor-pointer bg-white hover:bg-[#F6F3F2] transition-colors group"
+                aria-pressed={item.done}
+                aria-disabled={saving}
+                className="group flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252]/40 aria-disabled:cursor-wait aria-disabled:opacity-70"
               >
                 <div className="flex-shrink-0">
                   {item.done ? (
@@ -202,7 +222,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 >
                   {item.label}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

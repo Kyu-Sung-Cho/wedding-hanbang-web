@@ -342,9 +342,6 @@ CREATE TRIGGER update_vendor_rating_on_review
 -- 업체 기본 타임슬롯 (9~20시, 월~일 = 84개)
 CREATE OR REPLACE FUNCTION create_default_vendor_timeslots(p_vendor_id UUID)
 RETURNS VOID AS $$
-DECLARE
-  d SMALLINT;
-  h SMALLINT;
 BEGIN
   FOR d IN 0..6 LOOP
     FOR h IN 9..20 LOOP
@@ -359,9 +356,6 @@ $$ LANGUAGE plpgsql;
 -- 상품 타임슬롯 (9~20시, 월~일 = 84개)
 CREATE OR REPLACE FUNCTION create_default_product_timeslots(p_product_id UUID)
 RETURNS VOID AS $$
-DECLARE
-  d SMALLINT;
-  h SMALLINT;
 BEGIN
   FOR d IN 0..6 LOOP
     FOR h IN 9..20 LOOP

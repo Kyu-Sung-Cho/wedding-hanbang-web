@@ -2,17 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const from = searchParams.get("from");
+  const returnPath = sanitizeAuthReturnPath(searchParams.get("next"));
   // 데모 로그인에서 온 경우 에러 리다이렉트를 /demo/login으로
   const loginPath = from === "demo" ? "/demo/login" : "/login";
 
   if (!code) {
     console.error("콜백: code 파라미터 없음");
-    return NextResponse.redirect(`${origin}${loginPath}?error=no_code`);
+    const errorPath = pathWithAuthReturn(`${loginPath}?error=no_code`, returnPath);
+    return NextResponse.redirect(new URL(errorPath, origin));
   }
 
   try {
@@ -41,10 +44,12 @@ export async function GET(request: Request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (sessionError) {
-      console.error("콜백: 세션 교환 에러:", sessionError.message);
-      return NextResponse.redirect(
-        `${origin}${loginPath}?error=${encodeURIComponent(sessionError.message)}`
+      console.error("[auth-callback] session_exchange_failed");
+      const errorPath = pathWithAuthReturn(
+        `${loginPath}?error=session_exchange_failed`,
+        returnPath
       );
+      return NextResponse.redirect(new URL(errorPath, origin));
     }
 
     const {
@@ -53,7 +58,8 @@ export async function GET(request: Request) {
 
     if (!user) {
       console.error("콜백: 세션 교환 후 user가 null");
-      return NextResponse.redirect(`${origin}${loginPath}?error=no_user`);
+      const errorPath = pathWithAuthReturn(`${loginPath}?error=no_user`, returnPath);
+      return NextResponse.redirect(new URL(errorPath, origin));
     }
 
     // 고객 전용: 프로필/온보딩 체크
@@ -64,18 +70,26 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (profileError) {
-      console.error("콜백: 프로필 조회 에러:", profileError.message);
+      console.error("[auth-callback] profile_lookup_failed");
+      const recoveryPath = pathWithAuthReturn(
+        "/wedding/onboarding?error=profile_unavailable",
+        returnPath
+      );
+      const response = NextResponse.redirect(new URL(recoveryPath, origin));
+      clearDemoCookies(response);
+      return response;
     }
 
     if (!profile || !profile.onboarding_completed) {
-      const response = NextResponse.redirect(`${origin}/wedding/onboarding`);
+      const onboardingPath = pathWithAuthReturn("/wedding/onboarding", returnPath);
+      const response = NextResponse.redirect(new URL(onboardingPath, origin));
       // 실제 로그인 시 데모 모드 쿠키 제거
       clearDemoCookies(response);
       return response;
     }
 
     // 일반 고객 → 대시보드
-    const response = NextResponse.redirect(`${origin}/wedding/lounge`);
+    const response = NextResponse.redirect(new URL(returnPath ?? "/wedding/lounge", origin));
     response.cookies.set("onboarding_complete", "true", {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
@@ -83,11 +97,12 @@ export async function GET(request: Request) {
     // 실제 로그인 시 데모 모드 쿠키 제거
     clearDemoCookies(response);
     return response;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("콜백: 예외 발생:", msg);
-    return NextResponse.redirect(
-      `${origin}${loginPath}?error=${encodeURIComponent(msg)}`
+  } catch {
+    console.error("[auth-callback] callback_failed");
+    const errorPath = pathWithAuthReturn(
+      `${loginPath}?error=callback_failed`,
+      returnPath
     );
+    return NextResponse.redirect(new URL(errorPath, origin));
   }
 }

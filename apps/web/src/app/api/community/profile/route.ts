@@ -28,7 +28,7 @@ async function createCommunityProfile(
   initialNickname: string,
   postCount: number
 ) {
-  const fallbackNickname = getCommunityNicknameFallback(userId);
+  const fallbackNickname = getCommunityNicknameFallback(`${userId}:collision`);
   const createPayload = {
     user_id: userId,
     nickname: initialNickname,
@@ -73,7 +73,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: profile, error } = await supabase
+    const serviceClient = getServiceClient();
+
+    const { data: profile, error } = await serviceClient
       .from("community_profiles")
       .select("*")
       .eq("user_id", user.id)
@@ -87,7 +89,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const serviceClient = getServiceClient();
     const { count: actualPostCount } = await serviceClient
       .from("community_posts")
       .select("id", { count: "exact", head: true })
@@ -96,16 +97,10 @@ export async function GET(req: NextRequest) {
       .eq("under_review", false);
 
     if (!profile) {
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
       const { data: newProfile, error: createError } = await createCommunityProfile(
         serviceClient,
         user.id,
-        getSafeDefaultCommunityNickname(userProfile?.name, user.id),
+        getSafeDefaultCommunityNickname(null, user.id),
         actualPostCount ?? 0
       );
 

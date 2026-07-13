@@ -1,172 +1,224 @@
-// 아모라(Claude) 비용 가드레일 — 유통 테스트 전 지갑 보호용.
-//
-// 두 겹의 차단기:
-//  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
-//  2) 전역 일일 상한 — 정상 유저가 많아도 하루 총비용에 천장(서킷브레이커).
-//
-// 두 함수:
-//  - reserveAmoraTurn: 원자적 체크+예약 (reserve_amora_turn RPC, FOR UPDATE 잠금).
-//    실제 LLM 호출 직전에 사용 — 동시 요청도 상한을 못 넘는다 (감사 2.3 H1 해소).
-//  - checkAmoraCostGuard: 읽기전용 체크 (레이스 가능). LLM 호출이 일어날지 불확실한
-//    앞단 게이트(예: check-couple-conflict — 파트너 메시지마다 호출되나 대부분 LLM 0회)와
-//    RPC 미배포 시 폴백용. 여기서 예약하면 LLM 없는 호출이 쿼터를 태우므로 예약 금지.
-//
-// 카운트 기준은 ai_interactions_log의 chat_turn — 모든 LLM 턴이 isDemo·저장 여부와
-// 무관하게 무조건 기록되는 비용 장부라 클라이언트가 어떤 값을 조작해도 속일 수 없다.
-// (chat_messages 기준은 두 번 기각: ①user 메시지 카운트는 파트너 메시지(비용 0)까지
-// 깎아 부당 차단 ②AI 메시지 카운트는 isDemo 위조 시 저장 스킵으로 카운트 우회 가능)
-// 카운터 테이블(amora_turn_counters)은 첫 접근 시 이 장부에서 자동 시드된다.
-// DB 카운트라 서버리스에서도 정확. service_role로 RLS 우회.
-//
-// ⚠️ 면제는 is_admin(DB 검증)만. 클라이언트가 보내는 값(body의 isDemo 등)으로
-// 면제하면 안 됨 — 인증 유저가 그 값을 조작해 가드를 우회할 수 있다.
-//
-// 환경변수로 조정 가능 (미설정 시 보수적 기본값):
-//   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
-//   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
-//   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
+// Amora 비용 보호는 사용자에게 보이는 상담 횟수와 provider slot을 분리한다.
+// 메인 채팅의 한 slot은 exact count와 이어지는 generation을 묶는다.
+// - 사용자 턴: 커플 무료 상담 한도 + provider slot 한도를 함께 예약
+// - 추가 Terra 라운드/Luna 후처리: provider slot 한도만 예약
+// 두 경로 모두 reserve_amora_usage RPC의 row lock 안에서 원자적으로 증가한다.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const FREE_PER_COUPLE = Number(process.env.AMORA_FREE_MESSAGES_PER_COUPLE ?? 100);
-const GLOBAL_DAILY_CAP = Number(process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP ?? 300);
-const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
+function boundedPositiveInteger(
+  raw: string | undefined,
+  fallback: number,
+  hardCeiling: number
+): number {
+  if (!raw || !/^\d+$/.test(raw)) return fallback;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 1
+    ? Math.min(value, hardCeiling)
+    : fallback;
+}
+
+// Deployment variables may lower these limits, but cannot silently restore the
+// old high-cost beta limits. Raising a ceiling requires a reviewed code change.
+const HARD_COUPLE_TURN_CEILING = 30;
+const HARD_DAILY_PROVIDER_CALL_CEILING = 60;
+const FREE_USER_TURNS_PER_COUPLE = boundedPositiveInteger(
+  process.env.AMORA_FREE_MESSAGES_PER_COUPLE,
+  HARD_COUPLE_TURN_CEILING,
+  HARD_COUPLE_TURN_CEILING
+);
+const GLOBAL_DAILY_PROVIDER_CALL_CAP = boundedPositiveInteger(
+  process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP ??
+    process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP,
+  HARD_DAILY_PROVIDER_CALL_CEILING,
+  HARD_DAILY_PROVIDER_CALL_CEILING
+);
+// Production cannot disable the ledger or fail open through a stale/accidental
+// environment variable. Those switches remain available only for local tests.
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const GUARD_ENABLED = IS_PRODUCTION || process.env.AMORA_COST_GUARD_ENABLED !== "false";
+const FAIL_OPEN_ON_ERROR =
+  !IS_PRODUCTION && process.env.AMORA_COST_GUARD_FAIL_OPEN === "true";
 
 export interface CostGuardResult {
   allowed: boolean;
-  reason?: "couple_quota" | "global_daily";
+  reason?: "couple_quota" | "couple_provider_daily" | "global_daily" | "guard_unavailable";
   message?: string;
-  /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
+  /** 사용자에게 보이는 무료 상담 잔여 횟수. provider-only 예약에는 없다. */
   remaining?: number;
+  /** 이 예약 뒤 오늘 남은 provider slot 수(커플·전역 중 더 작은 값). */
+  providerRemaining?: number;
+  /** 동일 request_key/call ordinal 예약을 재사용했는지 여부. */
+  reservationReused?: boolean;
+}
+
+export interface AmoraUsageReservationIdentity {
+  requestKey: string;
+  requestHash: string;
+  providerOrdinal: 0 | 1;
 }
 
 const ALLOW: CostGuardResult = { allowed: true };
-
 const DENY_GLOBAL: CostGuardResult = {
   allowed: false,
   reason: "global_daily",
-  message:
-    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
+  message: "오늘 아모라 이용량이 안전 한도에 도달했어요. 내일 다시 이어서 도와드릴게요.",
 };
-
 const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
-  message:
-    "베타 기간 무료 상담을 모두 사용하셨어요. 더 많은 상담은 곧 열릴 예정이에요 — 그때 가장 먼저 알려드릴게요.",
+  message: "베타 기간 무료 상담을 모두 사용하셨어요. 추가 상담이 열리면 알려드릴게요.",
+};
+const DENY_COUPLE_DAILY: CostGuardResult = {
+  allowed: false,
+  reason: "couple_provider_daily",
+  message: "오늘 이 커플의 아모라 이용량이 안전 한도에 도달했어요. 내일 다시 이어서 도와드릴게요.",
+};
+const DENY_GUARD_UNAVAILABLE: CostGuardResult = {
+  allowed: false,
+  reason: "guard_unavailable",
+  message: "비용 보호 장치를 확인하지 못해 아모라를 잠시 멈췄어요. 잠시 후 다시 시도해 주세요.",
 };
 
-// LLM 턴 1회를 원자적으로 "체크+예약" (감사 2.3 H1 — TOCTOU 레이스 해소).
-// reserve_amora_turn RPC가 카운터 행을 FOR UPDATE로 잠그고 같은 트랜잭션에서
-// 증가시키므로, 동시 요청이 상한을 초과할 수 없다. 실제 LLM 호출 직전에만
-// 부를 것 — 통과하면 턴 1회가 소모된 것으로 계산된다.
-// RPC 미배포/실패 시 기존 읽기전용 가드로 폴백 (무중단, patchJourneyProgress 패턴).
-export async function reserveAmoraTurn(
+function safeCostGuardErrorCode(error: unknown): string {
+  const record = error && typeof error === "object"
+    ? error as { name?: unknown; status?: unknown; code?: unknown }
+    : {};
+  const cleanToken = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64);
+    return cleaned || null;
+  };
+  const parts = ["cost_guard_failed"];
+  const name = cleanToken(record.name);
+  const code = cleanToken(record.code);
+  const status = typeof record.status === "number" && Number.isSafeInteger(record.status)
+    ? record.status
+    : null;
+  if (name) parts.push(`name_${name}`);
+  if (status !== null) parts.push(`status_${status}`);
+  if (code) parts.push(`code_${code}`);
+  return parts.join(":").slice(0, 240);
+}
+
+function guardErrorResult(): CostGuardResult {
+  return FAIL_OPEN_ON_ERROR ? ALLOW : DENY_GUARD_UNAVAILABLE;
+}
+
+async function reserveUsage(
   admin: SupabaseClient,
-  params: { coupleId: string; isAdmin: boolean }
+  params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity },
+  countUserTurn: boolean
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
+  if (!GUARD_ENABLED) return ALLOW;
 
   try {
-    const { data, error } = await admin.rpc("reserve_amora_turn", {
+    const rpcName = params.reservation ? "reserve_amora_usage_v2" : "reserve_amora_usage";
+    const rpcParams = {
       p_couple_id: params.coupleId,
-      p_couple_cap: FREE_PER_COUPLE,
-      p_global_cap: GLOBAL_DAILY_CAP,
-    });
+      p_couple_cap: FREE_USER_TURNS_PER_COUPLE,
+      p_global_provider_cap: GLOBAL_DAILY_PROVIDER_CALL_CAP,
+      // 관리자는 무료 상담 횟수만 면제된다. 실제 provider 비용의 전역 천장은 적용한다.
+      p_count_user_turn: countUserTurn && !params.isAdmin,
+      ...(params.reservation ? {
+        p_request_key: params.reservation.requestKey,
+        p_request_hash: params.reservation.requestHash,
+        p_provider_ordinal: params.reservation.providerOrdinal,
+      } : {}),
+    };
+    const { data, error } = await admin.rpc(rpcName, rpcParams);
     if (error) {
-      console.error("[costGuard] 원자 예약 실패 (읽기전용 가드 폴백):", error.message);
-      return checkAmoraCostGuard(admin, params);
+      console.error("[costGuard] 원자 예약 실패 (비용 보호 차단):", safeCostGuardErrorCode(error));
+      return guardErrorResult();
     }
 
     const row = Array.isArray(data) ? data[0] : data;
     if (row?.allowed === true) {
-      // 소진 예고용 잔여 횟수 — 예약 직후 카운터 PK 조회(비원자여도 배너 용도라 충분).
-      // 조회 실패는 remaining만 비울 뿐 통과 여부에 영향 없음.
-      return { allowed: true, remaining: await readCoupleRemaining(admin, params.coupleId) };
+      return {
+        allowed: true,
+        ...(typeof row.remaining === "number" ? { remaining: Math.max(0, row.remaining) } : {}),
+        ...(typeof row.provider_remaining === "number"
+          ? { providerRemaining: Math.max(0, row.provider_remaining) }
+          : {}),
+        ...(row.reused === true ? { reservationReused: true } : {}),
+      };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
+    if (row?.reason === "couple_provider_daily") return DENY_COUPLE_DAILY;
     if (row?.reason === "couple_quota") return DENY_COUPLE;
 
-    // 알 수 없는 응답 형태 — 가드 오류가 정상 사용을 막으면 안 됨 (fail-open)
-    console.error("[costGuard] 예약 RPC 응답 형태 불명 (통과 처리):", JSON.stringify(row ?? null));
-    return ALLOW;
-  } catch (err) {
-    console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
-    return checkAmoraCostGuard(admin, params);
+    console.error("[costGuard] 예약 RPC 응답 형태 불명 (비용 보호 차단): invalid_response_shape");
+    return guardErrorResult();
+  } catch (error) {
+    console.error("[costGuard] 원자 예약 예외 (비용 보호 차단):", safeCostGuardErrorCode(error));
+    return guardErrorResult();
   }
 }
 
-// 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
-async function readCoupleRemaining(
+/** 실제 사용자 상담 1회를 예약한다. 첫 provider 호출 예약도 함께 포함한다. */
+export function reserveAmoraUserTurn(
   admin: SupabaseClient,
-  coupleId: string
-): Promise<number | undefined> {
-  try {
-    const { data } = await admin
-      .from("amora_turn_counters")
-      .select("count")
-      .eq("key", `couple:${coupleId}`)
-      .maybeSingle();
-    if (typeof data?.count === "number") {
-      return Math.max(0, FREE_PER_COUPLE - data.count);
-    }
-  } catch {
-    // 배너용 조회 실패는 무시
-  }
-  return undefined;
+  params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity }
+): Promise<CostGuardResult> {
+  return reserveUsage(admin, params, true);
 }
 
-// 커플 단위로 아모라 사용 가능 여부 판정. LLM 턴 로그 수로 비용을 추정.
+/** 도구 후속 라운드·요약·분류 등 숨은 provider 호출 1회만 예약한다. */
+export function reserveAmoraProviderCall(
+  admin: SupabaseClient,
+  params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity }
+): Promise<CostGuardResult> {
+  return reserveUsage(admin, params, false);
+}
+
+/** 기존 호출처 호환용. 새 코드는 의도를 드러내는 reserveAmoraUserTurn을 사용한다. */
+export const reserveAmoraTurn = reserveAmoraUserTurn;
+
+/** 예약된 provider 호출이 실제 HTTP 경계에 진입했음을 기록한다. */
+export async function markAmoraProviderStarted(
+  admin: SupabaseClient,
+  reservation: AmoraUsageReservationIdentity
+): Promise<void> {
+  if (!GUARD_ENABLED) return;
+  const { data, error } = await admin.rpc("mark_amora_provider_started", {
+    p_request_key: reservation.requestKey,
+    p_request_hash: reservation.requestHash,
+    p_provider_ordinal: reservation.providerOrdinal,
+  });
+  if (error || data !== true) {
+    throw new Error("아모라 provider 시작 장부를 확정하지 못했습니다.");
+  }
+}
+
+/** 비소모형 사전 표시용 검사. 실제 호출 직전에는 반드시 reserve 함수를 사용한다. */
 export async function checkAmoraCostGuard(
   admin: SupabaseClient,
   params: { coupleId: string; isAdmin: boolean }
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
-
-  // 1) 전역 일일 상한 — KST 자정 기준 오늘 발생한 LLM 턴 수
-  const startOfTodayKstUtc = getStartOfTodayKstAsUtcIso();
-  const { count: globalToday, error: globalErr } = await admin
-    .from("ai_interactions_log")
-    .select("id", { count: "exact", head: true })
-    .eq("interaction_type", "chat_turn")
-    .gte("created_at", startOfTodayKstUtc);
-
-  if (globalErr) {
-    // 카운트 실패 시 차단하지 않음 — 가드 오류가 정상 사용을 막으면 안 됨 (fail-open)
-    console.error("[costGuard] 전역 카운트 실패 (통과 처리):", globalErr.message);
-    return ALLOW;
+  if (!GUARD_ENABLED) return ALLOW;
+  try {
+    const { data, error } = await admin.rpc("check_amora_usage", {
+      p_couple_id: params.coupleId,
+      p_couple_cap: FREE_USER_TURNS_PER_COUPLE,
+      p_global_provider_cap: GLOBAL_DAILY_PROVIDER_CALL_CAP,
+      p_count_user_turn: !params.isAdmin,
+    });
+    if (error) return guardErrorResult();
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.allowed === true) {
+      return {
+        allowed: true,
+        ...(typeof row.remaining === "number" ? { remaining: Math.max(0, row.remaining) } : {}),
+        ...(typeof row.provider_remaining === "number"
+          ? { providerRemaining: Math.max(0, row.provider_remaining) }
+          : {}),
+      };
+    }
+    if (row?.reason === "global_daily") return DENY_GLOBAL;
+    if (row?.reason === "couple_provider_daily") return DENY_COUPLE_DAILY;
+    if (row?.reason === "couple_quota") return DENY_COUPLE;
+    return guardErrorResult();
+  } catch {
+    return guardErrorResult();
   }
-  if ((globalToday ?? 0) >= GLOBAL_DAILY_CAP) {
-    return DENY_GLOBAL;
-  }
-
-  // 2) 커플 누적 무료 상한 — 이 커플이 발생시킨 LLM 턴 수
-  const { count: coupleTotal, error: coupleErr } = await admin
-    .from("ai_interactions_log")
-    .select("id", { count: "exact", head: true })
-    .eq("couple_id", params.coupleId)
-    .eq("interaction_type", "chat_turn");
-
-  if (coupleErr) {
-    console.error("[costGuard] 커플 카운트 실패 (통과 처리):", coupleErr.message);
-    return ALLOW;
-  }
-  if ((coupleTotal ?? 0) >= FREE_PER_COUPLE) {
-    return DENY_COUPLE;
-  }
-
-  return ALLOW;
-}
-
-// KST(UTC+9) 자정을 UTC ISO 문자열로. Date 연산만 사용 (외부 의존 없음).
-function getStartOfTodayKstAsUtcIso(): string {
-  const now = new Date();
-  const kstMs = now.getTime() + 9 * 60 * 60 * 1000;
-  const kst = new Date(kstMs);
-  const y = kst.getUTCFullYear();
-  const m = kst.getUTCMonth();
-  const d = kst.getUTCDate();
-  // KST 자정 = 그 날 00:00 KST = 전날 15:00 UTC
-  const startUtcMs = Date.UTC(y, m, d, 0, 0, 0) - 9 * 60 * 60 * 1000;
-  return new Date(startUtcMs).toISOString();
 }

@@ -1,5 +1,7 @@
 # WC-008 — WeddingCode Answer Option Design v0.1
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 아래 source-of-truth와 삭제된 `constructs.ts`·`types.ts` 참조는 당시 설계 기록이다. 현재 실행 문항·계산·검증 경계는 [`../wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`](../wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md)와 `apps/web/src/constants/weddingCodeV05.ts`를 따른다.
+
 ## Goal
 Create neutral Korean answer options for the 16 WeddingCode smoke-test questions before building a no-code form.
 

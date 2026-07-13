@@ -38,7 +38,17 @@ import {
   Surface,
 } from "@/components/ui/AppUI";
 
-type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled";
+type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "contract_sent"
+  | "contract_signed"
+  | "deposit_paid"
+  | "in_service"
+  | "service_completed"
+  | "settled"
+  | "completed"
+  | "cancelled";
 type PillTone = "neutral" | "rose" | "success" | "warning" | "danger";
 
 interface Booking {
@@ -83,10 +93,17 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "completed", label: "완료" },
   { key: "cancelled", label: "취소" },
 ];
+const BOOKING_OUTCOMES_ENABLED = false as const;
 
 const STATUS_MAP: Record<BookingStatus, { label: string; tone: PillTone }> = {
   pending: { label: "대기중", tone: "warning" },
   confirmed: { label: "확정", tone: "success" },
+  contract_sent: { label: "계약서 발송", tone: "rose" },
+  contract_signed: { label: "계약 완료", tone: "success" },
+  deposit_paid: { label: "예약금 결제", tone: "success" },
+  in_service: { label: "서비스 진행 중", tone: "rose" },
+  service_completed: { label: "서비스 완료", tone: "neutral" },
+  settled: { label: "정산 완료", tone: "neutral" },
   completed: { label: "완료", tone: "neutral" },
   cancelled: { label: "취소됨", tone: "danger" },
 };
@@ -110,6 +127,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 function normalizeStatus(status: unknown): BookingStatus {
   if (
     status === "confirmed" ||
+    status === "contract_sent" ||
+    status === "contract_signed" ||
+    status === "deposit_paid" ||
+    status === "in_service" ||
+    status === "service_completed" ||
+    status === "settled" ||
     status === "completed" ||
     status === "cancelled" ||
     status === "pending"
@@ -193,15 +216,25 @@ function bookingAmountLabel(booking: Booking): string {
   return "금액 확인 필요";
 }
 
-function isCompleted(booking: Booking, today = getTodayStart()): boolean {
-  return booking.status === "completed" || parseBookingDate(booking.booking_date) < today;
+function isCompleted(booking: Booking): boolean {
+  return booking.status === "completed"
+    || booking.status === "service_completed"
+    || booking.status === "settled";
 }
 
 function isUpcoming(booking: Booking, today = getTodayStart()): boolean {
   return (
     booking.status !== "cancelled" &&
-    booking.status !== "completed" &&
+    !isCompleted(booking) &&
     parseBookingDate(booking.booking_date) >= today
+  );
+}
+
+function isExpiredWithoutCompletion(booking: Booking, today = getTodayStart()): boolean {
+  return (
+    booking.status !== "cancelled" &&
+    !isCompleted(booking) &&
+    parseBookingDate(booking.booking_date) < today
   );
 }
 
@@ -232,26 +265,35 @@ function getBookingAction(booking: Booking): BookingAction {
   if (isCompleted(booking)) {
     if (booking.actual_amount && booking.actual_amount > 0) {
       return {
-        label: "기록됨",
-        title: "실제 금액 기록 완료",
-        description: "추가금 데이터가 다음 업체 추천과 예산 판단에 반영돼요.",
-        tone: "success",
+        label: "과거 기록",
+        title: "과거에 저장된 결과 값",
+        description: "저장된 값은 업체 전달·완료 또는 실제 결제를 증명하지 않아요.",
+        tone: "neutral",
       };
     }
 
     return {
-      label: "완료",
-      title: "진행 완료",
-      description: "실제 추가금과 만족도를 남기면 다음 추천 정확도가 좋아져요.",
+      label: "과거 상태",
+      title: "과거 요청 상태: 완료",
+      description: "이 표시는 업체가 실제 완료를 확인했다는 증빙이 아니에요.",
+      tone: "warning",
+    };
+  }
+
+  if (isExpiredWithoutCompletion(booking)) {
+    return {
+      label: "확인 필요",
+      title: "지난 요청 상태 확인",
+      description: "예정일이 지났지만 완료 여부가 확인되지 않았어요. 업체에 직접 확인해 주세요.",
       tone: "warning",
     };
   }
 
   if (booking.status === "pending") {
     return {
-      label: "확인 필요",
-      title: "업체 확정 대기",
-      description: "확정 전 포함/불포함, 변경·환불 조건을 먼저 확인하세요.",
+      label: "과거 상태",
+      title: "과거 요청 상태: 대기",
+      description: "이 표시는 과거 저장값이며 업체 전달·수락을 증명하지 않아요.",
       tone: "warning",
     };
   }
@@ -282,6 +324,7 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -289,6 +332,7 @@ export default function BookingsScreen() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const loadData = useCallback(async () => {
+    setLoadError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -296,11 +340,13 @@ export default function BookingsScreen() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("couple_id")
         .eq("id", user.id)
         .single();
+
+      if (profileError) throw profileError;
 
       if (!profile?.couple_id) {
         setCoupleId(null);
@@ -336,6 +382,7 @@ export default function BookingsScreen() {
       ));
     } catch (err) {
       console.error("Bookings load:", err);
+      setLoadError("예약 요청 목록을 불러오지 못했어요.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -392,7 +439,7 @@ export default function BookingsScreen() {
         return bookings.filter((booking) => isUpcoming(booking, today)).sort(compareByDateAsc);
       case "completed":
         return bookings.filter((booking) => (
-          booking.status !== "cancelled" && isCompleted(booking, today)
+          booking.status !== "cancelled" && isCompleted(booking)
         )).sort(compareByDateDesc);
       case "cancelled":
         return bookings.filter((booking) => booking.status === "cancelled").sort(compareByDateDesc);
@@ -455,8 +502,8 @@ export default function BookingsScreen() {
     return (
       <SafeAreaView style={s.container} edges={["top"]}>
         <AppHeader
-          title="내 예약"
-          subtitle="업체 예약 상태와 다음 행동"
+          title="과거 요청 내역"
+          subtitle="과거·예시 요청 기록"
           onBack={() => router.back()}
         />
         <LoadingState label="예약을 불러오고 있어요" />
@@ -467,8 +514,8 @@ export default function BookingsScreen() {
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
-        title="내 예약"
-        subtitle="업체 예약 상태와 다음 행동"
+        title="과거 요청 내역"
+        subtitle="과거·예시 요청 기록"
         onBack={() => router.back()}
       />
 
@@ -502,6 +549,14 @@ export default function BookingsScreen() {
           />
         }
       >
+        <Surface tone="ivory" style={s.disabledNotice}>
+          <AppText variant="bodyStrong">업체 연결 준비 중</AppText>
+          <AppText variant="caption" style={s.disabledNoticeText}>
+            신규 상담 요청은 현재 받지 않아요. 아래 상태는 과거 저장값 또는 예시 기록이며,
+            업체 전달·수락·계약·결제의 증빙이 아닙니다.
+          </AppText>
+        </Surface>
+
         {bookings.length > 0 ? (
           <Surface tone="noir" style={s.summaryCard}>
             {summary.nextBooking && nextAction ? (
@@ -509,7 +564,7 @@ export default function BookingsScreen() {
                 <View style={s.summaryTop}>
                   <View style={s.summaryTitleBlock}>
                     <AppText variant="eyebrow" style={s.summaryEyebrow}>
-                      BOOKING NEXT
+                      HISTORICAL / EXAMPLE RECORD
                     </AppText>
                     <AppText variant="subtitle" style={s.summaryTitle} numberOfLines={2}>
                       {summary.nextBooking.vendor?.name ?? "업체 미정"}
@@ -539,13 +594,13 @@ export default function BookingsScreen() {
             ) : (
               <>
                 <AppText variant="eyebrow" style={s.summaryEyebrow}>
-                  BOOKING REVIEW
+                  HISTORICAL / EXAMPLE REVIEW
                 </AppText>
                 <AppText variant="subtitle" style={[s.reviewTitle, s.summaryTitle]}>
                   예정된 예약은 없어요
                 </AppText>
                 <AppText variant="body" style={s.summaryBody}>
-                  완료된 예약의 실제 추가금과 만족도를 정리하면 다음 업체 추천이 더 정확해져요.
+                  완료가 확인된 예약은 실제 지출과 만족도를 내 준비 기록으로 남길 수 있어요.
                 </AppText>
               </>
             )}
@@ -574,29 +629,33 @@ export default function BookingsScreen() {
           </Surface>
         ) : null}
 
-        {filtered.length === 0 ? (
+        {loadError ? (
+          <EmptyState
+            icon={
+              <IconBadge tone="ivory" size={52}>
+                <AlertTriangle size={26} color={colors.danger} />
+              </IconBadge>
+            }
+            title="예약 요청을 불러오지 못했어요"
+            description="연결을 확인한 뒤 다시 시도해 주세요."
+            action={
+              <PrimaryButton tone="ghost" onPress={() => void loadData()}>
+                다시 불러오기
+              </PrimaryButton>
+            }
+          />
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={
               <IconBadge tone="ivory" size={52}>
                 <CalendarCheck size={26} color={colors.taupe[500]} />
               </IconBadge>
             }
-            title={bookings.length === 0 ? "예약 내역이 없어요" : "이 조건의 예약이 없어요"}
+            title={bookings.length === 0 ? "저장된 과거 요청이 없어요" : "이 조건의 과거 기록이 없어요"}
             description={
               bookings.length === 0
-                ? "업체 상세에서 상담 날짜와 상품을 선택하면 예약이 여기에 모여요."
-                : "다른 상태 탭을 눌러 예약 흐름을 확인해보세요."
-            }
-            action={
-              bookings.length === 0 ? (
-                <PrimaryButton
-                  tone="ghost"
-                  icon={<Store size={18} color={colors.noir[800]} />}
-                  onPress={() => router.push("/vendors")}
-                >
-                  업체 탐색하기
-                </PrimaryButton>
-              ) : null
+                ? "업체 연결 준비 중이라 새 요청은 전송되거나 저장되지 않아요."
+                : "다른 상태 탭에서 과거·예시 기록을 확인해보세요."
             }
           />
         ) : (
@@ -765,7 +824,7 @@ function BookingDetailSheet({
             >
               <View style={s.sheetHeader}>
                 <View style={s.sheetTitleBlock}>
-                  <AppText variant="eyebrow">BOOKING DETAIL</AppText>
+                  <AppText variant="eyebrow">HISTORICAL / EXAMPLE RECORD</AppText>
                   <AppText variant="subtitle">{booking.vendor?.name ?? "업체 미정"}</AppText>
                 </View>
                 <Pressable
@@ -820,6 +879,18 @@ function BookingDetailSheet({
               </View>
 
               {completed ? (
+                <View style={s.noticeBox}>
+                  <AlertTriangle size={18} color="#8A6A28" />
+                  <View style={s.noticeCopy}>
+                    <AppText variant="bodyStrong">과거·예시 기록은 조회 전용</AppText>
+                    <AppText variant="caption">
+                      실제 업체 전달·완료 증빙이 없어 결과 저장과 공개 후기도 현재 지원하지 않아요.
+                    </AppText>
+                  </View>
+                </View>
+              ) : null}
+
+              {BOOKING_OUTCOMES_ENABLED && completed ? (
                 <View style={s.outcomeBox}>
                   <View style={s.outcomeHeader}>
                     <View style={s.outcomeTitleBlock}>
@@ -1011,6 +1082,14 @@ const s = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
     gap: 16,
+  },
+  disabledNotice: {
+    paddingVertical: 14,
+    gap: 5,
+  },
+  disabledNoticeText: {
+    lineHeight: 19,
+    color: colors.textSecondary,
   },
   summaryCard: {
     gap: 16,

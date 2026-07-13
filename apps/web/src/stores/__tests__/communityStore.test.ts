@@ -109,7 +109,10 @@ describe("useCommunityStore feed cache", () => {
 
     await useCommunityStore.getState().fetchPosts(true);
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/community/posts?sort=new&page=1&limit=20");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/posts?sort=new&page=1&limit=20",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(useCommunityStore.getState().posts[0].id).toBe("network-new");
   });
 
@@ -125,6 +128,70 @@ describe("useCommunityStore feed cache", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(useCommunityStore.getState().posts[0].id).toBe("cached-hot");
+  });
+
+  it("rebuilds the selected feed without reusing another identity's cached projections", async () => {
+    useCommunityStore.getState().setCategory("tips_v2");
+    useCommunityStore.getState().setSort("hot");
+    const cachedPost = {
+      ...post("previous-user-bookmark", "2026-06-15T00:00:00.000Z"),
+      user_bookmarked: true,
+    };
+    const networkPost = post("current-user-feed", "2026-06-16T00:00:00.000Z");
+    const cacheKey = "community:feed:tips_v2:hot:_:_:_";
+    sessionStorage.setItem(
+      cacheKey,
+      JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() }),
+    );
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ posts: [networkPost], total: 1, hasMore: false }),
+    });
+
+    await useCommunityStore.getState().refreshAfterAuthChange();
+
+    expect(sessionStorage.getItem(cacheKey)).not.toContain("previous-user-bookmark");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/posts?category=tips_v2&sort=hot&page=1&limit=20",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(useCommunityStore.getState().currentCategory).toBe("tips_v2");
+    expect(useCommunityStore.getState().currentSort).toBe("hot");
+    expect(useCommunityStore.getState().posts[0].id).toBe("current-user-feed");
+  });
+
+  it("ignores a late feed response after the active selection changes", async () => {
+    const stalePost = post("stale-all-feed", "2026-06-15T00:00:00.000Z");
+    const currentPost = post("current-budget-feed", "2026-06-16T00:00:00.000Z");
+    let resolveStaleFetch: (value: unknown) => void = () => {
+      throw new Error("stale feed fetch was not started");
+    };
+    mockFetch
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveStaleFetch = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ posts: [currentPost], total: 1, hasMore: false }),
+      });
+
+    const staleRequest = useCommunityStore.getState().fetchPosts(true);
+    useCommunityStore.getState().setCategory("tips_v2");
+    const currentRequest = useCommunityStore.getState().fetchPosts(true);
+    await currentRequest;
+    resolveStaleFetch({
+      ok: true,
+      json: async () => ({ posts: [stalePost], total: 1, hasMore: false }),
+    });
+    await staleRequest;
+
+    expect(useCommunityStore.getState().currentCategory).toBe("tips_v2");
+    expect(useCommunityStore.getState().posts.map((item) => item.id)).toEqual([
+      "current-budget-feed",
+    ]);
   });
 
   it("applies the current user's new nickname to cached community state", () => {

@@ -1,5 +1,8 @@
 # Migration 20260423 — 누락 테이블 추가 실행 가이드
 
+> [!WARNING]
+> **폐기된 역사 운영 기록입니다.** 현재 원격 DB에 그대로 실행하거나 재실행하는 지침이 아닙니다. 원격 작업의 유일한 기준은 [`docs/SUPABASE_REMOTE_OPERATIONS.md`](docs/SUPABASE_REMOTE_OPERATIONS.md)와 [`docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`](docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md)입니다.
+
 ## 목적
 코드가 참조하지만 migrations에 정의 없던 5개 테이블을 추가합니다.
 
@@ -12,82 +15,22 @@
 | `account_deletions` | 계정 탈퇴 사유 기록 (서비스 개선용) |
 | `customer_survey_responses` | 고객 사전 설문 저장 (`/customersurvey`) |
 
-## 실행 방법
+## 실행·검증 방법 — 폐기
 
-### 옵션 A: Supabase Dashboard (권장, 가장 안전)
-1. https://supabase.com/dashboard/project/slrtobkksjmxgzatjyqb 접속
-2. 왼쪽 메뉴 **SQL Editor** 클릭
-3. **New query** 클릭
-4. `supabase/migrations/20260423000000_missing_tables.sql` 파일 전체 내용 복사/붙여넣기
-5. **Run** 클릭
+이 문서가 과거에 안내하던 Dashboard SQL Editor 복사 실행, 수동 project link, 원시 migration push와 임의 catalog query는 모두 폐기됐다. 현재 migration chain은 이 파일 하나보다 훨씬 뒤까지 진행됐고, 일부 정책은 후속 forward migration에서 다시 변경됐다. 이 파일만 재실행하면 현재 ledger와 catalog를 분리하거나 최신 보안 경계를 되돌릴 수 있다.
 
-**기대 결과**:
-- 5개 `CREATE TABLE` 실행 (이미 있으면 스킵)
-- 5개 인덱스 추가
-- 10개 RLS 정책 재적용 (DROP → CREATE)
-- 에러 없이 Success
+현재는 다음 원칙만 적용한다.
 
-### 옵션 B: Supabase CLI (CLI 설치되어 있는 경우)
-```bash
-cd c:\Users\admin\Desktop\weddinghanbang_website\hanbang-web
-supabase link --project-ref slrtobkksjmxgzatjyqb
-supabase db push
-```
+1. local migration 전체가 disposable project에서 blank fresh replay와 직전 승인 snapshot upgrade를 모두 통과한다.
+2. 운영 자격 증명 회전, 암호화 백업·격리 복구, 전역 write-fence lease, exact target/role binding이 먼저 증명된다.
+3. guarded ship이 remote history의 exact 연속 prefix와 reviewed pending suffix를 확인한다.
+4. 동일 release lease 안에서 migration을 적용하고, post-contract와 black-box denial evidence가 통과한 뒤에만 fence를 해제한다.
 
-## 검증 방법
+현재 이 gate들은 모두 완료되지 않았으므로 이 migration을 운영에서 별도로 실행하거나 확인하지 않는다.
 
-실행 후 SQL Editor에서:
+## 역사적 영향·rollback 메모 — 실행 금지
 
-```sql
--- 1. 5개 테이블 존재 확인
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public'
-  AND table_name IN (
-    'chat_feedback', 'chat_summaries', 'vendor_photo_likes',
-    'account_deletions', 'customer_survey_responses'
-  );
--- → 5 rows 반환되어야 함
-
--- 2. RLS 활성화 확인
-SELECT tablename, rowsecurity FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename IN (
-    'chat_feedback', 'chat_summaries', 'vendor_photo_likes',
-    'account_deletions', 'customer_survey_responses'
-  );
--- → 모든 row의 rowsecurity = true
-
--- 3. 실제 기능 테스트 (로그인 후)
--- /chat 페이지 접속 → AI 메시지에 👎 → 수정 의견 입력 → 전송
--- (500 에러 없이 성공해야 함)
-```
-
-## 프로덕션 영향
-
-### 파괴적 작업 없음
-- 모든 `CREATE TABLE`이 `IF NOT EXISTS`
-- 모든 `CREATE POLICY`가 `DROP POLICY IF EXISTS` 선행
-- 기존 데이터/컬럼/정책 변경 없음
-
-### 재실행 안전성
-동일 migration을 여러 번 실행해도 안전:
-- 테이블 이미 있음 → CREATE TABLE 스킵
-- 정책 이미 있음 → DROP 후 CREATE (동일 정책 재생성)
-
-## Rollback
-
-이 migration이 문제를 일으킬 경우:
-
-```sql
--- 테이블 삭제 (데이터 손실 주의!)
-DROP TABLE IF EXISTS chat_feedback CASCADE;
-DROP TABLE IF EXISTS chat_summaries CASCADE;
-DROP TABLE IF EXISTS vendor_photo_likes CASCADE;
-DROP TABLE IF EXISTS account_deletions CASCADE;
-DROP TABLE IF EXISTS customer_survey_responses CASCADE;
-```
-
-단 실제 데이터가 쌓이기 시작하면 rollback하지 말 것. 컬럼만 조정.
+과거 문서는 이 파일을 재실행 가능하고 비파괴적이라고 설명했지만, 정책을 drop/recreate하는 작업과 현재 후속 migration의 결합은 그런 보장을 하지 않는다. 과거의 파괴적 table-cascade rollback 예시는 데이터·의존 객체를 삭제하므로 완전히 폐기했다. 현재 복구는 검증된 backup/restore 또는 별도 reviewed forward migration으로만 수행하며, 이 문서에는 실행 가능한 SQL을 남기지 않는다.
 
 ## 원본 Audit과의 차이
 
@@ -116,9 +59,6 @@ DROP TABLE IF EXISTS customer_survey_responses CASCADE;
 | **추가** | `customer_survey_responses` migration | ✅ 완료 (이 파일에 포함) |
 | A4 | Baseline schema 재생성 | ⏸ 팀 합류 전 별도 작업 |
 
-## 다음 작업
-- [ ] 이 migration을 Supabase Dashboard에서 실행
-- [ ] 위 검증 SQL로 테이블 5개 생성 확인
-- [ ] AI 피드백 버튼 실제 동작 테스트
-- [ ] (이후) Bucket B: 18개 API try/catch wrapping
-- [ ] (나중) D01: Baseline schema pg_dump
+## 후속 상태
+
+위 표와 audit 정정은 당시 개발 이력만 보존한다. 이 문서에는 Dashboard 실행, 수동 검증 SQL, ad-hoc dump 또는 rollback checklist가 없으며 새 운영 작업을 배정하지 않는다. 현재 할 일과 차단 조건은 canonical runbook 두 문서에서만 관리한다.

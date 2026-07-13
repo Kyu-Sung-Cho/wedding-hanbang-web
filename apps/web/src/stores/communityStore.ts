@@ -61,10 +61,13 @@ interface CommunityState {
   setTag: (tag: string | null) => void;
   setAuthorId: (authorId: string | null) => void;
   clearError: () => void;
+  refreshAfterAuthChange: () => Promise<void>;
   reset: () => void;
 }
 
 const LIMIT = 20;
+const COMMUNITY_FEED_TIMEOUT_MS = 5_000;
+let feedRequestSequence = 0;
 
 // SWR 캐시 — sessionStorage 기반.
 // fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
@@ -76,6 +79,12 @@ interface CachedFeed {
   total: number;
   hasMore: boolean;
   ts: number;
+}
+
+interface CommunityFeedPayload {
+  posts?: PostWithAuthor[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 function feedCacheKey(
@@ -135,6 +144,18 @@ function invalidateFeedCache(): void {
   }
 }
 
+async function fetchCommunityFeed(url: string): Promise<CommunityFeedPayload> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), COMMUNITY_FEED_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error("community_feed_request_failed");
+    return (await response.json()) as CommunityFeedPayload;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
   currentCategory: null,
@@ -156,6 +177,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   communityProfile: null,
 
   hydrateInitialFeed: (feed) => {
+    feedRequestSequence += 1;
     set({
       posts: feed.posts,
       total: feed.total,
@@ -173,6 +195,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPosts: async (reset = true) => {
+    const requestSequence = ++feedRequestSequence;
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId } = get();
     const cacheKey = feedCacheKey(currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId);
 
@@ -208,15 +231,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     params.set("limit", String(LIMIT));
 
     try {
-      const res = await fetch(`/api/community/posts?${params}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await fetchCommunityFeed(`/api/community/posts?${params}`);
+      if (requestSequence !== feedRequestSequence) return;
       const posts = data.posts ?? [];
       const total = data.total ?? 0;
       const hasMore = data.hasMore ?? false;
       set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
       writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
+      if (requestSequence !== feedRequestSequence) return;
       set({ isLoading: false, errorMessage: "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
     }
   },
@@ -224,6 +247,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   fetchMorePosts: async () => {
     const { currentCategory, currentSort, currentPeriod, currentTag, currentAuthorId, currentPage, hasMore, isLoading } = get();
     if (!hasMore || isLoading) return;
+    const requestSequence = ++feedRequestSequence;
     set({ isLoading: true, errorMessage: null });
 
     const nextPage = currentPage + 1;
@@ -237,18 +261,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     params.set("limit", String(LIMIT));
 
     try {
-      const res = await fetch(`/api/community/posts?${params}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await fetchCommunityFeed(`/api/community/posts?${params}`);
+      if (requestSequence !== feedRequestSequence) return;
       set((s) => ({
-        posts: [...s.posts, ...data.posts],
-        hasMore: data.hasMore,
+        posts: [...s.posts, ...(data.posts ?? [])],
+        hasMore: data.hasMore ?? false,
         currentPage: nextPage,
         isLoading: false,
         errorMessage: null,
         lastSyncedAt: new Date().toISOString(),
       }));
     } catch {
+      if (requestSequence !== feedRequestSequence) return;
       set({ isLoading: false, errorMessage: "다음 글을 불러오지 못했습니다." });
     }
   },
@@ -569,30 +593,73 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   setCategory: (category) => {
     if (get().currentCategory === category) return;
+    feedRequestSequence += 1;
     set({ currentCategory: category, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setSort: (sort) => {
+    feedRequestSequence += 1;
     set({ currentSort: sort, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setPeriod: (period) => {
+    feedRequestSequence += 1;
     set({ currentPeriod: period, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setTag: (tag) => {
     if (get().currentTag === tag) return;
+    feedRequestSequence += 1;
     set({ currentTag: tag, posts: [], hasMore: true, currentPage: 1 });
   },
 
   setAuthorId: (authorId) => {
     if (get().currentAuthorId === authorId) return;
+    feedRequestSequence += 1;
     set({ currentAuthorId: authorId, posts: [], hasMore: true, currentPage: 1 });
   },
 
   clearError: () => set({ errorMessage: null }),
 
+  refreshAfterAuthChange: async () => {
+    const {
+      currentCategory,
+      currentSort,
+      currentPeriod,
+      currentTag,
+      currentAuthorId,
+    } = get();
+
+    // Vote/bookmark projections are identity-specific. Invalidate both the
+    // in-memory request generation and session cache while keeping the route's
+    // active feed selection stable across login/logout reconciliation.
+    feedRequestSequence += 1;
+    invalidateFeedCache();
+    set({
+      posts: [],
+      currentCategory,
+      currentSort,
+      currentPeriod,
+      currentTag,
+      currentAuthorId,
+      currentPage: 1,
+      hasMore: true,
+      isLoading: true,
+      total: 0,
+      errorMessage: null,
+      lastSyncedAt: null,
+      currentPost: null,
+      comments: [],
+      commentsPostId: null,
+      postLoading: false,
+      commentsLoading: false,
+      communityProfile: null,
+    });
+    await get().fetchPosts(true);
+  },
+
   reset: () => {
+    feedRequestSequence += 1;
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,

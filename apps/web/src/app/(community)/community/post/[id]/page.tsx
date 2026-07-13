@@ -38,6 +38,7 @@ import PollDisplay from "@/components/community/PollDisplay";
 import SlideCarousel from "@/components/community/SlideCarousel";
 import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
 import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
+import { pathWithAuthReturn } from "@/lib/authReturnPath";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
 
@@ -543,7 +544,7 @@ export default function PostDetailPage() {
                         로그인하면 전체 내용을 볼 수 있어요
                       </p>
                       <Link
-                        href="/login"
+                        href={pathWithAuthReturn("/login", communityPostPath(post.id))}
                         className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200"
                       >
                         로그인하기
@@ -1095,7 +1096,7 @@ export default function PostDetailPage() {
 
         {/* 댓글 섹션 */}
         {!isMembersOnly && (
-          <div className="mt-3 bg-white rounded-2xl shadow-sm border border-[#F0EFED] p-4">
+          <div id="comments" className="mt-3 bg-white rounded-2xl shadow-sm border border-[#F0EFED] p-4 scroll-mt-24">
             <CommentSection postId={post.id} />
           </div>
         )}

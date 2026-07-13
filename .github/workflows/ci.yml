@@ -6,40 +6,115 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ci:
-    name: Quality Gate
+  secret-history:
+    name: Secret history gate (no dependency install)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout complete history without credentials
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.x
+          # setup-node v5 enables package-manager cache discovery by default.
+          # This dependency-free gate intentionally runs before pnpm exists, so
+          # caching must be disabled explicitly or the gate fails before scanning.
+          package-manager-cache: false
+
+      # This scanner uses only Node built-ins. It must run before any package
+      # manager or repository-controlled dependency lifecycle script.
+      - name: Scan the complete repository history
+        run: node ./scripts/scan-tracked-secrets.mjs
+
+  windows-launcher-contract:
+    name: Windows reviewed launcher contract (no dependency install)
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout candidate without credentials
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node 24
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.x
+          package-manager-cache: false
+
+      - name: Exercise fixed Windows runtime, path, and journal boundaries
+        run: node --test ./scripts/run-reviewed-powershell.test.mjs ./scripts/supabase-write-fence-offline.test.mjs
+
+      - name: Exercise Windows recovery stream and process-tree boundaries
+        run: >-
+          node --test
+          --test-name-pattern="native children consume only|archive staging streams|decrypt-stream digest|timeout terminates a descendant"
+          ./scripts/supabase-recovery-safe.test.mjs
+
+  quality:
+    name: Quality Gate (Node 24 production parity)
+    needs: [secret-history, windows-launcher-contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout candidate without credentials
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 1
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 22.13.0
+          node-version: 24.x
           cache: pnpm
+
+      - name: Assert production runtime major
+        run: node -e "if (process.versions.node.split('.')[0] !== '24') { throw new Error('Expected Node 24 production parity') }"
+
+      - name: Rescan candidate before dependency installation
+        run: node ./scripts/scan-tracked-secrets.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Local quality gate
+      - name: Audit production dependency graph
+        run: pnpm audit --prod --audit-level high
+
+      - name: Production-parity quality gate
+        # qa:local includes web typecheck, the complete web test suite, and a
+        # production Next.js build in addition to the repository-wide checks.
         run: pnpm qa:local
         env:
           # Placeholder values keep CI focused on static verification and build integrity.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
-          ANTHROPIC_API_KEY: placeholder
+          OPENAI_API_KEY: placeholder
+          OPENAI_AMORA_PRIMARY_MODEL: gpt-5.6-terra
+          OPENAI_AMORA_FAST_MODEL: gpt-5.6-luna
+          OPENAI_AMORA_PRIMARY_REASONING_EFFORT: none
+          OPENAI_AMORA_FAST_REASONING_EFFORT: none
           RESEND_API_KEY: placeholder
           NEXT_PUBLIC_SITE_URL: https://hanbang.ai
           ADMIN_PASSWORD: placeholder

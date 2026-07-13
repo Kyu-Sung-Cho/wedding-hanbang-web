@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -13,6 +14,7 @@ import {
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
 const MONEY_METHODS = ["cash", "transfer", "etc"] as const;
+const MONEY_SELECT = "id, couple_id, guest_name, amount, side, relation, method, memo, received_at, created_at, updated_at";
 
 export async function GET(request: Request) {
   try {
@@ -32,24 +34,33 @@ export async function GET(request: Request) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || profile.couple_id !== coupleId) {
+    const { data: isMember, error: membershipError } = await supabase.rpc("is_couple_member", {
+      p_couple_id: coupleId,
+    });
+    if (membershipError || !profile || profile.couple_id !== coupleId || isMember !== true) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
     const { data, error } = await supabase
       .from("congratulatory_money")
-      .select("*")
+      .select(MONEY_SELECT)
       .eq("couple_id", coupleId)
       .order("received_at", { ascending: false });
 
     if (error) {
-      console.error("[money GET] supabase:", error);
-      return NextResponse.json({ error: "축의금 정보를 불러올 수 없습니다." }, { status: 500 });
+      console.error("[money] read_failed");
+      return NextResponse.json(
+        { error: "축의금 정보를 불러오지 못했습니다.", code: "money_read_failed" },
+        { status: 500 }
+      );
     }
     return NextResponse.json({ moneyList: data ?? [] });
-  } catch (err) {
-    console.error("[money GET]", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  } catch {
+    console.error("[money] read_failed");
+    return NextResponse.json(
+      { error: "축의금 정보를 불러오지 못했습니다.", code: "money_read_failed" },
+      { status: 500 }
+    );
   }
 }
 
@@ -83,6 +94,12 @@ export async function POST(request: Request) {
     if (!profile?.couple_id) {
       return NextResponse.json({ error: "커플 정보 없음" }, { status: 400 });
     }
+    const { data: isMember, error: membershipError } = await supabase.rpc("is_couple_member", {
+      p_couple_id: profile.couple_id,
+    });
+    if (membershipError || isMember !== true) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
 
     // 입력 검증 — amount는 INTEGER 컬럼에 CHECK 제약이 없어 음수·비정수·오버플로가
     // 합계를 왜곡하거나 500을 유발할 수 있다. 경계에서 막는다.
@@ -108,10 +125,12 @@ export async function POST(request: Request) {
     }
     const receivedAt = cleanReceivedAt ?? new Date().toISOString().slice(0, 10);
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
       .from("congratulatory_money")
       .insert({
         couple_id: profile.couple_id,
+        owner_user_id: user.id,
         guest_name: guestName,
         amount,
         side,
@@ -120,13 +139,22 @@ export async function POST(request: Request) {
         memo: cleanOptionalText(body.memo, 500),
         received_at: receivedAt,
       })
-      .select()
+      .select(MONEY_SELECT)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[money] create_failed");
+      return NextResponse.json(
+        { error: "축의금 정보를 저장하지 못했습니다.", code: "money_create_failed" },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ money: data }, { status: 201 });
-  } catch (err) {
-    console.error("[money POST]", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  } catch {
+    console.error("[money] create_failed");
+    return NextResponse.json(
+      { error: "축의금 정보를 저장하지 못했습니다.", code: "money_create_failed" },
+      { status: 500 }
+    );
   }
 }

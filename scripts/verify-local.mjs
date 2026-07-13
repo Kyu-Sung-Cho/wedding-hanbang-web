@@ -17,6 +17,38 @@ function createCommand(args) {
 
 const checks = [
   {
+    name: "tracked and untracked secret scan",
+    args: ["pnpm", "security:secrets"],
+  },
+  {
+    name: "secret scanner contract tests",
+    args: ["pnpm", "security:secrets:test"],
+  },
+  {
+    name: "Supabase recovery safety tests",
+    args: ["pnpm", "supabase:recovery:test"],
+  },
+  {
+    name: "reviewed PowerShell launcher environment tests",
+    args: ["pnpm", "supabase:launcher:test"],
+  },
+  {
+    name: "Supabase hosted Auth config contract tests",
+    args: ["pnpm", "supabase:auth-config:test"],
+  },
+  {
+    name: "Supabase write-fence lifecycle tests",
+    args: ["pnpm", "supabase:fence:test"],
+  },
+  {
+    name: "Vercel release inventory redaction tests",
+    args: ["pnpm", "vercel:release-inventory:test"],
+  },
+  {
+    name: "live release smoke contract tests",
+    args: ["pnpm", "qa:live:test"],
+  },
+  {
     name: "web typecheck",
     args: ["pnpm", "--filter", "@hanbang/web", "exec", "tsc", "--noEmit"],
   },
@@ -35,6 +67,10 @@ const checks = [
   {
     name: "mobile release readiness",
     args: ["pnpm", "mobile:release-check"],
+  },
+  {
+    name: "mobile consumer contract tests",
+    args: ["pnpm", "--filter", "@hanbang/mobile", "test"],
   },
   {
     name: "mobile typecheck",

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { captureEvent } from "@/lib/analytics";
 import {
-  AlertTriangle,
   ArrowLeft,
   Check,
   CheckCircle2,
@@ -12,6 +11,7 @@ import {
   Copy,
   Instagram,
   Loader2,
+  LockKeyhole,
   MessageCircle,
   PenLine,
   Share2,
@@ -30,19 +30,13 @@ import ReportCardButton from "./ReportCardButton";
 const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress", "makeup"];
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
 
-const SEVERITY_LABELS = {
-  critical: "필수",
-  high: "고빈도",
-  medium: "선택",
-} as const;
+type QuoteSaveStatus =
+  | "not_requested"
+  | "authentication_required"
+  | "saved"
+  | "save_failed";
 
-const SEVERITY_STYLES = {
-  critical: "border-red-200 bg-red-50 text-red-700",
-  high: "border-amber-200 bg-amber-50 text-amber-700",
-  medium: "border-[#e5d8ca] bg-[#f6efe5] text-[#635b51]",
-} as const;
-
-// 톤: 평가가 아닌 정보 노출 — 빠진 항목 개수에서 시각적 강도만 유도.
+// 톤: 평가가 아닌 사용자 확인 상태만 시각화한다.
 const INTENSITY_STYLES = {
   clear: {
     icon: CheckCircle2,
@@ -55,12 +49,6 @@ const INTENSITY_STYLES = {
     bg: "bg-[#f6efe5]",
     border: "border-[#e5d8ca]",
     text: "text-[#36534E]",
-  },
-  critical: {
-    icon: AlertTriangle,
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-800",
   },
 } as const;
 
@@ -76,22 +64,31 @@ export default function AmoraQuoteCheckPage() {
   const [memo, setMemo] = useState("");
   const [bookingChannel, setBookingChannel] = useState("unknown");
   const [quoteStage, setQuoteStage] = useState("quote_only");
+  const [saveToAccount, setSaveToAccount] = useState(false);
   const [includedItemIds, setIncludedItemIds] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<AmoraQuoteCheckResult | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<QuoteSaveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const items = useMemo(() => getQuoteCheckItems(category, region), [category, region]);
-  const requiredItems = items.filter((item) => item.severity === "critical");
-  const highItems = items.filter((item) => item.severity === "high");
-  const mediumItems = items.filter((item) => item.severity === "medium");
+  const groupedItems = useMemo(
+    () =>
+      items.reduce<Record<string, typeof items>>((groups, item) => {
+        (groups[item.category] ??= []).push(item);
+        return groups;
+      }, {}),
+    [items]
+  );
 
   const resetSelection = (nextCategory: AmoraQuoteCategory, nextRegion = region) => {
     setCategory(nextCategory);
     setRegion(nextRegion);
     setIncludedItemIds(new Set());
     setResult(null);
+    setSavedId(null);
+    setSaveStatus(null);
     setError(null);
   };
 
@@ -112,6 +109,7 @@ export default function AmoraQuoteCheckPage() {
     setLoading(true);
     setResult(null);
     setSavedId(null);
+    setSaveStatus(null);
     captureEvent("quote_check_submitted", { category, region });
 
     try {
@@ -127,12 +125,20 @@ export default function AmoraQuoteCheckPage() {
           includedItemIds: [...includedItemIds],
           bookingChannel,
           quoteStage,
+          saveToAccount,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "결과를 가져오지 못했습니다.");
       setResult(data.analysis as AmoraQuoteCheckResult);
       setSavedId(typeof data.savedId === "string" ? data.savedId : null);
+      setSaveStatus(
+        ["not_requested", "authentication_required", "saved", "save_failed"].includes(
+          data.saveStatus
+        )
+          ? (data.saveStatus as QuoteSaveStatus)
+          : "save_failed"
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "결과를 가져오지 못했습니다.");
     } finally {
@@ -160,11 +166,11 @@ export default function AmoraQuoteCheckPage() {
                   계약 전 체크리스트
                 </div>
                 <h1 className="font-serif-kr text-3xl text-[#263832] sm:text-4xl">
-                  견적에 빠진 게 없는지 같이 봐드려요
+                  계약 전에 추가비용 항목을 확인해보세요
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#635b51] sm:text-base">
-                  결혼 처음 준비하면 놓치기 쉬운 항목 + 한국소비자원 평균 가격 + 계약 전 업체에 물어볼 질문을 정리해 드려요.
-                  견적이 좋다·나쁘다를 판단하는 게 아니라, 빠진 게 없는지 확인하는 체크리스트입니다.
+                  받은 견적서에 각 항목이 포함됐는지 직접 표시하고, 업체에 물어볼 질문을
+                  정리하는 체크리스트예요. 항목별 가격·발생률·필수성을 판정하지 않습니다.
                 </p>
               </div>
               <Link
@@ -199,6 +205,8 @@ export default function AmoraQuoteCheckPage() {
                   onChange={(event) => {
                     setRegion(event.target.value as AmoraQuoteRegion);
                     setResult(null);
+                    setSavedId(null);
+                    setSaveStatus(null);
                     setError(null);
                   }}
                   className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
@@ -209,6 +217,10 @@ export default function AmoraQuoteCheckPage() {
                     </option>
                   ))}
                 </select>
+                <span className="mt-1 block text-xs text-[#928980]">
+                  체크리스트 항목은 지역에 따라 달라지지 않아요. 계정 저장을 선택한 경우에만
+                  견적 조건을 기억하기 위해 함께 저장됩니다.
+                </span>
               </label>
 
               <label className="block">
@@ -222,6 +234,8 @@ export default function AmoraQuoteCheckPage() {
                     onChange={(event) => {
                       setQuotePrice(event.target.value);
                       setResult(null);
+                      setSavedId(null);
+                      setSaveStatus(null);
                     }}
                     className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 pr-12 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
                   />
@@ -255,7 +269,7 @@ export default function AmoraQuoteCheckPage() {
                   <option value="agency_package">대행사 패키지</option>
                 </select>
                 <span className="mt-1 block text-xs text-[#928980]">
-                  같은 업체도 경로에 따라 가격이 달라서, 정확한 비교에 꼭 필요해요.
+                  계정 저장을 선택한 경우에만 당시 견적 조건을 기억하기 위한 메모로 함께 저장돼요.
                 </span>
               </label>
 
@@ -282,6 +296,28 @@ export default function AmoraQuoteCheckPage() {
                 className="w-full resize-none rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 text-sm text-[#263832] outline-none transition-colors placeholder:text-[#b5ada3] focus:border-[#36534E]"
               />
             </label>
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-[#e5d8ca] bg-[#fbf8f2] px-4 py-3">
+              <input
+                type="checkbox"
+                checked={saveToAccount}
+                onChange={(event) => setSaveToAccount(event.target.checked)}
+                disabled={loading}
+                className="mt-1 h-4 w-4 rounded border-[#b9afa6] accent-[#36534E]"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-[#263832]">
+                  <LockKeyhole className="h-4 w-4" />
+                  내 계정에 비공개 저장
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-[#635b51]">
+                  기본값은 저장 안 함입니다. 선택하면 견적가·업체명·메모·선택 항목과 결과가 내 계정에 저장됩니다.
+                  서비스 운영상 필요한 관리자 접근을 제외하고, 공유 버튼으로 공개 링크를 켜기 전에는 다른 이용자가 볼 수 없습니다.
+                  업체명은 업체 발굴이나 영업 리드 생성에 사용하지 않습니다.
+                  {result ? " 선택 변경은 다음 결과 보기부터 적용됩니다." : ""}
+                </span>
+              </span>
+            </label>
           </section>
 
           <section className="mt-5 rounded-xl border border-[#e5d8ca] bg-white p-4 sm:p-5 lg:p-6">
@@ -289,7 +325,7 @@ export default function AmoraQuoteCheckPage() {
               <div>
                 <h2 className="text-lg font-semibold text-[#263832]">견적서에 포함된 항목</h2>
                 <p className="mt-1 text-sm text-[#928980]">
-                  확인된 항목만 선택하면 빠진 비용을 계산합니다.
+                  견적서나 업체 답변으로 포함이 확인된 항목만 선택해주세요.
                 </p>
               </div>
               <span className="rounded-full bg-[#f6efe5] px-3 py-1 text-xs text-[#635b51]">
@@ -297,9 +333,20 @@ export default function AmoraQuoteCheckPage() {
               </span>
             </div>
 
-            <ItemGroup title="필수 확인" items={requiredItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="자주 붙는 추가금" items={highItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="선택 항목" items={mediumItems} selected={includedItemIds} onToggle={toggleItem} compact />
+            {Object.entries(groupedItems).map(([itemCategory, categoryItems]) => (
+              <ItemGroup
+                key={itemCategory}
+                title={{
+                  studio: "스튜디오",
+                  dress: "드레스",
+                  makeup: "메이크업",
+                  common: "본식·공통",
+                }[itemCategory] ?? itemCategory}
+                items={categoryItems}
+                selected={includedItemIds}
+                onToggle={toggleItem}
+              />
+            ))}
 
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -318,7 +365,9 @@ export default function AmoraQuoteCheckPage() {
             </button>
           </section>
 
-          {result && <ResultPanel result={result} savedId={savedId} />}
+          {result && (
+            <ResultPanel result={result} savedId={savedId} saveStatus={saveStatus} />
+          )}
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
@@ -326,18 +375,18 @@ export default function AmoraQuoteCheckPage() {
             <h2 className="font-serif-kr text-2xl text-[#263832]">이 체크리스트, 솔직히 말하면</h2>
             <div className="mt-4 space-y-3 text-sm leading-6 text-[#635b51]">
               <p>
-                견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 결혼 처음 준비하면 모르고 빠뜨릴 수 있는 항목들을 한 번에 보여주는 체크리스트예요.
+                견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 계약 범위로 확인할 수 있는 질문을 한 번에 모은 체크리스트예요.
               </p>
               <p>
-                가격 비교는 한국소비자원 평균을 참고로만 표시해요. 예산·우선순위·하객 규모에 따라 같은 가격도 적정선이 달라지니, 판단은 본인이 하세요.
+                목록에 있다고 해서 반드시 필요한 항목이거나 실제로 추가된다는 뜻은 아니에요. 해당하는 항목만 업체에 확인하세요.
               </p>
               <p>
-                계약 전 빠진 항목을 업체에 한 번이라도 묻고 답변을 받으면 — 그게 가장 큰 안전장치예요.
+                업체 답변과 추가 조건을 문자나 계약서로 남겨두면 나중에 다시 확인하기 편해요.
               </p>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
               <Metric label="확인" value="항목" />
-              <Metric label="참고" value="평균" />
+              <Metric label="직접" value="표시" />
               <Metric label="준비" value="질문" />
             </div>
           </section>
@@ -352,13 +401,11 @@ function ItemGroup({
   items,
   selected,
   onToggle,
-  compact = false,
 }: {
   title: string;
   items: ReturnType<typeof getQuoteCheckItems>;
   selected: Set<string>;
   onToggle: (id: string) => void;
-  compact?: boolean;
 }) {
   if (items.length === 0) return null;
 
@@ -373,6 +420,7 @@ function ItemGroup({
               type="button"
               key={item.id}
               onClick={() => onToggle(item.id)}
+              aria-pressed={active}
               className={`flex min-h-[64px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
                 active
                   ? "border-[#36534E] bg-[#f6efe5]"
@@ -387,17 +435,10 @@ function ItemGroup({
                 <CheckCircle2 className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-[#263832]">{item.name}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${SEVERITY_STYLES[item.severity]}`}>
-                    {SEVERITY_LABELS[item.severity]}
-                  </span>
+                <span className="text-sm font-medium text-[#263832]">{item.name}</span>
+                <span className="mt-1 block text-xs leading-5 text-[#928980]">
+                  {item.checkQuestion}
                 </span>
-                {!compact && (
-                  <span className="mt-1 block text-xs text-[#928980]">
-                    평균 {formatManwon(item.priceManwon)} · 이용률 {item.usageRatePercent}%
-                  </span>
-                )}
               </span>
             </button>
           );
@@ -410,28 +451,28 @@ function ItemGroup({
 function ResultPanel({
   result,
   savedId,
+  saveStatus,
 }: {
   result: AmoraQuoteCheckResult;
   savedId: string | null;
+  saveStatus: QuoteSaveStatus | null;
 }) {
-  const missingTotal =
-    result.missingCriticalCount + result.missingHighCount + result.missingMediumCount;
-  const intensity =
-    result.missingCriticalCount > 0 ? "critical" : missingTotal > 0 ? "attention" : "clear";
+  const unconfirmedTotal = result.unconfirmedItemCount;
+  const intensity = unconfirmedTotal > 0 ? "attention" : "clear";
   const style = INTENSITY_STYLES[intensity];
   const Icon = style.icon;
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareSharing, setShareSharing] = useState(false);
   const [instaCopied, setInstaCopied] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [visibilityChanging, setVisibilityChanging] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
-  // missingItems 중 추가금 발생 가능성이 높은 것 우선 — 공유/포스트 노출용
-  const topMissing = useMemo(() => {
-    const order = { critical: 0, high: 1, medium: 2 } as const;
-    return [...result.missingItems]
-      .sort((a, b) => order[a.severity] - order[b.severity])
-      .slice(0, 8);
-  }, [result.missingItems]);
+  const topUnconfirmed = useMemo(
+    () => result.unconfirmedItems.slice(0, 8),
+    [result.unconfirmedItems]
+  );
 
   // 아모라 채팅에 그대로 던질 수 있는 컨텍스트 메시지
   const chatPrompt = useMemo(() => {
@@ -440,45 +481,42 @@ function ResultPanel({
       `결과 요약: ${result.summaryTitle}`,
       result.summaryText,
     ];
-    if (topMissing.length > 0) {
+    if (topUnconfirmed.length > 0) {
       lines.push("");
-      lines.push("빠진 항목:");
-      topMissing.forEach((item) => {
-        lines.push(
-          `- ${item.name} (평균 ${formatManwon(item.priceManwon)}, ${item.severity === "critical" ? "필수" : item.severity === "high" ? "추가금" : "선택"})`
-        );
+      lines.push("아직 포함 여부를 확인하지 않은 항목:");
+      topUnconfirmed.forEach((item) => {
+        lines.push(`- ${item.name}: ${item.checkQuestion}`);
       });
     }
     lines.push("");
     lines.push("이 중에 계약 전에 꼭 확인해야 할 항목이랑, 업체에 어떻게 물어보면 좋을지 알려줘.");
     return lines.join("\n");
-  }, [result, topMissing]);
+  }, [result, topUnconfirmed]);
 
-  // "익명 사례로 공유하기" 게시글 prefill
+  // "업체명 뺀 사례로 공유하기" 게시글 prefill
   const postTitle = useMemo(
     () =>
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적, 이거 빠진 거 정상인가요?`,
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적, 무엇을 더 확인할까요?`,
     [result]
   );
   const postContent = useMemo(() => {
     const lines = [
-      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적 받았는데 체크리스트 돌려보니까 빠진 항목이 있어서 공유 + 의견 받고 싶어요.`,
+      `${AMORA_QUOTE_CATEGORY_LABELS[result.category]} ${formatManwon(result.quotePriceManwon)} 견적을 받고, 아직 포함 여부를 확인하지 않은 항목을 정리했어요.`,
       "",
       `📌 ${result.summaryTitle}`,
       result.summaryText,
       "",
     ];
-    if (topMissing.length > 0) {
-      lines.push("⚠️ 견적서에서 확인 안 된 항목");
-      topMissing.forEach((item) => {
-        const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
-        lines.push(`- ${tag} ${item.name} — 평균 ${formatManwon(item.priceManwon)}`);
+    if (topUnconfirmed.length > 0) {
+      lines.push("포함 여부를 더 확인할 항목");
+      topUnconfirmed.forEach((item) => {
+        lines.push(`- ${item.name}: ${item.checkQuestion}`);
       });
       lines.push("");
     }
-    lines.push("이거 보통 이렇게 빠지나요? 추가 질문 받습니다 🙏");
+    lines.push("계약 전에 더 확인할 질문이 있다면 알려주세요.");
     return lines.join("\n");
-  }, [result, topMissing]);
+  }, [result, topUnconfirmed]);
 
   const chatHref = weddingPath(`/chat?prefill=${encodeURIComponent(chatPrompt)}`);
   const postWriteHref = weddingPath(`/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`);
@@ -499,22 +537,67 @@ function ResultPanel({
     }
   };
 
-  // 공유 텍스트 — 빠진 세부 항목까지 포함 (이슈 6)
+  // 공유 텍스트 — 사용자 확인 상태와 질문만 포함한다.
   const buildShareText = (compact = false) => {
     const head = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — ${result.summaryTitle}`;
-    const meta = `견적서에서 확인 안 된 항목 ${missingTotal}개 (필수 ${result.missingCriticalCount}개)`;
-    if (compact || topMissing.length === 0) return `${head}\n${meta}`;
+    const meta = `포함 여부를 더 확인할 항목 ${unconfirmedTotal}개`;
+    if (compact || topUnconfirmed.length === 0) return `${head}\n${meta}`;
 
-    const detailLines = topMissing.slice(0, 5).map((item) => {
-      const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
-      return `${tag} ${item.name} (평균 ${formatManwon(item.priceManwon)})`;
-    });
-    return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
+    const detailLines = topUnconfirmed.slice(0, 5).map((item) => `- ${item.name}`);
+    return `${head}\n${meta}\n\n[확인할 항목]\n${detailLines.join("\n")}`;
+  };
+
+  const enablePublicLink = async (): Promise<string | null> => {
+    if (!savedId) return null;
+    setShareError(null);
+
+    if (!isPublic) {
+      setVisibilityChanging(true);
+      try {
+        const response = await fetch(`/api/amora/quote-check/${savedId}/share`, {
+          method: "POST",
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.isPublic !== true) {
+          throw new Error(data.error ?? "공개 링크를 켜지 못했습니다.");
+        }
+        setIsPublic(true);
+      } catch (err) {
+        setShareError(err instanceof Error ? err.message : "공개 링크를 켜지 못했습니다.");
+        return null;
+      } finally {
+        setVisibilityChanging(false);
+      }
+    }
+
+    return `${window.location.origin}/quote/${savedId}`;
+  };
+
+  const revokePublicLink = async () => {
+    if (!savedId || !isPublic) return;
+    setVisibilityChanging(true);
+    setShareError(null);
+    try {
+      const response = await fetch(`/api/amora/quote-check/${savedId}/share`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.isPublic !== false) {
+        throw new Error(data.error ?? "공개 링크를 끄지 못했습니다.");
+      }
+      setIsPublic(false);
+      setShareCopied(false);
+      setInstaCopied(false);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "공개 링크를 끄지 못했습니다.");
+    } finally {
+      setVisibilityChanging(false);
+    }
   };
 
   const shareResult = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
+    const url = await enablePublicLink();
+    if (!url) return;
     const title = `${result.summaryTitle}`;
     const text = buildShareText(false);
 
@@ -542,8 +625,8 @@ function ResultPanel({
   // 인스타그램은 웹에서 텍스트 직접 공유가 안 되므로 — 텍스트를 클립보드로 복사하고
   // 인스타그램을 새 탭으로 열어줌. 사용자가 스토리/DM/게시물에 붙여넣어 공유.
   const shareToInstagram = async () => {
-    if (!savedId) return;
-    const url = `${window.location.origin}/quote/${savedId}`;
+    const url = await enablePublicLink();
+    if (!url) return;
     const text = `${buildShareText(false)}\n\n${url}\n#웨딩한방 #견적체크`;
     try {
       await navigator.clipboard.writeText(text);
@@ -566,26 +649,43 @@ function ResultPanel({
             <h2 className={`text-xl font-semibold ${style.text}`}>{result.summaryTitle}</h2>
             <p className="mt-2 text-sm leading-6 text-[#635b51]">{result.summaryText}</p>
             <p className="mt-2 text-xs leading-5 text-[#928980]">
-              평가가 아니라 빠진 항목 카운트입니다. 각자 예산·우선순위에 따라 적정선은 다를 수 있어요.
+              사용자가 표시하지 않은 항목의 개수예요. 미포함·필수·발생 가능성을 판정한 결과가 아닙니다.
             </p>
           </div>
         </div>
       </div>
 
-      {/* 메트릭 카드 — 전부 사실: 입력가 · 참고 시세(비교 기준 명시) · 빠진 항목 */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      {saveStatus === "not_requested" && (
+        <p className="mt-4 rounded-lg border border-[#e5d8ca] bg-white px-4 py-3 text-xs leading-5 text-[#635b51]">
+          이번 결과는 계정에 저장하지 않았습니다. 공개 링크도 만들어지지 않았어요.
+        </p>
+      )}
+      {saveStatus === "authentication_required" && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+          로그인되어 있지 않아 계정에 저장하지 않았습니다. 결과는 정상적으로 정리됐지만 공개 링크는 만들 수 없어요.
+        </p>
+      )}
+      {saveStatus === "save_failed" && (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
+          결과는 정리됐지만 계정 저장에 실패했습니다. 이 상태에서는 공개 링크가 만들어지지 않습니다. 잠시 후 다시 시도해주세요.
+        </p>
+      )}
+      {saveStatus === "saved" && (
+        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+          내 계정에 비공개로 저장했습니다. 아래 공유 버튼을 누르기 전에는 다른 이용자가 볼 수 없습니다.
+        </p>
+      )}
+
+      {/* 메트릭 카드 — 사용자가 입력·표시한 사실만 */}
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
         <ResultMetric
-          label={`${result.marketComparatorLabel} (참고)`}
-          value={formatManwon(result.marketMedianManwon)}
-        />
-        <ResultMetric
-          label="견적서에서 확인 안 된 항목"
-          value={`${missingTotal}개 (필수 ${result.missingCriticalCount})`}
+          label="포함 여부를 더 확인할 항목"
+          value={`${unconfirmedTotal}개`}
         />
       </div>
       <p className="mt-2 text-xs leading-5 text-[#928980]">
-        시세는 공공 통계 참고값이에요. 구성·시즌에 따라 크게 달라져서, 가격이 좋다·나쁘다는 판정은 하지 않아요.
+        항목별 시세나 이용 비율은 제공하지 않아요. 실제 조건과 금액은 업체 답변과 계약서로 확인하세요.
       </p>
 
       {result.contractQuestions.length > 0 && (
@@ -637,7 +737,7 @@ function ResultPanel({
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
         >
           <PenLine className="h-4 w-4" />
-          익명 사례로 공유하기
+          업체명 뺀 사례로 공유하기
         </Link>
       </div>
 
@@ -645,18 +745,34 @@ function ResultPanel({
         <div className="mt-3 rounded-lg border border-[#e5d8ca] bg-white p-3">
           <div className="flex flex-col gap-3">
             <p className="text-xs leading-5 text-[#635b51]">
-              <strong className="text-[#263832]">고민되면 친구·파트너에게 보내세요.</strong>
+              <strong className="text-[#263832]">
+                {isPublic ? "공개 링크가 켜져 있습니다." : "현재 결과는 비공개입니다."}
+              </strong>
               <br />
-              공유 텍스트에는 견적가, 요약, 빠진 항목 세부 리스트가 포함돼요. 메모·업체명은 제외됩니다.
+              {isPublic
+                ? "링크를 아는 누구나 분야·지역·견적가와 결과 요약을 볼 수 있습니다. 공개 링크를 끄면 더 이상 열리지 않습니다."
+                : "공유 버튼을 누르면 공개 링크가 켜지고, 링크를 아는 누구나 분야·지역·견적가와 결과 요약을 볼 수 있습니다."}
+              <br />
+              업체명·메모·계약 질문·협상 문구는 공개 페이지와 공유 텍스트에서 제외됩니다.
             </p>
+            {shareError && (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {shareError}
+              </p>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
                 onClick={shareResult}
-                disabled={shareSharing}
+                disabled={shareSharing || visibilityChanging}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#36534E] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
-                {shareCopied ? (
+                {visibilityChanging ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    공개 설정 중
+                  </>
+                ) : shareCopied ? (
                   <>
                     <Check className="h-3.5 w-3.5 text-emerald-600" />
                     링크·세부항목 복사됨
@@ -664,14 +780,15 @@ function ResultPanel({
                 ) : (
                   <>
                     <Share2 className="h-3.5 w-3.5" />
-                    카톡·메시지로 공유
+                    {isPublic ? "카톡·메시지로 다시 공유" : "공개 링크 켜고 공유"}
                   </>
                 )}
               </button>
               <button
                 type="button"
                 onClick={shareToInstagram}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5]"
+                disabled={visibilityChanging}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#dfc9c1] bg-white px-3 py-2 text-xs font-medium text-[#36534E] transition-colors hover:bg-[#f6efe5] disabled:opacity-60"
               >
                 {instaCopied ? (
                   <>
@@ -685,12 +802,31 @@ function ResultPanel({
                   </>
                 )}
               </button>
+              {isPublic && (
+                <button
+                  type="button"
+                  onClick={revokePublicLink}
+                  disabled={visibilityChanging}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                >
+                  <LockKeyhole className="h-3.5 w-3.5" />
+                  공개 링크 끄기
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
       <p className="mt-3 text-xs leading-5 text-[#928980]">{result.sourceNote}</p>
+      <a
+        href={result.sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 inline-flex text-xs font-medium text-[#36534E] underline-offset-2 hover:underline"
+      >
+        공식 조사 원문 보기
+      </a>
     </section>
   );
 }

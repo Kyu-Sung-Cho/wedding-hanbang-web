@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 const features = [
   {
     icon: (
@@ -9,9 +11,9 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
       </svg>
     ),
-    title: "실시간 온라인 예약",
-    desc: "전화나 카톡 없이 빈 날짜를 확인하고 원클릭으로 예약하세요. 예약 확인과 변경도 간편하게 처리됩니다.",
-    tag: "예약",
+    title: "업체 운영정보 확인",
+    desc: "업체가 공개한 상품과 운영시간을 참고해 직접 확인할 질문을 정리하세요. 업체 연결은 준비 중이며 현재 상담 요청은 전송되지 않습니다.",
+    tag: "정보 확인",
   },
   {
     icon: (
@@ -20,7 +22,7 @@ const features = [
       </svg>
     ),
     title: "업체 포트폴리오 탐색",
-    desc: "촬영 사진, 드레스 컬렉션, 메이크업 샘플을 한 곳에서 비교하세요. 다른 커플들의 이용 경험으로 선택에 확신을 더하세요.",
+    desc: "업체가 공개한 사진과 기본 정보를 한곳에서 살펴보세요. 최신 구성과 가능 여부는 계약 전에 업체에 직접 확인해야 합니다.",
     tag: "탐색",
   },
   {
@@ -30,7 +32,7 @@ const features = [
       </svg>
     ),
     title: "패키지 가격 비교",
-    desc: "같은 카테고리 업체들의 패키지를 나란히 비교하세요. 포함 항목과 옵션 차이를 한눈에 파악하고 합리적으로 선택할 수 있습니다.",
+    desc: "공개된 가격 정보와 카테고리별 시세를 함께 보며 질문할 항목을 정리하세요. 실제 견적과 포함 범위는 업체마다 다를 수 있습니다.",
     tag: "비교",
   },
   {
@@ -39,9 +41,9 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
       </svg>
     ),
-    title: "업체 직접 문의",
-    desc: "궁금한 점은 업체에 바로 문의하세요. 견적 요청부터 상세 조건 확인까지, 대화 내역이 자동으로 저장됩니다.",
-    tag: "문의",
+    title: "상담 질문 체크리스트",
+    desc: "가격, 포함·불포함, 환불·변경 조건 등 업체에 직접 확인할 질문을 정리하세요. 웨딩한방에서 업체로 문의는 전송되지 않습니다.",
+    tag: "체크리스트",
   },
   {
     icon: (
@@ -49,8 +51,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
       </svg>
     ),
-    title: "커플 실시간 연동",
-    desc: "초대 코드 하나로 파트너와 연결됩니다. 찜한 업체, 예약 현황, 진행 상황을 함께 확인하며 의견을 나눌 수 있습니다.",
+    title: "커플 준비 기록 공유",
+    desc: "초대 코드로 파트너와 연결해 일정, 예산, 준비 진행 상황을 같은 화면에서 확인하고 업데이트할 수 있습니다.",
     tag: "커플",
   },
   {
@@ -85,9 +87,9 @@ export default function CustomerFeatures() {
           이것만으로 끝이 아닙니다
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          결혼 준비에 필요한 모든 기능을
+          {isComingSoon ? "정식 베타에서 준비 중인 주요 기능을" : "현재 제공 중인 주요 기능을"}
           <br className="hidden md:block" />
-          하나의 플랫폼에서 제공합니다.
+          하나의 준비 공간에서 확인하세요.
         </p>
       </motion.div>
 
@@ -107,7 +109,7 @@ export default function CustomerFeatures() {
             <div className="inline-block text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium mb-3">
               {feat.tag}
             </div>
-            <h4 className="text-[17px] font-medium mb-2.5 text-noir-800">{feat.title}</h4>
+            <h3 className="text-[17px] font-medium mb-2.5 text-noir-800">{feat.title}</h3>
             <p className="text-[13px] text-taupe-500 leading-relaxed font-light">{feat.desc}</p>
           </motion.div>
         ))}

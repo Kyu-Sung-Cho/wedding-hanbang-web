@@ -110,14 +110,14 @@ export default function CommunityAboutPage() {
               {
                 icon: PenSquare,
                 title: "내 경험 나누기",
-                desc: "사진, 영상과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
+                desc: "사진과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
                 color: "from-[#B89785]/20 to-[#2B423E]/5",
                 iconColor: "text-[#B89785]",
               },
               {
                 icon: TrendingUp,
                 title: "투표로 좋은 글 추천",
-                desc: "도움이 된 글에 투표하면 다른 신부들도 빨리 찾을 수 있어요. 매주 BEST 글이 선정돼요.",
+                desc: "도움이 된 글에 투표하면 다른 예비부부가 참고할 글을 찾는 데 도움이 돼요. 운영 기준에 따라 BEST로 표시될 수 있어요.",
                 color: "from-[#A8D8A8]/30 to-[#A8D8A8]/5",
                 iconColor: "text-sage-500",
               },
@@ -252,7 +252,7 @@ export default function CommunityAboutPage() {
               {
                 icon: Shield,
                 title: "안전하게 지켜요",
-                desc: "익명 활동이지만 인격 모독·허위 글은 제재돼요.",
+                desc: "커뮤니티 닉네임으로 활동하지만 인격 모독·허위 글은 제재돼요.",
               },
             ].map((item) => {
               const Icon = item.icon;

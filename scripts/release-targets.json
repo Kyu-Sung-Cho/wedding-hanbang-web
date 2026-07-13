@@ -1,0 +1,72 @@
+{
+  "productionSupabaseProjectRefs": [
+    "slrtobkksjmxgzatjyqb"
+  ],
+  "approvedNonProductionSupabaseProjectRefs": [],
+  "productionWebBaseUrl": "https://hanbang.ai",
+  "productionSupabaseAuthConfigContract": "direct-signup-disabled-general-password-v1",
+  "productionSupabasePublicEmailBoundary": {
+    "status": "blocked-hosted-native-email-bypass",
+    "contract": "hosted-public-email-boundary-v1",
+    "approvedMode": null
+  },
+  "productionSupabaseRedirectTokenPolicy": {
+    "status": "not_attested",
+    "contract": "hosted-auth-redirect-token-v1",
+    "canonicalSiteUrl": "https://hanbang.ai",
+    "exactAdditionalRedirectUrls": [],
+    "jwtExpirySeconds": 3600,
+    "refreshTokenRotation": true,
+    "refreshTokenReuseSeconds": 10,
+    "emailOtpLength": 6,
+    "emailOtpExpirySeconds": 3600,
+    "rateLimits": {
+      "emailSentPerHour": 2,
+      "tokenRefreshPerFiveMinutesPerIp": 150,
+      "signInSignUpsPerFiveMinutesPerIp": 30,
+      "tokenVerificationsPerFiveMinutesPerIp": 30
+    }
+  },
+  "productionOAuthProviderContract": {
+    "status": "not_attested",
+    "contract": "verified-visible-oauth-providers-v1",
+    "visibleProviders": []
+  },
+  "productionTurnstileBoundary": {
+    "status": "not_configured",
+    "contract": "siteverify-hostname-action-v1",
+    "canonicalHostname": "hanbang.ai",
+    "requiredActions": [
+      "signup",
+      "forgot_password",
+      "preregister",
+      "survey"
+    ]
+  },
+  "productionAdminPasswordLifecycle": {
+    "status": "blocked-role-aware-provider-gap",
+    "contract": "role-aware-admin-password-v1",
+    "minimumLength": 12
+  },
+  "productionDatabaseWriteFence": "not_configured",
+  "productionDatabaseWriteFenceContract": "database-readonly-realtime-cron-v1",
+  "backupPolicy": {
+    "status": "not_configured",
+    "rehearsalStatus": "not_configured",
+    "requiredCliVersion": "2.106.0",
+    "allowedRestoreProjectRefs": [],
+    "ageRecipients": [],
+    "maxStorageConcurrency": 4,
+    "rpoObjectiveSeconds": null,
+    "rtoObjectiveSeconds": null,
+    "restoreDrillVerifiedAt": null,
+    "maxRestoreDrillAgeDays": null,
+    "retentionDays": null,
+    "archiveAuthenticity": {
+      "status": "blocked-key-custody-and-immutable-anchor-not-approved",
+      "contract": "age-sender-signature-external-immutable-anchor-v1",
+      "senderSigningKeyRef": null,
+      "externalImmutableAnchorRef": null
+    }
+  }
+}

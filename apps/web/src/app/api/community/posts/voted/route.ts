@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { communityReadablePostOrFilter } from "@/lib/community/publicPostRules";
+import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 
 // 사용자가 좋아요한 글 목록 조회
 export async function GET(req: NextRequest) {
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     // 게시글 상세 정보 가져오기
     const { data: posts, error: postsError } = await supabase
       .from("community_posts")
-      .select("*")
+      .select(COMMUNITY_POST_PUBLIC_SELECT)
       .in("id", postIds)
       .or(communityReadablePostOrFilter(user.id));
 

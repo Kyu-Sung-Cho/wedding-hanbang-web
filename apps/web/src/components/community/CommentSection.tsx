@@ -6,6 +6,8 @@ import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import CommentItem from "@/components/community/CommentItem";
+import { pathWithAuthReturn } from "@/lib/authReturnPath";
+import { communityPostPath } from "@/lib/community/routes";
 import type { CommentWithAuthor } from "@/types/community.types";
 
 interface CommentSectionProps {
@@ -143,7 +145,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#B5ADA3]" />
             <p className="text-base text-[#878680]">
               <Link
-                href="/login"
+                href={pathWithAuthReturn("/login", communityPostPath(postId, "comments"))}
                 className="text-[#36534E] font-semibold hover:underline"
               >
                 로그인

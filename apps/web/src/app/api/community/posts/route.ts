@@ -537,15 +537,8 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!existingProfile) {
-      // profiles 테이블에서 이름 가져오기
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
-      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(user.id);
+      const nickname = getSafeDefaultCommunityNickname(null, user.id);
+      const fallbackNickname = getCommunityNicknameFallback(`${user.id}:collision`);
       const createProfilePayload = {
         user_id: user.id,
         nickname,

@@ -525,7 +525,7 @@ pre {
   button:not(.no-min-tap),
   a[role="button"],
   [role="button"] {
-    min-height: 40px;
+    min-height: 44px;
   }
 }
 

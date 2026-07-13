@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import {
   format,
   startOfMonth,
@@ -11,6 +11,7 @@ import {
   isSameDay,
   isSameMonth,
   addMonths,
+  addDays,
   subMonths,
   parseISO,
   isAfter,
@@ -44,6 +45,7 @@ export default function DatePickerPopover({
   placeholder = "날짜를 선택해주세요",
 }: DatePickerPopoverProps) {
   const [open, setOpen] = useState(false);
+  const popoverId = useId();
 
   // 선택된 값 파싱
   const selectedDate = value && isValid(parseISO(value)) ? parseISO(value) : null;
@@ -59,6 +61,8 @@ export default function DatePickerPopover({
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dayButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   // 바깥 클릭 시 닫기
   useEffect(() => {
@@ -69,7 +73,11 @@ export default function DatePickerPopover({
       }
     }
     function handleEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
+      }
     }
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleEsc);
@@ -103,55 +111,82 @@ export default function DatePickerPopover({
     if (isDateDisabled(d)) return;
     onChange(format(d, "yyyy-MM-dd"));
     setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
   }
 
   function handleClear() {
     onChange("");
     setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
   }
+
+  function moveDayFocus(from: Date, offset: number) {
+    let target = addDays(from, offset);
+    for (let attempts = 0; attempts < 42 && isDateDisabled(target); attempts += 1) {
+      target = addDays(target, Math.sign(offset));
+    }
+    if (isDateDisabled(target)) return;
+
+    const targetKey = format(target, "yyyy-MM-dd");
+    if (!isSameMonth(target, viewMonth)) setViewMonth(startOfMonth(target));
+    window.requestAnimationFrame(() => {
+      dayButtonRefs.current.get(targetKey)?.focus({ preventScroll: true });
+    });
+  }
+
+  const rovingFocusDay =
+    (selectedDate && isSameMonth(selectedDate, viewMonth) && !isDateDisabled(selectedDate)
+      ? selectedDate
+      : null) ??
+    (isSameMonth(today, viewMonth) && !isDateDisabled(today) ? today : null) ??
+    days.find((day) => isSameMonth(day, viewMonth) && !isDateDisabled(day)) ??
+    null;
 
   return (
     <div ref={containerRef} className="relative">
       {/* Trigger button */}
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen(!open)}
-        disabled={disabled}
-        className={`w-full flex items-center justify-between gap-2 text-left bg-transparent border rounded-xl px-3.5 py-3 text-[15px] font-light transition-colors ${
-          open ? "border-rose-light/60" : "border-white/15 hover:border-white/25"
+      <div
+        className={`flex w-full items-center gap-2 rounded-xl border bg-transparent px-3.5 text-[15px] font-normal transition-colors ${
+          open ? "border-rose-light/70" : "border-white/25 hover:border-white/40"
         } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
       >
-        <span className={selectedDate ? "text-white" : "text-white/30"}>
-          {selectedDate ? format(selectedDate, "yyyy년 M월 d일 (EEE)", { locale: ko }) : placeholder}
-        </span>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => !disabled && setOpen(!open)}
+          disabled={disabled}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-controls={open ? popoverId : undefined}
+          className="flex min-h-11 flex-1 items-center justify-between gap-2 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-light/60"
+        >
+          <span className={selectedDate ? "text-white" : "text-white/50"}>
+            {selectedDate ? format(selectedDate, "yyyy년 M월 d일 (EEE)", { locale: ko }) : placeholder}
+          </span>
+          {!selectedDate && <Calendar className="h-4 w-4 shrink-0 text-white/60" aria-hidden />}
+        </button>
         {selectedDate ? (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClear();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                handleClear();
-              }
-            }}
-            className="text-white/40 hover:text-white/70 transition-colors shrink-0 cursor-pointer"
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={disabled}
+            className="flex h-11 w-8 shrink-0 items-center justify-center text-white/40 transition-colors hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-light/60"
             aria-label="날짜 지우기"
           >
             <X className="w-4 h-4" />
-          </span>
-        ) : (
-          <Calendar className="w-4 h-4 text-white/40 shrink-0" aria-hidden />
-        )}
-      </button>
+          </button>
+        ) : null}
+      </div>
 
       {/* Popover */}
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-noir-800 border border-white/15 rounded-2xl p-4 shadow-[0_24px_60px_-10px_rgba(0,0,0,0.6)]">
+        <div
+          id={popoverId}
+          role="dialog"
+          aria-modal="false"
+          aria-label="예식일 선택"
+          className="absolute top-full left-0 right-0 mt-2 z-50 bg-noir-800 border border-white/15 rounded-2xl p-4 shadow-[0_24px_60px_-10px_rgba(0,0,0,0.6)]"
+        >
           {/* Month navigation */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -163,7 +198,7 @@ export default function DatePickerPopover({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <p className="font-serif-kr text-[15px] text-white font-medium">
+            <p className="font-serif-kr text-[15px] text-white font-medium" aria-live="polite">
               {format(viewMonth, "yyyy년 M월", { locale: ko })}
             </p>
             <button
@@ -182,6 +217,7 @@ export default function DatePickerPopover({
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
+                aria-hidden="true"
                 className={`text-[11px] tracking-[0.1em] text-center py-1 font-medium ${
                   i === 0 ? "text-rose-light/70" : "text-white/40"
                 }`}
@@ -203,10 +239,31 @@ export default function DatePickerPopover({
               return (
                 <button
                   key={d.toISOString()}
+                  ref={(element) => {
+                    const key = format(d, "yyyy-MM-dd");
+                    if (element) dayButtonRefs.current.set(key, element);
+                    else dayButtonRefs.current.delete(key);
+                  }}
                   type="button"
                   onClick={() => handleSelect(d)}
+                  onKeyDown={(event) => {
+                    const offsets: Partial<Record<string, number>> = {
+                      ArrowLeft: -1,
+                      ArrowRight: 1,
+                      ArrowUp: -7,
+                      ArrowDown: 7,
+                      Home: -d.getDay(),
+                      End: 6 - d.getDay(),
+                    };
+                    const offset = offsets[event.key];
+                    if (offset === undefined) return;
+                    event.preventDefault();
+                    moveDayFocus(d, offset);
+                  }}
                   disabled={disabledCell}
-                  aria-label={isToday ? `${format(d, "M월 d일")} (오늘)` : undefined}
+                  tabIndex={rovingFocusDay && isSameDay(d, rovingFocusDay) ? 0 : -1}
+                  aria-pressed={Boolean(selected)}
+                  aria-label={`${format(d, "yyyy년 M월 d일 EEEE", { locale: ko })}${isToday ? " (오늘)" : ""}`}
                   className={`aspect-square rounded-lg text-[13px] font-light tabular-nums transition-colors relative ${
                     selected
                       ? "bg-rose-light text-noir-800 font-medium"

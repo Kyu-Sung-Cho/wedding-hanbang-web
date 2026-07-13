@@ -7,11 +7,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import {
-  Share2, BadgeCheck, MapPin, Clock, ChevronDown,
-  ChevronUp, Sparkles, Check, X, CalendarDays, Timer,
+  Share2, MapPin, Clock, ChevronDown, ChevronRight,
+  ChevronUp, Check, X, CalendarDays, Timer,
   ShieldCheck, WalletCards, Info, FileCheck2, AlertTriangle, Store, Star,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { createMobileAppShareUrl, formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/AppUI";
 
 const { width: SCREEN_W } = Dimensions.get("window");
+const BOOKING_REQUESTS_ENABLED = false as const;
 
 /* ───── helpers ───── */
 function formatWon(n: number): string {
@@ -94,7 +96,6 @@ interface Vendor {
   price_range: string | null;
   price_min: number | null;
   price_max: number | null;
-  business_license_url: string | null;
 }
 
 interface Product {
@@ -122,6 +123,8 @@ export default function VendorDetailScreen() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vendorError, setVendorError] = useState<"load" | "not_found" | null>(null);
+  const [productsError, setProductsError] = useState(false);
   const [hoursExpanded, setHoursExpanded] = useState(false);
 
   // 예약 모달 상태
@@ -133,6 +136,7 @@ export default function VendorDetailScreen() {
   const [memo, setMemo] = useState("");
   const [availableHours, setAvailableHours] = useState<number[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // 다음 30일 날짜 배열
@@ -150,15 +154,18 @@ export default function VendorDetailScreen() {
   /* ── 데이터 로드 ── */
   const loadVendor = useCallback(async () => {
     if (!id) return;
+    setVendorError(null);
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max, business_license_url")
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max")
         .eq("id", id)
         .single();
 
       if (error || !data) {
         console.error("업체 로드 오류:", error);
+        setVendor(null);
+        setVendorError(error?.code === "PGRST116" ? "not_found" : "load");
         return;
       }
 
@@ -181,15 +188,17 @@ export default function VendorDetailScreen() {
         price_range: v.price_range ? String(v.price_range) : null,
         price_min: typeof v.price_min === "number" && v.price_min > 0 ? v.price_min : null,
         price_max: typeof v.price_max === "number" && v.price_max > 0 ? v.price_max : null,
-        business_license_url: v.business_license_url ? String(v.business_license_url) : null,
       });
     } catch (err) {
       console.error("업체 로드 오류:", err);
+      setVendor(null);
+      setVendorError("load");
     }
   }, [id]);
 
   const loadProducts = useCallback(async () => {
     if (!id) return;
+    setProductsError(false);
     try {
       const { data, error } = await supabase
         .from("vendor_products")
@@ -200,6 +209,7 @@ export default function VendorDetailScreen() {
 
       if (error) {
         console.error("상품 로드 오류:", error);
+        setProductsError(true);
         return;
       }
 
@@ -221,84 +231,67 @@ export default function VendorDetailScreen() {
       );
     } catch (err) {
       console.error("상품 로드 오류:", err);
+      setProductsError(true);
     }
   }, [id]);
 
+  const reloadVendorData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadVendor(), loadProducts()]);
+    setLoading(false);
+  }, [loadProducts, loadVendor]);
+
   useEffect(() => {
-    (async () => {
-      await Promise.all([loadVendor(), loadProducts()]);
-      setLoading(false);
-    })();
-  }, [loadVendor, loadProducts]);
+    void reloadVendorData();
+  }, [reloadVendorData]);
 
   /* ── 예약 슬롯 로드 ── */
   const loadAvailableSlots = useCallback(async (date: Date) => {
-    if (!id) return;
+    if (!id || !selectedProduct) return;
     setLoadingSlots(true);
+    setSlotsError(false);
+    setAvailableHours([]);
     try {
-      const dayOfWeek = date.getDay(); // 0=일 ~ 6=토
-      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-
-      // 해당 요일 타임슬롯 가져오기
-      const { data: slots } = await supabase
-        .from("vendor_timeslots")
-        .select("hour, max_bookings")
-        .eq("vendor_id", id)
-        .eq("day", dayOfWeek)
-        .eq("available", true);
-
-      if (!slots || slots.length === 0) {
-        setAvailableHours([]);
-        setLoadingSlots(false);
-        return;
-      }
-
-      // 해당 날짜에 이미 잡힌 예약 수 확인
-      const { data: bookings } = await supabase
-        .from("vendor_bookings")
-        .select("booking_time")
-        .eq("vendor_id", id)
-        .eq("booking_date", dateStr)
-        .neq("status", "cancelled");
-
-      const bookedCounts: Record<number, number> = {};
-      (bookings ?? []).forEach((b: Record<string, unknown>) => {
-        const timeStr = String(b.booking_time ?? "");
-        const parts = timeStr.split(":");
-        const hour = parseInt(parts[0] ?? "0", 10);
-        if (!isNaN(hour)) {
-          bookedCounts[hour] = (bookedCounts[hour] ?? 0) + 1;
-        }
+      const dateStr = formatLocalDateOnly(date);
+      const query = new URLSearchParams({
+        date: dateStr,
+        productId: selectedProduct.id,
       });
+      const response = await apiFetch(
+        `/api/vendors/${encodeURIComponent(id)}/availability?${query.toString()}`
+      );
+      const payload = await response.json().catch(() => null) as {
+        error?: string;
+        availableHours?: unknown;
+      } | null;
+      if (!response.ok) throw new Error(payload?.error || "등록된 운영시간을 확인하지 못했습니다.");
 
-      // 예약 가능한 시간만 필터
-      const available: number[] = [];
-      for (const slot of slots) {
-        const s = slot as Record<string, unknown>;
-        const hour = typeof s.hour === "number" ? s.hour : 0;
-        const max = typeof s.max_bookings === "number" ? s.max_bookings : 1;
-        const booked = bookedCounts[hour] ?? 0;
-        if (booked < max) {
-          available.push(hour);
-        }
-      }
-
-      setAvailableHours(available.sort((a, b) => a - b));
+      const available = Array.isArray(payload?.availableHours)
+        ? payload.availableHours.filter(
+            (hour): hour is number => Number.isInteger(hour) && hour >= 0 && hour <= 23
+          )
+        : [];
+      setAvailableHours([...new Set(available)].sort((a, b) => a - b));
     } catch (err) {
       console.error("슬롯 로드 오류:", err);
       setAvailableHours([]);
+      setSlotsError(true);
     } finally {
       setLoadingSlots(false);
     }
-  }, [id]);
+  }, [id, selectedProduct]);
 
   /* ── 예약 제출 ── */
   async function submitBooking() {
+    if (!BOOKING_REQUESTS_ENABLED) {
+      Alert.alert("업체 연결 준비 중", "현재 상담 요청은 업체에 전송되지 않아요.");
+      return;
+    }
     if (!selectedProduct || !selectedDate || selectedHour === null || !id) return;
 
     setSubmitting(true);
     try {
-      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+      const dateStr = formatLocalDateOnly(selectedDate);
       const timeStr = `${String(selectedHour).padStart(2, "0")}:00`;
 
       const res = await apiFetch("/api/bookings", {
@@ -311,18 +304,41 @@ export default function VendorDetailScreen() {
           memo: memo.trim() || undefined,
         }),
       });
-      const payload = await res.json().catch(() => ({} as { error?: string; message?: string }));
+      const payload = await res.json().catch(() => ({} as { error?: string; message?: string; code?: string }));
 
       if (!res.ok) {
-        Alert.alert("예약 실패", payload.error || "다시 시도해주세요.");
+        if (payload.code === "booking_contact_required") {
+          Alert.alert(
+            "연락처가 필요해요",
+            payload.error || "설정에서 휴대폰 번호를 등록해 주세요.",
+            [
+              { text: "나중에", style: "cancel" },
+              { text: "설정으로 이동", onPress: () => router.push("/settings") },
+            ],
+          );
+        } else {
+          Alert.alert("상담 요청 실패", payload.error || "다시 시도해주세요.");
+        }
         return;
       }
 
-      Alert.alert("예약 완료", payload.message || "예약이 완료되었어요!");
-      closeBookingModal();
+      Alert.alert(
+        "상담 요청 접수 완료",
+        payload.message || "상담 요청이 접수되었어요. 업체 확인 전에는 예약이 확정되지 않습니다.",
+        [
+          { text: "계속 보기", style: "cancel", onPress: closeBookingModal },
+          {
+            text: "상담 요청 내역 보기",
+            onPress: () => {
+              closeBookingModal();
+              router.push("/bookings");
+            },
+          },
+        ],
+      );
     } catch (err) {
       console.error("예약 오류:", err);
-      Alert.alert("예약 실패", "다시 시도해주세요.");
+      Alert.alert("상담 요청 실패", "다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -330,6 +346,10 @@ export default function VendorDetailScreen() {
 
   /* ── 모달 열기/닫기 ── */
   function openBooking(product: Product) {
+    if (!BOOKING_REQUESTS_ENABLED) {
+      Alert.alert("업체 연결 준비 중", "현재 상담 요청은 업체에 전송되지 않아요.");
+      return;
+    }
     setSelectedProduct(product);
     setBookingStep("date");
     setSelectedDate(null);
@@ -352,8 +372,10 @@ export default function VendorDetailScreen() {
   async function handleShare() {
     if (!vendor) return;
     try {
+      const url = createMobileAppShareUrl({ kind: "vendor", id: vendor.id });
       await Share.share({
-        message: `${vendor.name} - 웨딩한방에서 확인하세요!\nhttps://hanbang.ai/vendors/${vendor.id}`,
+        url,
+        message: `${vendor.name} - 웨딩한방에서 확인하세요!\n${url}`,
       });
     } catch {
       // 사용자가 공유 취소
@@ -370,6 +392,7 @@ export default function VendorDetailScreen() {
   }
 
   if (!vendor) {
+    const couldNotLoad = vendorError === "load";
     return (
       <SafeAreaView style={st.container} edges={["top"]}>
         <AppHeader title="업체 상세" onBack={() => router.back()} />
@@ -379,8 +402,22 @@ export default function VendorDetailScreen() {
               <Store size={32} color={colors.textTertiary} />
             </IconBadge>
           }
-          title="업체 정보를 찾을 수 없어요"
-          description="목록으로 돌아가 다른 업체를 확인해보세요"
+          title={couldNotLoad ? "업체 정보를 불러오지 못했어요" : "업체 정보를 찾을 수 없어요"}
+          description={
+            couldNotLoad
+              ? "연결을 확인한 뒤 다시 시도해주세요. 저장된 정보가 삭제된 것은 아니에요."
+              : "목록으로 돌아가 다른 업체를 확인해보세요"
+          }
+          action={couldNotLoad ? (
+            <Pressable
+              style={st.retryBtn}
+              onPress={() => void reloadVendorData()}
+              accessibilityRole="button"
+              accessibilityLabel="업체 정보 다시 불러오기"
+            >
+              <Text style={st.retryBtnText}>다시 시도</Text>
+            </Pressable>
+          ) : undefined}
         />
       </SafeAreaView>
     );
@@ -398,7 +435,6 @@ export default function VendorDetailScreen() {
   const hasVisiblePrice = priceSummary !== "상품별 확인" || products.some((product) => product.price > 0);
   const hasExclusions = products.some((product) => (product.excludes?.length ?? 0) > 0);
   const productCount = products.length;
-  const popularProduct = products.find((product) => product.is_popular) ?? lowestProduct;
   const trustTone = vendor.is_verified && hasVisiblePrice ? "success" as const : "warning" as const;
 
   return (
@@ -427,9 +463,6 @@ export default function VendorDetailScreen() {
         <View style={st.heroSection}>
           <View style={st.heroNameRow}>
             <Text style={st.heroName}>{vendor.name}</Text>
-            {vendor.is_verified && (
-              <BadgeCheck size={20} color={colors.rose[500]} />
-            )}
           </View>
 
           <View style={st.heroBadges}>
@@ -451,10 +484,10 @@ export default function VendorDetailScreen() {
           <View style={st.trustCardTop}>
             <View style={st.trustTitleBlock}>
               <Text style={st.trustEyebrow}>VENDOR TRUST</Text>
-              <Text style={st.trustTitle}>예약 전에 확인할 신뢰 신호</Text>
+              <Text style={st.trustTitle}>업체 선택 전에 확인할 등록 정보</Text>
             </View>
             <StatusPill
-              label={vendor.is_verified && hasVisiblePrice ? "예약 검토 가능" : "추가 확인"}
+              label={vendor.is_verified && hasVisiblePrice ? "등록 정보 있음" : "직접 확인"}
               tone={trustTone}
             />
           </View>
@@ -465,9 +498,9 @@ export default function VendorDetailScreen() {
                 size={18}
                 color={vendor.is_verified ? colors.success : colors.textTertiary}
               />
-              <Text style={st.trustMetricLabel}>검증</Text>
+              <Text style={st.trustMetricLabel}>등록 정보</Text>
               <Text style={st.trustMetricValue}>
-                {vendor.is_verified ? "완료" : vendor.business_license_url ? "서류 등록" : "확인 전"}
+                {vendor.is_verified ? "확인 표시" : "확인 전"}
               </Text>
             </View>
             <View style={st.trustMetricDivider} />
@@ -496,22 +529,44 @@ export default function VendorDetailScreen() {
           <View style={st.disclosureBox}>
             <Info size={15} color={colors.textTertiary} />
             <Text style={st.disclosureText}>
-              {vendor.ai_recommend ? "한방 큐레이션 후보예요. " : ""}
-              노출과 추천 판단은 광고비가 아니라 검증, 가격 공개, 상품 정보 기준으로 분리해 표시합니다.
+              {vendor.ai_recommend ? "탐색 후보로 등록된 업체예요. " : ""}
+              등록 상태·가격·상품·후기 표시는 참고 정보이며 품질, 최신 가격, 예약 가능 여부를 보증하지 않아요. 계약 전 업체의 공식 연락처로 직접 확인해 주세요.
             </Text>
           </View>
+        </Surface>
+
+        <Surface tone="ivory" style={st.connectionStatusCard}>
+          <View style={st.guardHeader}>
+            <AlertTriangle size={17} color={colors.gold.DEFAULT} />
+            <Text style={st.guardTitle}>업체 연결 준비 중</Text>
+          </View>
+          <Text style={st.connectionStatusText}>
+            현재 상담 요청은 업체에 전송되지 않습니다. 이름·휴대폰 번호·희망 일시·메모도
+            새로 저장하거나 업체에 제공하지 않아요. 공개 정보는 참고용이며 과거 요청 내역은 계속 확인할 수 있어요.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/bookings")}
+            accessibilityRole="button"
+            accessibilityLabel="과거 상담 요청 내역 보기"
+            style={st.historyLink}
+          >
+            <Text style={st.historyLinkText}>과거 상담 요청 내역 보기</Text>
+            <ChevronRight size={16} color={colors.rose[500]} />
+          </Pressable>
         </Surface>
 
         <Surface tone="ivory" style={st.bookingGuardCard}>
           <View style={st.guardHeader}>
             <AlertTriangle size={17} color={colors.gold.DEFAULT} />
-            <Text style={st.guardTitle}>예약 전 확인</Text>
+            <Text style={st.guardTitle}>계약 전 확인</Text>
           </View>
           <View style={st.guardRow}>
             <FileCheck2 size={15} color={colors.textSecondary} />
             <Text style={st.guardText}>
-              {popularProduct
-                ? `등록 상품 ${productCount}개 중 대표: ${popularProduct.name} · ${formatWon(popularProduct.price)}`
+              {productsError
+                ? "상품 목록을 불러오지 못했어요. 아래에서 다시 시도해주세요."
+                : lowestProduct
+                ? `등록 상품 ${productCount}개 · 최저 등록가 상품: ${lowestProduct.name} · ${formatWon(lowestProduct.price)}`
                 : "등록된 상품이 없으면 상담 전 가격표를 먼저 요청하세요."}
             </Text>
           </View>
@@ -526,7 +581,7 @@ export default function VendorDetailScreen() {
           <View style={st.guardRow}>
             <CalendarDays size={15} color={colors.textSecondary} />
             <Text style={st.guardText}>
-              예약 확정 전 환불, 일정 변경, 원장/담당자 지정 조건을 확인하세요.
+              계약 전 환불, 일정 변경, 원장/담당자 지정 조건을 확인하세요.
             </Text>
           </View>
         </Surface>
@@ -585,19 +640,23 @@ export default function VendorDetailScreen() {
         {/* 상품 목록 */}
         <View style={st.section}>
           <Text style={st.sectionTitle}>상품</Text>
-          {products.length === 0 ? (
+          {productsError ? (
+            <View style={st.inlineError}>
+              <AlertTriangle size={18} color={colors.gold.DEFAULT} />
+              <Text style={st.inlineErrorText}>상품 정보를 불러오지 못했어요.</Text>
+              <Pressable
+                onPress={() => void loadProducts()}
+                accessibilityRole="button"
+                accessibilityLabel="상품 정보 다시 불러오기"
+              >
+                <Text style={st.inlineRetryText}>다시 시도</Text>
+              </Pressable>
+            </View>
+          ) : products.length === 0 ? (
             <Text style={st.noProducts}>등록된 상품이 없어요</Text>
           ) : (
             products.map((product) => (
               <View key={product.id} style={st.productCard}>
-                {/* 인기 배지 */}
-                {product.is_popular && (
-                  <View style={st.popularBadge}>
-                    <Sparkles size={12} color={colors.gold.DEFAULT} />
-                    <Text style={st.popularText}>인기</Text>
-                  </View>
-                )}
-
                 {/* 상품 이미지 */}
                 {product.images && product.images.length > 0 && (
                   <ScrollView
@@ -672,12 +731,18 @@ export default function VendorDetailScreen() {
                 <Pressable
                   style={({ pressed }) => [
                     st.bookBtn,
-                    pressed && { transform: [{ scale: 0.98 }] },
+                    !BOOKING_REQUESTS_ENABLED && st.bookBtnDisabled,
+                    pressed && BOOKING_REQUESTS_ENABLED && { transform: [{ scale: 0.98 }] },
                   ]}
                   onPress={() => openBooking(product)}
+                  disabled={!BOOKING_REQUESTS_ENABLED}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !BOOKING_REQUESTS_ENABLED }}
                 >
-                  <CalendarDays size={16} color="#fff" />
-                  <Text style={st.bookBtnText}>예약하기</Text>
+                  <CalendarDays size={16} color={BOOKING_REQUESTS_ENABLED ? "#fff" : colors.textTertiary} />
+                  <Text style={[st.bookBtnText, !BOOKING_REQUESTS_ENABLED && st.bookBtnTextDisabled]}>
+                    {BOOKING_REQUESTS_ENABLED ? "상담 예약 요청" : "업체 연결 준비 중"}
+                  </Text>
                 </Pressable>
               </View>
             ))
@@ -688,7 +753,7 @@ export default function VendorDetailScreen() {
       </ScrollView>
 
       {/* ───── 예약 모달 ───── */}
-      <Modal visible={bookingVisible} animationType="slide" transparent>
+      <Modal visible={BOOKING_REQUESTS_ENABLED && bookingVisible} animationType="slide" transparent>
         <View style={st.modalOverlay}>
           <View style={st.modalContainer}>
             <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
@@ -697,7 +762,7 @@ export default function VendorDetailScreen() {
                 <Pressable onPress={closeBookingModal} hitSlop={12}>
                   <X size={24} color={colors.noir[800]} />
                 </Pressable>
-                <Text style={st.modalTitle}>예약하기</Text>
+                <Text style={st.modalTitle}>상담 예약 요청</Text>
                 <View style={{ width: 24 }} />
               </View>
 
@@ -783,9 +848,21 @@ export default function VendorDetailScreen() {
                     )}
                     {loadingSlots ? (
                       <ActivityIndicator color={colors.rose[500]} style={{ marginTop: 24 }} />
+                    ) : slotsError ? (
+                      <View style={st.noSlotsContainer}>
+                        <Text style={st.noSlotsText}>상담 요청 시간을 불러오지 못했어요</Text>
+                        <Pressable
+                          style={st.backStepBtn}
+                          onPress={() => selectedDate && void loadAvailableSlots(selectedDate)}
+                          accessibilityRole="button"
+                          accessibilityLabel="상담 요청 시간 다시 불러오기"
+                        >
+                          <Text style={st.backStepBtnText}>다시 시도</Text>
+                        </Pressable>
+                      </View>
                     ) : availableHours.length === 0 ? (
                       <View style={st.noSlotsContainer}>
-                        <Text style={st.noSlotsText}>예약 가능한 시간이 없어요</Text>
+                        <Text style={st.noSlotsText}>상담 요청 가능한 시간이 없어요</Text>
                         <Pressable
                           style={st.backStepBtn}
                           onPress={() => setBookingStep("date")}
@@ -834,7 +911,7 @@ export default function VendorDetailScreen() {
                 {/* Step 3: 확인 */}
                 {bookingStep === "confirm" && selectedProduct && selectedDate && selectedHour !== null && (
                   <View>
-                    <Text style={st.modalSectionTitle}>예약 정보를 확인하세요</Text>
+                    <Text style={st.modalSectionTitle}>상담 요청 정보를 확인하세요</Text>
 
                     <View style={st.confirmCard}>
                       <View style={st.confirmRow}>
@@ -866,8 +943,9 @@ export default function VendorDetailScreen() {
                     <View style={st.confirmNotice}>
                       <AlertTriangle size={16} color={colors.gold.DEFAULT} />
                       <Text style={st.confirmNoticeText}>
-                        예약 확정 전 포함 {selectedProduct.includes?.length ?? 0}개,
+                        업체와 계약하기 전 포함 {selectedProduct.includes?.length ?? 0}개,
                         불포함 {selectedProduct.excludes?.length ?? 0}개 항목과 환불/변경 조건을 업체와 다시 확인하세요.
+                        업체 연결 기능은 준비 중이며 현재 이 정보는 업체에 전송되거나 새로 저장되지 않습니다.
                       </Text>
                     </View>
 
@@ -892,14 +970,16 @@ export default function VendorDetailScreen() {
                         <Text style={st.backStepBtnText}>이전</Text>
                       </Pressable>
                       <Pressable
-                        style={[st.submitBtn, { flex: 1 }, submitting && { opacity: 0.6 }]}
-                        disabled={submitting}
+                        style={[st.submitBtn, { flex: 1 }, (!BOOKING_REQUESTS_ENABLED || submitting) && { opacity: 0.6 }]}
+                        disabled={!BOOKING_REQUESTS_ENABLED || submitting}
                         onPress={submitBooking}
                       >
                         {submitting ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
-                          <Text style={st.submitBtnText}>예약 확정하기</Text>
+                          <Text style={st.submitBtnText}>
+                            {BOOKING_REQUESTS_ENABLED ? "상담 요청 보내기" : "업체 연결 준비 중"}
+                          </Text>
                         )}
                       </Pressable>
                     </View>
@@ -1066,6 +1146,32 @@ const st = StyleSheet.create({
     paddingVertical: 16,
     gap: 10,
   },
+  connectionStatusCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingVertical: 16,
+    gap: 10,
+  },
+  connectionStatusText: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  historyLink: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 10,
+  },
+  historyLinkText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
+  },
   guardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1139,6 +1245,42 @@ const st = StyleSheet.create({
   hoursTime: { fontSize: 14, color: colors.noir[800], fontFamily: "NotoSansKR_400Regular" },
 
   // 상품
+  retryBtn: {
+    marginTop: 16,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: colors.noir[800],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retryBtnText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: "#fff",
+  },
+  inlineError: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: colors.ivory[100],
+  },
+  inlineErrorText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  inlineRetryText: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[600],
+    textDecorationLine: "underline",
+  },
   noProducts: {
     fontSize: 14,
     color: colors.textTertiary,
@@ -1159,18 +1301,6 @@ const st = StyleSheet.create({
     shadowRadius: 12,
     elevation: 2,
   },
-  popularBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: "rgba(201, 169, 110, 0.15)",
-    marginBottom: 10,
-  },
-  popularText: { fontSize: 11, fontWeight: "600", color: colors.gold.DEFAULT },
   productImagesScroll: { marginBottom: 12 },
   productImage: {
     width: 120,
@@ -1254,7 +1384,11 @@ const st = StyleSheet.create({
     backgroundColor: colors.noir[800],
     marginTop: 12,
   },
+  bookBtnDisabled: {
+    backgroundColor: colors.ivory[200],
+  },
   bookBtnText: { fontSize: 14, fontWeight: "600", color: "#fff", fontFamily: "NotoSansKR_400Regular" },
+  bookBtnTextDisabled: { color: colors.textTertiary },
 
   // 빈 상태
   emptyContainer: { alignItems: "center", paddingTop: 80 },
@@ -1448,7 +1582,7 @@ const st = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
   },
 
-  // 예약 확정 버튼
+  // 예약 요청 버튼
   submitBtn: {
     paddingVertical: 14,
     borderRadius: 16,

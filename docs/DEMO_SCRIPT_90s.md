@@ -1,5 +1,8 @@
 # 웨딩한방 90초 데모 스크립트
 
+> [!WARNING]
+> **폐기 전 보존한 역사적 데모 대본입니다. 현재 촬영·홍보에 사용하지 마세요.** 자동 예산 변경, 자동 갈등 중재, 가상 업체·별점·잔여 슬롯과 예약 확정은 현재 제공하지 않습니다. 현재 데모는 계정 없는 예시 앱에서 실제 제공 범위만 보여주며, 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따릅니다.
+
 작성일: 2026-05-14
 런타임: 1분 30초 (90초) ± 5초
 주제: 아모라 = 결혼 준비의 단일 채널 — 예산·중재·업체 추천+예약 한 흐름
@@ -199,7 +202,7 @@
 - [ ] 두 계정 커플 연동 완료
 - [ ] 신부 계정에 `chat_messages` shared 채팅 비어있음 (Demo 1, 2 깔끔하게 시작)
 - [ ] 결혼 날짜 / 지역 / 하객수 / 예산 모두 미설정 상태 (Demo 1 인터뷰 트리거)
-- [ ] vendor 시드 마이그레이션 적용 확인 — `supabase db push` 후 `vendors` 테이블에 A/B/C 3개 존재
+- [ ] 승인된 demo/preview 환경의 read-only fixture attestation에서 vendor A/B/C 3개 존재 확인 — 운영 DB raw push·수동 SQL은 금지
 - [ ] 시간 슬롯 시드 — `vendor_time_slots` 에 향후 7일 데이터 존재 (오늘 기준)
 
 ### 캐시 초기화 (브라우저 콘솔)
@@ -215,15 +218,9 @@ location.reload();
 
 ### Demo 2 쿨다운 리셋 (촬영 직전)
 - 최근 10분 안에 mediation 메시지 있으면 트리거 안 됨
-- Supabase SQL Editor 에서:
-```sql
-DELETE FROM chat_messages
-WHERE couple_id = '<your-couple-id>'
-  AND sender_type = 'ai'
-  AND visibility = 'shared'
-  AND metadata->>'kind' = 'mediation'
-  AND created_at > NOW() - INTERVAL '15 minutes';
-```
+- 운영 또는 공유 DB에서 SQL Editor로 메시지를 삭제해 쿨다운을 우회하지 않는다.
+- 촬영은 사용자 데이터가 없는 승인된 disposable preview와 전용 QA 커플에서 진행한다. 쿨다운이 걸렸다면 정해진 시간이 지난 뒤 다시 촬영하거나 새 QA 커플 fixture를 공식 seed/reset 절차로 만든다.
+- 현재 검증된 fixture reset 절차가 없으면 이 장면은 `blocked / not recorded`로 남긴다. service-role 직접 삭제나 production 데이터 수정을 대체 절차로 사용하지 않는다.
 
 ### 화면 녹화 설정
 - 해상도: 1920×1080 (16:9) 또는 1080×1920 (9:16 세로 영상)

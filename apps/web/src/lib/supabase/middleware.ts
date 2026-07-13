@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  AUTH_RETURN_PATH_HEADER,
+  authReturnPathFromLocation,
+} from "@/lib/authReturnPath";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -20,8 +24,26 @@ function isProtectedPath(pathname: string): "customer" | "admin" | null {
   return null;
 }
 
+function forwardedRequestHeaders(request: NextRequest): Headers {
+  const requestHeaders = new Headers(request.headers);
+  const returnPath = authReturnPathFromLocation(request.nextUrl);
+
+  // Never trust a caller-provided value. The proxy replaces or removes this
+  // internal header before a server layout can use it for an auth redirect.
+  if (returnPath) requestHeaders.set(AUTH_RETURN_PATH_HEADER, returnPath);
+  else requestHeaders.delete(AUTH_RETURN_PATH_HEADER);
+
+  return requestHeaders;
+}
+
+function nextResponse(request: NextRequest): NextResponse {
+  return NextResponse.next({
+    request: { headers: forwardedRequestHeaders(request) },
+  });
+}
+
 export async function updateSession(request: NextRequest) {
-  const supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = nextResponse(request);
   const pathname = request.nextUrl.pathname;
 
   // Supabase 설정 없으면 스킵
@@ -59,7 +81,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          finalResponse = NextResponse.next({ request });
+          finalResponse = nextResponse(request);
           cookiesToSet.forEach(({ name, value, options }) =>
             finalResponse.cookies.set(name, value, options)
           );
@@ -75,7 +97,12 @@ export async function updateSession(request: NextRequest) {
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {
     const url = request.nextUrl.clone();
+    const returnPath = protectedType === "customer"
+      ? authReturnPathFromLocation(request.nextUrl)
+      : null;
     url.pathname = protectedType === "admin" ? "/admin/login" : "/login";
+    url.search = "";
+    if (returnPath) url.searchParams.set("next", returnPath);
     return NextResponse.redirect(url);
   }
 
@@ -87,7 +114,10 @@ export async function updateSession(request: NextRequest) {
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {
       const url = request.nextUrl.clone();
+      const returnPath = authReturnPathFromLocation(request.nextUrl);
       url.pathname = "/wedding/onboarding";
+      url.search = "";
+      if (returnPath) url.searchParams.set("next", returnPath);
       return NextResponse.redirect(url);
     }
   }

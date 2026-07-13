@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useId } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Star, MapPin, Phone, Clock, Sparkles, CalendarCheck, Check, Package, Tag, ChevronDown, ChevronUp, Timer, Loader2, MessageSquare, Send, X, Users, Heart, Image as ImageIcon, MessageCircle } from "lucide-react";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import { CATEGORY_PRODUCT_FIELDS, formatDuration, type ProductFieldDef } from "@
 import { weddingPath } from "@/lib/weddingPaths";
 import type { Vendor, VendorProduct } from "@/types/vendor.types";
 import { useEventTracker, useViewDuration } from "@/hooks/useEventTracker";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
+import { formatLocalDateOnly, nextLocalDateForDatabaseWeekday } from "@hanbang/shared";
 
 interface ReviewItem {
   id: string;
@@ -20,6 +22,8 @@ interface ReviewItem {
 }
 
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+const BOOKING_REQUESTS_ENABLED = false as const;
+const VENDOR_MESSAGES_ENABLED = false as const;
 
 function formatPrice(price: number): string {
   if (price >= 10000) return `${(price / 10000).toFixed(0)}만원`;
@@ -52,11 +56,6 @@ function ProductCard({ product, category, isSelected, onSelect }: {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h4 className="text-base font-medium text-[#1A1A1F]">{product.name}</h4>
-              {product.isPopular && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-sm text-[#C9A96E] font-medium">
-                  <Star className="w-3 h-3 fill-[#C9A96E]" />인기
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-3">
               {product.discountPrice ? (
@@ -73,7 +72,7 @@ function ProductCard({ product, category, isSelected, onSelect }: {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {hasSlots && <span className="px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-sm text-[#2E7D5A] font-medium">예약가능</span>}
+            {hasSlots && <span className="px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-sm text-[#2E7D5A] font-medium">운영시간 공개</span>}
             {isSelected && (
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center">
                 <Check className="w-4 h-4 text-white" />
@@ -134,12 +133,25 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [booked, setBooked] = useState(false);
   const [booking, setBooking] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [bookingNeedsContact, setBookingNeedsContact] = useState(false);
   const [showMessageBox, setShowMessageBox] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
+  const [messageError, setMessageError] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const messageDialogTitleId = useId();
+  const messageInputId = useId();
+  const { dialogRef: messageDialogRef } = useAccessibleDialog({
+    isOpen: VENDOR_MESSAGES_ENABLED && showMessageBox,
+    onClose: () => setShowMessageBox(false),
+  });
   const [staffList, setStaffList] = useState<{ id: string; name: string; role: string | null; timeSlots: { day: number; hour: number; maxBookings: number; currentBookings: number }[] }[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const [availabilitySlots, setAvailabilitySlots] = useState<Array<{ hour: number; remaining: number }>>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState(false);
+  const [availabilityReloadKey, setAvailabilityReloadKey] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
@@ -179,6 +191,48 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
       }
     })();
   }, [id, trackEvent]);
+
+  useEffect(() => {
+    const selectedDate = nextLocalDateForDatabaseWeekday(selectedDay);
+    if (!selectedDate) return;
+
+    const controller = new AbortController();
+    const query = new URLSearchParams({ date: formatLocalDateOnly(selectedDate) });
+    if (selectedProduct) query.set("productId", selectedProduct);
+    if (selectedStaff) query.set("staffId", selectedStaff);
+
+    setSelectedSlot(null);
+    setAvailabilitySlots([]);
+    setAvailabilityError(false);
+    setAvailabilityLoading(true);
+
+    void fetch(`/api/vendors/${encodeURIComponent(id)}/availability?${query.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null) as {
+          slots?: Array<{ hour?: unknown; remaining?: unknown }>;
+        } | null;
+        if (!response.ok) throw new Error("availability_failed");
+        const slots = Array.isArray(payload?.slots)
+          ? payload.slots.flatMap((slot) => (
+              Number.isInteger(slot.hour) && Number.isInteger(slot.remaining)
+                ? [{ hour: Number(slot.hour), remaining: Math.max(0, Number(slot.remaining)) }]
+                : []
+            ))
+          : [];
+        setAvailabilitySlots(slots);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setAvailabilityError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAvailabilityLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [availabilityReloadKey, id, selectedDay, selectedProduct, selectedStaff]);
 
   if (loading) {
     return (
@@ -243,9 +297,16 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   const config = CATEGORY_PRODUCT_FIELDS[vendor.category as keyof typeof CATEGORY_PRODUCT_FIELDS];
   const currentProduct = activeProducts.find((p) => p.id === selectedProduct);
 
-  // 상품이 선택되면 해당 상품의 타임슬롯, 아니면 업체 글로벌 타임슬롯
-  const currentSlots = currentProduct ? currentProduct.timeSlots : vendor.timeSlots;
-  const daySlots = currentSlots.filter((s) => s.day === selectedDay && s.available);
+  // 담당자 → 상품 → 업체 순으로 표시 가능한 요일을 안내한다. 실제 남은
+  // 수량은 선택 날짜마다 aggregate API에서 다시 읽고, 생성 RPC가 최종 검증한다.
+  const currentStaff = staffList.find((staff) => staff.id === selectedStaff);
+  const currentSlots = currentStaff
+    ? currentStaff.timeSlots.map((slot) => ({ ...slot, available: true }))
+    : currentProduct
+      ? currentProduct.timeSlots
+      : vendor.timeSlots;
+  const upcomingDates = DAYS.map((_, weekday) => nextLocalDateForDatabaseWeekday(weekday));
+  const selectedBookingDate = upcomingDates[selectedDay];
 
   const handleSelectProduct = (productId: string) => {
     if (selectedProduct === productId) {
@@ -259,17 +320,21 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleBook = async () => {
+    if (!VENDOR_MESSAGES_ENABLED) {
+      setBookingError("업체 연결 준비 중입니다. 현재 상담 요청은 업체에 전송되지 않습니다.");
+      return;
+    }
     if (selectedSlot === null) return;
     setBooking(true);
+    setBookingError("");
+    setBookingNeedsContact(false);
 
-    // 오늘 기준으로 가장 가까운 선택 요일 날짜 계산
-    const today = new Date();
-    const todayDay = (today.getDay() + 6) % 7; // 0=월 ~ 6=일
-    let diff = selectedDay - todayDay;
-    if (diff <= 0) diff += 7;
-    const bookingDate = new Date(today);
-    bookingDate.setDate(today.getDate() + diff);
-    const dateStr = bookingDate.toISOString().split("T")[0];
+    if (!selectedBookingDate) {
+      setBookingError("선택한 날짜를 확인하지 못했습니다. 날짜를 다시 선택해주세요.");
+      setBooking(false);
+      return;
+    }
+    const dateStr = formatLocalDateOnly(selectedBookingDate);
     const timeStr = `${String(selectedSlot).padStart(2, "0")}:00`;
 
     try {
@@ -297,17 +362,31 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
           metadata: { date: dateStr, time: timeStr },
         });
         setTimeout(() => setBooked(false), 3000);
+      } else {
+        const payload = await res.json().catch(() => ({} as { error?: string; code?: string }));
+        setBookingNeedsContact(payload.code === "booking_contact_required");
+        setBookingError(
+          typeof payload.error === "string"
+            ? payload.error
+            : "상담 요청을 접수하지 못했습니다. 선택한 날짜와 시간을 확인한 뒤 다시 시도해주세요."
+        );
       }
     } catch (err) {
       console.error("Booking error:", err);
+      setBookingError("예약 요청 중 연결이 끊겼습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setBooking(false);
     }
   };
 
   const handleSendMessage = async () => {
+    if (!BOOKING_REQUESTS_ENABLED) {
+      setMessageError("업체 연결 준비 중입니다. 현재 문의는 업체에 전송되지 않습니다.");
+      return;
+    }
     if (!messageText.trim() || !vendor) return;
     setSendingMessage(true);
+    setMessageError("");
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -323,9 +402,13 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
         // 메시지 전송 이벤트 추적
         trackEvent("message_send", { vendorId: vendor.id });
         setTimeout(() => { setMessageSent(false); setShowMessageBox(false); }, 2000);
+      } else {
+        const payload = await res.json().catch(() => ({} as { error?: string }));
+        setMessageError(payload.error || "문의를 보내지 못했습니다. 내용을 확인한 뒤 다시 시도해주세요.");
       }
     } catch (err) {
       console.error("Send message error:", err);
+      setMessageError("연결이 끊겨 문의를 보내지 못했습니다. 입력 내용은 그대로 두었어요.");
     } finally {
       setSendingMessage(false);
     }
@@ -347,7 +430,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="absolute top-3 left-3 flex gap-2">
                 {vendor.aiRecommend && (
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-[#36534E] text-sm font-medium shadow-sm ring-1 ring-[#d9e4dc]">
-                    <Sparkles className="w-4 h-4" />한방 큐레이션
+                    <Sparkles className="w-4 h-4" />등록 탐색 후보
                   </span>
                 )}
               </div>
@@ -389,6 +472,9 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
               <p className="text-[14px] font-medium leading-[1.7] text-[#5d6879]">{vendor.description}</p>
+              <p className="mt-4 rounded-lg bg-[#fffdf7] px-3 py-2 text-[12px] font-medium leading-[1.6] text-[#746c65]">
+                평점·리뷰·가격은 등록된 참고 정보이며 출처와 최신성을 보증하지 않습니다. 품질, 실제 총액, 계약 조건과 가능 일정은 업체의 공식 연락처로 직접 확인해 주세요.
+              </p>
             </div>
           </div>
 
@@ -401,7 +487,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   <h2 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{config?.productLabel ?? "상품"}</h2>
                   <span className="text-sm text-[#B5ADA3] ml-1">{activeProducts.length}개</span>
                 </div>
-                <p className="text-sm text-[#B5ADA3] font-light mb-5">상품을 선택하면 해당 상품의 예약 가능 시간이 표시됩니다</p>
+                <p className="text-sm text-[#B5ADA3] font-light mb-5">상품을 선택하면 업체가 공개한 운영시간이 참고용으로 표시됩니다</p>
                 <div className="space-y-3">
                   {activeProducts.map((product) => (
                     <ProductCard
@@ -592,7 +678,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
               <div className="flex items-center gap-2 mb-4">
                 <CalendarCheck className="w-5 h-5 text-[#795252]" />
                 <h3 className="font-serif-kr text-[18px] font-medium leading-tight text-[#071629]">
-                  {currentProduct ? `${currentProduct.name} 예약` : "예약 가능 시간"}
+                  {currentProduct ? `${currentProduct.name} 공개 운영시간` : "공개 운영시간(참고)"}
                 </h3>
               </div>
 
@@ -601,7 +687,7 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 <div className="py-6 text-center">
                   <Package className="w-8 h-8 text-[#B5ADA3]/30 mx-auto mb-2" />
                   <p className="text-base text-[#B5ADA3] mb-1">상품을 먼저 선택해주세요</p>
-                  <p className="text-sm text-[#B5ADA3]/70 font-light">상품마다 예약 가능 시간이 다릅니다</p>
+                  <p className="text-sm text-[#B5ADA3]/70 font-light">상품마다 공개된 운영시간이 다를 수 있습니다</p>
                 </div>
               )}
 
@@ -612,11 +698,12 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                   <div className="flex gap-1.5 mb-4">
                     {DAYS.map((day, di) => {
                       const hasSlots = currentSlots.some((s) => s.day === di && s.available);
+                      const date = upcomingDates[di];
                       return (
                         <button
                           key={day}
                           onClick={() => { setSelectedDay(di); setSelectedSlot(null); }}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          className={`flex-1 min-h-12 py-2 rounded-lg text-sm font-medium transition-colors ${
                             selectedDay === di
                               ? "bg-[#795252] text-white"
                               : hasSlots
@@ -624,124 +711,168 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                               : "bg-[#F6F3F2]/50 text-[#B5ADA3]/50"
                           }`}
                         >
-                          {day}
+                          <span className="block">{day}</span>
+                          <span className={`block text-[10px] ${selectedDay === di ? "text-white/75" : "opacity-70"}`}>
+                            {date ? `${date.getMonth() + 1}/${date.getDate()}` : "-"}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
 
                   {/* 시간 슬롯 */}
-                  {daySlots.length > 0 ? (
+                  {availabilityLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-[#B5ADA3]" role="status">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      공개된 운영시간을 확인하고 있어요
+                    </div>
+                  ) : availabilityError ? (
+                    <div className="py-5 text-center" role="alert">
+                      <p className="mb-2 text-sm text-red-700">공개된 운영시간을 확인하지 못했어요.</p>
+                      <button
+                        type="button"
+                        onClick={() => setAvailabilityReloadKey((key) => key + 1)}
+                        className="rounded-lg border border-[#795252]/25 px-3 py-2 text-sm font-medium text-[#795252]"
+                      >
+                        다시 확인하기
+                      </button>
+                    </div>
+                  ) : availabilitySlots.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2 mb-4">
-                      {daySlots.map((slot) => {
-                        const remaining = slot.maxBookings - slot.currentBookings;
-                        const isFull = remaining <= 0;
-                        const isSelected = selectedSlot === slot.hour;
+                      {availabilitySlots.map((slot) => {
+                        const isRecordedFull = slot.remaining <= 0;
                         return (
                           <button
-                            key={`${slot.day}-${slot.hour}`}
-                            onClick={() => !isFull && setSelectedSlot(slot.hour)}
-                            disabled={isFull}
-                            className={`py-2.5 rounded-lg text-base font-medium transition-colors relative ${
-                              isFull
-                                ? "bg-[#B5ADA3]/10 text-[#B5ADA3]/50 cursor-not-allowed"
-                                : isSelected
-                                ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
-                                : "bg-white text-[#795252] ring-1 ring-[#795252]/20 hover:bg-[#795252]/5"
-                            }`}
+                            key={`${selectedDay}-${slot.hour}`}
+                            disabled
+                            className="relative cursor-not-allowed rounded-lg bg-white py-2.5 text-base font-medium text-[#795252] ring-1 ring-[#795252]/15"
                           >
                             <Clock className="w-4 h-4 inline mr-1" />
                             {String(slot.hour).padStart(2, "0")}:00
-                            {isFull ? (
-                              <span className="block text-sm mt-0.5 opacity-70">마감</span>
-                            ) : remaining <= 2 && slot.maxBookings > 1 ? (
-                              <span className={`block text-sm mt-0.5 ${
-                                isSelected ? "text-white/80" : "text-[#795252]"
-                              }`}>
-                                잔여 {remaining}석
-                              </span>
-                            ) : null}
+                            <span className="mt-0.5 block text-sm opacity-70">
+                              {isRecordedFull ? "내부 기록상 마감" : "참고용"}
+                            </span>
                           </button>
                         );
                       })}
                     </div>
                   ) : (
                     <div className="py-6 text-center">
-                      <p className="text-base text-[#B5ADA3]">이 요일에는 예약 가능 시간이 없습니다</p>
+                      <p className="text-base text-[#B5ADA3]">이 요일에는 공개된 운영시간이 없습니다</p>
                     </div>
                   )}
 
                   {/* 예약 버튼 */}
                   <button
                     onClick={handleBook}
-                    disabled={selectedSlot === null || booked || booking}
+                    disabled={!BOOKING_REQUESTS_ENABLED || selectedSlot === null || booked || booking}
                     className={`w-full py-3.5 rounded-xl text-base font-medium transition-all flex items-center justify-center gap-2 ${
-                      booked
+                      !BOOKING_REQUESTS_ENABLED
+                        ? "bg-[#E8E1DF] text-[#756D6B] cursor-not-allowed"
+                        : booked
                         ? "bg-[#2E7D5A] text-white"
                         : selectedSlot !== null
                         ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_8px_24px_rgba(121,82,82,0.25)] hover:shadow-[0_12px_32px_rgba(121,82,82,0.3)]"
                         : "bg-[#B5ADA3]/20 text-[#B5ADA3] cursor-not-allowed"
                     }`}
                   >
-                    {booking ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" />예약 중...</>
+                    {!BOOKING_REQUESTS_ENABLED ? (
+                      "업체 연결 준비 중"
+                    ) : booking ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />요청 보내는 중...</>
                     ) : booked ? (
-                      <><Check className="w-4 h-4" />예약 신청 완료!</>
-                    ) : selectedSlot !== null ? (
-                      `${DAYS[selectedDay]} ${String(selectedSlot).padStart(2, "0")}:00 예약 신청`
+                      <><Check className="w-4 h-4" />상담 요청 접수 완료</>
+                    ) : selectedSlot !== null && selectedBookingDate ? (
+                      `${selectedBookingDate.getMonth() + 1}월 ${selectedBookingDate.getDate()}일 (${DAYS[selectedDay]}) ${String(selectedSlot).padStart(2, "0")}:00 요청 보내기`
                     ) : (
                       "시간을 선택해주세요"
                     )}
                   </button>
 
+                  {bookingError && (
+                    <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm text-red-700" role="alert">
+                      <p>{bookingError}</p>
+                      {bookingNeedsContact && (
+                        <Link href={weddingPath("/settings")} className="mt-2 inline-flex rounded-lg bg-red-700 px-3 py-1.5 font-medium text-white hover:bg-red-800">
+                          연락처 등록하기
+                        </Link>
+                      )}
+                    </div>
+                  )}
+
                   {booked && (
-                    <p className="text-sm text-[#2E7D5A] text-center mt-2">
-                      업체에서 확인 후 연락드릴 예정입니다
-                    </p>
+                    <div className="mt-2 text-center text-sm text-[#2E7D5A]">
+                      <p>상담 요청을 접수했습니다. 업체에서 확인 후 내 프로필 연락처로 안내드릴 예정입니다.</p>
+                      <Link href={weddingPath("/bookings")} className="mt-1 inline-flex font-medium underline underline-offset-2">
+                        상담 요청 내역 보기
+                      </Link>
+                    </div>
                   )}
                 </>
               )}
             </div>
 
-            <div className="bg-[#F6F3F2] rounded-xl p-4">
+            <div className="bg-[#F6F3F2] rounded-xl p-4" role="status">
               <p className="text-sm text-[#504444] font-light leading-relaxed">
-                예약은 업체 확인 후 확정됩니다. 확정 시 등록하신 연락처로 안내해드립니다. 예약 변경/취소는 방문일 1일 전까지 가능합니다.
+                업체 연결 준비 중입니다. 현재 상담 요청과 문의는 업체에 전송되지 않습니다.
+                이름·휴대폰 번호·희망 일시·메모도 새로 저장하거나 업체에 제공하지 않습니다.
+                공개된 운영시간은 참고 정보이며, 최신 가능 여부와 계약 조건은 업체의 공식 연락처로 직접 확인해 주세요.
               </p>
+              <Link href={weddingPath("/bookings")} className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-2">
+                과거 상담 요청 내역 보기
+              </Link>
             </div>
 
             {/* 문의하기 */}
-            <button
-              onClick={() => setShowMessageBox(true)}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white text-base text-[#795252] font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
-            >
-              <MessageSquare className="w-5 h-5" />
-              업체에 문의하기
-            </button>
+            {VENDOR_MESSAGES_ENABLED ? (
+              <button
+                type="button"
+                onClick={() => setShowMessageBox(true)}
+                aria-haspopup="dialog"
+                aria-expanded={showMessageBox}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white text-base text-[#795252] font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
+              >
+                <MessageSquare className="w-5 h-5" />
+                업체에 문의하기
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
 
       {/* 문의 다이얼로그 */}
-      {showMessageBox && (
+      {VENDOR_MESSAGES_ENABLED && showMessageBox && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setShowMessageBox(false)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={messageDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={messageDialogTitleId}
+            tabIndex={-1}
+            className="bg-white rounded-xl w-full max-w-md p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-[#795252]" />
-                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{vendor.name}에 문의</h3>
+                <h3 id={messageDialogTitleId} className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">{vendor.name}에 문의</h3>
               </div>
-              <button onClick={() => setShowMessageBox(false)} className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
+              <button type="button" onClick={() => setShowMessageBox(false)} aria-label="업체 문의 창 닫기" className="p-1 rounded-lg hover:bg-[#F6F3F2] transition-colors">
                 <X className="w-5 h-5 text-[#B5ADA3]" />
               </button>
             </div>
+            <label htmlFor={messageInputId} className="sr-only">업체에 보낼 문의 내용</label>
             <textarea
+              id={messageInputId}
+              data-dialog-initial-focus
               value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
+              onChange={(e) => { setMessageText(e.target.value); setMessageError(""); }}
               placeholder="궁금한 점을 자유롭게 작성해주세요..."
               rows={4}
               className="w-full px-4 py-3 bg-[#F6F3F2] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none mb-4"
             />
             <button
+              type="button"
               onClick={handleSendMessage}
               disabled={!messageText.trim() || sendingMessage || messageSent}
               className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-medium transition-all ${
@@ -758,6 +889,11 @@ export default function VendorDetailPage({ params }: { params: Promise<{ id: str
                 <><Send className="w-4 h-4" />문의 보내기</>
               )}
             </button>
+            {messageError && (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                {messageError}
+              </p>
+            )}
           </div>
         </div>
       )}

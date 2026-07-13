@@ -16,7 +16,7 @@ const ROLES: Role[] = [
     body: (
       <>
         금액만 보지 않고
-        <span className="text-noir-800"> 빠진 항목과 추가금 가능성</span>을 먼저 확인합니다.
+        <span className="text-noir-800"> 포함 범위와 추가 조건</span>을 직접 확인합니다.
       </>
     ),
   },
@@ -32,17 +32,17 @@ const ROLES: Role[] = [
   },
   {
     number: "03",
-    title: "예산에 반영하기",
+    title: "예산에 직접 기록하기",
     body: (
       <>
-        확인한 견적과 숨은 비용을
+        확인한 견적과 추가 조건을
         <span className="text-noir-800"> 내 예산표에 이어서</span> 관리합니다.
       </>
     ),
   },
   {
     number: "04",
-    title: "일정으로 넘기기",
+    title: "일정에 직접 기록하기",
     body: (
       <>
         계약 전 질문과 마감일을
@@ -81,7 +81,7 @@ export default function FiveRoles() {
             <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            아모라는 커뮤니티에서 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
+            견적과 커뮤니티에서 확인한 내용을 예산·일정 도구에 직접 이어서 관리할 수 있습니다.
           </p>
         </motion.div>
 

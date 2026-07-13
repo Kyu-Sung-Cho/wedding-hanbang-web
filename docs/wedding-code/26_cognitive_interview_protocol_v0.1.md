@@ -1,5 +1,7 @@
 # WeddingCode Cognitive Interview Protocol v0.1
 
+> **HISTORICAL / SUPERSEDED (2026-07-11):** 이 프로토콜은 구 16문항과 제품 라우팅 문항을 대상으로 하며 candidate.10 통과 증거가 아니다. 현재 후보의 사람 대상 검증 게이트는 [`63_candidate10_evidence_based_rebuild_2026-07-11.md`](./63_candidate10_evidence_based_rebuild_2026-07-11.md)의 7~9절을 따른다.
+
 작성일: 2026-07-07  
 대상: v0.5 문항 초안 16개 + 제품 라우팅 문항 1개  
 목표: 문항이 실제 결혼 준비 상황처럼 느껴지는지, 선택지가 정답처럼 보이지 않는지, 결과 공유가 대화로 이어질 수 있는지 확인한다.

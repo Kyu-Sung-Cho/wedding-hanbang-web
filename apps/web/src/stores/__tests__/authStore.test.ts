@@ -38,6 +38,7 @@ function resetStore() {
     isLoading: false,
     isInitialized: false,
     isDemo: false,
+    initError: null,
   });
   useCommunityStore.getState().reset();
 }
@@ -63,6 +64,19 @@ describe("useAuthStore", () => {
       useAuthStore.setState({ isInitialized: true });
       await useAuthStore.getState().initialize();
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("enters a server-verified demo session without touching the auth API", async () => {
+      await useAuthStore.getState().initialize({ verifiedDemo: true });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(useAuthStore.getState()).toMatchObject({
+        user: { id: "demo" },
+        isDemo: true,
+        isInitialized: true,
+        isLoading: false,
+        initError: null,
+      });
     });
 
     it("populates user/profile/couple/journey on successful /api/auth/me", async () => {
@@ -112,6 +126,86 @@ describe("useAuthStore", () => {
       expect(state.user).toBeNull();
       expect(state.isDemo).toBe(false);
       expect(state.isInitialized).toBe(true);
+      expect(state.initError).toMatchObject({ code: "AUTH_UNAVAILABLE" });
+    });
+
+    it("preserves PROFILE_UNAVAILABLE as a retryable typed initialization error", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        headers: new Headers({ "Retry-After": "3" }),
+        json: async () => ({
+          code: "PROFILE_UNAVAILABLE",
+          error: "프로필 정보를 불러오지 못했습니다.",
+        }),
+      });
+
+      await useAuthStore.getState().initialize();
+
+      expect(useAuthStore.getState()).toMatchObject({
+        user: null,
+        isInitialized: true,
+        isLoading: false,
+        initError: {
+          code: "PROFILE_UNAVAILABLE",
+          status: 503,
+          message: "프로필 정보를 불러오지 못했습니다.",
+          retryAfterSeconds: 3,
+        },
+      });
+    });
+
+    it("clears a prior initialization error after a successful retry", async () => {
+      useAuthStore.setState({
+        isInitialized: true,
+        initError: {
+          code: "PROFILE_UNAVAILABLE",
+          status: 503,
+          message: "retry",
+          retryAfterSeconds: 3,
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          user: { id: "u1", email: "test@example.com" },
+          profile: { id: "u1", name: "테스트" },
+        }),
+      });
+
+      await useAuthStore.getState().initialize({ force: true });
+
+      expect(useAuthStore.getState().user?.id).toBe("u1");
+      expect(useAuthStore.getState().initError).toBeNull();
+    });
+
+    it("ignores a stale failure that finishes after a newer successful retry", async () => {
+      let resolveFirst!: (value: unknown) => void;
+      const firstResponse = new Promise((resolve) => {
+        resolveFirst = resolve;
+      });
+      mockFetch
+        .mockReturnValueOnce(firstResponse)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            user: { id: "u-new", email: "new@example.com" },
+            profile: { id: "u-new", name: "최신 사용자" },
+          }),
+        });
+
+      const staleInitialization = useAuthStore.getState().initialize();
+      await useAuthStore.getState().initialize({ force: true });
+      resolveFirst({
+        ok: false,
+        status: 503,
+        headers: new Headers({ "Retry-After": "3" }),
+        json: async () => ({ code: "PROFILE_UNAVAILABLE", error: "stale" }),
+      });
+      await staleInitialization;
+
+      expect(useAuthStore.getState().user?.id).toBe("u-new");
+      expect(useAuthStore.getState().initError).toBeNull();
     });
 
     it("prefers real user over demo mode when real user exists", async () => {
@@ -157,11 +251,18 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
     });
 
-    it("silently ignores PATCH failure in non-demo mode", async () => {
+    it("reports PATCH failure to the caller without throwing", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
       useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
 
-      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.not.toThrow();
+      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.toBe(false);
+    });
+
+    it("reports a non-2xx PATCH response to the caller", async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: "unavailable" }) });
+      useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
+
+      await expect(useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" })).resolves.toBe(false);
     });
 
     it("does nothing when journey is null in demo mode", async () => {
@@ -342,6 +443,7 @@ describe("useAuthStore", () => {
       expect(state.profile).toBeNull();
       expect(state.isDemo).toBe(false);
       expect(state.isInitialized).toBe(false);
+      expect(state.initError).toBeNull();
     });
   });
 });

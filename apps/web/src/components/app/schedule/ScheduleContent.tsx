@@ -15,6 +15,7 @@ import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
+import { formatLocalDateOnly, parseLocalDateOnly } from "@hanbang/shared";
 
 const CATEGORY_KEYS = [
   "meeting", "venue", "studio", "dress", "makeup", "ring",
@@ -100,7 +101,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   );
   const weddingDateValue = journey?.wedding_date;
   const weddingDate = useMemo(
-    () => (weddingDateValue ? new Date(weddingDateValue) : null),
+    () => (weddingDateValue ? parseLocalDateOnly(weddingDateValue) : null),
     [weddingDateValue]
   );
 
@@ -108,7 +109,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const events = useMemo(() => getEvents(progress as Record<string, unknown>), [progress]);
 
   // 다가오는 일정
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = formatLocalDateOnly(new Date());
   const upcomingEvents = useMemo(() => {
     return events
       .filter((e) => e.date >= todayStr)
@@ -255,6 +256,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
       const progressObj = progress as Record<string, unknown>;
       const currentEvents = getEvents(progressObj);
+      let saved = false;
 
       if (eventFormMode === "edit" && editingEvent) {
         const updatedEvents = currentEvents.map((e) =>
@@ -262,7 +264,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             ? { ...e, ...data, updatedAt: new Date().toISOString() }
             : e
         );
-        await updateJourney({
+        saved = await updateJourney({
           progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
         });
       } else if (data.categoryKey && data.categoryKey !== "general") {
@@ -271,7 +273,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           data,
           CATEGORY_LABELS[data.categoryKey]
         );
-        await updateJourney({
+        saved = await updateJourney({
           progress: newProgress as unknown as Record<string, ProgressItem>,
         });
       } else {
@@ -285,9 +287,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           createdAt: now,
           updatedAt: now,
         };
-        await updateJourney({
+        saved = await updateJourney({
           progress: { ...progress, __events: [...currentEvents, newEvent] } as unknown as Record<string, ProgressItem>,
         });
+      }
+
+      if (!saved) {
+        throw new Error("일정을 저장하지 못했습니다. 입력한 내용은 그대로 두었으니 다시 시도해주세요.");
       }
 
       setEventFormMode(null);
@@ -305,9 +311,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       const currentEvents = getEvents(progressObj);
       const filtered = currentEvents.filter((e) => e.id !== eventId);
 
-      await updateJourney({
+      const deleted = await updateJourney({
         progress: { ...progress, __events: filtered } as unknown as Record<string, ProgressItem>,
       });
+
+      if (!deleted) {
+        throw new Error("일정을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
 
       setEventFormMode(null);
       setEditingEvent(null);

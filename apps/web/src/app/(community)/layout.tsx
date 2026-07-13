@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Instagram, Mail, MessageCircle, Play, ShieldCheck } from "lucide-react";
+import { Instagram, Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
@@ -32,7 +32,7 @@ export default function CommunityLayout({
 
 function FooterBrand() {
   return (
-    <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+    <Link {...weddingLinkProps()} className="inline-flex min-h-11 items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
       <Logo size="md" variant="white" />
     </Link>
   );
@@ -45,22 +45,23 @@ function CommunityFooter() {
         <div>
           <FooterBrand />
           <p className="mt-3 text-[13px] font-medium text-white/70">
-            AI가 함께하는 가장 든든한 결혼 준비
+            AI와 함께 차근차근 정리하는 결혼 준비
           </p>
           <div className="mt-5 flex gap-3">
             {[
-              { icon: Instagram, label: "Instagram" },
-              { icon: Play, label: "YouTube" },
-              { icon: MessageCircle, label: "Kakao" },
+              { icon: Instagram, label: "Instagram", href: CONTACT.instagramHref },
+              { icon: Mail, label: "이메일", href: `mailto:${CONTACT.email}` },
             ].map((item) => (
-              <Link
+              <a
                 key={item.label}
-                {...weddingLinkProps()}
+                href={item.href}
+                target={item.href.startsWith("http") ? "_blank" : undefined}
+                rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
                 aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
               >
                 <item.icon className="h-4 w-4" />
-              </Link>
+              </a>
             ))}
           </div>
         </div>
@@ -97,22 +98,21 @@ function CommunityFooter() {
           <h3 className="mb-3 text-[14px] font-semibold text-white">연락</h3>
           <div className="space-y-1 text-[13px] font-medium text-white/70">
             <p>{CONTACT.email}</p>
-            <p>{CONTACT.hours}</p>
-            <p>({CONTACT.lunch})</p>
+            <p>답변 시간은 문의 내용과 운영 여건에 따라 달라질 수 있습니다.</p>
           </div>
         </div>
 
         <div className="rounded-[18px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-[#d8c79a]" />
-            <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
+            <h3 className="text-[14px] font-semibold text-white">AI 이용 안내</h3>
           </div>
           <p className="text-[12px] font-medium leading-[1.7] text-white/65">
-            개인정보와 AI 생성 안내를 투명하게 고지하고 안전한 결혼 준비를 돕습니다.
+            AI 생성 표시, 답변의 한계와 개인정보 처리 범위를 안내합니다.
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -137,7 +137,7 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
             : { href: item.href };
 
           return (
-            <Link key={item.label} {...linkProps} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+            <Link key={item.label} {...linkProps} className="inline-flex min-h-11 items-center text-[13px] font-medium text-white/65 hover:text-[#f2e8c8] md:min-h-0">
               {item.label}
             </Link>
           );

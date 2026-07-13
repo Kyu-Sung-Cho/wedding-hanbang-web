@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
@@ -10,6 +10,8 @@ import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
+import { isCoupleInviteCode } from "@hanbang/shared";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -18,30 +20,46 @@ export default function OnboardingPage() {
   const [inviteCodeResult, setInviteCodeResult] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [returnPath, setReturnPath] = useState<string | null>(null);
+  const [profileChecking, setProfileChecking] = useState(true);
+  const [profileCheckError, setProfileCheckError] = useState("");
+
+  const checkProfile = useCallback(async (nextPath: string | null) => {
+    setProfileChecking(true);
+    setProfileCheckError("");
+
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.status === 401) {
+        window.location.href = pathWithAuthReturn("/login", nextPath);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProfileCheckError(
+          data.error ?? "프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요."
+        );
+        return;
+      }
+
+      if (data.profile?.onboarding_completed) {
+        document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
+        window.location.href = nextPath ?? "/wedding/lounge";
+      }
+    } catch {
+      setProfileCheckError("네트워크 연결을 확인한 뒤 다시 시도해주세요.");
+    } finally {
+      setProfileChecking(false);
+    }
+  }, []);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
-    const checkProfile = async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (!res.ok) {
-          window.location.href = "/login";
-          return;
-        }
-        const data = await res.json();
-        if (!data.profile) {
-          return; // 프로필 없으면 온보딩 진행
-        }
-        if (data.profile.onboarding_completed) {
-          document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-          window.location.href = "/wedding/lounge";
-        }
-      } catch {
-        // 에러 시 온보딩 계속 진행
-      }
-    };
-    checkProfile();
-  }, []);
+    const nextPath = sanitizeAuthReturnPath(new URLSearchParams(window.location.search).get("next"));
+    setReturnPath(nextPath);
+    void checkProfile(nextPath);
+  }, [checkProfile]);
 
   const canProceed = () => {
     switch (store.currentStep) {
@@ -49,7 +67,7 @@ export default function OnboardingPage() {
         return store.role !== null;
       case 2:
         if (store.coupleAction === "join") {
-          return /^WH-[A-Z0-9]{6,12}$/.test(store.partnerInviteCode);
+          return isCoupleInviteCode(store.partnerInviteCode);
         }
         return store.coupleAction !== null;
       case 3:
@@ -120,7 +138,7 @@ export default function OnboardingPage() {
         setShowInviteModal(true);
         // 리다이렉트 하지 않음 → 모달에서 사용자가 직접 이동
       } else {
-        window.location.href = "/wedding/lounge";
+        window.location.href = returnPath ?? "/wedding/lounge";
       }
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -151,6 +169,36 @@ export default function OnboardingPage() {
       setTimeout(() => setCodeCopied(false), 2000);
     }
   };
+
+  if (profileChecking || profileCheckError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
+        <div className="w-full max-w-[420px] text-center">
+          <Logo size="md" />
+          <div className="mt-8 rounded-3xl border border-black/[0.04] bg-white/90 p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+            {profileChecking ? (
+              <>
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#795252]/20 border-t-[#795252]" />
+                <p className="mt-4 text-[14px] text-taupe-500">계정 정보를 확인하고 있어요.</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-[18px] font-semibold text-noir-800">계정 정보를 불러오지 못했어요</h1>
+                <p className="mt-2 text-[13px] leading-relaxed text-taupe-500">{profileCheckError}</p>
+                <button
+                  type="button"
+                  onClick={() => void checkProfile(returnPath)}
+                  className="mt-6 w-full rounded-2xl bg-[#795252] py-3 text-[14px] font-medium text-white transition-colors hover:bg-[#946a6a]"
+                >
+                  다시 시도
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
@@ -343,11 +391,11 @@ export default function OnboardingPage() {
 
               <button
                 onClick={() => {
-                  window.location.href = "/wedding/lounge";
+                  window.location.href = returnPath ?? "/wedding/lounge";
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
-                대시보드로 이동
+                {returnPath ? "이어서 보기" : "웨딩 라운지로 이동"}
               </button>
             </motion.div>
           </motion.div>

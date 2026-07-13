@@ -10,8 +10,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { storedMoneyToWon } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import ErrorRetry from "@/components/ErrorRetry";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
 // 분담 타입 (웹과 동일)
@@ -26,16 +28,16 @@ const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
 
 // 숨겨진 추가 비용 경고 데이터 (웹과 동일)
 const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
-  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
-  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
-  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
-  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
-  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
-  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
-  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
-  ham: { warning: "함진아비 비용, 이바지 포장", extra: "+20~50만원" },
-  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "견적서에서 금액 확인" },
+  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "견적서에서 금액 확인" },
+  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "견적서에서 금액 확인" },
+  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "견적서에서 금액 확인" },
+  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "예약 조건에서 금액 확인" },
+  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "견적서에서 금액 확인" },
+  gift: { warning: "포장, 배송비, 추가 세트", extra: "견적서에서 금액 확인" },
+  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "견적서에서 금액 확인" },
+  ham: { warning: "함진아비 비용, 이바지 포장", extra: "견적서에서 금액 확인" },
+  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "견적서에서 금액 확인" },
 };
 
 // 웹과 동일한 카테고리 비율 상수
@@ -88,18 +90,14 @@ function formatWon(n: number): string {
   return "—";
 }
 
-function normalizeCost(cost: unknown): number {
-  if (typeof cost === "number") return cost;
-  if (typeof cost === "string") return parseInt(cost, 10) || 0;
-  return 0;
-}
-
 export default function BudgetScreen() {
   const [totalBudget, setTotalBudget] = useState(0);
   const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalInput, setTotalInput] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -112,15 +110,33 @@ export default function BudgetScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("couple_id").eq("id", user.id).single();
-      if (!profile?.couple_id) return;
+      setLoadError(false);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw authError ?? new Error("authenticated user not found");
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("couple_id")
+        .eq("id", user.id)
+        .single();
+      if (profileError || !profile?.couple_id) {
+        throw profileError ?? new Error("couple profile not found");
+      }
       setCoupleId(profile.couple_id);
-      const { data: journey } = await supabase.from("wedding_journeys").select("total_budget, progress").eq("couple_id", profile.couple_id).single();
+      const { data: journey, error: journeyError } = await supabase
+        .from("wedding_journeys")
+        .select("total_budget, progress")
+        .eq("couple_id", profile.couple_id)
+        .single();
+      if (journeyError || !journey) {
+        throw journeyError ?? new Error("wedding journey not found");
+      }
       setTotalBudget(journey?.total_budget ?? 0);
       setProgress((journey?.progress as Record<string, ProgressItem>) ?? {});
-    } catch (err) { console.error("Budget load:", err); }
+      setHasLoadedData(true);
+    } catch (err) {
+      console.error("Budget load:", err);
+      setLoadError(true);
+    }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -157,7 +173,7 @@ export default function BudgetScreen() {
   function getCatBudget(key: string): number {
     const item = progress[key];
     if (item?.budget && item.budget > 0) return item.budget;
-    const cost = normalizeCost(item?.cost);
+    const cost = storedMoneyToWon(item?.cost);
     if (cost > 0) return cost;
     const r = CATEGORY_RATIOS.find((c) => c.key === key);
     return r ? Math.round(totalBudget * r.ratio) : 0;
@@ -165,7 +181,7 @@ export default function BudgetScreen() {
   function getCatSpent(key: string): number {
     const item = progress[key];
     if (item?.spent !== undefined) return item.spent;
-    return normalizeCost(item?.cost);
+    return storedMoneyToWon(item?.cost);
   }
   function getCatStatus(key: string): string {
     const s = progress[key]?.status ?? "not_started";
@@ -346,6 +362,18 @@ export default function BudgetScreen() {
     );
   }
 
+  if (loadError && !hasLoadedData) {
+    return (
+      <SafeAreaView style={s.container} edges={["top"]}>
+        <AppHeader title="예산 관리" onBack={() => router.back()} />
+        <ErrorRetry
+          message="예산 정보를 불러오지 못했어요"
+          onRetry={() => { setLoading(true); loadData(); }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
@@ -353,6 +381,19 @@ export default function BudgetScreen() {
         subtitle="지출, 분담, 숨은 비용을 함께 봐요"
         onBack={() => router.back()}
       />
+
+      {loadError && hasLoadedData ? (
+        <Pressable
+          style={({ pressed }) => [s.loadWarning, pressed && s.loadWarningPressed]}
+          onPress={loadData}
+          accessibilityRole="button"
+          accessibilityLabel="예산 최신 정보 다시 불러오기"
+        >
+          <AlertTriangle size={16} color={colors.danger} />
+          <Text style={s.loadWarningText}>최신 예산을 불러오지 못했어요</Text>
+          <Text style={s.loadWarningAction}>다시 시도</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />}>
@@ -559,6 +600,10 @@ export default function BudgetScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  loadWarning: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "rgba(239, 68, 68, 0.08)" },
+  loadWarningPressed: { opacity: 0.78 },
+  loadWarningText: { flex: 1, fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary },
+  loadWarningAction: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.danger },
   content: { padding: 20, paddingBottom: 40 },
   totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
   totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },

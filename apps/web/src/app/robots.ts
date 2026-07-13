@@ -1,6 +1,26 @@
 import { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
+  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+    return {
+      rules: [
+        {
+          userAgent: "*",
+          allow: [
+            "/demo",
+            "/beta",
+            "/about",
+            "/privacy",
+            "/terms",
+            "/ai-policy",
+            "/support",
+          ],
+          disallow: ["/", "/beta/verify"],
+        },
+      ],
+    };
+  }
+
   return {
     rules: [
       {
@@ -22,8 +42,8 @@ export default function robots(): MetadataRoute.Robots {
           "/wedding/bookings",
           "/wedding/vendors",
           "/wedding/favorites",
-          "/demo",
           "/wedding-code",
+          "/beta/verify",
         ],
       },
     ],

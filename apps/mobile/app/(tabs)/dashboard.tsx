@@ -27,6 +27,7 @@ import {
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
+import { formatLocalDateOnly } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
@@ -34,6 +35,7 @@ import AppGuide from "@/components/AppGuide";
 import { AppText, SectionHeader, StatusPill, Surface } from "@/components/ui/AppUI";
 
 const APP_GUIDE_KEY = "@hanbang/app_guide_seen";
+const BOOKING_OUTCOMES_ENABLED = false as const;
 
 interface UrgentTask {
   categoryKey: string;
@@ -71,11 +73,11 @@ interface DashboardData {
 
 // 매일 바뀌는 동기부여 문구
 const DAILY_QUOTES = [
-  "완벽한 결혼 준비, 함께할게요",
+  "우리에게 맞는 결혼 준비, 함께 정리해요",
   "한 걸음씩, 아름다운 결혼을 향해",
   "당신의 특별한 날을 위해",
   "사랑으로 빛나는 그 날까지",
-  "설레는 마음, 완벽한 준비",
+  "설레는 마음, 차근차근 준비",
   "두 사람의 이야기가 시작돼요",
   "소중한 순간을 함께 만들어요",
 ];
@@ -340,7 +342,7 @@ export default function DashboardScreen() {
       const progressPercent = calcProgress(progress);
 
       // 오늘 할 일: 이벤트 중 오늘 날짜인 것
-      const today = new Date().toISOString().slice(0, 10);
+      const today = formatLocalDateOnly(new Date());
       const events =
         ((progress as Record<string, unknown>)?.__events as Array<{
           date: string;
@@ -356,58 +358,56 @@ export default function DashboardScreen() {
       // 긴급 할 일 계산
       const urgentTasks = calcUrgentTasks(dday, progress);
 
-      const todayStart = getTodayStart();
-      const todayIso = todayStart.toISOString().slice(0, 10);
       let bookingOutcomeTasks: BookingOutcomeTask[] = [];
-      try {
-        const { data: bookingRows, error: bookingError } = await supabase
-          .from("vendor_bookings")
-          .select("id, booking_date, status, actual_amount, vendor:vendors(name, category)")
-          .eq("couple_id", profile.couple_id)
-          .neq("status", "cancelled")
-          .or(`status.eq.completed,booking_date.lt.${todayIso}`)
-          .or("actual_amount.is.null,actual_amount.eq.0")
-          .order("booking_date", { ascending: false })
-          .limit(3);
+      if (BOOKING_OUTCOMES_ENABLED) {
+        const todayStart = getTodayStart();
+        const todayIso = formatLocalDateOnly(todayStart);
+        try {
+          const { data: bookingRows, error: bookingError } = await supabase
+            .from("vendor_bookings")
+            .select("id, booking_date, status, actual_amount, vendor:vendors(name, category)")
+            .eq("couple_id", profile.couple_id)
+            .neq("status", "cancelled")
+            .or(`status.eq.completed,booking_date.lt.${todayIso}`)
+            .or("actual_amount.is.null,actual_amount.eq.0")
+            .order("booking_date", { ascending: false })
+            .limit(3);
 
-        if (bookingError) throw bookingError;
+          if (bookingError) throw bookingError;
 
-        const rows = (bookingRows ?? []) as Array<Record<string, unknown>>;
-        bookingOutcomeTasks = rows
-          .filter((row) => isOutcomeNeededBooking(row, todayStart))
-          .map((row) => {
-            const vendor = toSingleRelation(
-              row.vendor as { name?: unknown; category?: unknown } | { name?: unknown; category?: unknown }[] | null
-            );
-            const bookingDate = String(row.booking_date ?? "");
-            const parsedDate = parseBookingDate(bookingDate);
-            const isPast = !Number.isNaN(parsedDate.getTime()) && parsedDate < todayStart;
+          const rows = (bookingRows ?? []) as Array<Record<string, unknown>>;
+          bookingOutcomeTasks = rows
+            .filter((row) => isOutcomeNeededBooking(row, todayStart))
+            .map((row) => {
+              const vendor = toSingleRelation(
+                row.vendor as { name?: unknown; category?: unknown } | { name?: unknown; category?: unknown }[] | null
+              );
+              const bookingDate = String(row.booking_date ?? "");
+              const parsedDate = parseBookingDate(bookingDate);
+              const isPast = !Number.isNaN(parsedDate.getTime()) && parsedDate < todayStart;
 
-            return {
-              id: String(row.id ?? ""),
-              vendorName:
-                typeof vendor?.name === "string" && vendor.name.length > 0
-                  ? vendor.name
-                  : "업체 미정",
-              categoryLabel: getCategoryLabel(vendor?.category),
-              bookingDate,
-              isPast,
-            };
-          })
-          .filter((task) => task.id.length > 0)
-          .slice(0, 3);
-      } catch {
-        // 예약 결과 조회 실패는 홈 진입을 막지 않음
+              return {
+                id: String(row.id ?? ""),
+                vendorName:
+                  typeof vendor?.name === "string" && vendor.name.length > 0
+                    ? vendor.name
+                    : "업체 미정",
+                categoryLabel: getCategoryLabel(vendor?.category),
+                bookingDate,
+                isPast,
+              };
+            })
+            .filter((task) => task.id.length > 0)
+            .slice(0, 3);
+        } catch {
+          // 예약 결과 조회 실패는 홈 진입을 막지 않음
+        }
       }
 
       // 파트너 활동 감지
       let partnerActivity: PartnerActivity | null = null;
       try {
-        const { data: partners } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("couple_id", profile.couple_id)
-          .neq("id", user.id);
+        const { data: partners } = await supabase.rpc("get_my_partner_public");
 
         if (partners && partners.length > 0) {
           const partnerName = partners[0]?.name ?? "파트너";
@@ -652,7 +652,7 @@ export default function DashboardScreen() {
             </AppText>
           ) : (
             <AppText variant="body" style={styles.commandDate}>
-              결혼 예정일을 설정하면 오늘 할 일이 더 정확해져요
+              결혼 예정일을 설정하면 시기별 할 일을 정리하기 쉬워져요
             </AppText>
           )}
 
@@ -672,7 +672,7 @@ export default function DashboardScreen() {
         </Surface>
 
         {/* 예약 결과 기록 */}
-        {(data?.bookingOutcomeTasks?.length ?? 0) > 0 && (
+        {BOOKING_OUTCOMES_ENABLED && (data?.bookingOutcomeTasks?.length ?? 0) > 0 && (
           <View style={styles.outcomeSection}>
             <View style={styles.urgentHeader}>
               <CalendarCheck size={18} color={colors.rose[500]} />
@@ -684,7 +684,7 @@ export default function DashboardScreen() {
               </View>
             </View>
             <Text style={styles.outcomeIntro}>
-              실제 결제금액과 만족도를 남기면 추가금 기억과 다음 업체 추천이 더 정확해져요.
+              결제금액과 만족도 기록 기능은 업체 연결을 다시 열고 검증한 뒤 제공할 예정이에요.
             </Text>
             {data?.bookingOutcomeTasks.map((task) => (
               <Pressable
@@ -802,7 +802,15 @@ export default function DashboardScreen() {
 
         {/* 파트너 활동 배너 */}
         {data?.partnerActivity && (
-          <View style={styles.partnerBanner}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.partnerBanner,
+              pressed && styles.partnerBannerPressed,
+            ]}
+            onPress={() => router.push("/schedule")}
+            accessibilityRole="button"
+            accessibilityLabel={`${data.partnerActivity.partnerName}님의 최근 준비 변경사항 보기`}
+          >
             <Users size={16} color={colors.rose[500]} />
             <Text style={styles.partnerBannerText}>
               {data.partnerActivity.partnerName}님이{" "}
@@ -814,7 +822,7 @@ export default function DashboardScreen() {
               을(를) 변경했어요
             </Text>
             <ChevronRight size={14} color={colors.textTertiary} />
-          </View>
+          </Pressable>
         )}
 
         {/* 오늘의 할 일 */}
@@ -1325,6 +1333,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 16,
+  },
+  partnerBannerPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
   },
   partnerBannerText: {
     flex: 1,

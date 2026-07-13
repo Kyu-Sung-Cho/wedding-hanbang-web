@@ -25,6 +25,7 @@ import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -115,10 +116,11 @@ export default function PostWritePage() {
 function PostWriteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
   const editId = searchParams.get("edit");
   const isEditMode = Boolean(editId);
   const prefillKind = searchParams.get("prefill");
-  // 견적 체크 → "익명 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
+  // 견적 체크 → "업체명 뺀 사례로 공유하기" 트리거 시 넘어오는 prefill (이슈 #3)
   const prefillTitle = searchParams.get("title");
   const prefillBody = searchParams.get("body");
   const requestedCategory = searchParams.get("category");
@@ -192,16 +194,18 @@ function PostWriteContent() {
 
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
-        const redirect = encodeURIComponent(
-          weddingPath(`/community/post/write${editId ? `?edit=${editId}` : ""}`)
+        const requestedPath = weddingPath(
+          `/community/post/write${currentQuery ? `?${currentQuery}` : ""}`
         );
-        router.replace(`/login?redirect=${redirect}`);
+        router.replace(
+          pathWithAuthReturn("/login", sanitizeAuthReturnPath(requestedPath))
+        );
         return;
       }
       setUserId(data.user.id);
       setAuthChecked(true);
     });
-  }, [router, editId]);
+  }, [router, currentQuery]);
 
   // 수정 모드: 기존 글 로드
   useEffect(() => {
@@ -297,7 +301,7 @@ function PostWriteContent() {
     }
   }, [isEditMode, authChecked]);
 
-  // 견적 체크 → "익명 사례로 공유하기" prefill (이슈 #3)
+  // 견적 체크 → "업체명 뺀 사례로 공유하기" prefill (이슈 #3)
   // - 인증 직후 1회 적용. 이후 사용자가 자유롭게 편집할 수 있도록 ref guard.
   const quotePrefillAppliedRef = useRef(false);
   useEffect(() => {
@@ -537,7 +541,7 @@ function PostWriteContent() {
     }
     if (postMode === "slides") {
       if (slides.length === 0) {
-        setError("카드 게시물에는 이미지나 영상이 최소 1장 이상 필요해요.");
+        setError("카드 게시물에는 이미지가 최소 1장 이상 필요해요.");
         return;
       }
     } else if (!content.trim()) {
@@ -944,11 +948,11 @@ function PostWriteContent() {
               )}
             </section>
 
-            {/* 이미지/영상 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
+            {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
             {postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
-                  이미지/영상
+                  이미지
                 </label>
                 <ImageUploader images={images} onChange={setImages} max={5} />
               </section>

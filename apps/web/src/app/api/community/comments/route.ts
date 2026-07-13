@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
     if (parent_id) {
       const { data: parentComment } = await supabase
         .from("community_comments")
-        .select("parent_id")
+        .select("parent_id, post_id")
         .eq("id", parent_id)
         .single();
 
@@ -178,6 +178,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: "부모 댓글을 찾을 수 없습니다." },
           { status: 404 }
+        );
+      }
+
+      if (parentComment.post_id !== post_id) {
+        return NextResponse.json(
+          { error: "부모 댓글과 게시글이 일치하지 않습니다." },
+          { status: 400 }
         );
       }
 
@@ -224,14 +231,8 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!existingProfile) {
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .single();
-
-      const nickname = getSafeDefaultCommunityNickname(userProfile?.name, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(user.id);
+      const nickname = getSafeDefaultCommunityNickname(null, user.id);
+      const fallbackNickname = getCommunityNicknameFallback(`${user.id}:collision`);
       const createProfilePayload = {
         user_id: user.id,
         nickname,

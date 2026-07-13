@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import { ThumbsUp, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
+import { createClient } from "@/lib/supabase/client";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
 
@@ -15,13 +15,9 @@ export default function MyUpvotedPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/upvoted"))}`);
@@ -40,7 +36,7 @@ export default function MyUpvotedPage() {
       }
       setLoading(false);
     })();
-  }, [router, supabase.auth]);
+  }, [router]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

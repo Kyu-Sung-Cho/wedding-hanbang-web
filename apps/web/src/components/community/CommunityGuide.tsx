@@ -58,9 +58,9 @@ function SlideEmpathy() {
         혼자 고민하지 마세요
       </h2>
       <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed max-w-[340px]">
-        같은 고민을 했던 선배 신부·신랑들이
+        이용자가 직접 작성한 경험과 질문을
         <br />
-        솔직한 경험을 나누는 공간이에요
+        커뮤니티 닉네임으로 나누는 공간이에요
       </p>
     </div>
   );
@@ -80,9 +80,12 @@ function SlideRealReview() {
             상황: 스드메 알아보는 중
           </span>
         </div>
+        <span className="inline-flex rounded-full border border-[#dfc9c1] bg-[#fbf8f2] px-2.5 py-1 text-xs font-medium text-[#635b51]">
+          화면 예시 · 실제 후기나 가격이 아닙니다
+        </span>
       </div>
 
-      {/* Mock 포스트 카드 — 실제 후기처럼 */}
+      {/* Mock 포스트 카드 — 실제 데이터와 혼동되지 않게 예시로 표시 */}
       <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-sage-500 flex items-center justify-center">
@@ -90,38 +93,38 @@ function SlideRealReview() {
           </div>
             <div className="flex flex-col items-start">
               <div className="flex items-center gap-1.5">
-                <span className="text-base text-[#263832] font-medium">가을의신부</span>
+                <span className="text-base text-[#263832] font-medium">예시 사용자</span>
               </div>
-            <span className="text-sm text-[#B5ADA3] font-light">어제 · 후기</span>
+            <span className="text-sm text-[#B5ADA3] font-light">화면 예시</span>
           </div>
         </div>
         <div className="px-4 pb-2">
           <div className="text-[17px] text-[#263832] font-semibold mb-1 text-left">
-            강남 스튜디오 3곳 가격 솔직 비교 💍
+            예시: 스드메 견적의 포함 항목 비교
           </div>
           <p className="text-base text-[#635b51] font-light leading-relaxed text-left">
-            기본가 280만원인데 추가금이 130만원... 총 410만원이었어요.
-            다른 곳은 패키지 350만원에 추가금 거의 없었어요. 사진 비교해볼게요
+            같은 총액처럼 보여도 원본비, 피팅비와 헬퍼비 포함 여부가 다를 수 있어요.
+            A·B·C 견적을 같은 질문으로 확인하는 화면 예시입니다.
           </p>
         </div>
-        {/* 실제 가격 비교 테이블 */}
+        {/* 예시 가격 비교 테이블 */}
         <div className="px-4 pb-3">
           <div className="bg-[#fbf8f2] rounded-xl p-3 border border-[#f6efe5]">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="text-sm text-[#B5ADA3] mb-1">A 스튜디오</div>
                 <div className="text-base font-semibold text-[#263832]">410만</div>
-                <div className="text-sm text-red-500">추가금 多</div>
+                <div className="text-sm text-red-500">포함 항목 확인</div>
               </div>
               <div>
                 <div className="text-sm text-[#B5ADA3] mb-1">B 스튜디오</div>
                 <div className="text-base font-semibold text-sage-500">350만</div>
-                <div className="text-sm text-sage-500">추천 ✓</div>
+                <div className="text-sm text-sage-500">서면 확인</div>
               </div>
               <div>
                 <div className="text-sm text-[#B5ADA3] mb-1">C 스튜디오</div>
                 <div className="text-base font-semibold text-[#263832]">380만</div>
-                <div className="text-sm text-[#B5ADA3]">보통</div>
+                <div className="text-sm text-[#B5ADA3]">조건 비교</div>
               </div>
             </div>
           </div>
@@ -142,12 +145,12 @@ function SlideRealReview() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 text-sage-500">
               <ChevronUp className="w-5 h-5" />
-              <span className="text-base font-semibold">47</span>
+              <span className="text-base font-semibold">—</span>
               <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
             </div>
             <div className="flex items-center gap-1 text-[#B5ADA3]">
               <MessageCircle className="w-4 h-4" />
-              <span className="text-sm">23</span>
+              <span className="text-sm">—</span>
             </div>
           </div>
           <Bookmark className="w-4 h-4 text-[#B5ADA3]" />
@@ -177,17 +180,20 @@ function SlideCohort() {
             상황: 주변에 결혼 준비하는 친구가 없을 때
           </span>
         </div>
+        <span className="inline-flex rounded-full border border-[#dfc9c1] bg-[#fbf8f2] px-2.5 py-1 text-xs font-medium text-[#635b51]">
+          화면 예시 · 실제 대화나 참여 인원이 아닙니다
+        </span>
       </div>
 
       {/* 동기방 카드 */}
       <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-[17px] text-[#263832] font-semibold">2026 2분기 동기방</div>
-            <div className="text-sm text-[#7a8290] font-light mt-0.5">4~6월 결혼 예정 커플</div>
+            <div className="text-[17px] text-[#263832] font-semibold">예시 동기방</div>
+            <div className="text-sm text-[#7a8290] font-light mt-0.5">같은 시기 커플 화면 예시</div>
           </div>
           <div className="px-2.5 py-1 rounded-full bg-[#36534E]/10 text-sm text-[#36534E] font-medium">
-            248명 활동 중
+            실제 인원 아님
           </div>
         </div>
         <div className="flex items-center mb-3">
@@ -204,19 +210,19 @@ function SlideCohort() {
               style={{ zIndex: 5 - i }}
             />
           ))}
-          <span className="text-sm text-[#7a8290] ml-2">+243</span>
+          <span className="text-sm text-[#7a8290] ml-2">참여 인원은 실제 방에서 확인</span>
         </div>
       </div>
 
-      {/* 실제 대화 예시 */}
+      {/* 화면 예시 대화 */}
       <div className="w-full max-w-[380px] flex flex-col gap-2.5 mb-5">
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#7EB8D8] to-[#5A9CC0] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">행복한예비맘</div>
+            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 A</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                강남 스튜디오 다들 얼마에 계약하셨어요? 380만원 견적이 적정한지 모르겠어요 💭
+                스튜디오 견적에서 어떤 포함 항목을 먼저 확인하셨나요? 💭
               </span>
             </div>
           </div>
@@ -224,10 +230,10 @@ function SlideCohort() {
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#B89785] to-[#DCC9A0] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">민트초코신부</div>
+            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 B</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                저는 340만원에 했어요! 추가금 거의 없어서 가성비 좋았어요
+                원본비와 헬퍼비가 별도인지 서면으로 물어보는 건 어떨까요?
               </span>
             </div>
           </div>
@@ -235,10 +241,10 @@ function SlideCohort() {
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[#2B423E] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">달빛웨딩</div>
+            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 C</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                저도 거기 상담 받았어요. 자세한 후기 글로 올려드릴게요 ✍️
+                같은 질문으로 비교하면 포함 범위를 보기 쉬울 것 같아요 ✍️
               </span>
             </div>
           </div>
@@ -394,7 +400,7 @@ function SlideHowToUse() {
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">내 경험도 나눠주세요</div>
             <div className="text-sm text-[#635b51] font-light leading-relaxed">
-              사진/영상과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요
+              사진과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요
             </div>
           </div>
         </div>
@@ -441,7 +447,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             bg: "#F0F9FF",
             border: "#BAE6FD",
             label: "일반",
-            desc: "직접 경험한 솔직한 글",
+            desc: "협찬·광고 없음으로 작성자가 표시",
           },
           {
             Icon: Star,
@@ -449,7 +455,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             bg: "#FEFCE8",
             border: "#FDE68A",
             label: "협찬",
-            desc: "혜택 받았지만 솔직하게",
+            desc: "제공받은 혜택을 함께 표시",
           },
           {
             Icon: Megaphone,
@@ -457,7 +463,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             bg: "#F1F5F9",
             border: "#CBD5E1",
             label: "광고",
-            desc: "광고는 표시하고, 추천에서 제외",
+            desc: "광고임을 화면에 표시",
           },
         ].map((rule, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">

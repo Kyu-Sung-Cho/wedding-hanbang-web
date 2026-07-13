@@ -3,7 +3,7 @@ export type ChatSuggestionExtraction = {
   suggestions: string[];
 };
 
-// Claude 응답에서 [suggestions] 블록 추출. 백틱으로 감싸진 경우와 일반 태그를 모두 지원한다.
+// 아모라 응답에서 [suggestions] 블록 추출. 백틱으로 감싸진 경우와 일반 태그를 모두 지원한다.
 export function extractSuggestions(text: string): ChatSuggestionExtraction {
   const patterns = [
     /```\n?\[suggestions\]\n([\s\S]*?)\[\/suggestions\]\n?```/,

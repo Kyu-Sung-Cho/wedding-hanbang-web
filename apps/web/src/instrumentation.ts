@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
+import { installServerConsolePrivacyBoundary } from "@/lib/logging/serverConsolePrivacy";
 
 export async function register() {
+  installServerConsolePrivacyBoundary();
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("../sentry.server.config");
   }

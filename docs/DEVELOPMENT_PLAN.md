@@ -1,9 +1,11 @@
 # 웨딩한방 웹/앱 통합 개발 플랜
 
-> 최종 업데이트: 2026-04-09
-> 개발자: 솔로 (Claude Code 활용)
+> 최종 업데이트: 2026-07-11 (현재 구현 경계 교정)
+> 개발자: 솔로 (Codex/ChatGPT 활용)
 > 출시 목표: 2026-06-09 (2개월)
 > 월 예산: $500
+>
+> **역사 계획 주의**: 위 출시 목표와 아래 Phase 일정은 과거 계획이다. 현재 출시 판정은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`와 실제 코드·테스트를 우선한다. 아모라는 Luna 기본/Terra 제한 승격이며 모델 기반 쓰기 도구는 현재 비활성이다.
 
 ---
 
@@ -13,7 +15,7 @@
 wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 │
 ├── apps/
-│   ├── web/                              Next.js 15 (App Router)
+│   ├── web/                              Next.js 16 (App Router)
 │   │   └── Vercel → hanbang.ai           라이브 중
 │   └── mobile/                           Expo SDK 54 (Expo Router 6)
 │       └── EAS → App Store / Play Store   개발 중
@@ -31,13 +33,13 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 
 | 레이어 | 웹 | 앱 |
 |--------|-----|-----|
-| 프레임워크 | Next.js 15 | Expo SDK 54 |
+| 프레임워크 | Next.js 16 | Expo SDK 54 |
 | 라우팅 | App Router | Expo Router 6 |
 | 스타일링 | Tailwind CSS 4 | React Native StyleSheet |
 | 상태 (클라이언트) | Zustand | Zustand |
 | 상태 (서버) | fetch + Zustand | TanStack Query (Phase 1 도입) |
 | DB/Auth | Supabase (공유) | Supabase (공유) |
-| AI | Claude API (Haiku + Sonnet) | Claude API (동일) |
+| AI | OpenAI GPT-5.6 Luna + Terra | OpenAI Responses API (동일) |
 | 에러 추적 | Sentry | Sentry |
 | 분석 | PostHog (Phase 2) | PostHog (Phase 2) |
 | 빌드/배포 | Vercel | EAS Build + EAS Update |
@@ -91,7 +93,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 
 | 항목 | 설명 |
 |------|------|
-| **AI 채팅 (아모라)** | Claude API 스트리밍, 웹 API Route 경유 |
+| **AI 채팅 (아모라)** | GPT-5.6 Terra 스트리밍, 웹 API Route 경유 |
 | - 채팅 UI | 메시지 버블, 입력창, 자동 스크롤 |
 | - 스트리밍 응답 | 타이핑 효과 (chunk 단위 렌더) |
 | - 대화 저장 | Supabase chat_messages 테이블 |
@@ -204,7 +206,7 @@ wedding-hanbang/                          ← pnpm + Turborepo 모노레포
 | 카카오 로그인 | ✅ 완료 |
 | Apple 로그인 | Week 6 |
 | 대시보드 | D-day, 진행률, 오늘의 할 일 |
-| AI 채팅 (아모라) | Claude 스트리밍, 대화 저장 |
+| AI 채팅 (아모라) | GPT-5.6 Luna 기본 스트리밍, 계약·분쟁/안전·최근 반복 교정만 Terra 승격, 대화 저장 |
 | 체크리스트/일정 | 읽기 + 체크 |
 | 예산 | 읽기 전용 |
 | 커뮤니티 피드 | 읽기 + 좋아요 + 북마크 |
@@ -303,7 +305,7 @@ Text Tertiary:      #7D7166
 | Sentry Developer | $0 | 월 5k 이벤트 |
 | PostHog Free | $0 | 월 1M 이벤트 |
 | Resend Free | $0 | 월 3k 이메일 |
-| Anthropic API | ~$100 | MVP 단계 추정 |
+| OpenAI API | 사용량 기반 | Terra/Luna 분리, 프로젝트 예산·알림으로 통제 |
 | EAS Build | $0 | 월 30회 무료 |
 | Apple Developer | $8 | $99/년 |
 | Google Play | $0 | 일회성 $25 완료 |
@@ -315,7 +317,7 @@ Text Tertiary:      #7D7166
 |--------|----------|
 | 유저 500+ | Supabase Pro $25 |
 | 대역폭 초과 | Vercel Pro $20 |
-| AI 사용 증가 | Anthropic +$100~200 |
+| AI 사용 증가 | OpenAI 사용량 증가 — 일일 앱 가드와 프로젝트 예산으로 제한 |
 | Sentry 이벤트 초과 | Sentry Team $26 |
 
 ---
@@ -329,9 +331,10 @@ Text Tertiary:      #7D7166
 
 ### 카카오
 - 앱 ID: 1381347
-- REST API 키: 1a499ef14f83252c6b708c453d9eafc4
-- 네이티브 앱 키: 5b5e688bab03b36088187d8634b541cc
-- JavaScript 키: 40cd7bb2eacef8519cf7faaf37fbac6d
+- REST API 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- 네이티브 앱 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- JavaScript 키: Kakao Developers 콘솔에서 관리하며 Git에 기록하지 않음
+- 2026-07-11 보안 조치: 과거 Git 이력에 노출된 플랫폼 키는 교체·기존 키 삭제·사용량 감사 전까지 신뢰하지 않음
 - ⚠️ account_email: 비즈앱 전환 전까지 사용 불가
 
 ### Apple Developer

@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { NOTIFICATION_TEMPLATES } from "@/constants/notifications";
 import type { ProgressItem } from "@/types/database.types";
+import { ddayInKst } from "@/lib/utils/kstDate";
 
 export interface ComputedNotification {
   id: string;
@@ -56,7 +57,7 @@ export function useNotificationPrefs() {
 }
 
 export function useNotifications(
-  weddingDate: Date | null,
+  weddingDate: string | null,
   progress: Record<string, ProgressItem>,
   prefs: NotificationPrefs
 ) {
@@ -93,12 +94,9 @@ export function useNotifications(
   const notifications = useMemo<ComputedNotification[]>(() => {
     if (!weddingDate) return [];
 
-    const today = new Date();
-    const dday = Math.ceil(
-      (weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const dday = ddayInKst(weddingDate);
 
-    if (dday <= 0) return [];
+    if (dday === null || dday <= 0) return [];
 
     return NOTIFICATION_TEMPLATES
       .filter((t) => {

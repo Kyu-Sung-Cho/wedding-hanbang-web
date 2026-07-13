@@ -13,6 +13,10 @@ import NavigationButtons from './components/NavigationButtons';
 import TurnstileWidget from '@/components/auth/TurnstileWidget';
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+const TURNSTILE_ACTION_AVAILABLE =
+  TURNSTILE_ENABLED || process.env.NODE_ENV !== 'production';
+const TURNSTILE_WIDGET_ERROR =
+  '보안 확인을 불러오지 못했습니다. 다시 시도 버튼을 눌러주세요.';
 
 export default function CustomerSurveyPage() {
   const {
@@ -40,6 +44,8 @@ export default function CustomerSurveyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
+  const [submitError, setSubmitError] = useState('');
 
   const visibleQuestions = getVisibleQuestions(currentSectionIndex);
 
@@ -63,10 +69,15 @@ export default function CustomerSurveyPage() {
 
   // 설문 제출
   const submitSurvey = useCallback(async () => {
-    if (TURNSTILE_ENABLED && !turnstileToken) {
-      alert('봇 확인을 완료해주세요.');
+    if (!TURNSTILE_ACTION_AVAILABLE) {
+      setSubmitError('보안 확인을 점검 중이라 지금은 설문을 제출할 수 없습니다.');
       return;
     }
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setSubmitError('봇 확인을 완료해주세요.');
+      return;
+    }
+    setSubmitError('');
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/survey', {
@@ -83,9 +94,15 @@ export default function CustomerSurveyPage() {
       if (!res.ok) throw new Error('Submit failed');
       markCompleted();
     } catch {
-      alert('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      setSubmitError('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       setIsSubmitting(false);
+      if (TURNSTILE_ENABLED) {
+        // The provider token may already have been consumed even when the
+        // response fails later. Always make the next attempt obtain a new one.
+        setTurnstileToken('');
+        setTurnstileAttempt((attempt) => attempt + 1);
+      }
     }
   }, [answers, otherTexts, completionTimeSeconds, markCompleted, turnstileToken]);
 
@@ -204,8 +221,32 @@ export default function CustomerSurveyPage() {
         {/* 네비게이션 */}
         {TURNSTILE_ENABLED && (
           <div className="mt-6">
-            <TurnstileWidget onVerify={setTurnstileToken} />
+            <TurnstileWidget
+              key={`survey-${turnstileAttempt}`}
+              action="survey"
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                if (token) {
+                  setSubmitError((current) =>
+                    current === TURNSTILE_WIDGET_ERROR ? '' : current
+                  );
+                }
+              }}
+              onError={() => setSubmitError(TURNSTILE_WIDGET_ERROR)}
+            />
           </div>
+        )}
+
+        {!TURNSTILE_ACTION_AVAILABLE && (
+          <p className="mt-6 text-center text-[13px] leading-relaxed text-[#9A6B62]" role="alert">
+            보안 확인을 점검 중이라 지금은 설문을 제출할 수 없습니다. 잠시 후 다시 시도해주세요.
+          </p>
+        )}
+
+        {submitError && (
+          <p className="mt-4 text-center text-[13px] leading-relaxed text-[#9A6B62]" role="alert" aria-live="assertive">
+            {submitError}
+          </p>
         )}
 
         <NavigationButtons

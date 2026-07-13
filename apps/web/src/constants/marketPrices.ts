@@ -45,13 +45,13 @@ export interface RegionalCost {
   sdm: number;        // 스드메 (만원)
   rental: number;     // 대관료 (만원)
   decoration: number; // 꽃장식 (만원)
-  total: number;      // 합계 (만원)
 }
 
+/** @deprecated 출처 스냅샷이 없는 레거시 차트 호환 타입. 공개 시세에 사용하지 않는다. */
 export interface TrendDataPoint {
-  month: string;        // "26년 01월"
-  medianTotal: number;  // 총 비용 중위값 (만원)
-  medianSdm: number;    // 스드메 중위값 (만원)
+  month: string;
+  medianTotal: number;
+  medianSdm: number;
 }
 
 export interface VenueNecessary {
@@ -102,9 +102,9 @@ export interface OptionPriceItem {
 
 export interface SeasonalComparison {
   periodId: string;
-  peak: number;     // 성수기 (만원)
-  offPeak: number;  // 비수기 (만원)
-  savings: number;  // 절약액 (만원)
+  peak: number;     // 예식장 성수기 중위 계약금액 (만원, 스드메 제외)
+  offPeak: number;  // 예식장 비수기 중위 계약금액 (만원, 스드메 제외)
+  savings: number;  // 두 예식장 중위 계약금액의 차이 (만원, 절약 보장액 아님)
 }
 
 // ===== 상수 데이터 (자동 생성분 바인딩) =====
@@ -135,7 +135,7 @@ export const REGION_KEYS: RegionKey[] = [
 export const PRICE_PERIODS: PricePeriod[] = [...GEN_PRICE_PERIODS];
 
 // 전국 평균 요약 (기간별)
-export const NATIONAL_TOTALS: Record<string, { meal: number; sdm: number; rental: number; decoration: number }> =
+export const NATIONAL_AVERAGES: Record<string, { meal: number; sdm: number; rental: number; decoration: number }> =
   GEN_NATIONAL_TOTALS;
 
 // 지역별 상세 데이터 (14개 지역 × 기간) — REGION_KEYS 순서
@@ -159,31 +159,14 @@ export function getRegionalCosts(periodId: string): RegionalCost[] {
     sdm: sdms[i],
     rental: rentals[i],
     decoration: decos[i],
-    total: Math.round((meals[i] + sdms[i] + rentals[i] + decos[i]) * 10) / 10,
   }));
 }
 
-// 18개월 트렌드 데이터 (예식 예정월 기준 — 갱신 스크립트 미포함, 수동 관리)
-export const TREND_DATA: TrendDataPoint[] = [
-  { month: "26년 01월", medianTotal: 1190, medianSdm: 280 },
-  { month: "26년 02월", medianTotal: 1245, medianSdm: 278 },
-  { month: "26년 03월", medianTotal: 1655, medianSdm: 280 },
-  { month: "26년 04월", medianTotal: 1725, medianSdm: 289 },
-  { month: "26년 05월", medianTotal: 1750, medianSdm: 290 },
-  { month: "26년 06월", medianTotal: 1660, medianSdm: 293 },
-  { month: "26년 07월", medianTotal: 1400, medianSdm: 290 },
-  { month: "26년 08월", medianTotal: 1300, medianSdm: 290 },
-  { month: "26년 09월", medianTotal: 1580, medianSdm: 300 },
-  { month: "26년 10월", medianTotal: 1496, medianSdm: 300 },
-  { month: "26년 11월", medianTotal: 1478, medianSdm: 300 },
-  { month: "26년 12월", medianTotal: 1430, medianSdm: 302 },
-  { month: "27년 01월", medianTotal: 1190, medianSdm: 300 },
-  { month: "27년 02월", medianTotal: 1310, medianSdm: 310 },
-  { month: "27년 03월", medianTotal: 1728, medianSdm: 309 },
-  { month: "27년 04월", medianTotal: 1643, medianSdm: 310 },
-  { month: "27년 05월", medianTotal: 1745, medianSdm: 305 },
-  { month: "27년 06월", medianTotal: 1700, medianSdm: 310 },
-];
+/**
+ * @deprecated 과거 수동 전사값은 조사 스냅샷·표본·갱신 경로가 없어 삭제했다.
+ * 참가격의 예식장·스드메 계약금액을 분리 수집하고 조사 시점을 보존하는 파이프라인 없이는 다시 채우지 않는다.
+ */
+export const TREND_DATA: TrendDataPoint[] = [];
 
 // 예식장 필수항목 (기간별, 전국/서울)
 export const VENUE_NECESSARY: VenueNecessary[] = GEN_VENUE_NECESSARY as VenueNecessary[];
@@ -223,7 +206,7 @@ export const MAKEUP_PRICES: MakeupPrice[] = GEN_MAKEUP_PRICES as MakeupPrice[];
 // 옵션별 시세 (최신 기간 기준)
 export const OPTION_PRICES: OptionPriceItem[] = GEN_OPTION_PRICES as OptionPriceItem[];
 
-// 성수기 vs 비수기
+// 예식장 성수기 vs 비수기 중위 계약금액 (스드메 제외)
 export const SEASONAL_DATA: SeasonalComparison[] = GEN_SEASONAL_DATA;
 
 // ===== 헬퍼 함수 =====
@@ -232,25 +215,25 @@ export function getLatestPeriodId(): string {
   return PRICE_PERIODS[PRICE_PERIODS.length - 1].id;
 }
 
-export function getNationalTotal(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number; total: number } {
+export function getNationalAverages(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number } {
   const pid = periodId ?? getLatestPeriodId();
-  const d = NATIONAL_TOTALS[pid];
-  if (!d) return { meal: 0, sdm: 0, rental: 0, decoration: 0, total: 0 };
-  return { ...d, total: Math.round((d.meal + d.sdm + d.rental + d.decoration) * 10) / 10 };
+  const d = NATIONAL_AVERAGES[pid];
+  if (!d) return { meal: 0, sdm: 0, rental: 0, decoration: 0 };
+  return { ...d };
 }
 
-export function getSeoulTotal(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number; total: number } {
+export function getSeoulAverages(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number } {
   const pid = periodId ?? getLatestPeriodId();
   const costs = getRegionalCosts(pid);
   const gangnam = costs.find(c => c.region === "seoulGangnam");
   const other = costs.find(c => c.region === "seoulOther");
-  if (!gangnam || !other) return { meal: 0, sdm: 0, rental: 0, decoration: 0, total: 0 };
+  if (!gangnam || !other) return { meal: 0, sdm: 0, rental: 0, decoration: 0 };
   // 서울 평균 = (강남 + 강남외) / 2
   const meal = Math.round(((gangnam.meal + other.meal) / 2) * 10) / 10;
   const sdm = Math.round(((gangnam.sdm + other.sdm) / 2) * 10) / 10;
   const rental = Math.round(((gangnam.rental + other.rental) / 2) * 10) / 10;
   const decoration = Math.round(((gangnam.decoration + other.decoration) / 2) * 10) / 10;
-  return { meal, sdm, rental, decoration, total: Math.round((meal + sdm + rental + decoration) * 10) / 10 };
+  return { meal, sdm, rental, decoration };
 }
 
 // 예산 카테고리 키 → 시세 매핑 (만원 반환)
@@ -290,8 +273,10 @@ export function getCategoryMarketPrice(catKey: string, scope: "national" | "seou
 export function getMarketPriceContext(): string {
   const pid = getLatestPeriodId();
   const period = PRICE_PERIODS.find(p => p.id === pid)!;
-  const nat = getNationalTotal(pid);
-  const seoul = getSeoulTotal(pid);
+  const nat = getNationalAverages(pid);
+  const seoul = getSeoulAverages(pid);
+  const nationalVenueAverage = Math.round((nat.meal + nat.rental + nat.decoration) * 10) / 10;
+  const seoulVenueAverage = Math.round((seoul.meal + seoul.rental + seoul.decoration) * 10) / 10;
   const sdmNat = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "전체")!;
   const sdmSeoul = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "서울")!;
   const venueNat = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === "national")!;
@@ -306,9 +291,12 @@ export function getMarketPriceContext(): string {
 
   return `## 한국소비자원 웨딩 시세 (${period.label} 기준, price.go.kr)
 
-### 총 비용 (식대+스드메+대관료+꽃장식)
-- 전국 평균: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 꽃장식 ${nat.decoration})
-- 서울 평균: ${seoul.total}만원 (식대 ${seoul.meal} + 스드메 ${seoul.sdm} + 대관료 ${seoul.rental} + 꽃장식 ${seoul.decoration})
+### 계약금액 비교 (참가격 분류를 분리해 표시)
+- 전국 예식장 평균 계약금액: ${nationalVenueAverage}만원 (식대 ${nat.meal} + 대관료 ${nat.rental} + 기본 장식 ${nat.decoration})
+- 전국 스드메 평균 계약금액: ${nat.sdm}만원
+- 서울 예식장 평균 계약금액: ${seoulVenueAverage}만원 (식대 ${seoul.meal} + 대관료 ${seoul.rental} + 기본 장식 ${seoul.decoration})
+- 서울 스드메 평균 계약금액: ${seoul.sdm}만원
+- 답변 규칙: 예식장 평균과 스드메 평균은 조사 분류가 다르므로 하나의 총액으로 합산하지 말고 각각 제시할 것. 어느 값도 개인의 실제 결혼 총지출이나 중위값으로 표현하지 말 것
 
 ### 예식장 필수
 - 대관료: 전국 ${venueNat.rental}만원 / 서울 ${venueSeoul.rental}만원
@@ -341,15 +329,15 @@ export function getMarketPriceContext(): string {
 - 촬영: 전국 ${makeupNat.photoShoot}만원 / 서울 ${makeupSeoul.photoShoot}만원
 - 본식: 전국 ${makeupNat.ceremony}만원 / 서울 ${makeupSeoul.ceremony}만원
 
-### 성수기 vs 비수기
+### 예식장 성수기 vs 비수기 중위 계약금액 (스드메 제외)
 - 성수기(4~6월,9~11월): ${seasonal.peak}만원
 - 비수기(1~3월,7~8월,12월): ${seasonal.offPeak}만원
-- 비수기 절약: 약 ${seasonal.savings}만원
+- 두 예식장 중위 계약금액 차이: ${seasonal.savings}만원 (실제 절약 보장액 아님)
 
 ### 시세 활용 규칙
-1. 고객이 예산 적정성을 물으면 시세와 비교하여 구체적 수치로 답변
+1. 고객이 예산 적정성을 물으면 좋고 나쁨을 판정하지 말고 같은 조사월·지역·구성의 참고값을 제공
 2. 지역(서울/경기·인천/광역시)에 따라 기준 중위가가 크게 다르므로 반드시 지역 기준으로 안내
-3. 비수기 결혼 시 절약 가능 금액 안내
+3. 시즌 차이는 예식장 중위 계약금액만 비교하며 스드메 제외와 절약 비보장을 명시
 4. 출처를 "한국소비자원 ${period.label} 기준"으로 명시
 5. 스드메 패키지와 개별 계약 차이 안내
 6. 예식장 선택항목은 필수가 아니므로 절약 포인트로 안내`;

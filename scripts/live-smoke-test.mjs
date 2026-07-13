@@ -5,29 +5,54 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 
 const DEFAULT_BASE_URL = "https://hanbang.ai";
 const DEFAULT_TIMEOUT_MS = 45_000;
 const REPORT_ROOT = ".gstack/qa-reports/live-smoke";
 
-function parseArgs(argv) {
+export function parseArgs(argv, env = process.env) {
   const options = {
-    baseUrl: process.env.LIVE_SMOKE_BASE_URL || DEFAULT_BASE_URL,
-    browserPath: process.env.LIVE_SMOKE_BROWSER_PATH || "",
-    headed: process.env.LIVE_SMOKE_HEADED === "1",
+    baseUrl: env.LIVE_SMOKE_BASE_URL || DEFAULT_BASE_URL,
+    browserPath: env.LIVE_SMOKE_BROWSER_PATH || "",
+    headed: env.LIVE_SMOKE_HEADED === "1",
     json: false,
-    skipDemo: process.env.LIVE_SMOKE_SKIP_DEMO === "1",
-    timeoutMs: Number(process.env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
+    launchMode: env.LIVE_SMOKE_LAUNCH_MODE || "full",
+    expectedSha: env.LIVE_SMOKE_EXPECTED_SHA || "",
+    expectedSupabaseProjectRef:
+      env.LIVE_SMOKE_EXPECTED_SUPABASE_PROJECT_REF || "",
+    appleTeamId: env.LIVE_SMOKE_APPLE_TEAM_ID || "",
+    playSigningSha256: env.LIVE_SMOKE_PLAY_SIGNING_SHA256 || "",
+    researchIntake: env.LIVE_SMOKE_RESEARCH_INTAKE || "closed",
+    accountDeletionCron: env.LIVE_SMOKE_ACCOUNT_DELETION_CRON || "closed",
+    skipDemo: env.LIVE_SMOKE_SKIP_DEMO === "1",
+    allowUnboundLocal: env.LIVE_SMOKE_ALLOW_UNBOUND_LOCAL === "1",
+    timeoutMs: Number(env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
   };
 
   for (const arg of argv) {
+    // pnpm may preserve the conventional argument separator for script
+    // commands. Accept it without weakening unknown-option validation.
+    if (arg === "--") continue;
     if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
     else if (arg.startsWith("--browser-path=")) options.browserPath = arg.slice("--browser-path=".length);
     else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
+    else if (arg.startsWith("--launch-mode=")) options.launchMode = arg.slice("--launch-mode=".length);
+    else if (arg.startsWith("--expected-sha=")) options.expectedSha = arg.slice("--expected-sha=".length);
+    else if (arg.startsWith("--expected-supabase-project-ref=")) {
+      options.expectedSupabaseProjectRef = arg.slice(
+        "--expected-supabase-project-ref=".length
+      );
+    }
+    else if (arg.startsWith("--apple-team-id=")) options.appleTeamId = arg.slice("--apple-team-id=".length);
+    else if (arg.startsWith("--play-signing-sha256=")) options.playSigningSha256 = arg.slice("--play-signing-sha256=".length);
+    else if (arg.startsWith("--research-intake=")) options.researchIntake = arg.slice("--research-intake=".length);
+    else if (arg.startsWith("--account-deletion-cron=")) options.accountDeletionCron = arg.slice("--account-deletion-cron=".length);
     else if (arg === "--headed") options.headed = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--skip-demo") options.skipDemo = true;
+    else if (arg === "--allow-unbound-local") options.allowUnboundLocal = true;
     else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -40,6 +65,39 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 5_000) {
     throw new Error("--timeout-ms must be a number greater than or equal to 5000");
   }
+  if (!["full", "coming_soon"].includes(options.launchMode)) {
+    throw new Error("--launch-mode must be full or coming_soon");
+  }
+  if (!["closed", "open"].includes(options.researchIntake)) {
+    throw new Error("--research-intake must be closed or open");
+  }
+  if (!["closed", "open"].includes(options.accountDeletionCron)) {
+    throw new Error("--account-deletion-cron must be closed or open");
+  }
+  const baseHostname = new URL(options.baseUrl).hostname;
+  const isLocalTarget = ["localhost", "127.0.0.1", "::1"].includes(baseHostname);
+  if (options.allowUnboundLocal && !isLocalTarget) {
+    throw new Error("--allow-unbound-local is restricted to localhost targets");
+  }
+  if (!options.allowUnboundLocal && !isPlausibleCommitSha(options.expectedSha)) {
+    throw new Error(
+      "--expected-sha must be the exact non-placeholder 40-character deployment commit"
+    );
+  }
+  if (
+    !options.allowUnboundLocal
+    && !/^[a-z0-9]{20}$/.test(options.expectedSupabaseProjectRef)
+  ) {
+    throw new Error(
+      "--expected-supabase-project-ref must be the exact 20-character Supabase project ref"
+    );
+  }
+  if (!options.allowUnboundLocal && !isPlausibleAppleTeamId(options.appleTeamId)) {
+    throw new Error("--apple-team-id must match the signed 10-character Apple Team ID for every remote release");
+  }
+  if (!options.allowUnboundLocal && !isPlausibleSigningFingerprint(options.playSigningSha256)) {
+    throw new Error("--play-signing-sha256 must match the Play App Signing SHA-256 for every remote release");
+  }
   return options;
 }
 
@@ -50,14 +108,30 @@ Options:
   --base-url=<url>       Target origin. Default: ${DEFAULT_BASE_URL}
   --browser-path=<path>  Chrome or Edge executable path.
   --timeout-ms=<ms>      Per-page timeout. Default: ${DEFAULT_TIMEOUT_MS}
+  --launch-mode=<mode>   full or coming_soon. Default: full
+  --expected-sha=<sha>   Exact non-placeholder 40-character deployed commit; required for remote targets.
+  --expected-supabase-project-ref=<ref>  Exact 20-character Supabase project ref; required for remote targets.
+  --apple-team-id=<id>   Signed 10-character Apple Team ID; required for every remote release.
+  --play-signing-sha256=<fingerprint>  Play App Signing SHA-256; required for every remote release.
+  --research-intake=<state>  closed or open. Default: closed.
+  --account-deletion-cron=<state>  closed or open. Default: closed.
   --headed               Show the browser window.
   --skip-demo            Skip demo login flow.
+  --allow-unbound-local  Skip SHA/project identity only for localhost development.
   --json                 Print JSON result only.
 
 Environment:
   LIVE_SMOKE_BASE_URL
   LIVE_SMOKE_BROWSER_PATH
   LIVE_SMOKE_TIMEOUT_MS
+  LIVE_SMOKE_LAUNCH_MODE
+  LIVE_SMOKE_EXPECTED_SHA
+  LIVE_SMOKE_EXPECTED_SUPABASE_PROJECT_REF
+  LIVE_SMOKE_APPLE_TEAM_ID
+  LIVE_SMOKE_PLAY_SIGNING_SHA256
+  LIVE_SMOKE_RESEARCH_INTAKE
+  LIVE_SMOKE_ACCOUNT_DELETION_CRON
+  LIVE_SMOKE_ALLOW_UNBOUND_LOCAL=1
   LIVE_SMOKE_HEADED=1
   LIVE_SMOKE_SKIP_DEMO=1`);
 }
@@ -244,7 +318,88 @@ function hasPathEnding(url, expectedEnding) {
   return new URL(url).pathname.endsWith(expectedEnding);
 }
 
-function buildChecks(skipDemo) {
+export function releaseHealthFailures(
+  { status, body, cacheControl = "" },
+  options,
+) {
+  const failures = [];
+  if (status !== 200 || !body || typeof body !== "object" || Array.isArray(body)) {
+    failures.push(`Expected release health JSON with HTTP 200, got ${status ?? "none"}`);
+    return failures;
+  }
+  if (!cacheControl.toLowerCase().includes("no-store")) {
+    failures.push("Expected release health response to disable caching");
+  }
+  if (!options.allowUnboundLocal) {
+    if (body.deployment !== options.expectedSha.toLowerCase()) {
+      failures.push(
+        `Expected health deployment ${options.expectedSha.toLowerCase()}, got ${body.deployment ?? "none"}`
+      );
+    }
+    if (body.supabaseProjectRef !== options.expectedSupabaseProjectRef) {
+      failures.push(
+        `Expected Supabase project ${options.expectedSupabaseProjectRef}, got ${body.supabaseProjectRef ?? "none"}`
+      );
+    }
+  }
+  if (body.rateLimitKeySecretConfigured !== true) {
+    failures.push("Expected a strong configured rate-limit key secret");
+  }
+  if (body.turnstileCredentialsConfigured !== true) {
+    failures.push("Expected a plausible complete Turnstile credential pair");
+  }
+  if (body.turnstileCanonicalHostnameConfigured !== true) {
+    failures.push("Expected the Turnstile configuration hostname to be exactly hanbang.ai");
+  }
+  if (body.turnstileConfigured !== true) {
+    failures.push("Expected complete Turnstile credentials and canonical configuration boundary");
+  }
+  if (body.maintenance !== false) {
+    failures.push(`Expected maintenance mode off, got ${String(body.maintenance)}`);
+  }
+  if (body.maintenanceStartedAt !== null) {
+    failures.push("Expected stale maintenance start metadata to be cleared");
+  }
+
+  const expectedResearchIntake = options.researchIntake === "open";
+  if (body.researchCohortApplicationsEnabled !== expectedResearchIntake) {
+    failures.push(
+      `Expected research intake ${options.researchIntake}, got ${String(body.researchCohortApplicationsEnabled)}`
+    );
+  }
+  const expectedAccountDeletionCron = options.accountDeletionCron === "open";
+  if (body.accountDeletionCronEnabled !== expectedAccountDeletionCron) {
+    failures.push(
+      `Expected account-deletion cron ${options.accountDeletionCron}, got ${String(body.accountDeletionCronEnabled)}`
+    );
+  }
+  return failures;
+}
+
+function buildReleaseHealthCheck() {
+  return {
+    name: "release-health-contract",
+    path: "/api/health/maintenance",
+    async assert(page, result, options) {
+      const response = await page.request.get(
+        `${options.baseUrl}/api/health/maintenance`,
+        { maxRedirects: 0 }
+      );
+      const body = await response.json().catch(() => null);
+      const failures = releaseHealthFailures(
+        {
+          status: response.status(),
+          body,
+          cacheControl: response.headers()["cache-control"] ?? "",
+        },
+        options,
+      );
+      for (const failure of failures) addFailure(result, failure);
+    },
+  };
+}
+
+function buildFullChecks(skipDemo) {
   const checks = [
     {
       name: "wedding-home",
@@ -379,6 +534,184 @@ function buildChecks(skipDemo) {
   return checks;
 }
 
+function isPlausibleCommitSha(value) {
+  return /^[0-9a-f]{40}$/i.test(value)
+    && new Set(value.toLowerCase()).size >= 8
+    && !looksLikeObviousPlaceholder(value);
+}
+
+function isPlausibleAppleTeamId(value) {
+  return /^[A-Z0-9]{10}$/.test(value)
+    && new Set(value).size >= 4
+    && !/(?:TEAM|APPLE|EXAMPLE|PLACEHOLDER)/.test(value)
+    && !looksLikeObviousPlaceholder(value);
+}
+
+function isPlausibleSigningFingerprint(value) {
+  if (!/^(?:[0-9a-f]{64}|(?:[0-9a-f]{2}:){31}[0-9a-f]{2})$/i.test(value)) {
+    return false;
+  }
+  const compact = value.replaceAll(":", "").toUpperCase();
+  const bytes = compact.match(/.{2}/g) ?? [];
+  return new Set(bytes).size >= 8 && !looksLikeObviousPlaceholder(compact);
+}
+
+function looksLikeObviousPlaceholder(value) {
+  const compact = value.replaceAll(":", "").toUpperCase();
+  return compact.includes("0123456789")
+    || compact.includes("9876543210")
+    || /^(.{1,20})\1+$/.test(compact);
+}
+
+function normalizeSha256Fingerprint(value) {
+  return value.replaceAll(":", "").toUpperCase().match(/.{2}/g).join(":");
+}
+
+async function assertSignedAppAssociations(page, result, options) {
+  for (const associationPath of [
+    "/apple-app-site-association",
+    "/.well-known/apple-app-site-association",
+    "/.well-known/assetlinks.json",
+  ]) {
+    const response = await page.request.get(
+      `${options.baseUrl}${associationPath}`,
+      { maxRedirects: 0 }
+    );
+    if (response.status() !== 200) {
+      addFailure(
+        result,
+        `Expected signed-app association ${associationPath} to return direct 200, got ${response.status()}`
+      );
+      continue;
+    }
+    const body = await response.json().catch(() => null);
+    if (associationPath.endsWith("assetlinks.json")) {
+      const expectedFingerprint = normalizeSha256Fingerprint(options.playSigningSha256);
+      const matchingTarget = Array.isArray(body) && body.some((entry) =>
+        entry?.target?.package_name === "ai.hanbang.wedding"
+        && entry?.target?.sha256_cert_fingerprints?.includes(expectedFingerprint)
+      );
+      if (!matchingTarget) {
+        addFailure(
+          result,
+          "Asset Links does not match the approved Android package and Play signing fingerprint"
+        );
+      }
+    } else {
+      const details = body?.applinks?.details;
+      const matchingApp = Array.isArray(details) && details.some((entry) =>
+        entry?.appID === `${options.appleTeamId}.ai.hanbang.wedding`
+        && ["/app", "/app/community/post/*", "/app/vendors/*"].every(
+          (path) => entry?.paths?.includes(path)
+        )
+      );
+      if (!matchingApp) {
+        addFailure(
+          result,
+          "AASA does not match the signed iOS app ID and approved share routes"
+        );
+      }
+    }
+  }
+}
+
+function buildAssociationCheck() {
+  return {
+    name: "signed-app-associations",
+    path: "/demo",
+    async assert(page, result, options) {
+      await assertSignedAppAssociations(page, result, options);
+    },
+  };
+}
+
+function buildComingSoonChecks() {
+  return [
+    {
+      name: "coming-soon-demo",
+      path: "/demo?utm_source=live-smoke",
+      async assert(page, result, options) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo" || final.searchParams.get("utm_source") !== "live-smoke") {
+          addFailure(result, `Expected launch-safe /demo with UTM preserved, got ${result.finalUrl}`);
+        }
+        if (!result.title || !result.h1) addFailure(result, "Expected the service introduction to render a title and h1");
+
+        for (const publicPath of ["/beta", "/about", "/privacy", "/terms", "/ai-policy", "/support"]) {
+          const response = await page.request.get(`${options.baseUrl}${publicPath}`, { maxRedirects: 0 });
+          if (response.status() !== 200) {
+            addFailure(result, `Expected public allowlist ${publicPath} to return 200, got ${response.status()}`);
+          }
+        }
+
+        await assertSignedAppAssociations(page, result, options);
+
+      },
+    },
+    {
+      name: "coming-soon-login-redirect",
+      path: "/login?utm_campaign=live-smoke&next=%2Fadmin",
+      async assert(_page, result) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo") {
+          addFailure(result, `Expected /login to redirect to /demo, got ${result.finalUrl}`);
+        }
+        if (final.searchParams.get("utm_campaign") !== "live-smoke" || final.searchParams.has("next")) {
+          addFailure(result, `Expected only bounded campaign parameters after redirect, got ${final.search}`);
+        }
+      },
+    },
+    {
+      name: "coming-soon-app-redirect",
+      path: "/wedding?utm_source=live-smoke&next=%2Fadmin",
+      async assert(_page, result) {
+        const final = new URL(result.finalUrl);
+        if (final.pathname !== "/demo" || final.searchParams.get("utm_source") !== "live-smoke" || final.searchParams.has("next")) {
+          addFailure(result, `Expected gated app route to land on sanitized /demo, got ${result.finalUrl}`);
+        }
+      },
+    },
+    {
+      name: "coming-soon-api-closed",
+      path: "/demo",
+      async assert(page, result, options) {
+        const response = await page.request.post(`${options.baseUrl}/api/auth/signup`, {
+          data: { email: "live-smoke@example.invalid", password: "not-a-real-password" },
+          maxRedirects: 0,
+        });
+        const body = await response.json().catch(() => null);
+        if (response.status() !== 503 || body?.code !== "SERVICE_NOT_LAUNCHED") {
+          addFailure(result, `Expected general API to fail closed with SERVICE_NOT_LAUNCHED, got ${response.status()}`);
+        }
+        if (response.headers()["cache-control"]?.includes("no-store") !== true) {
+          addFailure(result, "Expected blocked API response to disable caching");
+        }
+
+        const betaResponse = await page.request.get(`${options.baseUrl}/beta`, { maxRedirects: 0 });
+        const betaHtml = await betaResponse.text();
+        if (options.researchIntake === "closed") {
+          if (!betaHtml.includes("준비가 끝나기 전에는 개인정보를 받지 않습니다")) {
+            addFailure(result, "Expected the closed research page to omit its PII form");
+          }
+          const intakeResponse = await page.request.post(`${options.baseUrl}/api/preregister`, {
+            data: {},
+            maxRedirects: 0,
+          });
+          const intakeBody = await intakeResponse.json().catch(() => null);
+          if (intakeResponse.status() !== 503 || intakeBody?.code !== "RESEARCH_INTAKE_CLOSED") {
+            addFailure(result, `Expected research intake to fail closed, got ${intakeResponse.status()}`);
+          }
+          if (intakeResponse.headers()["cache-control"]?.includes("no-store") !== true) {
+            addFailure(result, "Expected closed research intake response to disable caching");
+          }
+        } else if (!betaHtml.includes("사용자 연구 신청하기")) {
+          addFailure(result, "Expected the approved research application form to be visible");
+        }
+      },
+    },
+  ];
+}
+
 function markdownReport({ options, browserPath, startedAt, finishedAt, results }) {
   const passed = results.filter((result) => result.ok).length;
   const failed = results.length - passed;
@@ -461,7 +794,13 @@ async function main() {
     headless: !options.headed,
   });
 
-  const checks = buildChecks(options.skipDemo);
+  const modeChecks = options.launchMode === "coming_soon"
+    ? buildComingSoonChecks()
+    : buildFullChecks(options.skipDemo);
+  const associationChecks = options.launchMode === "full" && !options.allowUnboundLocal
+    ? [buildAssociationCheck()]
+    : [];
+  const checks = [buildReleaseHealthCheck(), ...associationChecks, ...modeChecks];
   const results = [];
   try {
     for (const check of checks) {
@@ -490,7 +829,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+const invokedPath = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : "";
+if (invokedPath === import.meta.url) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

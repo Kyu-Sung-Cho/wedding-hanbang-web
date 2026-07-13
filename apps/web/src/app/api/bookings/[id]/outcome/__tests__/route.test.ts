@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { recordDecision } from "@/lib/memory/record-decision";
-import { PATCH } from "../route";
+import { checkRateLimitPersistent } from "@/utils/rateLimit";
+import { patchBookingOutcome as PATCH } from "../route";
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@/lib/memory/record-decision", () => ({
 
 vi.mock("@/utils/rateLimit", () => ({
   checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(() => Promise.resolve(null)),
   rateLimitKey: vi.fn(() => "booking:outcome:user-1"),
 }));
 
@@ -33,6 +35,7 @@ type TableHandler = {
   insertResult?: QueryResult;
   onUpdate?: (payload: unknown) => void;
   onInsert?: (payload: unknown) => void;
+  onEq?: (column: string, value: unknown) => void;
 };
 
 class FakeQuery {
@@ -41,7 +44,10 @@ class FakeQuery {
   constructor(private readonly handler: TableHandler) {}
 
   select() { return this; }
-  eq() { return this; }
+  eq(column: string, value: unknown) {
+    this.handler.onEq?.(column, value);
+    return this;
+  }
 
   update(payload: unknown) {
     this.operation = "update";
@@ -56,6 +62,12 @@ class FakeQuery {
   }
 
   maybeSingle(): Promise<QueryResult> {
+    if (this.operation === "update") {
+      return Promise.resolve(this.handler.updateResult ?? { data: null, error: null });
+    }
+    if (this.operation === "insert") {
+      return Promise.resolve(this.handler.insertResult ?? { data: null, error: null });
+    }
     return Promise.resolve(this.handler.maybeSingleResult ?? { data: null, error: null });
   }
 
@@ -115,9 +127,10 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
     mockAuthClient();
   });
 
-  it("stores actual amount, private review, and completed decision for an owned booking", async () => {
+  it("stores an outcome and public review without changing an owned terminal booking status", async () => {
     let bookingUpdate: unknown = null;
     let reviewInsert: unknown = null;
+    const bookingUpdateFilters: Array<[string, unknown]> = [];
 
     const admin = mockAdminClient({
       profiles: [
@@ -134,7 +147,7 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
               amount: 2500000,
               contracted_amount: null,
               actual_amount: null,
-              status: "confirmed",
+              status: "service_completed",
               vendor: { name: "테스트 스튜디오", category: "studio" },
               product: { name: "기본 촬영" },
             },
@@ -143,10 +156,11 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
         },
         {
           onUpdate: (payload) => { bookingUpdate = payload; },
+          onEq: (column, value) => { bookingUpdateFilters.push([column, value]); },
           updateResult: {
             data: {
               id: "12345678-1234-4234-9234-123456789abc",
-              status: "completed",
+              status: "service_completed",
               amount: 2500000,
               contracted_amount: 2500000,
               actual_amount: 3000000,
@@ -186,7 +200,7 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
               id: "review-1",
               rating: 4,
               content: "상담은 좋았고 원본 추가금이 있었어요.",
-              is_visible: false,
+              is_visible: true,
             },
             error: null,
           },
@@ -200,7 +214,7 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
         contractedAmount: 2500000,
         rating: 4,
         review: "상담은 좋았고 원본 추가금이 있었어요.",
-        sharePublicReview: false,
+        sharePublicReview: true,
       }),
       routeContext()
     );
@@ -210,13 +224,14 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
     expect(bookingUpdate).toEqual({
       actual_amount: 3000000,
       contracted_amount: 2500000,
-      status: "completed",
     });
+    expect(bookingUpdateFilters).toContainEqual(["status", "service_completed"]);
+    expect(body.booking.status).toBe("service_completed");
     expect(reviewInsert).toMatchObject({
       booking_id: "12345678-1234-4234-9234-123456789abc",
       customer_id: "user-1",
       rating: 4,
-      is_visible: false,
+      is_visible: true,
     });
     expect(body.outcome.extraAmount).toBe(500000);
     expect(body.outcome.budgetSync).toMatchObject({
@@ -244,6 +259,95 @@ describe("/api/bookings/[id]/outcome PATCH", () => {
         sourceRefId: "12345678-1234-4234-9234-123456789abc",
       })
     );
+    expect(checkRateLimitPersistent).toHaveBeenCalledWith(
+      "booking:outcome:user-1",
+      { maxRequests: 20, windowMs: 60 * 60 * 1000 },
+      "user-1",
+    );
+  });
+
+  it("rejects a pending consultation request without updating outcome or creating a public review", async () => {
+    let bookingUpdate: unknown = null;
+    let reviewInsert: unknown = null;
+    const admin = mockAdminClient({
+      profiles: [
+        { singleResult: { data: { couple_id: "couple-1" }, error: null } },
+      ],
+      vendor_bookings: [
+        {
+          maybeSingleResult: {
+            data: {
+              id: "12345678-1234-4234-9234-123456789abc",
+              couple_id: "couple-1",
+              vendor_id: "22345678-1234-4234-9234-123456789abc",
+              product_id: null,
+              amount: 2500000,
+              contracted_amount: null,
+              actual_amount: null,
+              status: "pending",
+              vendor: { name: "테스트 스튜디오", category: "studio" },
+              product: null,
+            },
+            error: null,
+          },
+        },
+        {
+          onUpdate: (payload) => { bookingUpdate = payload; },
+          updateResult: {
+            data: {
+              id: "12345678-1234-4234-9234-123456789abc",
+              status: "completed",
+              amount: 2500000,
+              contracted_amount: 2500000,
+              actual_amount: 3000000,
+            },
+            error: null,
+          },
+        },
+      ],
+      vendor_reviews: [
+        { maybeSingleResult: { data: null, error: null } },
+        {
+          onInsert: (payload) => { reviewInsert = payload; },
+          insertResult: {
+            data: {
+              id: "review-1",
+              rating: 5,
+              content: "아직 상담 전인데 공개 후기",
+              is_visible: true,
+            },
+            error: null,
+          },
+        },
+      ],
+      wedding_journeys: [
+        {
+          singleResult: {
+            data: { progress: { studio: { label: "스튜디오", spent: 0 } } },
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await PATCH(
+      createOutcomeRequest({
+        actualAmount: 3000000,
+        contractedAmount: 2500000,
+        rating: 5,
+        review: "아직 상담 전인데 공개 후기",
+        sharePublicReview: true,
+      }),
+      routeContext()
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("완료");
+    expect(bookingUpdate).toBeNull();
+    expect(reviewInsert).toBeNull();
+    expect(admin.from).not.toHaveBeenCalledWith("vendor_reviews");
+    expect(recordDecision).not.toHaveBeenCalled();
   });
 
   it("does not update another couple's booking", async () => {

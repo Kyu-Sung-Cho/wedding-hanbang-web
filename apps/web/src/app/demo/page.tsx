@@ -9,28 +9,39 @@ import CustomerStats from "@/components/customer-landing/CustomerStats";
 import CustomerTestimonials from "@/components/customer-landing/CustomerTestimonials";
 import CustomerCTA from "@/components/customer-landing/CustomerCTA";
 import Footer from "@/components/landing/Footer";
+import ReducedMotionProvider from "@/components/common/ReducedMotionProvider";
 
 export const metadata = {
-  title: "웨딩한방 Demo — AI가 이끄는 새로운 결혼 준비",
+  title: "웨딩한방 서비스 소개 — AI와 함께 정리하는 결혼 준비",
   description:
-    "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
+    process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon"
+      ? "아모라 상담, 커플 일정·예산 공유, 견적 체크 등 정식 베타에서 준비 중인 기능을 미리 살펴보세요."
+      : "아모라 상담, 커플 일정·예산 공유, 견적 체크 등 현재 제공 중인 주요 기능을 둘러보세요.",
 };
 
 
 export default function DemoPage() {
   return (
-    <>
+    <ReducedMotionProvider>
+      <a
+        href="#main-content"
+        className="sr-only fixed left-4 top-4 z-[2000] rounded-lg bg-white px-4 py-3 font-semibold text-noir-800 shadow-lg focus:not-sr-only"
+      >
+        본문으로 건너뛰기
+      </a>
       <CustomerNav demoMode />
-      <CustomerHero demoMode />
-      <CustomerPainPoints />
-      <CustomerSolutions />
-      <CustomerFeatures />
-      <CustomerComparison />
-      <CustomerHowItWorks />
-      <CustomerStats />
-      <CustomerTestimonials />
-      <CustomerCTA demoMode />
+      <main id="main-content">
+        <CustomerHero />
+        <CustomerPainPoints />
+        <CustomerSolutions />
+        <CustomerFeatures />
+        <CustomerComparison />
+        <CustomerHowItWorks />
+        <CustomerStats />
+        <CustomerTestimonials />
+        <CustomerCTA />
+      </main>
       <Footer />
-    </>
+    </ReducedMotionProvider>
   );
 }

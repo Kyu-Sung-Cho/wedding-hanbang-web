@@ -1,9 +1,11 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
+const storeReleaseMode = process.argv.includes("--store-ready");
 
 function readText(relativePath) {
   return readFileSync(path.join(root, relativePath), "utf8");
@@ -56,9 +58,43 @@ const rootPackage = readJson("package.json");
 const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
+const mobileSupabase = readText("apps/mobile/src/lib/supabase.ts");
+const mobileLogin = readText("apps/mobile/app/(auth)/login.tsx");
+const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
+const mobileMetroConfig = readText("apps/mobile/metro.config.js");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
+const expectedEasCliVersion = "20.5.1";
+const repositoryNodeVersion = rootPackage.engines?.node?.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1];
+const repositoryPnpmVersion = rootPackage.packageManager?.match(/^pnpm@(.+)$/)?.[1];
+const competingRootExpoConfigs = [
+  "app.json",
+  "app.config.json",
+  "app.config.js",
+  "app.config.ts",
+  "eas.json",
+];
+
+let resolvedPrebuildConfig = null;
+try {
+  const expoCli = path.join(root, "apps/mobile/node_modules/expo/bin/cli");
+  resolvedPrebuildConfig = JSON.parse(execFileSync(
+    process.execPath,
+    [expoCli, "config", "--type", "prebuild", "--json"],
+    {
+      cwd: path.join(root, "apps/mobile"),
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  ));
+} catch {
+  fail("Expo prebuild config resolves for native permission verification");
+}
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
+expect(
+  competingRootExpoConfigs.every((file) => !existsSync(path.join(root, file))),
+  "Repository root has no competing Expo or EAS configuration",
+);
 expect(appConfig.name === expectedAppName, `Expo app name is ${expectedAppName}`);
 expect(appConfig.slug === "wedding-hanbang", "Expo slug is wedding-hanbang");
 expect(appConfig.scheme === "hanbang", "App scheme is hanbang");
@@ -82,19 +118,74 @@ expect(
   appConfig.splash?.backgroundColor === "#FBF8F2",
   "Splash background uses Pearl Ivory"
 );
+const forbiddenAndroidPermissions = new Set([
+  "android.permission.CAMERA",
+  "android.permission.RECORD_AUDIO",
+  "android.permission.ACCESS_MEDIA_LOCATION",
+  "android.permission.MANAGE_EXTERNAL_STORAGE",
+  "android.permission.READ_MEDIA_AUDIO",
+  "android.permission.READ_MEDIA_IMAGES",
+  "android.permission.READ_MEDIA_VIDEO",
+  "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+  "android.permission.READ_EXTERNAL_STORAGE",
+  "android.permission.WRITE_EXTERNAL_STORAGE",
+]);
+const resolvedAndroidPermissions = resolvedPrebuildConfig?.android?.permissions;
+expect(
+  resolvedPrebuildConfig !== null &&
+    !(resolvedAndroidPermissions ?? []).some((permission) =>
+      forbiddenAndroidPermissions.has(permission)
+    ),
+  "Resolved Android prebuild excludes unused camera, microphone, and broad media permissions"
+);
+expect(
+  [...forbiddenAndroidPermissions].every((permission) =>
+    appConfig.android?.blockedPermissions?.includes(permission)
+  ),
+  "Android config blocks every unused native media permission"
+);
+expect(
+  !appConfig.ios?.infoPlist?.NSCameraUsageDescription &&
+    !appConfig.ios?.infoPlist?.NSMicrophoneUsageDescription &&
+    typeof appConfig.ios?.infoPlist?.NSPhotoLibraryUsageDescription === "string",
+  "iOS declares photo-library use without unused camera or microphone purpose strings"
+);
 
 const androidUniversalLink = appConfig.android?.intentFilters?.some((filter) =>
   filter.action === "VIEW" &&
   filter.autoVerify === true &&
   filter.category?.includes("BROWSABLE") &&
   filter.category?.includes("DEFAULT") &&
+  !filter.data?.some((entry) =>
+    entry.scheme === "https" &&
+    entry.host === "hanbang.ai" &&
+    (entry.pathPrefix === "/app" || entry.pathPrefix === "/app/")
+  ) &&
   filter.data?.some((entry) =>
     entry.scheme === "https" &&
     entry.host === "hanbang.ai" &&
-    entry.pathPrefix === "/app"
+    entry.path === "/app"
+  ) && [
+    "/app/community/post/",
+    "/app/vendors/",
+  ].every((pathPrefix) =>
+    filter.data?.some((entry) =>
+      entry.scheme === "https" &&
+      entry.host === "hanbang.ai" &&
+      entry.pathPrefix === pathPrefix
+    )
   )
 );
-expect(androidUniversalLink, "Android universal-link intent filter targets https://hanbang.ai/app");
+expect(
+  androidUniversalLink,
+  "Android universal-link intent filter targets only the approved share routes"
+);
+
+const nativeIntent = readText("apps/mobile/app/+native-intent.tsx");
+expect(
+  nativeIntent.includes("rewriteMobileAppLink(path)"),
+  "Expo native intent rewrites the public /app namespace"
+);
 
 const pluginNames = appConfig.plugins?.map((plugin) => Array.isArray(plugin) ? plugin[0] : plugin) ?? [];
 for (const pluginName of [
@@ -102,11 +193,22 @@ for (const pluginName of [
   "expo-font",
   "expo-secure-store",
   "expo-apple-authentication",
+  "expo-image-picker",
   "expo-splash-screen",
   "expo-notifications",
 ]) {
   expectIncludes(pluginNames, pluginName, `${pluginName} plugin is configured`);
 }
+
+const imagePickerPlugin = appConfig.plugins?.find((plugin) =>
+  Array.isArray(plugin) && plugin[0] === "expo-image-picker"
+);
+expect(
+  Array.isArray(imagePickerPlugin) &&
+    imagePickerPlugin[1]?.cameraPermission === false &&
+    imagePickerPlugin[1]?.microphonePermission === false,
+  "Image picker disables unused camera and microphone permissions"
+);
 
 const notificationPlugin = appConfig.plugins?.find((plugin) =>
   Array.isArray(plugin) && plugin[0] === "expo-notifications"
@@ -123,14 +225,34 @@ if (typeof easProjectId === "string" && easProjectId.trim().length > 0) {
   warn("EAS projectId is empty; run eas:init after logging into the hanbang Expo account");
 }
 
-expect(easConfig.cli?.appVersionSource === "local", "EAS uses local app version source");
+expect(easConfig.cli?.version === expectedEasCliVersion, "EAS CLI version is pinned");
+expect(easConfig.cli?.requireCommit === true, "EAS requires a clean commit before remote builds");
+expect(easConfig.cli?.appVersionSource === "remote", "EAS manages build versions remotely");
 expect(easConfig.build?.development?.environment === "development", "EAS development profile uses development environment");
 expect(easConfig.build?.development?.developmentClient === true, "EAS development profile builds a dev client");
 expect(easConfig.build?.preview?.environment === "preview", "EAS preview profile uses preview environment");
 expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profile is internal distribution");
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
+for (const profileName of ["development", "preview", "production"]) {
+  expect(
+    repositoryNodeVersion !== undefined
+      && easConfig.build?.[profileName]?.node === repositoryNodeVersion,
+    `EAS ${profileName} uses the repository Node version`
+  );
+  expect(
+    repositoryPnpmVersion !== undefined
+      && easConfig.build?.[profileName]?.pnpm === repositoryPnpmVersion,
+    `EAS ${profileName} uses the repository pnpm version`
+  );
+}
+expect(easConfig.build?.production?.channel === "production", "EAS production binary uses the production update channel");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
+expect(mobilePackage.dependencies?.["expo-application"] === "~7.0.8", "Mobile declares expo-application directly");
+expect(mobileProfile.includes('from "expo-application"'), "Mobile profile reads native application metadata");
+expect(mobileProfile.includes("Application.nativeApplicationVersion"), "Mobile profile displays the native app version");
+expect(mobileProfile.includes("Application.nativeBuildVersion"), "Mobile profile displays the native build version");
+expect(!mobileMetroConfig.includes('require("metro-cache")'), "Metro config uses Expo's declared default cache");
 
 for (const scriptName of [
   "eas:init",
@@ -140,7 +262,10 @@ for (const scriptName of [
   "eas:submit:ios",
   "eas:submit:android",
 ]) {
-  expect(Boolean(mobilePackage.scripts?.[scriptName]), `Mobile package script ${scriptName} exists`);
+  expect(
+    mobilePackage.scripts?.[scriptName]?.includes(`eas-cli@${expectedEasCliVersion}`),
+    `Mobile package script ${scriptName} pins EAS CLI`
+  );
 }
 
 expect(Boolean(rootPackage.scripts?.["mobile:release-check"]), "Root mobile:release-check script exists");
@@ -155,17 +280,55 @@ for (const envName of [
   expect(mobileEnvExample.includes(envName), `.env.example documents ${envName}`);
 }
 
+const mobileOAuthHardDisabled =
+  /export async function signInWithOAuth[\s\S]*?\{\s*void provider;\s*throw new Error\(/.test(mobileAuth) &&
+    [
+      "expo-web-browser",
+      "expo-linking",
+      "maybeCompleteAuthSession",
+      "supabase.auth.signInWithOAuth(",
+      "openAuthSessionAsync",
+      "Linking.createURL(",
+      ".auth.setSession(",
+      "access_token",
+      "refresh_token",
+    ].every((forbidden) => !mobileAuth.includes(forbidden));
+const mobileSocialEntryPointsDisabled =
+  /onPress=\{\(\) => handleSocialLogin\("kakao"\)\}\s+disabled(?:\s|>)/.test(mobileLogin) &&
+    /onPress=\{\(\) => handleSocialLogin\("apple"\)\}\s+disabled(?:\s|>)/.test(mobileLogin);
+
+if (storeReleaseMode) {
+  expect(
+    false,
+    mobileOAuthHardDisabled || mobileSocialEntryPointsDisabled
+      ? "Store release requires implemented and device-verified social login entry points"
+      : "Store release remains blocked until signed association endpoints, store builds, and physical-device evidence are machine-verified"
+  );
+} else {
+  expect(mobileOAuthHardDisabled, "Mobile OAuth implementation remains hard-disabled");
+  expect(mobileSocialEntryPointsDisabled, "Mobile social-login entry points remain disabled");
+  warn("Static mobile checks do not certify store release while social login is hard-disabled");
+}
 expect(
-  mobileAuth.includes('const redirectTo = `${SITE_URL}/auth/mobile-callback`;'),
-  "Mobile OAuth redirects through /auth/mobile-callback"
+  mobileSupabase.includes('flowType: "pkce"') &&
+    mobileSupabase.includes("detectSessionInUrl: false") &&
+    !mobileSupabase.includes('flowType: "implicit"'),
+  "Mobile auth client rejects implicit URL sessions and is pinned to PKCE"
 );
 expect(
-  mobileAuth.includes('Linking.createURL("auth/callback")'),
-  "Mobile OAuth waits for auth/callback deep link"
-);
-expect(
-  mobileCallback.includes("hanbang://auth/callback#"),
-  "Web mobile callback returns to hanbang://auth/callback"
+  mobileCallback.includes("window.history.replaceState(null, \"\", window.location.pathname)") &&
+    [
+      "window.location.hash",
+      "window.location.search",
+      "URLSearchParams",
+      "access_token",
+      "refresh_token",
+      "hanbang://",
+      "window.location.href",
+      "NEXT_PUBLIC_EXPO_AUTH_CALLBACK_URL",
+      ".auth.setSession(",
+    ].every((forbidden) => !mobileCallback.includes(forbidden)),
+  "Web mobile callback strips the URL and never forwards bearer tokens"
 );
 
 const legacyPalette = [

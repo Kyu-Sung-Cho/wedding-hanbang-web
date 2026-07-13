@@ -164,7 +164,7 @@ export default function WeddingStylePreferences({
       {/* Q3: 예산 성향 */}
       <div className="space-y-3">
         <p className="text-[14px] font-medium text-noir-800">
-          예산 성향은?
+          예산을 어떻게 운영하고 싶나요?
         </p>
         <div className="grid grid-cols-3 gap-2.5">
           {BUDGET_OPTIONS.map((opt) => (

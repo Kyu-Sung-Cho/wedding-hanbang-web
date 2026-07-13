@@ -4,6 +4,7 @@ import { communityPostPath } from "@/lib/community/routes";
 import { createPublicClient } from "@/lib/supabase/public";
 
 const BASE_URL = "https://hanbang.ai";
+const STATIC_CONTENT_LAST_MODIFIED = new Date("2026-07-11T00:00:00.000Z");
 
 type SitemapPostRow = {
   id: string;
@@ -28,35 +29,53 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}/wedding`,
-      lastModified: new Date(),
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
+      url: `${BASE_URL}/demo`,
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${BASE_URL}/about`,
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/beta`,
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    },
+    {
       url: `${BASE_URL}/wedding/market-prices`,
-      lastModified: new Date(),
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${BASE_URL}/wedding/etiquette`,
-      lastModified: new Date(),
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
       changeFrequency: "monthly",
       priority: 0.7,
     },
     {
       url: `${BASE_URL}/wedding/community/quote-check`,
-      lastModified: new Date(),
+      lastModified: STATIC_CONTENT_LAST_MODIFIED,
       changeFrequency: "monthly",
       priority: 0.7,
     },
-    {
-      url: `${BASE_URL}/login`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.3,
-    },
   ];
+
+  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+    return staticPages.filter(({ url }) =>
+      [`${BASE_URL}/demo`, `${BASE_URL}/about`, `${BASE_URL}/beta`].includes(url)
+    );
+  }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return staticPages;

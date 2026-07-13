@@ -33,7 +33,7 @@ export default function CommunityNav() {
         <div className="flex min-w-0 items-center gap-4">
           <Link
             {...weddingLinkProps()}
-            className="inline-flex shrink-0 items-center whitespace-nowrap"
+            className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap"
             aria-label="웨딩한방 홈으로 이동"
           >
             <Logo size="md" />

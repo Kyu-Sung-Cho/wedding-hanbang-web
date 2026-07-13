@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -24,6 +24,8 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
+import { createClient } from "@/lib/supabase/client";
+import { shouldReloadAfterFreshSpaceResponse } from "@/lib/couple/relinkResponse";
 import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
@@ -31,6 +33,7 @@ import type {
   BudgetTendency,
   GuestCount,
 } from "@/types/onboarding.types";
+import { parseLocalDateOnly } from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
 const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
@@ -63,6 +66,19 @@ const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
   { value: "over300", label: "300명 이상" },
 ];
 
+async function waitForLifecycleResponse(url: string, init: RequestInit) {
+  for (let attempt = 0; attempt < 360; attempt++) {
+    const response = await fetch(url, init);
+    const data = await response.json().catch(() => ({}));
+    if (response.status !== 202) return { response, data };
+    const retryMs = typeof data.retryAfterMs === "number"
+      ? Math.max(500, Math.min(5000, data.retryAfterMs))
+      : 1000;
+    await new Promise((resolve) => setTimeout(resolve, retryMs));
+  }
+  throw new Error("진행 중인 AI 요청 종료를 기다리는 시간이 초과되었습니다.");
+}
+
 type WeddingPreferenceState = Partial<{
   weddingStyle: WeddingStyle | null;
   priorities: PriorityItem[];
@@ -75,10 +91,43 @@ type ProfileUpdateResponse = {
   error?: string;
 };
 
+type ApiMessageResponse = {
+  error?: unknown;
+  message?: unknown;
+  inviteCode?: unknown;
+};
+
+function apiResponseMessage(data: ApiMessageResponse, fallback: string): string {
+  if (typeof data.message === "string" && data.message.trim()) return data.message;
+  if (typeof data.error === "string" && data.error.trim()) return data.error;
+  return fallback;
+}
+
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
+
+async function purgeLocalUserData(): Promise<void> {
+  try { localStorage.clear(); } catch { /* storage unavailable */ }
+  try { sessionStorage.clear(); } catch { /* storage unavailable */ }
+  try {
+    for (const cookie of document.cookie.split(";")) {
+      const name = cookie.split("=")[0]?.trim();
+      if (name) document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+    }
+  } catch { /* cookie cleanup best effort */ }
+  try {
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+    }
+  } catch { /* cache cleanup best effort */ }
+  try {
+    const { default: posthog } = await import("posthog-js");
+    posthog.reset(true);
+  } catch { /* analytics may be disabled */ }
+}
 
 export default function SettingsPage() {
   const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
@@ -86,22 +135,21 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
   const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [coupleCodeLoading, setCoupleCodeLoading] = useState(false);
+  const [coupleCodeError, setCoupleCodeError] = useState("");
 
-  // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
+  // 휴대폰 번호 (업체 상담 예약 요청 연락처)
   const [phoneInput, setPhoneInput] = useState("");
-  const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setPhoneInput(profile?.phone ?? "");
-    setPhoneConsent(Boolean(profile?.phone_care_consented_at));
-  }, [profile?.phone, profile?.phone_care_consented_at]);
+  }, [profile?.phone]);
 
-  const phoneDirty =
-    (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "") ||
-    Boolean(profile?.phone_care_consented_at) !== phoneConsent;
+  const phoneDirty = (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "");
 
   async function savePhone() {
     if (isDemo || phoneSaving) return;
@@ -110,7 +158,7 @@ export default function SettingsPage() {
     try {
       await updateProfile({
         phone: phoneInput,
-        phone_care_consent: phoneInput.replace(/[^0-9]/g, "") ? phoneConsent : false,
+        phone_care_consent: false,
       });
       setPhoneMessage("저장했어요.");
     } catch (err) {
@@ -137,7 +185,6 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
-  const [deleteReasonOther, setDeleteReasonOther] = useState("");
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
@@ -145,49 +192,98 @@ export default function SettingsPage() {
   const [comingSoonToast, setComingSoonToast] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [journeySaveError, setJourneySaveError] = useState("");
 
-  useEffect(() => {
-    if (!couple) return;
-
+  const loadCoupleCode = useCallback(async () => {
+    if (!couple) {
+      setCoupleCode("");
+      setIsFullyLinked(false);
+      setRequiresRelinkConfirmation(false);
+      return;
+    }
     if (isDemo) {
       setCoupleCode(couple.invite_code ?? "WH-DEMO01");
       setIsFullyLinked(Boolean(couple.bride_id && couple.groom_id));
+      setRequiresRelinkConfirmation(false);
+      setCoupleCodeError("");
       return;
     }
-
-    fetch("/api/couple/code")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.inviteCode) setCoupleCode(d.inviteCode);
-        if (d.isFullyLinked) setIsFullyLinked(true);
-      })
-      .catch(() => {});
+    setCoupleCodeLoading(true);
+    setCoupleCodeError("");
+    try {
+      const response = await fetch("/api/couple/code", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error("커플 코드를 불러오지 못했습니다.");
+      setCoupleCode(typeof data.inviteCode === "string" ? data.inviteCode : "");
+      setIsFullyLinked(data.isFullyLinked === true);
+      setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
+    } catch {
+      setCoupleCodeError("커플 코드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setCoupleCodeLoading(false);
+    }
   }, [couple, isDemo]);
 
-  const handleCopy = () => {
+  useEffect(() => {
+    void loadCoupleCode();
+  }, [loadCoupleCode]);
+
+  const handleCopy = async () => {
     if (!coupleCode) return;
-    navigator.clipboard.writeText(coupleCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(coupleCode);
+      setCopied(true);
+      setCoupleCodeError("");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCoupleCodeError("코드를 복사하지 못했습니다. 코드를 길게 눌러 직접 복사해 주세요.");
+    }
   };
 
   const handleRegenerateCode = async () => {
+    const isCreatingFreshSpace = requiresRelinkConfirmation;
+    let freshSpaceRequestDispatched = false;
+    let freshSpaceResponseStatus: number | null = null;
     setRegenerating(true);
+    setCoupleCodeError("");
     try {
       if (isDemo) {
         setCoupleCode(`WH-DEMO${Math.floor(Math.random() * 90 + 10)}`);
         return;
       }
 
-      const res = await fetch("/api/couple/code", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.inviteCode) {
+      freshSpaceRequestDispatched = isCreatingFreshSpace;
+      const res = await fetch("/api/couple/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmLegacyRelink: isCreatingFreshSpace }),
+      });
+      freshSpaceResponseStatus = res.status;
+      const data = (await res.json().catch(() => ({}))) as ApiMessageResponse;
+      if (res.ok && typeof data.inviteCode === "string") {
+        if (isCreatingFreshSpace) {
+          // Reconciliation happens in finally even if the committed response
+          // is lost or cannot be parsed.
+          return;
+        }
         setCoupleCode(data.inviteCode);
+        setRequiresRelinkConfirmation(false);
+      } else {
+        setCoupleCodeError(apiResponseMessage(data, "초대 코드를 만들지 못했습니다."));
       }
     } catch {
-      // 실패 시 무시
+      setCoupleCodeError("초대 코드를 만들지 못했습니다.");
     } finally {
-      setRegenerating(false);
+      if (
+        freshSpaceRequestDispatched
+        && shouldReloadAfterFreshSpaceResponse(freshSpaceResponseStatus)
+      ) {
+        // The server may have committed even when the response was lost. A
+        // full reload is the only safe boundary before any old-journey edit.
+        window.location.reload();
+      } else {
+        setRegenerating(false);
+      }
     }
   };
 
@@ -225,9 +321,11 @@ export default function SettingsPage() {
   // 날짜 저장
   const saveDate = async () => {
     setSaving(true);
-    await updateJourney({ wedding_date: dateInput || null });
+    setJourneySaveError("");
+    const saved = await updateJourney({ wedding_date: dateInput || null });
     setSaving(false);
-    setEditingDate(false);
+    if (saved) setEditingDate(false);
+    else setJourneySaveError("결혼 예정일을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 예산 저장
@@ -235,17 +333,21 @@ export default function SettingsPage() {
     const value = parseInt(budgetInput) * 10000;
     if (isNaN(value) || value <= 0) return;
     setSaving(true);
-    await updateJourney({ total_budget: value });
+    setJourneySaveError("");
+    const saved = await updateJourney({ total_budget: value });
     setSaving(false);
-    setEditingBudget(false);
+    if (saved) setEditingBudget(false);
+    else setJourneySaveError("예산을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 예식장 저장 — 빈 문자열은 null로 (미정 상태)
   const saveVenue = async () => {
     setSaving(true);
-    await updateJourney({ venue: venueInput.trim() || null });
+    setJourneySaveError("");
+    const saved = await updateJourney({ venue: venueInput.trim() || null });
     setSaving(false);
-    setEditingVenue(false);
+    if (saved) setEditingVenue(false);
+    else setJourneySaveError("예식장을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
   // 웨딩 스타일 선호도 — journey.progress.__preferences 안에 저장됨.
@@ -277,9 +379,13 @@ export default function SettingsPage() {
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
     try {
-      await updateJourney({
+      const saved = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
+      if (!saved) {
+        setDraftPrefs(prefs ?? {});
+        setJourneySaveError("웨딩 스타일을 저장하지 못했습니다. 이전 값으로 되돌렸어요.");
+      }
     } catch {
       setDraftPrefs(prefs ?? {});
     } finally {
@@ -299,7 +405,7 @@ export default function SettingsPage() {
     { value: "wedding_done", label: "결혼 준비 완료" },
     { value: "privacy", label: "개인정보 우려" },
     { value: "low_usage", label: "사용 빈도 낮음" },
-    { value: "other", label: "기타 (직접 입력)" },
+    { value: "other", label: "기타" },
   ];
 
   const handleDeleteAccount = async () => {
@@ -307,25 +413,27 @@ export default function SettingsPage() {
     setDeleting(true);
     setDeleteError("");
 
-    const reason = deleteReason === "other"
-      ? (deleteReasonOther.trim() || "기타")
-      : DELETE_REASONS.find(r => r.value === deleteReason)?.label ?? deleteReason;
-
     try {
       const res = await fetch("/api/auth/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: deleteReason }),
       });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as ApiMessageResponse;
 
-      if (!res.ok) {
-        setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
+      if (res.status !== 202) {
+        setDeleteError(apiResponseMessage(data, "계정 삭제에 실패했습니다."));
         return;
       }
 
-      document.cookie = "onboarding_complete=; path=/; max-age=0";
-      document.cookie = "demo_mode=; path=/; max-age=0";
+      try {
+        await createClient().auth.signOut();
+      } catch {
+        // The durable server job is already queued. Continue with local purge
+        // even if remote session revocation is temporarily unavailable.
+      }
+      useAuthStore.getState().reset();
+      await purgeLocalUserData();
       window.location.href = "/login";
     } catch {
       setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -340,12 +448,11 @@ export default function SettingsPage() {
     setResetWeddingError("");
 
     try {
-      const res = await fetch("/api/couple/reset", {
+      const { response: res, data } = await waitForLifecycleResponse("/api/couple/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmText: resetWeddingConfirmText }),
       });
-      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setResetWeddingError(data.error ?? "초기화에 실패했습니다.");
@@ -366,7 +473,7 @@ export default function SettingsPage() {
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
-  const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
+  const weddingDate = journey?.wedding_date ? parseLocalDateOnly(journey.wedding_date) : null;
   const dateStr = weddingDate
     ? `${weddingDate.getFullYear()}년 ${weddingDate.getMonth() + 1}월 ${weddingDate.getDate()}일`
     : "날짜 미정";
@@ -400,6 +507,8 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <input
+                    name="name"
+                    aria-label="이름"
                     type="text"
                     value={nameInput}
                     onChange={(e) => {
@@ -410,10 +519,10 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveName} disabled={saving} aria-label="이름 저장" className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => { setEditingName(false); setNameError(""); }} aria-label="이름 편집 취소" className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -428,7 +537,9 @@ export default function SettingsPage() {
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
+                  aria-label="이름 편집"
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
@@ -439,6 +550,12 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {journeySaveError && (
+          <p className="mb-4 rounded-xl border border-[#E4B7B7] bg-[#FFF5F5] px-4 py-3 text-sm text-[#9A3F3F]" role="alert">
+            {journeySaveError}
+          </p>
+        )}
+
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
           <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
@@ -448,16 +565,18 @@ export default function SettingsPage() {
               {editingDate ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
+                    name="weddingDate"
+                    aria-label="결혼 예정일"
                     type="date"
                     value={dateInput}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveDate} disabled={saving} aria-label="결혼 예정일 저장" className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingDate(false)} aria-label="결혼 예정일 편집 취소" className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -465,7 +584,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{dateStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
+                    aria-label="결혼 예정일 편집"
                     className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -483,6 +604,8 @@ export default function SettingsPage() {
               {editingVenue ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
+                    name="venue"
+                    aria-label="예식장"
                     type="text"
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
@@ -491,10 +614,10 @@ export default function SettingsPage() {
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveVenue} disabled={saving} aria-label="예식장 저장" className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingVenue(false)} aria-label="예식장 편집 취소" className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -502,7 +625,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F] truncate">{venueStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
+                    aria-label="예식장 편집"
                     className="w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -521,6 +646,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="flex items-center">
                     <input
+                      name="budgetManwon"
+                      aria-label="설정 예산 (만원)"
                       type="number"
                       value={budgetInput}
                       onChange={(e) => setBudgetInput(e.target.value)}
@@ -530,10 +657,10 @@ export default function SettingsPage() {
                     />
                     <span className="text-sm text-[#B5ADA3] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveBudget} disabled={saving} aria-label="설정 예산 저장" className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => setEditingBudget(false)} aria-label="설정 예산 편집 취소" className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -541,7 +668,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{budgetStr}</p>
                   <button
+                    type="button"
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
+                    aria-label="설정 예산 편집"
                     className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -585,8 +714,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.weddingStyle === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -608,8 +739,10 @@ export default function SettingsPage() {
                 const selected = (draftPrefs.priorities ?? []).includes(opt.value);
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => togglePriority(opt.value)}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -631,8 +764,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.budgetTendency === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -654,8 +789,10 @@ export default function SettingsPage() {
                 const selected = draftPrefs.guestCount === opt.value;
                 return (
                   <button
+                    type="button"
                     key={opt.value}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
+                    aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
@@ -688,6 +825,24 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-[#F6F3F2] rounded-xl p-5">
+          {requiresRelinkConfirmation && !partner && (
+            <div className="mb-4 rounded-xl border border-[#D9C3AE] bg-white p-4">
+              <p className="text-sm font-medium text-[#1A1A1F]">새 커플 공간으로 시작해 주세요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#6F645C]">
+                이전 공간의 일정·예산·대화는 새 파트너에게 공유하지 않습니다. 비어 있는 새 공간과
+                새 초대 코드를 만들며, 필요한 정보는 안전하게 다시 입력할 수 있어요.
+              </p>
+              <button
+                type="button"
+                onClick={handleRegenerateCode}
+                disabled={regenerating}
+                className="mt-3 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#684545] disabled:opacity-50"
+              >
+                {regenerating ? "새 공간 만드는 중..." : "확인하고 새 커플 공간 만들기"}
+              </button>
+            </div>
+          )}
+
           {coupleCode && !isFullyLinked && (
             <div className="mb-3">
               <div className="flex items-center justify-between">
@@ -721,6 +876,28 @@ export default function SettingsPage() {
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
               </button>
+            </div>
+          )}
+
+          {coupleCodeLoading && !partner && (
+            <p className="mb-3 text-sm text-[#6F645C]" role="status" aria-live="polite">
+              커플 연결 정보를 확인하고 있어요...
+            </p>
+          )}
+
+          {coupleCodeError && (
+            <div className="mb-3 rounded-lg border border-[#E4B7B7] bg-[#FFF5F5] p-3" role="alert">
+              <p className="text-sm text-[#9B3A3A]">{coupleCodeError}</p>
+              {!isDemo && (
+                <button
+                  type="button"
+                  onClick={() => void loadCoupleCode()}
+                  disabled={coupleCodeLoading}
+                  className="mt-2 text-sm font-medium text-[#795252] underline underline-offset-2 disabled:opacity-50"
+                >
+                  다시 불러오기
+                </button>
+              )}
             </div>
           )}
 
@@ -787,39 +964,28 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
+          {/* 선제 아웃바운드는 명시 동의·철회·중복방지 E2E 전까지 하드 비활성 */}
           <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
             <div>
-              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기</p>
+              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 선제 알림 · 준비 중</p>
               <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 등 일정 전후에 아모라가 이메일로 먼저 안부를 물어요
+                현재 아모라는 사용자가 채팅을 열었을 때만 답합니다. 이메일·문자 자동 발송은 꺼져 있어요.
               </p>
             </div>
             <button
-              onClick={() => {
-                if (isDemo) return;
-                updateProfile({
-                  care_notifications_enabled: !(profile?.care_notifications_enabled ?? true),
-                }).catch(() => {});
-              }}
-              className={`w-12 h-7 rounded-full transition-colors relative ${
-                (profile?.care_notifications_enabled ?? true)
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a]"
-                  : "bg-[#B5ADA3]/30"
-              }`}
+              type="button"
+              disabled
+              aria-label="아모라 선제 알림, 준비 중"
+              className="w-12 h-7 rounded-full relative bg-[#B5ADA3]/30 cursor-not-allowed"
             >
-              <div
-                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
-                  (profile?.care_notifications_enabled ?? true) ? "left-[22px]" : "left-0.5"
-                }`}
-              />
+              <div className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm" />
             </button>
           </div>
-          {/* 휴대폰 번호 — 알림톡/문자 케어 채널 준비 (서버 저장) */}
+          {/* 사용자가 선택적으로 저장하는 연락처 */}
           <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
             <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
             <p className="text-sm text-[#B5ADA3] font-light mb-3">
-              카톡·문자 케어 오픈 시 이 번호로 아모라가 먼저 안부를 물어요 (준비 중)
+              선택적으로 저장할 수 있는 연락처입니다. 업체 연결 준비 중에는 상담 요청에 사용하거나 업체에 전송하지 않으며, 아모라 자동 알림에도 사용하지 않습니다.
             </p>
             <div className="flex gap-2">
               <input
@@ -838,28 +1004,14 @@ export default function SettingsPage() {
                 {phoneSaving ? "저장 중" : "저장"}
               </button>
             </div>
-            <label className="mt-3 flex items-start gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={phoneConsent}
-                onChange={(e) => setPhoneConsent(e.target.checked)}
-                disabled={isDemo || !phoneInput.replace(/[^0-9]/g, "")}
-                className="mt-0.5 h-4 w-4 accent-[#795252]"
-              />
-              <span className="text-sm text-[#504444] font-light leading-relaxed">
-                직접 입력한 일정 안내를 카톡·문자로 받는 것에 동의합니다
-                <span className="text-[#B5ADA3]"> (언제든 여기서 해제 가능)</span>
-              </span>
-            </label>
             {phoneMessage && (
               <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
             )}
           </div>
           {[
-            { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
-            { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
-            { key: "ai" as const, label: "맞춤 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
-            { key: "marketing" as const, label: "마케팅 알림", desc: "이벤트, 할인 정보" },
+            { key: "schedule" as const, label: "앱 안 일정 카드", desc: "D-day 체크리스트 안내 표시" },
+            { key: "budget" as const, label: "앱 안 예산 카드", desc: "입력한 예산 기준 안내 표시" },
+            { key: "ai" as const, label: "앱 안 준비 팁", desc: "정적 맞춤 팁 표시" },
           ].map((item) => (
             <div
               key={item.key}
@@ -871,6 +1023,10 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => toggleNotification(item.key)}
+                type="button"
+                role="switch"
+                aria-checked={notifications[item.key]}
+                aria-label={`${item.label} ${notifications[item.key] ? "끄기" : "켜기"}`}
                 className={`w-12 h-7 rounded-full transition-colors relative ${
                   notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-[#B5ADA3]/30"
                 }`}
@@ -895,7 +1051,7 @@ export default function SettingsPage() {
         {[
           { label: "이용약관" },
           { label: "개인정보 처리방침" },
-          { label: "고객센터" },
+          { label: "문의 안내" },
           { label: "앱 버전", value: "v1.0.0 (Beta)" },
         ].map((item) => (
           <button
@@ -1037,9 +1193,11 @@ export default function SettingsPage() {
                 정말 탈퇴하시겠어요?
               </h3>
               <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
-                탈퇴하면 모든 데이터가 영구 삭제되며
+                본인 비공개 상담과 직접 작성한 내용은 삭제되며 계정은 복구할 수 없습니다.
                 <br />
-                복구할 수 없습니다.
+                파트너의 공동 계획·AI 답변과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있습니다.
+                <br />
+                요청이 접수되면 바로 로그아웃되며, 삭제는 서버에서 안전하게 계속 처리됩니다.
               </p>
 
               {/* 탈퇴 사유 */}
@@ -1062,15 +1220,6 @@ export default function SettingsPage() {
                     </label>
                   ))}
                 </div>
-                {deleteReason === "other" && (
-                  <textarea
-                    value={deleteReasonOther}
-                    onChange={(e) => setDeleteReasonOther(e.target.value)}
-                    placeholder="탈퇴 사유를 알려주세요..."
-                    rows={2}
-                    className="w-full mt-2 px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-base outline-none resize-none focus:ring-2 focus:ring-[#795252]/30"
-                  />
-                )}
               </div>
 
               <div className="mb-5">
@@ -1092,20 +1241,19 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || (deleteReason === "other" && !deleteReasonOther.trim()) || deleting}
+                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || deleting}
                 className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {deleting ? "삭제 중..." : "계정 영구 삭제"}
+                {deleting ? "삭제 요청 접수 중..." : "계정 영구 삭제"}
               </button>
 
               <button
                 onClick={() => {
                   setShowDeleteModal(false);
                   setDeleteConfirmText("");
-                  setDeleteError("");
-                  setDeleteReason("");
-                  setDeleteReasonOther("");
-                }}
+                   setDeleteError("");
+                   setDeleteReason("");
+                 }}
                 className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
               >
                 취소

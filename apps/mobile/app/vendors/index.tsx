@@ -3,16 +3,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable,
-  RefreshControl, TextInput, Linking, Image,
+  RefreshControl, TextInput, Image, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
-  Search, MapPin, Store, Plus, BadgeCheck, Star, Heart,
-  ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info,
+  Search, MapPin, Store, Star, Heart,
+  ShieldCheck, WalletCards, CalendarCheck, Sparkles, Info, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import ErrorRetry from "@/components/ErrorRetry";
 import { AppHeader, EmptyState, IconBadge, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 
@@ -40,7 +41,7 @@ interface Vendor {
   trust_score: number;
 }
 
-type SortKey = "recommended" | "popular" | "newest" | "price_asc";
+type SortKey = "info" | "rating" | "newest" | "price_asc";
 type VendorTrustInput = Omit<Vendor, "trust_score">;
 
 interface SortOption {
@@ -55,8 +56,8 @@ interface CategoryFilter {
 }
 
 const SORT_OPTIONS: SortOption[] = [
-  { key: "recommended", label: "추천순" },
-  { key: "popular", label: "인기순" },
+  { key: "info", label: "정보 많은 순" },
+  { key: "rating", label: "등록 평점순" },
   { key: "newest", label: "최신순" },
   { key: "price_asc", label: "가격낮은순" },
 ];
@@ -103,17 +104,14 @@ function scoreVendorTrust(vendor: VendorTrustInput): number {
   if (vendor.is_verified) score += 25;
   if (vendor.min_price || vendor.price_range || vendor.price_min) score += 20;
   if (vendor.product_count > 0) score += 15;
-  if ((vendor.rating ?? 0) >= 4.5) score += 10;
-  else if ((vendor.rating ?? 0) >= 4) score += 5;
-  if (vendor.ai_recommend) score += 5;
   if (vendor.region) score += 5;
   return Math.min(score, 100);
 }
 
 function getTrustStatus(score: number): { label: string; tone: "success" | "rose" | "warning" } {
-  if (score >= 75) return { label: "신뢰 높음", tone: "success" };
-  if (score >= 55) return { label: "정보 충분", tone: "rose" };
-  return { label: "확인 필요", tone: "warning" };
+  if (score >= 75) return { label: "정보 항목 많음", tone: "success" };
+  if (score >= 55) return { label: "정보 일부 있음", tone: "rose" };
+  return { label: "직접 확인 필요", tone: "warning" };
 }
 
 /* ───── main screen ───── */
@@ -122,9 +120,10 @@ export default function VendorsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [favoriteError, setFavoriteError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedSort, setSelectedSort] = useState<SortKey>("recommended");
+  const [selectedSort, setSelectedSort] = useState<SortKey>("info");
 
   // 즐겨찾기 상태 (vendor_id Set)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -143,15 +142,16 @@ export default function VendorsScreen() {
   const loadFavorites = useCallback(async () => {
     if (!userId) return;
     try {
-      const { data } = await supabase
-        .from("favorites")
-        .select("vendor_id")
-        .eq("user_id", userId);
-      if (data) {
-        setFavoriteIds(new Set(data.map((r) => r.vendor_id)));
+      setFavoriteError(false);
+      const response = await apiFetch("/api/favorites");
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(body.vendorIds)) {
+        throw new Error(body.error ?? "즐겨찾기 목록을 불러오지 못했습니다.");
       }
+      setFavoriteIds(new Set(body.vendorIds.filter((id: unknown): id is string => typeof id === "string")));
     } catch (err) {
       console.error("즐겨찾기 로드 오류:", err);
+      setFavoriteError(true);
     }
   }, [userId]);
 
@@ -178,17 +178,20 @@ export default function VendorsScreen() {
     });
 
     try {
-      if (isFav) {
-        await supabase
-          .from("favorites")
-          .delete()
-          .eq("user_id", userId)
-          .eq("vendor_id", vendorId);
-      } else {
-        await supabase
-          .from("favorites")
-          .insert({ user_id: userId, vendor_id: vendorId });
+      const response = await apiFetch("/api/favorites", {
+        method: "POST",
+        body: JSON.stringify({ vendorId }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || typeof body.isFavorite !== "boolean") {
+        throw new Error(body.error ?? "즐겨찾기를 저장하지 못했습니다.");
       }
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (body.isFavorite) next.add(vendorId);
+        else next.delete(vendorId);
+        return next;
+      });
     } catch (err) {
       console.error("즐겨찾기 동기화 오류:", err);
       // 실패 시 롤백
@@ -201,6 +204,7 @@ export default function VendorsScreen() {
         }
         return next;
       });
+      Alert.alert("즐겨찾기를 저장하지 못했어요", "연결을 확인하고 다시 시도해주세요.");
     } finally {
       favoriteSyncing.current.delete(vendorId);
     }
@@ -227,16 +231,16 @@ export default function VendorsScreen() {
 
       // 정렬 적용
       switch (selectedSort) {
-        case "popular":
+        case "rating":
           query = query.order("rating", { ascending: false, nullsFirst: false });
           break;
         case "newest":
           query = query.order("created_at", { ascending: false });
           break;
-        case "recommended":
+        case "info":
         case "price_asc":
         default:
-          // 추천순/가격순은 name으로 가져온 뒤 클라이언트 정렬
+          // 정보 항목순/가격순은 name으로 가져온 뒤 클라이언트 정렬
           query = query.order("name");
           break;
       }
@@ -286,10 +290,9 @@ export default function VendorsScreen() {
         };
       });
 
-      if (selectedSort === "recommended") {
+      if (selectedSort === "info") {
         mapped.sort((a, b) => (
           b.trust_score - a.trust_score
-          || Number(b.rating ?? 0) - Number(a.rating ?? 0)
           || a.name.localeCompare(b.name)
         ));
       }
@@ -316,10 +319,6 @@ export default function VendorsScreen() {
 
   useEffect(() => { loadVendors(); }, [loadVendors]);
 
-  function openVendorRegister() {
-    Linking.openURL("https://hanbang.ai/vendor/register");
-  }
-
   const verifiedCount = vendors.filter((vendor) => vendor.is_verified).length;
   const priceKnownCount = vendors.filter((vendor) => getDisplayPrice(vendor) !== "문의 필요").length;
   const curatedCount = vendors.filter((vendor) => vendor.ai_recommend).length;
@@ -329,7 +328,7 @@ export default function VendorsScreen() {
     const category = categoryLabel(item.category);
     const trustStatus = getTrustStatus(item.trust_score);
     const priceLabel = getDisplayPrice(item);
-    const hasBookableProducts = item.product_count > 0;
+    const hasRegisteredProducts = item.product_count > 0;
 
     return (
       <Pressable
@@ -353,13 +352,13 @@ export default function VendorsScreen() {
             {item.ai_recommend ? (
               <View style={s.imageBadge}>
                 <Sparkles size={12} color={colors.noir[800]} />
-                <Text style={s.imageBadgeText}>한방 큐레이션</Text>
+                <Text style={s.imageBadgeText}>탐색 후보</Text>
               </View>
             ) : null}
             {item.is_verified ? (
               <View style={s.imageBadge}>
                 <ShieldCheck size={12} color={colors.noir[800]} />
-                <Text style={s.imageBadgeText}>검증됨</Text>
+                <Text style={s.imageBadgeText}>정보 확인 표시</Text>
               </View>
             ) : null}
           </View>
@@ -391,9 +390,6 @@ export default function VendorsScreen() {
           <View style={s.cardTop}>
             <View style={s.nameRow}>
               <Text style={s.vendorName} numberOfLines={1}>{item.name}</Text>
-              {item.is_verified && (
-                <BadgeCheck size={16} color={colors.rose[500]} />
-              )}
               {/* 별점 표시 */}
               <View style={s.ratingBadge}>
                 <Star
@@ -402,7 +398,7 @@ export default function VendorsScreen() {
                   fill={item.rating ? colors.gold.DEFAULT : "transparent"}
                 />
                 <Text style={[s.ratingText, !item.rating && s.ratingTextNew]}>
-                  {item.rating ? item.rating.toFixed(1) : "신규"}
+                  {item.rating ? `등록 ${item.rating.toFixed(1)}` : "평점 없음"}
                 </Text>
               </View>
             </View>
@@ -435,8 +431,8 @@ export default function VendorsScreen() {
           <View style={s.trustGrid}>
             <View style={s.trustItem}>
               <ShieldCheck size={15} color={item.is_verified ? colors.success : colors.textTertiary} />
-              <Text style={s.trustLabel}>검증</Text>
-              <Text style={s.trustValue}>{item.is_verified ? "완료" : "확인 전"}</Text>
+              <Text style={s.trustLabel}>등록 정보</Text>
+              <Text style={s.trustValue}>{item.is_verified ? "확인 표시" : "확인 전"}</Text>
             </View>
             <View style={s.trustDivider} />
             <View style={s.trustItem}>
@@ -446,9 +442,9 @@ export default function VendorsScreen() {
             </View>
             <View style={s.trustDivider} />
             <View style={s.trustItem}>
-              <CalendarCheck size={15} color={hasBookableProducts ? colors.gold.DEFAULT : colors.textTertiary} />
-              <Text style={s.trustLabel}>예약</Text>
-              <Text style={s.trustValue}>{hasBookableProducts ? `상품 ${item.product_count}개` : "문의 필요"}</Text>
+              <CalendarCheck size={15} color={hasRegisteredProducts ? colors.gold.DEFAULT : colors.textTertiary} />
+              <Text style={s.trustLabel}>상품</Text>
+              <Text style={s.trustValue}>{hasRegisteredProducts ? `등록 ${item.product_count}개` : "등록 전"}</Text>
             </View>
           </View>
 
@@ -460,7 +456,7 @@ export default function VendorsScreen() {
           <View style={s.disclosureRow}>
             <Info size={13} color={colors.textTertiary} />
             <Text style={s.disclosureText} numberOfLines={2}>
-              추천순은 검증, 가격 공개, 상품 등록, 평점 신호 기준이며 광고비 기준 정렬이 아니에요.
+              정보 많은 순은 등록 상태와 공개 가격·상품 항목만 비교해요. 평점은 등록 값이며 출처·최신성을 확인하지 않았어요.
             </Text>
             <StatusPill label={trustStatus.label} tone={trustStatus.tone} />
           </View>
@@ -488,7 +484,7 @@ export default function VendorsScreen() {
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
         title="업체 탐색"
-        subtitle="가격 공개와 검증 정보를 먼저 봐요"
+        subtitle="공개 가격과 등록 정보를 먼저 봐요"
         onBack={() => router.back()}
       />
 
@@ -558,6 +554,19 @@ export default function VendorsScreen() {
         />
       </View>
 
+      {favoriteError && !loading && !error ? (
+        <Pressable
+          style={({ pressed }) => [s.favoriteWarning, pressed && s.favoriteWarningPressed]}
+          onPress={loadFavorites}
+          accessibilityRole="button"
+          accessibilityLabel="저장된 즐겨찾기 다시 불러오기"
+        >
+          <AlertTriangle size={16} color={colors.danger} />
+          <Text style={s.favoriteWarningText}>저장된 즐겨찾기를 불러오지 못했어요</Text>
+          <Text style={s.favoriteWarningAction}>다시 시도</Text>
+        </Pressable>
+      ) : null}
+
       {!loading && !error && (
         <Surface style={s.trustPanel}>
           <View style={s.trustPanelTop}>
@@ -565,10 +574,10 @@ export default function VendorsScreen() {
               <ShieldCheck size={18} color={colors.rose[500]} />
             </View>
             <View style={s.trustPanelCopy}>
-              <Text style={s.trustPanelEyebrow}>TRUSTED DISCOVERY</Text>
-              <Text style={s.trustPanelTitle}>광고보다 검증 신호를 먼저 봐요</Text>
+              <Text style={s.trustPanelEyebrow}>INFORMATION FIRST</Text>
+              <Text style={s.trustPanelTitle}>광고보다 공개된 정보를 먼저 봐요</Text>
               <Text style={s.trustPanelText}>
-                추천순은 검증, 가격 공개, 등록 상품, 평점 정보를 기준으로 정렬됩니다.
+                정보 많은 순은 등록 상태와 공개 가격·상품 항목만 비교합니다. 품질, 최신 가격, 예약 가능 여부를 보증하지 않아요.
               </Text>
             </View>
             <StatusPill label="광고비 정렬 아님" tone="neutral" />
@@ -576,7 +585,7 @@ export default function VendorsScreen() {
           <View style={s.trustStatsRow}>
             <View style={s.trustStat}>
               <Text style={s.trustStatValue}>{verifiedCount}</Text>
-              <Text style={s.trustStatLabel}>검증</Text>
+              <Text style={s.trustStatLabel}>확인 표시</Text>
             </View>
             <View style={s.trustStat}>
               <Text style={s.trustStatValue}>{priceKnownCount}</Text>
@@ -584,7 +593,7 @@ export default function VendorsScreen() {
             </View>
             <View style={s.trustStat}>
               <Text style={s.trustStatValue}>{curatedCount}</Text>
-              <Text style={s.trustStatLabel}>큐레이션</Text>
+              <Text style={s.trustStatLabel}>탐색 후보</Text>
             </View>
           </View>
         </Surface>
@@ -592,7 +601,7 @@ export default function VendorsScreen() {
 
       {/* 업체 목록 */}
       {loading ? (
-        <LoadingState label="검증된 업체를 불러오고 있어요" />
+        <LoadingState label="업체 정보를 불러오고 있어요" />
       ) : error ? (
         <ErrorRetry
           message="업체 목록을 불러올 수 없어요"
@@ -627,19 +636,6 @@ export default function VendorsScreen() {
         />
       )}
 
-      {/* 하단 업체 등록 버튼 */}
-      <View style={s.bottomBar}>
-        <Pressable
-          style={({ pressed }) => [
-            s.registerBtn,
-            pressed && { transform: [{ scale: 0.97 }] },
-          ]}
-          onPress={openVendorRegister}
-        >
-          <Plus size={18} color={colors.rose[500]} />
-          <Text style={s.registerBtnText}>업체 등록하기</Text>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }
@@ -707,6 +703,29 @@ const s = StyleSheet.create({
   sortChipTextActive: {
     color: colors.rose[600],
     fontWeight: "600",
+  },
+  favoriteWarning: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+  },
+  favoriteWarningPressed: { opacity: 0.78 },
+  favoriteWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  favoriteWarningAction: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.danger,
   },
 
   trustPanel: {
@@ -985,34 +1004,4 @@ const s = StyleSheet.create({
   footerContainer: { alignItems: "center", paddingVertical: 16 },
   footerCount: { fontSize: 12, color: colors.textTertiary },
 
-  // 하단 업체 등록 바
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    paddingBottom: 32,
-  },
-  registerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: colors.rose[500],
-    backgroundColor: colors.surface,
-  },
-  registerBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.rose[500],
-    fontFamily: "NotoSansKR_400Regular",
-  },
 });

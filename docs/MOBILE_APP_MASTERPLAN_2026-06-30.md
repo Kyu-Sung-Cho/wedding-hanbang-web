@@ -1,5 +1,8 @@
 # Wedding Hanbang Mobile App Masterplan
 
+> [!WARNING]
+> **목표 모바일 설계와 2026-07-02 구현 스냅샷입니다.** 아래 예약·업체 추천·AI 도구·알림·출시 체크는 현재 제공 또는 검증 완료를 뜻하지 않습니다. 현재 새 업체 연결과 결과 저장은 비활성입니다. 최신 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
+
 > Date: 2026-06-30  
 > Scope: Expo mobile app, shared Supabase backend, shared design system  
 > North star: the app should tell a couple what to do next, help them decide together, and protect trust around money and vendors.

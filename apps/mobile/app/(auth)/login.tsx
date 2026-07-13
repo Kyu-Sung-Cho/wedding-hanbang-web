@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
+  Animated, Linking,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +12,8 @@ import { Eye, EyeOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import { signInWithOAuth } from "@/lib/auth";
+
+const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 
 // Supabase 에러 메시지 한국어 변환
 function translateError(message: string): string {
@@ -74,7 +76,8 @@ export default function LoginScreen() {
         Alert.alert("로그인 실패", translateError(error.message));
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // 루트가 profile.onboarding_completed를 확인해 신규 가입자를 온보딩으로 보낸다.
+      router.replace("/");
     } catch {
       Alert.alert("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
@@ -92,13 +95,35 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      router.replace("/");
     } catch (err) {
       const message = err instanceof Error ? err.message : "로그인에 실패했어요";
       Alert.alert("로그인 오류", message);
     } finally {
       setLoading(null);
     }
+  }
+
+  function openSecureWebAuth(mode: "signup" | "forgot") {
+    const action = mode === "signup" ? "회원가입" : "비밀번호 재설정";
+    Alert.alert(
+      "웹 보안 확인이 필요해요",
+      `${action}은 봇 방지 보안 확인을 위해 안전한 웹 화면에서 진행합니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "웹 열기",
+          onPress: () => {
+            void Linking.openURL(`${SITE}/login?mode=${mode}`).catch(() => {
+              Alert.alert(
+                "웹 화면을 열 수 없어요",
+                "기본 브라우저에서 hanbang.ai/login을 열어 다시 시도해주세요."
+              );
+            });
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -126,7 +151,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              AI 웨딩 플래너와 함께{"\n"}완벽한 결혼을 준비하세요
+              AI 웨딩 플래너와 함께{"\n"}결혼 준비를 차근차근 정리하세요
             </Text>
           </Animated.View>
 
@@ -139,7 +164,7 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
-                placeholderTextColor={colors.taupe[400]}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -158,7 +183,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={setPassword}
                   placeholder="비밀번호"
-                  placeholderTextColor={colors.taupe[400]}
+                  placeholderTextColor={colors.textTertiary}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   onSubmitEditing={handleEmailLogin}
@@ -173,7 +198,7 @@ export default function LoginScreen() {
                   }
                 </Pressable>
               </View>
-              <Text style={styles.fieldHint}>6자 이상</Text>
+              <Text style={styles.fieldHint}>8자 이상</Text>
             </View>
 
             <Pressable
@@ -191,12 +216,12 @@ export default function LoginScreen() {
 
             {/* 비밀번호 찾기 + 회원가입 */}
             <View style={styles.linkRow}>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
+              <Pressable onPress={() => openSecureWebAuth("forgot")}>
                 <Text style={styles.link}>비밀번호 찾기</Text>
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
-                <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
+              <Pressable onPress={() => openSecureWebAuth("signup")}>
+                <Text style={[styles.link, { color: colors.rose[600] }]}>회원가입</Text>
               </Pressable>
             </View>
           </View>
@@ -213,7 +238,7 @@ export default function LoginScreen() {
             <Pressable
               style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
-              disabled={loading !== null}
+              disabled
               accessibilityLabel="카카오로 로그인"
               accessibilityRole="button"
             >
@@ -224,7 +249,7 @@ export default function LoginScreen() {
                   <View style={styles.kakaoIcon}>
                     <Text style={styles.kakaoIconText}>K</Text>
                   </View>
-                  <Text style={styles.kakaoText}>카카오로 계속하기</Text>
+                  <Text style={styles.kakaoText}>카카오 로그인 준비 중</Text>
                 </View>
               )}
             </Pressable>
@@ -232,7 +257,7 @@ export default function LoginScreen() {
             <Pressable
               style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
-              disabled={loading !== null}
+              disabled
               accessibilityLabel="Apple로 로그인"
               accessibilityRole="button"
             >
@@ -241,14 +266,14 @@ export default function LoginScreen() {
               ) : (
                 <View style={styles.socialInner}>
                   <Text style={styles.appleIcon}>{"\uF8FF"}</Text>
-                  <Text style={styles.appleText}>Apple로 계속하기</Text>
+                  <Text style={styles.appleText}>Apple 로그인 준비 중</Text>
                 </View>
               )}
             </Pressable>
           </View>
 
           <Text style={styles.disclaimer}>
-            계속하면 이용약관과 개인정보처리방침에{"\n"}동의하는 것으로 간주됩니다
+            회원가입 전 이용약관과 개인정보처리방침을{"\n"}확인해 주세요
           </Text>
         </ScrollView>
         </DismissKeyboard>

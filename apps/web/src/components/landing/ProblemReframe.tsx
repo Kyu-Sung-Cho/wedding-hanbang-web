@@ -8,40 +8,40 @@ interface ReframeCard {
   truth: string;
   body: React.ReactNode;
   source: string;
+  sourceHref?: string;
 }
 
 const CARDS: ReframeCard[] = [
   {
-    misconception: "정보가 부족해서",
-    truth: "정보 과부하 + 처리 능력 부족",
+    misconception: "정보가 많으면 충분해서",
+    truth: "출처·시점·포함 범위를 함께 봐야",
     body: (
       <>
-        스드메 업체 500개 중 무엇을 골라야 할지.
-        선택지가 24개를 넘으면 결정률이 3%로 급락합니다.
+        서로 다른 시점과 조건의 가격을 한 숫자처럼 비교하면 오히려 선택이 어려워집니다.
       </>
     ),
-    source: "Schwartz, 2004",
+    source: "웨딩한방 제품 원칙",
   },
   {
-    misconception: "좋은 업체를 못 찾아서",
-    truth: "내 선호를 모르는 게 진짜 문제",
+    misconception: "인기 순위만 보면 돼서",
+    truth: "우리 조건과 확인 질문이 먼저",
     body: (
       <>
-        &ldquo;예쁘게 하고 싶어&rdquo; &middot; &ldquo;부모님 마음에 들게&rdquo;
-        당신도 자기 선호를 정확히 모릅니다.
+        예산, 지역, 일정과 포함 항목이 다르므로 후보마다 같은 질문으로 다시 확인해야 합니다.
       </>
     ),
-    source: "Nisbett & Wilson, 1977",
+    source: "웨딩한방 제품 원칙",
   },
   {
-    misconception: "가격이 비싸서",
-    truth: "가격을 예측 못 해서",
+    misconception: "전국 평균 하나면 충분해서",
+    truth: "지역·옵션별 범위를 따로 확인해야",
     body: (
       <>
-        평균 추가금 174만원. 83.2%가 추가비용을 경험합니다.
+        한국소비자원 공개 자료도 지역과 옵션에 따라 가격 차이가 크다고 안내합니다.
       </>
     ),
-    source: "한국소비자원, 2024",
+    source: "한국소비자원 결혼서비스 가격 동향, 2025년 12월",
+    sourceHref: "https://www.kca.go.kr/home/sub.do?menukey=4004&mode=view&no=1004008123&page=1",
   },
 ];
 
@@ -92,9 +92,20 @@ export default function ProblemReframe() {
               </p>
 
               {/* 출처 */}
-              <p className="text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium">
-                출처 &nbsp; {card.source}
-              </p>
+              {card.sourceHref ? (
+                <a
+                  href={card.sourceHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium underline underline-offset-4 hover:text-rose-500"
+                >
+                  출처 &nbsp; {card.source}
+                </a>
+              ) : (
+                <p className="text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium">
+                  출처 &nbsp; {card.source}
+                </p>
+              )}
             </motion.article>
           ))}
         </div>

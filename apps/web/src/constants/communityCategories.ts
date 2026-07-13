@@ -39,7 +39,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     key: "tips_v2",
     label: "꿀팁",
     shortLabel: "꿀팁",
-    description: "계약 전 질문, 숨은 비용, 준비 순서처럼 도움이 되는 팁을 모읍니다.",
+    description: "계약 전 질문, 추가비용 확인 항목, 준비 순서처럼 도움이 되는 팁을 모읍니다.",
     icon: "Lightbulb",
     color: "text-[#C9A96E]",
     bgColor: "bg-[#FAF8F0]",

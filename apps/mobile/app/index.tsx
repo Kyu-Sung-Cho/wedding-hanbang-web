@@ -1,61 +1,88 @@
-// 루트: 세션 → 온보딩 여부 → 대시보드 or 로그인
-import { useEffect, useState } from "react";
-import { Redirect } from "expo-router";
+// 루트: 세션과 프로필 상태를 확인한 뒤 안전한 목적지로 이동한다.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Redirect, type Href } from "expo-router";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
+import ErrorRetry from "@/components/ErrorRetry";
+import { consumePendingMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
 import { supabase } from "@/lib/supabase";
 
-type Destination = "login" | "onboarding" | "dashboard";
+type LoadStatus = "loading" | "ready" | "error";
 
 export default function Index() {
-  const [loading, setLoading] = useState(true);
-  const [dest, setDest] = useState<Destination>("login");
+  const [status, setStatus] = useState<LoadStatus>("loading");
+  const [destination, setDestination] = useState<Href | null>(null);
+  const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          setDest("login");
-          setLoading(false);
-          return;
-        }
+  const loadDestination = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    setStatus("loading");
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("name, couple_id, onboarding_completed")
-          .eq("id", session.user.id)
-          .maybeSingle();
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (requestId !== requestIdRef.current) return;
 
-        if (!profile || !profile.onboarding_completed) {
-          setDest("onboarding");
-        } else {
-          setDest("dashboard");
-        }
-      } catch {
-        setDest("login");
+      const session = sessionData.session;
+      if (!session) {
+        setDestination("/(auth)/login");
+        setStatus("ready");
+        return;
       }
-      setLoading(false);
-    })();
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("name, couple_id, onboarding_completed")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      if (requestId !== requestIdRef.current) return;
+
+      if (!profile || !profile.onboarding_completed) {
+        setDestination("/onboarding");
+      } else {
+        const pendingPath = await consumePendingMobileAuthReturnPath();
+        if (requestId !== requestIdRef.current) return;
+        setDestination(pendingPath ?? "/(tabs)/dashboard");
+      }
+      setStatus("ready");
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+      console.error("Mobile auth profile load failed:", error);
+      setDestination(null);
+      setStatus("error");
+    }
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    void loadDestination();
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [loadDestination]);
+
+  if (status === "loading") {
     return (
-      <View style={styles.loading}>
+      <View style={styles.loading} accessibilityLiveRegion="polite">
         <ActivityIndicator color={colors.rose[500]} size="large" />
         <Text style={styles.loadingText}>오늘의 웨딩 플랜을 준비하고 있어요</Text>
       </View>
     );
   }
 
-  switch (dest) {
-    case "login":
-      return <Redirect href="/(auth)/login" />;
-    case "onboarding":
-      return <Redirect href="/onboarding" />;
-    case "dashboard":
-      return <Redirect href="/(tabs)/dashboard" />;
+  if (status === "error") {
+    return (
+      <View style={styles.errorContainer}>
+        <ErrorRetry
+          message="로그인 정보는 그대로예요. 연결을 확인한 뒤 프로필을 다시 불러와 주세요."
+          onRetry={() => void loadDestination()}
+        />
+      </View>
+    );
   }
+
+  return destination ? <Redirect href={destination} /> : null;
 }
 
 const styles = StyleSheet.create({
@@ -73,5 +100,11 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+    paddingHorizontal: 24,
   },
 });

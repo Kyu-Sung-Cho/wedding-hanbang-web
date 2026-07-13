@@ -1,5 +1,8 @@
 # WeddingCode 수집 채널 결정: 노코드 폼 → 인앱 프로토타입 (2026-07-05)
 
+> [!WARNING]
+> **폐기된 연구 결정 스냅샷입니다.** 익명 응답 수집, 파트너 초대·페어링, 커플 리포트 API는 현재 HTTP 410으로 하드 비활성입니다. 개인 결과만 브라우저에서 계산하며, 최신 기준은 `../CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
+
 ## 결정
 
 v0.3 스모크 테스트를 Tally 등 외부 노코드 폼 대신 **hanbang.ai/wedding-code 인앱

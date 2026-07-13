@@ -144,6 +144,20 @@ function isDemoMode() {
   return document.cookie.includes("demo_mode=true");
 }
 
+function verifiedDemoAuthState() {
+  return {
+    user: { id: "demo", email: "demo@hanbang.ai" },
+    profile: DEMO_PROFILE,
+    couple: DEMO_COUPLE,
+    journey: DEMO_JOURNEY,
+    partner: null,
+    isDemo: true,
+    isLoading: false,
+    isInitialized: true,
+    initError: null,
+  };
+}
+
 function isTransientAuthFetchError(err: unknown) {
   if (!(err instanceof Error)) return false;
   return (
@@ -151,6 +165,31 @@ function isTransientAuthFetchError(err: unknown) {
     /failed to fetch|load failed|networkerror|aborted/i.test(err.message)
   );
 }
+
+export type AuthInitializationErrorCode = "PROFILE_UNAVAILABLE" | "AUTH_UNAVAILABLE";
+
+export interface AuthInitializationError {
+  code: AuthInitializationErrorCode;
+  status: number | null;
+  message: string;
+  retryAfterSeconds: number | null;
+}
+
+function parseRetryAfterSeconds(response: Response): number | null {
+  const value = Number(response.headers?.get("Retry-After"));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function unavailableInitializationError(
+  code: AuthInitializationErrorCode,
+  message: string,
+  status: number | null = null,
+  retryAfterSeconds: number | null = null,
+): AuthInitializationError {
+  return { code, status, message, retryAfterSeconds };
+}
+
+let authInitializationRequestId = 0;
 
 interface AuthState {
   user: { id: string; email: string } | null;
@@ -161,9 +200,10 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   isDemo: boolean;
+  initError: AuthInitializationError | null;
 
-  initialize: (options?: { force?: boolean }) => Promise<void>;
-  updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<void>;
+  initialize: (options?: { force?: boolean; verifiedDemo?: boolean }) => Promise<void>;
+  updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<boolean>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
@@ -188,17 +228,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   isDemo: false,
+  initError: null,
 
   initialize: async (options) => {
     if (get().isInitialized && !options?.force) return;
+    const requestId = ++authInitializationRequestId;
+    const hadUsableAuth = Boolean(get().user && get().profile);
     if (!options?.force) set({ isLoading: true });
+
+    // 서버 레이아웃이 HMAC 서명과 만료를 이미 검증한 예시 세션은
+    // Supabase 클라이언트나 /api/auth/me를 만들기 전에 즉시 준비한다.
+    if (options?.verifiedDemo) {
+      set(verifiedDemoAuthState());
+      return;
+    }
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
+      if (requestId !== authInitializationRequestId) return;
 
       if (res.ok) {
         const data = await res.json();
+        if (requestId !== authInitializationRequestId) return;
 
         if (data.user) {
           // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
@@ -215,48 +267,78 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isDemo: false,
             isLoading: false,
             isInitialized: true,
+            initError: null,
           });
           return;
         }
       }
 
-      // 실제 유저가 없을 때만 데모 모드 체크
-      if (isDemoMode()) {
+      if (!res.ok && res.status !== 401) {
+        const body = (typeof res.json === "function"
+          ? await res.json().catch(() => ({}))
+          : {}) as {
+          code?: string;
+          error?: string;
+        };
+        if (requestId !== authInitializationRequestId) return;
+        const isProfileUnavailable =
+          res.status === 503 && body.code === "PROFILE_UNAVAILABLE";
+        const initError = unavailableInitializationError(
+          isProfileUnavailable ? "PROFILE_UNAVAILABLE" : "AUTH_UNAVAILABLE",
+          body.error ?? "로그인 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+          typeof res.status === "number" ? res.status : null,
+          parseRetryAfterSeconds(res),
+        );
+
         set({
-          user: { id: "demo", email: "demo@hanbang.ai" },
-          profile: DEMO_PROFILE,
-          couple: DEMO_COUPLE,
-          journey: DEMO_JOURNEY,
-          partner: null,
-          isDemo: true,
           isLoading: false,
           isInitialized: true,
+          ...(hadUsableAuth ? {} : { initError }),
         });
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      // 실제 유저가 없을 때만 데모 모드 체크
+      if (isDemoMode()) {
+        set(verifiedDemoAuthState());
+        return;
+      }
+
+      set({
+        user: null,
+        profile: null,
+        partner: null,
+        couple: null,
+        journey: null,
+        isDemo: false,
+        isLoading: false,
+        isInitialized: true,
+        initError: null,
+      });
     } catch (err) {
+      if (requestId !== authInitializationRequestId) return;
       if (!isTransientAuthFetchError(err)) {
         console.error("Auth store init error:", err);
       }
 
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
-        set({
-          user: { id: "demo", email: "demo@hanbang.ai" },
-          profile: DEMO_PROFILE,
-          couple: DEMO_COUPLE,
-          journey: DEMO_JOURNEY,
-          partner: null,
-          isDemo: true,
-          isLoading: false,
-          isInitialized: true,
-        });
+        set(verifiedDemoAuthState());
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      set({
+        isLoading: false,
+        isInitialized: true,
+        ...(hadUsableAuth
+          ? {}
+          : {
+              initError: unavailableInitializationError(
+                "AUTH_UNAVAILABLE",
+                "로그인 정보를 불러오지 못했습니다. 연결을 확인하고 다시 시도해주세요.",
+              ),
+            }),
+      });
     }
   },
 
@@ -291,7 +373,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 데모 모드: 로컬만 업데이트
     if (isDemo) {
       set({ journey: journey ? { ...journey, ...updates } : null });
-      return;
+      return true;
     }
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
@@ -316,7 +398,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const otherFieldCount = Object.keys(body).length;
       if (Object.keys(patch).length === 0 && removeKeys.length === 0) {
         // progress 변경이 실제로 없으면 progress 파트는 생략 (no-op 방지)
-        if (otherFieldCount === 0) return;
+        if (otherFieldCount === 0) return true;
       } else {
         body.progress_patch = patch;
         body.progress_remove_keys = removeKeys;
@@ -332,9 +414,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         set({ journey: data.journey });
+        return true;
       }
+      console.error("Journey 업데이트 실패:", res.status);
+      return false;
     } catch (err) {
       console.error("Journey 업데이트 에러:", err);
+      return false;
     }
   },
 
@@ -385,6 +471,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    authInitializationRequestId += 1;
     set({
       user: null,
       profile: null,
@@ -394,6 +481,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       isInitialized: false,
       isDemo: false,
+      initError: null,
     });
   },
 }));

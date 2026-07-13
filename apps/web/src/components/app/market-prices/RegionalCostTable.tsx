@@ -7,7 +7,7 @@ interface RegionalCostTableProps {
   periodId: string;
 }
 
-type SortKey = "total" | "meal" | "sdm" | "rental" | "decoration";
+type SortKey = "venueAverage" | "meal" | "sdm" | "rental" | "decoration";
 
 function formatMan(value: number) {
   return `${value.toLocaleString()}만원`;
@@ -42,17 +42,18 @@ function SortHeader({
 }
 
 export default function RegionalCostTable({ periodId }: RegionalCostTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("total");
+  const [sortKey, setSortKey] = useState<SortKey>("venueAverage");
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionKey | null>(null);
 
-  const costs = getRegionalCosts(periodId);
+  const costs = getRegionalCosts(periodId).map(cost => ({
+    ...cost,
+    venueAverage: Math.round((cost.meal + cost.rental + cost.decoration) * 10) / 10,
+  }));
   const sorted = [...costs].sort((a, b) => {
     const diff = a[sortKey] - b[sortKey];
     return sortAsc ? diff : -diff;
   });
-
-  const maxTotal = Math.max(...costs.map(c => c.total));
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -90,17 +91,24 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
           <h4 className="mb-2 font-serif-kr text-[20px] font-medium text-[#071629]">
             {REGION_LABELS[selectedCost.region]}
           </h4>
-          <p className="mb-4 font-serif-kr text-[30px] font-medium leading-none text-[#071629]">
-            {formatMan(selectedCost.total)}
-          </p>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3">
+              <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">예식장 평균 계약금액</p>
+              <p className="font-serif-kr text-[24px] font-medium text-[#071629]">{formatMan(selectedCost.venueAverage)}</p>
+            </div>
+            <div className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3">
+              <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">스드메 평균 계약금액</p>
+              <p className="font-serif-kr text-[24px] font-medium text-[#071629]">{formatMan(selectedCost.sdm)}</p>
+            </div>
+          </div>
+          <p className="mb-2 text-[11px] font-semibold text-[#7a8290]">예식장 평균 구성</p>
+          <div className="grid grid-cols-3 gap-3">
             {[
               { label: "식대", value: selectedCost.meal },
-              { label: "스드메", value: selectedCost.sdm },
               { label: "대관료", value: selectedCost.rental },
-              { label: "꽃장식", value: selectedCost.decoration },
+              { label: "기본 장식", value: selectedCost.decoration },
             ].map(item => (
-              <div key={item.label} className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3 text-center max-sm:col-span-2">
+              <div key={item.label} className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3 text-center max-sm:col-span-3">
                 <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">{item.label}</p>
                 <p className="text-[13px] font-semibold text-[#071629]">
                   {formatMan(item.value)}
@@ -108,37 +116,27 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
               </div>
             ))}
           </div>
-          {/* 전국 평균 대비 바 */}
-          <div className="mt-4">
-            <div className="mb-1 flex justify-between text-[11px] font-medium text-[#7a8290]">
-              <span>전국 평균 대비</span>
-              <span>{Math.round((selectedCost.total / (costs.reduce((s, c) => s + c.total, 0) / costs.length)) * 100)}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-              <div
-                className="h-full rounded-full bg-[#36534E] transition-all duration-500"
-                style={{ width: `${Math.min((selectedCost.total / maxTotal) * 100, 100)}%` }}
-              />
-            </div>
-          </div>
+          <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
+            예식장과 스드메는 별도 조사 항목입니다. 두 금액을 합산하지 않고 각각 확인하세요.
+          </p>
         </div>
       )}
 
       {/* 테이블 */}
       <div className="overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white">
-        <table className="w-full min-w-[620px] text-[12px]">
+        <table className="w-full min-w-[660px] text-[12px]">
           <thead>
             <tr className="border-b border-[#eadfc9]/70 bg-[#fffdf7]">
               <th className="px-3 py-3 text-left text-[11px] font-semibold text-[#7a8290]">지역</th>
-              <th className="text-right py-3 px-2"><SortHeader label="총비용" field="total" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="예식장 평균" field="venueAverage" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2"><SortHeader label="스드메 평균" field="sdm" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="식대" field="meal" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
-              <th className="text-right py-3 px-2"><SortHeader label="스드메" field="sdm" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="대관료" field="rental" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
-              <th className="text-right py-3 px-2 max-md:hidden"><SortHeader label="꽃장식" field="decoration" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
+              <th className="text-right py-3 px-2 max-md:hidden"><SortHeader label="기본 장식" field="decoration" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c, i) => (
+            {sorted.map(c => (
               <tr
                 key={c.region}
                 onClick={() => setSelectedRegion(selectedRegion === c.region ? null : c.region)}
@@ -149,19 +147,16 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
                 }`}
               >
                 <td className="px-3 py-3 font-semibold text-[#071629]">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="w-4 text-[10px] text-[#9a9188]">{i + 1}</span>
-                    {REGION_LABELS[c.region]}
-                  </span>
+                  {REGION_LABELS[c.region]}
                 </td>
                 <td className="px-2 py-3 text-right font-semibold text-[#071629]">
-                  {formatMan(c.total)}
-                </td>
-                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
-                  {formatMan(c.meal)}
+                  {formatMan(c.venueAverage)}
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
                   {formatMan(c.sdm)}
+                </td>
+                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
+                  {formatMan(c.meal)}
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
                   {formatMan(c.rental)}

@@ -7,8 +7,19 @@ import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+const TURNSTILE_WIDGET_ERROR =
+  "보안 확인을 불러오지 못했습니다. 다시 시도 버튼을 눌러주세요.";
+const EMAIL_DELIVERY_ACTIONS_AVAILABLE =
+  TURNSTILE_ENABLED || process.env.NODE_ENV !== "production";
+const VERIFIED_OAUTH_PROVIDERS = {
+  kakao: process.env.NEXT_PUBLIC_OAUTH_KAKAO_ENABLED === "true",
+  google: process.env.NEXT_PUBLIC_OAUTH_GOOGLE_ENABLED === "true",
+  apple: process.env.NEXT_PUBLIC_OAUTH_APPLE_ENABLED === "true",
+} as const;
+const HAS_VERIFIED_OAUTH_PROVIDER = Object.values(VERIFIED_OAUTH_PROVIDERS).some(Boolean);
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -35,6 +46,12 @@ function isPasswordValid(checks: PasswordCheck): boolean {
   return checks.minLength && checks.hasUppercase && checks.hasLowercase && checks.hasNumber && checks.hasSpecial;
 }
 
+function currentReturnPath(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  return sanitizeAuthReturnPath(params.get("next") ?? params.get("redirect"));
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState<string | null>(null);
@@ -48,6 +65,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("");
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileAttempt, setTurnstileAttempt] = useState(0);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -56,6 +74,11 @@ export default function LoginPage() {
     // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
     const callbackError = params.get("error");
+    const requestedMode = params.get("mode");
+
+    if (requestedMode === "signup" || requestedMode === "forgot") {
+      setMode(requestedMode);
+    }
 
     // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
     const hash = window.location.hash.substring(1);
@@ -63,12 +86,8 @@ export default function LoginPage() {
     const hashError = hashParams.get("error");
     const hashDescription = hashParams.get("error_description");
 
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
+    if (hashDescription || hashError || callbackError) {
+      setError("로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
   }, []);
 
@@ -79,27 +98,33 @@ export default function LoginPage() {
     document.cookie = "demo_mode=; path=/; max-age=0";
     try {
       const supabase = createClient();
+      const callbackUrl = new URL("/api/auth/callback", window.location.origin);
+      const returnPath = currentReturnPath();
+      if (returnPath) callbackUrl.searchParams.set("next", returnPath);
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
+          redirectTo: callbackUrl.toString(),
         },
       });
       if (oauthError) {
         console.error("OAuth error:", oauthError);
-        setError(`소셜 로그인 오류: ${oauthError.message}`);
+        setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
         setLoading(null);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("OAuth catch error:", msg);
+      console.error("OAuth catch error:", err);
       setLoading(null);
-      setError(`소셜 로그인 실패: ${msg}`);
+      setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode !== "login" && !EMAIL_DELIVERY_ACTIONS_AVAILABLE) {
+      setError("보안 확인을 점검 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     if (mode === "forgot") {
       if (!email) { setError("이메일을 입력해주세요."); return; }
       if (TURNSTILE_ENABLED && !turnstileToken) { setError("봇 확인을 완료해주세요."); return; }
@@ -142,13 +167,16 @@ export default function LoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken }),
+          body: JSON.stringify({ email, password, name, turnstileToken, next: currentReturnPath() }),
         });
         const result = await res.json();
         if (!res.ok) {
           setError(result.error || "회원가입에 실패했습니다.");
         } else {
-          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
+          setSuccess(
+            result.message ||
+              "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다."
+          );
         }
       } else if (mode === "forgot") {
         // 서버 API로 비밀번호 재설정 이메일 발송
@@ -157,10 +185,14 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, turnstileToken }),
         });
+        const result = await res.json().catch(() => ({}));
         if (res.ok) {
-          setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
+          setSuccess(
+            result.message ||
+              "요청을 확인했습니다. 해당 이메일로 재설정이 가능하면 안내가 도착합니다."
+          );
         } else {
-          setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+          setError(result.error || "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -173,47 +205,44 @@ export default function LoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            setError("로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
           }
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from("profiles")
               .select("onboarding_completed")
               .eq("id", loggedInUser.id)
-              .single();
+              .maybeSingle();
+
+            if (profileError) {
+              console.error("로그인 후 프로필 조회 실패:", profileError.message);
+              setError("프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+              return;
+            }
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/wedding/lounge";
+              window.location.href = currentReturnPath() ?? "/wedding/lounge";
             } else {
-              window.location.href = "/wedding/onboarding";
+              window.location.href = pathWithAuthReturn("/wedding/onboarding", currentReturnPath());
             }
           } else {
-            window.location.href = "/wedding/lounge";
+            window.location.href = currentReturnPath() ?? "/wedding/lounge";
           }
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      console.error("Auth error:", err);
+      setError("요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(null);
-    }
-  };
-
-  const handleDemo = async () => {
-    setLoading("demo");
-    setError("");
-    try {
-      const res = await fetch("/api/demo/start", { method: "POST" });
-      if (!res.ok) throw new Error("demo start failed");
-      window.location.href = "/wedding/lounge";
-    } catch {
-      setError("데모 모드를 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
-      setLoading(null);
+      if (mode === "signup" || mode === "forgot") {
+        // Turnstile 토큰은 일회용이므로 요청마다 위젯까지 새로 만든다.
+        setTurnstileToken("");
+        setTurnstileAttempt((value) => value + 1);
+      }
     }
   };
 
@@ -226,14 +255,14 @@ export default function LoginPage() {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
         className="relative z-10 w-full max-w-[420px]"
       >
         {/* 로고 */}
         <div className="text-center mb-10">
-          <Link href="/wedding">
+          <Link href="/wedding" className="inline-flex min-h-11 items-center justify-center">
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-[#635b51] font-light mt-3">
@@ -260,8 +289,12 @@ export default function LoginPage() {
               <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
                 {mode === "signup" && (
                   <div>
+                    <label htmlFor="auth-name" className="sr-only">이름</label>
                     <input
+                      id="auth-name"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       value={name}
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -275,8 +308,13 @@ export default function LoginPage() {
                     )}
                   </div>
                 )}
+                <label htmlFor="auth-email" className="sr-only">이메일</label>
                 <input
+                  id="auth-email"
+                  name="email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                   onBlur={() => setTouched((t) => ({ ...t, email: true }))}
@@ -286,8 +324,12 @@ export default function LoginPage() {
 
                 {/* 비밀번호 (forgot 모드에서는 숨김) */}
                 {mode !== "forgot" && <div className="relative">
+                  <label htmlFor="auth-password" className="sr-only">비밀번호</label>
                   <input
+                    id="auth-password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     onBlur={() => setTouched((t) => ({ ...t, password: true }))}
@@ -297,8 +339,8 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#928980] hover:text-[#36534E] transition-colors"
-                    tabIndex={-1}
+                    className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[#928980] transition-colors hover:text-[#36534E]"
+                    aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                   >
                     {showPassword ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -347,8 +389,12 @@ export default function LoginPage() {
                 {mode === "signup" && (
                   <div>
                     <div className="relative">
+                      <label htmlFor="auth-password-confirm" className="sr-only">비밀번호 확인</label>
                       <input
+                        id="auth-password-confirm"
+                        name="passwordConfirm"
                         type={showPasswordConfirm ? "text" : "password"}
+                        autoComplete="new-password"
                         value={passwordConfirm}
                         onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                         onBlur={() => setTouched((t) => ({ ...t, passwordConfirm: true }))}
@@ -362,8 +408,8 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#928980] hover:text-[#36534E] transition-colors"
-                        tabIndex={-1}
+                        className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[#928980] transition-colors hover:text-[#36534E]"
+                        aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 보기"}
                       >
                         {showPasswordConfirm ? (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -392,35 +438,60 @@ export default function LoginPage() {
 
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
-                  <TurnstileWidget onVerify={setTurnstileToken} />
+                  <TurnstileWidget
+                    key={`${mode}-${turnstileAttempt}`}
+                    action={mode === "signup" ? "signup" : "forgot_password"}
+                    onVerify={(token) => {
+                      setTurnstileToken(token);
+                      if (token) {
+                        setError((current) =>
+                          current === TURNSTILE_WIDGET_ERROR ? "" : current
+                        );
+                      }
+                    }}
+                    onError={() => setError(TURNSTILE_WIDGET_ERROR)}
+                  />
                 )}
 
                 {error && (
-                  <p className="text-[12px] text-[#9A6B62] px-1">{error}</p>
+                  <p className="text-[12px] text-[#9A6B62] px-1" role="alert" aria-live="assertive">{error}</p>
+                )}
+                {(mode === "signup" || mode === "forgot") && !EMAIL_DELIVERY_ACTIONS_AVAILABLE && (
+                  <div className="rounded-xl border border-[#9A6B62]/25 bg-[#9A6B62]/5 px-4 py-3" role="alert">
+                    <p className="text-[13px] leading-5 text-[#795252]">
+                      보안 확인을 점검 중이라 지금은 이메일 요청을 받을 수 없습니다. 잠시 후 다시 시도해주세요.
+                    </p>
+                  </div>
                 )}
                 {success && (
-                  <div className="bg-[#36534E]/5 border border-[#36534E]/20 rounded-xl px-4 py-3">
+                  <div className="bg-[#36534E]/5 border border-[#36534E]/20 rounded-xl px-4 py-3" role="status" aria-live="polite">
                     <p className="text-[13px] text-[#36534E] font-medium flex items-center gap-2">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                       {success}
                     </p>
-                    <p className="text-[11px] text-[#36534E]/70 mt-1">스팸 메일함도 확인해주세요</p>
+                    <p className="text-[11px] text-[#36534E]/70 mt-1">안내가 도착하면 스팸 메일함도 확인해주세요</p>
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
+                  disabled={loading !== null || (mode !== "login" && !EMAIL_DELIVERY_ACTIONS_AVAILABLE) || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim())) || (mode === "forgot" && !email)}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
-                    ? "처리 중..."
+                    ? "처리 중…"
                     : mode === "login"
                       ? "로그인"
                       : mode === "signup"
                         ? "회원가입"
                         : "비밀번호 재설정 링크 보내기"}
                 </button>
+                {mode === "signup" && (
+                  <p className="px-2 text-center text-[11px] leading-5 text-[#635b51]">
+                    회원가입을 누르면 <Link href="/terms" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2">이용약관</Link>과{" "}
+                    <Link href="/privacy" className="inline-flex min-h-11 items-center px-2 underline underline-offset-2">개인정보처리방침</Link>에 동의합니다.
+                  </p>
+                )}
               </form>
 
               {/* 모드 전환 */}
@@ -430,16 +501,18 @@ export default function LoginPage() {
                     <p>
                       아직 계정이 없으신가요?{" "}
                       <button
+                        type="button"
                         onClick={() => { setMode("signup"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                        className="text-[#36534E] font-medium hover:underline"
+                        className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                       >
                         회원가입
                       </button>
                     </p>
                     <p>
                       <button
+                        type="button"
                         onClick={() => { setMode("forgot"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                        className="text-[#635b51] hover:text-[#36534E] hover:underline transition-colors"
+                        className="inline-flex min-h-11 items-center px-2 text-[#635b51] hover:text-[#36534E] hover:underline transition-colors"
                       >
                         비밀번호를 잊으셨나요?
                       </button>
@@ -450,8 +523,9 @@ export default function LoginPage() {
                   <p>
                     이미 계정이 있으신가요?{" "}
                     <button
+                      type="button"
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); setTouched({ name: false, email: false, password: false, passwordConfirm: false }); }}
-                      className="text-[#36534E] font-medium hover:underline"
+                      className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                     >
                       로그인
                     </button>
@@ -460,8 +534,9 @@ export default function LoginPage() {
                 {mode === "forgot" && (
                   <p>
                     <button
+                      type="button"
                       onClick={() => { setMode("login"); setError(""); setSuccess(""); setPassword(""); setPasswordConfirm(""); setTurnstileToken(""); }}
-                      className="text-[#36534E] font-medium hover:underline"
+                      className="inline-flex min-h-11 items-center px-2 text-[#36534E] font-medium hover:underline"
                     >
                       ← 로그인으로 돌아가기
                     </button>
@@ -469,16 +544,18 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* 구분선 */}
-              <div className="flex items-center gap-4 mb-5">
-                <div className="flex-1 h-px bg-platinum" />
-                <span className="text-[11px] text-[#928980]">소셜 로그인</span>
-                <div className="flex-1 h-px bg-platinum" />
-              </div>
+              {HAS_VERIFIED_OAUTH_PROVIDER && (
+                <>
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="flex-1 h-px bg-platinum" />
+                    <span className="text-[11px] text-[#6F665F]">기존 연결 계정으로 소셜 로그인</span>
+                    <div className="flex-1 h-px bg-platinum" />
+                  </div>
 
-              {/* 소셜 로그인 */}
-              <div className="flex gap-3 mb-5">
+                  <div className="flex gap-3 mb-5">
+                {VERIFIED_OAUTH_PROVIDERS.kakao && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("kakao")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-[#FEE500] text-[#191919] hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
@@ -488,7 +565,10 @@ export default function LoginPage() {
                   </svg>
                   카카오
                 </button>
+                )}
+                {VERIFIED_OAUTH_PROVIDERS.google && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("google")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-white border border-black/[0.08] text-[#071629] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
@@ -501,7 +581,10 @@ export default function LoginPage() {
                   </svg>
                   Google
                 </button>
+                )}
+                {VERIFIED_OAUTH_PROVIDERS.apple && (
                 <button
+                  type="button"
                   onClick={() => handleOAuth("apple")}
                   disabled={loading !== null}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[13px] font-medium transition-all hover:-translate-y-0.5 bg-black text-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
@@ -511,7 +594,13 @@ export default function LoginPage() {
                   </svg>
                   Apple
                 </button>
+                )}
               </div>
+              <p className="-mt-2 mb-5 text-center text-[11px] leading-relaxed text-[#6F665F]">
+                새 계정은 이메일로 가입해 주세요. 소셜 로그인은 기존에 연결한 계정만 사용할 수 있어요.
+              </p>
+                </>
+              )}
 
               {/* 구분선 */}
               <div className="flex items-center gap-4 mb-5">
@@ -520,26 +609,26 @@ export default function LoginPage() {
                 <div className="flex-1 h-px bg-platinum" />
               </div>
 
-              {/* 데모 체험 */}
-              <button
-                onClick={handleDemo}
+              {/* 예시 앱 체험은 인증 흐름과 분리 */}
+              <Link
+                href="/demo/login"
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 border-[1.5px] border-[#36534E]/35 text-[#36534E] hover:border-[#36534E] hover:bg-[#EEF4F1]"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
                 </svg>
-                로그인 없이 체험하기
-              </button>
+                예시 앱 체험하기
+              </Link>
 
               <p className="text-[11px] text-[#928980] text-center mt-4 font-light">
-                체험 모드에서는 모든 기능을 미리 둘러볼 수 있습니다
+                계정 없이 별도 예시 데이터로 둘러보며, 실제 준비 정보는 저장하지 않습니다
               </p>
           </>
         </div>
 
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-4 mt-6">
-          <Link href="/wedding" className="text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
+          <Link href="/wedding" className="inline-flex min-h-11 items-center px-3 text-[13px] text-[#635b51] hover:text-[#36534E] transition-colors">
             ← 홈으로
           </Link>
         </div>

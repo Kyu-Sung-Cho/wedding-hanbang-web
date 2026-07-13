@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
 import { isUuid } from "@/utils/requestValidation";
@@ -10,9 +11,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
     }
     const supabase = await createClientFromRequest(req);
+    const admin = createAdminClient();
 
     // 업체 정보
-    const { data: vendorRow, error } = await supabase
+    const { data: vendorRow, error } = await admin
       .from("vendors")
       .select("*")
       .eq("id", id)
@@ -56,7 +58,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const dateStrings = nextWeekDates.map((d) => d.date);
-    const { data: upcomingBookings } = await supabase
+    const { data: upcomingBookings } = await admin
       .from("vendor_bookings")
       .select("booking_date, booking_time, product_id")
       .eq("vendor_id", id)
@@ -95,7 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 리뷰
     const { data: reviews } = await supabase
       .from("vendor_reviews")
-      .select("*")
+      .select("id, vendor_id, product_id, rating, content, images, reply, replied_at, is_visible, created_at, updated_at")
       .eq("vendor_id", id)
       .eq("is_visible", true)
       .order("created_at", { ascending: false })
@@ -106,7 +108,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 조회수 기록
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from("vendor_views").insert({
+      await admin.from("vendor_views").insert({
         vendor_id: id,
         viewer_id: user.id,
       });

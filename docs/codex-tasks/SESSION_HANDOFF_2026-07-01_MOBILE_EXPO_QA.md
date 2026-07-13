@@ -1,5 +1,8 @@
 # Session Handoff - 2026-07-01 Mobile Expo QA
 
+> [!WARNING]
+> **역사 인수인계 스냅샷입니다.** 아래 브랜치·커밋·실행 지침은 현재 상태가 아닙니다. Git을 다시 확인하고 `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 기준으로 진행하세요.
+
 이 문서는 다른 컴퓨터에서 오늘 모바일 앱 작업을 바로 이어가기 위한 기록입니다.
 
 ## 현재 작업 범위

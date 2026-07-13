@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+
 const steps = [
   {
     num: "01",
@@ -10,9 +12,11 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
       </svg>
     ),
-    title: "회원가입",
-    desc: "웨딩한방에서 간단히 가입하고 바로 시작하세요.",
-    highlight: "간편 가입",
+    title: isComingSoon ? "베타 계정 만들기 (예정)" : "베타 계정 만들기",
+    desc: isComingSoon
+      ? "정식 베타가 열리면 이메일로 내 준비 공간을 만드는 단계입니다."
+      : "이메일로 내 준비 공간을 만들거나, 가입 전 예시 앱을 먼저 둘러보세요.",
+    highlight: isComingSoon ? "정식 베타 예정" : "계정과 예시 앱 분리",
   },
   {
     num: "02",
@@ -22,7 +26,7 @@ const steps = [
       </svg>
     ),
     title: "커플 연동",
-    desc: "초대 코드 한 번이면 끝. 모든 정보를 실시간으로 함께 확인하세요.",
+    desc: "초대 코드로 연결하고 일정, 예산과 준비 진행을 함께 확인하세요.",
     highlight: "초대 코드 공유",
   },
   {
@@ -33,7 +37,7 @@ const steps = [
       </svg>
     ),
     title: "AI 온보딩",
-    desc: "결혼일, 예산, 선호도만 입력하면 AI가 맞춤 플랜을 자동 생성합니다.",
+    desc: "결혼일, 예산과 선호도를 입력해 기본 체크리스트와 안내를 준비합니다.",
     highlight: "간단한 설정",
   },
   {
@@ -43,9 +47,9 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
       </svg>
     ),
-    title: "완벽한 결혼 준비 시작",
-    desc: "AI가 D-day까지 함께합니다. 상담, 예산, 일정 모든 걸 하나의 플랫폼에서.",
-    highlight: "All-in-One",
+    title: "내 준비 공간 시작",
+    desc: "아모라 상담, 예산과 일정을 한곳에서 확인하며 필요한 항목부터 진행하세요.",
+    highlight: "한곳에서 확인",
   },
 ];
 
@@ -69,10 +73,22 @@ export default function CustomerHowItWorks() {
           시작은 간단합니다
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          4단계만 거치면 AI가 당신의 결혼 준비를
-          <br className="hidden md:block" />
-          처음부터 끝까지 함께합니다.
+          {isComingSoon
+            ? "정식 베타에서 제공할 4단계 준비 흐름을 미리 확인하세요."
+            : "4단계로 준비 공간을 만들고 아모라와 커플 도구를"}
+          {!isComingSoon && (
+            <>
+              <br className="hidden md:block" />
+              필요한 만큼 이용할 수 있습니다.
+            </>
+          )}
         </p>
+        <a
+          href={isComingSoon ? "/beta" : "/demo/login"}
+          className="mt-5 inline-flex text-[13px] font-medium text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 hover:decoration-[#36534E]"
+        >
+          {isComingSoon ? "별도 사용자 연구 참여 조건 보기" : "가입 전 예시 앱부터 체험하기"}
+        </a>
       </motion.div>
 
       <div className="max-w-[1000px] mx-auto relative">
@@ -97,7 +113,7 @@ export default function CustomerHowItWorks() {
               </div>
               <div className="max-md:flex-1">
                 <span className="font-display text-[12px] text-rose-500 font-semibold block mb-2">{step.num}</span>
-                <h4 className="text-[16px] font-medium text-noir-800 mb-2">{step.title}</h4>
+                <h3 className="text-[16px] font-medium text-noir-800 mb-2">{step.title}</h3>
                 <p className="text-[13px] text-taupe-500 font-light leading-relaxed mb-3">{step.desc}</p>
                 <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full font-medium">
                   {step.highlight}

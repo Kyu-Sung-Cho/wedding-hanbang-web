@@ -1,32 +1,30 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin, getServiceClient, seedGate } from "@/lib/utils/adminAuth";
 
-const supabaseAdmin = getServiceClient();
-
 // 메이크업샵 시드 데이터 (15곳)
 const MAKEUP_SHOPS = [
   // ── 프리미엄 (3곳) ──
   { name: "샤르망 메이크업", location: "서울 강남구", region: "서울", priceMin: 600000, priceMax: 1500000, style: "내추럴", tags: ["내추럴", "강남", "신부주도"], desc: "강남 신사동. 신부 본연의 매력을 살리는 내추럴 메이크업 전문." },
   { name: "더 글로우 살롱", location: "서울 강남구", region: "서울", priceMin: 700000, priceMax: 1700000, style: "글램", tags: ["글램", "광채", "프리미엄"], desc: "압구정. 글로우 스킨과 화사한 글램 룩 전문. 본식 + 리허설 + 폐백 풀세트." },
-  { name: "메종 드 보떼", location: "서울 용산구", region: "서울", priceMin: 650000, priceMax: 1600000, style: "클래식", tags: ["클래식", "한남동", "원장직접"], desc: "한남동. 원장 직접 시술 보장. 정통 클래식 신부 메이크업." },
+  { name: "메종 드 보떼", location: "서울 용산구", region: "서울", priceMin: 650000, priceMax: 1600000, style: "클래식", tags: ["클래식", "한남동", "담당자 선택"], desc: "클래식 메이크업과 담당자 선택 항목을 보여주는 운영 테스트용 예시." },
 
   // ── 중상급 (5곳) ──
   { name: "라뷔드 메이크업", location: "서울 마포구", region: "서울", priceMin: 350000, priceMax: 800000, style: "내추럴", tags: ["홍대", "내추럴", "젊은감각"], desc: "홍대입구. 자연스러우면서 트렌디한 메이크업." },
   { name: "스튜디오 뮤어", location: "서울 송파구", region: "서울", priceMin: 400000, priceMax: 900000, style: "글램", tags: ["잠실", "글램", "포토제닉"], desc: "잠실. 사진 잘 받는 포토제닉 메이크업. 야외 촬영 보정 포함." },
   { name: "더 비유티", location: "서울 서초구", region: "서울", priceMin: 380000, priceMax: 850000, style: "내추럴", tags: ["서초", "양가부모님", "단정"], desc: "서초동. 양가 부모님께 좋은 인상을 주는 단정한 메이크업." },
   { name: "벨라 살롱", location: "경기 성남시", region: "경기", priceMin: 350000, priceMax: 800000, style: "글램", tags: ["분당", "글램", "주차"], desc: "분당 정자동. 차로 가기 편하고 주차 편리." },
-  { name: "온더 글래스", location: "서울 종로구", region: "서울", priceMin: 380000, priceMax: 870000, style: "한복특화", tags: ["북촌", "한복", "전통"], desc: "북촌. 한복 메이크업에 특화. 전통 혼례식 신부 인기." },
+  { name: "온더 글래스", location: "서울 종로구", region: "서울", priceMin: 380000, priceMax: 870000, style: "한복특화", tags: ["북촌", "한복", "전통"], desc: "한복 메이크업 구성을 보여주는 운영 테스트용 예시." },
 
   // ── 중급 (5곳) ──
   { name: "데일리 뷰티", location: "서울 동작구", region: "서울", priceMin: 250000, priceMax: 600000, style: "내추럴", tags: ["사당", "가성비", "내추럴"], desc: "사당역. 데일리 같은 자연스러운 결과물에 합리적 가격." },
   { name: "스마일 뷰티 살롱", location: "서울 영등포구", region: "서울", priceMin: 280000, priceMax: 650000, style: "글램", tags: ["여의도", "직장인", "퇴근후"], desc: "여의도. 평일 야간 시술 가능. 직장인 신부 환영." },
-  { name: "퍼스트 메이크업", location: "경기 수원시", region: "경기", priceMin: 230000, priceMax: 550000, style: "내추럴", tags: ["수원", "경기남부", "넓은공간"], desc: "수원역. 경기남부 가성비 메이크업 1위." },
-  { name: "마이 데이", location: "인천 남동구", region: "인천", priceMin: 250000, priceMax: 600000, style: "클래식", tags: ["인천", "구월동", "클래식"], desc: "인천 구월동. 인천 신부 인기 1위 살롱." },
-  { name: "리브 메이크업", location: "서울 광진구", region: "서울", priceMin: 280000, priceMax: 650000, style: "글램", tags: ["건대", "글램", "젊은신부"], desc: "건대. 20대 신부에게 인기. 트렌디한 글램 룩." },
+  { name: "퍼스트 메이크업", location: "경기 수원시", region: "경기", priceMin: 230000, priceMax: 550000, style: "내추럴", tags: ["수원", "경기남부", "넓은공간"], desc: "경기 남부의 내추럴 구성을 보여주는 운영 테스트용 예시." },
+  { name: "마이 데이", location: "인천 남동구", region: "인천", priceMin: 250000, priceMax: 600000, style: "클래식", tags: ["인천", "구월동", "클래식"], desc: "인천 지역의 클래식 구성을 보여주는 운영 테스트용 예시." },
+  { name: "리브 메이크업", location: "서울 광진구", region: "서울", priceMin: 280000, priceMax: 650000, style: "글램", tags: ["건대", "글램"], desc: "글램 스타일을 보여주는 운영 테스트용 예시." },
 
   // ── 가성비 (2곳) ──
   { name: "데이지 메이크업", location: "서울 도봉구", region: "서울", priceMin: 150000, priceMax: 350000, style: "심플", tags: ["가성비", "심플", "도봉"], desc: "쌍문역. 단순하지만 결과물 좋은 합리적 메이크업." },
-  { name: "프레쉬 메이크업", location: "경기 부천시", region: "경기", priceMin: 170000, priceMax: 400000, style: "내추럴", tags: ["부천", "가성비", "내추럴"], desc: "부천역. 부천/김포권 가성비 메이크업 추천 1위." },
+  { name: "프레쉬 메이크업", location: "경기 부천시", region: "경기", priceMin: 170000, priceMax: 400000, style: "내추럴", tags: ["부천", "가성비", "내추럴"], desc: "부천·김포 지역의 내추럴 구성을 보여주는 운영 테스트용 예시." },
 ];
 
 function generateMakeupProducts(shop: typeof MAKEUP_SHOPS[0]) {
@@ -51,7 +49,7 @@ function generateMakeupProducts(shop: typeof MAKEUP_SHOPS[0]) {
     });
     products.push({
       name: "본식+리허설 패키지",
-      description: "리허설 + 본식. 가장 인기.",
+      description: "리허설 + 본식을 가정한 예시 구성.",
       price: Math.round(priceMin + range * 0.4),
       original_price: Math.round((priceMin + range * 0.4) * 1.1),
       discount_price: null,
@@ -92,7 +90,7 @@ function generateMakeupProducts(shop: typeof MAKEUP_SHOPS[0]) {
     });
     products.push({
       name: "본식+리허설",
-      description: "리허설 1회 포함. 가장 인기.",
+      description: "리허설 1회 포함을 가정한 예시 구성.",
       price: Math.round(priceMin + range * 0.5),
       original_price: Math.round((priceMin + range * 0.5) * 1.1),
       discount_price: null,
@@ -120,7 +118,7 @@ function generateMakeupProducts(shop: typeof MAKEUP_SHOPS[0]) {
     // 가성비
     products.push({
       name: "본식 단독",
-      description: "본식 메이크업+헤어. 가장 합리적.",
+      description: "본식 메이크업+헤어를 가정한 예시 구성.",
       price: priceMin,
       original_price: null,
       discount_price: null,
@@ -188,6 +186,7 @@ export async function POST(req: Request) {
   }
   const gate = seedGate();
   if (gate) return gate;
+  const supabaseAdmin = getServiceClient();
 
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };
 
@@ -201,14 +200,14 @@ export async function POST(req: Request) {
         region: shop.region,
         address: `${shop.location} ${Math.floor(Math.random() * 200) + 1}번지`,
         phone: `02-${String(Math.floor(Math.random() * 9000) + 1000)}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
-        description: shop.desc,
+        description: `[운영 테스트용 합성 데이터] ${shop.desc}`,
         price_range: `${(shop.priceMin / 10000).toLocaleString()}~${(shop.priceMax / 10000).toLocaleString()}만원`,
         price_min: shop.priceMin,
         price_max: shop.priceMax,
         tags: shop.tags,
         style_tags: [shop.style],
-        ai_recommend: true,
-        status: "approved",
+        ai_recommend: false,
+        status: "pending",
         business_hours: DEFAULT_HOURS,
         notification_settings: { booking: true, message: true, marketing: false },
       })
@@ -229,6 +228,8 @@ export async function POST(req: Request) {
         .insert({
           vendor_id: vendor.id,
           ...product,
+          // 합성 데이터에 실제 인기도 신호를 부여하지 않는다.
+          is_popular: false,
           is_active: true,
           images: [],
         });

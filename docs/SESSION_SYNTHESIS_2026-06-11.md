@@ -1,5 +1,8 @@
 # 세션 종합 — 보수적 감사 + 10점 경로 + 업체 0→1 (2026-06-11)
 
+> [!WARNING]
+> **2026-06-11 감사·전략 인수인계 스냅샷입니다.** 아래 점수, 테스트 수, 활성 도구 수, 결제·예약·자동 중재 상태와 90일 계획은 현재 코드 상태가 아닙니다. 최신 판정은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 실제 코드를 우선합니다.
+
 > 이 문서는 2026-06-11 세션의 모든 분석을 한 곳에 모은 **크로스 머신 인수인계용**이다.
 > 상위 전략은 `MASTER_BLUEPRINT_2026-06-10.md`, 시장성 판정은 `CONSERVATIVE_VIABILITY_2026-06-10.md`,
 > 수수료 모델은 `WINWINWIN_MODEL_VERDICT_2026-06-10.md` 와 함께 읽을 것.

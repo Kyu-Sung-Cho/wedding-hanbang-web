@@ -1,5 +1,6 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { weddingPath } from "@/lib/weddingPaths";
+import { ddayInKst } from "@/lib/utils/kstDate";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import type { ProgressItem } from "@/types/database.types";
 
@@ -120,21 +121,6 @@ const STAGE_COPY: Record<AmoraLifecycleStage, { label: string; summary: string }
   },
 };
 
-function toDate(value: BuildAmoraLifecyclePlanInput["weddingDate"]): Date | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getDday(weddingDate: Date | null, now: Date): number | null {
-  if (!weddingDate) return null;
-  const weddingMidnight = new Date(weddingDate);
-  weddingMidnight.setHours(0, 0, 0, 0);
-  const todayMidnight = new Date(now);
-  todayMidnight.setHours(0, 0, 0, 0);
-  return Math.ceil((weddingMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 function getStage(dday: number | null): AmoraLifecycleStage {
   if (dday === null) return "setup";
   if (dday < 0) return "aftercare";
@@ -218,7 +204,7 @@ function makeCategoryGuardrail(
   const isOverdue = daysUntilDeadline < 0;
   return {
     id: `category_${key}_${severity}`,
-    title: `${label}을 놓치지 않게 볼게요`,
+    title: `${label}, 놓치지 않게 볼게요`,
     body: isOverdue
       ? `권장 마감보다 ${Math.abs(daysUntilDeadline)}일 늦었어요. 오늘 체크리스트에서 빠진 항목부터 잠가요.`
       : `권장 마감까지 ${daysUntilDeadline}일 남았어요. 지금 열어두면 급하게 결정하지 않아도 돼요.`,
@@ -239,8 +225,8 @@ function pushUnique(items: AmoraGuardrail[], item: AmoraGuardrail) {
 
 export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): AmoraLifecyclePlan {
   const now = input.now ?? new Date();
-  const weddingDate = toDate(input.weddingDate ?? null);
-  const dday = getDday(weddingDate, now);
+  const dday = ddayInKst(input.weddingDate, now);
+  const hasWeddingDate = dday !== null;
   const stage = getStage(dday);
   const stageCopy = STAGE_COPY[stage];
   const progress = (input.progress ?? {}) as Record<string, ProgressItem | unknown>;
@@ -251,7 +237,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
   const progressPercent = overall.total > 0 ? Math.round((overall.done / overall.total) * 100) : 0;
   const guardrails: AmoraGuardrail[] = [];
 
-  if (!weddingDate) {
+  if (!hasWeddingDate) {
     guardrails.push({
       id: "missing_wedding_date",
       title: "예식일을 먼저 잡아둘게요",
@@ -270,7 +256,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       body: "아모라가 견적과 숨은 추가금을 예산 안에서 같이 봐줄 수 있어요.",
       href: weddingPath("/budget"),
       cta: "예산 입력",
-      severity: weddingDate ? "warning" : "steady",
+      severity: hasWeddingDate ? "warning" : "steady",
       iconKey: "wallet",
     });
   } else if (budgetPercent >= 100) {
@@ -295,7 +281,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
     });
   }
 
-  if (weddingDate && dday !== null && dday > 0) {
+  if (dday !== null && dday > 0) {
     const deadlineItems = CATEGORY_CHECKLISTS
       .map((cat) => {
         const item = getCategoryCompletion(progress, cat.key);

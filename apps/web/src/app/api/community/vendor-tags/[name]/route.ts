@@ -1,8 +1,15 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
-import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
+import {
+  fallbackCommunityAuthor,
+  getCommunityAuthorMap,
+} from "@/lib/community/authorProfiles";
+import {
+  cleanPostgrestSearchTerm,
+  escapePostgrestLikePattern,
+} from "@/utils/requestValidation";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -31,25 +38,51 @@ async function attachAuthorProfiles(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:vendor-tags:detail", req),
+      { maxRequests: 60, windowMs: 60 * 1000 }
+    );
+    if (limited) return limited;
+
     const { name: rawName } = await params;
     const name = cleanPostgrestSearchTerm(decodeURIComponent(rawName), 100);
     if (!name) {
-      return NextResponse.json({ error: "잘못된 업체명입니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "잘못된 업체명입니다." },
+        { status: 400 }
+      );
     }
+
     const escapedName = escapePostgrestLikePattern(name);
     const service = getServiceClient();
 
-    const { data: tag } = await service
+    const { data: tag, error: tagError } = await service
       .from("community_vendor_tags")
-      .select("*")
+      .select("id, vendor_name, category, region, mention_count")
       .eq("vendor_name", name)
       .maybeSingle();
 
-    const { data: posts } = await service
+    if (tagError) {
+      console.error("Vendor tag lookup error:", tagError);
+      return NextResponse.json(
+        { error: "업체 태그를 불러올 수 없습니다." },
+        { status: 500 }
+      );
+    }
+    // 이 경로를 임의 공개 게시물 검색 API로 사용할 수 없도록, 집계 테이블에
+    // 정확히 등록된 태그가 있을 때만 게시물 검색을 진행한다.
+    if (!tag) {
+      return NextResponse.json(
+        { error: "업체 태그를 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    const { data: posts, error: postsError } = await service
       .from("community_posts")
       .select(COMMUNITY_POST_PUBLIC_SELECT)
       .or(`title.ilike.%${escapedName}%,content.ilike.%${escapedName}%`)
@@ -57,114 +90,29 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // 실제 vendor DB 매칭 — 이름이 비슷한 승인된 vendor가 있으면 예약 연동 가능.
-    // 정확 매칭 우선, 없으면 부분 매칭. 데모 환경의 mock vendor도 함께 검색.
-    const { data: exactVendor } = await service
+    if (postsError) {
+      console.error("Vendor tag posts lookup error:", postsError);
+      return NextResponse.json(
+        { error: "관련 게시물을 불러올 수 없습니다." },
+        { status: 500 }
+      );
+    }
+
+    // 공개 탐색 정보는 승인된 업체의 정확한 상호명만 연결한다.
+    // 이 연결은 입점·제휴·자격 검증·예약 가능 여부를 뜻하지 않는다.
+    const { data: exactVendor, error: vendorError } = await service
       .from("vendors")
-      .select(
-        "id, name, category, region, address, thumbnail_url, rating, review_count, price_min, price_max, price_range, description"
-      )
+      .select("id, name, category, region, address, thumbnail_url, description")
       .eq("name", name)
       .eq("status", "approved")
       .maybeSingle();
 
-    let vendorMatch = exactVendor;
-    if (!vendorMatch) {
-      const { data: fuzzyVendor } = await service
-        .from("vendors")
-        .select(
-          "id, name, category, region, address, thumbnail_url, rating, review_count, price_min, price_max, price_range, description"
-        )
-        .ilike("name", `%${escapedName}%`)
-        .eq("status", "approved")
-        .limit(1)
-        .maybeSingle();
-      vendorMatch = fuzzyVendor;
-    }
-
-    let products: Array<{
-      id: string;
-      name: string;
-      price: number;
-      discount_price: number | null;
-      duration: number | null;
-      is_popular: boolean;
-    }> = [];
-
-    interface StaffLite {
-      id: string;
-      name: string;
-      role: string | null;
-      description: string | null;
-    }
-    let staff: StaffLite[] = [];
-
-    interface SlotLite {
-      day: number;
-      hour: number;
-      max_bookings: number;
-    }
-    let vendorSlots: SlotLite[] = [];
-    const staffSlots: Record<string, SlotLite[]> = {};
-
-    if (vendorMatch) {
-      const { data: productData } = await service
-        .from("vendor_products")
-        .select("id, name, price, discount_price, duration, is_popular, sort_order")
-        .eq("vendor_id", vendorMatch.id)
-        .eq("is_active", true)
-        .order("is_popular", { ascending: false })
-        .order("sort_order", { ascending: true })
-        .limit(3);
-      products = (productData ?? []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        discount_price: p.discount_price,
-        duration: p.duration,
-        is_popular: !!p.is_popular,
-      }));
-
-      const { data: staffData } = await service
-        .from("vendor_staff")
-        .select("id, name, role, description, sort_order")
-        .eq("vendor_id", vendorMatch.id)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
-      staff = (staffData ?? []).map((s) => ({
-        id: s.id,
-        name: s.name,
-        role: s.role,
-        description: s.description,
-      }));
-
-      const { data: vendorSlotData } = await service
-        .from("vendor_timeslots")
-        .select("day, hour, max_bookings")
-        .eq("vendor_id", vendorMatch.id)
-        .eq("available", true);
-      vendorSlots = (vendorSlotData ?? []).map((s) => ({
-        day: s.day,
-        hour: s.hour,
-        max_bookings: s.max_bookings ?? 1,
-      }));
-
-      if (staff.length > 0) {
-        const staffIds = staff.map((s) => s.id);
-        const { data: staffSlotData } = await service
-          .from("staff_timeslots")
-          .select("staff_id, day, hour, max_bookings")
-          .in("staff_id", staffIds)
-          .eq("available", true);
-        for (const row of staffSlotData ?? []) {
-          if (!staffSlots[row.staff_id]) staffSlots[row.staff_id] = [];
-          staffSlots[row.staff_id].push({
-            day: row.day,
-            hour: row.hour,
-            max_bookings: row.max_bookings ?? 1,
-          });
-        }
-      }
+    if (vendorError) {
+      console.error("Approved vendor lookup error:", vendorError);
+      return NextResponse.json(
+        { error: "업체 정보를 불러올 수 없습니다." },
+        { status: 500 }
+      );
     }
 
     const postsWithAuthors = await attachAuthorProfiles(
@@ -172,17 +120,32 @@ export async function GET(
       (posts ?? []) as CommunityPostWithAuthorId[]
     );
 
-    return NextResponse.json({
-      tag: tag ?? null,
-      posts: postsWithAuthors,
-      vendor: vendorMatch ?? null,
-      products,
-      staff,
-      vendorSlots,
-      staffSlots,
-    });
+    const publicTag = {
+      id: tag.id,
+      vendor_name: tag.vendor_name,
+      category: tag.category,
+      region: tag.region,
+      mention_count: tag.mention_count,
+      // 산정 근거가 없는 레거시 평균은 공개하지 않는다.
+      avg_rating: null,
+      avg_base_price: null,
+      avg_extra_price: null,
+      extra_rate: null,
+    };
+
+    return NextResponse.json(
+      {
+        tag: publicTag,
+        posts: postsWithAuthors,
+        vendor: exactVendor ?? null,
+      },
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=120" } }
+    );
   } catch (err) {
     console.error("Vendor tag detail error:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 }
+    );
   }
 }

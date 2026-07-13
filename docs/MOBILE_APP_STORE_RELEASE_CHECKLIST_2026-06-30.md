@@ -1,8 +1,8 @@
 # Mobile App Store Release Checklist
 
-> Date: 2026-06-30  
+> Date: 2026-07-12
 > Scope: `apps/mobile`, Expo SDK 54, EAS Build, App Store/TestFlight readiness  
-> Status: release foundation started, account-dependent setup still required
+> Status: **NO-GO for store submission** — static foundation passes, signed credentials/device OAuth/isolated backend validation remain
 
 ## 1. Current Repo Status
 
@@ -14,20 +14,23 @@
 - Assets exist: icon, adaptive icon, splash, favicon.
 - Apple Sign In plugin is enabled.
 - Universal link domain is declared: `applinks:hanbang.ai`.
+- AASA and Digital Asset Links routes exist and fail closed until signed-app identifiers are configured.
+- Approved `/app/community/post/:id` and `/app/vendors/:id` share links are rewritten to matching Expo Router routes; unsupported `/app/*` paths are not claimed.
 - EAS build profiles now exist at `apps/mobile/eas.json`.
 - EAS project is linked: `@hanbang/wedding-hanbang`.
 - EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
+- All three EAS profiles pin the repository runtime: Node `22.13.0` and pnpm `11.7.0`.
 - EAS preview environment has the required public mobile runtime variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
 - Store-build helper scripts now exist in `apps/mobile/package.json`.
 
 ## 2. Validation Already Passing Locally
 
-Run on this machine after pulling the 2026-06-30 update:
+Run on the exact candidate SHA:
 
 ```bash
-pnpm typecheck
-pnpm lint
-pnpm --filter @hanbang/web build
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm --filter @hanbang/web build
 ```
 
 Current result:
@@ -35,19 +38,25 @@ Current result:
 - Typecheck: pass.
 - Lint: pass.
 - Web production build: pass.
+- Mobile consumer contract: 12/12 pass.
+- Expo export for web/iOS/Android: pass on 2026-07-12. This proves all three JavaScript bundles can be produced, not that native signing or physical-device behavior passed.
+- Unused Paperlogy 100/200/800/900 weights were removed from the runtime bundle. Export size fell from 35,479,501 bytes to 30,044,582 bytes (about 15.3%) while the five referenced weights and all mobile tests remained green.
 
 Before every mobile release candidate, also run:
 
 ```bash
-pnpm qa:local
-pnpm mobile:release-check
-pnpm --filter @hanbang/mobile lint
-pnpm --filter @hanbang/mobile typecheck
-pnpm typecheck
-pnpm lint
+corepack pnpm qa:local
+corepack pnpm mobile:release-check
+corepack pnpm mobile:store-release-check
+corepack pnpm --filter @hanbang/mobile lint
+corepack pnpm --filter @hanbang/mobile typecheck
+corepack pnpm typecheck
+corepack pnpm lint
 ```
 
-`pnpm qa:local` includes the mobile release readiness check, web tests, web production build, mobile lint/typecheck, shared package typechecks, and design-token typechecks. Keep the standalone `pnpm mobile:release-check` command available when you want a fast app-store configuration check without the full local gate.
+`corepack pnpm qa:local` includes the static mobile foundation check, web tests/build, mobile lint/typecheck, shared packages, and design tokens. `mobile:release-check` currently passes 77 checks with one explicit warning that social OAuth is hard-disabled. `mobile:store-release-check` currently passes 75 checks and intentionally fails one store-readiness check until provider setup and physical-device login flows are implemented and verified; a green static check is not store readiness.
+
+The release checker resolves Expo's actual prebuild configuration, not only the raw `app.json`. The current resolved Android permission list contains only `android.permission.INTERNET`; unused camera, microphone, legacy external-storage, modern broad-media, media-location, and all-files permissions are blocked. The iOS configuration keeps only the selected-photo library purpose string. Both image-only picker flows launch the system library directly without requesting broad media-library access first.
 
 ## 3. EAS Build Profiles
 
@@ -59,43 +68,47 @@ The mobile app now has three EAS profiles:
 | `preview` | Internal team testing before store submission | Device build | APK |
 | `production` | App Store / Play Store release candidate | Device build with auto-increment | AAB |
 
+Every profile must keep `node: "22.13.0"` and `pnpm: "11.7.0"`. The static release check enforces this because EAS otherwise selected an older Preview builder Node that could not load pnpm 11.7.0's `node:sqlite` dependency.
+
 Commands:
 
 ```bash
 cd apps/mobile
-pnpm eas:init
-pnpm eas:build:ios
-pnpm eas:build:android
-pnpm eas:build:all
-pnpm eas:submit:ios
-pnpm eas:submit:android
+corepack pnpm eas:build:ios
+corepack pnpm eas:build:android
+corepack pnpm eas:build:all
+corepack pnpm eas:submit:ios
+corepack pnpm eas:submit:android
 ```
 
-Do not use the generic `pnpm build` script for store release. It intentionally stays non-destructive so monorepo builds do not trigger cloud app-store builds by accident.
+Do not use the generic `corepack pnpm build` script for store release. It intentionally stays non-destructive so monorepo builds do not trigger cloud app-store builds by accident.
 
 Before starting an EAS build, run:
 
 ```bash
-pnpm mobile:release-check
+corepack pnpm mobile:release-check
+corepack pnpm mobile:store-release-check
 ```
 
-This check validates the static mobile release configuration: app identifiers, URL schemes, EAS profiles, Expo plugins, OAuth callback bridge, mobile env example, and legacy brand-color drift. Account-dependent setup such as `extra.eas.projectId` is reported as a warning until `eas:init` is completed.
+The first check validates static configuration. The second is the actual store gate and remains red while social login is hard-disabled. The EAS project ID already exists; do not repeat `eas:init` unless project ownership or the link intentionally changes.
 
-The same check also runs inside `pnpm qa:local`, so GitHub Actions blocks release configuration regressions through the existing Quality Gate.
+The same static check also runs inside `corepack pnpm qa:local`, so GitHub Actions blocks configuration regressions through the existing Quality Gate. CI does not replace the red device/store gate.
 
 ## 4. Account-Dependent Setup
 
 These cannot be completed by code alone:
 
 1. Expo account access for owner `hanbang`.
-2. `eas login`.
-3. `pnpm --filter @hanbang/mobile eas:init`.
-4. Confirm `extra.eas.projectId` is populated in `apps/mobile/app.json` after EAS init. Completed for `@hanbang/wedding-hanbang`.
+2. `eas whoami` currently confirms the `hanbang` account. Re-authenticate only if the release session expires.
+3. Confirm the existing EAS link remains `@hanbang/wedding-hanbang`; do not reinitialize it during release.
+4. Confirm `extra.eas.projectId` remains populated in `apps/mobile/app.json`. Completed for `@hanbang/wedding-hanbang`.
 5. Apple Developer Program membership.
 6. App Store Connect app record for bundle ID `ai.hanbang.wedding`.
 7. App Store Connect API key or interactive Apple credentials for EAS Submit.
 8. Google Play Console app record for package `ai.hanbang.wedding`.
 9. Production signing credentials managed by EAS or uploaded manually.
+10. Confirm the signed iOS `application-identifier` prefix and set `APPLE_TEAM_ID`; the documented `6RSK726532` remains a candidate until Apple account evidence confirms it.
+11. Copy the **Google Play App Signing** SHA-256 certificate fingerprint, not the EAS upload certificate, into `PLAY_APP_SIGNING_SHA256`. During a key upgrade, keep only the approved current/replacement fingerprints.
 
 ## 5. App Store Connect Required Metadata
 
@@ -123,15 +136,39 @@ Before TestFlight:
 - Privacy policy describes Supabase, analytics, AI, push notifications, and user-generated content if used.
 - App Store privacy answers match actual data collection across app and web.
 
+### OpenAI Production Canary Gate
+
+Do not invite external testers until all items pass with the actual production OpenAI project key:
+
+- The project is entitled to the exact `gpt-5.6-luna` and `gpt-5.6-terra` model IDs.
+- A normal consultation stays on Luna, while only the documented contract/dispute, safety, or recent repeated-correction cases escalate to Terra.
+- SSE text streaming and the post-tool follow-up response complete without dropped text or duplicate user-turn charging.
+- Image/PDF input, refusal handling, client abort, provider timeout, and user retry behavior are verified on device.
+- Input/output token ceilings, per-couple turn quota, global provider-call cap, and project budget alerts fail closed at their configured limits.
+- `store:false`, reasoning `none`, standard service tier, and zero SDK retries are confirmed in request telemetry without storing user content in logs.
+- External-processing region, DPA, retention, cross-border transfer notice, and privacy-policy language are approved before real user content is sent.
+
 ## 7. Deep Link And OAuth Checks
 
 Before TestFlight:
 
 - `hanbang://` scheme opens the app.
-- Universal links for `https://hanbang.ai/app/*` open the app after install.
-- `apple-app-site-association` is configured on `hanbang.ai` if universal links are used.
+- `https://hanbang.ai/app`, `/app/community/post/:id`, and `/app/vendors/:id` open the intended Expo route after install; unsupported `/app/*`, `/application`, and `/appetite` are not claimed.
+- Without the app installed, the two approved share routes fall back to their corresponding `/wedding` web route. Unsupported `/app/*` falls back to `/wedding` instead of a 404.
+- `/apple-app-site-association`, `/.well-known/apple-app-site-association`, and `/.well-known/assetlinks.json` return direct 200 JSON responses without redirects, including during maintenance.
+- The AASA app ID matches the signed iOS entitlement, and Asset Links contains the Play App Signing fingerprint rather than the EAS upload key.
+- Physical iOS and Android devices pass cold-start and already-running deep-link tests.
 - Supabase OAuth redirect URLs include the app callback URL.
 - Kakao, Google, and Apple login flows are tested on a physical iPhone.
+
+Current result: the social entry points and OAuth implementation are intentionally hard-disabled. Therefore this section and `mobile:store-release-check` are red. Do not create or submit a store candidate until the selected providers, redirect allowlists, Apple Sign In entitlement, error recovery, and account-linking behavior pass on physical devices.
+
+EAS evidence as of 2026-07-12:
+
+- Android production AAB build 4 succeeded from old SHA `52faf4b4`; it predates the current working tree and is not a release candidate.
+- Android internal Preview builds `374d6164-d939-4ea6-8707-5e4e7bd45c91` and `f154348e-adc5-44da-b995-ee4b6037cba6` from exact SHA `9200a545` failed at dependency installation because Preview did not pin Node while pnpm 11.7.0 requires Node 22.13 or newer.
+- After pinning Node 22.13.0 and pnpm 11.7.0 in every profile and adding a static regression gate, Android internal Preview build `4db05478-e8b7-49d1-aa17-5f98fa45967c` from exact SHA `76a64403` finished successfully. The downloaded APK was 94,666,379 bytes with SHA-256 `d560a495e19a62a87d3ae22b08eb9a6bb05669e95227a6531d4fad121f51f61f`; the temporary verification file was then deleted. This proves the native Android Preview build path, not store readiness.
+- iOS internal Preview stopped before build creation because an internal-distribution certificate and registered device were unavailable. No signed iOS build is present.
 
 ## 8. Push Notification Checks
 
@@ -166,6 +203,11 @@ Do not submit to App Review until:
 - Store screenshots match the current UI.
 - Review demo account is prepared if login is required.
 - Database migrations are applied to the target Supabase environment.
+- The complete migration chain passes on both a fresh database and a production-shaped snapshot in staging before the target environment is changed.
+- The target Supabase migration ledger and schema are remotely verified after deployment; local SQL files alone are not release evidence.
+- Quote checks save privately by default, explicit publish exposes only the redacted projection, and owner revoke immediately makes the public URL return 404.
+- WeddingCode `/response`, `/pair`, and `/couple-report` return HTTP 410 in the target environment, and the DB pairing/response fences are remotely verified.
+- The OpenAI production canary and DPA/region/privacy gates above are complete.
 - Sentry release/environment tags are verified.
 - Support and privacy URLs are live.
 
@@ -174,28 +216,28 @@ Do not submit to App Review until:
 The web app is already buildable locally:
 
 ```bash
-pnpm --filter @hanbang/web build
+corepack pnpm --filter @hanbang/web build
 ```
 
 Before web production deployment:
 
-- Run `pnpm typecheck`.
-- Run `pnpm lint`.
-- Run `pnpm --filter @hanbang/web build`.
+- Run `corepack pnpm typecheck`.
+- Run `corepack pnpm lint`.
+- Run `corepack pnpm --filter @hanbang/web build`.
 - Run live QA against deployed URL.
 - Confirm Supabase migrations are applied.
 - Confirm `/wedding`, `/community`, login, quote-check, and vendor pages work.
 
 ## 12. Next Practical Sequence
 
-1. Apply Supabase migrations to the intended environment.
-2. Run `pnpm --filter @hanbang/mobile eas:init`.
-3. Confirm EAS project ID is written into `apps/mobile/app.json`.
-4. Build iOS preview or production candidate.
-5. Install on physical iPhone through TestFlight or internal distribution.
-6. QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, notifications.
-7. Prepare App Store Connect metadata and privacy answers.
-8. Submit to TestFlight first, not public App Store review.
+1. Revoke the exposed Supabase CLI credential/PAT and complete the backend fence plus isolated restore drill.
+2. Confirm signed Apple Team ID and Play App Signing SHA-256; deploy association endpoints and verify direct 200 responses.
+3. Implement the approved social login set and make `corepack pnpm mobile:store-release-check` green on physical iPhone and Android devices.
+4. Commit the exact candidate SHA and run the full local/CI gates.
+5. Build new iOS and Android store candidates from that exact SHA. The successful Android internal Preview from `76a64403` validates the build path but is not a store candidate; the older AAB from `52faf4b4` is not evidence for the current tree.
+6. Install through TestFlight/internal distribution and QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, links, notifications, deletion, and logout.
+7. Prepare and approve store metadata, screenshots, privacy answers, review account, and rollout plan.
+8. Submit to TestFlight/internal testing first, then public review only after the full gate passes.
 
 ## 13. Non-Negotiables
 

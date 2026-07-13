@@ -12,11 +12,12 @@ import { useCommunityStore } from "@/stores/communityStore";
  */
 export function useCommunityRealtime() {
   useEffect(() => {
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    const channel = supabase
-      .channel("community-feed")
-      .on(
+      const channel = supabase
+        .channel("community-feed")
+        .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "community_posts" },
         async (payload) => {
@@ -26,13 +27,13 @@ export function useCommunityRealtime() {
           // author 프로필 조회
           const { data: profile } = await supabase
             .from("community_profiles")
-            .select("user_id, nickname, rank, wedding_year, wedding_month")
+            .select("user_id, nickname, rank")
             .eq("user_id", newPost.author_id)
             .maybeSingle();
 
           const postWithAuthor = {
             ...newPost,
-            author: profile ?? { nickname: "익명", rank: "sprout", wedding_year: null, wedding_month: null },
+            author: profile ?? { nickname: "익명", rank: "sprout" },
             user_vote: null,
           };
 
@@ -77,11 +78,18 @@ export function useCommunityRealtime() {
             total: Math.max(0, s.total - 1),
           }));
         }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        void supabase.removeChannel(channel);
+      };
+    } catch {
+      // Realtime is an enhancement. A missing/misconfigured browser client or
+      // unsupported websocket environment must never block the ordinary feed
+      // effects that follow this hook in the same component.
+      console.warn("[community.realtime] subscription unavailable; continuing without realtime.");
+      return;
+    }
   }, []);
 }

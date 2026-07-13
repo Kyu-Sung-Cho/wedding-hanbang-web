@@ -53,8 +53,9 @@ export function validateAnswer(
       break;
 
     case 'text_input':
-      if (question.validation === 'email_or_phone' && answer) {
-        if (!validateEmailOrPhone(answer as string))
+      if (typeof answer !== 'string' || !answer.trim()) return '내용을 입력해 주세요.';
+      if (question.validation === 'email_or_phone') {
+        if (!validateEmailOrPhone(answer))
           return '올바른 이메일 또는 전화번호를 입력해 주세요.';
       }
       break;

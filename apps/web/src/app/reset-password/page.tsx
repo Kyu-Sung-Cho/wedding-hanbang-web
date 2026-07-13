@@ -76,7 +76,20 @@ export default function ResetPasswordPage() {
         const params = new URLSearchParams(window.location.search);
         const redirectTo = params.get("redirect") || "/login";
         // 외부 URL 방지 (상대 경로만 허용)
-        const safePath = redirectTo.startsWith("/") ? redirectTo : "/login";
+        let safePath = "/login";
+        try {
+          const candidate = new URL(redirectTo, window.location.origin);
+          if (
+            candidate.origin === window.location.origin
+            && redirectTo.startsWith("/")
+            && !redirectTo.startsWith("//")
+            && !/[\\\u0000-\u001F\u007F]/.test(redirectTo)
+          ) {
+            safePath = `${candidate.pathname}${candidate.search}${candidate.hash}`;
+          }
+        } catch {
+          safePath = "/login";
+        }
         setTimeout(() => {
           window.location.href = safePath;
         }, 2000);
@@ -153,8 +166,12 @@ export default function ResetPasswordPage() {
 
               <form onSubmit={handleReset} className="space-y-3">
                 <div className="relative">
+                  <label htmlFor="new-password" className="sr-only">새 비밀번호</label>
                   <input
+                    id="new-password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     placeholder="새 비밀번호"
@@ -163,8 +180,8 @@ export default function ResetPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                    tabIndex={-1}
+                    className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-taupe-400 transition-colors hover:text-noir-800"
+                    aria-label={showPassword ? "새 비밀번호 숨기기" : "새 비밀번호 보기"}
                   >
                     {showPassword ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -212,8 +229,12 @@ export default function ResetPasswordPage() {
                 {/* 비밀번호 확인 */}
                 <div>
                   <div className="relative">
+                    <label htmlFor="new-password-confirm" className="sr-only">새 비밀번호 확인</label>
                     <input
+                      id="new-password-confirm"
+                      name="passwordConfirm"
                       type={showPasswordConfirm ? "text" : "password"}
+                      autoComplete="new-password"
                       value={passwordConfirm}
                       onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                       placeholder="비밀번호 확인"
@@ -226,8 +247,8 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                      tabIndex={-1}
+                      className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-taupe-400 transition-colors hover:text-noir-800"
+                      aria-label={showPasswordConfirm ? "새 비밀번호 확인 숨기기" : "새 비밀번호 확인 보기"}
                     >
                       {showPasswordConfirm ? (
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

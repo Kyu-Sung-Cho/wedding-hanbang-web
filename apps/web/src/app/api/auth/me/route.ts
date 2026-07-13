@@ -2,6 +2,16 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
+function profileUnavailableResponse() {
+  return NextResponse.json(
+    {
+      code: "PROFILE_UNAVAILABLE",
+      error: "프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+    },
+    { status: 503, headers: { "Retry-After": "3" } }
+  );
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
@@ -26,10 +36,14 @@ export async function GET(request: Request) {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profileSelectErr) {
-      _debug.profileSelectError = profileSelectErr.message;
+      console.error("AUTH_PROFILE_LOOKUP_FAILED", {
+        userId: user.id,
+        reason: profileSelectErr.message,
+      });
+      return profileUnavailableResponse();
     }
 
     if (profileData) {
@@ -49,27 +63,33 @@ export async function GET(request: Request) {
         profile.name = name;
       }
     } else {
-      // 프로필 없으면 생성
-      const { data: newProfile, error: profileInsertErr } = await supabase
-        .from("profiles")
-        .insert({
-          id: user.id,
-          name: user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자",
-          email: user.email,
-          onboarding_completed: false,
-          onboarding_step: 0,
-        })
-        .select()
-        .single();
-      if (profileInsertErr) _debug.profileInsertError = profileInsertErr.message;
-      profile = newProfile;
-    }
-
-    if (!profile) {
-      return NextResponse.json({
-        user: { id: user.id, email: user.email },
-        ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
+      // 직접 profiles INSERT 권한은 권한상승 방지를 위해 회수했다. 서버 정의
+      // 함수가 auth.uid/email과 안전 기본값만 사용해 생성한 뒤 own-row를 다시 읽는다.
+      const safeName = user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자";
+      const { error: profileInsertErr } = await supabase.rpc("ensure_my_profile", {
+        p_name: safeName,
       });
+      if (profileInsertErr) {
+        console.error("AUTH_PROFILE_ENSURE_FAILED", {
+          userId: user.id,
+          reason: profileInsertErr.message,
+        });
+        return profileUnavailableResponse();
+      } else {
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (newProfileError || !newProfile) {
+          console.error("AUTH_PROFILE_LOOKUP_AFTER_ENSURE_FAILED", {
+            userId: user.id,
+            reason: newProfileError?.message ?? "profile_missing_after_ensure",
+          });
+          return profileUnavailableResponse();
+        }
+        profile = newProfile;
+      }
     }
 
     let couple = null;
@@ -80,14 +100,16 @@ export async function GET(request: Request) {
       // 커플 정보
       const { data: coupleData, error: coupleErr } = await supabase
         .from("couples")
-        .select("*")
+        .select("id, bride_id, groom_id, created_at, updated_at")
         .eq("id", profile.couple_id)
         .single();
 
       if (coupleErr) _debug.coupleSelectError = coupleErr.message;
 
       if (coupleData) {
-        couple = coupleData;
+        // Invite tokens are served only by the ownership-verifying code RPC.
+        // Keep the auth-state shape stable without duplicating that secret.
+        couple = { ...coupleData, invite_code: null };
 
         // 파트너 정보
         const partnerId =
@@ -95,13 +117,13 @@ export async function GET(request: Request) {
             ? coupleData.groom_id
             : coupleData.bride_id;
         if (partnerId) {
-          const { data: partnerData, error: partnerErr } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", partnerId)
-            .single();
+          const { data: partnerRows, error: partnerErr } = await supabase
+            .rpc("get_my_partner_public");
           if (partnerErr) _debug.partnerSelectError = partnerErr.message;
-          partner = partnerData;
+          const partnerData = Array.isArray(partnerRows) ? partnerRows[0] : partnerRows;
+          partner = partnerData && partnerData.id === partnerId
+            ? { id: partnerData.id, name: partnerData.name, role: partnerData.role }
+            : null;
         }
       }
 

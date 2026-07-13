@@ -25,7 +25,7 @@ export const NOTIFICATION_TEMPLATES: NotificationTemplate[] = [
 
   // D-180: 세부 준비
   { id: "n_hanbok_start", type: "schedule", ddayTrigger: 180, categoryKey: "hanbok", title: "한복 준비 시작", message: "맞춤 한복은 3개월 이상 소요됩니다. 지금 시작하세요.", priority: "medium" },
-  { id: "n_honeymoon_start", type: "schedule", ddayTrigger: 180, categoryKey: "honeymoon", title: "신혼여행 계획", message: "항공권은 빨리 예약할수록 저렴합니다.", priority: "medium" },
+  { id: "n_honeymoon_start", type: "schedule", ddayTrigger: 180, categoryKey: "honeymoon", title: "신혼여행 계획", message: "항공권은 날짜별 총액과 취소·변경 조건을 함께 비교해 보세요.", priority: "medium" },
   { id: "n_houseware_start", type: "schedule", ddayTrigger: 180, categoryKey: "houseware", title: "혼수 준비 시작", message: "양가 분담 항목을 합의하세요.", priority: "low" },
 
   // D-120: 청첩장

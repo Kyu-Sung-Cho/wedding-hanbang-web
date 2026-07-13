@@ -32,7 +32,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import Constants from "expo-constants";
+import * as Application from "expo-application";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
 interface ProfileData {
@@ -77,6 +77,7 @@ export default function ProfileScreen() {
     bookmarkCount: 0,
     totalUpvotes: 0,
   });
+  const [statsError, setStatsError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadProfile = useCallback(async () => {
@@ -104,35 +105,41 @@ export default function ProfileScreen() {
       weddingDate = journey?.wedding_date ?? null;
 
       // 파트너 이름
-      const { data: partners } = await supabase
-        .from("profiles")
-        .select("name")
-        .eq("couple_id", data.couple_id)
-        .neq("id", user.id);
+      const { data: partners } = await supabase.rpc("get_my_partner_public");
       if (partners?.[0]) {
         partnerName = partners[0].name ?? null;
       }
     }
 
     // 커뮤니티 활동 통계
-    const { data: communityProfile } = await supabase
-      .from("community_profiles")
-      .select("post_count, comment_count, total_upvotes_received")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const { data: activityStatsRows, error: activityStatsError } = await supabase.rpc(
+      "get_my_community_activity_stats"
+    );
+    const activityStats = activityStatsRows?.[0] as
+      | {
+          post_count?: number | null;
+          comment_count?: number | null;
+          total_upvotes_received?: number | null;
+        }
+      | undefined;
 
     // 북마크 수
-    const { count: bookmarkCount } = await supabase
+    const { count: bookmarkCount, error: bookmarkError } = await supabase
       .from("community_bookmarks")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
 
-    setStats({
-      postCount: communityProfile?.post_count ?? 0,
-      commentCount: communityProfile?.comment_count ?? 0,
-      bookmarkCount: bookmarkCount ?? 0,
-      totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
-    });
+    if (activityStatsError || bookmarkError) {
+      setStatsError(true);
+    } else {
+      setStats({
+        postCount: activityStats?.post_count ?? 0,
+        commentCount: activityStats?.comment_count ?? 0,
+        bookmarkCount: bookmarkCount ?? 0,
+        totalUpvotes: activityStats?.total_upvotes_received ?? 0,
+      });
+      setStatsError(false);
+    }
 
     setProfile({
       name: data?.name ?? null,
@@ -177,11 +184,8 @@ export default function ProfileScreen() {
         : null;
   const initial = profile?.name?.charAt(0) ?? "?";
 
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const buildNumber =
-    Constants.expoConfig?.ios?.buildNumber ??
-    Constants.expoConfig?.android?.versionCode?.toString() ??
-    "1";
+  const appVersion = Application.nativeApplicationVersion ?? "1.0.0";
+  const buildNumber = Application.nativeBuildVersion ?? "1";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -244,7 +248,21 @@ export default function ProfileScreen() {
 
         {/* 활동 통계 카드 */}
         <View style={styles.statsContainer}>
-          <View style={styles.statsRow}>
+          {statsError ? (
+            <View style={styles.statsErrorCard} accessibilityRole="alert">
+              <Text style={styles.statsErrorTitle}>활동 통계를 불러오지 못했어요.</Text>
+              <Text style={styles.statsErrorBody}>0건으로 표시하지 않고 이전 값을 숨겼어요.</Text>
+              <Pressable
+                onPress={() => void loadProfile()}
+                accessibilityRole="button"
+                accessibilityLabel="활동 통계 다시 불러오기"
+                style={styles.statsRetryButton}
+              >
+                <Text style={styles.statsRetryText}>다시 불러오기</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.statsRow}>
             <StatCard
               icon={PenSquare}
               label="작성글"
@@ -267,7 +285,8 @@ export default function ProfileScreen() {
               label="받은 추천"
               value={stats.totalUpvotes}
             />
-          </View>
+            </View>
+          )}
         </View>
 
         {/* 웨딩 준비 메뉴 */}
@@ -333,7 +352,7 @@ export default function ProfileScreen() {
             />
             <MenuItem
               icon={HelpCircle}
-              label="고객센터"
+              label="문의 안내"
               onPress={() =>
                 Linking.openURL("https://hanbang.ai/support")
               }
@@ -341,7 +360,6 @@ export default function ProfileScreen() {
             <MenuItem
               icon={Info}
               label={`앱 버전 v${appVersion} (${buildNumber})`}
-              onPress={() => {}}
               isLast
               hideChevron
             />
@@ -413,7 +431,7 @@ function MenuItem({
 }: {
   icon: typeof Settings;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
   isLast?: boolean;
   hideChevron?: boolean;
 }) {
@@ -556,6 +574,41 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  statsErrorCard: {
+    minHeight: 112,
+    justifyContent: "center",
+    backgroundColor: "#FFF4F2",
+    borderColor: "#E8B4AB",
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    ...CARD_SHADOW,
+  },
+  statsErrorTitle: {
+    fontSize: 14,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.danger,
+  },
+  statsErrorBody: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  statsRetryButton: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  statsRetryText: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.danger,
+    textDecorationLine: "underline",
   },
   statCard: {
     flex: 1,

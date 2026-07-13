@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { executeTool } from "../toolExecutor";
+import {
+  BETA_SAFE_TOOLS,
+  MODEL_DISABLED_AVAILABILITY_TOOL_NAMES,
+  MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES,
+  MODEL_DISABLED_EXTERNAL_TOOL_NAMES,
+  MODEL_MUTATING_TOOL_NAMES,
+  READ_ONLY_SAFE_TOOLS,
+} from "../tools";
 import type { ToolExecutionContext } from "../tools/toolTypes";
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(),
+}));
+
+const createAdminClientMock = vi.mocked(createAdminClient);
 
 // AI 도구층 회귀 잠금 (2026-07-06 전수 감사) — DB 접근 없는 순수 경로만 검증.
 // 핵심: 아모라가 사용자에게 말하는 숫자는 전부 실데이터여야 한다(지어낸 지출 금지).
@@ -49,32 +64,38 @@ describe("get_budget_summary — 실데이터 원칙 (상태 기반 추정 금�
 
 describe("일정·예약 날짜 입력 검증 (AI 인자 방어)", () => {
   it("add_schedule_event: 비정형 날짜는 DB에 닿기 전에 거부", async () => {
+    const ctx = makeCtx();
+    ctx.allowMutations = true;
+    ctx.currentUserText = "내일 일정을 추가해줘";
     const result = await executeTool(
       "add_schedule_event",
       { date: "내일", title: "드레스 투어" },
-      makeCtx()
+      ctx
     );
     expect(result.success).toBe(false);
     expect((result.toolOutput as { error?: string }).error).toBe("invalid_date");
   });
 
   it("add_schedule_event: 달력에 없는 날짜(2026-13-40) 거부", async () => {
+    const ctx = makeCtx();
+    ctx.allowMutations = true;
+    ctx.currentUserText = "드레스 투어 일정을 추가해줘";
     const result = await executeTool(
       "add_schedule_event",
       { date: "2026-13-40", title: "드레스 투어" },
-      makeCtx()
+      ctx
     );
     expect(result.success).toBe(false);
   });
 
-  it("create_booking: 형식 불량 입력은 사전 차단", async () => {
+  it("create_booking: 신뢰 가능한 서버 확인 절차 전에는 항상 차단", async () => {
     const result = await executeTool(
       "create_booking",
       { vendor_id: "v", date: "13일", time: "3시" },
       makeCtx()
     );
     expect(result.success).toBe(false);
-    expect((result.toolOutput as { error?: string }).error).toBe("invalid_booking_input");
+    expect((result.toolOutput as { error?: string }).error).toBe("trusted_confirmation_required");
   });
 });
 
@@ -89,5 +110,261 @@ describe("파괴적 도구 확인 게이트", () => {
     const result = await executeTool("cancel_booking", { booking_id: "x" }, makeCtx());
     expect(result.success).toBe(false);
     expect((result.toolOutput as { requires_confirmation?: boolean }).requires_confirmation).toBe(true);
+  });
+
+  it.each([
+    ["delete_category", { category: "venue", confirmed: true }],
+    ["reset_category", { category: "venue", confirmed: true }],
+    ["delete_schedule_event", { event_id: "event-1", confirmed: true }],
+    ["cancel_booking", { booking_id: "booking-1", confirmed: true }],
+  ])("%s: 모델이 confirmed=true를 보내도 실행하지 않는다", async (toolName, input) => {
+    const result = await executeTool(toolName, input, makeCtx());
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toMatchObject({
+      error: "trusted_confirmation_required",
+      requires_confirmation: true,
+      accepted_confirmation_source: "server_only",
+    });
+  });
+
+  it("파괴적 도구를 모델에 노출하지 않는다", () => {
+    const exposedNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
+    for (const toolName of MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES) {
+      expect(exposedNames.has(toolName)).toBe(false);
+    }
+    for (const toolName of MODEL_DISABLED_AVAILABILITY_TOOL_NAMES) {
+      expect(exposedNames.has(toolName)).toBe(false);
+    }
+  });
+
+  it("private/첨부 턴 목록은 mutation과 외부 Naver 검색을 노출하지 않는다", () => {
+    const exposedNames = new Set(READ_ONLY_SAFE_TOOLS.map((tool) => tool.name));
+    for (const toolName of MODEL_MUTATING_TOOL_NAMES) {
+      expect(exposedNames.has(toolName)).toBe(false);
+    }
+    expect(exposedNames.has("search_nearby_places")).toBe(false);
+    expect(exposedNames.has("get_budget_summary")).toBe(true);
+  });
+
+  it("공유 턴에도 모델 자유문자열 외부 검색을 노출하거나 직접 실행하지 않는다", async () => {
+    const exposedNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
+    for (const toolName of MODEL_DISABLED_EXTERNAL_TOOL_NAMES) {
+      expect(exposedNames.has(toolName)).toBe(false);
+    }
+    const result = await executeTool("search_nearby_places", { query: "이름과 예산" }, makeCtx());
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "external_model_query_disabled" },
+    });
+  });
+});
+
+describe("도구 인자 서버 검증", () => {
+  it("현재 사용자 발화에 명시적 변경 의도가 없으면 mutation을 차단한다", async () => {
+    const ctx = makeCtx();
+    ctx.allowMutations = true;
+    const result = await executeTool(
+      "update_budget",
+      { total_budget: 50_000_000 },
+      ctx
+    );
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: {
+        error: "explicit_user_mutation_intent_required",
+        accepted_intent_source: "current_user_message_only",
+      },
+    });
+  });
+
+  it("호출자가 명시적으로 허용하지 않은 mutation은 사용자 문구와 무관하게 차단한다", async () => {
+    const ctx = makeCtx();
+    ctx.currentUserText = "총 예산을 5천만원으로 변경해줘";
+    const result = await executeTool("update_budget", { total_budget: 50_000_000 }, ctx);
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "mutations_not_allowed_in_this_context" },
+    });
+  });
+
+  it("예약된 __* 키를 중첩 위치에서도 차단한다", async () => {
+    const result = await executeTool(
+      "apply_budget_plan",
+      {
+        total_budget: 10_000_000,
+        intake_summary: "예식장 우선",
+        allocations: [
+          { category: "venue", budget: 10_000_000, __events: [] },
+        ],
+      },
+      makeCtx()
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toMatchObject({
+      error: "invalid_tool_input",
+      reason: "reserved_key",
+      path: "$.allocations[0].__events",
+    });
+  });
+
+  it.each([
+    [Number.NaN, "number_not_finite"],
+    [Number.POSITIVE_INFINITY, "number_not_finite"],
+    [-1, "money_negative"],
+    [1.5, "money_not_integer"],
+    [10_000_000_001, "money_too_large"],
+  ])("원 단위 금액 %s를 DB 실행 전에 거부한다", async (amount, reason) => {
+    const result = await executeTool("update_budget", { total_budget: amount }, makeCtx());
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toMatchObject({ error: "invalid_tool_input", reason });
+  });
+
+  it("만원 단위 식대는 소수 한 자리까지만 허용한다", async () => {
+    const result = await executeTool(
+      "simulate_guest_guarantee",
+      { meal_price: 7.55 },
+      makeCtx()
+    );
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toMatchObject({
+      error: "invalid_tool_input",
+      reason: "money_precision_invalid",
+    });
+  });
+
+  it("카테고리 및 상태 allowlist 밖의 값은 차단한다", async () => {
+    const invalidCategory = await executeTool(
+      "update_task_status",
+      { category: "__events", status: "completed" },
+      makeCtx()
+    );
+    const invalidStatus = await executeTool(
+      "get_my_bookings",
+      { status: "anything' OR true --" },
+      makeCtx()
+    );
+    const invalidVendorCategory = await executeTool(
+      "search_vendors",
+      { category: "anything' OR true --" },
+      makeCtx()
+    );
+
+    for (const result of [invalidCategory, invalidStatus, invalidVendorCategory]) {
+      expect(result.success).toBe(false);
+      expect(result.toolOutput).toMatchObject({
+        error: "invalid_tool_input",
+        reason: "value_not_allowed",
+      });
+    }
+  });
+
+  it("후보 도구에서 제거된 가용시간 인자는 DB 실행 전에 차단한다", async () => {
+    const result = await executeTool(
+      "recommend_vendors",
+      { category: "studio", preferred_time: "afternoon" },
+      makeCtx()
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: {
+        error: "invalid_tool_input",
+        reason: "unexpected_field",
+        path: "$.preferred_time",
+      },
+    });
+  });
+
+  it("문자열과 배열 크기 상한을 적용한다", async () => {
+    const longString = await executeTool(
+      "search_nearby_places",
+      { query: "가".repeat(2_001) },
+      makeCtx()
+    );
+    const longArray = await executeTool(
+      "analyze_quote",
+      {
+        quote_price: 300,
+        category: "studio",
+        included_items: Array.from({ length: 51 }, (_, index) => `item-${index}`),
+      },
+      makeCtx()
+    );
+
+    expect(longString.toolOutput).toMatchObject({
+      error: "invalid_tool_input",
+      reason: "string_too_long",
+    });
+    expect(longArray.toolOutput).toMatchObject({
+      error: "invalid_tool_input",
+      reason: "array_too_long",
+    });
+  });
+
+  it("스키마에 없는 임의 필드를 거부한다", async () => {
+    const result = await executeTool(
+      "get_wedding_info",
+      { injected: true },
+      makeCtx()
+    );
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).toMatchObject({
+      error: "invalid_tool_input",
+      reason: "unexpected_field",
+      path: "$.injected",
+    });
+  });
+});
+
+describe("도구 내부 오류 비노출", () => {
+  it("예외 원문을 서버 로그에도 남기지 않고 안정적인 오류 코드만 반환한다", async () => {
+    const internalError = new Error("postgres://secret-host/private-table constraint failed");
+    createAdminClientMock.mockImplementationOnce(() => {
+      throw internalError;
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const ctx = makeCtx();
+    ctx.allowMutations = true;
+    ctx.currentUserText = "총 예산을 5천만원으로 변경해줘";
+
+    try {
+      const result = await executeTool(
+        "update_budget",
+        { total_budget: 50_000_000 },
+        ctx
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "tool_execution_failed" },
+        displayMessage: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      });
+      expect(JSON.stringify(result)).not.toContain(internalError.message);
+      expect(consoleError).toHaveBeenCalledWith(
+        "아모라 도구 실행 실패",
+        {
+          toolName: "update_budget",
+          errorCode: "tool_execution_failed:name_Error",
+        }
+      );
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(internalError.message);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});
+
+describe("요청 취소 전파", () => {
+  it("이미 취소된 요청은 도구를 실행하지 않는다", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = makeCtx();
+    ctx.signal = controller.signal;
+
+    await expect(executeTool("get_budget_summary", {}, ctx)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 });

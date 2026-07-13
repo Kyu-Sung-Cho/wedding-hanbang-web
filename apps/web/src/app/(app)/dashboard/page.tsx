@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -37,6 +37,8 @@ import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import { getEvents } from "@/utils/scheduleEvents";
+import { parseLocalDateOnly } from "@hanbang/shared";
+import { ddayInKst, ymdInKst } from "@/lib/utils/kstDate";
 
 type Status = "not_started" | "in_progress" | "completed";
 
@@ -156,19 +158,13 @@ function formatWon(amount: number) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "날짜 미정";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "날짜 미정";
+  const date = parseLocalDateOnly(value);
+  if (!date) return "날짜 미정";
   return date.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
 
 function getDday(value: string | null | undefined) {
-  if (!value) return null;
-  const weddingDate = new Date(value);
-  if (Number.isNaN(weddingDate.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  weddingDate.setHours(0, 0, 0, 0);
-  return Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return ddayInKst(value);
 }
 
 function getStatusSummary(progress: Record<string, ProgressItem>) {
@@ -196,6 +192,9 @@ function getSpent(progress: Record<string, ProgressItem>) {
 export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
+  const [requiresRelinkConfirmation, setRequiresRelinkConfirmation] = useState(false);
+  const [inviteCodeLoading, setInviteCodeLoading] = useState(false);
+  const [inviteCodeError, setInviteCodeError] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryMeta | null>(null);
 
@@ -207,10 +206,9 @@ export default function DashboardPage() {
   const summary = useMemo(() => getStatusSummary(progress), [progress]);
   const progressPercent = summary.totalItems > 0 ? Math.round((summary.doneItems / summary.totalItems) * 100) : 0;
   const upcomingEvents = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = ymdInKst();
     return getEvents(progress as Record<string, unknown>)
-      .filter((event) => new Date(event.date) >= today)
+      .filter((event) => event.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 3);
   }, [progress]);
@@ -223,34 +221,41 @@ export default function DashboardPage() {
     [progress]
   );
 
-  useEffect(() => {
-    if (!couple || partner || inviteCode || isDemo) return;
-    fetch("/api/couple/code")
-      .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string }) => {
-        if (data.inviteCode) setInviteCode(data.inviteCode);
-      })
-      .catch(() => {});
-  }, [couple, inviteCode, isDemo, partner]);
-
-  // 모멘트 루프 — 라운지 진입 시 아모라가 챙길 게 있는지 확인 (fire-and-forget, 발화는 채팅 shared로 들어옴)
-  // sessionStorage 스로틀: StrictMode 이중 이펙트·잦은 재방문의 중복 호출 방지 (서버 dedupe의 1차 방어선)
-  useEffect(() => {
-    if (isDemo) return;
+  const loadInviteCode = useCallback(async () => {
+    if (!couple || partner || isDemo) return;
+    setInviteCodeLoading(true);
+    setInviteCodeError("");
     try {
-      const key = "hanbang_proactive_last_ts";
-      const last = Number(sessionStorage.getItem(key) ?? 0);
-      if (Date.now() - last < 10 * 60 * 1000) return;
-      sessionStorage.setItem(key, String(Date.now()));
-    } catch { /* sessionStorage 불가 환경은 서버 dedupe에 위임 */ }
-    fetch("/api/chat/proactive").catch(() => {});
-  }, [isDemo]);
+      const response = await fetch("/api/couple/code", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as {
+        inviteCode?: string;
+        requiresRelinkConfirmation?: boolean;
+      };
+      if (!response.ok) throw new Error("invite lookup failed");
+      setInviteCode(data.inviteCode ?? "");
+      setRequiresRelinkConfirmation(data.requiresRelinkConfirmation === true);
+    } catch {
+      setInviteCodeError("커플 초대 정보를 불러오지 못했습니다.");
+    } finally {
+      setInviteCodeLoading(false);
+    }
+  }, [couple, isDemo, partner]);
+
+  useEffect(() => {
+    if (inviteCode) return;
+    void loadInviteCode();
+  }, [inviteCode, loadInviteCode]);
 
   async function copyCode() {
     if (!inviteCode) return;
-    await navigator.clipboard.writeText(inviteCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setCopied(true);
+      setInviteCodeError("");
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setInviteCodeError("코드를 복사하지 못했습니다. 설정에서 직접 선택해 복사해 주세요.");
+    }
   }
 
   async function updateCategoryStatus(key: string, status: Status) {
@@ -301,6 +306,47 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 text-[#061a34]">
+      {couple && !partner && (inviteCodeLoading || inviteCodeError) && (
+        <section
+          className={`rounded-[18px] border p-4 ${
+            inviteCodeError
+              ? "border-[#e4b7b7] bg-[#fff5f5]"
+              : "border-[#eadfc9] bg-white/90"
+          }`}
+          role={inviteCodeError ? "alert" : "status"}
+          aria-live="polite"
+        >
+          <p className={`text-[13px] font-medium ${inviteCodeError ? "text-[#9a3f3f]" : "text-[#5d6879]"}`}>
+            {inviteCodeError || "커플 연결 정보를 확인하고 있어요..."}
+          </p>
+          {inviteCodeError && (
+            <button
+              type="button"
+              onClick={() => void loadInviteCode()}
+              disabled={inviteCodeLoading}
+              className="mt-2 text-[13px] font-semibold text-[#36534E] underline underline-offset-2 disabled:opacity-50"
+            >
+              다시 불러오기
+            </button>
+          )}
+        </section>
+      )}
+      {couple && !partner && requiresRelinkConfirmation && (
+        <section className="rounded-[18px] border border-[#d9c3ae] bg-[#fffaf4] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+          <p className="text-[15px] font-semibold text-[#071629]">새 커플 공간으로 안전하게 시작해 주세요</p>
+          <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">
+            이전 공간의 자료는 새 파트너에게 넘기지 않고, 비어 있는 새 공간과 초대 코드를 만듭니다.
+          </p>
+          <Link
+            href={weddingPath("/settings")}
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#795252] px-5 py-3 text-[14px] font-semibold text-white"
+          >
+            설정에서 새 공간 만들기
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </section>
+      )}
+
       {couple && !partner && inviteCode && (
         <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -333,8 +379,8 @@ export default function DashboardPage() {
             예식일 하나만 알려주세요
           </h2>
           <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
-            날짜가 있어야 매주 &lsquo;이번 주 한 장&rsquo;으로 할 일을 골라드리고, 상견례·투어 같은 일정도
-            3일 전부터 먼저 챙겨드릴 수 있어요. 아직 미정이어도 괜찮아요 — 예상 시기만 잡아도 됩니다.
+            날짜가 있으면 &lsquo;이번 주 한 장&rsquo;에서 가까운 준비 항목을 확인할 수 있어요.
+            선제 이메일·문자 알림은 아직 제공하지 않으며, 미정이라면 예상 시기만 잡아도 됩니다.
           </p>
           <div className="mt-4 flex flex-wrap gap-2.5">
             <Link
@@ -580,7 +626,7 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-6 md:grid-cols-3" data-tutorial-target="dashboard-start-guide">
         {[
-          { icon: HeartHandshake, title: "커뮤니티에서 찾고", desc: "실제 후기와 질문으로 선택지를 좁혀요.", href: "/community" },
+          { icon: HeartHandshake, title: "커뮤니티에서 찾고", desc: "이용자가 작성한 후기와 질문을 참고해요.", href: "/community" },
           { icon: MessageCircle, title: "아모라에게 묻고", desc: "우리 상황에 맞게 견적과 조건을 해석해요.", href: "/chat" },
           { icon: ClipboardCheck, title: "결정으로 남기기", desc: "예산과 일정, 체크리스트로 바로 옮겨요.", href: "/schedule" },
         ].map((item) => (

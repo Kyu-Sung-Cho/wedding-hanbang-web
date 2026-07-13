@@ -1,5 +1,5 @@
 // 글쓰기 화면 — 카테고리 + 광고표시 + 제목 + 내용 + 이미지 첨부 + 미리보기
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator, Image,
 } from "react-native";
@@ -12,6 +12,12 @@ import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { AppHeader } from "@/components/ui/AppUI";
+import {
+  clearCommunityPostDraft,
+  loadCommunityPostDraft,
+  saveCommunityPostDraft,
+} from "@/lib/communityDrafts";
+import { persistActiveMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
 
 const CATEGORIES = [
   { key: "is_normal", label: "이거 정상이야?" },
@@ -49,17 +55,72 @@ export default function WritePostScreen() {
   const [isPreview, setIsPreview] = useState(false);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [draftOwnerId, setDraftOwnerId] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const draftPersistenceEnabledRef = useRef(true);
+
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getSession()
+      .then(async ({ data, error }) => {
+        if (error) throw error;
+        const userId = data.session?.user.id ?? null;
+        if (!userId) return;
+        if (active) setDraftOwnerId(userId);
+        const draft = await loadCommunityPostDraft(userId);
+        if (!active) return;
+
+        if (draft) {
+          setCategory(draft.category);
+          setAdDisclosure(draft.adDisclosure);
+          setSponsorDetail(draft.sponsorDetail);
+          setTitle(draft.title);
+          setContent(draft.content);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Community post draft load failed:", error);
+      })
+      .finally(() => {
+        if (active) setDraftReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady || !draftOwnerId) return;
+
+    const timer = setTimeout(() => {
+      if (!draftPersistenceEnabledRef.current) return;
+      const hasContent = Boolean(
+        category || sponsorDetail.trim() || title.trim() || content.trim(),
+      );
+      const operation = hasContent
+        ? saveCommunityPostDraft(draftOwnerId, {
+            category,
+            adDisclosure,
+            sponsorDetail,
+            title,
+            content,
+          })
+        : clearCommunityPostDraft(draftOwnerId);
+
+      void operation.catch((error: unknown) => {
+        console.error("Community post draft save failed:", error);
+      });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [adDisclosure, category, content, draftOwnerId, draftReady, sponsorDetail, title]);
 
   // 갤러리에서 이미지 선택
   async function pickImages() {
     if (images.length >= MAX_IMAGES) {
       Alert.alert("알림", `이미지는 최대 ${MAX_IMAGES}장까지 첨부할 수 있어요.`);
-      return;
-    }
-
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "사진 접근 권한을 허용해주세요.");
       return;
     }
 
@@ -91,9 +152,16 @@ export default function WritePostScreen() {
   async function uploadImages(): Promise<string[]> {
     if (images.length === 0) return [];
 
-    const { data } = await supabase.auth.getSession();
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw new Error("로그인 상태를 확인하지 못했습니다. 연결을 확인하고 다시 시도해주세요.");
+    }
     const token = data.session?.access_token;
-    if (!token) throw new Error("로그인이 필요합니다.");
+    if (!token) {
+      await persistActiveMobileAuthReturnPath().catch(() => false);
+      router.replace("/(auth)/login");
+      throw new Error("로그인이 필요합니다.");
+    }
 
     const urls: string[] = [];
 
@@ -115,6 +183,13 @@ export default function WritePostScreen() {
         },
         body: formData,
       });
+
+      if (res.status === 401) {
+        await persistActiveMobileAuthReturnPath().catch(() => false);
+        await supabase.auth.signOut();
+        router.replace("/(auth)/login");
+        throw new Error("세션이 만료되었습니다. 다시 로그인해 주세요.");
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -158,6 +233,13 @@ export default function WritePostScreen() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "게시글 작성에 실패했어요");
+      }
+
+      if (draftOwnerId) {
+        draftPersistenceEnabledRef.current = false;
+        await clearCommunityPostDraft(draftOwnerId).catch((error: unknown) => {
+          console.error("Community post draft clear failed:", error);
+        });
       }
 
       Alert.alert("완료", "게시글이 작성되었어요!", [

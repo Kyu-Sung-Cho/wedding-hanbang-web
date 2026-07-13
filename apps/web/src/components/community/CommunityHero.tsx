@@ -10,7 +10,7 @@ interface CommunityHeroProps {
 }
 
 export default function CommunityHero({ postCount = 0, topVendor }: CommunityHeroProps) {
-  const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개 글` : "실시간 글";
+  const displayCount = postCount > 0 ? `${postCount.toLocaleString("ko-KR")}개 글` : "새 글 기다리는 중";
 
   // 로그인 유저에겐 hero 숨김 — 이미 커뮤니티를 이해한 재방문자라 매번 안내 노출이 불필요.
   // 비로그인엔 그대로 노출하여 온보딩 컨텍스트 제공.
@@ -43,7 +43,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
 
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#635b51] sm:text-[0.9375rem]">
             받은 견적이 애매할 때, 투어 후기가 궁금할 때, 계약 전에 물어볼 것이 있을 때
-            비슷한 상황의 예비부부와 익명으로 나눕니다.
+            비슷한 상황의 예비부부와 커뮤니티 닉네임으로 나눕니다.
           </p>
         </div>
 
@@ -54,8 +54,8 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
               최근 언급 {topVendor}
             </span>
           ) : null}
-          <span className="rounded-full border border-[#eee6e0] bg-white px-3 py-1.5">익명 질문</span>
-          <span className="rounded-full border border-[#eee6e0] bg-white px-3 py-1.5">실제 후기</span>
+          <span className="rounded-full border border-[#eee6e0] bg-white px-3 py-1.5">닉네임 공개</span>
+          <span className="rounded-full border border-[#eee6e0] bg-white px-3 py-1.5">이용자 작성 후기</span>
         </div>
       </div>
     </section>

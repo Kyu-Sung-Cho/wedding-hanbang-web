@@ -3,21 +3,12 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
-import { shouldShowBetaCounter } from "@/constants/beta";
+import {
+  shouldShowBetaCounter,
+  USER_RESEARCH_COHORT_BENEFITS,
+  USER_RESEARCH_COHORT_CONDITIONS,
+} from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
-
-const BENEFITS = [
-  "실거래가 · Contract Diff 무료 Premium",
-  "아모라 풀 기능 우선 사용",
-  "종료 후 6개월 무료 연장",
-  "정식 출시 시 선배 신부 인증",
-];
-
-const CONDITIONS = [
-  "2026년 6~12월 결혼 예정",
-  "신부 · 신랑 모두 참여 가능",
-  "주 1회 짧은 피드백",
-];
 
 interface ForBetaCouplesProps {
   /** 실시간 신청자 수 (server fetch). 미전달 시 0. */
@@ -28,7 +19,6 @@ interface ForBetaCouplesProps {
 export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCouplesProps) {
   const BETA_CURRENT = current;
   const BETA_TOTAL = total;
-  const progress = Math.min(100, (BETA_CURRENT / BETA_TOTAL) * 100);
   const showCounter = shouldShowBetaCounter(BETA_CURRENT);
 
   return (
@@ -55,12 +45,15 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           transition={{ duration: 0.6 }}
           className="mb-20 md:mb-24 max-w-3xl"
         >
-          <SectionLabel label="초대" tone="light" />
+          <SectionLabel label="사용자 연구 코호트" tone="light" />
           <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
             6주간 함께해 주실
             <br />
-            <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
+            <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
           </h2>
+          <p className="mt-6 max-w-2xl text-[14px] font-light leading-[1.8] text-white/65 md:text-[15px]">
+            일반 베타 계정 이용과 별도로, 선정 후 안내되는 시작일부터 6주간 심층 피드백에 참여하는 연구입니다.
+          </p>
         </motion.div>
 
         {/* 좌측 혜택·조건 + 우측 CTA */}
@@ -76,10 +69,10 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
             {/* Benefits */}
             <div>
               <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-rose-light/80 mb-7 font-medium">
-                베타 참여 혜택
+                사용자 연구 참여 혜택
               </p>
               <ul className="space-y-6">
-                {BENEFITS.map((benefit, idx) => (
+                {USER_RESEARCH_COHORT_BENEFITS.map((benefit, idx) => (
                   <li
                     key={benefit}
                     className="flex items-baseline gap-6 text-[15px] md:text-[17px] text-white/90 font-light leading-[1.7]"
@@ -99,7 +92,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 참여 조건
               </p>
               <ul className="space-y-4 text-[14px] md:text-[15px] text-white/70 font-light leading-[1.8]">
-                {CONDITIONS.map((cond) => (
+                {USER_RESEARCH_COHORT_CONDITIONS.map((cond) => (
                   <li key={cond} className="flex items-baseline gap-5">
                     <span className="text-rose-light/40">·</span>
                     <span>{cond}</span>
@@ -119,7 +112,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           >
             <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
               <p className="text-[12px] md:text-[13px] tracking-[0.28em] text-rose-light font-medium mb-8">
-                베타 50쌍 한정
+                사용자 연구 코호트 · 최대 {BETA_TOTAL}명 선정
               </p>
 
               {showCounter ? (
@@ -129,26 +122,19 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                     <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
                       {BETA_CURRENT}
                     </span>
-                    <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">
-                      / {BETA_TOTAL}쌍
+                    <span className="text-white/50 text-lg md:text-xl font-light">
+                      건 접수
                     </span>
                   </div>
                   <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-white/50 mb-8 font-medium">
-                    현재 신청
+                    신청자를 검토해 최대 {BETA_TOTAL}명을 선정합니다
                   </p>
 
-                  {/* Progress bar */}
-                  <div className="h-px bg-white/10 w-full relative overflow-hidden mb-12">
-                    <div
-                      className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-                      style={{ width: `${Math.max(progress, 3)}%` }}
-                      aria-hidden
-                    />
-                  </div>
+                  <div className="h-px bg-white/10 w-full mb-12" aria-hidden />
                 </>
               ) : (
                 <p className="mb-12 text-[13px] font-medium tracking-[0.16em] text-white/55">
-                  베타 신청 접수 중
+                  사용자 연구 신청 접수 중 · 최대 {BETA_TOTAL}명 선정
                 </p>
               )}
 
@@ -157,7 +143,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 href="/beta"
                 className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
               >
-                베타 신청하기
+                사용자 연구 신청하기
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
             </div>

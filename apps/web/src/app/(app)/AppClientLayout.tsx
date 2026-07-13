@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { AlertCircle, RefreshCw, Sparkles } from "lucide-react";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
-import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
@@ -12,21 +12,43 @@ import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
-export default function AppClientLayout({ children }: { children: React.ReactNode }) {
+const ChatSidePanel = dynamic(
+  () => import("@/components/app/chat/ChatSidePanel"),
+  { ssr: false },
+);
+
+export default function AppClientLayout({
+  children,
+  initialDemo,
+}: {
+  children: React.ReactNode;
+  initialDemo: boolean;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [retryingAuth, setRetryingAuth] = useState(false);
   const pathname = usePathname();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
   const hasContextualAssistant = appPathname.startsWith("/vendors");
-  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
+  const { initialize, isInitialized, isLoading, isDemo, initError } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);
-  useAuthSessionSync(!isDemo);
+  useAuthSessionSync(!initialDemo && !isDemo);
 
   useEffect(() => {
-    if (!isInitialized) void initialize();
-  }, [initialize, isInitialized]);
+    if (!isInitialized) void initialize({ verifiedDemo: initialDemo });
+  }, [initialDemo, initialize, isInitialized]);
+
+  const retryAuthentication = async () => {
+    if (retryingAuth) return;
+    setRetryingAuth(true);
+    try {
+      await initialize({ force: true });
+    } finally {
+      setRetryingAuth(false);
+    }
+  };
 
   if (!isInitialized || isLoading) {
     return (
@@ -34,6 +56,40 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         <div className="text-center">
           <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#36534e] border-t-transparent" />
           <p className="text-[13px] font-medium text-[#7d7166]">웨딩 라운지를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-5">
+        <div
+          className="w-full max-w-md rounded-[28px] border border-[#dfd5c8] bg-white p-8 text-center shadow-[0_18px_50px_rgba(54,83,78,0.10)]"
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#f7eee5]">
+            <AlertCircle className="h-7 w-7 text-[#9b5f4d]" aria-hidden="true" />
+          </div>
+          <h1 className="text-xl font-semibold text-[#243b37]">정보를 불러오지 못했어요</h1>
+          <p className="mt-3 text-sm leading-6 text-[#71675f]">
+            {initError.message}
+            <br />
+            로그아웃하지 않고 다시 연결할게요.
+          </p>
+          <button
+            type="button"
+            onClick={() => void retryAuthentication()}
+            disabled={retryingAuth}
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534e] px-6 text-sm font-semibold text-white transition hover:bg-[#2d4843] disabled:cursor-wait disabled:opacity-60"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${retryingAuth ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            {retryingAuth ? "다시 연결하는 중" : "다시 시도"}
+          </button>
         </div>
       </div>
     );
@@ -66,7 +122,9 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         )}
       </div>
 
-      <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
+      {chatPanelOpen && !isChatPage && (
+        <ChatSidePanel isOpen onClose={() => setChatPanelOpen(false)} />
+      )}
 
       {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
         <button

@@ -1,5 +1,8 @@
 # Session Handoff - 2026-07-02
 
+> [!WARNING]
+> **Historical handoff snapshot.** Branch, commit, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md` before acting.
+
 This handoff is for continuing Wedding Hanbang work from another computer without re-discovering the latest state.
 
 ## Current Git State

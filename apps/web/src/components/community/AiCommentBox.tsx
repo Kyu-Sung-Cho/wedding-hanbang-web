@@ -6,27 +6,7 @@ interface AiCommentBoxProps {
 }
 
 export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
-  const comparisonColor =
-    aiComment.comparison === "below"
-      ? "#22C55E"
-      : aiComment.comparison === "average"
-      ? "#B89785"
-      : aiComment.comparison === "unknown"
-      ? "#928980"
-      : "#36534E";
-
-  const comparisonLabel =
-    aiComment.comparison === "below"
-      ? "평균 이하"
-      : aiComment.comparison === "average"
-      ? "평균"
-      : aiComment.comparison === "unknown"
-      ? "비교 기준 부족"
-      : "평균 이상";
-  const comparisonMeta =
-    aiComment.comparison === "unknown" || aiComment.percentage <= 0
-      ? comparisonLabel
-      : `${comparisonLabel} · ${aiComment.percentage}%`;
+  const comparisonColor = "#928980";
 
   return (
     <div
@@ -48,7 +28,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
             color: comparisonColor,
           }}
         >
-          {comparisonMeta}
+          AI 참고 의견
         </span>
       </div>
       <p className="text-[15px] text-[#1A1A1F] leading-relaxed mb-3">

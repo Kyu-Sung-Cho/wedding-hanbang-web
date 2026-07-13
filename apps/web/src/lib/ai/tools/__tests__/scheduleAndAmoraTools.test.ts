@@ -5,6 +5,7 @@ import {
   executeAddScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
+  executeLogWeddingEvent,
 } from "../scheduleTools";
 import {
   executeGetAmoraActions,
@@ -62,13 +63,18 @@ class FakeQuery {
   }
 }
 
-function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
+function mockAdminClient(
+  tableHandlers: Record<string, TableHandler[]>,
+  rpcHandler?: (name: string, args: Record<string, unknown>) => QueryResult
+) {
   const admin = {
     from: vi.fn((table: string) => {
       const handler = tableHandlers[table]?.shift() ?? {};
       return new FakeQuery(handler);
     }),
-    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    rpc: vi.fn((name: string, args: Record<string, unknown>) =>
+      Promise.resolve(rpcHandler?.(name, args) ?? { data: {}, error: null })
+    ),
   };
   vi.mocked(createAdminClient).mockReturnValue(
     admin as unknown as ReturnType<typeof createAdminClient>
@@ -118,6 +124,9 @@ describe("scheduleTools", () => {
         },
         updateResult: { error: null },
       }],
+    }, (_name, args) => {
+      updatedProgress = args.p_patch as Record<string, unknown>;
+      return { data: updatedProgress, error: null };
     });
 
     const ctx = createContext({});
@@ -141,6 +150,24 @@ describe("scheduleTools", () => {
     });
     expect(executeGetScheduleEvents({ from_date: "2026-07-01", to_date: "2026-07-31" }, ctx).toolOutput)
       .toMatchObject({ count: 1 });
+  });
+
+  it("rejects rollover calendar dates before touching storage", async () => {
+    mockAdminClient({});
+    const ctx = createContext({});
+
+    const scheduleResult = await executeAddScheduleEvent(
+      { date: "2026-02-30", title: "Impossible" },
+      ctx
+    );
+    const momentResult = await executeLogWeddingEvent(
+      { date: "2026-02-30", moment_type: "sanggyeonrye" },
+      ctx
+    );
+
+    expect(scheduleResult.success).toBe(false);
+    expect(momentResult.success).toBe(false);
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 });
 
@@ -191,6 +218,9 @@ describe("amoraActionTools", () => {
         },
         updateResult: { error: null },
       }],
+    }, (_name, args) => {
+      updatedProgress = args.p_patch as Record<string, unknown>;
+      return { data: updatedProgress, error: null };
     });
 
     const ctx = createContext({

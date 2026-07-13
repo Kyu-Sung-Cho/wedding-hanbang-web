@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { X, Trash2, CalendarDays } from "lucide-react";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import type { ScheduleEvent } from "@/types/database.types";
 
 const CATEGORY_OPTIONS = [
@@ -58,9 +59,17 @@ export default function EventFormModal({
   const [categoryKey, setCategoryKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const titleId = useId();
+  const titleInputId = useId();
+  const dateInputId = useId();
+  const memoInputId = useId();
+  const categoryInputId = useId();
+  const { dialogRef } = useAccessibleDialog({ isOpen, onClose });
 
   useEffect(() => {
     if (!isOpen) return;
+    setError("");
     if (mode === "edit" && event) {
       setTitle(event.title);
       setDate(event.date);
@@ -77,6 +86,7 @@ export default function EventFormModal({
   const handleSubmit = async () => {
     if (!title.trim() || !date) return;
     setSaving(true);
+    setError("");
     try {
       await onSave({
         date,
@@ -84,6 +94,8 @@ export default function EventFormModal({
         memo: memo.trim() || undefined,
         categoryKey: categoryKey || undefined,
       });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "일정을 저장하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
@@ -92,8 +104,11 @@ export default function EventFormModal({
   const handleDelete = async () => {
     if (!onDelete) return;
     setDeleting(true);
+    setError("");
     try {
       await onDelete();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "일정을 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setDeleting(false);
     }
@@ -105,10 +120,16 @@ export default function EventFormModal({
     <>
       <div
         onClick={onClose}
+        aria-hidden="true"
         className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
       />
 
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="fixed inset-x-4 top-[12%] max-w-[480px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
@@ -118,12 +139,14 @@ export default function EventFormModal({
               <div className="w-11 h-11 rounded-xl bg-[#795252]/10 flex items-center justify-center">
                 <CalendarDays className="w-5 h-5 text-[#795252]" />
               </div>
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">
+              <h3 id={titleId} className="font-serif-kr text-2xl font-light text-[#1A1A1F]">
                 {mode === "edit" ? "일정 수정" : "일정 추가"}
               </h3>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="일정 창 닫기"
               className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
             >
               <X className="w-4 h-4" />
@@ -133,12 +156,19 @@ export default function EventFormModal({
 
         {/* 폼 */}
         <div className="px-6 py-4 flex flex-col gap-4">
+          {error && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {error}
+            </p>
+          )}
           {/* 제목 */}
           <div>
-            <label className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+            <label htmlFor={titleInputId} className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
               제목 <span className="text-[#795252]">*</span>
             </label>
             <input
+              id={titleInputId}
+              data-dialog-initial-focus
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -149,10 +179,11 @@ export default function EventFormModal({
 
           {/* 날짜 */}
           <div>
-            <label className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+            <label htmlFor={dateInputId} className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
               날짜 <span className="text-[#795252]">*</span>
             </label>
             <input
+              id={dateInputId}
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -162,10 +193,11 @@ export default function EventFormModal({
 
           {/* 메모 */}
           <div>
-            <label className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+            <label htmlFor={memoInputId} className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
               메모
             </label>
             <textarea
+              id={memoInputId}
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
               placeholder="예: 강남 드레스샵 오후 2시, 참석자 지은/수현"
@@ -176,10 +208,11 @@ export default function EventFormModal({
 
           {/* 카테고리 */}
           <div>
-            <label className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
+            <label htmlFor={categoryInputId} className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5">
               관련 카테고리
             </label>
             <select
+              id={categoryInputId}
               value={categoryKey}
               onChange={(e) => setCategoryKey(e.target.value)}
               className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
@@ -197,6 +230,7 @@ export default function EventFormModal({
         <div className="px-6 py-4 bg-[#FAFAF8] flex items-center justify-between">
           {mode === "edit" && onDelete ? (
             <button
+              type="button"
               onClick={handleDelete}
               disabled={deleting}
               className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
@@ -209,12 +243,14 @@ export default function EventFormModal({
           )}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-base text-[#504444] hover:bg-[#F6F3F2] transition-colors"
             >
               취소
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={saving || !title.trim() || !date}
               className="px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
