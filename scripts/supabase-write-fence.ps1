@@ -54,6 +54,42 @@ if ($Action -ne "Plan") {
   throw "All remote write-fence execution is disabled before any companion file, credential, journal, Git, or remote boundary. Only Plan is operational until a provider-side lease/CAS, exact-target connection, cross-version recovery receipt, and disposable rehearsal are independently verified."
 }
 
+try {
+  $script:ConvertFromJsonCommand = Get-Command -Name ConvertFrom-Json `
+    -CommandType Cmdlet -ErrorAction Stop
+} catch {
+  throw "The required PowerShell JSON decoder is unavailable."
+}
+$script:ConvertFromJsonParameters = $script:ConvertFromJsonCommand.Parameters
+if ($PSVersionTable.PSEdition -eq "Core" -and
+  -not $script:ConvertFromJsonParameters.ContainsKey("DateKind")) {
+  throw "PowerShell Core 7.5 or newer is required for exact JSON timestamp preservation."
+}
+
+function ConvertFrom-FenceJson {
+  param(
+    [Parameter(Mandatory = $true)] [string]$Json,
+    [switch]$PreserveTopLevelArray
+  )
+
+  $arguments = @{ InputObject = $Json }
+  if ($script:ConvertFromJsonParameters.ContainsKey("DateKind")) {
+    $arguments.DateKind = "String"
+  }
+  if ($PreserveTopLevelArray) {
+    if (-not $script:ConvertFromJsonParameters.ContainsKey("NoEnumerate")) {
+      if ($PSVersionTable.PSEdition -eq "Core") {
+        throw "This PowerShell runtime cannot preserve a top-level JSON array."
+      }
+    } else {
+      $arguments.NoEnumerate = $true
+    }
+  }
+
+  $value = & $script:ConvertFromJsonCommand @arguments
+  return (, $value)
+}
+
 $injectedReleaseTargetsJson = $ExecutionContext.SessionState.PSVariable.GetValue(
   "ReviewedReleaseTargetsJson"
 )
@@ -71,7 +107,7 @@ $script:StatusSql = if ([string]::IsNullOrWhiteSpace($injectedFenceStatusSql)) {
   [string]$injectedFenceStatusSql
 }
 try {
-  $targets = $releaseTargetsJson | ConvertFrom-Json
+  $targets = ConvertFrom-FenceJson $releaseTargetsJson
 } catch {
   throw "The reviewed release-target policy is invalid."
 }
@@ -148,7 +184,7 @@ function Get-RequiredManagementProperty {
   if ($null -eq $property) {
     throw "Management restore schema is missing a required provider field."
   }
-  Write-Output -NoEnumerate $property.Value
+  return (, $property.Value)
 }
 
 function Get-RequiredManagementBoolean {
@@ -188,7 +224,7 @@ function Get-RequiredManagementArray {
     throw "Management restore schema requires an actual array provider field."
   }
   # Prevent PowerShell's pipeline from collapsing empty or single-item arrays.
-  Write-Output -NoEnumerate $value
+  return (, $value)
 }
 
 function Assert-ProviderNetworkCidr {
@@ -912,7 +948,7 @@ function Read-PostMigrationEvidence {
   }
   $payload = Read-FenceJournalPayloadBounded $Path
   try {
-    $evidence = $payload.json | ConvertFrom-Json
+    $evidence = ConvertFrom-FenceJson $payload.json
   } catch {
     throw "Post-migration evidence is malformed JSON."
   }
@@ -1672,7 +1708,7 @@ function Read-FenceSnapshot {
   }
   $payload = Read-FenceJournalPayloadBounded $Path
   try {
-    $snapshot = $payload.json | ConvertFrom-Json
+    $snapshot = ConvertFrom-FenceJson $payload.json
   } catch {
     throw "Write-fence snapshot contains malformed JSON."
   }
@@ -1729,7 +1765,7 @@ function Get-FenceJournalInventory {
     }
     $json = Read-FenceJournalJsonBounded $file.FullName
     try {
-      $document = $json | ConvertFrom-Json
+      $document = ConvertFrom-FenceJson $json
     } catch {
       throw "Write-fence journal inventory contains malformed JSON."
     }
@@ -1772,7 +1808,7 @@ function Get-FenceJournalInventory {
       snapshot = $document
     })
   }
-  Write-Output -NoEnumerate $entries.ToArray()
+  return (, ($entries.ToArray()))
 }
 
 function Read-FenceJournalJsonBounded {
@@ -1942,7 +1978,7 @@ function ConvertFrom-SupabaseQueryRows {
   param([Parameter(Mandatory = $true)] [string]$Json)
 
   try {
-    $document = $Json | ConvertFrom-Json
+    $document = ConvertFrom-FenceJson $Json -PreserveTopLevelArray
   } catch {
     throw "Write-fence database API returned an unexpected result shape."
   }
@@ -1953,8 +1989,7 @@ function ConvertFrom-SupabaseQueryRows {
         throw "Write-fence database API returned an unexpected result shape."
       }
     }
-    Write-Output -NoEnumerate $document
-    return
+    return (, $document)
   }
   $hasLegacyRowsWrapper = $false
   try {
@@ -1975,7 +2010,7 @@ function ConvertFrom-FenceDatabaseRowsJson {
   param([Parameter(Mandatory = $true)] [string]$Json)
 
   $rows = ConvertFrom-SupabaseQueryRows $Json
-  Write-Output -NoEnumerate $rows
+  return (, $rows)
 }
 
 function Invoke-FenceDatabaseApiRequest {

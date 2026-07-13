@@ -28,7 +28,8 @@ writeFileSync(offlineFenceScript, offlineFenceSource, {
   mode: 0o600,
 });
 after(() => rmSync(offlineHarnessRoot, { recursive: true, force: true }));
-const powershell = process.platform === "win32" ? "powershell" : "pwsh";
+const powershell = process.env.HANBANG_FENCE_TEST_POWERSHELL
+  || (process.platform === "win32" ? "powershell" : "pwsh");
 const offlineProjectRef = "abcdefghijklmnopqrst";
 const productionProjectRef = JSON.parse(
   readFileSync(path.join(repoRoot, "scripts", "release-targets.json"), "utf8"),
@@ -168,6 +169,7 @@ function importFencePrefix(stateRoot) {
   return [
     `$ReviewedEntrypointRoot = ${quotePowerShell(path.dirname(fenceScript))}`,
     `. ${quotePowerShell(offlineFenceScript)} -Action Plan -ExpectedProjectRef ${quotePowerShell(offlineProjectRef)}`,
+    "if ((Get-Command ConvertFrom-Json -CommandType Cmdlet).Parameters.ContainsKey('DateKind')) { $PSDefaultParameterValues['ConvertFrom-Json:DateKind'] = 'String' }",
     `$script:OfflineTestFenceStateRoot = ${quotePowerShell(stateRoot)}`,
   ].join("; ");
 }
@@ -185,6 +187,27 @@ test("production journal root ignores mutable environment namespaces", () => {
   assert.match(source, /GetFolderPath\([\s\S]*SpecialFolder\]::LocalApplicationData/);
   assert.doesNotMatch(source, /\$env:(?:LOCALAPPDATA|XDG_STATE_HOME)/);
   assert.match(source, /offline journal root override is restricted to non-production Plan tests/i);
+});
+
+test("security JSON decoding preserves booleans, timestamps, and single-row arrays", async () => {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), "hanbang-fence-json-types-"));
+  const { snapshot } = verifiedMigrationFixture(
+    "00000000-0000-4000-8000-000000000025"
+  );
+  try {
+    const result = runPowerShell(
+      "$document = ConvertFrom-FenceJson '{\"enabled\":false,\"recordedAtUtc\":\"2026-07-13T00:00:00.000Z\"}'; "
+        + "$rows = ConvertFrom-FenceJson '[{\"probe\":\"ok\"}]' -PreserveTopLevelArray; "
+        + `$verified = ConvertFrom-FenceJson ${quotePowerShell(JSON.stringify(snapshot))}; Assert-FenceSnapshotSafety $verified; `
+        + "if ($document.enabled -isnot [bool] -or $document.enabled -ne $false -or $document.recordedAtUtc -isnot [string] -or $rows -isnot [array] -or $rows.Count -ne 1 -or $rows[0].probe -ne 'ok') { throw 'security JSON types changed' }; "
+        + "Write-Output 'SECURITY_JSON_TYPES_PRESERVED'",
+      stateRoot
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /SECURITY_JSON_TYPES_PRESERVED/);
+  } finally {
+    await rm(stateRoot, { recursive: true, force: true });
+  }
 });
 
 test("operational entrypoint rejects dot-sourcing before exporting remote mutators", () => {
