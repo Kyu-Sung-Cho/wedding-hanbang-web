@@ -28,6 +28,7 @@ export type InteractionType =
   | "amora_director"
   | "vendor_recommendation"
   | "feedback"
+  | "couple_court_verdict"
   | "community_amora_comment"
   | "community_agent_auto";
 

@@ -218,6 +218,8 @@ export interface AIInteractionLogInput {
   /** 미리 계산된 cost — 없으면 내부에서 MODEL_COSTS 기반 자동 계산 */
   costUsd?: number | null;
   metadata?: Record<string, unknown> | null;
+  /** Stable SHA-256 key for a required audit event that may be retried. */
+  idempotencyKey?: string | null;
   /** true면 감사 장부 실패를 호출자에게 전파해 성공처럼 진행하지 않는다. */
   required?: boolean;
 }
@@ -245,6 +247,18 @@ export function sanitizeAIErrorCode(value: string | null | undefined): string | 
     : "ai_interaction_failed";
 }
 
+function canonicalAuditValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalAuditValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalAuditValue(item)]),
+    );
+  }
+  return value;
+}
+
 // -------------------------------------------
 // 공개 헬퍼: logAIInteraction
 // -------------------------------------------
@@ -258,6 +272,10 @@ export async function logAIInteraction(
 ): Promise<void> {
   try {
     const admin = getAdminClient();
+    const idempotencyKey = params.idempotencyKey ?? null;
+    if (idempotencyKey !== null && !/^[a-f0-9]{64}$/.test(idempotencyKey)) {
+      throw new Error("AI_LOG_IDEMPOTENCY_KEY_INVALID");
+    }
 
     const cost =
       params.costUsd !== undefined
@@ -281,7 +299,7 @@ export async function logAIInteraction(
           }
         : baseMetadata;
 
-    const { error } = await admin.from("ai_interactions_log").insert({
+    const insertRow = {
       user_id: params.userId ?? null,
       couple_id: params.coupleId ?? null,
       session_id: params.sessionId ?? null,
@@ -301,9 +319,67 @@ export async function logAIInteraction(
       tokens_output: params.tokensOutput ?? null,
       cost_usd: cost,
       metadata: metadataWithCache,
-    });
+      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+    };
+    const { error } = await admin.from("ai_interactions_log").insert(insertRow);
 
     if (error) {
+      // If the original insert committed but its response was lost, a retry
+      // sees the unique key. Reuse is safe only for the exact same semantic
+      // audit event; a conflicting row remains a hard required-audit failure.
+      if (idempotencyKey) {
+        const { data: existing, error: lookupError } = await admin
+          .from("ai_interactions_log")
+          .select([
+            "user_id",
+            "couple_id",
+            "session_id",
+            "message_id",
+            "interaction_type",
+            "specialist_type",
+            "user_input",
+            "ai_output",
+            "tool_name",
+            "tool_input",
+            "tool_output",
+            "success",
+            "error_message",
+            "model",
+            "tokens_input",
+            "tokens_output",
+            "metadata",
+          ].join(","))
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle();
+        const expectedComparable = {
+          user_id: insertRow.user_id,
+          couple_id: insertRow.couple_id,
+          session_id: insertRow.session_id,
+          message_id: insertRow.message_id,
+          interaction_type: insertRow.interaction_type,
+          specialist_type: insertRow.specialist_type,
+          user_input: insertRow.user_input,
+          ai_output: insertRow.ai_output,
+          tool_name: insertRow.tool_name,
+          tool_input: insertRow.tool_input,
+          tool_output: insertRow.tool_output,
+          success: insertRow.success,
+          error_message: insertRow.error_message,
+          model: insertRow.model,
+          tokens_input: insertRow.tokens_input,
+          tokens_output: insertRow.tokens_output,
+          metadata: insertRow.metadata,
+        };
+        if (
+          !lookupError
+          && existing
+          && JSON.stringify(canonicalAuditValue(existing))
+            === JSON.stringify(canonicalAuditValue(expectedComparable))
+        ) {
+          return;
+        }
+        console.error("AI_LOG_IDEMPOTENCY_CONFLICT", lookupError ?? error);
+      }
       console.error("AI_LOG_INSERT_FAILED", error);
       if (params.required) {
         throw new Error("AI_LOG_REQUIRED_INSERT_FAILED");

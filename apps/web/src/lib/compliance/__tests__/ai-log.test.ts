@@ -1,5 +1,30 @@
-import { describe, expect, it } from "vitest";
-import { calcCostUsd, sanitizeAIErrorCode } from "../ai-log";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
+  insert: vi.fn(),
+  select: vi.fn(),
+  eq: vi.fn(),
+  maybeSingle: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({ from: mocks.from }),
+}));
+
+import { calcCostUsd, logAIInteraction, sanitizeAIErrorCode } from "../ai-log";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  const lookup = {
+    select: mocks.select,
+    eq: mocks.eq,
+    maybeSingle: mocks.maybeSingle,
+  };
+  mocks.select.mockReturnValue(lookup);
+  mocks.eq.mockReturnValue(lookup);
+  mocks.from.mockReturnValue({ insert: mocks.insert, select: mocks.select });
+});
 
 describe("calcCostUsd", () => {
   it("prices OpenAI cached input without double charging total input tokens", () => {
@@ -66,5 +91,68 @@ describe("sanitizeAIErrorCode", () => {
     expect(
       sanitizeAIErrorCode("victim@example.com Failing row contains (private payload)")
     ).toBe("ai_interaction_failed");
+  });
+});
+
+describe("logAIInteraction idempotency", () => {
+  const key = "b".repeat(64);
+  const input = {
+    interactionType: "couple_court_verdict" as const,
+    userId: "00000000-0000-4000-8000-000000000001",
+    coupleId: "00000000-0000-4000-8000-000000000002",
+    userInput: null,
+    aiOutput: null,
+    success: true,
+    model: "gpt-5.6-terra",
+    tokensInput: 100,
+    tokensOutput: 20,
+    cacheWriteTokens: 3,
+    cacheReadTokens: 7,
+    metadata: {
+      source: "couple_court_judge",
+      input_hash: "c".repeat(64),
+      prompt_version: "court-verdict-2026-07-13.4",
+      schema_version: "1.0",
+    },
+    idempotencyKey: key,
+    required: true,
+  };
+
+  it("accepts a lost-ack duplicate only when the stored semantic event is exact", async () => {
+    mocks.insert.mockResolvedValue({ error: { code: "23505" } });
+    mocks.maybeSingle.mockImplementation(async () => {
+      const inserted = mocks.insert.mock.calls[0][0] as Record<string, unknown>;
+      const comparable = Object.fromEntries(
+        Object.entries(inserted).filter(([field]) => ![
+          "latency_ms",
+          "cost_usd",
+          "idempotency_key",
+        ].includes(field)),
+      );
+      return { data: comparable, error: null };
+    });
+
+    await expect(logAIInteraction(input)).resolves.toBeUndefined();
+    expect(mocks.eq).toHaveBeenCalledWith("idempotency_key", key);
+  });
+
+  it("fails closed when the same key belongs to a different audit payload", async () => {
+    mocks.insert.mockResolvedValue({ error: { code: "23505" } });
+    mocks.maybeSingle.mockResolvedValue({
+      data: {
+        interaction_type: "couple_court_verdict",
+        success: true,
+        model: "different-model",
+      },
+      error: null,
+    });
+
+    await expect(logAIInteraction(input)).rejects.toThrow("AI_LOG_REQUIRED_INSERT_FAILED");
+  });
+
+  it("rejects malformed idempotency keys before touching the audit table", async () => {
+    await expect(logAIInteraction({ ...input, idempotencyKey: "not-a-digest" }))
+      .rejects.toThrow("AI_LOG_IDEMPOTENCY_KEY_INVALID");
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });

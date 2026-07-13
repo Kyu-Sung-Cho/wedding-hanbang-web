@@ -11,7 +11,10 @@ vi.mock("@/lib/compliance/ai-log", () => ({
   startLatencyClock: () => 100,
 }));
 
-import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  createOpenAIResponseWithAudit,
+  createOpenAIStructuredResponseWithAudit,
+} from "@/lib/ai/auditedOpenAI";
 
 describe("createOpenAIResponseWithAudit", () => {
   beforeEach(() => {
@@ -226,6 +229,35 @@ describe("createOpenAIResponseWithAudit", () => {
     );
   });
 
+  it("forwards a bounded idempotency key without persisting it in audit metadata", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: "ok",
+      model: "gpt-5.6-luna",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: null,
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+    const idempotencyKey = "a".repeat(64);
+
+    await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "summary",
+      input: "conversation",
+      maxOutputTokens: 100,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      client,
+      idempotencyKey,
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-5.6-luna" }),
+      { headers: { "Idempotency-Key": idempotencyKey } },
+    );
+    expect(JSON.stringify(mocks.logAIInteraction.mock.calls)).not.toContain(idempotencyKey);
+  });
+
   it("does not start a paid request when already aborted", async () => {
     const create = vi.fn();
     const client = { responses: { create } } as unknown as OpenAI;
@@ -265,5 +297,272 @@ describe("createOpenAIResponseWithAudit", () => {
       aiOutput: null,
       errorMessage: "provider_request_failed:name_Error",
     }));
+  });
+
+  it("requests strict JSON schema output and audits only the validated result", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{"answer":"ok"}',
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: {
+        input_tokens: 30,
+        input_tokens_details: { cache_write_tokens: 0, cached_tokens: 0 },
+        output_tokens: 7,
+      },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    const result = await createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "bounded input",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "test_schema",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["answer"],
+          properties: { answer: { type: "string" } },
+        },
+      },
+      validate(value) {
+        if (!value || typeof value !== "object" || (value as { answer?: unknown }).answer !== "ok") {
+          throw new Error("invalid answer");
+        }
+        return value as { answer: "ok" };
+      },
+      client,
+    });
+
+    expect(result.data).toEqual({ answer: "ok" });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gpt-5.6-terra",
+      store: false,
+      text: expect.objectContaining({
+        format: expect.objectContaining({
+          type: "json_schema",
+          name: "test_schema",
+          strict: true,
+        }),
+      }),
+    }));
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      userInput: null,
+      aiOutput: null,
+      metadata: expect.objectContaining({
+        audit_wrapper: "createOpenAIStructuredResponseWithAudit",
+        schema_name: "test_schema",
+        structured_output: true,
+      }),
+    }));
+  });
+
+  it("durably stages validated structured data before a required success audit can fail", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{"answer":"ok"}',
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: {
+        input_tokens: 31,
+        input_tokens_details: { cache_write_tokens: 2, cached_tokens: 3 },
+        output_tokens: 8,
+      },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+    const staged = vi.fn().mockResolvedValue(undefined);
+    mocks.logAIInteraction.mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "bounded input",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "stage_test_schema",
+        schema: { type: "object", additionalProperties: false },
+      },
+      validate: (value) => value as { answer: string },
+      onValidated: staged,
+      client,
+    })).rejects.toThrow("audit unavailable");
+
+    expect(staged).toHaveBeenCalledWith(
+      { answer: "ok" },
+      {
+        model: "gpt-5.6-terra",
+        usage: {
+          input_tokens: 31,
+          output_tokens: 8,
+          cache_write_input_tokens: 2,
+          cached_input_tokens: 3,
+        },
+      },
+    );
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+  });
+
+  it("records one keyed provider success before rethrowing a validated callback failure", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{"answer":"ok"}',
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: {
+        input_tokens: 31,
+        input_tokens_details: { cache_write_tokens: 2, cached_tokens: 3 },
+        output_tokens: 8,
+      },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+    const callbackError = new Error("stage acknowledgement lost");
+    const stage = vi.fn().mockRejectedValue(callbackError);
+    const auditKey = "d".repeat(64);
+
+    await expect(createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "bounded input",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "callback_failure_schema",
+        schema: { type: "object", additionalProperties: false },
+      },
+      validate: (value) => value as { answer: string },
+      onValidated: stage,
+      successAuditIdempotencyKey: auditKey,
+      client,
+    })).rejects.toBe(callbackError);
+
+    expect(stage).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      required: true,
+      success: true,
+      idempotencyKey: auditKey,
+      tokensInput: 31,
+      tokensOutput: 8,
+    }));
+  });
+
+  it("fails closed and audits invalid structured JSON without storing it", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{"private":"unterminated"',
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: {
+        input_tokens: 30,
+        input_tokens_details: { cache_write_tokens: 0, cached_tokens: 0 },
+        output_tokens: 7,
+      },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "private statement",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "test_schema",
+        schema: { type: "object", additionalProperties: false },
+      },
+      validate: (value) => value,
+      client,
+    })).rejects.toMatchObject({ code: "invalid_json" });
+
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      errorMessage: "structured_output_invalid",
+      userInput: null,
+      aiOutput: null,
+    }));
+    expect(JSON.stringify(mocks.logAIInteraction.mock.calls)).not.toContain("unterminated");
+  });
+
+  it("classifies a completed empty structured response as known invalid", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: "   ",
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: { input_tokens: 20, input_tokens_details: {}, output_tokens: 0 },
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "bounded input",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "empty_structured_schema",
+        schema: { type: "object", additionalProperties: false },
+      },
+      validate: (value) => value,
+      client,
+    })).rejects.toMatchObject({ code: "invalid_json" });
+
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      errorMessage: "empty_response",
+      tokensInput: 20,
+      tokensOutput: 0,
+    }));
+  });
+
+  it("audits a schema-validator rejection as a structured failure", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: '{"answer":"private value"}',
+      model: "gpt-5.6-terra",
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      usage: null,
+    });
+    const client = { responses: { create } } as unknown as OpenAI;
+
+    await expect(createOpenAIStructuredResponseWithAudit({
+      modelRole: "primary",
+      instructions: "Return JSON.",
+      input: "private statement",
+      maxOutputTokens: 80,
+      audit: { interactionType: "chat_turn", userId: "user-1" },
+      responseFormat: {
+        name: "test_schema",
+        schema: { type: "object", additionalProperties: false },
+      },
+      validate() {
+        throw new Error("domain invariant failed");
+      },
+      client,
+    })).rejects.toMatchObject({ code: "schema_validation_failed" });
+
+    expect(mocks.logAIInteraction).toHaveBeenCalledTimes(1);
+    expect(mocks.logAIInteraction).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      errorMessage: "structured_output_invalid",
+      userInput: null,
+      aiOutput: null,
+    }));
+    expect(JSON.stringify(mocks.logAIInteraction.mock.calls)).not.toContain("private value");
+    expect(JSON.stringify(mocks.logAIInteraction.mock.calls)).not.toContain("domain invariant");
   });
 });
