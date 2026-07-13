@@ -73,7 +73,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#eadfc9] text-[#5d6879] md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#5d6879] md:hidden"
             aria-label="메뉴 닫기"
           >
             <X className="h-5 w-5" />
