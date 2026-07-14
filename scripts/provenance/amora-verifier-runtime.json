@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "node": {
+    "absolute_path": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v24.15.0",
+    "bytes": 91694408,
+    "sha256": "3331E1FFE19874215472217C5E94F5A0C6D8E18C4AC7111D3937AA0AD5E9B4A5"
+  },
+  "pglite": {
+    "version": "0.5.4",
+    "package_relative_path": "node_modules/.pnpm/@electric-sql+pglite@0.5.4/node_modules/@electric-sql/pglite",
+    "entry_relative_path": "dist/index.js",
+    "file_count": 301,
+    "total_bytes": 25403132,
+    "tree_sha256": "CE832173BBAF4A4E6BBF0FAF91763D1A7075ED88568487C4336562CB43E969F6"
+  }
+}

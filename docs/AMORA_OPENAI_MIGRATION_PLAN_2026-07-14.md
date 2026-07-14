@@ -55,10 +55,16 @@
 
 ### B. 운영 DB 확장
 
+> 2026-07-14 security re-review: Stage B is **not complete**. The earlier HBAM1
+> capture and generic PGlite JSONB staging check are superseded evidence. A
+> fresh HBAM2 capture/verification is still required, and the PGlite round-trip
+> is not an actual schema restore. Isolated real-schema restore plus RLS/RPC
+> contract verification remain open gates.
+
 - [ ] 운영 스키마와 migration history 읽기 전용 inventory
 - [ ] timestamped 논리 백업, checksum, 복구 명령 확보
 - [ ] Amora 전용 expand-only migration 작성
-- [ ] 로컬/격리 DB에서 restore rehearsal 및 RLS/RPC contract 검증
+- [ ] 격리된 실제 스키마로 복원하고 RLS/RPC contract 검증 (PGlite JSONB round-trip만으로 충족되지 않음)
 - [ ] 운영 dry-run과 write fence 통과 후 migration 적용
 
 DB 변경은 기존 대형 migration을 복사하지 않는다. 현재 운영 스키마에서 필요한 lifecycle, request claim, provider lease, usage reservation 구조만 새 migration으로 만든다.
