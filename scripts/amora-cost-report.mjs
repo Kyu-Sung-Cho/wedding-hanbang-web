@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { createClient } from "@supabase/supabase-js";
+import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { classifyUsageRow } from "./amora-cost-report-logic.mjs";
 
 const ROOT = process.cwd();
 const ENV_PATHS = [
@@ -12,10 +14,28 @@ const PAGE_SIZE = 1000;
 const DEFAULT_DAYS = 30;
 const DEFAULT_KRW_PER_USD = 1350;
 
-// Source checked 2026-06-17:
-// https://platform.claude.com/docs/en/about-claude/pricing
+// OpenAI source checked 2026-07-14:
+// https://developers.openai.com/api/docs/pricing
 // Values are USD per token, converted from USD / MTok.
 const MODEL_COSTS = {
+  "gpt-5.6-terra": {
+    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
+    cacheWrite: 3.125 / 1_000_000, cacheRead: 0.25 / 1_000_000,
+    longContext: {
+      threshold: 272_000,
+      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
+      cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+    },
+  },
+  "gpt-5.6-luna": {
+    in: 1 / 1_000_000, out: 6 / 1_000_000,
+    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000,
+    longContext: {
+      threshold: 272_000,
+      in: 2 / 1_000_000, out: 9 / 1_000_000,
+      cacheWrite: 2.5 / 1_000_000, cacheRead: 0.2 / 1_000_000,
+    },
+  },
   "claude-fable-5": { in: 10 / 1_000_000, out: 50 / 1_000_000, cacheWrite: 12.5 / 1_000_000, cacheRead: 1 / 1_000_000 },
   "claude-mythos-5": { in: 10 / 1_000_000, out: 50 / 1_000_000, cacheWrite: 12.5 / 1_000_000, cacheRead: 1 / 1_000_000 },
   "claude-opus-4-8": { in: 5 / 1_000_000, out: 25 / 1_000_000, cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000 },
@@ -151,13 +171,36 @@ function getCacheTokens(row) {
 }
 
 function calcCostUsd(row) {
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  if (metadata.usage_status === "unknown") return null;
+  if (row.tokens_input == null || row.tokens_output == null) return null;
   const key = modelKey(row.model);
   if (!key) return null;
-  const rate = MODEL_COSTS[key];
+  const modelCost = MODEL_COSTS[key];
+  const tokensInput = Number(row.tokens_input);
+  const tokensOutput = Number(row.tokens_output);
+  if (!Number.isFinite(tokensInput) || !Number.isFinite(tokensOutput)) return null;
+  const rate = modelCost.longContext && tokensInput > modelCost.longContext.threshold
+    ? modelCost.longContext
+    : modelCost;
   const { cacheCreationTokens, cacheReadTokens } = getCacheTokens(row);
+  if (String(row.model ?? "").startsWith("gpt-")) {
+    const cachedTokens = Math.min(Math.max(cacheReadTokens, 0), tokensInput);
+    const writtenTokens = Math.min(
+      Math.max(cacheCreationTokens, 0),
+      Math.max(tokensInput - cachedTokens, 0)
+    );
+    const uncachedTokens = Math.max(tokensInput - cachedTokens - writtenTokens, 0);
+    return (
+      uncachedTokens * rate.in +
+      writtenTokens * rate.cacheWrite +
+      cachedTokens * rate.cacheRead +
+      tokensOutput * rate.out
+    );
+  }
   return (
-    numberOrZero(row.tokens_input) * rate.in +
-    numberOrZero(row.tokens_output) * rate.out +
+    tokensInput * rate.in +
+    tokensOutput * rate.out +
     cacheCreationTokens * rate.cacheWrite +
     cacheReadTokens * rate.cacheRead
   );
@@ -185,10 +228,12 @@ function makeBucket(name) {
     storedCostUsd: 0,
     currentPriceCostUsd: 0,
     unknownPriceRows: 0,
+    unknownUsageRows: 0,
   };
 }
 
 function addRow(bucket, row, currentCost) {
+  const { unknownPriceEligible, usageUnknown } = classifyUsageRow(row);
   const { cacheCreationTokens, cacheReadTokens } = getCacheTokens(row);
   bucket.rows += 1;
   if (row.success === false) bucket.failedRows += 1;
@@ -198,12 +243,27 @@ function addRow(bucket, row, currentCost) {
   bucket.cacheCreationTokens += cacheCreationTokens;
   bucket.cacheReadTokens += cacheReadTokens;
   bucket.storedCostUsd += numberOrZero(row.cost_usd);
-  if (currentCost == null) bucket.unknownPriceRows += 1;
-  bucket.currentPriceCostUsd += currentCost ?? numberOrZero(row.cost_usd);
+  if (usageUnknown) bucket.unknownUsageRows += 1;
+  else if (unknownPriceEligible && currentCost == null) bucket.unknownPriceRows += 1;
+  // Unknown usage is intentionally excluded from the known-cost lower bound.
+  // Reconcile these attempts against the OpenAI project usage/cost export.
+  if (!usageUnknown) {
+    bucket.currentPriceCostUsd += currentCost ?? numberOrZero(row.cost_usd);
+  }
 }
 
 function sortedEntries(map) {
   return [...map.values()].sort((a, b) => b.currentPriceCostUsd - a.currentPriceCostUsd);
+}
+
+function pseudonymousCoupleLabel(coupleId) {
+  const reportKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!reportKey) return "(redacted)";
+  const digest = createHmac("sha256", reportKey)
+    .update(`amora-cost-report-v1:${coupleId}`, "utf8")
+    .digest("hex")
+    .slice(0, 12);
+  return `couple-${digest}`;
 }
 
 async function fetchAll(supabase, fromIso, toIso) {
@@ -247,7 +307,9 @@ function summarize(rows, options, window) {
     if (!byType.has(typeName)) byType.set(typeName, makeBucket(typeName));
     addRow(byType.get(typeName), row, currentCost);
 
-    const coupleKey = row.couple_id ? `${row.couple_id.slice(0, 8)}...` : "(none)";
+    const coupleKey = row.couple_id
+      ? pseudonymousCoupleLabel(row.couple_id)
+      : "(none)";
     if (!byCouple.has(coupleKey)) byCouple.set(coupleKey, makeBucket(coupleKey));
     addRow(byCouple.get(coupleKey), row, currentCost);
   }
@@ -286,7 +348,8 @@ function printBucketRows(title, rows, options) {
       `${row.name.padEnd(34)} rows=${String(row.rows).padStart(4)} ` +
       `cost=${usd(row.currentPriceCostUsd).padStart(11)} (~${krw} KRW) ` +
       `in=${int(row.tokensInput).padStart(9)} out=${int(row.tokensOutput).padStart(8)} ` +
-      `cacheW=${int(row.cacheCreationTokens).padStart(8)} cacheR=${int(row.cacheReadTokens).padStart(8)}`
+      `cacheW=${int(row.cacheCreationTokens).padStart(8)} cacheR=${int(row.cacheReadTokens).padStart(8)} ` +
+      `usage?=${String(row.unknownUsageRows).padStart(3)}`
     );
   }
 }
@@ -299,16 +362,19 @@ function printText(report, options) {
   console.log(`Rows: ${report.total.rows} (${report.total.successRows} success, ${report.total.failedRows} failed)`);
   console.log(`Tokens: input ${int(report.total.tokensInput)}, output ${int(report.total.tokensOutput)}`);
   console.log(`Cache tokens: write ${int(report.total.cacheCreationTokens)}, read ${int(report.total.cacheReadTokens)}`);
-  console.log(`Current official-price estimate: ${usd(report.total.currentPriceCostUsd)} (~${report.display.currentPriceCostKrw.toLocaleString("ko-KR")} KRW @ ${options.krw}/USD)`);
+  console.log(`Known-usage cost lower bound:     ${usd(report.total.currentPriceCostUsd)} (~${report.display.currentPriceCostKrw.toLocaleString("ko-KR")} KRW @ ${options.krw}/USD)`);
   console.log(`Stored DB cost_usd sum:          ${usd(report.total.storedCostUsd)} (~${report.display.storedCostKrw.toLocaleString("ko-KR")} KRW)`);
   if (report.total.unknownPriceRows > 0) {
     console.log(`Rows without a known model price: ${report.total.unknownPriceRows} (stored cost used when available)`);
+  }
+  if (report.total.unknownUsageRows > 0) {
+    console.log(`Unknown-usage provider attempts: ${report.total.unknownUsageRows} (not priced as zero; reconcile with provider billing)`);
   }
 
   printBucketRows("By day (KST)", report.byDay, options);
   printBucketRows("By model", report.byModel, options);
   printBucketRows("By interaction_type", report.byInteractionType, options);
-  printBucketRows("Top couples (id prefix)", report.topCouples, options);
+  printBucketRows("Top couples (pseudonymous)", report.topCouples, options);
 }
 
 for (const envPath of ENV_PATHS) loadEnvFile(envPath);

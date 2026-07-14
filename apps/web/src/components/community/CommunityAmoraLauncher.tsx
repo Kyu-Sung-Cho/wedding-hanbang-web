@@ -5,6 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowRight, LogIn, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 const ChatSidePanel = dynamic(() => import("@/components/app/chat/ChatSidePanel"), {
   ssr: false,
@@ -18,6 +19,11 @@ export default function CommunityAmoraLauncher() {
 
   async function handleOpenAmora() {
     if (checkingAuth) return;
+
+    if (isPreviewStubMode()) {
+      setLoginPromptOpen(true);
+      return;
+    }
 
     setCheckingAuth(true);
     try {

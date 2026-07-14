@@ -25,7 +25,7 @@
 | Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
 | State | Zustand | 앱과 동일한 패턴 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | Codex API (Anthropic) | 웨딩 AI 플래너 채팅 |
+| AI | Anthropic(현재 운영) + OpenAI Responses API(단계적 전환 중) | 웨딩 AI 플래너 채팅 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
 | 배포 | Vercel | 자동 배포, Edge Functions |
 | 이메일 | Resend | 사전등록 확인 메일 |
@@ -184,8 +184,16 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
-# Codex AI
+# Amora AI — 현재 운영 런타임(전환 완료 전까지 유지)
 ANTHROPIC_API_KEY=sk-ant-xxx...
+
+# Amora OpenAI — 기반만 준비된 상태이며 명시적 활성화 전에는 사용하지 않음
+AMORA_OPENAI_ENABLED=false
+OPENAI_API_KEY=sk-xxx...
+OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
+OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
+OPENAI_AMORA_PRIMARY_REASONING_EFFORT=none
+OPENAI_AMORA_FAST_REASONING_EFFORT=none
 
 # Resend (이메일)
 RESEND_API_KEY=re_xxx...
@@ -358,6 +366,18 @@ For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md befo
    - 사용자의 말투에 맞춰 자연스럽게 답하되, 사실성과 정확성을 우선한다.
    - 긴 설명보다 원인, 수정, 검증, 남은 리스크를 우선한다.
    - 실수했으면 한 문장으로 인정하고 바로 고친다.
+
+## Amora OpenAI Staged Migration Protocol
+
+아모라의 OpenAI 전환은 원자적 런타임 교체가 완료될 때까지 단계적으로 취급한다.
+
+- `AMORA_OPENAI_ENABLED`의 기본값은 `false`다. 기반 코드나 환경변수만 추가된 상태를 OpenAI 전환 완료로 보고하지 않는다.
+- 허용 모델은 `gpt-5.6-luna`와 `gpt-5.6-terra`뿐이며, 임의의 alias나 다른 모델로 조용히 대체하지 않는다.
+- 생성 호출은 `store: false`, 명시적 출력 상한, 자동 재시도 0회, 원문 감사 로그 금지를 유지한다.
+- `store: false`를 Zero Data Retention으로 표현하지 않는다. 실제 데이터 보존·처리 지역·DPA·지원 채널은 별도 운영/법적 게이트다.
+- 실제 전환 전에는 운영 DB 백업·복구 리허설, canonical 서버 대화 경계, 메시지 멱등성, 위기 응답, 비용 제한, route 통합 테스트를 먼저 통과시킨다.
+- OpenAI 키나 원문 대화·첨부 내용은 코드, Git, 로그, 오류 메시지, 문서에 기록하지 않는다.
+- 현재 단계와 남은 게이트는 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`를 기준으로 인수인계한다.
 
 ## WeddingCode Additional Fable-Adapted Protocol
 
