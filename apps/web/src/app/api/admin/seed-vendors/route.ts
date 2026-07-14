@@ -328,6 +328,8 @@ export async function PUT(req: Request) {
   }
   const gate = seedGate();
   if (gate) return gate;
+  getServiceClient();
+
   return NextResponse.json({
     error: "일괄 타임슬롯 시드 복구는 안전상 비활성화되었습니다.",
   }, { status: 410 });

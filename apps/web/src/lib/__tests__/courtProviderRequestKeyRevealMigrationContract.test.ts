@@ -9,7 +9,7 @@ const migration = readFileSync(
     "supabase/migrations/20260714103000_audit_court_provider_handoff_reveals.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 
 function between(start: string, end: string): string {
   const startIndex = migration.indexOf(start);

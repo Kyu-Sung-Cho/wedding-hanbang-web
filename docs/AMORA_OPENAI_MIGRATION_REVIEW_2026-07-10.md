@@ -4,6 +4,8 @@
 
 이 문서는 2026-07-10 당시의 감사 기록이다. 아래의 “실제 OpenAI·Supabase를 검증하지 못했다”, “fresh DB 재현 불가”, 과거 테스트 수 같은 문장은 현재 상태가 아니라 당시 상태를 설명한다. 최신 판정은 다음과 같다.
 
+> **2026-07-14 WeddingCode 운영 정정:** 이 정정은 WeddingCode containment 범위만 다루며 Amora나 전체 제품의 출시 승인이 아니다. 초기 “운영 table absent / 백업 없음 / pre-deploy” 가정은 폐기됐다. Management API로 과거 creator SQL이 직접 적용돼 `wedding_code_responses`에 13개 행이 있었고, 프로젝트는 Pro Plan/Daily Backup 상태였다. 암호화 logical backup과 isolated PostgreSQL restore로 13개 행·13개 distinct ID·digest `2743544526a9db04c7b8ed1c83754b5c`를 검증한 뒤 별도 standalone targeted transaction을 적용했다. 행과 digest는 보존됐고 policy, runtime-role ACL, named RPC, trigger/view/publication dependency는 0이다. ledger는 repair/mark하지 않았으며 raw `supabase db push`와 전체 pending chain은 금지한다. PR #39와 #40은 각각 exact-SHA 검증, Production 배포와 apex canary를 완료했다. 자세한 영수증은 [`SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md`](./codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
+
 - 폐기 가능한 Supabase preview를 완전히 비운 뒤 baseline부터 `20260711148000`까지 migration 107개를 연속 재실행했다. 함수 50개·cron 5개·직접 호출 차단 trigger 함수와 실제 binding 각 8개의 exact contract, DB lint도 통과했다.
 - lifecycle smoke에서 합류·재시작·차단 코드·legacy 코드 복구·zero-member 거부·계정 삭제 격리가 통과했다.
 - anonymous probe는 민감 테이블 10개 모두의 접근 거부를 확인했다.
@@ -12,13 +14,13 @@
 - 최종 로컬 검증은 Web Vitest 120개 파일·833개 테스트, 정적 페이지 104개 production build, 모바일 소비자 계약 11개·release check 56개, production dependency 취약점 0건이다.
 - 웹·모바일은 커플 재연결 응답이 모호할 때 과거 여정을 계속 편집하지 않도록 fail-closed 복구 흐름을 사용한다.
 
-다만 tool follow-up·PDF·이미지·refusal·abort·429/5xx, 높은 동시성·KST 경계·cron, 운영 clone upgrade는 아직 별도 검증 대상이다. 운영 DB에는 데이터 정합성 blocker가 있고 직접 쓰기 차단 fence와 최신 백업 gate, Vercel 운영 환경 검증도 없으므로 **production은 NO-GO이며 배포하지 않았다**.
+다만 tool follow-up·PDF·이미지·refusal·abort·429/5xx, 높은 동시성·KST 경계·cron, 운영 clone upgrade는 아직 별도 검증 대상이다. **이 문장이 작성된 2026-07-11 당시** 전체 product production은 NO-GO였고 배포하지 않았다. 2026-07-14에 완료된 PR #39/#40은 WeddingCode containment 한정 배포이며 Amora·전체 migration·모바일을 포함한 일반 출시 판정을 GO로 바꾸지 않는다.
 
 최신 종합 판정은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md), 실행 절차는 [`SUPABASE_REMOTE_OPERATIONS.md`](./SUPABASE_REMOTE_OPERATIONS.md)를 따른다.
 
 ---
 
-> **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 비용 예약, 실패 무료 턴 환불, 비소모 preflight, 의도별 도구 축소와 결정적 위기 응답이 추가됐다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 신규 DB migration은 운영 적용이 확인되지 않았으므로 이 문서의 과거 테스트 수치나 완료 표현을 운영 증거로 사용하지 않는다.
+> **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 비용 예약, 실패 무료 턴 환불, 비소모 preflight, 의도별 도구 축소와 결정적 위기 응답이 추가됐다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 일반 신규 migration chain의 운영 적용은 확인·승인되지 않았고 ledger도 repair하지 않았다. 단, WeddingCode에는 저장소 raw migration과 다른 standalone targeted fence가 적용됐으므로 “아무 DB 운영 변경도 없었다”거나 그 artifact hash를 repo migration hash라고 쓰지 않는다.
 
 ## 결론
 
@@ -104,9 +106,7 @@
 - 배지 대비·12px 최소 글자·모바일 터치 타깃·선택 상태를 보강했다.
 - 첨부 선택 UI를 서버 정책(3개/총 2MiB, 이미지·PDF·DOCX)과 맞추고 `.doc` 오허용을 제거했다.
 - 비공개 삭제/공유 초기화 문구가 실제 동작 범위를 과장하지 않도록 고쳤다.
-- WeddingCode는 16문항 개인 결과만 브라우저에서 계산·최대 30일 보관한다. 과거 plaintext `ct`와
-  response UUID가 유출된 커플 초대·비교 및 익명 응답 수집 API는 모두 410으로 하드 차단했고,
-  DB 후속 마이그레이션은 기존 token을 NULL로 폐기하고 재부착을 CHECK 제약으로 막는다.
+- WeddingCode source에는 16문항 브라우저 계산 후보가 남아 있지만 현재 Production은 입력·제출 없이 검증 준비 안내만 표시한다. 과거 plaintext `ct`는 rendering·analytics 전에 제거되고 커플 초대·비교 및 익명 응답 수집 API는 모두 410으로 하드 차단됐다. 운영 DB의 기존 13개 행이나 token 값은 이번 대응에서 삭제·NULL 처리하지 않았다. 별도 standalone fence가 앱 역할 권한·policy·named RPC를 제거하고 `CHECK (false) NOT VALID`로 새 INSERT·UPDATE를 거부하며, 보유·삭제는 별도 법적·사업적 결정으로 남는다.
 
 ## 검증 결과
 
@@ -125,10 +125,7 @@
   `vendor_products`, `vendor_images`, `vendor_bookings`, `vendor_favorites`를 생성하지 않은 채
   ALTER한다. 운영 catalog를 추측해 baseline을 만들면 데이터·제약을 틀릴 수 있으므로,
   검토된 schema dump와 fresh/snapshot 양방향 staging 검증 전에는 어떤 신규 migration도 배포 금지다.
-- **P0 — 운영 WeddingCode capability 폐기 미확인**: 다른 컴퓨터 작업의 과거 Git revision에
-  노출된 production `ct`/response UUID는 코드에서 하드 차단했고 `1100`/`1200`에 DB 폐기 fence를
-  넣었지만, 운영 DB에는 아직 적용하지 않았다. QA row 삭제 또는 token NULL, pair RPC 부재,
-  CHECK 제약을 원격 확인하기 전에는 production capability가 폐기됐다고 선언하지 않는다.
+- **해결된 역사 blocker — 2026-07-14 정정:** 당시에는 production `ct`/response UUID의 DB 폐기를 확인하지 못했다. 이후 Pro physical backup과 암호화 logical backup·isolated restore를 확보하고 standalone targeted fence SHA-256 `9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88`를 적용했다. postcheck에서 13개 행·digest 보존, policy/runtime ACL/named RPC/dependency 0을 확인했고 PR #39/#40 canary도 통과했다. QA row나 기존 token을 삭제·NULL 처리한 것은 아니며 그 결정은 별도 승인 대상이다.
 - 가입 메일은 전송 실패 시 방금 만든 Auth 사용자를 보상 삭제하지만, 영속 email outbox와
   재시도/dead-letter가 없다. 공급자가 성공을 반환한 뒤 실제 전달이 유실되는 경우까지 보장하려면
   outbox를 추가해야 한다.

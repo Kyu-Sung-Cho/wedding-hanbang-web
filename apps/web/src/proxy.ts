@@ -56,13 +56,26 @@ const CAMPAIGN_QUERY_KEYS = [
 ] as const;
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Retired WeddingCode capability tokens must be removed before host,
+  // maintenance, launch-mode, analytics, or session handling can observe them.
+  if (
+    pathname === "/wedding-code/result" ||
+    (pathname === "/wedding-code" && request.nextUrl.searchParams.has("ct"))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/wedding-code";
+    url.searchParams.delete("ct");
+    return NextResponse.redirect(url);
+  }
+
   if (request.nextUrl.hostname === "www.hanbang.ai") {
     const url = request.nextUrl.clone();
     url.hostname = "hanbang.ai";
     return NextResponse.redirect(url, 308);
   }
 
-  const pathname = request.nextUrl.pathname;
   const maintenanceActive = process.env.MAINTENANCE_MODE === "true";
   const maintenanceExempt = pathname === "/maintenance"
     || pathname === "/api/health/maintenance"

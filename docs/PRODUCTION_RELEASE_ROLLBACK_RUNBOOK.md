@@ -2,11 +2,38 @@
 
 이 문서는 `hanbang.ai`, 운영 Supabase, EAS 모바일 빌드를 함께 출시할 때의 실행 기준이다. GitHub CI나 Vercel 빌드가 초록색이라는 이유만으로 운영 준비가 끝났다고 판단하지 않는다.
 
+## WeddingCode 한정 containment 영수증 — 현재 기준 (2026-07-14)
+
+아래 영수증은 WeddingCode 수집 경계를 닫은 incident-scoped 완료 기록이다. 전체 제품, Amora, 일반 migration
+ship, 모바일 store release의 GO를 뜻하지 않는다. 운영 source of truth는
+[`SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md`](./codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)다.
+
+- 초기 Dashboard의 “`wedding_code_responses` absent” 관찰은 오판이었다. source commit
+  `ae6c0f5b06fb02d3db6e6b16a5ed808bb7dc31b3`의 creator SQL이 Management API로 직접 적용돼
+  운영 table에 13개 행, `service_role` ACL과 `wc_responses_service_only` policy가 있었다.
+- 프로젝트는 Free가 아닌 **Pro Plan**이고 Daily Backup이 활성화돼 있다. fence 전 physical backup
+  `2026-07-13 20:13:33 UTC`와 Git 밖의 암호화 logical backup을 확보했고, isolated PostgreSQL restore에서
+  13개 행·13개 distinct ID·digest `2743544526a9db04c7b8ed1c83754b5c`가 일치했다.
+- 운영에는 raw repo migration이나 전체 chain을 실행하지 않았다. 별도 standalone targeted transaction
+  SHA-256 `9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88`를 적용했고 postcheck receipt
+  SHA-256은 `FC81B55C2FF3491E80845516BA0C9383781632F5926B4B3D7DE48FA0C635FEF8`다. 행·ID·digest는
+  불변이고 policy, runtime-role table/column ACL, named insert/pair RPC, trigger, dependent view,
+  publication membership은 모두 0이다.
+- migration ledger는 실제 schema보다 뒤처져 있었고 이번 대응에서 의도적으로 repair/mark하지 않았다.
+  특정 시점의 pending 개수는 적용 승인이 아니다. raw `supabase db push`, 전체 migration push, ledger
+  repair/mark와 raw repo migration 재실행을 금지한다.
+- PR #39 merge `5eed1c370e24808e4caa81a3395b3128cfb864f8` / Production
+  `59RjXEzenfmqLuKs8922fgw4mtXK`, PR #40 merge
+  `d2eab99304c0d79fbbe6f20354074b229c9035cf` / Production
+  `97F6fJLkAULPSpv9CVNGbbecvTpk`가 Ready/Current와 `hanbang.ai` source identity를 통과했다. 두 배포의
+  apex canary에서 안내 `200`, legacy token/result `307`, 세 API `410` + `Cache-Control: no-store`를
+  확인했다. PR #40은 DB나 ledger를 변경하지 않았다.
+
 ## 불변 규칙
 
 `apps/web/vercel.json`의 `git.deploymentEnabled=false`는 저장소에 고정한 의도일 뿐 Vercel provider 상태의 증거가 아니다. 2026-07-14 read-only Vercel UI에서 team `hanbang` / project `wedding-hanbang-web`의 Production Environment Branch Tracking은 `Every commit pushed to main will create a Production Deployment`, `Auto-assign Custom Production Domains: Enabled`로 표시됐다. 이 직접 관찰은 “Git 자동 배포와 domain 자동 할당이 꺼져 있다”는 기존 문서 가정을 폐기하며, 현재 `main` merge가 곧 Production deployment와 apex mutation임을 뜻한다. 기본 release mode에서는 승인된 운영자가 두 자동 설정을 비활성화하고 provider 상태를 재검증한 뒤 별도의 보호된 trusted controller가 exact SHA를 staged·canary·promote한다. 제한된 DB-zero-diff P0는 두 설정을 의도적으로 유지하는 Git-integrated hotfix mode를 별도 승인할 수 있지만, merge 전 exact-SHA Preview·수동 head 결합·rollback 기준점·Production identity·즉시 apex canary를 모두 고정해야 한다. 어느 mode도 완전하게 attested되지 않았으면 `main` 직접 push·병합과 운영 배포를 금지한다. deploy hook 개수가 0이거나 checked-in 파일이 false인 것만으로 어느 gate도 통과할 수 없다. 로컬 CLI는 이 증거를 생산하지 않는다. DB mutation을 포함하면 `coming_soon` rollback anchor와 maintenance deployment만 DB 변경 전에 promote할 수 있고, 일반 서비스 deployment는 backup/write fence/migration/post-contract가 모두 통과한 뒤에만 promote한다. 승인된 DB-zero-diff P0도 Vercel·코드·인증·canary gate를 면제하지 않는다.
 
-같은 read-only 감사에서 현재 Production 기준점은 deployment `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`, immutable URL `wedding-hanbang-me2k784f2-hanbang.vercel.app`, source prefix `8d8933e`, 상태 `Current` / `Ready`, `hanbang.ai`를 포함한 domain 3개로 관찰됐다. 이 값은 alias TOCTOU 비교 기준일 뿐 canary된 rollback 승인이나 새 release 증거가 아니다. UI의 `Redeploy` 가능 상태도 승인 경로가 아니므로 누르지 않는다. 현재·이전 Production, 과거 WeddingCode Preview, 실패한 hotfix Preview에 대한 익명 `HEAD`는 모두 Vercel SSO `302`와 `X-Robots-Tag: noindex`만 반환했다. 이는 provider 보호층을 증명할 뿐 애플리케이션의 `410`, DB 부재 또는 no-write를 증명하지 않는다. 실제 route canary는 회전된 승인 consumer 또는 승인된 SSO 세션으로 보호층을 통과하되 credential을 로그에 남기지 않고 실행해야 한다.
+같은 read-only 감사에서 deployment `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`, immutable URL `wedding-hanbang-me2k784f2-hanbang.vercel.app`, source prefix `8d8933e`가 관찰됐다. 이는 **PR #39 이전의 역사적 rollback baseline**이며 현재 Production이 아니다. 현재 WeddingCode containment Production은 PR #40 merge `d2eab99304c0d79fbbe6f20354074b229c9035cf`, deployment `97F6fJLkAULPSpv9CVNGbbecvTpk`, immutable URL `wedding-hanbang-h1gg9guts-hanbang.vercel.app`, `Ready` / `Current`, alias `hanbang.ai`다. PR #39 deployment `59RjXEzenfmqLuKs8922fgw4mtXK`는 바로 이전 containment 배포 기록이다. `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`는 UX rollback 기준으로만 보존하며 DB fence를 되돌리는 근거가 아니다. 과거 익명 `HEAD`의 Vercel SSO `302`는 provider 보호층만 증명하고 애플리케이션 경계를 증명하지 않았지만, PR #39/#40은 승인된 경로로 실제 route canary를 별도 통과했다. 이후 배포도 credential을 로그에 남기지 않고 실제 앱 응답을 다시 확인한다.
 
 - 운영 Supabase ref는 `scripts/release-targets.json`의 보호 목록과 실행 인수가 모두 같아야 한다.
 - `productionDatabaseWriteFence`는 실제 웹·모바일의 DB/Storage 직접 쓰기 차단을 자동 probe로 입증하기 전에는 `not_configured`를 유지한다. 형식적으로 `verified-v1`로 바꾸지 않는다.
@@ -42,12 +69,12 @@
 19. hosted Auth의 canonical site URL, exact redirect allow-list, JWT/refresh 회전·재사용, OTP 길이·만료와 rate limit을 read-only로 증명했고 `productionSupabaseRedirectTokenPolicy`가 `verified-v1`이다.
 20. 화면에 보이는 OAuth 공급자가 checked-in 목록과 정확히 같고 각 공급자의 실제 redirect round-trip 또는 의도된 비노출·비활성 상태를 증명해 `productionOAuthProviderContract`가 `verified-v1`이다.
 21. 2026-07-12 read-only Vercel 감사 중 내부 도구 출력에 노출된 Deployment Protection automation-bypass 비밀을 회전했다. 기존 consumer를 값 없이 inventory하고, 새 비밀을 승인된 consumer에 먼저 배포해 성공을 확인한 뒤 구 비밀의 거부와 사용 로그를 검증했다. raw `protectionBypass` object나 key는 어느 로그·문서에도 다시 출력하지 않는다.
-22. WeddingCode DB 경계가 상호 배타적인 두 승인 모드 중 하나와 정확히 일치한다. 현재-prod `absent` 모드는 `wedding_code_responses`와 `insert_wedding_code_response`·`pair_wedding_code_response`의 모든 public overload가 없고 migration latest가 승인된 기존 값에서 변하지 않은 상태다. 향후 chain의 `retired` 모드는 테이블·컬럼 앱 권한과 모든 policy·두 함수명 overload가 0이고 `CHECK (false) NOT VALID` fence·설명문이 exact이며 기존 행 count·비식별 digest가 적용 전후 같다. 어느 모드든 승인된 인증으로 새 배포와 알려진 이전 immutable URL을 실제 probe해 저장·연결·조회 성공이 없음을 증명한다. 익명 Vercel SSO `302`는 앱 거부 증거가 아니다.
+22. WeddingCode DB 경계가 승인된 `retired` 계약과 정확히 일치한다. 현재 Production에는 13개 기존 행을 보존한 `wedding_code_responses` table이 있고, 테이블·컬럼 runtime-role 권한(`MAINTAIN` 포함), 모든 policy, named insert/pair RPC overload, trigger·dependent view·publication membership이 0이며 `CHECK (false) NOT VALID` fence가 설치돼 있다. 행 count·13개 distinct ID·비식별 digest는 적용 전후 같다. 이후 배포도 승인된 인증으로 새 deployment와 알려진 이전 immutable URL을 실제 probe해 저장·연결·조회 성공이 없음을 증명한다. 익명 Vercel SSO `302`는 앱 거부 증거가 아니다. 과거 `absent` mode 설명은 아래 역사 정정에만 남기고 현재 운영 사실로 사용하지 않는다.
 23. Vercel release trigger mode가 정확히 하나 승인·검증됐다. 기본 `staged-controller` mode는 `main` 자동 Production deployment와 custom production domain 자동 할당이 모두 비활성이고 controller가 같은 deployment ID만 promote한다. 제한된 `git-integrated-p0` mode는 두 설정이 모두 활성인 현재 provider 상태를 expected contract로 고정하고, merge 자체를 Production mutation 승인으로 취급하며 exact-SHA Preview·DB-zero-diff·수동 head 결합·rollback 기준점·post-merge source/alias identity·즉시 apex canary를 요구한다. 두 mode가 섞이거나 필요한 값이 unknown이면 중단한다.
 
 현재 관찰된 `Every commit pushed to main will create a Production Deployment`와 `Auto-assign Custom Production Domains: Enabled`는 기본 staged mode에는 정확한 실패 원인이지만, 자동 배포 기능 자체가 모든 P0에서 곧바로 NO-GO라는 뜻은 아니다. 두 설정은 `git-integrated-p0`에서 오히려 기대값이 되며, 위험은 merge 전에 production artifact를 staged canary할 수 없다는 점을 Preview·rollback·즉시 canary로 제한한다. GitHub protection/ruleset `403`과 익명 immutable URL의 SSO `302`는 별도 통제 약점이며 두 provider 설정값 자체와 혼동하지 않는다.
 
-현재 WeddingCode P0는 provider 설정을 반드시 끌 때까지 막히는 것이 아니라, 두 mode 중 아직 어느 하나의 **완전한 release evidence도 고정되지 않아** 막혀 있다. `git-integrated-p0`를 선택하려면 incident/release owner가 direct-to-apex 위험을 명시 승인하고, remote DB mutation·환경·모바일 변경 계획 0, future-only migration diff 비실행, candidate exact-SHA CI와 인증된 Preview 성공, 수동 `--match-head-commit`, 현재 deployment `U4tSiF85BfeFVMnoG7Kq5rSAqjvY` rollback 기준점, 예상 Production source SHA, 즉시 apex canary·rollback 시간창을 merge 전에 기록해야 한다. 이 증거가 생기면 자동 Production deployment를 의도된 trigger로 사용해 P0 merge가 가능하다. 지금은 exact-SHA Preview 성공과 최종 release receipt가 확인되지 않았으므로 **현재 P0 merge는 여전히 NO-GO**다.
+> **역사적 pre-deploy 판정 — 2026-07-14 후속 영수증으로 대체됨:** WeddingCode P0는 당시 exact-SHA Preview와 release receipt가 없어 NO-GO였다. 이후 PR #39가 exact candidate 검증·`--match-head-commit` merge·Production source 확인·apex canary를 완료했고, 운영 table 발견 뒤 backup·isolated restore·standalone targeted fence와 postcheck까지 완료했다. PR #40도 merge commit CI, Production source identity와 동일 apex canary를 통과했다. 이 완료는 WeddingCode containment 범위뿐이며 위 일반 GO 조건의 미완료 항목이나 전체 제품 NO-GO를 해제하지 않는다.
 
 ## OpenAI 키 노출 사고 복구 — 회전 선행 gate와 exact-SHA 후행 canary
 
@@ -204,7 +231,7 @@ guarded ship은 `productionSupabasePublicEmailBoundary`, `productionSupabaseRedi
 
 PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소는 merge commit·squash·rebase를 모두 허용하므로 일반 병합은 새 SHA를 만든다. 이 release에서는 provenance를 단순하게 유지하기 위해 GitHub의 **Create a merge commit** 방식만 사용하고 force-push·squash·rebase merge를 사용하지 않는다.
 
-2026-07-14 현재 GO 23은 release trigger mode가 아직 완전히 attested되지 않아 실패 상태다. 기본 `staged-controller`를 택하면 provider 설정 변경과 재검증이 필요하고, WeddingCode `git-integrated-p0`를 택하면 아래 0-D의 exact Preview·rollback·post-merge canary 계약이 필요하다. 선택한 mode의 증거가 release ticket에 결합되기 전에는 아래 병합 명령을 실행하지 않는다. 저장소 설정·PR check·로컬 판독·사람이 적은 `true` 플래그로 이 hard-stop을 대체할 수 없다.
+> **역사적 pre-deploy 판정:** 이 문단 작성 당시 GO 23은 attestation 부재로 실패했다. 이후 WeddingCode PR #39/#40은 위 한정 receipt를 확보해 병합·Production 배포·post-merge canary를 완료했다. 아래 절차는 다음 release에 다시 적용하며, 과거 receipt를 새 SHA의 증거로 재사용하지 않는다. 일반 `staged-controller`와 전체 제품 GO 조건은 여전히 별도 검증 대상이다.
 
 1. 위 0단계에서 현재 branch에 연결된 `$PrNumber`와 `$CandidateSha`를 고정하고 CI·독립 승인·비운영 빌드를 이 SHA에 묶는다. 새 shell에서 재개하면 0단계를 처음부터 다시 실행하며 번호나 SHA를 손으로 복사해 신뢰하지 않는다.
 2. GO 1~4의 코드·환경 identity, 13~23의 사업/보안/공급자 선행 승인, 그리고 GO 5~12의 disposable 리허설·production read-only inventory가 모두 candidate SHA에 묶여야 한다. 실제 production DB 변경은 하지 않되, post-merge 단계에서 처음 발견할 blocker가 남아 있으면 병합하지 않는다. 현재 Turnstile/Auth attester, secret 회전, DB mutation release의 backup/restore·fence, 모바일 서명과 선택한 Vercel trigger mode의 증거 같은 해당 blocker가 하나라도 있으면 이 단계에 도달하지 않는다. DB-zero-diff P0도 mutation이 0이라는 exact inventory가 없으면 예외가 아니다.
@@ -241,10 +268,12 @@ PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소�
 
 이 mode는 DB-zero-diff WeddingCode containment hotfix에만 허용하며 일반 release나 기능 branch의 우회로가 아니다. Vercel의 현재 자동 Production deployment와 custom-domain 자동 할당을 의도된 단일 trigger로 사용하므로 merge 전 준비가 곧 production 승인이다.
 
+> **2026-07-14 실행 정정:** PR #39는 처음에 아래 `absent`/DB-zero-diff 가정을 사용했지만, 후속 권위 검증에서 운영 table 13개 행과 open `service_role` surface가 발견돼 그 가정은 폐기됐다. 실제 incident는 Pro physical backup, 암호화 logical backup·isolated restore, 별도 standalone targeted DB fence와 postcheck를 먼저 완료한 뒤 닫혔다. 아래 3번의 과거 absent 검사는 현재 운영 receipt나 재실행 지침이 아니다.
+
 1. candidate diff를 고정하고 WeddingCode 화면·세 API·Preview 무설정 build 경계 외 runtime 기능이 섞이지 않았는지 독립 검토한다. future-only migration·contract는 Vercel에서 실행되지 않고 remote DB history를 바꾸지 않는다는 것을 증명한다.
 2. exact `$CandidateSha`의 GitHub CI, 전체 web test/lint/typecheck/build와 인증된 Vercel Preview가 통과한다. Preview SSO `302`만 본 것은 성공이 아니며 인증 뒤 화면·redirect·세 API `410`/`no-store`를 확인한다.
-3. 운영 Supabase ref에서 table 부재, insert/pair overload 0, latest `20260630233211`을 merge 직전에 read-only 재확인하고 remote DB mutation 계획·실행이 0임을 기록한다.
-4. 현재 alias 기준점 `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`, immutable URL, source `8d8933e18a973dbc74ce097c46fca0de0d08cda5`와 rollback owner·시간창을 고정한다. 이 기존 deployment는 WeddingCode UX rollback일 뿐 새 수집 성공 경로는 DB 부재로 계속 막혀 있어야 한다.
+3. **역사적 계획 — superseded:** 당시에는 table 부재, insert/pair overload 0, latest `20260630233211` 불변과 remote DB mutation 0을 확인하려 했다. 실제로는 ledger가 뒤처진 채 table 13개 행이 존재했다. 현재와 이후에는 ledger 부재를 schema 부재로 해석하지 말고 table·ACL·policy·RPC·dependency와 row count/digest를 권위 있는 catalog로 함께 검증한다.
+4. **역사적 PR #39 계획:** 당시 alias 기준점 `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`, source `8d8933e18a973dbc74ce097c46fca0de0d08cda5`를 고정했다. 이 deployment는 현재 Production이 아니며 UX rollback 기준으로만 보존한다. 현재 Production은 PR #40 deployment `97F6fJLkAULPSpv9CVNGbbecvTpk`이고 DB는 부재가 아니라 13개 행을 보존한 retired fence 상태다. 다음 release는 그 시점의 새 current deployment와 rollback owner·시간창을 다시 고정한다.
 5. release owner가 direct-to-apex 위험과 자동 domain 할당을 명시 승인한 뒤 0-C의 수동 `--match-head-commit` merge만 실행한다. GitHub UI merge·direct push·`Redeploy`는 사용하지 않는다.
 6. Vercel Production deployment가 기대한 merge source SHA, project/team, `READY`, 새 deployment ID와 `hanbang.ai` alias를 가리키는지 즉시 확인한다. 다른 deployment나 SHA면 바로 고정한 이전 ID로 rollback한다.
 7. apex에서 안내 화면, result redirect, 세 API `410`/`no-store`, DB table/functions/latest 불변을 즉시 canary한다. 실패하면 rollback하고 완료로 보고하지 않는다. Preview 결과는 이 post-merge 증거를 대신하지 않는다.
@@ -444,25 +473,27 @@ corepack pnpm supabase:ship:safe -- `
 
 #### 5-A. WeddingCode 수집 영구 차단 검증
 
-2026-07-14 운영 project ref `slrtobkksjmxgzatjyqb`의 read-only Dashboard에서는 public table 50개에 `wedding_code_responses`가 없고 Functions의 `wedding_code` 검색 결과도 없으며 migration history latest가 `20260630233211`이었다. 따라서 현재 P0의 승인 경로는 **DB를 바꾸지 않고 부재를 유지하는 `absent` 모드**다. 웹 배포 직전에 같은 project ref에서 `to_regclass('public.wedding_code_responses') IS NULL`, 두 public 함수명 overload count가 각각 0, latest migration이 그대로임을 read-only catalog로 다시 결합한다. 하나라도 다르면 중단하며 `supabase db push`, migration repair, SQL Editor 또는 141040만 골라 적용해 현장에서 맞추지 않는다.
+> **역사 정정:** 초기 Dashboard에서 table이 보이지 않고 migration latest가 `20260630233211`이었던 관찰을 `absent`로 해석한 것은 잘못이었다. Management API로 creator SQL이 직접 적용돼 ledger에 기록되지 않았으며, 후속 catalog 검증에서 `public.wedding_code_responses` 13개 행, `service_role` ACL과 `wc_responses_service_only` policy가 확인됐다. 과거 `57 pending` 계산은 시점 의존 snapshot일 뿐 현재 적용 목록이나 실행 승인이 아니다.
 
-현재 local latest까지 57개 migration이 pending이고 그 안의 `20260705160000`은 response table을 만들지만 같은 transaction에서 모든 앱 역할 권한을 회수하고 policy 없이 `CHECK (false) NOT VALID`를 설치해 처음부터 fail-closed다. 그래도 표준 push는 57개 schema 변경 전체를 실행하므로 이 P0의 해결책이 아니며 금지한다. `absent` 모드는 DB mutation이 전혀 없으므로 이 WeddingCode P0만을 위한 새 DB backup·restore drill이나 행 count/digest가 필요하지 않다. 이는 다른 DB 변경의 backup gate를 면제하지 않으며, Vercel deployment·alias에는 별도 rollback 기준점과 canary가 계속 필요하다.
+현재 승인된 경계는 13개 기존 행을 보존한 **`retired` mode**다. 프로젝트는 Pro Plan/Daily Backup 상태였고, fence 전에 physical backup과 암호화 logical export를 확보했다. logical artifact의 인증·복호화와 isolated PostgreSQL restore에서 13개 행·13개 distinct ID·digest `2743544526a9db04c7b8ed1c83754b5c`가 일치했다. 행 본문과 암호화 키는 Git이나 release evidence에 넣지 않는다.
 
-DB-zero-diff 자격은 release 실행 경로에 DB credential·migration runner·remote DB 명령이 없고, 배포할 runtime도 57개 pending schema에 의존하지 않을 때만 인정한다. candidate가 향후 replay 안전을 위한 migration·contract 파일을 함께 수정할 수는 있지만 Vercel artifact에서 이 파일은 실행되지 않아야 하며, exact diff inventory에 `future-only, not applied`로 표시하고 remote history의 전후 불변을 증명한다. 다른 기능이나 실제 DB 실행 계획이 섞인 branch를 “이번에는 push를 안 할 것”이라는 말만으로 P0 hotfix로 승격하지 않는다.
+운영에는 checked-in `20260714104000_disable_wedding_code_collection.sql`이나 전체 migration chain을 실행하지 않았다. prestate count·min/max·digest, dependency, lock, owner write probe와 postcheck를 더한 **별도 standalone targeted transaction**을 SQL Editor에서 적용했다. 적용 artifact SHA-256은 `9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88`, postcheck receipt SHA-256은 `FC81B55C2FF3491E80845516BA0C9383781632F5926B4B3D7DE48FA0C635FEF8`다. migration ledger는 의도적으로 repair/mark하지 않았다.
 
-향후 별도 승인된 전체 migration chain에서도 creator부터 `20260714104000_disable_wedding_code_collection.sql`까지 같은 maintenance/write-fence window에서 완료하고, 어떤 새·이전 immutable URL에도 앱 트래픽을 허용하기 전에 `retired` post-contract를 통과시킨다. creator의 false constraint는 이후 migration이 service-role RPC 실행권을 추가해도 INSERT·UPDATE를 계속 거부하며, 141040이 같은 constraint를 원자적으로 최종 retirement 계약으로 교체하므로 planned chain에는 migration 사이 쓰기 허용 구간이 없다. PGlite `0.5.4` 실제 실행 테스트는 운영 부재 상태, 정확히 051600+061000+141040 replay, 역사적 open table과 insert/pair 4개 overload의 세 경로에서 행 보존·policy/function 0·service_role ACL 거부·owner INSERT/UPDATE 거부를 검증한다. 이는 hosted 전체 57개 replay를 대신하지 않으므로 disposable Supabase 리허설 gate는 유지한다. 141040 migration의 byte SHA-256은 `45f6c7ae60675d9bb60359392ce6d1f6d2da624049a5fb1b76b93d847272393a`다. 테이블이 이미 없으면 table DDL은 no-op이지만 분리된 insert/pair 함수 overload는 모두 권한 회수 뒤 non-CASCADE로 삭제한다. 테이블이 있으면 기존 행을 읽거나 수정·삭제하지 않고 lock·ACL·policy 제거와 false fence를 적용한다.
+checked-in repo migration의 현재 LF byte SHA-256은 `538ECAC33DF31F1EF16B15DAE51FC218ABCD83C79147E58D3A6DE9A6FF7A83FB`다. 이 값은 향후 replay 계약 파일의 fingerprint이고, 위 standalone 운영 artifact hash와 서로 대체할 수 없다. 저장소 파일을 raw 운영 복구 SQL로 재실행하거나 standalone artifact를 migration ledger에 mark하면 안 된다. raw `supabase db push`, 전체 pending chain, migration repair/mark는 pending 개수와 무관하게 금지한다.
+
+향후 별도 승인된 전체 migration chain에서도 creator부터 `20260714104000_disable_wedding_code_collection.sql`까지 같은 maintenance/write-fence window에서 완료하고, 어떤 새·이전 immutable URL에도 앱 트래픽을 허용하기 전에 `retired` post-contract를 통과시킨다. creator의 false constraint는 이후 migration이 service-role RPC 실행권을 추가해도 INSERT·UPDATE를 계속 거부하며, 141040이 같은 constraint를 최종 retirement 계약으로 고정한다. PGlite `0.5.4` 테스트는 table-absent, pending-chain replay, legacy open-surface 세 경로를 검증하지만 hosted 전체 migration replay를 대신하지 않는다.
 
 `retired` post-contract는 다음을 한 번에 만족해야 한다.
 
-- PUBLIC·anon·authenticated·service_role의 테이블 `SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER`가 모두 거부된다.
+- PUBLIC·anon·authenticated·service_role의 테이블 `SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN`가 모두 거부된다.
 - 모든 non-dropped 컬럼에 위 역할의 `SELECT/INSERT/UPDATE/REFERENCES`가 없고, 테이블 RLS는 켜진 채 policy count가 0이다.
 - `insert_wedding_code_response`와 `pair_wedding_code_response`의 public overload count가 각각 0이다. 특정 legacy signature의 존재를 전제로 삼지 않는다.
 - `wedding_code_collection_retired`는 미검증 check constraint이고 정의가 정확히 `CHECK (false) NOT VALID`다. 테이블·constraint 설명문도 checked-in 계약과 같아야 한다.
 - 적용 전후 기존 행 count와 비식별 digest가 동일하다. 기존 행의 보존·파기는 별도 개인정보 결정과 forward migration 없이는 수행하지 않는다.
 
-승인된 자동 probe는 새 staged URL과 inventory에 고정된 이전 immutable deployment URL을 모두 검사한다. 새 URL의 response·pair·couple-report route는 `410`과 `Cache-Control: no-store`를 반환해야 한다. 이전 URL도 저장·연결·조회 성공이 없어야 한다. 익명 요청의 Vercel SSO `302`는 앱 route에 도달하지 않은 결과이므로 통과로 세지 않고 승인된 보호층 인증 뒤 실제 앱 응답을 확인한다. `absent` 모드에서는 catalog·migration 불변을 probe 전후 비교하고, `retired` 모드에서는 row count·digest 불변과 direct Data API table 권한 거부, 두 RPC 이름의 not-found를 함께 확인한다. synthetic row가 하나라도 생기거나 기존 report가 200을 반환하면 즉시 출시를 중단한다.
+PR #39와 #40의 Production canary에서 안내 `200`, legacy `ct` 제거와 result route `307`, response·pair·couple-report `410`과 `Cache-Control: no-store`를 실제로 확인했다. 이후 배포도 새 deployment와 고정한 이전 immutable deployment를 모두 검사한다. `retired` mode에서는 row count·digest 불변, direct table 권한 거부, named RPC 부재와 dependency 0을 probe 전후 비교한다. synthetic row가 하나라도 생기거나 기존 report가 200을 반환하면 즉시 출시를 중단한다. 익명 Vercel SSO `302`는 앱 route에 도달하지 않은 결과이므로 통과로 세지 않는다.
 
-테이블이 생긴 뒤의 retirement는 forward-only 보안 경계다. 장애 대응을 위해 권한을 다시 부여하거나 false constraint를 제거하지 않는다. 애플리케이션 문제는 DB fence를 유지한 채 새 forward fix와 새 deployment로 해결한다. 141040 이전 recovery point로 DB를 복구해야 한다면 normal 트래픽을 열지 말고 maintenance와 상위 write fence를 유지한 상태에서 141040을 다시 적용해 exact post-contract와 이전 deployment probe를 모두 재검증한다. 현재 `absent` 운영에는 테이블을 새로 만들어 retirement 모양을 맞추지 않는다.
+현재 retirement는 forward-only 보안 경계다. 장애 대응을 위해 권한을 다시 부여하거나 false constraint를 제거하지 않는다. 애플리케이션 문제는 DB fence를 유지한 채 새 forward fix와 새 deployment로 해결한다. fence 이전 recovery point로 DB를 복구해야 한다면 normal 트래픽을 열지 말고 maintenance와 상위 write fence를 유지한 상태에서, 승인된 standalone recovery procedure 또는 별도 검토된 forward migration으로 exact retired contract를 복원한 뒤 이전 deployment probe를 모두 재검증한다. raw repo migration을 즉흥 재실행하지 않는다.
 
 현재 ship과 baseline reconcile은 production/non-production 모두 credential prompt 전에 hard-stop한다. write-fence는 repo-local clean filter의 arbitrary process 실행과 과거 snapshot의 cross-version HEAD 역설이 재현됐으므로 **모든 remote action을 companion file·credential·journal·Git·remote boundary 전에 중단**한다. 이 컴퓨터의 canonical journal root에는 JSON snapshot과 lifecycle lock이 각각 0개였다. Help, write-fence `Plan`, credential-free isolated contract test만 허용하며 운영 dispatcher는 없다. MarkMigrationStarted/Verified action도 제거했다. 모델이 읽는 release-target policy와 status SQL은 launcher의 LF-stable SHA-256에 고정하고 검증한 같은 UTF-8 내용을 process 안에서 사용한다. 운영 entrypoint는 dot-source를 거부한다. filter-free worktree attestation, process 내부 system-module bootstrap, provider lease, signed cross-version recovery receipt와 disposable rehearsal이 독립 검토되기 전에는 hard-stop을 삭제하거나 fuse만 바꾸지 않는다. 실패 후 수동 SQL로 이어서 적용하지 않는다.
 
@@ -590,9 +621,9 @@ Restore rehearsal project / RPO / RTO:
 Storage inventory/export:
 Baseline reconcile result:
 Pending migrations and rewrite/delete inventory approval:
-WeddingCode boundary mode / project ref / table present / insert-pair overload counts / latest migration before-after:
-WeddingCode future-chain retirement SHA-256 / pre-post row count and non-identifying digest (not applicable for unchanged absent mode):
-WeddingCode retired table-column-policy-constraint exact / both RPC names absent:
+WeddingCode boundary mode / project ref / table present / ledger unchanged-not-repaired / insert-pair overload counts:
+WeddingCode standalone applied-artifact SHA-256 / checked-in migration SHA-256 / pre-post row count, distinct IDs and non-identifying digest:
+WeddingCode retired table-column-policy-constraint exact / runtime ACL incl. MAINTAIN / policy-RPC-trigger-view-publication counts zero:
 WeddingCode new staged URL / previous immutable deployment URL denial probes:
 Post-deploy contract:
 Web canary:

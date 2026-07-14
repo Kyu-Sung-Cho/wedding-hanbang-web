@@ -1,7 +1,9 @@
 # WeddingCode 드라이런 킷 v1 (2026-07-05)
 
-> [!WARNING]
-> **역사 연구 실행안입니다.** 아래 모집·응답 수집·DB 판독 절차는 현재 실행하지 않습니다. WeddingCode 수집·페어링 API는 HTTP 410이며 개인 결과만 브라우저에서 계산합니다. 최신 기준은 `../CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
+> [!CAUTION]
+> **RETIRED — DO NOT RUN.** 아래 Production 링크를 배포하거나 모집·수집 SQL을 실행하지 않는다.
+> 현재 웹/API/DB 수집 경계와 재개 금지 조건은
+> [2026-07-14 containment handoff](../codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
 
 > 목표는 두 가지뿐: ①문항이 이해되는가 ②"정답처럼 보이는" 선택지가 있는가.
 > 이 단계는 시장 수요 검증이 아니다. 유형·점수 기대를 만들지 않는다.

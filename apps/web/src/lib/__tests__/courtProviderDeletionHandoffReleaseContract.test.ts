@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(process.cwd(), "../..");
-const readRootFile = (path: string) => readFileSync(resolve(root, path), "utf8");
+const readRootFile = (path: string) =>
+  readFileSync(resolve(root, path), "utf8").replace(/\r/gu, "");
 
 const courtBase = readRootFile(
   "supabase/migrations/20260713110000_create_couple_court.sql",

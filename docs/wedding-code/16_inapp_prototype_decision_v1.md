@@ -1,7 +1,9 @@
 # WeddingCode 수집 채널 결정: 노코드 폼 → 인앱 프로토타입 (2026-07-05)
 
-> [!WARNING]
-> **폐기된 연구 결정 스냅샷입니다.** 익명 응답 수집, 파트너 초대·페어링, 커플 리포트 API는 현재 HTTP 410으로 하드 비활성입니다. 개인 결과만 브라우저에서 계산하며, 최신 기준은 `../CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
+> [!CAUTION]
+> **RETIRED — DO NOT RUN.** 이 문서는 과거 결정 기록이다. Production 수집, 링크 배포,
+> API 재개, SQL 실행 지침으로 사용하지 않는다. 현재 경계와 재개 금지 조건은
+> [2026-07-14 containment handoff](../codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
 
 ## 결정
 

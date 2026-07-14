@@ -9,49 +9,49 @@ const migration = readFileSync(
     "supabase/migrations/20260713110000_create_couple_court.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const existingTablePreparation = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713108000_prepare_couple_court_existing_tables.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const existingTableValidation = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713108100_validate_couple_court_amora_action_constraint.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const existingTableSwap = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713108200_swap_couple_court_amora_action_constraint.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const auditPreparation = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713109000_prepare_couple_court_ai_audit.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const auditValidation = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713109100_validate_couple_court_ai_audit_constraint.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const auditSwap = readFileSync(
   resolve(
     repoRoot,
     "supabase/migrations/20260713109200_swap_couple_court_ai_audit_constraint.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 const existingTableMigrations = [
   existingTablePreparation,
   existingTableValidation,
@@ -66,7 +66,7 @@ const amoraRequestClaimsMigration = readFileSync(
     "supabase/migrations/20260710050000_amora_request_claims.sql",
   ),
   "utf8",
-);
+).replace(/\r/gu, "");
 
 function between(start: string, end: string): string {
   const startIndex = migration.indexOf(start);

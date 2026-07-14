@@ -1,16 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const { createClientSpy } = vi.hoisted(() => ({
+  createClientSpy: vi.fn(() => {
+    throw new Error("중단된 엔드포인트는 데이터베이스 클라이언트를 만들면 안 됩니다.");
+  }),
+}));
+
+vi.mock("@supabase/supabase-js", () => ({ createClient: createClientSpy }));
+
 import { GET } from "../route";
 
-describe("/api/wedding-code/couple-report GET", () => {
-  it("is code-hard-disabled before reading a query token", async () => {
-    const response = await GET();
-    const body = await response.json();
+describe("GET /api/wedding-code/couple-report", () => {
+  it("쿼리 문자열을 읽지 않고 커플 리포트 중단 상태를 반환한다", async () => {
+    const unreadableRequest = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("중단된 엔드포인트는 요청을 읽으면 안 됩니다.");
+        },
+      }
+    );
+    const response = await (GET as (request: unknown) => Promise<Response>)(unreadableRequest);
 
     expect(response.status).toBe(410);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(body).toEqual({
-      error: "커플 비교 기능을 안전 점검 중입니다.",
-      status: "disabled",
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(createClientSpy).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      error: "웨딩코드 커플 리포트는 정식 검증 준비를 위해 중단되었습니다.",
     });
   });
 });

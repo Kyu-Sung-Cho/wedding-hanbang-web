@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { ThumbsUp, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
-import { createClient } from "@/lib/supabase/client";
+import CommunityConfigurationUnavailable from "@/components/community/CommunityConfigurationUnavailable";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
 
@@ -14,29 +15,58 @@ export default function MyUpvotedPage() {
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [connectionFailed, setConnectionFailed] = useState(false);
+  const configurationUnavailable =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    connectionFailed;
 
   useEffect(() => {
-    (async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/upvoted"))}`);
-        return;
-      }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
 
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
       try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user) {
+          router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/upvoted"))}`);
+          return;
+        }
+
         const res = await fetch("/api/community/posts/voted?limit=100");
         if (res.ok) {
           const data = await res.json();
-          setPosts(data.posts ?? []);
-          setTotal(data.total ?? 0);
+          if (!cancelled) {
+            setPosts(data.posts ?? []);
+            setTotal(data.total ?? 0);
+          }
         }
       } catch {
-        // 에러 무시
+        if (!cancelled) {
+          setConnectionFailed(true);
+          setLoading(false);
+        }
+        return;
       }
-      setLoading(false);
-    })();
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
+
+  if (configurationUnavailable) {
+    return (
+      <CommunityConfigurationUnavailable
+        retryHref={weddingPath("/community/my/upvoted")}
+      />
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

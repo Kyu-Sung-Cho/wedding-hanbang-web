@@ -5,7 +5,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(process.cwd(), "../..");
-const readRepo = (path: string) => readFileSync(resolve(repoRoot, path), "utf8");
+const readRepo = (path: string) =>
+  readFileSync(resolve(repoRoot, path), "utf8").replace(/\r/gu, "");
 
 const packageJson = JSON.parse(readRepo("package.json")) as {
   scripts: Record<string, string>;
@@ -150,7 +151,7 @@ describe("release safety contract", () => {
       "저장소에 고정한 의도일 뿐 Vercel provider 상태의 증거가 아니다",
     );
     expect(productionReleaseRunbook).toContain(
-      "2026-07-14 현재 GO 23은 release trigger mode가 아직 완전히 attested되지 않아 실패 상태다",
+      "역사적 pre-deploy 판정 — 2026-07-14 후속 영수증으로 대체됨",
     );
     expect(productionReleaseRunbook).toContain(
       "`staged-controller` mode",
@@ -159,7 +160,7 @@ describe("release safety contract", () => {
       "`git-integrated-p0` mode",
     );
     expect(productionReleaseRunbook).toContain(
-      "현재 P0 merge는 여전히 NO-GO",
+      "이 완료는 WeddingCode containment 범위뿐이며 위 일반 GO 조건의 미완료 항목이나 전체 제품 NO-GO를 해제하지 않는다",
     );
     expect(productionReleaseRunbook).toContain(
       "자동 배포 기능 자체가 모든 P0에서 곧바로 NO-GO라는 뜻은 아니다",
@@ -171,7 +172,7 @@ describe("release safety contract", () => {
       "U4tSiF85BfeFVMnoG7Kq5rSAqjvY",
       "wedding-hanbang-me2k784f2-hanbang.vercel.app",
       "source prefix `8d8933e`",
-      "Vercel SSO `302`와 `X-Robots-Tag: noindex`",
+      "PR #39/#40은 승인된 경로로 실제 route canary를 별도 통과했다",
       "앱 canary 성공으로 세지 않는다",
       "branch protection API와 ruleset API가 모두",
       "`--match-head-commit`과 exact-SHA 재확인은 현재 수동 fail-closed 절차",
@@ -1016,15 +1017,15 @@ describe("release safety contract", () => {
     }
   });
 
-  it("separates the current WeddingCode absence fence from future DB retirement", () => {
+  it("pins the current WeddingCode retirement fence and future replay contract", () => {
     expect(createHash("sha256")
       .update(weddingCodeCollectionCreatorMigration.replace(/\r/gu, ""), "utf8")
       .digest("hex"))
-      .toBe("8542fd971af41927e8be4c0d9f15c2e06c5fabcf5092d6c5674d9935e9b27cf5");
+      .toBe("e71837365e187fbf363daff7a2fa7aa96cf034ad3c02290fbe00d6927cf64fa1");
     expect(createHash("sha256")
       .update(weddingCodeCollectionRetirementMigration.replace(/\r/gu, ""), "utf8")
       .digest("hex"))
-      .toBe("45f6c7ae60675d9bb60359392ce6d1f6d2da624049a5fb1b76b93d847272393a");
+      .toBe("538ecac33df31f1ef16b15dae51fc218abcd83c79147e58d3a6de9a6ff7a83fb");
 
     for (const marker of [
       "FROM PUBLIC, anon, authenticated, service_role;",
@@ -1124,42 +1125,45 @@ describe("release safety contract", () => {
       "`20260714104000_disable_wedding_code_collection.sql`",
     );
     expect(supabaseRemoteOperations).toContain(
-      "현재 local migration은 총 129개",
+      "특정 시점의 `57 pending` 계산도 현재 적용 범위나 실행 승인이 아니며",
     );
-    expect(supabaseRemoteOperations).toContain("migration history 최신은 `20260630233211`");
-    expect(supabaseRemoteOperations).toContain("suffix는 57개");
     expect(supabaseRemoteOperations).toContain(
-      "현재-prod WeddingCode P0 경계는 migration 적용이 아니라 **table/functions 부재 유지**",
+      "**운영 사실 정정:** 초기 Dashboard의 “table/functions absent, latest `20260630233211`” 관찰에서 ledger 부재를 schema 부재로 해석한 것은 잘못이었다",
+    );
+    expect(supabaseRemoteOperations).toContain("별도 standalone targeted transaction");
+    expect(supabaseRemoteOperations).toContain(
+      "9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88",
+    );
+    expect(supabaseRemoteOperations).toContain("PR #40 merge");
+    expect(supabaseRemoteOperations).toContain(
+      "일반 migration ship과 baseline reconcile은 계속 **NO-GO**",
     );
     expect(productionReleaseRunbook).toContain(
-      "#### 5-A. WeddingCode 수집 영구 차단 검증",
+      "## WeddingCode 한정 containment 영수증 — 현재 기준 (2026-07-14)",
     );
     expect(productionReleaseRunbook).toContain(
-      "DB를 바꾸지 않고 부재를 유지하는 `absent` 모드",
+      "초기 Dashboard의 “`wedding_code_responses` absent” 관찰은 오판이었다",
     );
     expect(productionReleaseRunbook).toContain(
-      "`supabase db push`, migration repair, SQL Editor 또는 141040만 골라 적용해 현장에서 맞추지 않는다",
+      "별도 standalone targeted transaction",
     );
     expect(productionReleaseRunbook).toContain(
-      "DB-zero-diff 자격은 release 실행 경로에 DB credential·migration runner·remote DB 명령이 없고",
+      "raw `supabase db push`, 전체 migration push, ledger",
     );
     expect(productionReleaseRunbook).toContain(
-      "같은 transaction에서 모든 앱 역할 권한을 회수하고 policy 없이 `CHECK (false) NOT VALID`",
+      "현재 Production에는 13개 기존 행을 보존한 `wedding_code_responses` table",
     );
     expect(productionReleaseRunbook).toContain(
-      "planned chain에는 migration 사이 쓰기 허용 구간이 없다",
+      "creator의 false constraint는 이후 migration이 service-role RPC 실행권을 추가해도 INSERT·UPDATE를 계속 거부",
     );
     expect(productionReleaseRunbook).toContain(
-      "PGlite `0.5.4` 실제 실행 테스트",
+      "PGlite `0.5.4` 테스트는 table-absent, pending-chain replay, legacy open-surface 세 경로",
     );
     expect(productionReleaseRunbook).toContain(
-      "not applicable — zero DB/Storage mutation",
+      "현재 retirement는 forward-only 보안 경계다",
     );
     expect(productionReleaseRunbook).toContain(
-      "테이블이 생긴 뒤의 retirement는 forward-only 보안 경계다",
-    );
-    expect(productionReleaseRunbook).toContain(
-      "이전 immutable deployment URL",
+      "알려진 이전 immutable URL",
     );
   });
 
