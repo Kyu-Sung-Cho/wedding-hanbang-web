@@ -1,7 +1,9 @@
--- Historical WeddingCode candidate schema. Collection was retired before this
--- migration reached production, so the table is born fail-closed. It remains
--- in the chain only to keep later historical migrations replayable; no
--- application role may read or write it.
+-- Historical WeddingCode candidate schema. The original SQL from source commit
+-- ae6c0f5b06fb02d3db6e6b16a5ed808bb7dc31b3 was applied to production through
+-- the Management API and opened a service_role collection surface. This
+-- repository form is the replay-safe, fail-closed replacement for future chain
+-- application; production was fenced separately by targeted SQL on 2026-07-14.
+-- No application role may read or write the table created by this version.
 
 CREATE TABLE IF NOT EXISTS public.wedding_code_responses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

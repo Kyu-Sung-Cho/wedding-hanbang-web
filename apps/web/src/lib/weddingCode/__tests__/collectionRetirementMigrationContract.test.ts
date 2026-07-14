@@ -31,7 +31,7 @@ describe("WeddingCode collection retirement migration contract", () => {
       /REVOKE ALL ON public\.wedding_code_responses\s+FROM PUBLIC, anon, authenticated, service_role;/
     );
     expect(creator).not.toMatch(
-      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER)[\s\S]*wedding_code_responses/i
+      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER|MAINTAIN)[\s\S]*wedding_code_responses/i
     );
     expect(creator).not.toMatch(/CREATE POLICY\s+wc_responses_service_only/i);
     expect(creator).toMatch(
@@ -93,7 +93,7 @@ describe("WeddingCode collection retirement migration contract", () => {
       "LOCK TABLE public.wedding_code_responses IN ACCESS EXCLUSIVE MODE;"
     );
     const tableRevoke = migration.indexOf(
-      "REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER"
+      "REVOKE ALL PRIVILEGES ON TABLE public.wedding_code_responses"
     );
     const writeFence = migration.indexOf(
       "ADD CONSTRAINT wedding_code_collection_retired"
@@ -109,10 +109,10 @@ describe("WeddingCode collection retirement migration contract", () => {
     const migration = readMigration();
 
     expect(migration).toMatch(
-      /REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER\s+ON TABLE public\.wedding_code_responses\s+FROM PUBLIC, anon, authenticated, service_role;/
+      /REVOKE ALL PRIVILEGES ON TABLE public\.wedding_code_responses\s+FROM PUBLIC, anon, authenticated, service_role;/
     );
     expect(migration).not.toMatch(
-      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER|EXECUTE)[\s\S]*wedding_code/i
+      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER|MAINTAIN|EXECUTE)[\s\S]*wedding_code/i
     );
   });
 
@@ -211,6 +211,15 @@ describe("WeddingCode collection retirement migration contract", () => {
     const migration = readMigration();
 
     expect(migration).toContain("pg_catalog.has_table_privilege");
+    expect(migration).toContain(
+      "pg_catalog.current_setting('server_version_num')::INTEGER >= 170000"
+    );
+    expect(migration).toContain("'MAINTAIN'");
+    expect(migration).toContain("pg_catalog.aclexplode");
+    expect(migration).toContain("acl_row.grantee = 0");
+    expect(migration).toContain(
+      "WEDDING_CODE_TABLE_ACL_STILL_OPEN: role=PUBLIC"
+    );
     expect(migration).toContain("pg_catalog.has_column_privilege");
     expect(migration).toMatch(
       /constraint_row\.conname = 'wedding_code_collection_retired'[\s\S]*NOT constraint_row\.convalidated[\s\S]*pg_catalog\.pg_get_expr/
