@@ -1,9 +1,46 @@
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { isRecord } from "@/utils/requestValidation";
+import { parseBearerAccessToken } from "@/lib/supabase/bearer";
+import { isRecord, isUuid } from "@/utils/requestValidation";
 import { sanitizeText } from "@/utils/sanitize";
 
 const DEFAULT_MAX_BODY_BYTES = 32 * 1024;
+const COURT_CURSOR_MAX_LENGTH = 384;
+const POSTGRES_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+export type CourtCursorKind = "cases" | "comments";
+
+export interface CourtCursor {
+  at: string;
+  id: string;
+}
+
+function isValidCourtCursorTimestamp(value: string): boolean {
+  const match = POSTGRES_TIMESTAMP_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = match[8] === undefined ? 0 : Number(match[8]);
+  const offsetMinute = match[9] === undefined ? 0 : Number(match[9]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return year >= 1
+    && month >= 1
+    && month <= 12
+    && day >= 1
+    && day <= daysInMonth[month - 1]
+    && hour <= 23
+    && minute <= 59
+    && second <= 59
+    && offsetHour <= 14
+    && offsetMinute <= 59
+    && (offsetHour < 14 || offsetMinute === 0);
+}
 
 export class CourtApiError extends Error {
   constructor(
@@ -14,6 +51,44 @@ export class CourtApiError extends Error {
     super(message);
     this.name = "CourtApiError";
   }
+}
+
+export function encodeCourtCursor(kind: CourtCursorKind, cursor: CourtCursor): string {
+  return Buffer.from(JSON.stringify({ v: 1, kind, ...cursor }), "utf8").toString("base64url");
+}
+
+export function readCourtCursor(
+  request: Request,
+  expectedKind: CourtCursorKind,
+): CourtCursor | null {
+  const encoded = new URL(request.url).searchParams.get("cursor");
+  if (encoded === null) return null;
+  if (
+    encoded.length < 1
+    || encoded.length > COURT_CURSOR_MAX_LENGTH
+    || !/^[A-Za-z0-9_-]+$/.test(encoded)
+  ) {
+    throw new CourtApiError(400, "COURT_CURSOR_INVALID", "목록 위치를 다시 확인해 주세요.");
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  } catch {
+    throw new CourtApiError(400, "COURT_CURSOR_INVALID", "목록 위치를 다시 확인해 주세요.");
+  }
+  if (
+    !isRecord(value)
+    || value.v !== 1
+    || value.kind !== expectedKind
+    || typeof value.at !== "string"
+    || value.at.length > 40
+    || !isValidCourtCursorTimestamp(value.at)
+    || !isUuid(value.id)
+  ) {
+    throw new CourtApiError(400, "COURT_CURSOR_INVALID", "목록 위치를 다시 확인해 주세요.");
+  }
+  return { at: value.at, id: value.id };
 }
 
 type CourtEnvironment = Partial<Pick<
@@ -97,7 +172,7 @@ export function requireSafeJsonMutation(request: Request): void {
   // necessarily send browser Origin/Sec-Fetch-Site headers. This exception
   // relies on createClientFromRequest selecting a cookie-free token client
   // whenever this header is present; keep that isolation under regression test.
-  if (request.headers.get("authorization")?.startsWith("Bearer ")) return;
+  if (parseBearerAccessToken(request.headers.get("authorization"))) return;
 
   const requestOrigin = new URL(request.url).origin;
   const origin = request.headers.get("origin");
@@ -122,9 +197,45 @@ export async function readCourtJson(
     throw new CourtApiError(413, "REQUEST_TOO_LARGE", "입력 내용이 너무 길어요.");
   }
 
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > maxBytes) {
-    throw new CourtApiError(413, "REQUEST_TOO_LARGE", "입력 내용이 너무 길어요.");
+  if (!request.body) {
+    throw new CourtApiError(400, "INVALID_JSON", "요청 형식을 확인해 주세요.");
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let actualBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      actualBytes += value.byteLength;
+      if (actualBytes > maxBytes) {
+        try {
+          await reader.cancel("request body exceeds Couple Court limit");
+        } catch {
+          // The bounded read has already stopped; transport cancellation is
+          // best-effort and must not replace the safe 413 response.
+        }
+        throw new CourtApiError(413, "REQUEST_TOO_LARGE", "입력 내용이 너무 길어요.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(actualBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new CourtApiError(400, "INVALID_JSON", "요청 형식을 확인해 주세요.");
   }
 
   let body: unknown;

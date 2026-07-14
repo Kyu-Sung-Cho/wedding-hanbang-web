@@ -4,7 +4,7 @@
 실제 provider 생성 호출은 감사 래퍼를 거쳐 ai_interactions_log에 기록한다.
 decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, 모든 사용자 행동을 자동 수집한다고 가정하지 않는다.
 
-## 현재 소스 오브 트루스 (2026-07-12)
+## 현재 소스 오브 트루스 (2026-07-14)
 
 > 이 문서에는 초기 단일 웹앱 계획이 역사 기록으로 남아 있다. 현재 상태를 판단할 때는 아래 목록과 실제 코드·패키지 매니페스트를 우선하며, 오래된 계획 블록을 구현 사실로 인용하지 않는다.
 
@@ -13,7 +13,7 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 - 아모라 AI 연동은 OpenAI Responses API다. 일반 상담은 정확히 `gpt-5.6-luna`, 계약·분쟁/안전·반복 교정만 정확히 `gpt-5.6-terra`를 사용하며 reasoning은 코드에서 `none`으로 고정한다. Anthropic/Claude 런타임과 SDK는 제거되었다.
 - 현재 베타의 아모라는 조회·정리 중심이다. 일정·예산·준비 상태 수정과 예약 생성·취소 등 모델 기반 쓰기 도구는 서버 확인 토큰과 동시성 계약이 완성될 때까지 하드 비활성이다. 프롬프트의 과거 기능 설명보다 `runtimeToolContract.ts`와 실제 노출 도구 목록이 우선한다.
 - OpenAI 키가 없어도 정적 테스트는 가능하지만, 출시는 2026-07-12 검증에 사용한 기존 키의 폐기·인증 거부·사용량 감사를 확인하고 GPT-5.6 Luna/Terra 사용 권한이 있는 회전 키로 스트리밍·도구 후속·PDF·거절·중단·예산 상한을 canary 검증한 뒤에만 가능하다.
-- WeddingCode는 candidate.10의 16개 준비 순서 문항을 개인 브라우저에서만 계산한다. 최신 문항·계산·검증 경계는 `docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`가 기준이다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다.
+- WeddingCode는 candidate.10의 16개 준비 순서 문항을 개인 브라우저에서만 계산한다. 최신 문항·계산·검증 경계는 `docs/wedding-code/63_candidate10_evidence_based_rebuild_2026-07-11.md`가 기준이다. 커플 초대·비교와 익명 응답 수집 API는 보안·동의·보유기간 재설계 전까지 코드에서 하드 비활성이다. 2026-07-14 운영 DB read-only 관찰에서는 response table과 두 legacy RPC가 모두 없고 latest migration이 `20260630233211`이었다. 현재 P0는 이 `absent` 상태를 DB write 없이 재검증해 유지하며, pending 57개를 적용하는 `supabase db push`를 사용하지 않는다. 향후 replay를 위한 051600 creator도 앱 권한·policy 없이 `CHECK (false) NOT VALID`를 같은 transaction에서 설치해 태생부터 fail-closed이며, 141040이 최종 ACL·RPC·constraint 계약을 재확인한다.
 - 운영 DB 작업은 `docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`와 `docs/SUPABASE_REMOTE_OPERATIONS.md`의 write fence·백업·격리 복구 gate를 모두 통과한 뒤에만 한다. 노출된 Supabase CLI login role/PAT를 폐기하고 승인된 non-production ref를 allowlist에 넣기 전에는 원격 Supabase 명령을 실행하지 않는다.
 - `RESEARCH_COHORT_APPLICATIONS_ENABLED`와 `ACCOUNT_DELETION_CRON_ENABLED`는 운영 검증 전까지 `false`다. 문서·테스트 통과만으로 접수나 삭제 cron을 열지 않는다.
 - EAS의 development·preview·production profile은 모두 저장소 Node 22.13.0과 pnpm 11.7.0을 고정한다. 스토어 빌드는 `mobile:store-release-check`와 실기기 증거가 통과하기 전에는 실행하지 않는다.
@@ -24,18 +24,18 @@ decision_nodes는 명시적으로 지원하는 결정 흐름만 기록하며, �
 
 - Platform: Vercel, team `hanbang`, project `wedding-hanbang-web`, root directory `apps/web`
 - Production URL: `https://hanbang.ai`
-- Deploy workflow: Git 자동 배포와 deploy hook은 비활성이다. 운영 환경 변경·staged create·promote는 별도의 보호된 `release-control` 또는 동등한 외부 controller가 독립 승인된 exact SHA와 서명 receipt로만 수행한다. 로컬 Vercel CLI는 운영 proof를 만들지 않는다.
+- Deploy workflow: `apps/web/vercel.json`의 `git.deploymentEnabled=false`는 checked-in 의도일 뿐 provider 상태 증거가 아니다. 2026-07-14 read-only Vercel UI에는 Production Environment Branch Tracking이 `Every commit pushed to main will create a Production Deployment`, `Auto-assign Custom Production Domains: Enabled`로 표시됐다. 따라서 `main` merge는 곧 apex 운영 mutation이다. 기본 release는 두 자동 설정을 끄고 별도의 보호된 `release-control`이 staged create·promote를 수행한다. 단, 별도 승인된 DB-zero-diff P0만 Git-integrated hotfix mode를 사용할 수 있으며 exact-SHA Preview·수동 `--match-head-commit`·현재 rollback ID·Production source identity·즉시 apex canary를 merge 전에 고정해야 한다. 어느 mode도 증명되지 않으면 `main` 직접 push·병합과 운영 배포를 금지한다. 로컬 Vercel CLI는 운영 proof를 만들지 않는다.
 - Deploy status: controller가 Vercel API의 allowlisted team/project/repository ID, `gitSource` type/repo/ref/SHA, target, state, immutable deployment ID와 alias를 strict schema로 검증한다. 로컬 `inspect` 판독을 증거로 사용하지 않는다.
-- Merge method: GitHub merge commit only. `gh pr merge 38 --merge --match-head-commit <candidate-sha>` 외 squash, rebase, force-push를 사용하지 않는다.
+- Merge method: GitHub merge commit only. 현재 checkout branch에 연결된 PR의 number·`headRefName`·`headRefOid`를 다시 읽고 protected `main` base, local HEAD, clean merge 상태와 일치시킨 뒤 `gh pr merge <current-pr-number> --merge --match-head-commit <candidate-sha>`만 사용한다. 고정 PR 번호, squash, rebase, force-push를 사용하지 않는다.
 - Project type: Next.js web app/API와 같은 저장소의 Expo mobile companion
 - Post-deploy health check: staged URL과 `https://hanbang.ai/api/health/maintenance`에서 exact SHA, Supabase ref, launch/maintenance/Turnstile boolean을 검사한 뒤 `corepack pnpm qa:live`를 실행한다.
 
 ### Custom deploy hooks
 
 - Pre-merge: full-history secret gate, Windows reviewed-launcher contract, `corepack pnpm qa:local`, 독립 코드 승인과 runbook의 candidate-bound 운영 선행 증거가 모두 통과해야 한다.
-- Deploy trigger: 보호된 controller가 create 직전 `main` HEAD와 독립 승인 receipt를 다시 확인한 exact post-merge SHA만 Vercel Production target으로 staged한다. 검증 전 custom domain에 연결하지 않는다.
+- Deploy trigger: 기본 staged mode는 provider의 자동 Production deployment와 custom-domain 자동 할당이 모두 꺼졌다는 재검증 뒤 보호된 controller가 exact post-merge SHA를 staged한다. 승인된 P0 Git-integrated mode에서는 두 자동 설정의 활성 상태 자체를 expected contract로 고정하고 merge를 단 한 번의 Production trigger로 취급한다. mode가 섞이거나 provider 상태가 기대와 다르면 중단한다.
 - Deploy status: provider API에서 immutable deployment ID와 type/repo/ref/SHA/project/team/target/state를 대조하고, alias의 예상 이전 ID가 바뀌면 중단한다.
-- Health check: staged URL의 SHA·Supabase ref·기능 상태와 provider alias의 deployment ID를 별도로 검증한다. promote 직전에 `main`·승인·alias 이전 ID를 다시 확인하고 같은 deployment ID만 promote한 뒤 apex canary를 다시 실행한다. 자동 Git 배포는 계속 비활성으로 둔다.
+- Health check: 기본 mode는 staged URL의 SHA·Supabase ref·기능 상태와 provider alias deployment ID를 검증하고 같은 ID만 promote한다. P0 Git-integrated mode는 Preview에서 candidate SHA를 먼저 검증하고 merge 직후 Production deployment source SHA·alias ID·apex canary를 확인하며, 실패하면 고정한 이전 ID로 즉시 rollback한다. 어느 mode든 설정·SHA·alias 중 하나라도 불명확하면 fail-closed로 중단한다.
 
 ---
 

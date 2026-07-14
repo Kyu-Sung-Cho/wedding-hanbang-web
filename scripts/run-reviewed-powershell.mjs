@@ -15,7 +15,7 @@ const REVIEWED_SCRIPT_SHA256 = Object.freeze({
   "supabase-reconcile-core-baseline.ps1":
     "90f31ef652fa543959c4a2ccf8b6c076cffc5c7f2a2b80c76aeaa10e5fe5d109",
   "supabase-ship-safe.ps1":
-    "9f98f141986619d5f2198e5985644348be6d1e7d0ec55de41f524cde22c07fc4",
+    "0ff934fee4b9822798b55d6625a72c31f94637969602aafb2caf471acbf1e1ea",
   "supabase-write-fence.ps1":
     "1384036639e3f4474688a0066ccd7fb4ed243f5405761ad82d02dc0c43a7fec2",
 });

@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE public.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE;
@@ -121,5 +120,3 @@ GRANT EXECUTE ON FUNCTION public.request_account_deletion(uuid, text)
 
 COMMENT ON FUNCTION public.request_account_deletion(uuid, text) IS
   'Creates a durable deletion job after draining and locking provider identity updates.';
-
-COMMIT;

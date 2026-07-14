@@ -30,6 +30,20 @@ describe("proactive care safety contract", () => {
     );
   });
 
+  it("keeps hidden post-response and community model spend code-hard-off", () => {
+    const chatRoute = read("apps/web/src/app/api/chat/route.ts");
+    expect(chatRoute).toContain("const ENABLE_AUXILIARY_MEMORY = false");
+    expect(
+      chatRoute.match(
+        /if \(visibility === "shared" && ENABLE_AUXILIARY_MEMORY\)/g
+      )
+    ).toHaveLength(2);
+
+    expect(read("apps/web/src/app/api/community/ai-comment/route.ts")).toContain(
+      "const COMMUNITY_AI_COMMENT_ENABLED = false"
+    );
+  });
+
   it("renders a local empty-chat greeting without spending an Amora turn", () => {
     for (const path of [
       "apps/web/src/components/app/chat/ChatContent.tsx",

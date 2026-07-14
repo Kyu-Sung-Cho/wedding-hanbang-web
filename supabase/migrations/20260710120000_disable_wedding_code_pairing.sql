@@ -6,7 +6,8 @@
 -- required as defense in depth and makes an old rolling-deploy server fail
 -- closed instead of reattaching or returning a compromised token.
 
-BEGIN;
+SET lock_timeout = '5s';
+SET statement_timeout = '30s';
 
 UPDATE public.wedding_code_responses
 SET couple_token = NULL
@@ -22,5 +23,3 @@ ALTER TABLE public.wedding_code_responses
 
 COMMENT ON COLUMN public.wedding_code_responses.couple_token IS
   'Retired plaintext capability. Must remain NULL until a hashed, expiring, revocable replacement is approved.';
-
-COMMIT;

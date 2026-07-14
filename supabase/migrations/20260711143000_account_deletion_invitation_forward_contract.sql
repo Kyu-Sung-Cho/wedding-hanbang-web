@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '60s';
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
 
 -- Some environments recorded the original 100700 definition before the
 -- invitation feature was retired. Reinstall the current storage lifecycle
@@ -139,5 +138,3 @@ REVOKE ALL ON FUNCTION public.prevent_profile_membership_self_change()
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.prevent_profile_membership_self_change()
   TO service_role;
-
-COMMIT;

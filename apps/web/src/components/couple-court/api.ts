@@ -19,6 +19,7 @@ import type {
   VerdictMission,
 } from "./types";
 import { weddingPath } from "@/lib/weddingPaths";
+import { isUuid } from "@/utils/requestValidation";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -32,6 +33,19 @@ export class CourtApiError extends Error {
     super(message);
     this.name = "CourtApiError";
   }
+}
+
+export interface CourtVerdictPollingStatus {
+  status: "ready" | "judging" | "not_ready" | "safety_redirect";
+  retryAfterSeconds?: number;
+  recoveryAllowed: boolean;
+}
+
+export interface CourtStatementSubmissionSafety {
+  level: "normal" | "sensitive" | "high_risk";
+  categories: string[];
+  requiresImmediateHelp: boolean;
+  resourceMessage: string | null;
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -71,7 +85,10 @@ function unwrap(payload: unknown, keys: string[]): unknown {
   return current;
 }
 
-async function requestJson(url: string, init?: RequestInit): Promise<unknown> {
+async function requestJsonResponse(url: string, init?: RequestInit): Promise<{
+  payload: unknown;
+  response: Response;
+}> {
   const response = await fetch(url, {
     ...init,
     cache: "no-store",
@@ -92,10 +109,14 @@ async function requestJson(url: string, init?: RequestInit): Promise<unknown> {
         ?? (() => {
           const seconds = Number(response.headers.get("retry-after"));
           return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
-        })(),
+      })(),
     );
   }
-  return payload;
+  return { payload, response };
+}
+
+async function requestJson(url: string, init?: RequestInit): Promise<unknown> {
+  return (await requestJsonResponse(url, init)).payload;
 }
 
 function normalizeMode(value: unknown): CourtMode {
@@ -137,6 +158,15 @@ export function normalizeCase(value: unknown): CourtCase {
   const ownStatementRow = (participantId
     ? statements.find((statement) => stringValue(statement.participant_id, statement.participantId) === participantId)
     : undefined) ?? statements[0];
+  const ownSubmissionRequestId = stringValue(
+    ownStatementRow?.submissionRequestId,
+    ownStatementRow?.submission_request_id,
+  );
+  const ownSubmittedSafetyLevel = stringValue(
+    ownStatementRow?.safetyLevel,
+    ownStatementRow?.safety_level,
+    ownStatementRow?.submitted_safety_level,
+  );
   const status = normalizeStatus(item.workflow_status ?? item.workflowStatus ?? item.status);
   const mode = normalizeMode(item.mode);
   const safetyLevel = item.safetyLevel === "high_risk" || item.safety_level === "high_risk"
@@ -182,6 +212,13 @@ export function normalizeCase(value: unknown): CourtCase {
     publicPostId: stringValue(publicPost.id),
     publicStatus: stringValue(publicPost.status),
     publicSnapshotVersion: numberValue(publicPost.snapshotVersion, publicPost.snapshot_version),
+    publicViewerConsented: booleanValue(
+      false,
+      publicPost.viewerConsented,
+      publicPost.viewer_consented,
+      container.publicViewerConsented,
+      container.public_viewer_consented,
+    ),
     publicPreview: existingPublicPostId && existingSnapshotHash && existingSnapshotVersion !== undefined && existingSafeTitle && existingOneLine && existingResultLabel
       ? {
           publicPostId: existingPublicPostId,
@@ -198,6 +235,14 @@ export function normalizeCase(value: unknown): CourtCase {
       : undefined,
     ownStatement: ownStatementRow
       ? {
+          ...(isUuid(ownSubmissionRequestId)
+            ? { submissionRequestId: ownSubmissionRequestId }
+            : {}),
+          ...(ownSubmittedSafetyLevel === "normal"
+            || ownSubmittedSafetyLevel === "sensitive"
+            || ownSubmittedSafetyLevel === "high_risk"
+            ? { safetyLevel: ownSubmittedSafetyLevel }
+            : {}),
           facts: stringValue(ownStatementRow.facts) ?? "",
           feelings: stringValue(ownStatementRow.feelings) ?? "",
           expectations: stringValue(ownStatementRow.expectations) ?? "",
@@ -341,14 +386,22 @@ export function normalizePublicCase(value: unknown): PublicCourtCase {
   };
 }
 
-export async function listCases(): Promise<CourtCase[]> {
-  const payload = await requestJson("/api/couple-court/cases");
+export async function listCases(cursor?: string): Promise<{
+  cases: CourtCase[];
+  nextCursor: string | null;
+}> {
+  const payload = await requestJson(
+    `/api/couple-court/cases${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+  );
   const unwrapped = unwrap(payload, ["cases", "data"]);
-  return arrayValue(unwrapped).map(normalizeCase).filter((item) => Boolean(item.id));
+  return {
+    cases: arrayValue(unwrapped).map(normalizeCase).filter((item) => Boolean(item.id)),
+    nextCursor: stringValue(record(payload).nextCursor, record(payload).next_cursor) ?? null,
+  };
 }
 
-export async function getCase(caseId: string): Promise<CourtCase> {
-  return normalizeCase(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}`));
+export async function getCase(caseId: string, signal?: AbortSignal): Promise<CourtCase> {
+  return normalizeCase(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}`, { signal }));
 }
 
 export async function archiveCase(caseId: string): Promise<void> {
@@ -370,11 +423,30 @@ export async function createCase(input: CreateCaseInput): Promise<CourtCase> {
   return normalizeCase(payload);
 }
 
-export async function submitStatement(caseId: string, input: StatementInput): Promise<void> {
-  await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/statements`, {
+export async function submitStatement(
+  caseId: string,
+  input: StatementInput,
+): Promise<{ safety: CourtStatementSubmissionSafety | null }> {
+  const payload = record(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/statements`, {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }));
+  const safety = record(payload.safety);
+  const level = stringValue(safety.level);
+  if (level !== "normal" && level !== "sensitive" && level !== "high_risk") {
+    return { safety: null };
+  }
+  return {
+    safety: {
+      level,
+      categories: arrayValue(safety.categories).filter(
+        (category): category is string => typeof category === "string",
+      ),
+      requiresImmediateHelp: safety.requiresImmediateHelp === true
+        || safety.requires_immediate_help === true,
+      resourceMessage: stringValue(safety.resourceMessage, safety.resource_message) ?? null,
+    },
+  };
 }
 
 export async function createInvite(caseId: string): Promise<CourtInvite> {
@@ -398,11 +470,23 @@ export async function createInvite(caseId: string): Promise<CourtInvite> {
   return { inviteUrl, expiresAt: stringValue(payload.expiresAt, payload.expires_at) };
 }
 
-export async function cancelInvite(caseId: string): Promise<void> {
-  await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/invite`, {
+export interface CourtInviteCancellation {
+  revoked: boolean;
+  status: "revoked" | "no_active_invite" | "unknown";
+}
+
+export async function cancelInvite(caseId: string): Promise<CourtInviteCancellation> {
+  const payload = record(unwrap(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/invite`, {
     method: "DELETE",
     body: "{}",
-  });
+  }), ["invite", "data"]));
+  const status = stringValue(payload.status);
+  return {
+    revoked: payload.revoked === true,
+    status: status === "revoked" || status === "no_active_invite"
+      ? status
+      : "unknown",
+  };
 }
 
 export async function leaveCase(caseId: string): Promise<void> {
@@ -412,12 +496,12 @@ export async function leaveCase(caseId: string): Promise<void> {
   });
 }
 
-export async function requestVerdict(caseId: string): Promise<void> {
-  await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/judge`, { method: "POST", body: "{}" });
+export async function requestVerdict(caseId: string, signal?: AbortSignal): Promise<void> {
+  await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/judge`, { method: "POST", body: "{}", signal });
 }
 
-export async function getVerdict(caseId: string): Promise<CourtVerdict> {
-  const payload = await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/verdict`);
+export async function getVerdict(caseId: string, signal?: AbortSignal): Promise<CourtVerdict> {
+  const payload = await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/verdict`, { signal });
   const root = record(payload);
   if (root.status === "judging" || root.status === "pending" || root.verdict === null) {
     throw new CourtApiError(
@@ -430,8 +514,33 @@ export async function getVerdict(caseId: string): Promise<CourtVerdict> {
   return normalizeVerdict(payload);
 }
 
-export async function getVerdictHistory(caseId: string): Promise<CourtVerdictHistoryItem[]> {
-  const payload = record(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/verdict-history`));
+export async function getVerdictStatus(caseId: string, signal?: AbortSignal): Promise<CourtVerdictPollingStatus> {
+  const { payload, response } = await requestJsonResponse(
+    `/api/couple-court/cases/${encodeURIComponent(caseId)}/verdict/status`,
+    { signal },
+  );
+  const root = record(payload);
+  const status = stringValue(root.status);
+  if (status !== "ready" && status !== "judging" && status !== "not_ready" && status !== "safety_redirect") {
+    throw new CourtApiError("판결 상태를 안전하게 확인하지 못했어요.", 502, "verdict_status_invalid");
+  }
+  const headerRetryAfter = Number(response.headers.get("Retry-After"));
+  const retryAfterSeconds = status === "judging"
+    ? Math.min(300, Math.max(1, Math.ceil(
+      Number.isFinite(headerRetryAfter) && headerRetryAfter > 0
+        ? headerRetryAfter
+        : numberValue(root.retry_after_seconds) ?? 5,
+    )))
+    : undefined;
+  return {
+    status,
+    retryAfterSeconds,
+    recoveryAllowed: status === "judging" && root.recovery_allowed === true,
+  };
+}
+
+export async function getVerdictHistory(caseId: string, signal?: AbortSignal): Promise<CourtVerdictHistoryItem[]> {
+  const payload = record(await requestJson(`/api/couple-court/cases/${encodeURIComponent(caseId)}/verdict-history`, { signal }));
   return arrayValue(payload.history).flatMap((value) => {
     const item = record(value);
     const generationVersion = numberValue(item.generationVersion, item.generation_version);
@@ -446,8 +555,7 @@ export async function getVerdictHistory(caseId: string): Promise<CourtVerdictHis
   });
 }
 
-export async function saveMissionAction(caseId: string, missionId: string, confirmShared = false): Promise<void> {
-  void caseId;
+export async function saveMissionAction(missionId: string, confirmShared = false): Promise<void> {
   await requestJson(`/api/couple-court/missions/${encodeURIComponent(missionId)}/save-action`, {
     method: "POST",
     body: confirmShared ? JSON.stringify({ confirm_shared: true }) : "{}",
@@ -579,9 +687,14 @@ export async function getPublicCase(postId: string): Promise<PublicCourtCase> {
   return normalizePublicCase(unwrap(await requestJson(`/api/couple-court/public/${encodeURIComponent(postId)}`), ["post", "case", "data"]));
 }
 
-export async function listPublicComments(postId: string): Promise<PublicCourtComment[]> {
-  const payload = record(await requestJson(`/api/couple-court/public/${encodeURIComponent(postId)}/comments`));
-  return arrayValue(payload.comments).map((value) => {
+export async function listPublicComments(postId: string, cursor?: string): Promise<{
+  comments: PublicCourtComment[];
+  nextCursor: string | null;
+}> {
+  const payload = record(await requestJson(
+    `/api/couple-court/public/${encodeURIComponent(postId)}/comments${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+  ));
+  const comments = arrayValue(payload.comments).map((value) => {
     const item = record(value);
     const commentType = stringValue(item.commentType, item.comment_type);
     return {
@@ -591,15 +704,47 @@ export async function listPublicComments(postId: string): Promise<PublicCourtCom
       createdAt: stringValue(item.createdAt, item.created_at),
     } satisfies PublicCourtComment;
   }).filter((comment) => Boolean(comment.id && comment.body));
+  return {
+    comments,
+    nextCursor: stringValue(payload.nextCursor, payload.next_cursor) ?? null,
+  };
 }
 
-export async function createPublicComment(postId: string, commentType: PublicCourtComment["commentType"], body: string): Promise<{ moderationStatus?: string }> {
+export async function createPublicComment(
+  postId: string,
+  commentType: PublicCourtComment["commentType"],
+  body: string,
+  submissionRequestId: string,
+): Promise<{ commentId: string; moderationStatus: string; reused: boolean }> {
   const payload = record(await requestJson(`/api/couple-court/public/${encodeURIComponent(postId)}/comments`, {
     method: "POST",
-    body: JSON.stringify({ commentType, body }),
+    body: JSON.stringify({ commentType, body, submissionRequestId }),
   }));
   const comment = record(payload.comment);
-  return { moderationStatus: stringValue(comment.moderationStatus, comment.moderation_status, payload.moderationStatus, payload.moderation_status) };
+  const commentId = stringValue(comment.commentId, comment.comment_id, comment.id);
+  const moderationStatus = stringValue(
+    comment.moderationStatus,
+    comment.moderation_status,
+    payload.moderationStatus,
+    payload.moderation_status,
+  );
+  if (
+    !isUuid(commentId)
+    || !moderationStatus
+    || !["pending", "visible", "hidden", "rejected"].includes(moderationStatus)
+    || typeof comment.reused !== "boolean"
+  ) {
+    throw new CourtApiError(
+      "댓글 저장 결과를 확인하지 못했어요. 같은 내용으로 다시 시도해 주세요.",
+      502,
+      "court_comment_result_invalid",
+    );
+  }
+  return {
+    commentId,
+    moderationStatus,
+    reused: comment.reused,
+  };
 }
 
 export async function votePublicCase(postId: string, choice: PublicVoteChoice): Promise<void> {

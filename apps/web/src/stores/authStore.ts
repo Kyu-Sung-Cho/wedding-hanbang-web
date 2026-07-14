@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { clearCourtDraftsForOwner } from "@/lib/coupleCourt/draftStorage";
 import { createClient } from "@/lib/supabase/client";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
@@ -471,6 +472,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    const departingUserId = get().user?.id;
+    if (departingUserId && typeof window !== "undefined") {
+      try {
+        clearCourtDraftsForOwner(window.sessionStorage, departingUserId);
+      } catch {
+        // Storage can be unavailable in hardened browsers. Auth reset must
+        // still complete and the owner envelope prevents cross-account reads.
+      }
+    }
     authInitializationRequestId += 1;
     set({
       user: null,

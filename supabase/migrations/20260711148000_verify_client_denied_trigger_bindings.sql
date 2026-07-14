@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '30s';
+SET lock_timeout = '5s';
+SET statement_timeout = '30s';
 
 -- The preceding ACL migration made these SECURITY DEFINER trigger functions
 -- non-callable by clients. Their protection still depends on the trigger being
@@ -109,5 +108,3 @@ BEGIN
   END IF;
 END;
 $$;
-
-COMMIT;

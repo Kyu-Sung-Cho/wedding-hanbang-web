@@ -23,8 +23,22 @@ From the repo root:
 git fetch origin
 git status -sb
 corepack pnpm qa:local
-corepack pnpm qa:live -- --base-url=https://hanbang.ai
+corepack pnpm qa:live -- \
+  --base-url=https://hanbang.ai \
+  --launch-mode=full \
+  --research-intake=<closed-or-open> \
+  --account-deletion-cron=<closed-or-open> \
+  --couple-court-private=<closed-or-open> \
+  --couple-court-ai=<closed-or-open> \
+  --couple-court-public=<closed-or-open> \
+  --expected-sha=<40-character-release-sha> \
+  --expected-supabase-project-ref=<20-character-production-ref> \
+  --apple-team-id=<signed-10-character-team-id> \
+  --play-signing-sha256=<play-app-signing-sha256>
 ```
+
+원격 smoke는 위 identity와 기능 상태를 모두 고정하지 않으면 의도적으로 실패한다. 이 검사는 공개
+배포 경계의 자동 preflight이며, 아래의 로그인 사용자·커플·물리 기기 시나리오를 대신하지 않는다.
 
 Confirm Supabase Realtime publication includes both shared planning tables only through the exact-target, read-only production preflight approved by [the remote operations policy](./SUPABASE_REMOTE_OPERATIONS.md). Do **not** run an ad-hoc `db query --linked`: the current write-fence query and migration/recovery connection are not yet bound to one immutable project/database/role, and the previously exposed CLI login role/PAT must be rotated first. Until those gates pass, record this check as `blocked / not run` rather than querying production manually. The approved preflight must return only the allowlisted table names or booleans and must not print query text, credentials, provider bodies, or unrelated catalog data.
 

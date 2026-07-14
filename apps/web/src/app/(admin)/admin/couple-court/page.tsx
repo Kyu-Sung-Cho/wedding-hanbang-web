@@ -61,7 +61,6 @@ interface ModerationReport {
 
 interface ProviderReconciliation {
   verdictId: string;
-  requestKey: string;
   providerState: string | null;
   startedAt: string | null;
   failedAt: string | null;
@@ -79,6 +78,26 @@ interface ProviderAuditRecovery {
   lastErrorAt: string | null;
 }
 
+interface ProviderDeletionHandoff {
+  verdictId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+interface RevealedProviderRequestKey {
+  requestKey: string;
+  revealedAt: string;
+}
+
+interface ProviderDeletionResolutionDraft {
+  auditModel: string;
+  inputTokens: string;
+  outputTokens: string;
+  cachedInputTokens: string;
+  cacheWriteInputTokens: string;
+  costUsd: string;
+}
+
 interface ModerationQueue {
   posts: ModerationPost[];
   comments: ModerationComment[];
@@ -86,16 +105,30 @@ interface ModerationQueue {
   reportedComments: ModerationComment[];
   providerReconciliations: ProviderReconciliation[];
   providerAuditRecoveries: ProviderAuditRecovery[];
+  providerDeletionHandoffs: ProviderDeletionHandoff[];
   truncated: {
     posts: boolean;
     comments: boolean;
     reports: boolean;
     providerReconciliations: boolean;
     providerAuditRecoveries: boolean;
+    providerDeletionHandoffs: boolean;
   };
 }
 
 const PROVIDER_RETRY_CONFIRMATION = "ALLOW_RETRY_AFTER_PROVIDER_REVIEW";
+const PROVIDER_NO_CHARGE_CONFIRMATION = "CONFIRM_PROVIDER_NO_CHARGE";
+const PROVIDER_PAID_CONFIRMATION = "CONFIRM_PROVIDER_PAID";
+const PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION = "REVEAL_PROVIDER_REQUEST_KEY";
+const PROVIDER_MODEL_PATTERN = /^[A-Za-z0-9._:/-]{1,128}$/;
+const EMPTY_PROVIDER_DELETION_DRAFT: ProviderDeletionResolutionDraft = {
+  auditModel: "",
+  inputTokens: "",
+  outputTokens: "",
+  cachedInputTokens: "",
+  cacheWriteInputTokens: "",
+  costUsd: "",
+};
 const PROVIDER_REASON_OPTIONS = [
   ["provider_dashboard_not_found", "제공사 대시보드에서 요청 없음"],
   ["provider_dashboard_failed", "제공사 대시보드에서 실패 확정"],
@@ -145,6 +178,63 @@ function formatDate(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "시간 정보 없음";
   return date.toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function parseOptionalProviderToken(value: string, label: string): number | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${label}은(는) 0~10,000,000 범위의 정수로 입력해 주세요.`);
+  }
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed > 10_000_000) {
+    throw new Error(`${label}은(는) 0~10,000,000 범위의 정수로 입력해 주세요.`);
+  }
+  return parsed;
+}
+
+function parseOptionalProviderCost(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (!/^(?:0|[1-9]\d{0,3})(?:\.\d{1,6})?$/.test(normalized)) {
+    throw new Error("비용은 0 이상 9,999.999999 이하, 소수점 아래 최대 6자리로 입력해 주세요.");
+  }
+  return Number(normalized);
+}
+
+function paidProviderResolutionFields(draft: ProviderDeletionResolutionDraft) {
+  const auditModel = draft.auditModel.trim();
+  if (!PROVIDER_MODEL_PATTERN.test(auditModel)) {
+    throw new Error("OpenAI 대시보드에 표시된 모델명을 입력해 주세요.");
+  }
+  const inputTokens = parseOptionalProviderToken(draft.inputTokens, "입력 토큰");
+  const outputTokens = parseOptionalProviderToken(draft.outputTokens, "출력 토큰");
+  const cachedInputTokens = parseOptionalProviderToken(
+    draft.cachedInputTokens,
+    "캐시 입력 토큰",
+  );
+  const cacheWriteInputTokens = parseOptionalProviderToken(
+    draft.cacheWriteInputTokens,
+    "캐시 쓰기 입력 토큰",
+  );
+  const costUsd = parseOptionalProviderCost(draft.costUsd);
+  if (inputTokens === null || outputTokens === null) {
+    throw new Error("유료 호출로 기록하려면 입력 토큰과 출력 토큰을 모두 입력해 주세요.");
+  }
+  if (
+    (cachedInputTokens !== null && cachedInputTokens > inputTokens)
+    || (cacheWriteInputTokens !== null && cacheWriteInputTokens > inputTokens)
+  ) {
+    throw new Error("캐시 토큰은 입력 토큰보다 클 수 없습니다.");
+  }
+  return {
+    auditModel,
+    inputTokens,
+    outputTokens,
+    cachedInputTokens,
+    cacheWriteInputTokens,
+    costUsd,
+  };
 }
 
 function ContextPost({ post }: { post: ModerationPost | undefined }) {
@@ -197,10 +287,19 @@ export default function CoupleCourtModerationPage() {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [deletionDrafts, setDeletionDrafts] = useState<
+    Record<string, ProviderDeletionResolutionDraft>
+  >({});
+  const [revealedRequestKeys, setRevealedRequestKeys] = useState<
+    Record<string, RevealedProviderRequestKey>
+  >({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const loadQueue = useCallback(async () => {
+    // Provider request keys are intentionally ephemeral. Any queue refresh or
+    // successful action drops every revealed key from React memory.
+    setRevealedRequestKeys({});
     setLoading(true);
     setError("");
     try {
@@ -216,7 +315,8 @@ export default function CoupleCourtModerationPage() {
       if (!response.ok || !Array.isArray(payload.posts)
         || !Array.isArray(payload.comments) || !Array.isArray(payload.reports)
         || !Array.isArray(payload.providerReconciliations)
-        || !Array.isArray(payload.providerAuditRecoveries)) {
+        || !Array.isArray(payload.providerAuditRecoveries)
+        || !Array.isArray(payload.providerDeletionHandoffs)) {
         throw new Error(payload.error ?? "검토 대기열을 불러오지 못했습니다.");
       }
       setQueue({
@@ -225,6 +325,7 @@ export default function CoupleCourtModerationPage() {
         reports: payload.reports,
         providerReconciliations: payload.providerReconciliations,
         providerAuditRecoveries: payload.providerAuditRecoveries,
+        providerDeletionHandoffs: payload.providerDeletionHandoffs,
         reportedComments: Array.isArray(payload.reportedComments)
           ? payload.reportedComments
           : [],
@@ -234,6 +335,7 @@ export default function CoupleCourtModerationPage() {
           reports: false,
           providerReconciliations: false,
           providerAuditRecoveries: false,
+          providerDeletionHandoffs: false,
         },
       });
     } catch (loadError) {
@@ -259,6 +361,22 @@ export default function CoupleCourtModerationPage() {
   const reasonFor = (key: string, fallback = "policy_violation") => reasons[key] ?? fallback;
   const updateReason = (key: string, value: string) => {
     setReasons((current) => ({ ...current, [key]: value }));
+  };
+  const deletionDraftFor = (verdictId: string) => (
+    deletionDrafts[verdictId] ?? EMPTY_PROVIDER_DELETION_DRAFT
+  );
+  const updateDeletionDraft = (
+    verdictId: string,
+    field: keyof ProviderDeletionResolutionDraft,
+    value: string,
+  ) => {
+    setDeletionDrafts((current) => ({
+      ...current,
+      [verdictId]: {
+        ...(current[verdictId] ?? EMPTY_PROVIDER_DELETION_DRAFT),
+        [field]: value,
+      },
+    }));
   };
 
   const runAction = async (
@@ -288,6 +406,130 @@ export default function CoupleCourtModerationPage() {
       await loadQueue();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "검토 조치를 완료하지 못했습니다.");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const resolveProviderDeletionHandoff = (
+    item: ProviderDeletionHandoff,
+    decision: "confirm_no_charge" | "record_paid",
+  ) => {
+    let providerFields: ReturnType<typeof paidProviderResolutionFields> | undefined;
+    if (decision === "record_paid") {
+      try {
+        providerFields = paidProviderResolutionFields(deletionDraftFor(item.verdictId));
+      } catch (validationError) {
+        setNotice("");
+        setError(validationError instanceof Error
+          ? validationError.message
+          : "제공사 사용량 입력을 확인해 주세요.");
+        return;
+      }
+    }
+
+    const isNoCharge = decision === "confirm_no_charge";
+    const firstConfirmed = window.confirm(isNoCharge
+      ? "OpenAI 대시보드에서 이 요청이 없거나 청구되지 않았음을 직접 확인했나요? 이 정산은 되돌릴 수 없습니다."
+      : "OpenAI 대시보드에서 유료 호출이 발생했음을 직접 확인하고 모델·사용량·비용을 대조했나요?");
+    if (!firstConfirmed) return;
+
+    const requiredConfirmation = isNoCharge
+      ? PROVIDER_NO_CHARGE_CONFIRMATION
+      : PROVIDER_PAID_CONFIRMATION;
+    const confirmation = window.prompt(
+      `마지막 확인입니다. 아래 문구를 정확히 입력하세요.\n\n${requiredConfirmation}`,
+    );
+    if (confirmation !== requiredConfirmation) {
+      setNotice("");
+      setError("고정 확인 문구가 일치하지 않아 삭제 사건의 제공사 정산을 기록하지 않았습니다.");
+      return;
+    }
+
+    void runAction(
+      `provider-deletion:${item.verdictId}:${decision}`,
+      {
+        target: "provider_deletion_handoff",
+        id: item.verdictId,
+        decision,
+        confirmation,
+        ...(providerFields ?? {}),
+      },
+      isNoCharge
+        ? "OpenAI 청구 없음 확인을 기록했습니다."
+        : "OpenAI 유료 호출을 기록하고 감사 장부 복구 대기열로 넘겼습니다.",
+    );
+  };
+
+  const revealProviderRequestKey = async ({
+    verdictId,
+    target,
+    stateKey,
+    operationKey,
+  }: {
+    verdictId: string;
+    target: "provider_deletion_handoff_reveal" | "provider_reconciliation_reveal";
+    stateKey: string;
+    operationKey: string;
+  }) => {
+    const firstConfirmed = window.confirm(
+      "이 요청 키는 OpenAI 제공사 조회에만 사용해야 하는 내부 운영 식별자입니다. 지금 이 한 건의 키를 화면에 공개할까요?",
+    );
+    if (!firstConfirmed) return;
+    const confirmation = window.prompt(
+      `공개 사실이 감사 기록에 남습니다. 아래 문구를 정확히 입력하세요.\n\n${PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION}`,
+    );
+    if (confirmation !== PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION) {
+      setNotice("");
+      setError("고정 확인 문구가 일치하지 않아 OpenAI 요청 키를 공개하지 않았습니다.");
+      return;
+    }
+
+    setBusyKey(operationKey);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/couple-court", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target,
+          id: verdictId,
+          decision: "reveal_request_key",
+          confirmation,
+        }),
+      });
+      if (response.status === 401) {
+        window.location.assign("/admin/login");
+        return;
+      }
+      const payload = await response.json() as {
+        error?: string;
+        requestKey?: string;
+        revealedAt?: string;
+      };
+      if (
+        !response.ok
+        || typeof payload.requestKey !== "string"
+        || !/^[a-f0-9]{64}$/.test(payload.requestKey)
+        || typeof payload.revealedAt !== "string"
+        || !Number.isFinite(Date.parse(payload.revealedAt))
+      ) {
+        throw new Error(payload.error ?? "감사 기록을 확인할 수 없어 요청 키를 공개하지 않았습니다.");
+      }
+      setRevealedRequestKeys((current) => ({
+        ...current,
+        [stateKey]: {
+          requestKey: payload.requestKey as string,
+          revealedAt: payload.revealedAt as string,
+        },
+      }));
+      setNotice("감사 기록을 남긴 뒤 이 한 건의 OpenAI 요청 키만 공개했습니다.");
+    } catch (revealError) {
+      setError(revealError instanceof Error
+        ? revealError.message
+        : "OpenAI 요청 키를 공개하지 못했습니다.");
     } finally {
       setBusyKey(null);
     }
@@ -502,6 +744,184 @@ export default function CoupleCourtModerationPage() {
               </div>
             </section>
 
+            <section aria-labelledby="court-provider-deletion-heading">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 id="court-provider-deletion-heading" className="flex items-center gap-2 text-lg font-semibold text-noir-800">
+                    <ShieldAlert className="h-5 w-5 text-rose-700" aria-hidden="true" /> 삭제 사건 제공사 비용 정산
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-taupe-500">
+                    사용자와 사건은 이미 영구 삭제됐지만, 삭제 직전에 시작된 OpenAI 호출의 청구 여부가 확정되지 않은 항목입니다. 아래 요청 키로 OpenAI 대시보드나 지원팀 기록을 직접 대조하세요. 사건·사용자·진술·판결 원문은 이 화면과 정산 기록에 남기지 않습니다.
+                  </p>
+                </div>
+                <span className="rounded-full bg-rose-700 px-2.5 py-1 text-xs font-semibold text-white">
+                  {queue?.providerDeletionHandoffs.length ?? 0}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-4">
+                {(queue?.providerDeletionHandoffs.length ?? 0) === 0 && (
+                  <div className="rounded-2xl border border-black/[0.04] bg-white p-6 text-sm text-taupe-500">
+                    삭제 사건에서 수동으로 정산할 OpenAI 요청이 없습니다.
+                  </div>
+                )}
+                {queue?.providerDeletionHandoffs.map((item) => {
+                  const key = `provider-deletion:${item.verdictId}`;
+                  const noChargeBusy = busyKey === `${key}:confirm_no_charge`;
+                  const paidBusy = busyKey === `${key}:record_paid`;
+                  const revealBusy = busyKey === `${key}:reveal`;
+                  const revealStateKey = `deleted:${item.verdictId}`;
+                  const revealedRequestKey = revealedRequestKeys[revealStateKey];
+                  const draft = deletionDraftFor(item.verdictId);
+                  return (
+                    <article key={item.verdictId} className="rounded-2xl border border-rose-200 bg-white p-5 sm:p-6">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-taupe-500">
+                        <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-800">자동 정산 중단</span>
+                        <span>인계 생성 {formatDate(item.createdAt)}</span>
+                        <span>확인 기한 {formatDate(item.expiresAt)}</span>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-platinum bg-ivory-50 p-4">
+                        <p className="text-sm font-semibold text-noir-800">OpenAI 요청 키 · 제한 공개</p>
+                        {!revealedRequestKey ? (
+                          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs leading-5 text-taupe-600">
+                              목록 응답에는 요청 키가 포함되지 않습니다. 제공사 대조를 시작할 때 이 한 건만 감사 기록 후 공개하세요.
+                            </p>
+                            <button
+                              type="button"
+                              disabled={busyKey !== null}
+                              onClick={() => void revealProviderRequestKey({
+                                verdictId: item.verdictId,
+                                target: "provider_deletion_handoff_reveal",
+                                stateKey: revealStateKey,
+                                operationKey: `${key}:reveal`,
+                              })}
+                              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-noir-800 bg-white px-4 text-sm font-semibold text-noir-800 disabled:opacity-50"
+                            >
+                              {revealBusy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                              {revealBusy ? "감사 기록 중" : "요청 키 1건 공개"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <code className="block break-all rounded-lg bg-white p-3 text-xs leading-6 text-charcoal">
+                              {revealedRequestKey.requestKey}
+                            </code>
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-xs text-taupe-500">
+                                공개 감사 시각 {formatDate(revealedRequestKey.revealedAt)} · 새로고침하면 다시 숨겨집니다.
+                              </p>
+                              <button
+                                type="button"
+                                disabled={busyKey !== null}
+                                onClick={() => setRevealedRequestKeys((current) => {
+                                  const next = { ...current };
+                                  delete next[revealStateKey];
+                                  return next;
+                                })}
+                                className="min-h-11 rounded-lg px-3 text-sm font-semibold text-taupe-600 hover:text-noir-800 disabled:opacity-50"
+                              >
+                                다시 숨기기
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl border border-platinum bg-ivory-50/60 p-4">
+                          <h3 className="text-sm font-semibold text-noir-800">요청 없음·청구 없음 확인</h3>
+                          <p className="mt-1 text-xs leading-5 text-taupe-600">
+                            대시보드와 지원팀 기록에서 호출·청구가 없다고 확인한 경우에만 선택하세요.
+                          </p>
+                          <button
+                            type="button"
+                            disabled={busyKey !== null || !revealedRequestKey}
+                            onClick={() => resolveProviderDeletionHandoff(item, "confirm_no_charge")}
+                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-noir-800 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                          >
+                            {noChargeBusy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                            {noChargeBusy ? "정산 기록 중" : "청구 없음으로 정산"}
+                          </button>
+                        </div>
+
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                          <h3 className="text-sm font-semibold text-amber-950">유료 호출 확인</h3>
+                          <p className="mt-1 text-xs leading-5 text-amber-900/80">
+                            OpenAI 기록과 정확히 일치하는 값만 입력하세요. 모델과 입력·출력 토큰은 필수이며, 캐시 사용량과 비용은 확인 가능한 경우에만 입력합니다.
+                          </p>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <label className="text-xs font-semibold text-charcoal sm:col-span-2" htmlFor={`deleted-provider-model-${item.verdictId}`}>
+                              OpenAI 모델명 <span className="text-rose-700">필수</span>
+                              <input
+                                id={`deleted-provider-model-${item.verdictId}`}
+                                type="text"
+                                autoComplete="off"
+                                spellCheck={false}
+                                maxLength={128}
+                                required
+                                value={draft.auditModel}
+                                onChange={(event) => updateDeletionDraft(item.verdictId, "auditModel", event.target.value)}
+                                disabled={busyKey !== null || !revealedRequestKey}
+                                placeholder="예: gpt-5.6-terra"
+                                className="mt-1 min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm font-normal text-charcoal disabled:opacity-50"
+                              />
+                            </label>
+                            {([
+                              ["inputTokens", "입력 토큰", true],
+                              ["outputTokens", "출력 토큰", true],
+                              ["cachedInputTokens", "캐시 입력 토큰", false],
+                              ["cacheWriteInputTokens", "캐시 쓰기 입력 토큰", false],
+                            ] as const).map(([field, label, required]) => (
+                              <label key={field} className="text-xs font-semibold text-charcoal" htmlFor={`deleted-provider-${field}-${item.verdictId}`}>
+                                {label} {required
+                                  ? <span className="text-rose-700">필수</span>
+                                  : <span className="font-normal text-taupe-500">선택</span>}
+                                <input
+                                  id={`deleted-provider-${field}-${item.verdictId}`}
+                                  type="text"
+                                  inputMode="numeric"
+                                  autoComplete="off"
+                                  required={required}
+                                  value={draft[field]}
+                                  onChange={(event) => updateDeletionDraft(item.verdictId, field, event.target.value)}
+                                  disabled={busyKey !== null || !revealedRequestKey}
+                                  placeholder="0~10,000,000"
+                                  className="mt-1 min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm font-normal text-charcoal disabled:opacity-50"
+                                />
+                              </label>
+                            ))}
+                            <label className="text-xs font-semibold text-charcoal sm:col-span-2" htmlFor={`deleted-provider-cost-${item.verdictId}`}>
+                              비용(USD) <span className="font-normal text-taupe-500">선택 · 소수점 6자리까지</span>
+                              <input
+                                id={`deleted-provider-cost-${item.verdictId}`}
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                value={draft.costUsd}
+                                onChange={(event) => updateDeletionDraft(item.verdictId, "costUsd", event.target.value)}
+                                disabled={busyKey !== null || !revealedRequestKey}
+                                placeholder="예: 0.004200"
+                                className="mt-1 min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm font-normal text-charcoal disabled:opacity-50"
+                              />
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busyKey !== null || !revealedRequestKey}
+                            onClick={() => resolveProviderDeletionHandoff(item, "record_paid")}
+                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-amber-800 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                          >
+                            {paidBusy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                            {paidBusy ? "유료 호출 기록 중" : "유료 호출로 기록"}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+
             <section aria-labelledby="court-provider-heading">
               <div className="flex items-end justify-between gap-4">
                 <div>
@@ -509,7 +929,7 @@ export default function CoupleCourtModerationPage() {
                     <ShieldAlert className="h-5 w-5 text-amber-700" aria-hidden="true" /> 제공사 결과 확인
                   </h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-taupe-500">
-                    응답 도착 여부를 알 수 없어 자동 재시도가 차단된 요청입니다. OpenAI 대시보드나 지원팀에서 아래 요청 키의 결과가 없거나 실패했다고 직접 확인한 경우에만 재시도를 허용하세요.
+                    응답 도착 여부를 알 수 없어 자동 재시도가 차단된 요청입니다. 요청 키는 목록에 포함되지 않으며, 한 건씩 감사 기록 후 공개됩니다. OpenAI 대시보드나 지원팀에서 결과가 없거나 실패했다고 직접 확인한 경우에만 재시도를 허용하세요.
                   </p>
                 </div>
                 <span className="rounded-full bg-amber-800 px-2.5 py-1 text-xs font-semibold text-white">
@@ -525,6 +945,9 @@ export default function CoupleCourtModerationPage() {
                 {queue?.providerReconciliations.map((item) => {
                   const key = `provider:${item.verdictId}`;
                   const busy = busyKey?.startsWith(key) === true;
+                  const revealBusy = busyKey === `${key}:reveal`;
+                  const revealStateKey = `live:${item.verdictId}`;
+                  const revealedRequestKey = revealedRequestKeys[revealStateKey];
                   const reason = reasons[key] ?? PROVIDER_REASON_OPTIONS[0][0];
                   return (
                     <article key={item.verdictId} className="rounded-2xl border border-amber-200 bg-white p-5 sm:p-6">
@@ -533,8 +956,53 @@ export default function CoupleCourtModerationPage() {
                         <span>시작 {formatDate(item.startedAt)}</span>
                         <span>실패 기록 {formatDate(item.failedAt)}</span>
                       </div>
-                      <p className="mt-4 text-sm font-semibold text-noir-800">제공사 요청 키</p>
-                      <code className="mt-2 block break-all rounded-xl bg-ivory-50 p-3 text-xs leading-6 text-charcoal">{item.requestKey}</code>
+                      <div className="mt-4 rounded-xl border border-platinum bg-ivory-50 p-4">
+                        <p className="text-sm font-semibold text-noir-800">OpenAI 요청 키 · 제한 공개</p>
+                        {!revealedRequestKey ? (
+                          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs leading-5 text-taupe-600">
+                              제공사 대조를 시작할 때 이 한 건만 감사 기록 후 공개하세요.
+                            </p>
+                            <button
+                              type="button"
+                              disabled={busyKey !== null}
+                              onClick={() => void revealProviderRequestKey({
+                                verdictId: item.verdictId,
+                                target: "provider_reconciliation_reveal",
+                                stateKey: revealStateKey,
+                                operationKey: `${key}:reveal`,
+                              })}
+                              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-noir-800 bg-white px-4 text-sm font-semibold text-noir-800 disabled:opacity-50"
+                            >
+                              {revealBusy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                              {revealBusy ? "감사 기록 중" : "요청 키 1건 공개"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <code className="block break-all rounded-lg bg-white p-3 text-xs leading-6 text-charcoal">
+                              {revealedRequestKey.requestKey}
+                            </code>
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-xs text-taupe-500">
+                                공개 감사 시각 {formatDate(revealedRequestKey.revealedAt)} · 새로고침하면 다시 숨겨집니다.
+                              </p>
+                              <button
+                                type="button"
+                                disabled={busyKey !== null}
+                                onClick={() => setRevealedRequestKeys((current) => {
+                                  const next = { ...current };
+                                  delete next[revealStateKey];
+                                  return next;
+                                })}
+                                className="min-h-11 rounded-lg px-3 text-sm font-semibold text-taupe-600 hover:text-noir-800 disabled:opacity-50"
+                              >
+                                다시 숨기기
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <p className="mt-3 text-xs text-taupe-500">내부 오류 코드: {item.errorCode ?? "없음"}</p>
                       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
                         <label htmlFor={`provider-reason-${item.verdictId}`} className="sr-only">제공사 확인 결과</label>
@@ -542,14 +1010,14 @@ export default function CoupleCourtModerationPage() {
                           id={`provider-reason-${item.verdictId}`}
                           value={reason}
                           onChange={(event) => updateReason(key, event.target.value)}
-                          disabled={busy}
+                          disabled={busy || !revealedRequestKey}
                           className="min-h-11 rounded-lg border border-platinum bg-white px-3 text-sm text-charcoal disabled:opacity-50"
                         >
                           {PROVIDER_REASON_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                         </select>
                         <button
                           type="button"
-                          disabled={busyKey !== null}
+                          disabled={busyKey !== null || !revealedRequestKey}
                           onClick={() => {
                             const confirmation = window.prompt(
                               `제공사 기록 확인을 마쳤다면 아래 문구를 정확히 입력하세요.\n\n${PROVIDER_RETRY_CONFIRMATION}`,

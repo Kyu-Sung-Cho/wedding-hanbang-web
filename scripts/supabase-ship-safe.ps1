@@ -13,10 +13,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$script:expectedDependencyFunctionCount = 54
-$script:expectedDependencyCronCount = 5
-$script:expectedClientDeniedTriggerFunctionCount = 12
-$script:expectedClientDeniedTriggerBindingCount = 13
+$script:expectedDependencyFunctionCount = 76
+$script:expectedDependencyCronCount = 7
+$script:expectedClientDeniedTriggerFunctionCount = 13
+$script:expectedClientDeniedTriggerBindingCount = 14
+$script:expectedCourtProviderTableStageCount = 5
+$script:expectedActiveAdminPolicyCount = 13
+$script:expectedActiveAdminPolicyAllowlistCount = 17
 $script:accountDeletionWorkerLeaseSeconds = 600
 $script:accountDeletionMaxInvocationSeconds = 120
 $script:accountDeletionWorkerDrainSeconds = [Math]::Max(
@@ -216,6 +219,14 @@ function Assert-PreflightDynamicSourceTopology {
     $forwardPending = -not [string]::IsNullOrWhiteSpace($forwardVersion) -and
       $forwardVersion -in $PendingVersions
     if ($forwardPending) {
+      if ($status.forward_requires_presence -eq $true -and
+        $status.present -ne $true) {
+        throw "Dependency function $($functionProperty.Name) is absent even though its pending migration renames or alters that exact source."
+      }
+      if ($status.forward_requires_presence -eq $true -and
+        $status.pre_forward_exact -ne $true) {
+        throw "Dependency function $($functionProperty.Name) does not match the exact reviewed source that its pending migration preserves."
+      }
       # CREATE OR REPLACE can repair source/search-path/ACL, but cannot change
       # result/argument contracts and preserves a drifted owner. Existing
       # functions must therefore be replaceable before a repair is attempted.
@@ -223,6 +234,10 @@ function Assert-PreflightDynamicSourceTopology {
         throw "Dependency function $($functionProperty.Name) cannot be safely replaced by its pending migration."
       }
     } elseif ($creatorPending) {
+      if ($status.creator_requires_absence -eq $true -and
+        $status.present -eq $true) {
+        throw "Dependency function $($functionProperty.Name) already exists before its non-idempotent creator or rename migration."
+      }
       # A creator migration is safe when the function is absent. If an object
       # already occupies that signature, require the complete reviewed contract
       # instead of allowing the creator to overwrite unexplained drift.
@@ -247,6 +262,10 @@ function Assert-PreflightDynamicSourceTopology {
     $status = $functionProperty.Value
     $creatorPending = [string]$status.creator_version -in $PendingVersions
     $forwardPending = [string]$status.forward_version -in $PendingVersions
+    if ($creatorPending -and $status.creator_requires_absence -eq $true -and
+      $status.present -eq $true) {
+      throw "Trigger function $($functionProperty.Name) already exists before its reviewed creator migration."
+    }
     if ($forwardPending) {
       if ($status.present -ne $true -and -not $creatorPending) {
         throw "Trigger function $($functionProperty.Name) is absent even though its creator migration is applied."
@@ -273,6 +292,10 @@ function Assert-PreflightDynamicSourceTopology {
     $status = $bindingProperty.Value
     $creatorPending = [string]$status.creator_version -in $PendingVersions
     $forwardPending = [string]$status.forward_version -in $PendingVersions
+    if ($creatorPending -and $status.creator_requires_absence -eq $true -and
+      $status.present -eq $true) {
+      throw "Trigger binding $($bindingProperty.Name) already exists before its non-idempotent creator migration."
+    }
     if ($forwardPending) {
       if (-not $creatorPending -and $status.existing_replaceable -ne $true) {
         throw "Trigger binding $($bindingProperty.Name) cannot be repaired because its table or function contract is absent."
@@ -296,6 +319,59 @@ function Assert-PreflightDynamicSourceTopology {
     $Preflight.dynamic_sources.amora_reset_read_policies_exact -ne $true
   ) {
     throw "Applied Amora reset read helper or policies drifted from the exact privacy-revocation contract."
+  }
+  $activeAdminPolicyStatuses =
+    $Preflight.dynamic_sources.active_admin_policy_status
+  if ($null -eq $activeAdminPolicyStatuses) {
+    throw "Production preflight omitted its active-admin policy contracts."
+  }
+  $activeAdminStatusProperties =
+    @($activeAdminPolicyStatuses.PSObject.Properties)
+  if ($activeAdminStatusProperties.Count -ne
+      $script:expectedActiveAdminPolicyCount) {
+    throw "Production preflight returned an incomplete active-admin policy catalog."
+  }
+  $activeAdminAllowlist =
+    $Preflight.dynamic_sources.active_admin_policy_allowlist_status
+  if ($null -eq $activeAdminAllowlist -or
+    [long]$activeAdminAllowlist.expected_count -ne
+      $script:expectedActiveAdminPolicyAllowlistCount -or
+    [long]$activeAdminAllowlist.actual_count -ne
+      $script:expectedActiveAdminPolicyAllowlistCount -or
+    [long]$activeAdminAllowlist.missing_count -ne 0 -or
+    [long]$activeAdminAllowlist.unexpected_count -ne 0 -or
+    $activeAdminAllowlist.exact -ne $true -or
+    $Preflight.dynamic_sources.active_admin_policy_allowlist_exact -ne $true) {
+    throw "Active-admin policy tables contain a missing or unmanaged policy."
+  }
+  $activeAdminBoundaryPending = "20260713110100" -in $PendingVersions
+  if ($activeAdminBoundaryPending) {
+    if ($Preflight.dynamic_sources.active_admin_policy_replacement_safe -ne
+      $true) {
+      throw "Active-admin policies cannot be safely replaced by pending migration 20260713110100."
+    }
+  } elseif ($Preflight.dynamic_sources.active_admin_policies_exact -ne $true) {
+    throw "Applied active-admin policies drifted from the exact account-deletion boundary."
+  }
+  $weddingCollectionRetirement =
+    $Preflight.dynamic_sources.wedding_code_collection_retirement_status
+  if ($null -eq $weddingCollectionRetirement) {
+    throw "Production preflight omitted the WeddingCode collection-retirement contract."
+  }
+  $weddingCollectionRetirementPending =
+    "20260714104000" -in $PendingVersions
+  $weddingTableCreatorPending = "20260705160000" -in $PendingVersions
+  if ($weddingCollectionRetirementPending) {
+    if ($weddingTableCreatorPending -and
+      $weddingCollectionRetirement.absent_exact -ne $true) {
+      throw "WeddingCode pre-creator boundary must have no response table or legacy RPC overloads."
+    }
+    if (-not $weddingTableCreatorPending -and
+      $weddingCollectionRetirement.table_present -ne $true) {
+      throw "WeddingCode collection retirement cannot run because its table creator is applied but the table is absent."
+    }
+  } elseif ($weddingCollectionRetirement.exact -ne $true) {
+    throw "WeddingCode collection boundary is neither fully absent nor exactly retired."
   }
   $privacyMinimumPending = "20260713100000" -in $PendingVersions
   foreach ($field in @(
@@ -332,6 +408,45 @@ function Assert-PreflightDynamicSourceTopology {
     } elseif ($status.exact -ne $true) {
       throw "Applied dependency cron $($cronProperty.Name) has drifted from its exact contract."
     }
+  }
+  $courtProviderStages =
+    $Preflight.dynamic_sources.court_provider_table_stage_status
+  if ($null -eq $courtProviderStages -or
+    @($courtProviderStages.PSObject.Properties).Count -ne
+      $script:expectedCourtProviderTableStageCount) {
+    throw "Production preflight omitted the complete Court provider table-stage contract."
+  }
+  $handoffCreatorPending = "20260714100000" -in $PendingVersions
+  $handoffOperationsPending = "20260714102000" -in $PendingVersions
+  $revealAuditPending = "20260714103000" -in $PendingVersions
+  if ($handoffCreatorPending) {
+    if ($courtProviderStages.handoff_1000.present -eq $true) {
+      throw "Court provider deletion handoff table already exists before its non-idempotent creator migration."
+    }
+  } elseif ($handoffOperationsPending) {
+    if ($courtProviderStages.handoff_1000.exact -ne $true) {
+      throw "Applied Court provider deletion handoff base table is not exact before its operations migration."
+    }
+  } elseif ($revealAuditPending) {
+    if ($courtProviderStages.handoff_1020.exact -ne $true) {
+      throw "Applied Court provider deletion handoff operations table is not exact before the request-key reveal audit migration."
+    }
+  } elseif ($courtProviderStages.handoff_1030.exact -ne $true) {
+    throw "Applied Court provider deletion handoff table has schema, RLS, policy, or ACL drift."
+  }
+  if ($handoffOperationsPending) {
+    if ($courtProviderStages.metrics_1020.present -eq $true) {
+      throw "Court provider deletion handoff metrics table already exists before its non-idempotent creator migration."
+    }
+  } elseif ($courtProviderStages.metrics_1020.exact -ne $true) {
+    throw "Applied Court provider deletion handoff metrics table has schema, RLS, or ACL drift."
+  }
+  if ($revealAuditPending) {
+    if ($courtProviderStages.reveal_audit_1030.present -eq $true) {
+      throw "Court provider request-key reveal audit table already exists before its non-idempotent creator migration."
+    }
+  } elseif ($courtProviderStages.reveal_audit_1030.exact -ne $true) {
+    throw "Applied Court provider request-key reveal audit table has schema, RLS, policy, or ACL drift."
   }
   $vendorLicenseObjectCount =
     [long]$Preflight.dynamic_sources.vendor_license_object_count
@@ -776,12 +891,32 @@ function Assert-PostDeployContract {
     [Parameter(Mandatory = $true)] [string]$ExpectedLatest
   )
 
+  $activeAdminPolicyStatuses = $Contract.active_admin_policy_status
+  $activeAdminAllowlist = $Contract.active_admin_policy_allowlist_status
+  if ($null -eq $activeAdminPolicyStatuses -or
+    @($activeAdminPolicyStatuses.PSObject.Properties).Count -ne
+      $script:expectedActiveAdminPolicyCount -or
+    $null -eq $activeAdminAllowlist -or
+    [long]$activeAdminAllowlist.expected_count -ne
+      $script:expectedActiveAdminPolicyAllowlistCount -or
+    [long]$activeAdminAllowlist.actual_count -ne
+      $script:expectedActiveAdminPolicyAllowlistCount -or
+    [long]$activeAdminAllowlist.missing_count -ne 0 -or
+    [long]$activeAdminAllowlist.unexpected_count -ne 0 -or
+    $activeAdminAllowlist.exact -ne $true) {
+    throw "Post-deploy active-admin policy inventory is incomplete or unmanaged."
+  }
+
   if (($Contract.latest_migration -ne $ExpectedLatest) -or
     ($Contract.all_functions_present -ne $true) -or
     ($Contract.all_client_denied_trigger_functions_exact -ne $true) -or
     ($Contract.all_client_denied_trigger_bindings_exact -ne $true) -or
+    ($Contract.wedding_code_collection_retirement_exact -ne $true) -or
+    ($Contract.court_provider_tables_exact -ne $true) -or
     ($Contract.amora_reset_read_helper_exact -ne $true) -or
     ($Contract.all_amora_reset_read_policies_exact -ne $true) -or
+    ($Contract.all_active_admin_policies_exact -ne $true) -or
+    ($Contract.active_admin_policy_allowlist_exact -ne $true) -or
     ($Contract.all_maintenance_crons_exact -ne $true) -or
     ($Contract.vendor_upload_insert_policies_absent -ne $true) -or
     ($Contract.unproven_vendor_upload_objects_absent -ne $true) -or
@@ -939,6 +1074,9 @@ if ([string]::IsNullOrWhiteSpace($ExpectedProjectRef)) {
   throw "-ExpectedProjectRef is required."
 }
 
+# PROVISIONAL_ACTIVE_ADMIN_POLICY_CANONICAL remains unverified until a
+# disposable PostgreSQL 15 apply captures pg_policies.qual/with_check. This
+# existing pre-credential hard stop must not be removed as part of that check.
 throw "Remote migration execution is disabled before any credential prompt until a provider-side lease, exact-target connection, filter-free worktree attestation, and reviewed PowerShell module boundary are verified."
 
 $injectedEntrypointRoot = $ExecutionContext.SessionState.PSVariable.GetValue(

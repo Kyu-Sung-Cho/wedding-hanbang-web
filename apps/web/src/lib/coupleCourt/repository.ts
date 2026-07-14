@@ -67,11 +67,48 @@ export interface CourtProviderUsage {
   cachedInputTokens: number | null;
 }
 
+export interface CourtProviderSettlementResult extends UnknownRow {
+  verdict_id: string;
+  provider_state: "result_staged" | "failed_invalid";
+  provider_audit_state: "pending" | "audited";
+  subject_deleted: boolean;
+}
+
+export interface CourtHighRiskProviderSettlementResult extends CourtProviderSettlementResult {
+  provider_state: "failed_invalid";
+  request_key: string;
+  safety_level: "high_risk";
+  safety_categories: string[];
+}
+
+export interface CourtProviderAuditFinalizationResult extends UnknownRow {
+  verdict_id: string;
+  provider_state: "result_staged" | "failed_invalid";
+  provider_audit_state: "audited";
+  subject_deleted: boolean;
+}
+
 export interface CourtVerdictHistoryItem {
   generationVersion: number;
   status: "ready" | "superseded";
   completedAt: string | null;
   supersededAt: string | null;
+}
+
+export interface CourtKeysetCursor {
+  at: string;
+  id: string;
+}
+
+export interface CourtKeysetPage<T> {
+  items: T[];
+  nextCursor: CourtKeysetCursor | null;
+}
+
+export interface CourtVerdictPollingStatus {
+  status: "ready" | "judging" | "not_ready" | "safety_redirect";
+  retryAfterSeconds?: number;
+  recoveryAllowed?: boolean;
 }
 
 const CASE_FIELDS = [
@@ -96,12 +133,14 @@ const STATEMENT_FIELDS = [
   "id",
   "case_id",
   "participant_id",
+  "submission_request_id",
   "revision",
   "facts",
   "feelings",
   "expectations",
   "attempts",
   "desired_agreement",
+  "submitted_safety_level",
   "submitted_at",
   "created_at",
 ].join(",");
@@ -152,6 +191,28 @@ function integerField(row: UnknownRow | null, key: string): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
 }
 
+function courtVerdictRecoveryState(row: UnknownRow | null): {
+  retryAfterSeconds: number;
+  recoveryAllowed: boolean;
+} {
+  const leaseExpiresAt = stringField(row, "lease_expires_at");
+  if (!leaseExpiresAt) {
+    return { retryAfterSeconds: 1, recoveryAllowed: true };
+  }
+  const remainingMs = Date.parse(leaseExpiresAt) - Date.now();
+  if (!Number.isFinite(remainingMs)) {
+    // A malformed lease must never authorize an automatic mutation.
+    return { retryAfterSeconds: 5, recoveryAllowed: false };
+  }
+  if (remainingMs <= 0) {
+    return { retryAfterSeconds: 1, recoveryAllowed: true };
+  }
+  return {
+    retryAfterSeconds: Math.min(300, Math.max(1, Math.ceil(remainingMs / 1_000) + 1)),
+    recoveryAllowed: false,
+  };
+}
+
 function providerUsage(value: unknown): CourtProviderUsage | null {
   const row = asRow(value);
   if (!row) return null;
@@ -180,6 +241,17 @@ function providerUsage(value: unknown): CourtProviderUsage | null {
     return null;
   }
   return { inputTokens, outputTokens, cacheWriteInputTokens, cachedInputTokens };
+}
+
+function providerAuditState(value: unknown): "pending" | "audited" | null {
+  return value === "pending" || value === "audited" ? value : null;
+}
+
+function invalidProviderRpcResult(): never {
+  repositoryError({
+    code: "invalid_rpc_result",
+    message: "court provider RPC returned an invalid contract",
+  });
 }
 
 /**
@@ -213,12 +285,17 @@ function publicParticipant(row: UnknownRow): UnknownRow {
 
 function publicOwnStatement(row: UnknownRow): UnknownRow {
   return {
+    // Returned only inside the authenticated viewer's own statement envelope.
+    // It lets the client prove an exact lost-ACK replay without exposing the
+    // other participant, case, or statement identifiers.
+    submission_request_id: row.submission_request_id,
     revision: row.revision,
     facts: row.facts,
     feelings: row.feelings,
     expectations: row.expectations,
     attempts: row.attempts,
     desired_agreement: row.desired_agreement,
+    submitted_safety_level: row.submitted_safety_level,
     submitted_at: row.submitted_at,
     created_at: row.created_at,
   };
@@ -280,6 +357,13 @@ function repositoryError(error: unknown): never {
       503,
       "COURT_PROVIDER_RESULT_UNKNOWN",
       "이전 판결 요청의 처리 결과를 운영팀이 확인하고 있어요. 비용 중복을 막기 위해 자동 재요청하지 않습니다.",
+    );
+  }
+  if (/court_comment_submission_request_mismatch/i.test(message)) {
+    throw new CourtApiError(
+      409,
+      "COURT_COMMENT_REQUEST_CONFLICT",
+      "같은 댓글 작성 요청으로 다른 내용을 보낼 수 없어요.",
     );
   }
   if (code === "55000") {
@@ -399,38 +483,36 @@ async function participantForUser(
   return participant;
 }
 
-export async function listCourtCasesForUser(userId: string): Promise<UnknownRow[]> {
+export async function listCourtCasesForUser(
+  userId: string,
+  limit: number,
+  before: CourtKeysetCursor | null = null,
+): Promise<CourtKeysetPage<UnknownRow>> {
   const admin = createAdminClient();
-  const { data: participantRows, error: participantError } = await admin
-    .from("court_participants")
-    .select("case_id,role,participation_status")
-    .eq("user_id", userId)
-    .eq("participation_status", "active");
-  if (participantError) repositoryError(participantError);
-
-  const participants = (participantRows ?? []) as UnknownRow[];
-  const ids = participants
-    .map((row) => stringField(row, "case_id"))
-    .filter((value): value is string => Boolean(value));
-  if (ids.length === 0) return [];
-
-  const roleByCase = new Map(
-    participants.map((row) => [stringField(row, "case_id"), stringField(row, "role")]),
-  );
-  const { data, error } = await admin
-    .from("court_cases")
-    .select(CASE_FIELDS)
-    .in("id", ids)
-    .neq("workflow_status", "archived")
-    .order("updated_at", { ascending: false })
-    .limit(50);
+  const { data, error } = await admin.rpc("list_court_cases_for_user", {
+    p_user_id: userId,
+    p_before_updated_at: before?.at ?? null,
+    p_before_id: before?.id ?? null,
+    p_limit: limit,
+  });
   if (error) repositoryError(error);
-
-  return ((data ?? []) as unknown as UnknownRow[]).map((row) => ({
-    ...publicCourtCase(row),
-    status: stringField(row, "workflow_status"),
-    my_role: roleByCase.get(stringField(row, "id")) ?? null,
-  }));
+  const rows = (data ?? []) as unknown as UnknownRow[];
+  const pageRows = rows.slice(0, limit);
+  const last = pageRows.at(-1) ?? null;
+  const nextCursor = rows.length > limit
+    ? { at: stringField(last, "updated_at"), id: stringField(last, "id") }
+    : null;
+  if (nextCursor && (!nextCursor.at || !nextCursor.id)) {
+    repositoryError({ code: "invalid_court_case_page" });
+  }
+  return {
+    items: pageRows.map((row) => ({
+      ...publicCourtCase(row),
+      status: stringField(row, "workflow_status"),
+      my_role: stringField(row, "my_role"),
+    })),
+    nextCursor: nextCursor as CourtKeysetCursor | null,
+  };
 }
 
 export async function createCourtCaseForUser(
@@ -601,6 +683,22 @@ export async function getCourtCaseForUser(
   if (publicError && !["42P01", "PGRST205"].includes(publicError.code ?? "")) {
     repositoryError(publicError);
   }
+  const publicPost = firstRow(publicData);
+  let viewerPublicConsented = false;
+  const publicPostId = stringField(publicPost, "id");
+  const publicSnapshotHash = stringField(publicPost, "snapshot_hash");
+  if (participantId && publicPostId && publicSnapshotHash) {
+    const { data: viewerConsentData, error: viewerConsentError } = await admin
+      .from("court_public_consents")
+      .select("id")
+      .eq("public_post_id", publicPostId)
+      .eq("participant_id", participantId)
+      .eq("snapshot_hash", publicSnapshotHash)
+      .is("revoked_at", null)
+      .limit(1);
+    if (viewerConsentError) repositoryError(viewerConsentError);
+    viewerPublicConsented = firstRow(viewerConsentData) !== null;
+  }
 
   const normalizedCase = {
     ...publicCourtCase(courtCase),
@@ -640,7 +738,9 @@ export async function getCourtCaseForUser(
           created_at: invite.created_at,
         }
       : null,
-    publicPost: firstRow(publicData),
+    publicPost: publicPost
+      ? { ...publicPost, viewer_consented: viewerPublicConsented }
+      : null,
     followup,
   };
 }
@@ -728,11 +828,66 @@ export async function getCourtVerdictRecoveryDelaySeconds(
     .order("started_at", { ascending: false })
     .limit(1);
   if (error) repositoryError(error);
-  const leaseExpiresAt = stringField(firstRow(data), "lease_expires_at");
-  if (!leaseExpiresAt) return 1;
-  const remainingMs = Date.parse(leaseExpiresAt) - Date.now();
-  if (!Number.isFinite(remainingMs)) return 1;
-  return Math.min(300, Math.max(1, Math.ceil(remainingMs / 1_000) + 1));
+  return courtVerdictRecoveryState(firstRow(data)).retryAfterSeconds;
+}
+
+/**
+ * Minimal polling projection. It deliberately avoids statements, verdict
+ * payloads, missions, public posts and history until the result is ready.
+ */
+export async function getCourtVerdictStatusForUser(
+  caseId: string,
+  userId: string,
+): Promise<CourtVerdictPollingStatus> {
+  const admin = createAdminClient();
+  await participantForUser(admin, caseId, userId);
+
+  const { data: caseData, error: caseError } = await admin
+    .from("court_cases")
+    .select("workflow_status,safety_level")
+    .eq("id", caseId)
+    .maybeSingle();
+  if (caseError) repositoryError(caseError);
+  const courtCase = asRow(caseData);
+  if (!courtCase) {
+    throw new CourtApiError(404, "COURT_NOT_FOUND", "사건을 찾을 수 없어요.");
+  }
+  if (stringField(courtCase, "safety_level") === "high_risk") {
+    return { status: "safety_redirect" };
+  }
+
+  const workflowStatus = stringField(courtCase, "workflow_status");
+  if (workflowStatus && ["verdict_ready", "mission_active", "resolved"].includes(workflowStatus)) {
+    return { status: "ready" };
+  }
+  if (workflowStatus === "archived") {
+    const { data: archivedVerdictData, error: archivedVerdictError } = await admin
+      .from("court_verdicts")
+      .select("id")
+      .eq("case_id", caseId)
+      .eq("generation_status", "ready")
+      .limit(1);
+    if (archivedVerdictError) repositoryError(archivedVerdictError);
+    return { status: firstRow(archivedVerdictData) ? "ready" : "not_ready" };
+  }
+  if (workflowStatus !== "judging") {
+    return { status: "not_ready" };
+  }
+
+  const { data: verdictData, error: verdictError } = await admin
+    .from("court_verdicts")
+    .select("lease_expires_at")
+    .eq("case_id", caseId)
+    .eq("generation_status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (verdictError) repositoryError(verdictError);
+  const recovery = courtVerdictRecoveryState(firstRow(verdictData));
+  return {
+    status: "judging",
+    retryAfterSeconds: recovery.retryAfterSeconds,
+    recoveryAllowed: recovery.recoveryAllowed,
+  };
 }
 
 /** Metadata-only history. Previous model text is intentionally not exposed. */
@@ -1106,7 +1261,7 @@ export async function stageCourtVerdictProviderResultForUser(options: {
     cache_write_input_tokens: number;
     cached_input_tokens: number;
   };
-}): Promise<UnknownRow> {
+}): Promise<CourtProviderSettlementResult> {
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("stage_court_verdict_provider_result", {
     p_verdict_id: options.verdictId,
@@ -1123,7 +1278,81 @@ export async function stageCourtVerdictProviderResultForUser(options: {
     p_cached_input_tokens: options.usage?.cached_input_tokens ?? null,
   });
   if (error) repositoryError(error);
-  return firstRow(data) ?? {};
+  const row = firstRow(data);
+  const auditState = providerAuditState(row?.provider_audit_state);
+  if (
+    !row
+    || row.verdict_id !== options.verdictId
+    || row.provider_state !== "result_staged"
+    || !auditState
+  ) invalidProviderRpcResult();
+  return {
+    ...row,
+    verdict_id: options.verdictId,
+    provider_state: "result_staged",
+    provider_audit_state: auditState,
+    // A successful staging row can exist only while its parent case graph is
+    // locked and live. The forward deletion wrapper starts at settlement.
+    subject_deleted: false,
+  };
+}
+
+/**
+ * Persists only the billable response's audit envelope when the validated
+ * private payload could not be staged. The SQL fence terminalizes the verdict
+ * and blocks another paid call until audit recovery and admin reconciliation.
+ */
+export async function settleCourtUnstagedProviderResult(options: {
+  verdictId: string;
+  leaseToken: string;
+  inputHash: string;
+  requestKey: string;
+  auditModel: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_write_input_tokens: number;
+    cached_input_tokens: number;
+  };
+}): Promise<CourtProviderSettlementResult> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("settle_court_unstaged_provider_result", {
+    p_verdict_id: options.verdictId,
+    p_lease_token: options.leaseToken,
+    p_input_hash: options.inputHash,
+    p_request_key: options.requestKey,
+    p_audit_model: options.auditModel,
+    p_input_tokens: options.usage?.input_tokens ?? null,
+    p_output_tokens: options.usage?.output_tokens ?? null,
+    p_cached_input_tokens: options.usage?.cached_input_tokens ?? null,
+    p_cache_write_input_tokens: options.usage?.cache_write_input_tokens ?? null,
+  });
+  if (error) repositoryError(error);
+  const row = firstRow(data);
+  const auditState = providerAuditState(row?.provider_audit_state);
+  const providerState = row?.provider_state;
+  const errorCode = row?.provider_error_code;
+  const subjectDeleted = row?.subject_deleted;
+  if (
+    !row
+    || row.verdict_id !== options.verdictId
+    || (providerState !== "result_staged" && providerState !== "failed_invalid")
+    || !auditState
+    || typeof subjectDeleted !== "boolean"
+    || (providerState === "failed_invalid" && ![
+      "provider_result_unstaged",
+      "safety_high_risk",
+      "safety_level_changed",
+      "court_archived",
+    ].includes(typeof errorCode === "string" ? errorCode : ""))
+  ) invalidProviderRpcResult();
+  return {
+    ...row,
+    verdict_id: options.verdictId,
+    provider_state: providerState,
+    provider_audit_state: auditState,
+    subject_deleted: subjectDeleted,
+  };
 }
 
 /**
@@ -1144,7 +1373,7 @@ export async function settleCourtHighRiskProviderResultForUser(options: {
     cache_write_input_tokens: number;
     cached_input_tokens: number;
   };
-}): Promise<UnknownRow> {
+}): Promise<CourtHighRiskProviderSettlementResult> {
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("settle_court_high_risk_provider_result", {
     p_verdict_id: options.verdictId,
@@ -1160,7 +1389,34 @@ export async function settleCourtHighRiskProviderResultForUser(options: {
     p_cache_write_input_tokens: options.usage?.cache_write_input_tokens ?? null,
   });
   if (error) repositoryError(error);
-  return firstRow(data) ?? {};
+  const row = firstRow(data);
+  const auditState = providerAuditState(row?.provider_audit_state);
+  const categories = Array.isArray(row?.safety_categories)
+    && row.safety_categories.every((category) => typeof category === "string")
+    ? row.safety_categories as string[]
+    : null;
+  const subjectDeleted = row?.subject_deleted;
+  if (
+    !row
+    || row.verdict_id !== options.verdictId
+    || row.request_key !== options.requestKey
+    || row.provider_state !== "failed_invalid"
+    || !auditState
+    || typeof subjectDeleted !== "boolean"
+    || row.safety_level !== "high_risk"
+    || !categories
+    || !options.categories.every((category) => categories.includes(category))
+  ) invalidProviderRpcResult();
+  return {
+    ...row,
+    verdict_id: options.verdictId,
+    request_key: options.requestKey,
+    provider_state: "failed_invalid",
+    provider_audit_state: auditState,
+    safety_level: "high_risk",
+    safety_categories: categories,
+    subject_deleted: subjectDeleted,
+  };
 }
 
 /**
@@ -1170,14 +1426,30 @@ export async function settleCourtHighRiskProviderResultForUser(options: {
 export async function finalizeCourtProviderAudit(options: {
   verdictId: string;
   requestKey: string;
-}): Promise<UnknownRow> {
+}): Promise<CourtProviderAuditFinalizationResult> {
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("finalize_court_provider_audit", {
     p_verdict_id: options.verdictId,
     p_request_key: options.requestKey,
   });
   if (error) repositoryError(error);
-  return firstRow(data) ?? {};
+  const row = firstRow(data);
+  const providerState = row?.provider_state;
+  const subjectDeleted = row?.subject_deleted;
+  if (
+    !row
+    || row.verdict_id !== options.verdictId
+    || (providerState !== "result_staged" && providerState !== "failed_invalid")
+    || row.provider_audit_state !== "audited"
+    || typeof subjectDeleted !== "boolean"
+  ) invalidProviderRpcResult();
+  return {
+    ...row,
+    verdict_id: options.verdictId,
+    provider_state: providerState,
+    provider_audit_state: "audited",
+    subject_deleted: subjectDeleted,
+  };
 }
 
 export async function completeCourtVerdictForUser(options: {
@@ -1519,21 +1791,35 @@ export async function castCourtPublicVoteForUser(options: {
 export async function listCourtPublicComments(
   publicPostId: string,
   limit: number,
-): Promise<UnknownRow[]> {
+  before: CourtKeysetCursor | null = null,
+): Promise<CourtKeysetPage<UnknownRow>> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("court_public_comment_feed")
-    .select("id,public_post_id,comment_type,body,created_at,updated_at")
-    .eq("public_post_id", publicPostId)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const { data, error } = await admin.rpc("list_court_public_comments", {
+    p_public_post_id: publicPostId,
+    p_before_visible_at: before?.at ?? null,
+    p_before_id: before?.id ?? null,
+    p_limit: limit,
+  });
   if (error) repositoryError(error);
-  return (data ?? []) as UnknownRow[];
+  const rows = (data ?? []) as unknown as UnknownRow[];
+  const descendingRows = rows.slice(0, limit);
+  const last = descendingRows.at(-1) ?? null;
+  const nextCursor = rows.length > limit
+    ? { at: stringField(last, "visible_at"), id: stringField(last, "id") }
+    : null;
+  if (nextCursor && (!nextCursor.at || !nextCursor.id)) {
+    repositoryError({ code: "invalid_court_comment_page" });
+  }
+  return {
+    items: descendingRows.reverse(),
+    nextCursor: nextCursor as CourtKeysetCursor | null,
+  };
 }
 
 export async function createCourtPublicCommentForUser(options: {
   publicPostId: string;
   userId: string;
+  submissionRequestId: string;
   commentType: string;
   body: string;
 }): Promise<UnknownRow> {
@@ -1541,6 +1827,26 @@ export async function createCourtPublicCommentForUser(options: {
   const { data, error } = await admin.rpc("create_court_public_comment", {
     p_public_post_id: options.publicPostId,
     p_user_id: options.userId,
+    p_submission_request_id: options.submissionRequestId,
+    p_comment_type: options.commentType,
+    p_body: options.body,
+  });
+  if (error) repositoryError(error);
+  return firstRow(data) ?? {};
+}
+
+export async function replayCourtPublicCommentForUser(options: {
+  publicPostId: string;
+  userId: string;
+  submissionRequestId: string;
+  commentType: string;
+  body: string;
+}): Promise<UnknownRow> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("replay_court_public_comment", {
+    p_public_post_id: options.publicPostId,
+    p_user_id: options.userId,
+    p_submission_request_id: options.submissionRequestId,
     p_comment_type: options.commentType,
     p_body: options.body,
   });

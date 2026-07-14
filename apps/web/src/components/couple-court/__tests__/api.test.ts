@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { archiveCase, cancelInvite, createInvite, createPublicComment, createPublicPreview, deleteCase, getVerdict, listPublicCases, normalizeCase, normalizePublicCase, normalizeVerdict, setPublicConsent } from "../api";
+import { archiveCase, cancelInvite, createInvite, createPublicComment, createPublicPreview, deleteCase, getVerdict, getVerdictStatus, listPublicCases, normalizeCase, normalizePublicCase, normalizeVerdict, setPublicConsent, submitStatement } from "../api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -63,6 +63,7 @@ describe("couple court client contract", () => {
       publicPost: {
         id: "post-1",
         status: "awaiting_consents",
+        viewer_consented: true,
         snapshot_hash: "same-hash-for-both-participants",
         snapshot_version: 3,
         sanitized_snapshot_json: {
@@ -89,6 +90,7 @@ describe("couple court client contract", () => {
         provisional: false,
       },
     });
+    expect(result.publicViewerConsented).toBe(true);
   });
 
   it("never enables judgment for a high-risk projected case", () => {
@@ -286,13 +288,16 @@ describe("couple court client contract", () => {
   });
 
   it("cancels an issued invite through a same-origin mutation", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ invite: { revoked: true } }), {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ invite: { revoked: true, status: "revoked" } }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await cancelInvite("case-1");
+    await expect(cancelInvite("case-1")).resolves.toEqual({
+      revoked: true,
+      status: "revoked",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/couple-court/cases/case-1/invite", expect.objectContaining({
       method: "DELETE",
@@ -301,12 +306,72 @@ describe("couple court client contract", () => {
   });
 
   it("returns pending comment moderation instead of pretending it is already visible", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      comment: {
+        comment_id: "00000000-0000-4000-8000-000000000001",
+        moderation_status: "pending",
+        reused: false,
+      },
+    }), { status: 201, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createPublicComment(
+      "post-1",
+      "empathy",
+      "따뜻한 공감입니다.",
+      "00000000-0000-4000-8000-000000000002",
+    )).resolves.toEqual({
+      commentId: "00000000-0000-4000-8000-000000000001",
+      moderationStatus: "pending",
+      reused: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/couple-court/public/post-1/comments",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          commentType: "empathy",
+          body: "따뜻한 공감입니다.",
+          submissionRequestId: "00000000-0000-4000-8000-000000000002",
+        }),
+      }),
+    );
+  });
+
+  it("surfaces an acknowledged replay without changing the comment identity", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      comment: { id: "comment-1", moderation_status: "pending" },
+      comment: {
+        comment_id: "00000000-0000-4000-8000-000000000001",
+        moderation_status: "pending",
+        reused: true,
+      },
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    await expect(createPublicComment(
+      "post-1",
+      "question",
+      "같은 요청을 재시도합니다.",
+      "00000000-0000-4000-8000-000000000002",
+    )).resolves.toEqual({
+      commentId: "00000000-0000-4000-8000-000000000001",
+      moderationStatus: "pending",
+      reused: true,
+    });
+  });
+
+  it("rejects a malformed 2xx comment acknowledgement so the draft can be retried", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      comment: { moderation_status: "pending" },
     }), { status: 201, headers: { "Content-Type": "application/json" } })));
 
-    await expect(createPublicComment("post-1", "empathy", "따뜻한 공감입니다.")).resolves.toEqual({
-      moderationStatus: "pending",
+    await expect(createPublicComment(
+      "post-1",
+      "empathy",
+      "응답 계약이 없으면 성공으로 처리하지 않습니다.",
+      "00000000-0000-4000-8000-000000000002",
+    )).rejects.toMatchObject({
+      status: 502,
+      code: "court_comment_result_invalid",
     });
   });
 
@@ -319,6 +384,66 @@ describe("couple court client contract", () => {
     await expect(getVerdict("case-1")).rejects.toMatchObject({
       status: 409,
       code: "court_safety_redirect",
+    });
+  });
+
+  it("uses the status endpoint Retry-After header and forwards cancellation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: "judging",
+      retry_after_seconds: 2,
+      recovery_allowed: false,
+    }), {
+      status: 202,
+      headers: { "Content-Type": "application/json", "Retry-After": "13" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await expect(getVerdictStatus("case-1", controller.signal)).resolves.toEqual({
+      status: "judging",
+      retryAfterSeconds: 13,
+      recoveryAllowed: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/couple-court/cases/case-1/verdict/status",
+      expect.objectContaining({ signal: controller.signal, cache: "no-store" }),
+    );
+  });
+
+  it("fails closed when the status projection is malformed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: "almost_ready",
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    await expect(getVerdictStatus("case-1")).rejects.toMatchObject({
+      status: 502,
+      code: "verdict_status_invalid",
+    });
+  });
+
+  it("preserves the server safety outcome from a successful statement submission", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      safety: {
+        level: "high_risk",
+        categories: ["violence", 123],
+        requires_immediate_help: true,
+        resource_message: "안전한 장소에서 도움을 요청해 주세요.",
+      },
+    }), { status: 201, headers: { "Content-Type": "application/json" } })));
+
+    await expect(submitStatement("case-1", {
+      facts: "사실",
+      feelings: "감정",
+      expectations: "기대",
+      attempts: "시도",
+      desiredAgreement: "합의",
+    })).resolves.toEqual({
+      safety: {
+        level: "high_risk",
+        categories: ["violence"],
+        requiresImmediateHelp: true,
+        resourceMessage: "안전한 장소에서 도움을 요청해 주세요.",
+      },
     });
   });
 });

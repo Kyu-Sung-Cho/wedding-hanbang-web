@@ -102,12 +102,32 @@ export async function POST(request: Request, context: RouteContext) {
       snapshotHash,
       snapshotVersion,
     });
+    const persistedPostId = typeof publicPost.public_post_id === "string"
+      ? publicPost.public_post_id
+      : typeof publicPost.id === "string" ? publicPost.id : null;
+    const persistedHash = typeof publicPost.snapshot_hash === "string"
+      ? publicPost.snapshot_hash
+      : null;
+    const persistedVersion = publicPost.snapshot_version;
+    if (
+      !persistedPostId
+      || persistedHash !== snapshotHash
+      || typeof persistedVersion !== "number"
+      || !Number.isSafeInteger(persistedVersion)
+      || persistedVersion < 1
+    ) {
+      throw new CourtApiError(
+        500,
+        "COURT_PUBLIC_SNAPSHOT_CONTRACT_INVALID",
+        "공개 미리보기 저장 상태를 안전하게 확인하지 못했어요.",
+      );
+    }
     return noStoreJson({
       public_post: publicPost,
       snapshot,
       snapshot_hash: snapshotHash,
-      snapshot_version: snapshotVersion,
-    }, { status: 201 });
+      snapshot_version: persistedVersion,
+    }, { status: publicPost.reused === true ? 200 : 201 });
   } catch (error) {
     return courtErrorResponse(error);
   }

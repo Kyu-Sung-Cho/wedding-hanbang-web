@@ -37,11 +37,11 @@ export async function verifyAdmin(request: Request): Promise<{ authorized: boole
     const serviceClient = getServiceClient();
     const { data: profile } = await serviceClient
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin, account_deleting_at")
       .eq("id", user.id)
       .single();
 
-    if (profile?.is_admin === true) {
+    if (profile?.is_admin === true && profile.account_deleting_at === null) {
       return { authorized: true, userId: user.id };
     }
   } catch {

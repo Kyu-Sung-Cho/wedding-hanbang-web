@@ -1,7 +1,4 @@
-import {
-  getCourtPublicPost,
-  listCourtPublicComments,
-} from "@/lib/coupleCourt/repository";
+import { getCourtPublicPost } from "@/lib/coupleCourt/repository";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isUuid } from "@/utils/requestValidation";
 import {
@@ -32,10 +29,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (!post) {
       throw new CourtApiError(404, "COURT_PUBLIC_NOT_FOUND", "공개 사건을 찾을 수 없어요.");
     }
-    const comments = post.comments_enabled === true
-      ? await listCourtPublicComments(postId, 80)
-      : [];
-    return noStoreJson({ post, comments });
+    return noStoreJson({ post });
   } catch (error) {
     return courtErrorResponse(error);
   }

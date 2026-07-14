@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 -- Vendor uploads have no proven account-deletion ownership or retention model.
 -- Freeze Storage writes before inspecting the legacy surface so no upload can
@@ -175,5 +174,3 @@ BEGIN
   END IF;
 END;
 $$;
-
-COMMIT;

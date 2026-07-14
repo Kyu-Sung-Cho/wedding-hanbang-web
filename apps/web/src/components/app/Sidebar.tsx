@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   Banknote,
   BarChart3,
@@ -12,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  Scale,
   Settings,
   Wallet,
   X,
@@ -22,11 +24,16 @@ import { useAuthStore } from "@/stores/authStore";
 import { parseLocalDateOnly } from "@hanbang/shared";
 
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isCoupleCourtEnabled =
+  process.env.NEXT_PUBLIC_COUPLE_COURT_ENABLED === "true";
 const hiddenInComingSoon = ["/money"];
 
 const menuItems = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
+  ...(isCoupleCourtEnabled
+    ? [{ legacyPath: "/couple-court", icon: Scale, label: "커플재판소" }]
+    : []),
   { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
@@ -37,12 +44,22 @@ const menuItems = [
   { legacyPath: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));
 
+export function isSidebarItemActive(currentPath: string, itemPath: string) {
+  return (
+    currentPath === itemPath ||
+    (itemPath !== "/lounge" && currentPath.startsWith(`${itemPath}/`))
+  );
+}
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const [isDesktop, setIsDesktop] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const currentPath = stripWeddingBasePath(pathname);
   const { profile, journey, signOut } = useAuthStore();
@@ -56,21 +73,89 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         day: "2-digit",
       })
     : "예식일 미정";
+  const isInteractive = isOpen || isDesktop;
+  const isMobileModalOpen = isOpen && !isDesktop;
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileModalOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !sidebarRef.current) return;
+
+      const focusable = Array.from(
+        sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isMobileModalOpen, onClose]);
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-40 bg-[#061a34]/35 backdrop-blur-sm md:hidden" onClick={onClose} />}
+      {isOpen && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-40 bg-[#061a34]/35 backdrop-blur-sm md:hidden"
+          onClick={onClose}
+        />
+      )}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[#eadfc9] bg-[#fffdf7] shadow-[0_14px_38px_rgba(8,22,38,0.06)] transition-transform duration-300 ${
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        ref={sidebarRef}
+        aria-hidden={isInteractive ? undefined : true}
+        aria-label="주 메뉴"
+        aria-modal={isMobileModalOpen || undefined}
+        inert={isInteractive ? undefined : true}
+        role={isDesktop ? undefined : "dialog"}
+        className={`fixed left-0 top-0 z-50 flex h-dvh w-[16rem] flex-col border-r border-[#eadfc9] bg-[#fffdf7] shadow-[0_14px_38px_rgba(8,22,38,0.06)] transition-[transform,visibility] duration-300 ${
+          isOpen
+            ? "visible translate-x-0 pointer-events-auto"
+            : "invisible -translate-x-full pointer-events-none md:visible md:translate-x-0 md:pointer-events-auto"
         }`}
       >
         <div className="flex h-[72px] items-center justify-between px-5">
-          <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+          <Link {...weddingLinkProps()} onClick={onClose} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
             <Logo size="md" />
           </Link>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#5d6879] md:hidden"
@@ -83,12 +168,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
-              const isActive = currentPath === item.legacyPath || (item.legacyPath !== "/lounge" && currentPath.startsWith(item.legacyPath));
+              const isActive = isSidebarItemActive(currentPath, item.legacyPath);
               return (
                 <Link
                   key={item.legacyPath}
                   {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
+                  aria-current={isActive ? "page" : undefined}
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${
                     isActive

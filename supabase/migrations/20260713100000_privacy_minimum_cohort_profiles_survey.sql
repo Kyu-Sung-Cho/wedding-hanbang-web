@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '120s';
+SET lock_timeout = '5s';
+SET statement_timeout = '120s';
 
 -- Privacy minimums for shared community data. Raw cohort quotes remain
 -- owner-only, price aggregates require five different people, public profile
@@ -451,5 +450,3 @@ COMMENT ON COLUMN public.customer_survey_responses.q23_contact IS
   'Deprecated compatibility column. The database always stores NULL.';
 COMMENT ON COLUMN public.customer_survey_responses.user_agent IS
   'Deprecated compatibility column. The database always stores NULL.';
-
-COMMIT;

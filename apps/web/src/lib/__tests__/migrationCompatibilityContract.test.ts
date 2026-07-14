@@ -205,9 +205,8 @@ describe("expand-only mobile migration contract", () => {
   });
 
 
-  it("owns transaction boundaries for migrations with gates, locks, or destructive DDL", () => {
+  it("leaves pending migration atomicity to the Supabase CLI batch", () => {
     const atomicMigrations = [
-      legacyCoreBaseline,
       retiredInvitationMigration,
       amoraMigration,
       accountDeletionQueueMigration,
@@ -230,16 +229,20 @@ describe("expand-only mobile migration contract", () => {
     ];
 
     for (const migration of atomicMigrations) {
-      expect(migration.trimStart().startsWith("BEGIN;")).toBe(true);
-      expect(migration.trimEnd().endsWith("COMMIT;")).toBe(true);
-      expect(migration.match(/^BEGIN;$/gm)).toHaveLength(1);
-      expect(migration.match(/^COMMIT;$/gm)).toHaveLength(1);
-      expect(migration).toContain("SET LOCAL lock_timeout = '5s';");
-      expect(migration).toMatch(/SET LOCAL statement_timeout = '\d+s';/);
-      expect(migration.indexOf("SET LOCAL lock_timeout")).toBeLessThan(
+      expect(migration).not.toMatch(/^BEGIN;$/gm);
+      expect(migration).not.toMatch(/^COMMIT;$/gm);
+      expect(migration).toContain("SET lock_timeout = '5s';");
+      expect(migration).toMatch(/SET statement_timeout = '\d+s';/);
+      expect(migration.indexOf("SET lock_timeout")).toBeLessThan(
         migration.search(/^(?:CREATE|ALTER|UPDATE|DELETE|LOCK|COMMENT|DO)\b/m)
       );
     }
+
+    // The legacy baseline is never executed through db push. Its separate
+    // reconcile command catalog-checks the live schema, then repairs only the
+    // history row, so its historical transaction wrapper remains inert.
+    expect(legacyCoreBaseline.trimStart().startsWith("BEGIN;")).toBe(true);
+    expect(legacyCoreBaseline.trimEnd().endsWith("COMMIT;")).toBe(true);
   });
 
   it("locks account-deletion trigger guards against every direct caller", () => {
@@ -526,8 +529,8 @@ describe("expand-only mobile migration contract", () => {
     expect(amoraResetReadFenceMigration).toContain(
       "LOCK TABLE public.amora_couple_profiles IN SHARE ROW EXCLUSIVE MODE;"
     );
-    expect(amoraResetReadFenceMigration.trimStart().startsWith("BEGIN;")).toBe(true);
-    expect(amoraResetReadFenceMigration.trimEnd().endsWith("COMMIT;")).toBe(true);
+    expect(amoraResetReadFenceMigration).not.toMatch(/^BEGIN;$/gm);
+    expect(amoraResetReadFenceMigration).not.toMatch(/^COMMIT;$/gm);
   });
 
   it("keeps AI audit catalog comments aligned with executable retention", () => {
@@ -891,9 +894,9 @@ describe("expand-only mobile migration contract", () => {
   });
 
   it("bounds production lock acquisition before the first Amora table change", () => {
-    const lockTimeout = amoraMigration.indexOf("SET LOCAL lock_timeout = '5s';");
+    const lockTimeout = amoraMigration.indexOf("SET lock_timeout = '5s';");
     const statementTimeout = amoraMigration.indexOf(
-      "SET LOCAL statement_timeout = '110s';"
+      "SET statement_timeout = '110s';"
     );
     const firstAlter = amoraMigration.indexOf("ALTER TABLE public.couples");
 
@@ -1452,8 +1455,8 @@ describe("expand-only mobile migration contract", () => {
       "CREATE TABLE public.research_cohort_applications"
     );
     expect(researchCohortIdentityMigration).toContain("No legacy consent is inferred");
-    expect(researchCohortIdentityMigration).toContain("SET LOCAL lock_timeout = '5s'");
-    expect(researchCohortIdentityMigration).toContain("SET LOCAL statement_timeout = '120s'");
+    expect(researchCohortIdentityMigration).toContain("SET lock_timeout = '5s'");
+    expect(researchCohortIdentityMigration).toContain("SET statement_timeout = '120s'");
     expect(researchCohortIdentityMigration).toContain(
       "UNIQUE (cohort_code, email)"
     );

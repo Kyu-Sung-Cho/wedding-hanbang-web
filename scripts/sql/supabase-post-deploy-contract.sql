@@ -55,7 +55,7 @@ WITH required_functions(
     ('public.delete_private_amora_data(uuid,uuid,text)', 'integer', 'search_path=public', 'a4d613928f6a67e966fa52bdb4e82bb6'),
     ('public.redact_user_ai_data(uuid)', 'integer', 'search_path=public', '7bef551a2dc6c927e7c95bd0d7c2ba3f'),
     ('public.redact_old_ai_interactions(interval)', 'integer', 'search_path=public', '571f7b3674ee36b941bb19064f8b1cb0'),
-    ('public.enforce_ai_interaction_retention()', 'TABLE(redacted integer, deleted integer)', 'search_path=public', '85cb9b5ccafca3cca9b3cdf74ee4eddc'),
+    ('public.enforce_ai_interaction_retention()', 'TABLE(redacted integer, deleted integer)', 'search_path=pg_catalog, pg_temp', '806dc01af7ffe1047f9ffd381bf539c2'),
     ('public.enforce_application_survey_retention()', 'TABLE(preregistrations_deleted integer, survey_responses_deleted integer)', 'search_path=public', '04d9b06eedd9eec0c19cf29e5b1a9968'),
     ('public.delete_expired_rate_limit_buckets()', 'integer', 'search_path=public', '667f711d08313c214c99cf4a8023b513'),
     ('public.count_active_community_upload_leases(uuid)', 'bigint', 'search_path=public, pg_temp', 'b1594dc15e570d225357dd90e10930f2'),
@@ -85,11 +85,42 @@ WITH required_functions(
     ('public.renew_account_deletion_job_lease(uuid,uuid,integer)', 'boolean', 'search_path=public, pg_temp', 'ba6534442ff7bc582d4bdefc396bc841'),
     ('public.list_account_deletion_owned_storage_objects(uuid,uuid,text,text,integer)', 'TABLE(bucket_id text, object_name text)', 'search_path=pg_catalog, pg_temp', '4aee5587c9f133ff8e23609c23bfbd86'),
     ('public.mark_account_deletion_cleanup_ready(uuid,uuid,integer)', 'boolean', 'search_path=pg_catalog, pg_temp', '2bed182fdddecbf115ecd0856e14aed7'),
-    ('public.complete_account_deletion_job(uuid,uuid)', 'boolean', 'search_path=public, pg_temp', 'b1e4030efdc81da7dcd4697206221ffc')
+    ('public.complete_account_deletion_job(uuid,uuid)', 'boolean', 'search_path=public, pg_temp', 'b1e4030efdc81da7dcd4697206221ffc'),
+    ('public.settle_court_provider_failure_internal(uuid,text)', 'text', 'search_path=pg_catalog, pg_temp', '7e2fb50315c4552e2048c0fe17db370a'),
+    ('public.settle_court_provider_failure(uuid,text)', 'text', 'search_path=pg_catalog, pg_temp', 'f31008554a1e23b840674bbcfd634a0a'),
+    ('public.settle_court_unstaged_provider_result_live(uuid,uuid,text,text,text,integer,integer,integer,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', '86f7199746ac3fb7d19b12c629b7c5e2'),
+    ('public.settle_court_unstaged_provider_result(uuid,uuid,text,text,text,integer,integer,integer,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', '55e200a85ab23811e1de8ac0f699bb0f'),
+    ('public.settle_court_high_risk_provider_result_live(uuid,uuid,uuid,text,text,text[],text,integer,integer,integer,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', 'df11c175cf296be4faeb8918eb5ba589'),
+    ('public.settle_court_high_risk_provider_result(uuid,uuid,uuid,text,text,text[],text,integer,integer,integer,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', 'c25632c52a04e56677ced9e0629f8c1e'),
+    ('public.write_court_provider_audit_live(text,jsonb,numeric)', 'jsonb', 'search_path=pg_catalog, pg_temp', '58e16d0d0323e86cb6b132f7fa7dc62e'),
+    ('public.write_court_provider_audit(text,jsonb,numeric)', 'jsonb', 'search_path=pg_catalog, pg_temp', '4ee8cc03e1b68332882856c0ea2fb6e0'),
+    ('public.finalize_court_provider_audit_live(uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', '179562b354f34b518327b1228d0baa1e'),
+    ('public.finalize_court_provider_audit(uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', '948e284af8b1991a25c3eda178bed604'),
+    ('public.claim_court_provider_audit_recovery_live(uuid,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', '41b7ea2a658a52bccb3e37795281128d'),
+    ('public.claim_court_provider_audit_recovery(uuid,integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', '36340ba20f40fd6f8cab0491d03990ec'),
+    ('public.record_court_provider_audit_recovery_failure_live(uuid,uuid,uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', 'e01e0ecec59db41b376271c68973a312'),
+    ('public.record_court_provider_audit_recovery_failure(uuid,uuid,uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', '4ad83a53a4a60dee093fab369d520c4f'),
+    ('public.resolve_court_provider_deletion_handoff(uuid,uuid,text,text,text,integer,integer,integer,integer,numeric)', 'jsonb', 'search_path=pg_catalog, pg_temp', '7c774ec3289924fcae465251e8c18d0b'),
+    ('public.enforce_court_provider_deletion_handoff_retention(integer)', 'jsonb', 'search_path=pg_catalog, pg_temp', '605f4f2ccf181a0de3861ad819a7dcb7'),
+    ('public.enforce_ai_interaction_retention_live()', 'TABLE(redacted integer, deleted integer)', 'search_path=public', '85cb9b5ccafca3cca9b3cdf74ee4eddc'),
+    ('public.list_court_provider_deletion_handoffs(uuid,integer)', 'TABLE(verdict_id uuid, created_at timestamp with time zone, expires_at timestamp with time zone)', 'search_path=pg_catalog, pg_temp', 'f3b9c678533ed27570420f01fb50d190'),
+    ('public.list_court_provider_reconciliations(uuid,integer)', 'TABLE(verdict_id uuid, provider_state text, started_at timestamp with time zone, failed_at timestamp with time zone, provider_error_code text, created_at timestamp with time zone, updated_at timestamp with time zone)', 'search_path=pg_catalog, pg_temp', '6455d31459a942fce5bb88bcf35cb5bc'),
+    ('public.reveal_court_provider_deletion_handoff_request_key(uuid,uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', '6a91b7a0a9c3a0191a7d87b7b5623d37'),
+    ('public.reveal_court_provider_reconciliation_request_key(uuid,uuid,text)', 'jsonb', 'search_path=pg_catalog, pg_temp', '658c9c2eadfc38e07fcbffc536a6c443'),
+    ('public.enforce_court_provider_request_key_reveal_audit_retention(integer)', 'integer', 'search_path=pg_catalog, pg_temp', 'e87a1188dffd2880a2291c2e5005524b')
 ), service_denied_functions(signature) AS (
   VALUES
     ('public.guard_account_deletion_user_reference()'),
-    ('public.guard_account_deletion_rate_limit_write()')
+    ('public.guard_account_deletion_rate_limit_write()'),
+    ('public.redact_old_ai_interactions(interval)'),
+    ('public.settle_court_provider_failure_internal(uuid,text)'),
+    ('public.settle_court_unstaged_provider_result_live(uuid,uuid,text,text,text,integer,integer,integer,integer)'),
+    ('public.settle_court_high_risk_provider_result_live(uuid,uuid,uuid,text,text,text[],text,integer,integer,integer,integer)'),
+    ('public.write_court_provider_audit_live(text,jsonb,numeric)'),
+    ('public.finalize_court_provider_audit_live(uuid,text)'),
+    ('public.claim_court_provider_audit_recovery_live(uuid,integer)'),
+    ('public.record_court_provider_audit_recovery_failure_live(uuid,uuid,uuid,text)'),
+    ('public.enforce_ai_interaction_retention_live()')
 ), function_status AS (
   SELECT required.signature,
          procedure_row.oid IS NOT NULL AS present,
@@ -98,10 +129,10 @@ WITH required_functions(
          COALESCE(procedure_row.prosecdef, false) AS security_definer,
          CASE WHEN procedure_row.oid IS NULL THEN NULL
               ELSE pg_get_userbyid(procedure_row.proowner) END AS owner,
-         COALESCE(
-           procedure_row.proconfig @> ARRAY[required.expected_search_path]::text[],
-           false
-         ) AS safe_search_path,
+          COALESCE(
+            procedure_row.proconfig @> ARRAY[required.expected_search_path]::text[],
+            false
+          ) AND cardinality(procedure_row.proconfig) = 1 AS safe_search_path,
          CASE WHEN procedure_row.oid IS NULL THEN NULL
               ELSE md5(replace(procedure_row.prosrc, chr(13), '')) END AS source_md5,
          CASE WHEN procedure_row.oid IS NULL THEN false ELSE
@@ -122,6 +153,7 @@ WITH required_functions(
            AND procedure_row.prosecdef
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
            AND procedure_row.proconfig @> ARRAY[required.expected_search_path]::text[]
+           AND cardinality(procedure_row.proconfig) = 1
            AND (
              required.expected_source_md5 IS NULL
              OR md5(replace(procedure_row.prosrc, chr(13), '')) =
@@ -170,6 +202,9 @@ WITH required_functions(
       'search_path=pg_catalog, pg_temp', false),
     ('public.block_auth_user_delete_until_account_cleanup_ready()',
       '868a650d26b5bf4aff730c73b99f009e',
+      'search_path=pg_catalog, pg_temp', false),
+    ('public.handoff_court_provider_attempts_before_case_delete()',
+      '4a60d39c0e0059451559e46d8bd9837b',
       'search_path=pg_catalog, pg_temp', false)
 ), client_denied_trigger_function_status AS (
   SELECT required.signature,
@@ -179,6 +214,7 @@ WITH required_functions(
            AND pg_get_userbyid(procedure_row.proowner) = 'postgres'
            AND procedure_row.proconfig
              @> ARRAY[required.expected_search_path]::text[]
+           AND cardinality(procedure_row.proconfig) = 1
            AND md5(replace(procedure_row.prosrc, chr(13), '')) =
              required.expected_source_md5
            AND has_function_privilege(
@@ -237,7 +273,11 @@ WITH required_functions(
     ('auth', 'users',
       'trg_block_auth_user_delete_until_account_cleanup_ready',
       'public.block_auth_user_delete_until_account_cleanup_ready()',
-      'CREATE TRIGGER trg_block_auth_user_delete_until_account_cleanup_ready BEFORE DELETE ON auth.users FOR EACH ROW EXECUTE FUNCTION block_auth_user_delete_until_account_cleanup_ready()')
+      'CREATE TRIGGER trg_block_auth_user_delete_until_account_cleanup_ready BEFORE DELETE ON auth.users FOR EACH ROW EXECUTE FUNCTION block_auth_user_delete_until_account_cleanup_ready()'),
+    ('public', 'court_cases',
+      'court_case_provider_handoff_before_delete',
+      'public.handoff_court_provider_attempts_before_case_delete()',
+      'CREATE TRIGGER court_case_provider_handoff_before_delete BEFORE DELETE ON court_cases FOR EACH ROW EXECUTE FUNCTION handoff_court_provider_attempts_before_case_delete()')
 ), client_denied_trigger_binding_status AS (
   SELECT required.schema_name,
          required.table_name,
@@ -262,6 +302,10 @@ WITH required_functions(
       'SELECT public.reconcile_stale_amora_chat_requests(100);'),
     ('enforce-ai-interaction-retention', '17 18 * * *',
       'SELECT public.enforce_ai_interaction_retention();'),
+    ('enforce-court-provider-deletion-handoff-retention', '7 * * * *',
+      'SELECT public.enforce_court_provider_deletion_handoff_retention(1000);'),
+    ('enforce-court-provider-request-key-reveal-audit-retention', '37 * * * *',
+      'SELECT public.enforce_court_provider_request_key_reveal_audit_retention(1000);'),
     ('enforce-application-survey-retention', '41 18 * * *',
       'SELECT public.enforce_application_survey_retention();'),
     ('delete-expired-rate-limit-buckets', '47 18 * * *',
@@ -304,6 +348,277 @@ WITH required_functions(
       FROM cron.job_run_details run_detail
       WHERE run_detail.status = 'running'
     ) AS running_job_count
+), court_provider_required_columns(
+  table_name, column_name, data_type, not_null, expected_default,
+  introduced_version
+) AS (
+  VALUES
+    ('court_provider_deletion_handoffs', 'id', 'uuid', true, 'gen_random_uuid()', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'request_key', 'text', true, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'verdict_id', 'uuid', true, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'lease_token', 'uuid', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'handoff_state', 'text', true, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'audit_model', 'text', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'provider_input_tokens', 'integer', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'provider_output_tokens', 'integer', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'provider_cached_input_tokens', 'integer', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'provider_cache_write_input_tokens', 'integer', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'audit_cost_usd', 'numeric(10,6)', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'paid_observed_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'audit_pending_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'audited_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'resolved_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'recovery_lease_token', 'uuid', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'recovery_lease_expires_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'recovery_attempt_count', 'integer', true, '0', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'recovery_last_error_code', 'text', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'recovery_last_error_at', 'timestamp with time zone', false, NULL::text, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'created_at', 'timestamp with time zone', true, 'statement_timestamp()', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'expires_at', 'timestamp with time zone', true, '(statement_timestamp() + make_interval(days => 90))', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'provider_resolution_action', 'text', false, NULL::text, '20260714102000'),
+    ('court_provider_deletion_handoffs', 'provider_resolution_at', 'timestamp with time zone', false, NULL::text, '20260714102000'),
+    ('court_provider_deletion_handoffs', 'provider_reported_cost_usd', 'numeric(10,6)', false, NULL::text, '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'metric_day', 'date', true, NULL::text, '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'metric_code', 'text', true, NULL::text, '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'event_count', 'bigint', true, '0', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'tokens_input', 'bigint', true, '0', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'tokens_output', 'bigint', true, '0', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'cost_usd', 'numeric', true, '0', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'updated_at', 'timestamp with time zone', true, 'statement_timestamp()', '20260714102000'),
+    ('court_provider_request_key_reveal_audits', 'id', 'uuid', true, 'gen_random_uuid()', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'target_scope', 'text', true, NULL::text, '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'target_id', 'uuid', true, NULL::text, '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'actor_admin_id', 'uuid', false, NULL::text, '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'action', 'text', true, NULL::text, '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'revealed_at', 'timestamp with time zone', true, 'statement_timestamp()', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'expires_at', 'timestamp with time zone', true, '(statement_timestamp() + make_interval(years => 1))', '20260714103000')
+), court_provider_required_named_constraints(table_name, constraint_name, introduced_version) AS (
+  VALUES
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_pkey', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_request_key_key', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_request_key_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_handoff_state_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_audit_model_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_provider_input_tokens_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_provider_output_tokens_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_provider_cached_input_tokens_c', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_provider_cache_write_input_tok', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_audit_cost_usd_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_recovery_attempt_count_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_recovery_last_error_code_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_usage_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_recovery_lease_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_recovery_error_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_lifecycle_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_retention_check', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_verdict_id_key', '20260714102000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_resolution_check', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_pkey', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_metric_code_check', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_event_count_check', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_tokens_input_check', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_tokens_output_check', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_cost_usd_check', '20260714102000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_pkey', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_target_scope_check', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_actor_admin_id_fkey', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_action_check', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_retention_check', '20260714103000')
+), court_provider_required_constraint_fragments(
+  table_name, constraint_name, normalized_fragment, minimum_occurrences,
+  introduced_version
+) AS (
+  VALUES
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_lifecycle_check', 'audit_modelisnotnullandprovider_input_tokensisnotnullandprovider_output_tokensisnotnull', 2, '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_resolution_check', 'audit_modelisnotnullandprovider_input_tokensisnotnullandprovider_output_tokensisnotnull', 1, '20260714102000')
+), court_provider_required_named_indexes(table_name, index_name, introduced_version) AS (
+  VALUES
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_recovery_idx', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_expiry_idx', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_pkey', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_request_key_key', '20260714100000'),
+    ('court_provider_deletion_handoffs', 'court_provider_deletion_handoffs_verdict_id_key', '20260714102000'),
+    ('court_provider_deletion_handoff_metrics', 'court_provider_deletion_handoff_metrics_pkey', '20260714102000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_pkey', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_target_idx', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_actor_idx', '20260714103000'),
+    ('court_provider_request_key_reveal_audits', 'court_provider_request_key_reveal_audits_expiry_idx', '20260714103000')
+), court_provider_required_table_stages(
+  stage_name, table_name, max_version, expected_column_count,
+  expected_constraint_count, expected_index_count, expected_policy_count,
+  expected_service_select, expected_comment
+) AS (
+  VALUES
+    ('handoff_1000', 'court_provider_deletion_handoffs', '20260714100000', 22, 17, 4, 0, false, 'Service-only, payload-free attempt handoff after a Court graph is deleted. No subject, case, input, request, verdict payload, mission, mode, category, tone, or safety-category data is retained.'),
+    ('handoff_1020', 'court_provider_deletion_handoffs', '20260714102000', 25, 19, 5, 0, false, 'Service-only, payload-free attempt handoff after a Court graph is deleted. No subject, case, input, request, verdict payload, mission, mode, category, tone, or safety-category data is retained.'),
+    ('handoff_1030', 'court_provider_deletion_handoffs', '20260714102000', 25, 19, 5, 0, false, 'Service-only, payload-free attempt handoff after a Court graph is deleted. No subject, case, input, request, verdict payload, mission, mode, category, tone, or safety-category data is retained.'),
+    ('metrics_1020', 'court_provider_deletion_handoff_metrics', '20260714102000', 7, 6, 1, 0, true, 'Two-year aggregate-only deletion-handoff cleanup metrics. Contains no identifiers, request keys, model names, free text, or payloads.'),
+    ('reveal_audit_1030', 'court_provider_request_key_reveal_audits', '20260714103000', 7, 5, 4, 1, true, 'Append-only one-year administrator audit of individual live or deleted-subject provider-key reveals. Contains an opaque target scope/id, administrator actor, action, and timestamps only; never a request key, subject, case, payload, model, usage, cost, or free-form text.')
+), court_provider_table_stage_status AS (
+  SELECT stage.stage_name, stage.table_name,
+         table_row.oid IS NOT NULL AS present,
+         CASE WHEN table_row.oid IS NULL THEN false ELSE
+           table_row.relkind = 'r' AND table_row.relpersistence = 'p'
+           AND table_row.relrowsecurity AND NOT table_row.relforcerowsecurity
+           AND pg_get_userbyid(table_row.relowner) = 'postgres'
+           AND obj_description(table_row.oid, 'pg_class') = stage.expected_comment
+           AND (SELECT count(*) FROM pg_catalog.pg_attribute attribute_row WHERE attribute_row.attrelid = table_row.oid AND attribute_row.attnum > 0 AND NOT attribute_row.attisdropped) = stage.expected_column_count
+           AND NOT EXISTS (
+             SELECT 1 FROM court_provider_required_columns expected
+             LEFT JOIN pg_catalog.pg_attribute attribute_row ON attribute_row.attrelid = table_row.oid AND attribute_row.attname = expected.column_name AND attribute_row.attnum > 0 AND NOT attribute_row.attisdropped
+             LEFT JOIN pg_catalog.pg_attrdef default_row ON default_row.adrelid = attribute_row.attrelid AND default_row.adnum = attribute_row.attnum
+             WHERE expected.table_name = stage.table_name AND expected.introduced_version <= stage.max_version
+               AND (attribute_row.attname IS NULL OR format_type(attribute_row.atttypid, attribute_row.atttypmod) IS DISTINCT FROM expected.data_type OR attribute_row.attnotnull IS DISTINCT FROM expected.not_null OR attribute_row.attidentity <> '' OR attribute_row.attgenerated <> '' OR pg_get_expr(default_row.adbin, default_row.adrelid) IS DISTINCT FROM expected.expected_default)
+           )
+           AND (SELECT count(*) FROM pg_catalog.pg_constraint constraint_row WHERE constraint_row.conrelid = table_row.oid) = stage.expected_constraint_count
+           AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint constraint_row WHERE constraint_row.conrelid = table_row.oid AND NOT constraint_row.convalidated)
+           AND NOT EXISTS (
+             SELECT 1 FROM court_provider_required_named_constraints expected
+             LEFT JOIN pg_catalog.pg_constraint constraint_row ON constraint_row.conrelid = table_row.oid AND constraint_row.conname = expected.constraint_name
+             WHERE expected.table_name = stage.table_name AND expected.introduced_version <= stage.max_version AND constraint_row.oid IS NULL
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM court_provider_required_constraint_fragments expected
+             LEFT JOIN pg_catalog.pg_constraint constraint_row ON constraint_row.conrelid = table_row.oid AND constraint_row.conname = expected.constraint_name
+             CROSS JOIN LATERAL (SELECT regexp_replace(lower(coalesce(pg_get_constraintdef(constraint_row.oid, true), '')), '[[:space:]()"]+', '', 'g') AS definition) normalized
+             WHERE expected.table_name = stage.table_name
+               AND expected.introduced_version <= stage.max_version
+               AND (constraint_row.oid IS NULL OR (length(normalized.definition) - length(replace(normalized.definition, expected.normalized_fragment, ''))) / length(expected.normalized_fragment) < expected.minimum_occurrences)
+           )
+           AND (SELECT count(*) FROM pg_catalog.pg_index index_row WHERE index_row.indrelid = table_row.oid) = stage.expected_index_count
+           AND NOT EXISTS (
+             SELECT 1 FROM court_provider_required_named_indexes expected
+             LEFT JOIN pg_catalog.pg_class index_class ON index_class.relnamespace = 'public'::regnamespace AND index_class.relname = expected.index_name
+             LEFT JOIN pg_catalog.pg_index index_row ON index_row.indexrelid = index_class.oid AND index_row.indrelid = table_row.oid
+             WHERE expected.table_name = stage.table_name AND expected.introduced_version <= stage.max_version AND (index_row.indexrelid IS NULL OR NOT index_row.indisvalid OR NOT index_row.indisready)
+           )
+           AND (SELECT count(*) FROM pg_catalog.pg_policies policy_row WHERE policy_row.schemaname = 'public' AND policy_row.tablename = stage.table_name) = stage.expected_policy_count
+           AND (stage.table_name <> 'court_provider_request_key_reveal_audits' OR EXISTS (
+             SELECT 1 FROM pg_catalog.pg_policies policy_row WHERE policy_row.schemaname = 'public' AND policy_row.tablename = stage.table_name AND policy_row.policyname = 'court_provider_request_key_reveal_audits_service_select' AND policy_row.permissive = 'PERMISSIVE' AND policy_row.roles = ARRAY['service_role'::name] AND policy_row.cmd = 'SELECT' AND policy_row.qual = 'true' AND policy_row.with_check IS NULL
+           ))
+           AND has_table_privilege('service_role', table_row.oid, 'SELECT') = stage.expected_service_select
+           AND has_any_column_privilege('service_role', table_row.oid, 'SELECT') = stage.expected_service_select
+           AND NOT has_table_privilege('service_role', table_row.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+           AND NOT has_any_column_privilege('service_role', table_row.oid, 'INSERT,UPDATE,REFERENCES')
+           AND NOT has_table_privilege('anon', table_row.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+           AND NOT has_table_privilege('authenticated', table_row.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+           AND NOT has_any_column_privilege('anon', table_row.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+           AND NOT has_any_column_privilege('authenticated', table_row.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+         END AS exact
+  FROM court_provider_required_table_stages stage
+  LEFT JOIN pg_catalog.pg_class table_row
+    ON table_row.oid = to_regclass('public.' || stage.table_name)
+), wedding_code_collection_retirement_inventory AS (
+  SELECT
+    table_row.oid IS NOT NULL AS table_present,
+    table_row.oid IS NOT NULL
+      AND table_row.relkind = 'r'
+      AND table_row.relpersistence = 'p'
+      AND table_row.relrowsecurity
+      AND NOT table_row.relforcerowsecurity
+      AND pg_get_userbyid(table_row.relowner) = 'postgres'
+      AND obj_description(table_row.oid, 'pg_class') =
+        'Retired WeddingCode collection. Historical rows are preserved; any deletion requires a separate approved retention/purge migration.'
+      AS table_contract_exact,
+    table_row.oid IS NOT NULL AND NOT EXISTS (
+      SELECT 1
+      FROM unnest(ARRAY[
+        'anon', 'authenticated', 'service_role'
+      ]::text[]) AS application_role(role_name)
+      CROSS JOIN unnest(ARRAY[
+        'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
+        'REFERENCES', 'TRIGGER'
+      ]::text[]) AS table_privilege(privilege_name)
+      WHERE has_table_privilege(
+        application_role.role_name,
+        table_row.oid,
+        table_privilege.privilege_name
+      )
+    ) AS table_acl_closed,
+    table_row.oid IS NOT NULL AND NOT EXISTS (
+      SELECT 1
+      FROM unnest(ARRAY[
+        'anon', 'authenticated', 'service_role'
+      ]::text[]) AS application_role(role_name)
+      CROSS JOIN unnest(ARRAY[
+        'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+      ]::text[]) AS column_privilege(privilege_name)
+      WHERE has_any_column_privilege(
+        application_role.role_name,
+        table_row.oid,
+        column_privilege.privilege_name
+      )
+    ) AS column_acl_closed,
+    (SELECT count(*)
+     FROM pg_catalog.pg_policy policy_row
+     WHERE policy_row.polrelid = table_row.oid) AS policy_count,
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_constraint constraint_row
+      WHERE constraint_row.conrelid = table_row.oid
+        AND constraint_row.conname = 'wedding_code_collection_retired'
+    ) AS constraint_present,
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_constraint constraint_row
+      WHERE constraint_row.conrelid = table_row.oid
+        AND constraint_row.conname = 'wedding_code_collection_retired'
+        AND constraint_row.contype = 'c'
+        AND NOT constraint_row.convalidated
+        AND NOT constraint_row.condeferrable
+        AND NOT constraint_row.condeferred
+        AND NOT constraint_row.connoinherit
+        AND constraint_row.conislocal
+        AND constraint_row.coninhcount = 0
+        AND pg_get_expr(
+          constraint_row.conbin, constraint_row.conrelid, true
+        ) IN ('false', '(false)')
+        AND pg_get_constraintdef(constraint_row.oid, true) =
+          'CHECK (false) NOT VALID'
+        AND obj_description(constraint_row.oid, 'pg_constraint') =
+          'Retirement fence: rejects every INSERT and UPDATE without scanning preserved historical rows. DELETE requires a separate approved purge migration.'
+    ) AS constraint_exact,
+    (SELECT count(*)
+     FROM pg_catalog.pg_proc procedure_row
+     JOIN pg_catalog.pg_namespace namespace_row
+       ON namespace_row.oid = procedure_row.pronamespace
+     WHERE namespace_row.nspname = 'public'
+       AND procedure_row.proname = 'insert_wedding_code_response')
+      AS insert_rpc_overload_count,
+    (SELECT count(*)
+     FROM pg_catalog.pg_proc procedure_row
+     JOIN pg_catalog.pg_namespace namespace_row
+       ON namespace_row.oid = procedure_row.pronamespace
+     WHERE namespace_row.nspname = 'public'
+       AND procedure_row.proname = 'pair_wedding_code_response')
+      AS pair_rpc_overload_count
+  FROM (SELECT
+    to_regclass('public.wedding_code_responses') AS table_oid
+  ) object_ids
+  LEFT JOIN pg_catalog.pg_class table_row
+    ON table_row.oid = object_ids.table_oid
+), wedding_code_collection_retirement_modes AS (
+  SELECT inventory.*,
+         NOT inventory.table_present
+           AND inventory.insert_rpc_overload_count = 0
+           AND inventory.pair_rpc_overload_count = 0 AS absent_exact,
+         inventory.table_contract_exact
+           AND inventory.table_acl_closed
+           AND inventory.column_acl_closed
+           AND inventory.policy_count = 0
+           AND inventory.constraint_exact
+           AND inventory.insert_rpc_overload_count = 0
+           AND inventory.pair_rpc_overload_count = 0 AS retired_exact
+  FROM wedding_code_collection_retirement_inventory inventory
+), wedding_code_collection_retirement_status AS (
+  SELECT mode_row.*,
+         CASE
+           WHEN mode_row.absent_exact THEN 'absent'
+           WHEN mode_row.retired_exact THEN 'retired'
+           ELSE 'unsafe'
+         END AS boundary_mode,
+         mode_row.absent_exact OR mode_row.retired_exact AS exact
+  FROM wedding_code_collection_retirement_modes mode_row
 ), required_columns(table_name, column_name, data_type, not_null) AS (
   VALUES
     ('profiles', 'account_deleting_at', 'timestamp with time zone', false),
@@ -832,6 +1147,193 @@ WITH required_functions(
     ON policy_row.schemaname = 'public'
    AND policy_row.tablename = required.table_name
    AND policy_row.policyname = required.policy_name
+),
+-- PROVISIONAL_ACTIVE_ADMIN_POLICY_CANONICAL: the legacy strings below were
+-- captured read-only from the linked production catalog. The active strings
+-- are the reviewed PostgreSQL 15 deparse expected from migration
+-- 20260713110100, but must be captured from an applied disposable database
+-- before the protected-production hard stop in supabase-ship-safe is removed.
+active_admin_policy_expressions AS (
+  SELECT
+    'existsselect1fromprofileswhereprofiles.id=auth.uidandprofiles.is_admin=true'::text
+      AS legacy_admin,
+    'existsselect1fromprofileswhereprofiles.id=auth.uidandprofiles.is_admin=trueorauth.role=''service_role''::text'::text
+      AS legacy_admin_service,
+    'existsselect1fromprofilesprofilewhereprofile.id=selectauth.uidasuidandprofile.is_admin=trueandprofile.account_deleting_atisnull'::text
+      AS active_admin,
+    'selectauth.roleasrole=''service_role''::textorexistsselect1fromprofilesprofilewhereprofile.id=selectauth.uidasuidandprofile.is_admin=trueandprofile.account_deleting_atisnull'::text
+      AS active_admin_service
+), required_active_admin_policies(
+  table_name, policy_name, expected_command, qual_kind,
+  legacy_with_check, active_with_check
+) AS (
+  VALUES
+    ('settlements', '관리자: 전체 정산 관리', 'ALL', 'admin', false, true),
+    ('vendor_leads', 'vendor_leads_admin_all', 'ALL', 'admin_service', true, true),
+    ('amora_quote_checks', 'amora_quote_checks_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_personas', 'community_agent_personas_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_personas', 'community_agent_personas_admin_write', 'ALL', 'admin', true, true),
+    ('community_agent_content_drafts', 'community_agent_drafts_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_content_drafts', 'community_agent_drafts_admin_write', 'ALL', 'admin', true, true),
+    ('community_agent_activity_log', 'community_agent_activity_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_activity_log', 'community_agent_activity_admin_write', 'ALL', 'admin', true, true),
+    ('community_agent_daily_state', 'community_agent_daily_state_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_daily_state', 'community_agent_daily_state_admin_write', 'ALL', 'admin', true, true),
+    ('community_agent_automation_runs', 'community_agent_automation_runs_admin_select', 'SELECT', 'admin', false, false),
+    ('community_agent_automation_runs', 'community_agent_automation_runs_admin_write', 'ALL', 'admin', true, true)
+), required_active_admin_table_policy_allowlist(table_name, policy_name) AS (
+  VALUES
+    ('settlements', '관리자: 전체 정산 관리'),
+    ('settlements', '서비스: 전체 관리'),
+    ('settlements', '업체: 본인 정산 조회'),
+    ('vendor_leads', 'vendor_leads_admin_all'),
+    ('amora_quote_checks', 'amora_quote_checks_admin_select'),
+    ('amora_quote_checks', 'amora_quote_checks_owner_select'),
+    ('amora_quote_checks', 'amora_quote_checks_service_all'),
+    ('community_agent_personas', 'community_agent_personas_admin_select'),
+    ('community_agent_personas', 'community_agent_personas_admin_write'),
+    ('community_agent_content_drafts', 'community_agent_drafts_admin_select'),
+    ('community_agent_content_drafts', 'community_agent_drafts_admin_write'),
+    ('community_agent_activity_log', 'community_agent_activity_admin_select'),
+    ('community_agent_activity_log', 'community_agent_activity_admin_write'),
+    ('community_agent_daily_state', 'community_agent_daily_state_admin_select'),
+    ('community_agent_daily_state', 'community_agent_daily_state_admin_write'),
+    ('community_agent_automation_runs', 'community_agent_automation_runs_admin_select'),
+    ('community_agent_automation_runs', 'community_agent_automation_runs_admin_write')
+), active_admin_policy_allowlist_inventory AS (
+  SELECT
+    (SELECT count(*) FROM required_active_admin_table_policy_allowlist)
+      AS expected_count,
+    (
+      SELECT count(*)
+      FROM pg_catalog.pg_policies policy_row
+      WHERE policy_row.schemaname = 'public'
+        AND EXISTS (
+          SELECT 1
+          FROM required_active_admin_table_policy_allowlist required_table
+          WHERE required_table.table_name = policy_row.tablename
+        )
+    ) AS actual_count,
+    (
+      SELECT count(*)
+      FROM required_active_admin_table_policy_allowlist required
+      LEFT JOIN pg_catalog.pg_policies policy_row
+        ON policy_row.schemaname = 'public'
+       AND policy_row.tablename = required.table_name
+       AND policy_row.policyname = required.policy_name
+      WHERE policy_row.policyname IS NULL
+    ) AS missing_count,
+    (
+      SELECT count(*)
+      FROM pg_catalog.pg_policies policy_row
+      WHERE policy_row.schemaname = 'public'
+        AND EXISTS (
+          SELECT 1
+          FROM required_active_admin_table_policy_allowlist required_table
+          WHERE required_table.table_name = policy_row.tablename
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM required_active_admin_table_policy_allowlist required
+          WHERE required.table_name = policy_row.tablename
+            AND required.policy_name = policy_row.policyname
+        )
+    ) AS unexpected_count
+), active_admin_policy_allowlist_status AS (
+  SELECT inventory.*,
+         inventory.expected_count = 17
+           AND inventory.actual_count = 17
+           AND inventory.missing_count = 0
+           AND inventory.unexpected_count = 0 AS exact
+  FROM active_admin_policy_allowlist_inventory inventory
+), active_admin_policy_status AS (
+  SELECT required.table_name,
+         required.policy_name,
+         policy_row.policyname IS NOT NULL AS present,
+         table_row.oid IS NOT NULL
+           AND table_row.relkind = 'r'
+           AND table_row.relrowsecurity
+           AND policy_row.policyname IS NOT NULL
+           AND policy_row.permissive = 'PERMISSIVE'
+           AND policy_row.roles = ARRAY['public'::name]
+           AND policy_row.cmd = required.expected_command
+           AND (
+             (
+               normalized.qual = CASE required.qual_kind
+                 WHEN 'admin_service' THEN expressions.legacy_admin_service
+                 ELSE expressions.legacy_admin
+               END
+               AND CASE required.legacy_with_check
+                 WHEN true THEN normalized.with_check = CASE required.qual_kind
+                   WHEN 'admin_service' THEN expressions.legacy_admin_service
+                   ELSE expressions.legacy_admin
+                 END
+                 ELSE policy_row.with_check IS NULL
+               END
+             )
+             OR (
+               normalized.qual = CASE required.qual_kind
+                 WHEN 'admin_service' THEN expressions.active_admin_service
+                 ELSE expressions.active_admin
+               END
+               AND CASE required.active_with_check
+                 WHEN true THEN normalized.with_check = CASE required.qual_kind
+                   WHEN 'admin_service' THEN expressions.active_admin_service
+                   ELSE expressions.active_admin
+                 END
+                 ELSE policy_row.with_check IS NULL
+               END
+             )
+           ) AS existing_replaceable,
+         table_row.oid IS NOT NULL
+           AND table_row.relkind = 'r'
+           AND table_row.relrowsecurity
+           AND policy_row.policyname IS NOT NULL
+           AND policy_row.permissive = 'PERMISSIVE'
+           AND policy_row.roles = ARRAY['public'::name]
+           AND policy_row.cmd = required.expected_command
+           AND normalized.qual = CASE required.qual_kind
+             WHEN 'admin_service' THEN expressions.active_admin_service
+             ELSE expressions.active_admin
+           END
+           AND CASE required.active_with_check
+             WHEN true THEN normalized.with_check = CASE required.qual_kind
+               WHEN 'admin_service' THEN expressions.active_admin_service
+               ELSE expressions.active_admin
+             END
+             ELSE policy_row.with_check IS NULL
+           END AS exact
+  FROM required_active_admin_policies required
+  CROSS JOIN active_admin_policy_expressions expressions
+  LEFT JOIN pg_catalog.pg_class table_row
+    ON table_row.oid = to_regclass('public.' || required.table_name)
+  LEFT JOIN pg_catalog.pg_policies policy_row
+    ON policy_row.schemaname = 'public'
+   AND policy_row.tablename = required.table_name
+   AND policy_row.policyname = required.policy_name
+  CROSS JOIN LATERAL (
+    SELECT
+      replace(regexp_replace(
+        lower(coalesce(policy_row.qual, '')),
+        '[[:space:]()"]+', '', 'g'
+      ), 'public.', '') AS qual,
+      replace(regexp_replace(
+        lower(coalesce(policy_row.with_check, '')),
+        '[[:space:]()"]+', '', 'g'
+      ), 'public.', '') AS with_check
+  ) normalized
+), active_admin_policy_contract AS (
+  SELECT count(*) = 13
+           AND coalesce(bool_and(status.existing_replaceable), false)
+           AND coalesce((
+             SELECT exact FROM active_admin_policy_allowlist_status
+           ), false) AS replacement_safe,
+         count(*) = 13
+           AND coalesce(bool_and(status.exact), false)
+           AND coalesce((
+             SELECT exact FROM active_admin_policy_allowlist_status
+           ), false) AS exact
+  FROM active_admin_policy_status status
 ), privacy_required_functions(
   signature, expected_result, expected_security_definer,
   expected_volatility, expected_config, expected_source_md5,
@@ -1330,6 +1832,33 @@ SELECT jsonb_build_object(
     )
     FROM client_denied_trigger_binding_status status_row
   ),
+  'wedding_code_collection_absent_exact', coalesce((
+    SELECT absent_exact FROM wedding_code_collection_retirement_status
+  ), false),
+  'wedding_code_collection_retirement_exact', coalesce((
+    SELECT retired_exact FROM wedding_code_collection_retirement_status
+  ), false),
+  'wedding_code_collection_disabled_exact', coalesce((
+    SELECT exact FROM wedding_code_collection_retirement_status
+  ), false),
+  'wedding_code_collection_retirement_status', (
+    SELECT to_jsonb(status_row)
+    FROM wedding_code_collection_retirement_status status_row
+  ),
+  'court_provider_tables_exact',
+    3 = (
+      SELECT count(*) FROM court_provider_table_stage_status status_row
+      WHERE status_row.stage_name IN (
+        'handoff_1030', 'metrics_1020', 'reveal_audit_1030'
+      ) AND status_row.exact
+    ),
+  'court_provider_table_stage_status', (
+    SELECT jsonb_object_agg(
+      stage_name,
+      to_jsonb(status_row) - 'stage_name'
+      ORDER BY stage_name
+    ) FROM court_provider_table_stage_status status_row
+  ),
   'all_amora_reset_read_policies_exact', NOT EXISTS (
     SELECT 1 FROM amora_reset_read_policy_status WHERE NOT exact
   ),
@@ -1347,6 +1876,24 @@ SELECT jsonb_build_object(
       ORDER BY table_name, policy_name
     )
     FROM amora_reset_read_policy_status AS status_row
+  ),
+  'all_active_admin_policies_exact', coalesce((
+    SELECT exact FROM active_admin_policy_contract
+  ), false),
+  'active_admin_policy_allowlist_exact', coalesce((
+    SELECT exact FROM active_admin_policy_allowlist_status
+  ), false),
+  'active_admin_policy_allowlist_status', (
+    SELECT to_jsonb(status_row)
+    FROM active_admin_policy_allowlist_status AS status_row
+  ),
+  'active_admin_policy_status', (
+    SELECT jsonb_object_agg(
+      table_name || '.' || policy_name,
+      to_jsonb(status_row) - 'table_name' - 'policy_name'
+      ORDER BY table_name, policy_name
+    )
+    FROM active_admin_policy_status AS status_row
   ),
   'all_maintenance_crons_exact',
     NOT EXISTS (SELECT 1 FROM maintenance_cron_status WHERE NOT exact)

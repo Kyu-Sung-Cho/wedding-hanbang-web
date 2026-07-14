@@ -73,9 +73,13 @@ export async function POST(req: NextRequest) {
     const admin = getAdminClient();
     const { data: profile } = await admin
       .from("profiles")
-      .select("couple_id, role, name, is_admin")
+      .select("couple_id, role, name, is_admin, account_deleting_at")
       .eq("id", user.id)
       .single();
+
+    if (!profile || profile.account_deleting_at !== null) {
+      return NextResponse.json({ triggered: false, reason: "account_inactive" }, { status: 403 });
+    }
 
     const coupleId = profile?.couple_id;
     if (!coupleId) {

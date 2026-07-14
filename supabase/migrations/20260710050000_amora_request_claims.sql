@@ -1,10 +1,9 @@
-BEGIN;
 
 -- Production rollout requires a drained maintenance window. Never wait
 -- indefinitely for ACCESS EXCLUSIVE locks, and roll the whole migration back
 -- if a bounded statement cannot finish during that window.
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '110s';
+SET lock_timeout = '5s';
+SET statement_timeout = '110s';
 
 -- A retired or replacement-blocked couple must not retain a joinable code.
 -- Production's legacy baseline made this column NOT NULL, while the lifecycle
@@ -2959,5 +2958,3 @@ BEGIN
   );
 END;
 $$;
-
-COMMIT;

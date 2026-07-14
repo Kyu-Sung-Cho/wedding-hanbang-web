@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '110s';
+SET lock_timeout = '5s';
+SET statement_timeout = '110s';
 
 -- Durable, service-only account deletion queue.
 --
@@ -716,5 +715,3 @@ $$;
 REVOKE ALL ON FUNCTION public.account_deletion_queue_health()
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.account_deletion_queue_health() TO service_role;
-
-COMMIT;

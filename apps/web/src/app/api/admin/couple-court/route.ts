@@ -15,6 +15,10 @@ const ADMIN_MUTATION_RATE_LIMIT = {
   maxRequests: 120,
   windowMs: 60 * 60 * 1000,
 } as const;
+const ADMIN_REQUEST_KEY_REVEAL_RATE_LIMIT = {
+  maxRequests: 20,
+  windowMs: 60 * 60 * 1000,
+} as const;
 const POST_FIELDS = [
   "id",
   "sanitized_snapshot_json",
@@ -45,17 +49,6 @@ const REPORT_FIELDS = [
   "reason_code",
   "status",
   "created_at",
-].join(",");
-
-const PROVIDER_RECONCILIATION_FIELDS = [
-  "verdict_id",
-  "request_key",
-  "provider_state",
-  "started_at",
-  "failed_at",
-  "provider_error_code",
-  "created_at",
-  "updated_at",
 ].join(",");
 
 // This is the complete browser-visible audit recovery allowlist. It excludes
@@ -97,6 +90,29 @@ const PROVIDER_RECONCILIATION_REASONS = new Set([
   "provider_support_approved_retry",
 ]);
 const PROVIDER_RETRY_CONFIRMATION = "ALLOW_RETRY_AFTER_PROVIDER_REVIEW";
+const PROVIDER_NO_CHARGE_CONFIRMATION = "CONFIRM_PROVIDER_NO_CHARGE";
+const PROVIDER_PAID_CONFIRMATION = "CONFIRM_PROVIDER_PAID";
+const PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION = "REVEAL_PROVIDER_REQUEST_KEY";
+const PROVIDER_DELETION_DECISIONS = new Set(["confirm_no_charge", "record_paid"]);
+const PROVIDER_MODEL_PATTERN = /^[A-Za-z0-9._:/-]{1,128}$/;
+const PROVIDER_DELETION_HANDOFF_FIELDS_ALLOWED = new Set([
+  "target",
+  "id",
+  "decision",
+  "confirmation",
+  "auditModel",
+  "inputTokens",
+  "outputTokens",
+  "cachedInputTokens",
+  "cacheWriteInputTokens",
+  "costUsd",
+]);
+const PROVIDER_REQUEST_KEY_REVEAL_FIELDS_ALLOWED = new Set([
+  "target",
+  "id",
+  "decision",
+  "confirmation",
+]);
 
 function requireUuid(value: unknown): string {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) {
@@ -229,12 +245,9 @@ function mapOpenReport(value: unknown) {
 function mapProviderReconciliation(value: unknown) {
   if (!isRecord(value)) return null;
   const verdictId = stringField(value, "verdict_id");
-  const requestKey = stringField(value, "request_key");
-  if (!verdictId || !requestKey || !UUID_PATTERN.test(verdictId)
-    || !/^[a-f0-9]{64}$/.test(requestKey)) return null;
+  if (!verdictId || !UUID_PATTERN.test(verdictId)) return null;
   return {
     verdictId,
-    requestKey,
     providerState: stringField(value, "provider_state"),
     startedAt: stringField(value, "started_at"),
     failedAt: stringField(value, "failed_at"),
@@ -268,6 +281,192 @@ function mapProviderAuditRecovery(value: unknown) {
   };
 }
 
+function mapProviderDeletionHandoff(value: unknown) {
+  if (!isRecord(value)) return null;
+  const verdictId = stringField(value, "verdict_id");
+  const createdAt = stringField(value, "created_at");
+  const expiresAt = stringField(value, "expires_at");
+  const createdAtMs = createdAt ? Date.parse(createdAt) : Number.NaN;
+  const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  if (
+    !verdictId
+    || !UUID_PATTERN.test(verdictId)
+    || !createdAt
+    || !Number.isFinite(createdAtMs)
+    || !expiresAt
+    || !Number.isFinite(expiresAtMs)
+    || expiresAtMs <= createdAtMs
+  ) return null;
+  return { verdictId, createdAt, expiresAt };
+}
+
+function providerRequestKeyRevealArguments(
+  body: Record<string, unknown>,
+  verdictId: string,
+  adminUserId: string,
+): Record<string, unknown> {
+  for (const field of Object.keys(body)) {
+    if (!PROVIDER_REQUEST_KEY_REVEAL_FIELDS_ALLOWED.has(field)) {
+      throw new CourtApiError(
+        400,
+        "INVALID_PROVIDER_REQUEST_KEY_REVEAL_FIELD",
+        "OpenAI 요청 키 공개에는 허용된 운영 정보만 입력할 수 있습니다.",
+      );
+    }
+  }
+  if (body.decision !== "reveal_request_key"
+    || body.confirmation !== PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION
+  ) {
+    throw new CourtApiError(
+      400,
+      "PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION_REQUIRED",
+      "요청 키 공개 범위를 확인한 뒤 고정 확인 문구를 정확히 입력해 주세요.",
+    );
+  }
+  return {
+    p_verdict_id: verdictId,
+    p_admin_user_id: adminUserId,
+    p_confirmation: PROVIDER_REQUEST_KEY_REVEAL_CONFIRMATION,
+  };
+}
+
+function optionalProviderToken(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "number"
+    || !Number.isSafeInteger(value)
+    || value < 0
+    || value > 10_000_000
+  ) {
+    throw new CourtApiError(
+      400,
+      "INVALID_PROVIDER_USAGE",
+      `${field} 값은 0~10,000,000 범위의 정수여야 합니다.`,
+    );
+  }
+  return value;
+}
+
+function optionalProviderCost(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "number"
+    || !Number.isFinite(value)
+    || value < 0
+    || value > 9_999.999999
+  ) {
+    throw new CourtApiError(
+      400,
+      "INVALID_PROVIDER_COST",
+      "제공사 비용은 0 이상 9,999.999999 이하의 숫자여야 합니다.",
+    );
+  }
+  const canonical = Math.round(value * 1_000_000) / 1_000_000;
+  if (Math.abs(value - canonical) > Number.EPSILON * Math.max(1, Math.abs(value))) {
+    throw new CourtApiError(
+      400,
+      "INVALID_PROVIDER_COST",
+      "제공사 비용은 소수점 아래 6자리까지만 입력할 수 있습니다.",
+    );
+  }
+  return canonical;
+}
+
+function providerDeletionResolutionArguments(
+  body: Record<string, unknown>,
+  verdictId: string,
+  adminUserId: string,
+): Record<string, unknown> {
+  for (const field of Object.keys(body)) {
+    if (!PROVIDER_DELETION_HANDOFF_FIELDS_ALLOWED.has(field)) {
+      throw new CourtApiError(
+        400,
+        "INVALID_PROVIDER_DELETION_HANDOFF_FIELD",
+        "삭제된 사건의 제공사 정산에는 허용된 운영 정보만 입력할 수 있습니다.",
+      );
+    }
+  }
+
+  const decision = requireDecision(body.decision, PROVIDER_DELETION_DECISIONS);
+  const expectedConfirmation = decision === "confirm_no_charge"
+    ? PROVIDER_NO_CHARGE_CONFIRMATION
+    : PROVIDER_PAID_CONFIRMATION;
+  if (body.confirmation !== expectedConfirmation) {
+    throw new CourtApiError(
+      400,
+      "PROVIDER_DELETION_HANDOFF_CONFIRMATION_REQUIRED",
+      "OpenAI 제공사 기록을 확인한 뒤 고정 확인 문구를 정확히 입력해 주세요.",
+    );
+  }
+
+  const auditModel = body.auditModel === undefined || body.auditModel === null
+    ? null
+    : body.auditModel;
+  const inputTokens = optionalProviderToken(body.inputTokens, "입력 토큰");
+  const outputTokens = optionalProviderToken(body.outputTokens, "출력 토큰");
+  const cachedInputTokens = optionalProviderToken(body.cachedInputTokens, "캐시 입력 토큰");
+  const cacheWriteInputTokens = optionalProviderToken(
+    body.cacheWriteInputTokens,
+    "캐시 쓰기 입력 토큰",
+  );
+  const costUsd = optionalProviderCost(body.costUsd);
+
+  if (decision === "confirm_no_charge") {
+    if (
+      auditModel !== null
+      || inputTokens !== null
+      || outputTokens !== null
+      || cachedInputTokens !== null
+      || cacheWriteInputTokens !== null
+      || costUsd !== null
+    ) {
+      throw new CourtApiError(
+        400,
+        "PROVIDER_DELETION_HANDOFF_NO_CHARGE_FIELDS_REJECTED",
+        "청구 없음 정산에는 모델, 사용량, 비용을 함께 기록할 수 없습니다.",
+      );
+    }
+  } else {
+    if (typeof auditModel !== "string" || !PROVIDER_MODEL_PATTERN.test(auditModel)) {
+      throw new CourtApiError(
+        400,
+        "INVALID_PROVIDER_MODEL",
+        "유료 호출로 기록할 때는 OpenAI 제공사 모델명이 필요합니다.",
+      );
+    }
+    if (inputTokens === null || outputTokens === null) {
+      throw new CourtApiError(
+        400,
+        "INVALID_PROVIDER_USAGE",
+        "유료 호출로 기록할 때는 입력 토큰과 출력 토큰이 모두 필요합니다.",
+      );
+    }
+    if (
+      (cachedInputTokens !== null && cachedInputTokens > inputTokens)
+      || (cacheWriteInputTokens !== null && cacheWriteInputTokens > inputTokens)
+    ) {
+      throw new CourtApiError(
+        400,
+        "INVALID_PROVIDER_USAGE",
+        "캐시 토큰은 입력 토큰보다 클 수 없습니다.",
+      );
+    }
+  }
+
+  return {
+    p_verdict_id: verdictId,
+    p_admin_user_id: adminUserId,
+    p_action: decision,
+    p_confirmation: expectedConfirmation,
+    p_audit_model: auditModel,
+    p_input_tokens: inputTokens,
+    p_output_tokens: outputTokens,
+    p_cached_input_tokens: cachedInputTokens,
+    p_cache_write_input_tokens: cacheWriteInputTokens,
+    p_cost_usd: costUsd,
+  };
+}
+
 function unauthorizedResponse(): NextResponse {
   return noStoreJson(
     { code: "ADMIN_AUTH_REQUIRED", error: "관리자 인증이 필요합니다." },
@@ -277,8 +476,8 @@ function unauthorizedResponse(): NextResponse {
 
 export async function GET(request: Request) {
   try {
-    const { authorized } = await verifyAdmin(request);
-    if (!authorized) return unauthorizedResponse();
+    const { authorized, userId } = await verifyAdmin(request);
+    if (!authorized || !userId) return unauthorizedResponse();
 
     const service = getServiceClient();
     const [
@@ -287,6 +486,7 @@ export async function GET(request: Request) {
       reportResult,
       providerResult,
       providerAuditResult,
+      providerDeletionHandoffResult,
     ] = await Promise.all([
       service
         .from("court_public_posts")
@@ -308,18 +508,20 @@ export async function GET(request: Request) {
         .in("status", ["open", "reviewing"])
         .order("created_at", { ascending: true })
         .limit(QUEUE_LIMIT),
-      service
-        .from("court_provider_reservations")
-        .select(PROVIDER_RECONCILIATION_FIELDS)
-        .eq("provider_state", "failed_unknown")
-        .order("failed_at", { ascending: true })
-        .limit(QUEUE_LIMIT),
+      service.rpc("list_court_provider_reconciliations", {
+        p_actor_id: userId,
+        p_limit: QUEUE_LIMIT,
+      }),
       service
         .from("court_provider_reservations")
         .select(PROVIDER_AUDIT_RECOVERY_FIELDS)
         .eq("provider_audit_state", "pending")
         .order("provider_audit_pending_at", { ascending: true })
         .limit(QUEUE_LIMIT),
+      service.rpc("list_court_provider_deletion_handoffs", {
+        p_actor_id: userId,
+        p_limit: QUEUE_LIMIT,
+      }),
     ]);
 
     if (
@@ -328,6 +530,7 @@ export async function GET(request: Request) {
       || reportResult.error
       || providerResult.error
       || providerAuditResult.error
+      || providerDeletionHandoffResult.error
     ) {
       throw new CourtApiError(
         503,
@@ -351,6 +554,9 @@ export async function GET(request: Request) {
     const providerAuditRecoveries = ((providerAuditResult.data ?? []) as unknown[])
       .map(mapProviderAuditRecovery)
       .filter((item): item is NonNullable<ReturnType<typeof mapProviderAuditRecovery>> => item !== null);
+    const providerDeletionHandoffs = ((providerDeletionHandoffResult.data ?? []) as unknown[])
+      .map(mapProviderDeletionHandoff)
+      .filter((item): item is NonNullable<ReturnType<typeof mapProviderDeletionHandoff>> => item !== null);
     const reportedCommentIds = reports
       .map((report) => report.commentId)
       .filter((id): id is string => Boolean(id));
@@ -408,12 +614,14 @@ export async function GET(request: Request) {
       reportedComments,
       providerReconciliations,
       providerAuditRecoveries,
+      providerDeletionHandoffs,
       truncated: {
         posts: (postResult.data?.length ?? 0) >= QUEUE_LIMIT,
         comments: (commentResult.data?.length ?? 0) >= QUEUE_LIMIT,
         reports: (reportResult.data?.length ?? 0) >= QUEUE_LIMIT,
         providerReconciliations: (providerResult.data?.length ?? 0) >= QUEUE_LIMIT,
         providerAuditRecoveries: (providerAuditResult.data?.length ?? 0) >= QUEUE_LIMIT,
+        providerDeletionHandoffs: (providerDeletionHandoffResult.data?.length ?? 0) >= QUEUE_LIMIT,
       },
     });
   } catch (error) {
@@ -427,14 +635,20 @@ export async function POST(request: Request) {
     if (!authorized || !userId) return unauthorizedResponse();
 
     const body = await readCourtJson(request, 4 * 1024);
+    const target = body.target;
+    const isRequestKeyReveal = target === "provider_deletion_handoff_reveal"
+      || target === "provider_reconciliation_reveal";
+    const rateLimitScope = isRequestKeyReveal
+      ? "couple-court:admin:request-key-reveal"
+      : "couple-court:admin:mutation";
     const limited = await checkRateLimitPersistent(
-      rateLimitKey("couple-court:admin:mutation", request, userId),
-      ADMIN_MUTATION_RATE_LIMIT,
+      rateLimitKey(rateLimitScope, request, userId),
+      isRequestKeyReveal
+        ? ADMIN_REQUEST_KEY_REVEAL_RATE_LIMIT
+        : ADMIN_MUTATION_RATE_LIMIT,
       userId,
     );
     if (limited) return limited;
-
-    const target = body.target;
 
     if (target === "provider_audit_recovery") {
       requireDecision(body.decision, new Set(["recover_one"]));
@@ -450,6 +664,9 @@ export async function POST(request: Request) {
 
     const id = requireUuid(body.id);
     const reasonCode = target === "provider_reconciliation"
+      || target === "provider_deletion_handoff"
+      || target === "provider_deletion_handoff_reveal"
+      || target === "provider_reconciliation_reveal"
       ? null
       : optionalReasonCode(body.reasonCode);
 
@@ -516,22 +733,79 @@ export async function POST(request: Request) {
         p_reason_code: providerReasonCode,
         p_confirmation: PROVIDER_RETRY_CONFIRMATION,
       };
+    } else if (target === "provider_deletion_handoff") {
+      rpcName = "resolve_court_provider_deletion_handoff";
+      rpcArguments = providerDeletionResolutionArguments(body, id, userId);
+    } else if (target === "provider_deletion_handoff_reveal") {
+      rpcName = "reveal_court_provider_deletion_handoff_request_key";
+      rpcArguments = providerRequestKeyRevealArguments(body, id, userId);
+    } else if (target === "provider_reconciliation_reveal") {
+      rpcName = "reveal_court_provider_reconciliation_request_key";
+      rpcArguments = providerRequestKeyRevealArguments(body, id, userId);
     } else {
       throw new CourtApiError(400, "INVALID_MODERATION_TARGET", "검토 대상을 확인해 주세요.");
     }
 
     const service = getServiceClient();
-    const { error } = await service.rpc(rpcName, rpcArguments);
+    const { data: rpcData, error } = await service.rpc(rpcName, rpcArguments);
     if (error) {
+      if (target === "provider_reconciliation") {
+        throw new CourtApiError(
+          409,
+          "PROVIDER_RECONCILIATION_REJECTED",
+          "현재 상태에서는 재시도를 허용할 수 없습니다. 제공사 기록과 대기열을 다시 확인해 주세요.",
+        );
+      }
+      if (target === "provider_deletion_handoff") {
+        throw new CourtApiError(
+          409,
+          "PROVIDER_DELETION_HANDOFF_RESOLUTION_REJECTED",
+          "삭제된 사건의 제공사 정산 상태가 변경되었거나 만료되었습니다. 대기열을 새로고침해 주세요.",
+        );
+      }
+      if (target === "provider_deletion_handoff_reveal"
+        || target === "provider_reconciliation_reveal"
+      ) {
+        throw new CourtApiError(
+          409,
+          "PROVIDER_REQUEST_KEY_REVEAL_REJECTED",
+          "요청 키를 공개할 수 없거나 항목 상태가 변경되었습니다. 대기열을 새로고침해 주세요.",
+        );
+      }
       throw new CourtApiError(
         409,
-        target === "provider_reconciliation"
-          ? "PROVIDER_RECONCILIATION_REJECTED"
-          : "MODERATION_ACTION_REJECTED",
-        target === "provider_reconciliation"
-          ? "현재 상태에서는 재시도를 허용할 수 없습니다. 제공사 기록과 대기열을 다시 확인해 주세요."
-          : "현재 상태에서는 이 검토 조치를 완료할 수 없습니다. 대기열을 새로고침해 주세요.",
+        "MODERATION_ACTION_REJECTED",
+        "현재 상태에서는 이 검토 조치를 완료할 수 없습니다. 대기열을 새로고침해 주세요.",
       );
+    }
+
+    if (target === "provider_deletion_handoff_reveal"
+      || target === "provider_reconciliation_reveal"
+    ) {
+      const result = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      const requestKey = isRecord(result) ? stringField(result, "request_key") : null;
+      const verdictId = isRecord(result) ? stringField(result, "verdict_id") : null;
+      const revealedAt = isRecord(result) ? stringField(result, "revealed_at") : null;
+      if (
+        verdictId !== id
+        || !requestKey
+        || !/^[a-f0-9]{64}$/.test(requestKey)
+        || !revealedAt
+        || !Number.isFinite(Date.parse(revealedAt))
+      ) {
+        throw new CourtApiError(
+          503,
+          "PROVIDER_REQUEST_KEY_REVEAL_CONTRACT_INVALID",
+          "감사 기록이 확인되지 않아 OpenAI 요청 키를 공개하지 않았습니다.",
+        );
+      }
+      return noStoreJson({
+        ok: true,
+        target,
+        action: rpcName,
+        requestKey,
+        revealedAt,
+      });
     }
 
     return noStoreJson({ ok: true, target, action: rpcName });

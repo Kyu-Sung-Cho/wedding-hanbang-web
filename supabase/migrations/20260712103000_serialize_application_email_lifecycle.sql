@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 LOCK TABLE public.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE public.preregistrations IN SHARE ROW EXCLUSIVE MODE;
@@ -190,5 +189,3 @@ $$;
 
 COMMENT ON FUNCTION public.lock_application_email_lifecycle_write() IS
   'Serializes application INSERT with account-deletion completion and rejects email mutation without locking ordinary status UPDATEs.';
-
-COMMIT;

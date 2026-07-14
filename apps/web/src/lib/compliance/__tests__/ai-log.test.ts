@@ -3,27 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   insert: vi.fn(),
-  select: vi.fn(),
-  eq: vi.fn(),
-  maybeSingle: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mocks.from }),
+  createAdminClient: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 
 import { calcCostUsd, logAIInteraction, sanitizeAIErrorCode } from "../ai-log";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  const lookup = {
-    select: mocks.select,
-    eq: mocks.eq,
-    maybeSingle: mocks.maybeSingle,
-  };
-  mocks.select.mockReturnValue(lookup);
-  mocks.eq.mockReturnValue(lookup);
-  mocks.from.mockReturnValue({ insert: mocks.insert, select: mocks.select });
+  mocks.from.mockReturnValue({ insert: mocks.insert });
 });
 
 describe("calcCostUsd", () => {
@@ -118,41 +109,73 @@ describe("logAIInteraction idempotency", () => {
     required: true,
   };
 
-  it("accepts a lost-ack duplicate only when the stored semantic event is exact", async () => {
-    mocks.insert.mockResolvedValue({ error: { code: "23505" } });
-    mocks.maybeSingle.mockImplementation(async () => {
-      const inserted = mocks.insert.mock.calls[0][0] as Record<string, unknown>;
-      const comparable = Object.fromEntries(
-        Object.entries(inserted).filter(([field]) => ![
-          "latency_ms",
-          "cost_usd",
-          "idempotency_key",
-        ].includes(field)),
-      );
-      return { data: comparable, error: null };
-    });
-
-    await expect(logAIInteraction(input)).resolves.toBeUndefined();
-    expect(mocks.eq).toHaveBeenCalledWith("idempotency_key", key);
-  });
-
-  it("fails closed when the same key belongs to a different audit payload", async () => {
-    mocks.insert.mockResolvedValue({ error: { code: "23505" } });
-    mocks.maybeSingle.mockResolvedValue({
+  it("uses the atomic database ledger for a lost-ack-safe required audit", async () => {
+    mocks.rpc.mockResolvedValue({
       data: {
-        interaction_type: "couple_court_verdict",
-        success: true,
-        model: "different-model",
+        audit_log_id: "00000000-0000-4000-8000-000000000003",
+        reused: true,
+        subject_deleted: false,
       },
       error: null,
     });
 
+    await expect(logAIInteraction(input)).resolves.toBeUndefined();
+    expect(mocks.rpc).toHaveBeenCalledWith("write_court_provider_audit", expect.objectContaining({
+      p_request_key: key,
+      p_audit_identity: expect.objectContaining({
+        interaction_type: "couple_court_verdict",
+        user_input: null,
+        ai_output: null,
+        model: "gpt-5.6-terra",
+        tokens_input: 100,
+        tokens_output: 20,
+      }),
+    }));
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the database rejects a conflicting audit identity", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "55000" } });
+
     await expect(logAIInteraction(input)).rejects.toThrow("AI_LOG_REQUIRED_INSERT_FAILED");
+  });
+
+  it("fails closed when the database returns a malformed success contract", async () => {
+    mocks.rpc.mockResolvedValue({ data: { reused: false }, error: null });
+
+    await expect(logAIInteraction(input)).rejects.toThrow("AI_LOG_REQUIRED_CONTRACT_INVALID");
+  });
+
+  it("fails closed when a deleted-subject audit is routed to the live writer", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        audit_log_id: "00000000-0000-4000-8000-000000000003",
+        reused: false,
+        subject_deleted: false,
+      },
+      error: null,
+    });
+
+    await expect(logAIInteraction({
+      ...input,
+      expectedSubjectDeleted: true,
+    })).rejects.toThrow("AI_LOG_REQUIRED_CONTRACT_INVALID");
   });
 
   it("rejects malformed idempotency keys before touching the audit table", async () => {
     await expect(logAIInteraction({ ...input, idempotencyKey: "not-a-digest" }))
       .rejects.toThrow("AI_LOG_IDEMPOTENCY_KEY_INVALID");
     expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a deleted-subject expectation outside the required writer", async () => {
+    await expect(logAIInteraction({
+      ...input,
+      idempotencyKey: null,
+      expectedSubjectDeleted: true,
+    })).rejects.toThrow("AI_LOG_SUBJECT_EXPECTATION_SCOPE_INVALID");
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

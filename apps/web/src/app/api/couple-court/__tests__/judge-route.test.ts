@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   markCourtVerdictProviderStartedForUser: vi.fn(),
   reserveCourtVerdictProviderCallForUser: vi.fn(),
   settleCourtHighRiskProviderResultForUser: vi.fn(),
+  settleCourtUnstagedProviderResult: vi.fn(),
   stageCourtVerdictProviderResultForUser: vi.fn(),
   checkRateLimitPersistent: vi.fn(),
   rateLimitKey: vi.fn(),
@@ -71,6 +72,7 @@ vi.mock("@/lib/coupleCourt/repository", () => ({
   markCourtVerdictProviderStartedForUser: mocks.markCourtVerdictProviderStartedForUser,
   reserveCourtVerdictProviderCallForUser: mocks.reserveCourtVerdictProviderCallForUser,
   settleCourtHighRiskProviderResultForUser: mocks.settleCourtHighRiskProviderResultForUser,
+  settleCourtUnstagedProviderResult: mocks.settleCourtUnstagedProviderResult,
   stageCourtVerdictProviderResultForUser: mocks.stageCourtVerdictProviderResultForUser,
 }));
 
@@ -264,12 +266,36 @@ describe("POST /api/couple-court/cases/[caseId]/judge", () => {
       provider_state: "failed_invalid",
       provider_audit_state: "pending",
     });
+    mocks.settleCourtUnstagedProviderResult.mockResolvedValue({
+      provider_state: "failed_invalid",
+      provider_audit_state: "pending",
+    });
     mocks.escalateCourtCaseSafetyFromAiPreflight.mockResolvedValue({ safety_level: "high_risk" });
     mocks.logRecoveredCourtVerdictAudit.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("returns the rate-limit response before claim, provider, or audit work", async () => {
+    const limited = new Response(JSON.stringify({ code: "RATE_LIMITED" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    });
+    mocks.checkRateLimitPersistent.mockResolvedValue(limited);
+
+    const response = await POST(request(), context());
+
+    expect(response).toBe(limited);
+    expect(response.status).toBe(429);
+    expect(mocks.getCourtCaseForUser).not.toHaveBeenCalled();
+    expect(mocks.claimCourtVerdictForUser).not.toHaveBeenCalled();
+    expect(mocks.reserveCourtVerdictProviderCallForUser).not.toHaveBeenCalled();
+    expect(mocks.markCourtVerdictProviderStartedForUser).not.toHaveBeenCalled();
+    expect(mocks.generateCourtVerdict).not.toHaveBeenCalled();
+    expect(mocks.logRecoveredCourtVerdictAudit).not.toHaveBeenCalled();
+    expect(mocks.finalizeCourtProviderAudit).not.toHaveBeenCalled();
   });
 
   it("orders execute -> reserve -> start -> validate/stage -> audit -> complete", async () => {
@@ -388,6 +414,143 @@ describe("POST /api/couple-court/cases/[caseId]/judge", () => {
       requestKey: REQUEST_KEY,
     });
     expect(mocks.completeCourtVerdictForUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("audits and fences a paid response when private staging fails", async () => {
+    const verdict = makeValidCourtVerdict({ mode: "couple", category: "budget" });
+    const usage = {
+      input_tokens: 301,
+      output_tokens: 410,
+      cache_write_input_tokens: 0,
+      cached_input_tokens: 25,
+    };
+    mocks.stageCourtVerdictProviderResultForUser.mockRejectedValueOnce(
+      new Error("stage unavailable"),
+    );
+    mocks.generateCourtVerdict.mockImplementation(async (options) => {
+      await options.onValidated?.(verdict, { model: "gpt-5.6-terra", usage });
+      return { verdict, model: "gpt-5.6-terra" };
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual(expect.objectContaining({
+      code: "COURT_PROVIDER_RESULT_UNSTAGED",
+    }));
+    expect(mocks.settleCourtUnstagedProviderResult).toHaveBeenCalledWith({
+      verdictId: VERDICT_ID,
+      leaseToken: LEASE_TOKEN,
+      inputHash: INPUT_HASH,
+      requestKey: REQUEST_KEY,
+      auditModel: "gpt-5.6-terra",
+      usage,
+    });
+    expect(mocks.logRecoveredCourtVerdictAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.finalizeCourtProviderAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.failCourtVerdictForUser).not.toHaveBeenCalled();
+    expect(mocks.completeCourtVerdictForUser).not.toHaveBeenCalled();
+  });
+
+  it("retries the payload-free settlement after a lost first acknowledgement", async () => {
+    const verdict = makeValidCourtVerdict({ mode: "couple", category: "budget" });
+    mocks.stageCourtVerdictProviderResultForUser.mockRejectedValueOnce(
+      new Error("stage unavailable"),
+    );
+    mocks.settleCourtUnstagedProviderResult
+      .mockRejectedValueOnce(new Error("settlement acknowledgement lost"))
+      .mockResolvedValueOnce({
+        provider_state: "failed_invalid",
+        provider_audit_state: "pending",
+      });
+    mocks.generateCourtVerdict.mockImplementation(async (options) => {
+      await options.onValidated?.(verdict, {
+        model: "gpt-5.6-terra",
+        usage: {
+          input_tokens: 301,
+          output_tokens: 410,
+          cache_write_input_tokens: 0,
+          cached_input_tokens: 25,
+        },
+      });
+      return { verdict, model: "gpt-5.6-terra" };
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(503);
+    expect(mocks.settleCourtUnstagedProviderResult).toHaveBeenCalledTimes(2);
+    expect(mocks.logRecoveredCourtVerdictAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.finalizeCourtProviderAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.failCourtVerdictForUser).not.toHaveBeenCalled();
+  });
+
+  it("repairs a known paid response after the failure-fence acknowledgement is lost", async () => {
+    const verdict = makeValidCourtVerdict({ mode: "couple", category: "budget" });
+    mocks.stageCourtVerdictProviderResultForUser.mockRejectedValueOnce(
+      new Error("stage unavailable"),
+    );
+    mocks.settleCourtUnstagedProviderResult
+      .mockRejectedValueOnce(new Error("first settlement unavailable"))
+      .mockRejectedValueOnce(new Error("second settlement unavailable"))
+      .mockResolvedValueOnce({
+        provider_state: "failed_invalid",
+        provider_audit_state: "pending",
+      });
+    mocks.failCourtVerdictForUser.mockRejectedValueOnce(
+      new Error("failure fence acknowledgement lost"),
+    );
+    mocks.generateCourtVerdict.mockImplementation(async (options) => {
+      await options.onValidated?.(verdict, {
+        model: "gpt-5.6-terra",
+        usage: undefined,
+      });
+      return { verdict, model: "gpt-5.6-terra" };
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(503);
+    expect(mocks.settleCourtUnstagedProviderResult).toHaveBeenCalledTimes(3);
+    expect(mocks.logRecoveredCourtVerdictAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerRequestKey: REQUEST_KEY,
+        usage: {
+          inputTokens: null,
+          outputTokens: null,
+          cacheWriteInputTokens: null,
+          cachedInputTokens: null,
+        },
+      }),
+    );
+    expect(mocks.finalizeCourtProviderAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a staged result when only the staging acknowledgement is lost", async () => {
+    const verdict = makeValidCourtVerdict({ mode: "couple", category: "budget" });
+    mocks.stageCourtVerdictProviderResultForUser.mockRejectedValueOnce(
+      new Error("stage acknowledgement lost"),
+    );
+    mocks.settleCourtUnstagedProviderResult.mockResolvedValueOnce({
+      provider_state: "result_staged",
+      provider_audit_state: "pending",
+    });
+    mocks.generateCourtVerdict.mockImplementation(async (options) => {
+      await options.onValidated?.(verdict, {
+        model: "gpt-5.6-terra",
+        usage: undefined,
+      });
+      return { verdict, model: "gpt-5.6-terra" };
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual(expect.objectContaining({
+      code: "COURT_VERDICT_FINALIZATION_PENDING",
+    }));
+    expect(mocks.failCourtVerdictForUser).not.toHaveBeenCalled();
+    expect(mocks.completeCourtVerdictForUser).not.toHaveBeenCalled();
   });
 
   it("recovers a staged paid result with its stored release identity", async () => {
@@ -652,7 +815,7 @@ describe("POST /api/couple-court/cases/[caseId]/judge", () => {
     expect(mocks.failCourtVerdictForUser).not.toHaveBeenCalled();
   });
 
-  it("moves an unpersisted high-risk escalation failure to manual reconciliation", async () => {
+  it("repairs a high-risk settlement after persisting the terminal lease", async () => {
     const highRisk = {
       ...makeValidCourtVerdict({ mode: "couple", category: "budget" }),
       safety: {
@@ -684,7 +847,7 @@ describe("POST /api/couple-court/cases/[caseId]/judge", () => {
     const response = await POST(request(), context());
 
     expect(response.status).toBe(409);
-    expect(mocks.settleCourtHighRiskProviderResultForUser).toHaveBeenCalledTimes(2);
+    expect(mocks.settleCourtHighRiskProviderResultForUser).toHaveBeenCalledTimes(3);
     expect(mocks.failCourtVerdictForUser).toHaveBeenCalledWith({
       verdictId: VERDICT_ID,
       userId: USER_ID,
@@ -693,6 +856,46 @@ describe("POST /api/couple-court/cases/[caseId]/judge", () => {
     });
     expect(mocks.stageCourtVerdictProviderResultForUser).not.toHaveBeenCalled();
     expect(mocks.completeCourtVerdictForUser).not.toHaveBeenCalled();
+    expect(mocks.logRecoveredCourtVerdictAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.finalizeCourtProviderAudit).toHaveBeenCalledWith({
+      verdictId: VERDICT_ID,
+      requestKey: REQUEST_KEY,
+    });
+  });
+
+  it("keeps the high-risk request manual when every database settlement attempt fails", async () => {
+    const highRisk = {
+      ...makeValidCourtVerdict({ mode: "couple", category: "budget" }),
+      safety: {
+        level: "high_risk" as const,
+        riskTypes: ["violence" as const],
+        disablePlayfulVerdict: true,
+        publicEligible: false,
+        supportMessage: "지금은 안전을 먼저 확인해 주세요.",
+      },
+      missions: [],
+      publicCard: null,
+    };
+    mocks.settleCourtHighRiskProviderResultForUser.mockRejectedValue(
+      new Error("database unavailable"),
+    );
+    mocks.generateCourtVerdict.mockImplementation(async (options) => {
+      await options.onValidated?.(highRisk, {
+        model: "gpt-5.6-terra",
+        usage: undefined,
+      });
+      return { verdict: highRisk, model: "gpt-5.6-terra" };
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(409);
+    expect(mocks.settleCourtHighRiskProviderResultForUser).toHaveBeenCalledTimes(3);
+    expect(mocks.failCourtVerdictForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: "safety_escalation_failed" }),
+    );
+    expect(mocks.logRecoveredCourtVerdictAudit).not.toHaveBeenCalled();
+    expect(mocks.finalizeCourtProviderAudit).not.toHaveBeenCalled();
   });
 
   it("does not claim a staged result is pending after the case is archived", async () => {

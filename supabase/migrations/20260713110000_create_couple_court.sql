@@ -1,7 +1,8 @@
-BEGIN;
-
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '120s';
+-- Supabase CLI appends its schema_migrations history write to this file and
+-- executes the whole batch transactionally. Do not add explicit BEGIN/COMMIT:
+-- an early COMMIT would separate the schema from its migration-history row.
+SET lock_timeout = '5s';
+SET statement_timeout = '120s';
 
 -- Couple Court is deliberately isolated from couple-wide authorization.
 -- A court case can remain private to one member of an otherwise-linked couple;
@@ -745,7 +746,8 @@ CREATE TABLE public.court_provider_reservations (
           AND audit_model IS NOT NULL
           AND provider_audit_pending_at IS NOT NULL AND provider_audited_at IS NULL
           AND provider_error_code IN (
-            'safety_high_risk', 'safety_level_changed', 'court_archived'
+            'safety_high_risk', 'safety_level_changed', 'court_archived',
+            'provider_result_unstaged'
           ))
         OR (provider_audit_state = 'audited'
           AND audit_model IS NOT NULL
@@ -753,7 +755,8 @@ CREATE TABLE public.court_provider_reservations (
           AND provider_audit_recovery_lease_token IS NULL
           AND provider_audit_recovery_lease_expires_at IS NULL
           AND provider_error_code IN (
-            'safety_high_risk', 'safety_level_changed', 'court_archived'
+            'safety_high_risk', 'safety_level_changed', 'court_archived',
+            'provider_result_unstaged'
           ))
       ))
     OR (provider_state = 'failed_unknown'
@@ -776,26 +779,37 @@ CREATE TABLE public.court_provider_reservations (
     OR (provider_state = 'retry_allowed'
       AND started_at IS NOT NULL AND staged_at IS NULL
       AND staged_result_json IS NULL AND staged_missions_json IS NULL
-      AND staged_model IS NULL AND audit_model IS NULL
-      AND provider_audit_state = 'not_required'
-      AND provider_audit_pending_at IS NULL AND provider_audited_at IS NULL
-      AND provider_audit_recovery_lease_token IS NULL
-      AND provider_audit_recovery_lease_expires_at IS NULL
+      AND staged_model IS NULL
       AND provider_high_risk_categories IS NULL
       AND completed_at IS NULL AND failed_at IS NOT NULL
-      AND provider_input_tokens IS NULL AND provider_output_tokens IS NULL
-      AND provider_cached_input_tokens IS NULL
-      AND provider_cache_write_input_tokens IS NULL
       AND provider_error_code IS NOT NULL AND reconciled_at IS NOT NULL
       AND reconciliation_action = 'allow_retry'
       AND reconciliation_reason_code IS NOT NULL
-      AND reconciliation_confirmation = 'ALLOW_RETRY_AFTER_PROVIDER_REVIEW')
+      AND reconciliation_confirmation = 'ALLOW_RETRY_AFTER_PROVIDER_REVIEW'
+      AND (
+        (provider_audit_state = 'not_required'
+          AND audit_model IS NULL
+          AND provider_audit_pending_at IS NULL AND provider_audited_at IS NULL
+          AND provider_audit_recovery_lease_token IS NULL
+          AND provider_audit_recovery_lease_expires_at IS NULL
+          AND provider_input_tokens IS NULL AND provider_output_tokens IS NULL
+          AND provider_cached_input_tokens IS NULL
+          AND provider_cache_write_input_tokens IS NULL)
+        OR (provider_error_code = 'provider_result_unstaged'
+          AND provider_audit_state = 'audited'
+          AND audit_model IS NOT NULL
+          AND provider_audit_pending_at IS NULL AND provider_audited_at IS NOT NULL
+          AND provider_audit_recovery_lease_token IS NULL
+          AND provider_audit_recovery_lease_expires_at IS NULL)
+      ))
   )
 );
 
 CREATE INDEX court_provider_reservations_reconciliation_queue_idx
   ON public.court_provider_reservations(failed_at DESC, case_id)
-  WHERE provider_state = 'failed_unknown';
+  WHERE provider_state = 'failed_unknown'
+    OR (provider_state = 'failed_invalid'
+      AND provider_error_code = 'provider_result_unstaged');
 
 CREATE INDEX court_provider_reservations_audit_recovery_queue_idx
   ON public.court_provider_reservations(
@@ -805,6 +819,20 @@ CREATE INDEX court_provider_reservations_audit_recovery_queue_idx
     verdict_id
   )
   WHERE provider_audit_state = 'pending';
+
+-- Keep retry identity in a small append-only ledger instead of adding a
+-- unique index to the existing, append-heavy ai_interactions_log table. A
+-- standard Supabase CLI migration is transactional and cannot build an index
+-- CONCURRENTLY; this design preserves atomic lost-ack recovery without taking
+-- a long ACCESS EXCLUSIVE lock on the historical audit table.
+CREATE TABLE public.court_provider_audit_logs (
+  request_key text PRIMARY KEY
+    REFERENCES public.court_provider_reservations(request_key) ON DELETE CASCADE
+    CHECK (request_key ~ '^[a-f0-9]{64}$'),
+  ai_interaction_id uuid NOT NULL UNIQUE
+    REFERENCES public.ai_interactions_log(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp()
+);
 
 -- Settle a claimed provider slot exactly once. A reservation that never
 -- crossed the provider boundary refunds both legacy counters using the same
@@ -1173,80 +1201,103 @@ CREATE INDEX court_cases_creator_updated_idx
   ON public.court_cases(creator_user_id, updated_at DESC);
 CREATE INDEX court_cases_couple_updated_idx
   ON public.court_cases(couple_id, updated_at DESC) WHERE couple_id IS NOT NULL;
+CREATE INDEX court_cases_origin_couple_idx
+  ON public.court_cases(origin_couple_id) WHERE origin_couple_id IS NOT NULL;
 CREATE INDEX court_participants_user_case_idx
   ON public.court_participants(user_id, case_id);
+CREATE INDEX court_participants_case_idx
+  ON public.court_participants(case_id);
+CREATE INDEX court_invites_case_idx
+  ON public.court_invites(case_id);
+CREATE INDEX court_invites_issuer_idx
+  ON public.court_invites(issued_by_participant_id);
+CREATE INDEX court_invites_consumed_by_user_idx
+  ON public.court_invites(consumed_by_user_id)
+  WHERE consumed_by_user_id IS NOT NULL;
+CREATE INDEX court_invites_rejected_by_user_idx
+  ON public.court_invites(rejected_by_user_id)
+  WHERE rejected_by_user_id IS NOT NULL;
 CREATE INDEX court_statements_case_role_revision_idx
   ON public.court_statements(case_id, role, revision DESC);
 CREATE INDEX court_verdicts_case_created_idx
   ON public.court_verdicts(case_id, created_at DESC);
+CREATE INDEX court_verdicts_claimed_by_participant_idx
+  ON public.court_verdicts(claimed_by_participant_id)
+  WHERE claimed_by_participant_id IS NOT NULL;
 CREATE INDEX court_verdicts_stale_lease_idx
   ON public.court_verdicts(lease_expires_at)
   WHERE generation_status = 'in_progress';
 CREATE INDEX court_provider_reservations_case_created_idx
   ON public.court_provider_reservations(case_id, created_at DESC);
+CREATE INDEX court_provider_reservations_audit_user_idx
+  ON public.court_provider_reservations(audit_user_id)
+  WHERE audit_user_id IS NOT NULL;
+CREATE INDEX court_provider_reservations_audit_couple_idx
+  ON public.court_provider_reservations(audit_couple_id)
+  WHERE audit_couple_id IS NOT NULL;
 CREATE INDEX court_missions_case_status_idx
   ON public.court_missions(case_id, mission_status, created_at);
 CREATE INDEX court_mission_completions_participant_idx
   ON public.court_mission_completions(participant_id, updated_at DESC);
+CREATE INDEX court_mission_completions_case_idx
+  ON public.court_mission_completions(case_id);
 CREATE INDEX court_followups_case_created_idx
   ON public.court_followups(case_id, created_at DESC);
+CREATE INDEX court_followups_participant_idx
+  ON public.court_followups(participant_id);
+CREATE INDEX court_followups_verdict_idx
+  ON public.court_followups(verdict_id) WHERE verdict_id IS NOT NULL;
 CREATE INDEX court_case_events_case_created_idx
   ON public.court_case_events(case_id, created_at DESC);
+CREATE INDEX court_case_events_actor_idx
+  ON public.court_case_events(actor_participant_id)
+  WHERE actor_participant_id IS NOT NULL;
 CREATE INDEX court_public_posts_status_published_idx
   ON public.court_public_posts(status, published_at DESC);
+CREATE INDEX court_public_posts_pending_review_queue_idx
+  ON public.court_public_posts(created_at, id)
+  WHERE status = 'pending_review' AND moderation_status = 'pending';
+CREATE INDEX court_public_posts_reviewer_idx
+  ON public.court_public_posts(reviewed_by_user_id)
+  WHERE reviewed_by_user_id IS NOT NULL;
 CREATE INDEX court_public_consents_post_active_idx
   ON public.court_public_consents(public_post_id, participant_id)
   WHERE revoked_at IS NULL;
+CREATE INDEX court_public_consents_participant_idx
+  ON public.court_public_consents(participant_id);
 CREATE INDEX court_votes_post_choice_idx
   ON public.court_votes(public_post_id, choice);
+CREATE INDEX court_votes_user_idx
+  ON public.court_votes(user_id);
 CREATE INDEX court_comments_post_visible_idx
   ON public.court_comments(public_post_id, created_at)
   WHERE moderation_status = 'visible' AND deleted_at IS NULL;
+CREATE INDEX court_comments_public_visible_order_idx
+  ON public.court_comments(
+    public_post_id,
+    (COALESCE(reviewed_at, created_at)) DESC,
+    id DESC
+  )
+  WHERE moderation_status = 'visible' AND deleted_at IS NULL;
+CREATE INDEX court_comments_pending_review_queue_idx
+  ON public.court_comments(created_at, id)
+  WHERE moderation_status = 'pending' AND deleted_at IS NULL;
+CREATE INDEX court_comments_post_idx
+  ON public.court_comments(public_post_id);
+CREATE INDEX court_comments_user_idx
+  ON public.court_comments(user_id);
+CREATE INDEX court_comments_reviewer_idx
+  ON public.court_comments(reviewed_by_user_id)
+  WHERE reviewed_by_user_id IS NOT NULL;
 CREATE INDEX court_reports_status_created_idx
   ON public.court_reports(status, created_at);
-
--- Amora actions remain normalized. A mission can link to at most one action,
--- and the linking RPC below verifies the action is a court action for the same
--- couple and creator.
-ALTER TABLE public.amora_actions
-  DROP CONSTRAINT IF EXISTS amora_actions_source_check;
-ALTER TABLE public.amora_actions
-  ADD CONSTRAINT amora_actions_source_check
-  CHECK (source IN ('chat', 'quote', 'schedule', 'budget', 'guardrail', 'manual', 'court'));
-
--- Successful provider audits can be retried after a staged-result recovery.
--- Legacy rows have no key; exclude those NULLs from the new unique index so
--- its build and ongoing footprint stay bounded to exactly-once writes.
-ALTER TABLE public.ai_interactions_log
-  ADD COLUMN idempotency_key text;
-ALTER TABLE public.ai_interactions_log
-  ADD CONSTRAINT ai_interactions_log_idempotency_key_check
-  CHECK (
-    idempotency_key IS NULL
-      OR idempotency_key ~ '^[a-f0-9]{64}$'
-  );
-CREATE UNIQUE INDEX ai_interactions_log_idempotency_key_unique
-  ON public.ai_interactions_log(idempotency_key)
-  WHERE idempotency_key IS NOT NULL;
-
--- A payload-free compliance audit must outlive an optional couple deletion.
--- Match the reservation envelope's SET NULL identity semantics so a pending
--- exact-finalize comparison cannot be invalidated by a parent-row cascade.
-ALTER TABLE public.ai_interactions_log
-  DROP CONSTRAINT IF EXISTS ai_interactions_log_couple_id_fkey;
-ALTER TABLE public.ai_interactions_log
-  ADD CONSTRAINT ai_interactions_log_couple_id_fkey
-  FOREIGN KEY (couple_id) REFERENCES public.couples(id) ON DELETE SET NULL;
-
-ALTER TABLE public.ai_interactions_log
-  DROP CONSTRAINT IF EXISTS ai_interactions_log_interaction_type_check;
-ALTER TABLE public.ai_interactions_log
-  ADD CONSTRAINT ai_interactions_log_interaction_type_check
-  CHECK (interaction_type IN (
-    'chat_turn', 'tool_call', 'tool_result', 'amora_director',
-    'vendor_recommendation', 'feedback', 'community_amora_comment',
-    'community_agent_auto', 'couple_court_verdict'
-  ));
+CREATE INDEX court_reports_public_post_idx
+  ON public.court_reports(public_post_id);
+CREATE INDEX court_reports_reporter_idx
+  ON public.court_reports(reporter_user_id);
+CREATE INDEX court_reports_reviewer_idx
+  ON public.court_reports(reviewed_by_user_id)
+  WHERE reviewed_by_user_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION public.set_court_updated_at()
 RETURNS trigger
@@ -1651,6 +1702,7 @@ ALTER TABLE public.court_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_statements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_verdicts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_provider_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.court_provider_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_missions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_mission_completions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.court_followups ENABLE ROW LEVEL SECURITY;
@@ -1667,7 +1719,8 @@ DECLARE
 BEGIN
   FOREACH v_table IN ARRAY ARRAY[
     'court_cases', 'court_participants', 'court_invites', 'court_statements',
-    'court_verdicts', 'court_provider_reservations', 'court_missions',
+    'court_verdicts', 'court_provider_reservations',
+    'court_provider_audit_logs', 'court_missions',
     'court_mission_completions',
     'court_followups', 'court_case_events', 'court_public_posts',
     'court_public_consents', 'court_votes', 'court_comments', 'court_reports'
@@ -1697,8 +1750,15 @@ GRANT SELECT ON TABLE public.court_statements TO authenticated;
 GRANT SELECT ON TABLE public.court_followups TO authenticated;
 GRANT SELECT ON TABLE public.court_public_consents TO authenticated;
 GRANT SELECT ON TABLE public.court_votes TO authenticated;
-GRANT SELECT ON TABLE public.court_comments TO authenticated;
-GRANT SELECT ON TABLE public.court_reports TO authenticated;
+-- Owners may read the status of their own submissions, but reviewer identity
+-- and internal moderation fields remain behind the service boundary.
+GRANT SELECT (
+  id, public_post_id, comment_type, body, moderation_status, created_at, updated_at
+) ON TABLE public.court_comments TO authenticated;
+GRANT SELECT (
+  id, public_post_id, comment_id, target_type, reason_code, status,
+  created_at, updated_at
+) ON TABLE public.court_reports TO authenticated;
 
 CREATE POLICY court_statements_owner_select
   ON public.court_statements FOR SELECT TO authenticated
@@ -1786,6 +1846,7 @@ SELECT
   comment.public_post_id,
   comment.comment_type,
   comment.body,
+  COALESCE(comment.reviewed_at, comment.created_at) AS visible_at,
   comment.created_at,
   comment.updated_at
 FROM public.court_comments AS comment
@@ -1804,8 +1865,122 @@ ALTER VIEW public.court_public_feed OWNER TO postgres;
 ALTER VIEW public.court_public_comment_feed OWNER TO postgres;
 REVOKE ALL ON TABLE public.court_public_feed FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.court_public_comment_feed FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.court_public_feed TO anon, authenticated, service_role;
-GRANT SELECT ON TABLE public.court_public_comment_feed TO anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.court_public_feed TO service_role;
+GRANT SELECT ON TABLE public.court_public_comment_feed TO service_role;
+
+CREATE OR REPLACE FUNCTION public.list_court_cases_for_user(
+  p_user_id uuid,
+  p_before_updated_at timestamptz,
+  p_before_id uuid,
+  p_limit integer
+)
+RETURNS TABLE (
+  id uuid,
+  mode text,
+  category text,
+  tone text,
+  workflow_status text,
+  safety_level text,
+  title text,
+  created_at timestamptz,
+  updated_at timestamptz,
+  archived_at timestamptz,
+  my_role text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_user_id IS NULL OR p_limit IS NULL OR p_limit < 1 OR p_limit > 50
+    OR ((p_before_updated_at IS NULL) <> (p_before_id IS NULL))
+  THEN
+    RAISE EXCEPTION 'invalid court case list arguments' USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    court_case.id,
+    court_case.mode,
+    court_case.category,
+    court_case.tone,
+    court_case.workflow_status,
+    court_case.safety_level,
+    court_case.title,
+    court_case.created_at,
+    court_case.updated_at,
+    court_case.archived_at,
+    participant.role
+  FROM public.court_participants AS participant
+  JOIN public.court_cases AS court_case ON court_case.id = participant.case_id
+  JOIN public.profiles AS profile ON profile.id = participant.user_id
+  WHERE participant.user_id = p_user_id
+    AND participant.participation_status = 'active'
+    AND profile.account_deleting_at IS NULL
+    AND court_case.workflow_status <> 'archived'
+    AND (
+      p_before_updated_at IS NULL
+      OR (court_case.updated_at, court_case.id) < (p_before_updated_at, p_before_id)
+    )
+  ORDER BY court_case.updated_at DESC, court_case.id DESC
+  LIMIT p_limit + 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.list_court_public_comments(
+  p_public_post_id uuid,
+  p_before_visible_at timestamptz,
+  p_before_id uuid,
+  p_limit integer
+)
+RETURNS TABLE (
+  id uuid,
+  public_post_id uuid,
+  comment_type text,
+  body text,
+  visible_at timestamptz,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_public_post_id IS NULL OR p_limit IS NULL OR p_limit < 1 OR p_limit > 80
+    OR ((p_before_visible_at IS NULL) <> (p_before_id IS NULL))
+  THEN
+    RAISE EXCEPTION 'invalid court public comment list arguments'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    feed.id,
+    feed.public_post_id,
+    feed.comment_type,
+    feed.body,
+    feed.visible_at,
+    feed.created_at,
+    feed.updated_at
+  FROM public.court_public_comment_feed AS feed
+  WHERE feed.public_post_id = p_public_post_id
+    AND (
+      p_before_visible_at IS NULL
+      OR (feed.visible_at, feed.id) < (p_before_visible_at, p_before_id)
+    )
+  ORDER BY feed.visible_at DESC, feed.id DESC
+  LIMIT p_limit + 1;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_court_case_with_applicant(
   p_user_id uuid,
@@ -3890,6 +4065,11 @@ BEGIN
     ELSIF v_case.workflow_status <> 'statements_complete' THEN
       RAISE EXCEPTION 'court verdict cannot start in this state' USING ERRCODE = '22023';
     END IF;
+    -- A paid/ambiguous terminal attempt blocks the whole case across releases.
+    -- input_hash includes prompt, schema, safety-policy and model identity, so
+    -- filtering by it would let a deployment change bypass the cost fence.
+    -- Only an explicit admin reconciliation to retry_allowed unlocks a new
+    -- provider call.
     IF EXISTS (
       SELECT 1
       FROM public.court_verdicts AS failed_verdict
@@ -3897,11 +4077,12 @@ BEGIN
         ON reservation.verdict_id = failed_verdict.id
        AND reservation.case_id = failed_verdict.case_id
       WHERE failed_verdict.case_id = p_case_id
-        AND failed_verdict.input_hash = p_input_hash
-        AND failed_verdict.prompt_version = p_prompt_version
-        AND failed_verdict.schema_version = p_schema_version
         AND failed_verdict.generation_status = 'failed'
-        AND reservation.provider_state = 'failed_unknown'
+        AND (
+          reservation.provider_state = 'failed_unknown'
+          OR (reservation.provider_state = 'failed_invalid'
+            AND reservation.provider_error_code = 'provider_result_unstaged')
+        )
     ) THEN
       RAISE EXCEPTION 'court_provider_manual_reconciliation_required'
         USING ERRCODE = '55000';
@@ -4601,6 +4782,323 @@ BEGIN
 END;
 $$;
 
+-- A provider response can be valid and billable even when the private verdict
+-- payload loses a race with safety, archive, account state, or storage. Keep
+-- only the payload-free audit envelope, fail the unusable verdict, and block a
+-- second paid call until an administrator reviews the terminal attempt.
+CREATE OR REPLACE FUNCTION public.settle_court_unstaged_provider_result(
+  p_verdict_id uuid,
+  p_lease_token uuid,
+  p_input_hash text,
+  p_request_key text,
+  p_audit_model text,
+  p_input_tokens integer DEFAULT NULL,
+  p_output_tokens integer DEFAULT NULL,
+  p_cached_input_tokens integer DEFAULT NULL,
+  p_cache_write_input_tokens integer DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+  v_case_id uuid;
+  v_case public.court_cases%ROWTYPE;
+  v_verdict public.court_verdicts%ROWTYPE;
+  v_reservation public.court_provider_reservations%ROWTYPE;
+  v_pending_at timestamptz;
+  v_error_code text;
+  v_previous_case_status text;
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_verdict_id IS NULL OR p_lease_token IS NULL
+    OR p_input_hash IS NULL OR p_input_hash !~ '^[a-f0-9]{64}$'
+    OR p_request_key IS NULL OR p_request_key !~ '^[a-f0-9]{64}$'
+    OR p_audit_model IS NULL
+    OR p_audit_model !~ '^[A-Za-z0-9._:/-]{1,128}$'
+    OR (p_input_tokens IS NULL) <> (p_output_tokens IS NULL)
+    OR (p_input_tokens IS NOT NULL
+      AND p_input_tokens NOT BETWEEN 0 AND 10000000)
+    OR (p_output_tokens IS NOT NULL
+      AND p_output_tokens NOT BETWEEN 0 AND 10000000)
+    OR (p_cached_input_tokens IS NOT NULL AND (
+      p_cached_input_tokens NOT BETWEEN 0 AND 10000000
+      OR p_input_tokens IS NULL
+      OR p_cached_input_tokens > p_input_tokens
+    ))
+    OR (p_cache_write_input_tokens IS NOT NULL AND (
+      p_cache_write_input_tokens NOT BETWEEN 0 AND 10000000
+      OR p_input_tokens IS NULL
+      OR p_cache_write_input_tokens > p_input_tokens
+    ))
+  THEN
+    RAISE EXCEPTION 'invalid court unstaged provider settlement arguments'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT verdict.case_id INTO v_case_id
+  FROM public.court_verdicts AS verdict
+  WHERE verdict.id = p_verdict_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'court verdict is unavailable' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT court_case.* INTO v_case
+  FROM public.court_cases AS court_case
+  WHERE court_case.id = v_case_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'court case is unavailable' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT verdict.* INTO v_verdict
+  FROM public.court_verdicts AS verdict
+  WHERE verdict.id = p_verdict_id
+    AND verdict.case_id = v_case_id
+  FOR UPDATE;
+  IF NOT FOUND
+    OR v_verdict.input_hash IS DISTINCT FROM p_input_hash
+    OR v_verdict.generation_status NOT IN ('in_progress', 'failed')
+  THEN
+    RAISE EXCEPTION 'court verdict paid-result identity mismatch'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT reservation.* INTO v_reservation
+  FROM public.court_provider_reservations AS reservation
+  WHERE reservation.verdict_id = p_verdict_id
+  FOR UPDATE;
+  IF NOT FOUND
+    OR v_reservation.case_id IS DISTINCT FROM v_case_id
+    OR v_reservation.input_hash IS DISTINCT FROM p_input_hash
+    OR v_reservation.request_key IS DISTINCT FROM p_request_key
+  THEN
+    RAISE EXCEPTION 'court_provider_reservation_mismatch'
+      USING ERRCODE = '42501';
+  END IF;
+  IF v_reservation.provider_state <> 'result_staged'
+    AND v_verdict.lease_token IS DISTINCT FROM p_lease_token
+    AND v_verdict.terminal_lease_token IS DISTINCT FROM p_lease_token
+  THEN
+    RAISE EXCEPTION 'court provider paid-result lease mismatch'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- A staging commit may have succeeded even if its acknowledgement was lost.
+  -- Preserve that recoverable private payload rather than downgrading it.
+  IF v_reservation.provider_state = 'result_staged' THEN
+    IF v_reservation.provider_audit_state NOT IN ('pending', 'audited')
+      OR v_reservation.audit_model IS DISTINCT FROM p_audit_model
+      OR v_reservation.provider_input_tokens IS DISTINCT FROM p_input_tokens
+      OR v_reservation.provider_output_tokens IS DISTINCT FROM p_output_tokens
+      OR v_reservation.provider_cached_input_tokens
+        IS DISTINCT FROM p_cached_input_tokens
+      OR v_reservation.provider_cache_write_input_tokens
+        IS DISTINCT FROM p_cache_write_input_tokens
+    THEN
+      RAISE EXCEPTION 'court_provider_staged_result_mismatch'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'verdict_id', p_verdict_id,
+      'case_id', v_case_id,
+      'provider_state', 'result_staged',
+      'provider_audit_state', v_reservation.provider_audit_state,
+      'provider_error_code', NULL,
+      'reused', true
+    );
+  END IF;
+
+  IF v_reservation.provider_state = 'failed_invalid'
+    AND v_reservation.provider_audit_state IN ('pending', 'audited')
+  THEN
+    IF v_reservation.provider_error_code NOT IN (
+        'safety_high_risk', 'safety_level_changed', 'court_archived',
+        'provider_result_unstaged'
+      )
+      OR v_reservation.audit_model IS DISTINCT FROM p_audit_model
+      OR v_reservation.provider_input_tokens IS DISTINCT FROM p_input_tokens
+      OR v_reservation.provider_output_tokens IS DISTINCT FROM p_output_tokens
+      OR v_reservation.provider_cached_input_tokens
+        IS DISTINCT FROM p_cached_input_tokens
+      OR v_reservation.provider_cache_write_input_tokens
+        IS DISTINCT FROM p_cache_write_input_tokens
+    THEN
+      RAISE EXCEPTION 'court_provider_unstaged_audit_mismatch'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'verdict_id', p_verdict_id,
+      'case_id', v_case_id,
+      'provider_state', 'failed_invalid',
+      'provider_audit_state', v_reservation.provider_audit_state,
+      'provider_error_code', v_reservation.provider_error_code,
+      'reused', true
+    );
+  END IF;
+
+  IF v_reservation.provider_audit_state <> 'not_required'
+    OR NOT (
+      v_reservation.provider_state = 'started'
+      OR (
+        v_reservation.provider_state = 'failed_unknown'
+        AND v_reservation.provider_error_code
+          IS DISTINCT FROM 'safety_escalation_failed'
+      )
+      OR (
+        v_reservation.provider_state = 'failed_invalid'
+        AND v_reservation.provider_error_code IN (
+          'safety_high_risk', 'safety_level_changed', 'court_archived'
+        )
+      )
+    )
+  THEN
+    RAISE EXCEPTION 'court provider paid result cannot be settled in this state'
+      USING ERRCODE = '55000';
+  END IF;
+
+  v_error_code := CASE
+    WHEN v_reservation.provider_state = 'failed_invalid'
+      AND v_reservation.provider_error_code IN (
+        'safety_high_risk', 'safety_level_changed', 'court_archived'
+      )
+      THEN v_reservation.provider_error_code
+    ELSE 'provider_result_unstaged'
+  END;
+  v_pending_at := pg_catalog.clock_timestamp();
+
+  UPDATE public.court_provider_reservations
+  SET provider_state = 'failed_invalid',
+      staged_at = NULL,
+      staged_result_json = NULL,
+      staged_missions_json = NULL,
+      staged_model = NULL,
+      audit_model = p_audit_model,
+      provider_audit_state = 'pending',
+      provider_audit_pending_at = v_pending_at,
+      provider_audited_at = NULL,
+      provider_audit_recovery_lease_token = NULL,
+      provider_audit_recovery_lease_expires_at = NULL,
+      provider_audit_recovery_last_error_code = NULL,
+      provider_audit_recovery_last_error_at = NULL,
+      provider_high_risk_categories = NULL,
+      provider_input_tokens = p_input_tokens,
+      provider_output_tokens = p_output_tokens,
+      provider_cached_input_tokens = p_cached_input_tokens,
+      provider_cache_write_input_tokens = p_cache_write_input_tokens,
+      failed_at = COALESCE(failed_at, v_pending_at),
+      completed_at = NULL,
+      provider_error_code = v_error_code,
+      reconciled_at = NULL,
+      reconciled_by_user_id = NULL,
+      reconciliation_action = NULL,
+      reconciliation_reason_code = NULL,
+      reconciliation_confirmation = NULL
+  WHERE verdict_id = p_verdict_id
+    AND provider_audit_state = 'not_required'
+    AND (
+      provider_state = 'started'
+      OR (
+        provider_state = 'failed_unknown'
+        AND provider_error_code IS DISTINCT FROM 'safety_escalation_failed'
+      )
+      OR (
+        provider_state = 'failed_invalid'
+        AND provider_error_code IN (
+          'safety_high_risk', 'safety_level_changed', 'court_archived'
+        )
+      )
+    );
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'court unstaged provider settlement changed concurrently'
+      USING ERRCODE = '40001';
+  END IF;
+
+  IF v_verdict.generation_status = 'in_progress' THEN
+    v_previous_case_status := v_case.workflow_status;
+    UPDATE public.court_verdicts
+    SET generation_status = 'failed',
+        result_json = NULL,
+        terminal_lease_token = COALESCE(terminal_lease_token, lease_token, p_lease_token),
+        lease_token = NULL,
+        lease_expires_at = NULL,
+        completed_at = NULL,
+        failed_at = v_pending_at,
+        superseded_at = NULL,
+        error_code = v_error_code
+    WHERE id = p_verdict_id
+      AND generation_status = 'in_progress';
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'court unstaged verdict settlement changed concurrently'
+        USING ERRCODE = '40001';
+    END IF;
+
+    IF v_case.workflow_status = 'judging' THEN
+      UPDATE public.court_cases
+      SET workflow_status = 'statements_complete',
+          lock_version = lock_version + 1
+      WHERE id = v_case_id
+        AND workflow_status = 'judging';
+    END IF;
+
+    INSERT INTO public.court_case_events (
+      case_id, actor_participant_id, event_type, metadata
+    ) VALUES (
+      v_case_id,
+      NULL,
+      'verdict_failed',
+      pg_catalog.jsonb_build_object(
+        'from_status', v_previous_case_status,
+        'to_status', CASE WHEN v_previous_case_status = 'judging'
+          THEN 'statements_complete' ELSE v_previous_case_status END,
+        'reason_code', v_error_code,
+        'status', 'provider_result_unstaged'
+      )
+    );
+  ELSIF v_verdict.generation_status = 'failed' THEN
+    v_previous_case_status := v_case.workflow_status;
+    UPDATE public.court_verdicts
+    SET result_json = NULL,
+        failed_at = COALESCE(failed_at, v_pending_at),
+        error_code = v_error_code
+    WHERE id = p_verdict_id
+      AND generation_status = 'failed'
+      AND terminal_lease_token IS NOT DISTINCT FROM p_lease_token;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'court unstaged failed-verdict fence changed concurrently'
+        USING ERRCODE = '40001';
+    END IF;
+
+    INSERT INTO public.court_case_events (
+      case_id, actor_participant_id, event_type, metadata
+    ) VALUES (
+      v_case_id,
+      NULL,
+      'verdict_failed',
+      pg_catalog.jsonb_build_object(
+        'from_status', v_previous_case_status,
+        'to_status', v_previous_case_status,
+        'reason_code', v_error_code,
+        'status', 'provider_result_unstaged_repaired'
+      )
+    );
+  END IF;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'verdict_id', p_verdict_id,
+    'case_id', v_case_id,
+    'provider_state', 'failed_invalid',
+    'provider_audit_state', 'pending',
+    'provider_error_code', v_error_code,
+    'provider_audit_pending_at', v_pending_at,
+    'reused', false
+  );
+END;
+$$;
+
 -- Persist only the safe paid-call envelope for a provider-discovered
 -- high-risk result. Verdict prose, explanations, share text and missions are
 -- deliberately absent from this RPC and can never enter the recovery queue.
@@ -4697,16 +5195,6 @@ BEGIN
     RAISE EXCEPTION 'court case is unavailable' USING ERRCODE = '42501';
   END IF;
 
-  SELECT participant.id INTO v_participant_id
-  FROM public.court_participants AS participant
-  WHERE participant.case_id = v_case_id
-    AND participant.user_id = p_user_id
-    AND participant.participation_status = 'active'
-  FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'court participant is required' USING ERRCODE = '42501';
-  END IF;
-
   SELECT verdict.* INTO v_verdict
   FROM public.court_verdicts AS verdict
   WHERE verdict.id = p_verdict_id
@@ -4714,6 +5202,20 @@ BEGIN
   FOR UPDATE;
   IF NOT FOUND OR v_verdict.input_hash IS DISTINCT FROM p_input_hash THEN
     RAISE EXCEPTION 'court verdict claim is no longer valid' USING ERRCODE = '22023';
+  END IF;
+
+  -- A paid result remains bound to the immutable claimant even if that
+  -- participant leaves while the provider is running. Requiring active
+  -- membership here would erase a safety outcome after the irreversible
+  -- provider boundary.
+  SELECT participant.id INTO v_participant_id
+  FROM public.court_participants AS participant
+  WHERE participant.id = v_verdict.claimed_by_participant_id
+    AND participant.case_id = v_case_id
+    AND participant.user_id = p_user_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'court verdict claimant is unavailable' USING ERRCODE = '42501';
   END IF;
 
   SELECT reservation.* INTO v_reservation
@@ -4768,10 +5270,18 @@ BEGIN
       RAISE EXCEPTION 'court verdict claim is no longer valid' USING ERRCODE = '22023';
     END IF;
   ELSIF NOT (
-    v_reservation.provider_state = 'failed_invalid'
-    AND v_reservation.provider_audit_state = 'not_required'
-    AND v_reservation.provider_error_code IN (
-      'safety_high_risk', 'safety_level_changed', 'court_archived'
+    v_reservation.provider_audit_state = 'not_required'
+    AND (
+      (
+        v_reservation.provider_state = 'failed_invalid'
+        AND v_reservation.provider_error_code IN (
+          'safety_high_risk', 'safety_level_changed', 'court_archived'
+        )
+      )
+      OR (
+        v_reservation.provider_state = 'failed_unknown'
+        AND v_reservation.provider_error_code = 'safety_escalation_failed'
+      )
     )
     AND v_verdict.generation_status = 'failed'
     AND v_verdict.terminal_lease_token IS NOT DISTINCT FROM p_lease_token
@@ -4815,6 +5325,11 @@ BEGIN
   WHERE verdict_id = p_verdict_id
     AND (
       provider_state = 'started'
+      OR (
+        provider_state = 'failed_unknown'
+        AND provider_audit_state = 'not_required'
+        AND provider_error_code = 'safety_escalation_failed'
+      )
       OR (provider_state = 'failed_invalid' AND provider_audit_state = 'not_required')
     );
   IF NOT FOUND THEN
@@ -4925,6 +5440,191 @@ BEGIN
 END;
 $$;
 
+-- Write the required provider audit and its retry key in one transaction.
+-- The caller supplies the identity it believes it is recording; the database
+-- independently derives the canonical payload-free identity from the staged
+-- reservation and rejects any mismatch before inserting. Locking the unique
+-- reservation makes a lost acknowledgement safely replayable without an
+-- index on the historical AI audit table.
+CREATE OR REPLACE FUNCTION public.write_court_provider_audit(
+  p_request_key text,
+  p_audit_identity jsonb,
+  p_cost_usd numeric DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+  v_reservation public.court_provider_reservations%ROWTYPE;
+  v_verdict public.court_verdicts%ROWTYPE;
+  v_case public.court_cases%ROWTYPE;
+  v_audit public.ai_interactions_log%ROWTYPE;
+  v_expected_metadata jsonb;
+  v_expected_identity jsonb;
+  v_schema_name text;
+  v_audit_id uuid;
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_request_key IS NULL OR p_request_key !~ '^[a-f0-9]{64}$'
+    OR p_audit_identity IS NULL
+    OR pg_catalog.jsonb_typeof(p_audit_identity) <> 'object'
+    OR (p_cost_usd IS NOT NULL AND (p_cost_usd < 0 OR p_cost_usd >= 1000000))
+  THEN
+    RAISE EXCEPTION 'invalid court provider audit arguments'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT reservation.* INTO v_reservation
+  FROM public.court_provider_reservations AS reservation
+  WHERE reservation.request_key = p_request_key
+  FOR UPDATE;
+  IF NOT FOUND
+    OR v_reservation.provider_audit_state NOT IN ('pending', 'audited')
+    OR v_reservation.audit_model IS NULL
+  THEN
+    RAISE EXCEPTION 'court_provider_audit_not_ready'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT verdict.* INTO v_verdict
+  FROM public.court_verdicts AS verdict
+  WHERE verdict.id = v_reservation.verdict_id
+    AND verdict.case_id = v_reservation.case_id;
+  SELECT court_case.* INTO v_case
+  FROM public.court_cases AS court_case
+  WHERE court_case.id = v_reservation.case_id;
+  IF v_verdict.id IS NULL OR v_case.id IS NULL THEN
+    RAISE EXCEPTION 'court provider audit context is unavailable'
+      USING ERRCODE = '55000';
+  END IF;
+
+  v_schema_name := CASE v_verdict.schema_version
+    WHEN '1.0' THEN 'couple_court_verdict_v1'
+    ELSE NULL
+  END;
+  IF v_schema_name IS NULL THEN
+    RAISE EXCEPTION 'court_provider_audit_schema_unsupported'
+      USING ERRCODE = '55000';
+  END IF;
+
+  v_expected_metadata := pg_catalog.jsonb_build_object(
+    'source', 'couple_court_judge',
+    'mode', v_case.mode,
+    'category', v_case.category,
+    'tone', v_case.tone,
+    'prompt_version', v_verdict.prompt_version,
+    'schema_version', v_verdict.schema_version,
+    'safety_level', v_reservation.audit_preflight_safety_level,
+    'input_hash', v_reservation.input_hash,
+    'ai_provider', 'openai',
+    'quota_class', 'provider_call',
+    'model_role', 'primary',
+    'reasoning_effort', 'none',
+    'audit_wrapper', 'createOpenAIStructuredResponseWithAudit',
+    'structured_output', true,
+    'schema_name', v_schema_name
+  ) || CASE
+    WHEN COALESCE(v_reservation.provider_cache_write_input_tokens, 0) <> 0
+      OR COALESCE(v_reservation.provider_cached_input_tokens, 0) <> 0
+    THEN pg_catalog.jsonb_build_object(
+      'cache_write_input_tokens',
+        COALESCE(v_reservation.provider_cache_write_input_tokens, 0),
+      'cache_read_input_tokens',
+        COALESCE(v_reservation.provider_cached_input_tokens, 0)
+    )
+    ELSE '{}'::jsonb
+  END;
+
+  v_expected_identity := pg_catalog.jsonb_build_object(
+    'user_id', v_reservation.audit_user_id,
+    'couple_id', v_reservation.audit_couple_id,
+    'session_id', NULL::text,
+    'message_id', NULL::uuid,
+    'interaction_type', 'couple_court_verdict',
+    'specialist_type', NULL::text,
+    'user_input', NULL::text,
+    'ai_output', NULL::text,
+    'tool_name', NULL::text,
+    'tool_input', NULL::jsonb,
+    'tool_output', NULL::jsonb,
+    'success', true,
+    'error_message', NULL::text,
+    'model', v_reservation.audit_model,
+    'tokens_input', v_reservation.provider_input_tokens,
+    'tokens_output', v_reservation.provider_output_tokens,
+    'metadata', v_expected_metadata
+  );
+  IF p_audit_identity IS DISTINCT FROM v_expected_identity THEN
+    RAISE EXCEPTION 'court_provider_audit_identity_mismatch'
+      USING ERRCODE = '55000';
+  END IF;
+
+  SELECT interaction.* INTO v_audit
+  FROM public.court_provider_audit_logs AS audit_link
+  JOIN public.ai_interactions_log AS interaction
+    ON interaction.id = audit_link.ai_interaction_id
+  WHERE audit_link.request_key = p_request_key;
+  IF FOUND THEN
+    IF v_audit.user_id IS DISTINCT FROM v_reservation.audit_user_id
+      OR v_audit.couple_id IS DISTINCT FROM v_reservation.audit_couple_id
+      OR v_audit.session_id IS NOT NULL
+      OR v_audit.message_id IS NOT NULL
+      OR v_audit.interaction_type IS DISTINCT FROM 'couple_court_verdict'
+      OR v_audit.specialist_type IS NOT NULL
+      OR v_audit.user_input IS NOT NULL
+      OR v_audit.ai_output IS NOT NULL
+      OR v_audit.tool_name IS NOT NULL
+      OR v_audit.tool_input IS NOT NULL
+      OR v_audit.tool_output IS NOT NULL
+      OR v_audit.success IS DISTINCT FROM true
+      OR v_audit.error_message IS NOT NULL
+      OR v_audit.model IS DISTINCT FROM v_reservation.audit_model
+      OR v_audit.tokens_input IS DISTINCT FROM v_reservation.provider_input_tokens
+      OR v_audit.tokens_output IS DISTINCT FROM v_reservation.provider_output_tokens
+      OR v_audit.metadata IS DISTINCT FROM v_expected_metadata
+    THEN
+      RAISE EXCEPTION 'court_provider_audit_evidence_mismatch'
+        USING ERRCODE = '55000';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'audit_log_id', v_audit.id,
+      'reused', true
+    );
+  END IF;
+
+  IF v_reservation.provider_audit_state = 'audited' THEN
+    RAISE EXCEPTION 'court_provider_audit_evidence_missing'
+      USING ERRCODE = '55000';
+  END IF;
+
+  INSERT INTO public.ai_interactions_log (
+    user_id, couple_id, session_id, message_id, interaction_type,
+    specialist_type, user_input, ai_output, tool_name, tool_input, tool_output,
+    latency_ms, success, error_message, model, tokens_input, tokens_output,
+    cost_usd, metadata
+  ) VALUES (
+    v_reservation.audit_user_id, v_reservation.audit_couple_id,
+    NULL, NULL, 'couple_court_verdict', NULL, NULL, NULL, NULL, NULL, NULL,
+    0, true, NULL, v_reservation.audit_model,
+    v_reservation.provider_input_tokens, v_reservation.provider_output_tokens,
+    p_cost_usd, v_expected_metadata
+  )
+  RETURNING id INTO v_audit_id;
+
+  INSERT INTO public.court_provider_audit_logs (request_key, ai_interaction_id)
+  VALUES (p_request_key, v_audit_id);
+
+  RETURN pg_catalog.jsonb_build_object(
+    'audit_log_id', v_audit_id,
+    'reused', false
+  );
+END;
+$$;
+
 -- Finalization is evidence-based, not caller-asserted. The successful audit
 -- row must match the complete canonical, payload-free provider identity.
 CREATE OR REPLACE FUNCTION public.finalize_court_provider_audit(
@@ -5023,8 +5723,10 @@ BEGIN
   END;
 
   SELECT interaction.* INTO v_audit
-  FROM public.ai_interactions_log AS interaction
-  WHERE interaction.idempotency_key = p_request_key;
+  FROM public.court_provider_audit_logs AS audit_link
+  JOIN public.ai_interactions_log AS interaction
+    ON interaction.id = audit_link.ai_interaction_id
+  WHERE audit_link.request_key = p_request_key;
   IF NOT FOUND
     OR v_audit.user_id IS DISTINCT FROM v_reservation.audit_user_id
     OR v_audit.couple_id IS DISTINCT FROM v_reservation.audit_couple_id
@@ -5726,6 +6428,7 @@ AS $$
 DECLARE
   v_reservation public.court_provider_reservations%ROWTYPE;
   v_reconciled_at timestamptz;
+  v_from_state text;
 BEGIN
   IF COALESCE(auth.role(), '') <> 'service_role' THEN
     RAISE EXCEPTION 'service_role_required' USING ERRCODE = '42501';
@@ -5778,8 +6481,19 @@ BEGIN
     RAISE EXCEPTION 'court_provider_reconciliation_already_recorded'
       USING ERRCODE = '55000';
   END IF;
-  IF v_reservation.provider_state <> 'failed_unknown' THEN
+  IF v_reservation.provider_state <> 'failed_unknown'
+    AND NOT (
+      v_reservation.provider_state = 'failed_invalid'
+      AND v_reservation.provider_error_code = 'provider_result_unstaged'
+    )
+  THEN
     RAISE EXCEPTION 'court_provider_reconciliation_not_required'
+      USING ERRCODE = '55000';
+  END IF;
+  IF v_reservation.provider_state = 'failed_invalid'
+    AND v_reservation.provider_audit_state <> 'audited'
+  THEN
+    RAISE EXCEPTION 'court_provider_audit_required_before_retry'
       USING ERRCODE = '55000';
   END IF;
   IF v_reservation.provider_error_code = 'safety_escalation_failed' THEN
@@ -5797,6 +6511,7 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
+  v_from_state := v_reservation.provider_state;
   v_reconciled_at := pg_catalog.clock_timestamp();
   UPDATE public.court_provider_reservations
   SET provider_state = 'retry_allowed',
@@ -5806,7 +6521,13 @@ BEGIN
       reconciliation_reason_code = p_reason_code,
       reconciliation_confirmation = p_confirmation
   WHERE verdict_id = p_verdict_id
-    AND provider_state = 'failed_unknown';
+    AND provider_state = v_from_state
+    AND (
+      provider_state = 'failed_unknown'
+      OR (provider_state = 'failed_invalid'
+        AND provider_error_code = 'provider_result_unstaged'
+        AND provider_audit_state = 'audited')
+    );
   IF NOT FOUND THEN
     RAISE EXCEPTION 'court provider reconciliation changed concurrently'
       USING ERRCODE = '40001';
@@ -5819,7 +6540,7 @@ BEGIN
     NULL,
     'provider_reconciled',
     pg_catalog.jsonb_build_object(
-      'from_status', 'failed_unknown',
+      'from_status', v_from_state,
       'to_status', 'retry_allowed',
       'reason_code', p_reason_code,
       'status', 'allow_retry'
@@ -7777,6 +8498,10 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION public.list_court_cases_for_user(uuid, timestamptz, uuid, integer)
+  OWNER TO postgres;
+ALTER FUNCTION public.list_court_public_comments(uuid, timestamptz, uuid, integer)
+  OWNER TO postgres;
 ALTER FUNCTION public.create_court_case_with_applicant(uuid, uuid, text, text, text, text)
   OWNER TO postgres;
 ALTER FUNCTION public.submit_court_statement(
@@ -7818,10 +8543,16 @@ ALTER FUNCTION public.stage_court_verdict_provider_result(
   integer, integer, integer, integer
 )
   OWNER TO postgres;
+ALTER FUNCTION public.settle_court_unstaged_provider_result(
+  uuid, uuid, text, text, text, integer, integer, integer, integer
+)
+  OWNER TO postgres;
 ALTER FUNCTION public.settle_court_high_risk_provider_result(
   uuid, uuid, uuid, text, text, text[], text,
   integer, integer, integer, integer
 )
+  OWNER TO postgres;
+ALTER FUNCTION public.write_court_provider_audit(text, jsonb, numeric)
   OWNER TO postgres;
 ALTER FUNCTION public.finalize_court_provider_audit(uuid, text)
   OWNER TO postgres;
@@ -7870,6 +8601,10 @@ ALTER FUNCTION public.review_court_public_report(uuid, uuid, text, text)
 ALTER FUNCTION public.report_court_public_content(uuid, uuid, uuid, text)
   OWNER TO postgres;
 
+REVOKE ALL ON FUNCTION public.list_court_cases_for_user(uuid, timestamptz, uuid, integer)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.list_court_public_comments(uuid, timestamptz, uuid, integer)
+  FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_court_case_with_applicant(uuid, uuid, text, text, text, text)
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.submit_court_statement(
@@ -7911,10 +8646,16 @@ REVOKE ALL ON FUNCTION public.stage_court_verdict_provider_result(
   integer, integer, integer, integer
 )
   FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.settle_court_unstaged_provider_result(
+  uuid, uuid, text, text, text, integer, integer, integer, integer
+)
+  FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.settle_court_high_risk_provider_result(
   uuid, uuid, uuid, text, text, text[], text,
   integer, integer, integer, integer
 )
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.write_court_provider_audit(text, jsonb, numeric)
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.finalize_court_provider_audit(uuid, text)
   FROM PUBLIC, anon, authenticated;
@@ -7976,6 +8717,10 @@ GRANT EXECUTE ON FUNCTION public.court_redacted_verdict_result(text)
 GRANT EXECUTE ON FUNCTION public.court_missions_json_is_valid(jsonb)
   TO service_role;
 
+GRANT EXECUTE ON FUNCTION public.list_court_cases_for_user(uuid, timestamptz, uuid, integer)
+  TO service_role;
+GRANT EXECUTE ON FUNCTION public.list_court_public_comments(uuid, timestamptz, uuid, integer)
+  TO service_role;
 GRANT EXECUTE ON FUNCTION public.create_court_case_with_applicant(uuid, uuid, text, text, text, text)
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.submit_court_statement(
@@ -8017,10 +8762,16 @@ GRANT EXECUTE ON FUNCTION public.stage_court_verdict_provider_result(
   integer, integer, integer, integer
 )
   TO service_role;
+GRANT EXECUTE ON FUNCTION public.settle_court_unstaged_provider_result(
+  uuid, uuid, text, text, text, integer, integer, integer, integer
+)
+  TO service_role;
 GRANT EXECUTE ON FUNCTION public.settle_court_high_risk_provider_result(
   uuid, uuid, uuid, text, text, text[], text,
   integer, integer, integer, integer
 )
+  TO service_role;
+GRANT EXECUTE ON FUNCTION public.write_court_provider_audit(text, jsonb, numeric)
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.finalize_court_provider_audit(uuid, text)
   TO service_role;
@@ -8078,6 +8829,8 @@ COMMENT ON TABLE public.court_statements IS
   'Private immutable submitted statement revisions. Only the author and service boundary can read raw text.';
 COMMENT ON TABLE public.court_invites IS
   'Single-use, expiring Couple Court invitations. Only SHA-256 token hashes are retained.';
+COMMENT ON TABLE public.court_provider_audit_logs IS
+  'Small service-only retry ledger binding one provider request key to one payload-free AI audit row.';
 COMMENT ON TABLE public.court_case_events IS
   'Bounded event metadata only; raw statement, verdict, title, token, account, and case identifiers are forbidden in metadata.';
 COMMENT ON TABLE public.court_public_posts IS
@@ -8088,5 +8841,3 @@ COMMENT ON VIEW public.court_public_comment_feed IS
   'Visible comments for published normal-safety court snapshots without account identifiers.';
 COMMENT ON FUNCTION public.review_court_public_post(uuid, uuid, text, text) IS
   'Service-only moderation gate. Approval requires an active admin and does not itself publish; every mode-required current-snapshot consent remains mandatory.';
-
-COMMIT;

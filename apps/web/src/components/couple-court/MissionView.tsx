@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarCheck2, Check, CheckCircle2, HeartHandshake, LockKeyhole, Save, UserRound, X } from "lucide-react";
 import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import { captureCourtEvent } from "./analytics";
 import { getCase, getVerdict, saveMissionAction, submitFollowup, updateMissionStatus } from "./api";
 import type { CourtCase, CourtVerdict, VerdictMission } from "./types";
-import { CourtButton, CourtLink, CourtPage, ErrorState, LoadingState, PageIntro, SafetyNotice, Surface } from "./CourtPrimitives";
+import { ArchivedCaseNotice, CourtButton, CourtLink, CourtPage, ErrorState, LoadingState, PageIntro, SafetyNotice, Surface } from "./CourtPrimitives";
 
 function formatDate(value?: string) {
   if (!value) return null;
@@ -42,6 +42,9 @@ export default function MissionView({ caseId }: { caseId: string }) {
   const [changingMissionId, setChangingMissionId] = useState<string | null>(null);
   const [pendingSoloMission, setPendingSoloMission] = useState<VerdictMission | null>(null);
   const [sharedConfirmed, setSharedConfirmed] = useState(false);
+  const [soloSaveError, setSoloSaveError] = useState<string | null>(null);
+  const soloSaveErrorRef = useRef<HTMLParagraphElement>(null);
+  const [followupNow, setFollowupNow] = useState<number | null>(null);
   const [followupOutcome, setFollowupOutcome] = useState<"resolved" | "improved" | "unchanged" | "needs_more_talk" | null>(null);
   const [remainingIssue, setRemainingIssue] = useState("");
   const [mostHelpfulMission, setMostHelpfulMission] = useState("");
@@ -49,17 +52,44 @@ export default function MissionView({ caseId }: { caseId: string }) {
   const [followupFieldError, setFollowupFieldError] = useState<"outcome" | "remaining" | null>(null);
   const [followupSubmitted, setFollowupSubmitted] = useState(false);
   const [followupSafety, setFollowupSafety] = useState<"normal" | "sensitive" | "high_risk">("normal");
+  const verdictCompletedAt = verdict?.createdAt ? Date.parse(verdict.createdAt) : Number.NaN;
+  const followupAvailableAt = Number.isFinite(verdictCompletedAt)
+    ? verdictCompletedAt + (72 * 60 * 60 * 1_000)
+    : null;
+  const closeSoloMissionDialog = useCallback(() => {
+    setPendingSoloMission(null);
+    setSharedConfirmed(false);
+    setSoloSaveError(null);
+  }, []);
   const { dialogRef } = useAccessibleDialog({
     isOpen: pendingSoloMission !== null,
-    onClose: () => { setPendingSoloMission(null); setSharedConfirmed(false); },
+    onClose: closeSoloMissionDialog,
   });
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [caseResult, verdictResult] = await Promise.all([getCase(caseId), getVerdict(caseId)]);
+      // The case projection is the authoritative safety boundary. Loading it
+      // first prevents a high-risk verdict endpoint from being flattened into
+      // a generic error before the emergency resources can render.
+      const caseResult = await getCase(caseId);
       setCourtCase(caseResult);
+      if (caseResult.safetyLevel === "high_risk") {
+        setVerdict(null);
+        setFollowupSubmitted(caseResult.followupSubmitted === true);
+        setSavedIds(new Set());
+        setMissionStates({});
+        return;
+      }
+      if (caseResult.status === "archived") {
+        setVerdict(null);
+        setFollowupSubmitted(caseResult.followupSubmitted === true);
+        setSavedIds(new Set());
+        setMissionStates({});
+        return;
+      }
+      const verdictResult = await getVerdict(caseId);
       setVerdict(verdictResult);
       setFollowupSubmitted(caseResult.followupSubmitted === true);
       setSavedIds(new Set(verdictResult.missions.filter((mission) => mission.saved).map((mission) => mission.id)));
@@ -79,23 +109,59 @@ export default function MissionView({ caseId }: { caseId: string }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (followupAvailableAt === null) return;
+
+    let unlockTimer: number | undefined;
+    const scheduleUnlock = () => {
+      if (unlockTimer !== undefined) window.clearTimeout(unlockTimer);
+      const remainingMs = followupAvailableAt - Date.now();
+      if (remainingMs <= 0) {
+        setFollowupNow(Date.now());
+        return;
+      }
+      unlockTimer = window.setTimeout(scheduleUnlock, Math.min(remainingMs + 50, 2_147_000_000));
+    };
+    const refreshAfterVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      setFollowupNow(Date.now());
+      scheduleUnlock();
+    };
+
+    scheduleUnlock();
+    document.addEventListener("visibilitychange", refreshAfterVisibilityChange);
+    return () => {
+      if (unlockTimer !== undefined) window.clearTimeout(unlockTimer);
+      document.removeEventListener("visibilitychange", refreshAfterVisibilityChange);
+    };
+  }, [followupAvailableAt]);
+
+  useEffect(() => {
+    if (!soloSaveError || !pendingSoloMission) return;
+    soloSaveErrorRef.current?.focus({ preventScroll: true });
+  }, [pendingSoloMission, soloSaveError]);
+
   async function save(mission: VerdictMission, confirmShared: boolean) {
     if (!mission.id) {
-      setActionError("이 처방은 아직 저장 가능한 할 일로 연결되지 않았어요.");
+      const missingActionError = "이 처방은 아직 저장 가능한 할 일로 연결되지 않았어요.";
+      if (confirmShared) setSoloSaveError(missingActionError);
+      else setActionError(missingActionError);
       return;
     }
     setSavingId(mission.id);
     setActionError(null);
+    setSoloSaveError(null);
     setStatusMessage("");
     try {
-      await saveMissionAction(caseId, mission.id, confirmShared);
+      await saveMissionAction(mission.id, confirmShared);
       setSavedIds((current) => new Set(current).add(mission.id));
       setStatusMessage(`‘${mission.title}’을 커플 공용 할 일에 저장했어요.`);
       captureCourtEvent("couple_court_task_create", { mode: courtCase?.mode, status: "saved" });
-      setPendingSoloMission(null);
-      setSharedConfirmed(false);
+      closeSoloMissionDialog();
     } catch (saveError) {
-      setActionError(saveError instanceof Error ? saveError.message : "화해 처방을 저장하지 못했어요.");
+      const saveErrorMessage = saveError instanceof Error ? saveError.message : "화해 처방을 저장하지 못했어요.";
+      if (confirmShared) setSoloSaveError(saveErrorMessage);
+      else setActionError(saveErrorMessage);
     } finally {
       setSavingId(null);
     }
@@ -104,6 +170,7 @@ export default function MissionView({ caseId }: { caseId: string }) {
   function requestSave(mission: VerdictMission) {
     if (courtCase?.mode === "solo") {
       setSharedConfirmed(false);
+      setSoloSaveError(null);
       setPendingSoloMission(mission);
       return;
     }
@@ -165,16 +232,18 @@ export default function MissionView({ caseId }: { caseId: string }) {
   }
 
   if (loading) return <CourtPage><LoadingState label="화해 처방을 준비하는 중이에요." /></CourtPage>;
+  if (courtCase?.safetyLevel === "high_risk") {
+    return <CourtPage className="max-w-[760px]"><div className="pt-8"><SafetyNotice highRisk /><p className="mt-4 rounded-[16px] border border-[#B45353]/20 bg-white p-4 text-base leading-7 text-[#5E6C66]" role="alert">이 사건에서는 기존 판결과 처방을 표시하거나 실행하지 않아요. 지금은 합의보다 안전 확인을 먼저 해주세요.</p><div className="mt-6 flex justify-center"><CourtLink href={`/couple-court/cases/${caseId}`} variant="secondary">안전 안내와 사건 상태 확인</CourtLink></div></div></CourtPage>;
+  }
+  if (courtCase?.status === "archived") {
+    return <CourtPage className="max-w-[760px]"><ArchivedCaseNotice caseId={caseId} showVerdictLink={courtCase.verdictReady} className="mt-8" /></CourtPage>;
+  }
   if (error || !courtCase || !verdict) return <CourtPage><ErrorState message={error ?? "화해 처방을 찾지 못했어요."} onRetry={() => void load()} /></CourtPage>;
   if (followupSafety === "high_risk") {
     return <CourtPage className="max-w-[760px]"><div className="pt-8"><SafetyNotice highRisk /><p className="mt-4 rounded-[16px] border border-[#B45353]/20 bg-white p-4 text-base leading-7 text-[#5E6C66]" role="alert">기존 판결과 처방은 더 이상 표시하거나 실행하지 않아요. 지금은 합의보다 안전 확인을 먼저 해주세요.</p><div className="mt-6 flex justify-center"><CourtLink href={`/couple-court/cases/${caseId}`} variant="secondary">안전 안내와 사건 상태 확인</CourtLink></div></div></CourtPage>;
   }
 
-  const verdictCompletedAt = verdict.createdAt ? Date.parse(verdict.createdAt) : Number.NaN;
-  const followupAvailableAt = Number.isFinite(verdictCompletedAt)
-    ? verdictCompletedAt + (72 * 60 * 60 * 1_000)
-    : null;
-  const followupLocked = followupAvailableAt === null || Date.now() < followupAvailableAt;
+  const followupLocked = followupAvailableAt === null || followupNow === null || followupNow < followupAvailableAt;
 
   return (
     <CourtPage className="max-w-[900px]">
@@ -240,7 +309,7 @@ export default function MissionView({ caseId }: { caseId: string }) {
       <div className="mt-5 min-h-7" aria-live="polite">{statusMessage && <p className="rounded-[14px] bg-[#EEF4F1] px-4 py-3 text-sm font-semibold text-[#36534E]">{statusMessage}</p>}{actionError && <p className="rounded-[14px] bg-[#FFF3F1] px-4 py-3 text-sm font-semibold text-[#9B3F3F]" role="alert">{actionError}</p>}</div>
       <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row"><CourtLink href={`/couple-court/cases/${caseId}/verdict`} variant="secondary">판결 다시 보기</CourtLink><CourtLink href={`/couple-court/cases/${caseId}`} variant="text">사건 현황으로</CourtLink></div>
 
-      {pendingSoloMission && <div className="fixed inset-0 z-[100] flex items-end justify-center bg-[#17241F]/45 p-3 sm:items-center sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) { setPendingSoloMission(null); setSharedConfirmed(false); } }}><div ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="solo-share-title" aria-describedby="solo-share-description" tabIndex={-1} className="w-full max-w-[520px] rounded-[24px] border border-[#E1D7CB] bg-[#FFFDF8] p-5 shadow-[0_24px_80px_rgba(23,36,31,0.28)] outline-none sm:p-7"><div className="flex items-start justify-between gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FBF0EC] text-[#8F6662]"><LockKeyhole className="h-5 w-5" aria-hidden="true" /></span><button type="button" onClick={() => { setPendingSoloMission(null); setSharedConfirmed(false); }} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#65716C] outline-none hover:bg-[#F2EEE8] focus-visible:ring-2 focus-visible:ring-[#36534E]" aria-label="확인창 닫기"><X className="h-5 w-5" aria-hidden="true" /></button></div><h2 id="solo-share-title" className="mt-4 text-2xl font-bold text-[#263832]">커플 공용 할 일에 저장할까요?</h2><p id="solo-share-description" className="mt-3 text-base leading-7 text-[#5E6C66]">혼자 임시판결에서 만든 처방도 저장하면 현재 연결된 상대방에게 보입니다. 진술 원문이나 판결 전체는 공유되지 않고, 아래 할 일의 제목과 내용만 보여요.</p><div className="mt-4 rounded-[14px] border border-[#E1D7CB] bg-white p-4"><p className="font-bold text-[#263832]">{pendingSoloMission.title}</p><p className="mt-1 text-sm leading-6 text-[#65716C]">{pendingSoloMission.description}</p></div><label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3"><input type="checkbox" checked={sharedConfirmed} onChange={(event) => setSharedConfirmed(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-[#36534E]" /><span className="text-sm font-semibold leading-6 text-[#263832]">이 할 일이 커플 공용 공간에서 상대방에게 보이는 것을 확인했어요.</span></label><div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><CourtButton onClick={() => { setPendingSoloMission(null); setSharedConfirmed(false); }} variant="secondary">취소</CourtButton><button type="button" onClick={() => void save(pendingSoloMission, true)} disabled={!sharedConfirmed || savingId === pendingSoloMission.id} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-2.5 text-sm font-semibold text-white outline-none hover:bg-[#2D4642] focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55">{savingId === pendingSoloMission.id ? "저장하는 중…" : "확인하고 저장"}</button></div></div></div>}
+      {pendingSoloMission && <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto overscroll-contain bg-[#17241F]/45 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:items-center" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSoloMissionDialog(); }}><div ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="solo-share-title" aria-describedby={soloSaveError ? "solo-share-description solo-share-error" : "solo-share-description"} tabIndex={-1} className="w-full max-w-[520px] overflow-y-auto overscroll-contain rounded-[24px] border border-[#E1D7CB] bg-[#FFFDF8] p-5 shadow-[0_24px_80px_rgba(23,36,31,0.28)] outline-none sm:p-7" style={{ maxHeight: "calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))" }}><div className="flex items-start justify-between gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FBF0EC] text-[#8F6662]"><LockKeyhole className="h-5 w-5" aria-hidden="true" /></span><button type="button" onClick={closeSoloMissionDialog} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#65716C] outline-none hover:bg-[#F2EEE8] focus-visible:ring-2 focus-visible:ring-[#36534E]" aria-label="확인창 닫기"><X className="h-5 w-5" aria-hidden="true" /></button></div><h2 id="solo-share-title" className="mt-4 text-2xl font-bold text-[#263832]">커플 공용 할 일에 저장할까요?</h2><p id="solo-share-description" className="mt-3 text-base leading-7 text-[#5E6C66]">혼자 임시판결에서 만든 처방도 저장하면 현재 연결된 상대방에게 보입니다. 진술 원문이나 판결 전체는 공유되지 않고, 아래 할 일의 제목과 내용만 보여요.</p><div className="mt-4 rounded-[14px] border border-[#E1D7CB] bg-white p-4"><p className="font-bold text-[#263832]">{pendingSoloMission.title}</p><p className="mt-1 text-sm leading-6 text-[#65716C]">{pendingSoloMission.description}</p></div><label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3"><input type="checkbox" checked={sharedConfirmed} onChange={(event) => setSharedConfirmed(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-[#36534E]" /><span className="text-sm font-semibold leading-6 text-[#263832]">이 할 일이 커플 공용 공간에서 상대방에게 보이는 것을 확인했어요.</span></label><div className="mt-3 min-h-6" aria-live="assertive" aria-atomic="true">{soloSaveError && <p id="solo-share-error" ref={soloSaveErrorRef} role="alert" tabIndex={-1} className="rounded-[12px] bg-[#FFF3F1] px-3 py-2 text-sm font-semibold leading-6 text-[#9B3F3F] outline-none focus-visible:ring-2 focus-visible:ring-[#9B3F3F] focus-visible:ring-offset-2">{soloSaveError}</p>}</div><div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><CourtButton onClick={closeSoloMissionDialog} variant="secondary">취소</CourtButton><button type="button" onClick={() => void save(pendingSoloMission, true)} disabled={!sharedConfirmed || savingId === pendingSoloMission.id} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-2.5 text-sm font-semibold text-white outline-none hover:bg-[#2D4642] focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55">{savingId === pendingSoloMission.id ? "저장하는 중…" : "확인하고 저장"}</button></div></div></div>}
     </CourtPage>
   );
 }

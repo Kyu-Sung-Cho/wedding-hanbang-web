@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '60s';
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
 
 LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE public.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE;
@@ -76,5 +75,3 @@ $$;
 
 COMMENT ON FUNCTION public.block_auth_user_update_during_account_deletion() IS
   'Trigger-only fence that prevents GoTrue identity mutation after account deletion begins.';
-
-COMMIT;

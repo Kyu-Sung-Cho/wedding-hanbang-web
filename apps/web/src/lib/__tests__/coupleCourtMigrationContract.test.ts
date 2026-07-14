@@ -10,6 +10,63 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const existingTablePreparation = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713108000_prepare_couple_court_existing_tables.sql",
+  ),
+  "utf8",
+);
+const existingTableValidation = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713108100_validate_couple_court_amora_action_constraint.sql",
+  ),
+  "utf8",
+);
+const existingTableSwap = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713108200_swap_couple_court_amora_action_constraint.sql",
+  ),
+  "utf8",
+);
+const auditPreparation = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713109000_prepare_couple_court_ai_audit.sql",
+  ),
+  "utf8",
+);
+const auditValidation = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713109100_validate_couple_court_ai_audit_constraint.sql",
+  ),
+  "utf8",
+);
+const auditSwap = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260713109200_swap_couple_court_ai_audit_constraint.sql",
+  ),
+  "utf8",
+);
+const existingTableMigrations = [
+  existingTablePreparation,
+  existingTableValidation,
+  existingTableSwap,
+  auditPreparation,
+  auditValidation,
+  auditSwap,
+];
+const amoraRequestClaimsMigration = readFileSync(
+  resolve(
+    repoRoot,
+    "supabase/migrations/20260710050000_amora_request_claims.sql",
+  ),
+  "utf8",
+);
 
 function between(start: string, end: string): string {
   const startIndex = migration.indexOf(start);
@@ -20,14 +77,43 @@ function between(start: string, end: string): string {
 }
 
 describe("Couple Court migration contract", () => {
-  it("owns one bounded transaction and never mutates a remote database itself", () => {
-    expect(migration.trimStart().startsWith("BEGIN;")).toBe(true);
-    expect(migration.trimEnd().endsWith("COMMIT;")).toBe(true);
-    expect(migration.match(/^BEGIN;$/gm)).toHaveLength(1);
-    expect(migration.match(/^COMMIT;$/gm)).toHaveLength(1);
-    expect(migration).toContain("SET LOCAL lock_timeout = '5s';");
-    expect(migration).toContain("SET LOCAL statement_timeout = '120s';");
+  it("leaves the schema and history write in one CLI-owned transaction", () => {
+    expect(migration).not.toMatch(/^BEGIN;$/gm);
+    expect(migration).not.toMatch(/^COMMIT;$/gm);
+    expect(migration).toContain("executes the whole batch transactionally");
+    expect(migration).toContain("SET lock_timeout = '5s';");
+    expect(migration).toContain("SET statement_timeout = '120s';");
     expect(migration).not.toMatch(/supabase\s+db\s+(?:push|reset)|psql\s/i);
+  });
+
+  it("expands hot existing tables before the long new-schema transaction", () => {
+    expect(migration).not.toContain("ALTER TABLE public.amora_actions");
+    expect(migration).not.toContain("ALTER TABLE public.ai_interactions_log");
+    expect(existingTablePreparation).toContain("NOT VALID");
+    expect(existingTablePreparation).not.toContain("VALIDATE CONSTRAINT");
+    expect(existingTablePreparation).toContain("amora_actions_source_check_court_next");
+    expect(existingTableValidation).toContain("VALIDATE CONSTRAINT amora_actions_source_check_court_next");
+    expect(existingTableValidation).not.toContain("DROP CONSTRAINT");
+    expect(existingTableSwap).toContain("DROP CONSTRAINT IF EXISTS amora_actions_source_check");
+    expect(existingTableSwap).toContain("RENAME CONSTRAINT amora_actions_source_check_court_next");
+    expect(existingTableSwap).not.toContain("VALIDATE CONSTRAINT");
+    expect(auditPreparation).toContain("NOT VALID");
+    expect(auditPreparation).not.toContain("VALIDATE CONSTRAINT");
+    expect(auditPreparation).toContain("'couple_court_verdict'");
+    expect(auditValidation).toContain("VALIDATE CONSTRAINT ai_interactions_log_interaction_type_check_court_next");
+    expect(auditValidation).not.toContain("DROP CONSTRAINT");
+    expect(auditSwap).toContain("DROP CONSTRAINT IF EXISTS ai_interactions_log_interaction_type_check");
+    expect(auditSwap).toContain("RENAME CONSTRAINT ai_interactions_log_interaction_type_check_court_next");
+    expect(auditSwap).not.toContain("VALIDATE CONSTRAINT");
+    expect(existingTablePreparation).not.toContain("DROP CONSTRAINT IF EXISTS ai_interactions_log_couple_id_fkey");
+    expect(existingTablePreparation).not.toContain("ai_interactions_log");
+    expect(auditPreparation).not.toContain("amora_actions");
+    for (const phase of existingTableMigrations) {
+      expect(phase).not.toMatch(/^CREATE (?:UNIQUE )?INDEX CONCURRENTLY\b/gm);
+      expect(phase).not.toMatch(/^BEGIN;$/gm);
+      expect(phase).not.toMatch(/^COMMIT;$/gm);
+      expect(phase).toContain("SET lock_timeout = '5s';");
+    }
   });
 
   it("creates the normalized private and public relations", () => {
@@ -38,6 +124,7 @@ describe("Couple Court migration contract", () => {
       "court_statements",
       "court_verdicts",
       "court_provider_reservations",
+      "court_provider_audit_logs",
       "court_missions",
       "court_mission_completions",
       "court_followups",
@@ -114,15 +201,81 @@ describe("Couple Court migration contract", () => {
   });
 
   it("provides a bounded exactly-once key for successful AI audit writes", () => {
-    expect(migration).toContain(
-      "ALTER TABLE public.ai_interactions_log\n  ADD COLUMN idempotency_key text",
+    const ledger = between(
+      "CREATE TABLE public.court_provider_audit_logs",
+      "CREATE OR REPLACE FUNCTION public.settle_court_provider_failure",
     );
-    expect(migration).toContain("ai_interactions_log_idempotency_key_check");
-    expect(migration).toContain("idempotency_key ~ '^[a-f0-9]{64}$'");
-    expect(migration).toContain("ai_interactions_log_idempotency_key_unique");
-    expect(migration).toMatch(
-      /CREATE UNIQUE INDEX ai_interactions_log_idempotency_key_unique\s+ON public\.ai_interactions_log\(idempotency_key\)\s+WHERE idempotency_key IS NOT NULL;/,
+    expect(ledger).toContain("request_key text PRIMARY KEY");
+    expect(ledger).toContain("REFERENCES public.court_provider_reservations(request_key) ON DELETE CASCADE");
+    expect(ledger).toContain("ai_interaction_id uuid NOT NULL UNIQUE");
+    expect(ledger).toContain("REFERENCES public.ai_interactions_log(id) ON DELETE CASCADE");
+    const writer = between(
+      "CREATE OR REPLACE FUNCTION public.write_court_provider_audit",
+      "CREATE OR REPLACE FUNCTION public.finalize_court_provider_audit",
     );
+    expect(writer).toContain("FOR UPDATE");
+    expect(writer).toContain("p_audit_identity IS DISTINCT FROM v_expected_identity");
+    expect(writer).toContain("INSERT INTO public.ai_interactions_log");
+    expect(writer).toContain("INSERT INTO public.court_provider_audit_logs");
+    expect(writer).toContain("court_provider_audit_evidence_missing");
+    expect(writer).not.toContain("OR v_reservation.provider_input_tokens IS NULL");
+    expect(writer).not.toContain("OR v_reservation.provider_output_tokens IS NULL");
+    expect(writer).toContain("'tokens_input', v_reservation.provider_input_tokens");
+    expect(writer).toContain("'tokens_output', v_reservation.provider_output_tokens");
+    expect(writer).toContain("'reused', true");
+    expect(writer).toContain("'reused', false");
+    expect(existingTablePreparation).not.toContain("idempotency_key");
+    expect(auditPreparation).not.toContain("idempotency_key");
+    expect(existingTableValidation).not.toContain("idempotency_key");
+    expect(existingTableSwap).not.toContain("idempotency_key");
+    expect(auditValidation).not.toContain("idempotency_key");
+    expect(auditSwap).not.toContain("idempotency_key");
+    expect(migration).not.toContain("ai_interactions_log_idempotency_key_unique");
+  });
+
+  it("indexes reverse account-deletion and nullable reviewer lookups", () => {
+    for (const index of [
+      "court_votes_user_idx",
+      "court_comments_user_idx",
+      "court_reports_reporter_idx",
+      "court_invites_consumed_by_user_idx",
+      "court_invites_rejected_by_user_idx",
+      "court_provider_reservations_audit_user_idx",
+      "court_public_posts_reviewer_idx",
+      "court_comments_reviewer_idx",
+      "court_reports_reviewer_idx",
+      "court_public_posts_pending_review_queue_idx",
+      "court_comments_public_visible_order_idx",
+      "court_comments_pending_review_queue_idx",
+    ]) {
+      expect(migration).toContain(`CREATE INDEX ${index}`);
+    }
+  });
+
+  it("paginates private cases and newly-visible comments inside service-only SQL", () => {
+    const caseList = between(
+      "CREATE OR REPLACE FUNCTION public.list_court_cases_for_user",
+      "CREATE OR REPLACE FUNCTION public.list_court_public_comments",
+    );
+    expect(caseList).toContain("participant.user_id = p_user_id");
+    expect(caseList).toContain("participant.participation_status = 'active'");
+    expect(caseList).toContain("profile.account_deleting_at IS NULL");
+    expect(caseList).toContain(
+      "(court_case.updated_at, court_case.id) < (p_before_updated_at, p_before_id)",
+    );
+    expect(caseList).toContain("ORDER BY court_case.updated_at DESC, court_case.id DESC");
+    expect(caseList).toContain("LIMIT p_limit + 1");
+
+    const comments = between(
+      "CREATE OR REPLACE FUNCTION public.list_court_public_comments",
+      "CREATE OR REPLACE FUNCTION public.create_court_case_with_applicant",
+    );
+    expect(comments).toContain("FROM public.court_public_comment_feed AS feed");
+    expect(comments).toContain(
+      "(feed.visible_at, feed.id) < (p_before_visible_at, p_before_id)",
+    );
+    expect(comments).toContain("ORDER BY feed.visible_at DESC, feed.id DESC");
+    expect(comments).toContain("LIMIT p_limit + 1");
   });
 
   it("keeps base case and participant identity rows behind the service boundary", () => {
@@ -158,6 +311,45 @@ describe("Couple Court migration contract", () => {
     );
     expect(migration).not.toMatch(
       /CREATE POLICY court_[\s\S]{0,300}is_couple_member/,
+    );
+  });
+
+  it("projects only owner-safe comment and report moderation status", () => {
+    expect(migration).not.toContain(
+      "GRANT SELECT ON TABLE public.court_comments TO authenticated",
+    );
+    expect(migration).not.toContain(
+      "GRANT SELECT ON TABLE public.court_reports TO authenticated",
+    );
+
+    const ownerAcl = between(
+      "-- Owners may read the status of their own submissions",
+      "CREATE POLICY court_statements_owner_select",
+    ).replace(/\s+/g, " ");
+    expect(ownerAcl).toContain(
+      "GRANT SELECT ( id, public_post_id, comment_type, body, moderation_status, created_at, updated_at ) ON TABLE public.court_comments TO authenticated;",
+    );
+    expect(ownerAcl).toContain(
+      "GRANT SELECT ( id, public_post_id, comment_id, target_type, reason_code, status, created_at, updated_at ) ON TABLE public.court_reports TO authenticated;",
+    );
+    for (const internalColumn of [
+      "user_id",
+      "moderation_reason_code",
+      "reviewed_by_user_id",
+      "reviewed_at",
+      "deleted_at",
+      "reporter_user_id",
+      "resolution_reason_code",
+    ]) {
+      expect(ownerAcl).not.toMatch(
+        new RegExp(`[,\\s(]${internalColumn}[,\\s)]`),
+      );
+    }
+    expect(migration).toMatch(
+      /CREATE POLICY court_comments_owner_select[\s\S]*?USING \(user_id = auth\.uid\(\)\)/,
+    );
+    expect(migration).toMatch(
+      /CREATE POLICY court_reports_owner_select[\s\S]*?USING \(reporter_user_id = auth\.uid\(\)\)/,
     );
   });
 
@@ -573,6 +765,25 @@ describe("Couple Court migration contract", () => {
     );
     expect(newGeneration).toContain("SET workflow_status = 'judging'");
 
+    const terminalFenceStart = claim.indexOf(
+      "-- A paid/ambiguous terminal attempt blocks the whole case",
+    );
+    const terminalFenceEnd = claim.indexOf(
+      "COALESCE(pg_catalog.max(verdict.attempt_count), 0) + 1",
+      terminalFenceStart,
+    );
+    const terminalFence = claim.slice(terminalFenceStart, terminalFenceEnd);
+    expect(terminalFenceStart).toBeGreaterThan(crossReleaseStart);
+    expect(terminalFenceEnd).toBeGreaterThan(terminalFenceStart);
+    expect(terminalFence).toContain("failed_verdict.case_id = p_case_id");
+    expect(terminalFence).toContain("reservation.provider_state = 'failed_unknown'");
+    expect(terminalFence).toContain(
+      "reservation.provider_error_code = 'provider_result_unstaged'",
+    );
+    expect(terminalFence).not.toContain("failed_verdict.input_hash = p_input_hash");
+    expect(terminalFence).not.toContain("failed_verdict.prompt_version = p_prompt_version");
+    expect(terminalFence).not.toContain("failed_verdict.schema_version = p_schema_version");
+
     const eightArgSignature =
       "uuid, uuid, text, text, text, text, integer, boolean";
     for (const prefix of [
@@ -774,6 +985,24 @@ describe("Couple Court migration contract", () => {
   });
 
   it("durably recovers paid-call audits without retaining high-risk verdict prose", () => {
+    const unstaged = between(
+      "CREATE OR REPLACE FUNCTION public.settle_court_unstaged_provider_result",
+      "CREATE OR REPLACE FUNCTION public.settle_court_high_risk_provider_result",
+    );
+    expect(unstaged).toContain("p_request_key text");
+    expect(unstaged).toContain("p_audit_model text");
+    expect(unstaged).not.toContain("p_result_json");
+    expect(unstaged).not.toContain("p_missions_json");
+    expect(unstaged).toContain("provider_state = 'failed_invalid'");
+    expect(unstaged).toContain("provider_audit_state = 'pending'");
+    expect(unstaged).toContain("provider_error_code = v_error_code");
+    expect(unstaged).toContain("'provider_result_unstaged'");
+    expect(unstaged).toContain("provider_result_unstaged_repaired");
+    expect(unstaged).toContain("IS DISTINCT FROM 'safety_escalation_failed'");
+    expect(unstaged).toContain("v_reservation.provider_state = 'result_staged'");
+    expect(unstaged).toContain("court_provider_staged_result_mismatch");
+    expect(unstaged).not.toContain("staged_result_json = p_");
+
     const highRisk = between(
       "CREATE OR REPLACE FUNCTION public.settle_court_high_risk_provider_result",
       "CREATE OR REPLACE FUNCTION public.finalize_court_provider_audit",
@@ -790,14 +1019,21 @@ describe("Couple Court migration contract", () => {
     expect(highRisk).toContain("SET safety_level = 'high_risk'");
     expect(highRisk).toContain("DELETE FROM public.court_public_posts");
     expect(highRisk).toContain("court_high_risk_provider_settlement_mismatch");
+    expect(highRisk).toContain("provider_state = 'failed_unknown'");
+    expect(highRisk).toContain("provider_error_code = 'safety_escalation_failed'");
+    expect(highRisk).toContain(
+      "participant.id = v_verdict.claimed_by_participant_id",
+    );
+    expect(highRisk).not.toContain("participant.participation_status = 'active'");
     expect(highRisk).toContain("'reused', true");
 
     const finalize = between(
       "CREATE OR REPLACE FUNCTION public.finalize_court_provider_audit",
       "CREATE OR REPLACE FUNCTION public.claim_court_provider_audit_recovery",
     );
-    expect(finalize).toContain("FROM public.ai_interactions_log AS interaction");
-    expect(finalize).toContain("interaction.idempotency_key = p_request_key");
+    expect(finalize).toContain("FROM public.court_provider_audit_logs AS audit_link");
+    expect(finalize).toContain("JOIN public.ai_interactions_log AS interaction");
+    expect(finalize).toContain("audit_link.request_key = p_request_key");
     expect(finalize).toContain("v_audit.interaction_type IS DISTINCT FROM 'couple_court_verdict'");
     expect(finalize).toContain("v_audit.success IS DISTINCT FROM true");
     expect(finalize).toContain("v_audit.error_message IS NOT NULL");
@@ -857,7 +1093,7 @@ describe("Couple Court migration contract", () => {
     expect(remove).toContain("reservation.provider_audit_state = 'pending'");
     expect(remove).toContain("court_provider_audit_pending");
 
-    expect(migration).toContain(
+    expect(amoraRequestClaimsMigration).toContain(
       "FOREIGN KEY (couple_id) REFERENCES public.couples(id) ON DELETE SET NULL",
     );
   });
@@ -1040,7 +1276,7 @@ describe("Couple Court migration contract", () => {
     expect(atomicAction).toContain("ON CONFLICT (id) DO NOTHING");
     expect(atomicAction).toContain("shared court action confirmation is required");
     expect(atomicAction).toContain("court mission couple scope is inconsistent");
-    expect(migration).toContain(
+    expect(existingTablePreparation).toContain(
       "'chat', 'quote', 'schedule', 'budget', 'guardrail', 'manual', 'court'",
     );
   });
@@ -1117,8 +1353,18 @@ describe("Couple Court migration contract", () => {
     );
     expect(commentFeed).toContain("comment.moderation_status = 'visible'");
     expect(commentFeed).toContain("court_case.safety_level = 'normal'");
+    expect(commentFeed).toContain("COALESCE(comment.reviewed_at, comment.created_at) AS visible_at");
     const commentProjection = commentFeed.slice(0, commentFeed.indexOf("FROM public.court_comments"));
     expect(commentProjection).not.toMatch(/\buser_id\b/);
+    expect(migration).toContain(
+      "GRANT SELECT ON TABLE public.court_public_feed TO service_role",
+    );
+    expect(migration).toContain(
+      "GRANT SELECT ON TABLE public.court_public_comment_feed TO service_role",
+    );
+    expect(migration).not.toMatch(
+      /GRANT SELECT ON TABLE public\.court_public_(?:comment_)?feed TO[^;]*(?:anon|authenticated)/,
+    );
   });
 
   it("shares the account-deletion lock and keeps event metadata allowlisted", () => {
@@ -1201,6 +1447,8 @@ describe("Couple Court migration contract", () => {
   it("keeps all state-changing RPCs service-only with hardened definer paths", () => {
     const rpcNames = [
       "create_court_case_with_applicant",
+      "list_court_cases_for_user",
+      "list_court_public_comments",
       "submit_court_statement",
       "issue_court_invite",
       "cancel_court_invite",
@@ -1216,7 +1464,9 @@ describe("Couple Court migration contract", () => {
       "reserve_court_verdict_provider_call",
       "mark_court_verdict_provider_started",
       "stage_court_verdict_provider_result",
+      "settle_court_unstaged_provider_result",
       "settle_court_high_risk_provider_result",
+      "write_court_provider_audit",
       "finalize_court_provider_audit",
       "claim_court_provider_audit_recovery",
       "record_court_provider_audit_recovery_failure",

@@ -9,7 +9,9 @@ import { cleanOptionalEnum, isUuid } from "@/utils/requestValidation";
 import {
   CourtApiError,
   courtErrorResponse,
+  encodeCourtCursor,
   noStoreJson,
+  readCourtCursor,
   readCourtJson,
   requireCoupleCourtEnabled,
   requireCourtUser,
@@ -24,8 +26,11 @@ export async function GET(request: Request) {
   try {
     requireCoupleCourtEnabled();
     const user = await requireCourtUser(request);
-    const cases = await listCourtCasesForUser(user.id);
-    return noStoreJson({ cases });
+    const page = await listCourtCasesForUser(user.id, 20, readCourtCursor(request, "cases"));
+    return noStoreJson({
+      cases: page.items,
+      nextCursor: page.nextCursor ? encodeCourtCursor("cases", page.nextCursor) : null,
+    });
   } catch (error) {
     return courtErrorResponse(error);
   }

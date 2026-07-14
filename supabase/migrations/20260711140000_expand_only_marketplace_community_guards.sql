@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '110s';
+SET lock_timeout = '5s';
+SET statement_timeout = '110s';
 
 -- Compatibility-conscious marketplace/community lockdown. Published catalog,
 -- booking-read, vote and bookmark contracts stay available, but direct
@@ -466,5 +465,3 @@ COMMENT ON FUNCTION public.guard_vendor_server_fields() IS
   'Defense in depth: direct consumer roles cannot approve or rank vendors.';
 COMMENT ON FUNCTION public.guard_community_post_server_fields() IS
   'Defense in depth: authors cannot forge moderation, verification, AI, or counter fields.';
-
-COMMIT;

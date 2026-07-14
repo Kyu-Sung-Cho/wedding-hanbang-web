@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Flag, MessageCircle, MessageCircleHeart, Scale, ShieldCheck, UsersRound } from "lucide-react";
+import { weddingPath } from "@/lib/weddingPaths";
 import { captureCourtEvent } from "./analytics";
-import { createPublicComment, getPublicCase, listPublicComments, reportPublicCase, votePublicCase } from "./api";
+import { CourtApiError, createPublicComment, getPublicCase, listPublicComments, reportPublicCase, votePublicCase } from "./api";
 import type { PublicCourtCase, PublicCourtComment, PublicReportReason, PublicVoteChoice } from "./types";
 import { categoryLabel, CourtButton, CourtLink, CourtPage, CourtSeal, ErrorState, LoadingState, SafetyNotice, Surface } from "./CourtPrimitives";
 import { publicCourtNickname } from "./publicIdentity";
+import {
+  clearLegacyCourtDrafts,
+  publicCommentDraftKey,
+  readScopedCourtDraft,
+  writeScopedCourtDraft,
+} from "./draftStorage";
 
 const voteChoices: Array<{ value: PublicVoteChoice; label: string; description: string }> = [
   { value: "both_need_change", label: "둘 다 바꿀 점이 있어요", description: "승패보다 함께 조정할 행동이 보여요." },
@@ -32,12 +39,107 @@ const commentTypes: Array<{ value: PublicCourtComment["commentType"]; label: str
   { value: "question", label: "확인 질문" },
 ];
 
-export default function PublicCourtDetail({ postId }: { postId: string }) {
+const PUBLIC_COMMENT_DRAFT_TTL_MS = 30 * 60 * 1000;
+const ANONYMOUS_DRAFT_OWNER = "anonymous";
+
+interface PublicCommentDraft {
+  version: 1;
+  expiresAt: number;
+  commentType: PublicCourtComment["commentType"];
+  body: string;
+  submissionRequestId?: string;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function readPublicCommentDraft(
+  storage: Storage,
+  postId: string,
+  ownerUserId: string,
+): PublicCommentDraft | null {
+  const key = publicCommentDraftKey(ownerUserId, postId);
+  try {
+    const draft = readScopedCourtDraft<Partial<PublicCommentDraft>>(
+      storage,
+      key,
+      ownerUserId,
+    );
+    if (!draft) return null;
+    const validType = commentTypes.some((type) => type.value === draft.commentType);
+    if (
+      draft.version !== 1
+      || typeof draft.expiresAt !== "number"
+      || !Number.isFinite(draft.expiresAt)
+      || draft.expiresAt <= Date.now()
+      || !validType
+      || typeof draft.body !== "string"
+      || draft.body.length > 500
+      || (draft.submissionRequestId !== undefined
+        && (typeof draft.submissionRequestId !== "string"
+          || !UUID_PATTERN.test(draft.submissionRequestId)))
+    ) {
+      storage.removeItem(key);
+      return null;
+    }
+    return draft as PublicCommentDraft;
+  } catch {
+    try { storage.removeItem(key); } catch { /* storage unavailable */ }
+    return null;
+  }
+}
+
+function writePublicCommentDraft(
+  storage: Storage,
+  postId: string,
+  ownerUserId: string,
+  commentType: PublicCourtComment["commentType"],
+  body: string,
+  submissionRequestId: string,
+): void {
+  try {
+    const draft: PublicCommentDraft = {
+      version: 1,
+      expiresAt: Date.now() + PUBLIC_COMMENT_DRAFT_TTL_MS,
+      commentType,
+      body,
+      submissionRequestId,
+    };
+    writeScopedCourtDraft(
+      storage,
+      publicCommentDraftKey(ownerUserId, postId),
+      ownerUserId,
+      draft,
+    );
+  } catch {
+    // Authentication can still continue when storage is unavailable.
+  }
+}
+
+function clearPublicCommentDraft(storage: Storage, postId: string, ownerUserId: string): void {
+  try {
+    storage.removeItem(publicCommentDraftKey(ownerUserId, postId));
+  } catch { /* storage unavailable */ }
+}
+
+export default function PublicCourtDetail({
+  postId,
+  viewerUserId = null,
+}: {
+  postId: string;
+  viewerUserId?: string | null;
+}) {
+  const draftOwnerId = viewerUserId ?? ANONYMOUS_DRAFT_OWNER;
   const [post, setPost] = useState<PublicCourtCase | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
   const [comments, setComments] = useState<PublicCourtComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsRetryCursor, setCommentsRetryCursor] = useState<string | undefined>(undefined);
+  const [nextCommentsCursor, setNextCommentsCursor] = useState<string | null>(null);
+  const [olderCommentsLoading, setOlderCommentsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [voting, setVoting] = useState<PublicVoteChoice | null>(null);
   const [selectedVote, setSelectedVote] = useState<PublicVoteChoice | null>(null);
@@ -49,25 +151,155 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
   const [commentBody, setCommentBody] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
   const [commenting, setCommenting] = useState(false);
+  const [commentNeedsRevision, setCommentNeedsRevision] = useState(false);
+  const [anonymousDraftCandidate, setAnonymousDraftCandidate] = useState<PublicCommentDraft | null>(null);
   const commentBodyRef = useRef<HTMLTextAreaElement>(null);
   const reportReasonRef = useRef<HTMLSelectElement>(null);
   const reportReturnTargetRef = useRef("post");
+  const commentsRequestIdRef = useRef(0);
+  const postRequestIdRef = useRef(0);
+  const commentSubmissionRequestIdRef = useRef<string | null>(null);
+  const commentSubmissionInFlightRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setError(null);
+  useEffect(() => {
     try {
-      const [postResult, commentResult] = await Promise.all([getPublicCase(postId), listPublicComments(postId)]);
-      setPost(postResult);
-      setComments(commentResult);
+      clearLegacyCourtDrafts(window.sessionStorage);
+    } catch {
+      // The form still works in memory when storage is unavailable.
+    }
+    const saved = readPublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      draftOwnerId,
+    );
+    const anonymousCandidate = viewerUserId && !saved
+      ? readPublicCommentDraft(
+          window.sessionStorage,
+          postId,
+          ANONYMOUS_DRAFT_OWNER,
+        )
+      : null;
+    setAnonymousDraftCandidate(anonymousCandidate);
+    setCommentType(saved?.commentType ?? "empathy");
+    setCommentBody(saved?.body ?? "");
+    commentSubmissionRequestIdRef.current = saved?.submissionRequestId ?? null;
+    setCommentError(null);
+    setCommentNeedsRevision(false);
+    setAuthRequired(false);
+  }, [draftOwnerId, postId, viewerUserId]);
+
+  function adoptAnonymousDraft() {
+    if (!anonymousDraftCandidate || !viewerUserId) return;
+    const adoptedRequestId = anonymousDraftCandidate.submissionRequestId
+      ?? window.crypto.randomUUID();
+    writePublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      viewerUserId,
+      anonymousDraftCandidate.commentType,
+      anonymousDraftCandidate.body,
+      adoptedRequestId,
+    );
+    clearPublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      ANONYMOUS_DRAFT_OWNER,
+    );
+    setCommentType(anonymousDraftCandidate.commentType);
+    setCommentBody(anonymousDraftCandidate.body);
+    commentSubmissionRequestIdRef.current = adoptedRequestId;
+    setAnonymousDraftCandidate(null);
+    setStatusMessage("로그인 전에 작성한 댓글 초안을 이 계정으로 가져왔어요.");
+  }
+
+  function discardAnonymousDraft() {
+    clearPublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      ANONYMOUS_DRAFT_OWNER,
+    );
+    setAnonymousDraftCandidate(null);
+    setStatusMessage("로그인 전에 작성한 댓글 초안을 삭제했어요.");
+  }
+
+  function requireAuthentication() {
+    const submissionRequestId = commentSubmissionRequestIdRef.current
+      ?? window.crypto.randomUUID();
+    commentSubmissionRequestIdRef.current = submissionRequestId;
+    writePublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      draftOwnerId,
+      commentType,
+      commentBody,
+      submissionRequestId,
+    );
+    setAuthRequired(true);
+  }
+
+  const loadComments = useCallback(async (cursor?: string) => {
+    const requestId = ++commentsRequestIdRef.current;
+    setCommentsLoading(!cursor);
+    setOlderCommentsLoading(Boolean(cursor));
+    setCommentsError(null);
+    try {
+      const page = await listPublicComments(postId, cursor);
+      if (commentsRequestIdRef.current !== requestId) return;
+      if (cursor) {
+        setComments((current) => {
+          const byId = new Map<string, PublicCourtComment>();
+          for (const item of [...page.comments, ...current]) byId.set(item.id, item);
+          return Array.from(byId.values());
+        });
+      } else {
+        setComments(page.comments);
+      }
+      setNextCommentsCursor(page.nextCursor);
+      setCommentsRetryCursor(undefined);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "공개 사건을 불러오지 못했어요.");
+      if (commentsRequestIdRef.current !== requestId) return;
+      setCommentsError(loadError instanceof Error ? loadError.message : "댓글을 불러오지 못했어요.");
+      setCommentsRetryCursor(cursor);
     } finally {
-      setLoading(false);
+      if (commentsRequestIdRef.current === requestId) {
+        setCommentsLoading(false);
+        setOlderCommentsLoading(false);
+      }
     }
   }, [postId]);
 
+  const load = useCallback(async () => {
+    const requestId = ++postRequestIdRef.current;
+    commentsRequestIdRef.current += 1;
+    setCommentsLoading(false);
+    setOlderCommentsLoading(false);
+    setError(null);
+    try {
+      const postResult = await getPublicCase(postId);
+      if (postRequestIdRef.current !== requestId) return;
+      setPost(postResult);
+      if (postResult.commentsEnabled && postResult.safetyLevel !== "high_risk") {
+        void loadComments();
+      } else {
+        setComments([]);
+        setCommentsError(null);
+        setCommentsRetryCursor(undefined);
+        setNextCommentsCursor(null);
+      }
+    } catch (loadError) {
+      if (postRequestIdRef.current !== requestId) return;
+      setError(loadError instanceof Error ? loadError.message : "공개 사건을 불러오지 못했어요.");
+    } finally {
+      if (postRequestIdRef.current === requestId) setLoading(false);
+    }
+  }, [loadComments, postId]);
+
   useEffect(() => {
     void load();
+    return () => {
+      postRequestIdRef.current += 1;
+      commentsRequestIdRef.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -97,6 +329,7 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
   async function vote(choice: PublicVoteChoice) {
     setVoting(choice);
     setActionError(null);
+    setAuthRequired(false);
     setStatusMessage("");
     try {
       await votePublicCase(postId, choice);
@@ -105,7 +338,11 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
       captureCourtEvent("couple_court_vote", { status: choice });
       await load();
     } catch (voteError) {
-      setActionError(voteError instanceof Error ? voteError.message : "의견을 반영하지 못했어요.");
+      if (voteError instanceof CourtApiError && voteError.status === 401) {
+        requireAuthentication();
+      } else {
+        setActionError(voteError instanceof Error ? voteError.message : "의견을 반영하지 못했어요.");
+      }
     } finally {
       setVoting(null);
     }
@@ -114,39 +351,82 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
   async function report() {
     setReporting(true);
     setActionError(null);
+    setAuthRequired(false);
     try {
       await reportPublicCase(postId, reportReason, reportTargetCommentId ?? undefined);
       setStatusMessage("신고를 접수했어요. 검토하는 동안 같은 신고를 반복하지 않아도 돼요.");
       closeReport();
     } catch (reportError) {
-      setActionError(reportError instanceof Error ? reportError.message : "신고를 접수하지 못했어요.");
+      if (reportError instanceof CourtApiError && reportError.status === 401) {
+        requireAuthentication();
+      } else {
+        setActionError(reportError instanceof Error ? reportError.message : "신고를 접수하지 못했어요.");
+      }
     } finally {
       setReporting(false);
     }
   }
 
   async function comment() {
+    if (commentSubmissionInFlightRef.current) return;
     if (commentBody.trim().length < 2) {
       setCommentError("댓글을 2자 이상 적어주세요.");
       setActionError(null);
       window.requestAnimationFrame(() => commentBodyRef.current?.focus());
       return;
     }
+    commentSubmissionInFlightRef.current = true;
+    const normalizedBody = commentBody.trim();
+    const submissionRequestId = commentSubmissionRequestIdRef.current
+      ?? window.crypto.randomUUID();
+    commentSubmissionRequestIdRef.current = submissionRequestId;
+    writePublicCommentDraft(
+      window.sessionStorage,
+      postId,
+      draftOwnerId,
+      commentType,
+      normalizedBody,
+      submissionRequestId,
+    );
     setCommenting(true);
     setCommentError(null);
     setActionError(null);
+    setAuthRequired(false);
     setStatusMessage("");
     try {
-      const result = await createPublicComment(postId, commentType, commentBody.trim());
-      setCommentBody("");
-      setComments(await listPublicComments(postId));
-      setStatusMessage(result.moderationStatus === "approved"
+      const result = await createPublicComment(
+        postId,
+        commentType,
+        normalizedBody,
+        submissionRequestId,
+      );
+      clearPublicCommentDraft(window.sessionStorage, postId, draftOwnerId);
+      commentSubmissionRequestIdRef.current = null;
+      const commentVisible = result.moderationStatus === "visible";
+      const commentPending = result.moderationStatus === "pending";
+      if (commentVisible || commentPending) setCommentBody("");
+      setCommentNeedsRevision(!commentVisible && !commentPending);
+      setStatusMessage(commentVisible
         ? "댓글을 게시했어요."
-        : "안전 검토를 요청했어요. 승인된 뒤 공개 댓글 목록에 표시됩니다.");
+        : commentPending
+          ? "안전 검토를 요청했어요. 승인된 뒤 공개 댓글 목록에 표시됩니다."
+          : "검토 결과 이 댓글은 게시되지 않았어요. 내용을 확인해 새 댓글로 수정해 주세요.");
+      if (commentVisible && !result.reused) {
+        setPost((current) => current ? {
+          ...current,
+          commentsCount: (current.commentsCount ?? comments.length) + 1,
+        } : current);
+      }
       captureCourtEvent("couple_court_comment", { status: commentType });
+      void loadComments();
     } catch (commentError) {
-      setCommentError(commentError instanceof Error ? commentError.message : "댓글을 남기지 못했어요.");
+      if (commentError instanceof CourtApiError && commentError.status === 401) {
+        setAuthRequired(true);
+      } else {
+        setCommentError(commentError instanceof Error ? commentError.message : "댓글을 남기지 못했어요.");
+      }
     } finally {
+      commentSubmissionInFlightRef.current = false;
       setCommenting(false);
     }
   }
@@ -155,6 +435,7 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
   if (error || !post) return <CourtPage><ErrorState message={error ?? "공개 사건을 찾지 못했어요."} onRetry={() => void load()} /></CourtPage>;
 
   const highRisk = post.safetyLevel === "high_risk";
+  const totalComments = Math.max(post.commentsCount ?? 0, comments.length);
 
   return <CourtPage className="max-w-[860px]">
     <CourtLink href="/couple-court/public" variant="text" className="mb-5 px-0"><ArrowLeft className="h-4 w-4" aria-hidden="true" />공개재판 목록</CourtLink>
@@ -170,35 +451,40 @@ export default function PublicCourtDetail({ postId }: { postId: string }) {
         <p className="mt-2 text-sm leading-6 text-[#65716C]">당사자를 판단하거나 신상을 추측하지 말고, 공감과 실제 도움이 되는 경험만 남겨주세요.</p>
         <form onSubmit={(event) => { event.preventDefault(); void comment(); }} className="mt-5" noValidate>
           <label htmlFor="comment-type" className="text-sm font-bold text-[#263832]">댓글 종류</label>
-          <select id="comment-type" value={commentType} onChange={(event) => setCommentType(event.target.value as PublicCourtComment["commentType"])} className="mt-2 min-h-11 w-full rounded-[12px] border border-[#D8CDC1] bg-white px-3 text-base outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15 sm:max-w-[220px]">{commentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select>
+          {anonymousDraftCandidate && <div className="mb-4 rounded-[14px] border border-[#D8CDC1] bg-[#FCFAF6] p-4" role="status"><p className="text-sm font-semibold leading-6 text-[#263832]">로그인 전에 작성한 댓글 초안이 있어요. 이 계정에서 이어서 작성할까요?</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><CourtButton type="button" onClick={adoptAnonymousDraft}>이 계정으로 초안 가져오기</CourtButton><CourtButton type="button" variant="secondary" onClick={discardAnonymousDraft}>초안 삭제</CourtButton></div></div>}
+          <select id="comment-type" value={commentType} disabled={commenting} onChange={(event) => { commentSubmissionRequestIdRef.current = null; setCommentNeedsRevision(false); setCommentType(event.target.value as PublicCourtComment["commentType"]); }} className="mt-2 min-h-11 w-full rounded-[12px] border border-[#D8CDC1] bg-white px-3 text-base outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15 disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-[220px]">{commentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select>
           <label htmlFor="court-comment" className="mt-4 block text-sm font-bold text-[#263832]">내용</label>
           <textarea
             ref={commentBodyRef}
             id="court-comment"
             value={commentBody}
-            onChange={(event) => { setCommentBody(event.target.value); setCommentError(null); }}
+            disabled={commenting}
+            onChange={(event) => { commentSubmissionRequestIdRef.current = null; setCommentNeedsRevision(false); setCommentBody(event.target.value); setCommentError(null); }}
             minLength={2}
             maxLength={500}
             rows={4}
             aria-invalid={Boolean(commentError)}
             aria-describedby={commentError ? "court-comment-error" : undefined}
-            className="mt-2 w-full rounded-[14px] border border-[#D8CDC1] px-4 py-3 text-base leading-7 outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15"
+            className="mt-2 w-full rounded-[14px] border border-[#D8CDC1] px-4 py-3 text-base leading-7 outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15 disabled:cursor-not-allowed disabled:bg-[#F5F1EB] disabled:opacity-70"
             placeholder="개인정보 없이 2자 이상 적어주세요."
           />
           <div className="mt-1 flex min-h-6 items-start justify-between gap-3">
             {commentError && <p id="court-comment-error" className="text-sm font-semibold text-[#9B3F3F]" role="alert">{commentError}</p>}
             <span className="ml-auto shrink-0 text-xs text-[#65716C]">{commentBody.length}/500</span>
           </div>
-          <CourtButton type="submit" disabled={commenting} className="mt-3">{commenting ? "댓글 확인 중…" : "댓글 남기기"}</CourtButton>
+          <CourtButton type="submit" disabled={commenting || commentNeedsRevision} className="mt-3">{commenting ? "댓글 확인 중…" : commentNeedsRevision ? "내용을 수정한 뒤 다시 제출" : "댓글 남기기"}</CourtButton>
         </form>
         <div className="mt-6 border-t border-[#E8E0D7] pt-5">
-          <h3 className="font-bold text-[#263832]">댓글 {comments.length > 0 ? comments.length : ""}</h3>
-          {comments.length === 0 ? <p className="mt-3 text-sm leading-6 text-[#65716C]">아직 댓글이 없어요. 첫 댓글도 개인정보 없이 따뜻하게 남겨주세요.</p> : <ul className="mt-3 space-y-3">{comments.map((commentItem) => <li key={commentItem.id} className="rounded-[14px] border border-[#E4DAD0] bg-[#FCFAF7] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-xs font-bold text-[#36534E]">{commentTypes.find((type) => type.value === commentItem.commentType)?.label}</span><button type="button" data-court-report-trigger={`comment-${commentItem.id}`} onClick={() => openReport(commentItem.id)} className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-xs font-semibold text-[#65716C] outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[#36534E]" aria-label="이 댓글 신고"><Flag className="h-3.5 w-3.5" aria-hidden="true" />신고</button></div><p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-[#263832]">{commentItem.body}</p></li>)}</ul>}
+          <h3 className="font-bold text-[#263832]">댓글 {totalComments}개{comments.length < totalComments ? <span className="ml-2 text-sm font-medium text-[#65716C]">· {comments.length}개 표시</span> : null}</h3>
+          {commentsError && <div className="mt-3 flex flex-col items-start gap-2 rounded-[12px] bg-[#FFF3F1] p-3" role="alert"><p className="text-sm font-semibold text-[#9B3F3F]">{commentsError}</p><CourtButton type="button" variant="secondary" onClick={() => void loadComments(commentsRetryCursor)}>댓글 다시 불러오기</CourtButton></div>}
+          {commentsLoading && comments.length === 0 ? <p className="mt-3 text-sm leading-6 text-[#65716C]" role="status">댓글을 불러오는 중이에요.</p> : comments.length === 0 && !commentsError ? <p className="mt-3 text-sm leading-6 text-[#65716C]">아직 댓글이 없어요. 첫 댓글도 개인정보 없이 따뜻하게 남겨주세요.</p> : null}
+          {nextCommentsCursor && <div className="mt-3 flex justify-center"><CourtButton type="button" variant="secondary" disabled={olderCommentsLoading} onClick={() => void loadComments(nextCommentsCursor)}>{olderCommentsLoading ? "이전 댓글을 불러오는 중…" : "이전 댓글 더 보기"}</CourtButton></div>}
+          {comments.length > 0 && <ul className="mt-3 space-y-3">{comments.map((commentItem) => <li key={commentItem.id} className="rounded-[14px] border border-[#E4DAD0] bg-[#FCFAF7] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-xs font-bold text-[#36534E]">{commentTypes.find((type) => type.value === commentItem.commentType)?.label}</span><button type="button" data-court-report-trigger={`comment-${commentItem.id}`} onClick={() => openReport(commentItem.id)} className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-xs font-semibold text-[#65716C] outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[#36534E]" aria-label="이 댓글 신고"><Flag className="h-3.5 w-3.5" aria-hidden="true" />신고</button></div><p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-[#263832]">{commentItem.body}</p></li>)}</ul>}
         </div>
       </Surface>
     )}
 
-    <div className="mt-5 min-h-7" aria-live="polite">{statusMessage && <p className="rounded-[14px] bg-[#EEF4F1] px-4 py-3 text-sm font-semibold leading-6 text-[#36534E]">{statusMessage}</p>}{actionError && <p className="rounded-[14px] bg-[#FFF3F1] px-4 py-3 text-sm font-semibold leading-6 text-[#9B3F3F]" role="alert">{actionError}</p>}</div>
+    <div className="mt-5 min-h-7" aria-live="polite">{statusMessage && <p className="rounded-[14px] bg-[#EEF4F1] px-4 py-3 text-sm font-semibold leading-6 text-[#36534E]">{statusMessage}</p>}{authRequired && <div className="rounded-[14px] border border-[#D8CDC1] bg-[#FCFAF6] p-4" role="status"><p className="text-sm font-semibold leading-6 text-[#263832]">로그인하면 작성한 내용을 유지한 채 이 공개재판으로 돌아와 참여할 수 있어요.</p><CourtLink href={`/login?next=${encodeURIComponent(weddingPath(`/couple-court/public/${postId}`))}`} variant="secondary" className="mt-3">로그인하고 이어서</CourtLink></div>}{actionError && <p className="rounded-[14px] bg-[#FFF3F1] px-4 py-3 text-sm font-semibold leading-6 text-[#9B3F3F]" role="alert">{actionError}</p>}</div>
 
     <Surface className="mt-5"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" aria-hidden="true" /><div><h2 className="font-bold text-[#263832]">원문과 분리된 공개용 요약이에요</h2><p className="mt-1 text-sm leading-6 text-[#65716C]">이 화면만으로 당사자의 의도나 실제 책임을 단정할 수 없습니다. 개인정보나 위험한 내용이 보이면 알려주세요.</p></div></div>{reportOpen ? <div className="mt-5 rounded-[16px] border border-[#E1D7CB] bg-[#FCFAF6] p-4" role="region" aria-labelledby="court-report-title"><p id="court-report-title" className="text-sm font-bold text-[#8F6662]">{reportTargetCommentId ? "댓글 신고" : "게시물 신고"}</p><label htmlFor="report-reason" className="mt-2 block text-sm font-bold text-[#263832]">신고 이유</label><select ref={reportReasonRef} id="report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value as PublicReportReason)} className="mt-2 min-h-11 w-full rounded-[12px] border border-[#D8CDC1] bg-white px-3 text-base outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15">{reportReasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}</select><div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><CourtButton onClick={closeReport} variant="secondary">취소</CourtButton><CourtButton onClick={() => void report()} variant="danger" disabled={reporting}>{reporting ? "접수 중…" : "신고 접수"}</CourtButton></div></div> : <span data-court-report-trigger="post"><CourtButton onClick={() => openReport()} variant="secondary" className="mt-4"><Flag className="h-4 w-4" aria-hidden="true" />이 게시물 신고</CourtButton></span>}</Surface>
 

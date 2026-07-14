@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '60s';
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
 
 -- Forward repair for environments that already recorded the earlier July
 -- migrations before the invite lifecycle contract was corrected.
@@ -291,5 +290,3 @@ BEGIN
   WHERE id = 'invitation-photos';
 END;
 $$;
-
-COMMIT;

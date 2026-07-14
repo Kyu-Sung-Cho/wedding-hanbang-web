@@ -1,4 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
+import { parseBearerAccessToken } from "@/lib/supabase/bearer";
+
+const INVALID_AUTHORIZATION_TOKEN = "invalid-authorization-header";
 
 /**
  * 쿠키 기반 Supabase 클라이언트 (웹 SSR 전용)
@@ -61,8 +64,13 @@ export function createClientFromToken(accessToken: string) {
 export async function createClientFromRequest(request: Request) {
   // 1순위: Bearer 토큰 (모바일 앱)
   const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return createClientFromToken(authHeader.substring(7));
+  if (authHeader !== null) {
+    // Any explicit Authorization header owns the authentication boundary.
+    // Unsupported or malformed values use a cookie-free invalid credential so
+    // they can never silently execute as a different browser-cookie identity.
+    return createClientFromToken(
+      parseBearerAccessToken(authHeader) ?? INVALID_AUTHORIZATION_TOKEN,
+    );
   }
 
   // 2순위: Next.js cookies() (웹 브라우저 — 세션 read+write 지원)

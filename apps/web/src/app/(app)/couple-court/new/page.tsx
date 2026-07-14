@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import CaseCreationWizard from "@/components/couple-court/CaseCreationWizard";
 import { createClient } from "@/lib/supabase/server";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,6 @@ export const metadata: Metadata = {
 export default async function CoupleCourtNewPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent("/couple-court/new")}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(weddingPath("/couple-court/new"))}`);
   return <CaseCreationWizard draftOwnerId={user.id} />;
 }

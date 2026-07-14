@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowRight, RefreshCw, Scale, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertCircle, Archive, ArrowRight, RefreshCw, Scale, ShieldCheck, Sparkles } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import type { CourtCaseStatus } from "./types";
 import { COURT_CATEGORY_CATALOG } from "@/lib/coupleCourt/catalog";
@@ -74,6 +74,10 @@ export function LoadingState({ label = "불러오는 중이에요." }: { label?:
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return <Surface className="mx-auto max-w-[680px] text-center" as="div"><AlertCircle className="mx-auto h-9 w-9 text-[#9B3F3F]" aria-hidden="true" /><h2 className="mt-4 text-xl font-bold text-[#263832]">지금은 이어갈 수 없어요</h2><p className="mt-2 text-base leading-7 text-[#5E6C66]" role="alert">{message}</p>{onRetry && <CourtButton onClick={onRetry} variant="secondary" className="mt-5"><RefreshCw className="h-4 w-4" aria-hidden="true" />다시 시도</CourtButton>}</Surface>;
+}
+
+export function ArchivedCaseNotice({ caseId, showVerdictLink = false, className = "" }: { caseId: string; showVerdictLink?: boolean; className?: string }) {
+  return <Surface className={`border-[#D8CDC1] bg-[#FCFAF6] ${className}`} as="div"><Archive className="h-7 w-7 text-[#65716C]" aria-hidden="true" /><h2 className="mt-3 text-xl font-bold text-[#263832]">보관된 사건은 읽기 전용이에요</h2><p className="mt-2 text-base leading-7 text-[#65716C]">보관 당시의 판결과 기록만 확인할 수 있어요. 새 진술, 재심, 초대, 공개, 화해 처방 변경은 더 이상 제공하지 않습니다.</p><div className="mt-5 flex flex-col gap-2 sm:flex-row"><CourtLink href={`/couple-court/cases/${caseId}`} variant="secondary">사건 기록으로</CourtLink>{showVerdictLink && <CourtLink href={`/couple-court/cases/${caseId}/verdict`} variant="secondary">보관된 판결 보기</CourtLink>}</div></Surface>;
 }
 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {

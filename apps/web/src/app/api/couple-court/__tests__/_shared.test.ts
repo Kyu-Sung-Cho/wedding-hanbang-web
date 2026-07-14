@@ -3,10 +3,12 @@ import {
   cleanCourtText,
   courtErrorResponse,
   CourtApiError,
+  encodeCourtCursor,
   isCoupleCourtAiEnabled,
   isCoupleCourtEnabled,
   isCoupleCourtPublicEnabled,
   readCourtJson,
+  readCourtCursor,
   requireSafeJsonMutation,
 } from "../_shared";
 
@@ -38,6 +40,44 @@ describe("couple court release flags", () => {
       NODE_ENV: "test",
       COUPLE_COURT_MOCK_ENABLED: "true",
     })).toBe(true);
+  });
+});
+
+describe("couple court keyset cursors", () => {
+  const cursor = {
+    at: "2026-07-14T01:02:03.123456+00:00",
+    id: "00000000-0000-4000-8000-000000000001",
+  };
+
+  it("round-trips the exact database timestamp without losing microseconds", () => {
+    const encoded = encodeCourtCursor("comments", cursor);
+    const request = new Request(`https://hanbang.ai/api/couple-court/public/post/comments?cursor=${encoded}`);
+    expect(readCourtCursor(request, "comments")).toEqual(cursor);
+  });
+
+  it("rejects a cursor from a different list contract", () => {
+    const encoded = encodeCourtCursor("cases", cursor);
+    const request = new Request(`https://hanbang.ai/api/couple-court/public/post/comments?cursor=${encoded}`);
+    expect(() => readCourtCursor(request, "comments")).toThrowError(CourtApiError);
+  });
+
+  it("rejects malformed and oversized cursor input", () => {
+    const malformed = new Request("https://hanbang.ai/api/couple-court/cases?cursor=not_json");
+    expect(() => readCourtCursor(malformed, "cases")).toThrowError(CourtApiError);
+    const oversized = new Request(`https://hanbang.ai/api/couple-court/cases?cursor=${"a".repeat(385)}`);
+    expect(() => readCourtCursor(oversized, "cases")).toThrowError(CourtApiError);
+  });
+
+  it("rejects calendar dates and timezone offsets that only look ISO-shaped", () => {
+    for (const at of [
+      "2026-02-31T01:02:03.123456+00:00",
+      "2026-07-14T24:00:00+00:00",
+      "2026-07-14T01:02:03+14:30",
+    ]) {
+      const encoded = encodeCourtCursor("cases", { ...cursor, at });
+      const request = new Request(`https://hanbang.ai/api/couple-court/cases?cursor=${encoded}`);
+      expect(() => readCourtCursor(request, "cases")).toThrowError(CourtApiError);
+    }
   });
 });
 
@@ -93,6 +133,18 @@ describe("couple court mutation boundary", () => {
     expect(() => requireSafeJsonMutation(request)).not.toThrow();
   });
 
+  it("treats the bearer authentication scheme case-insensitively", () => {
+    const request = new Request("https://hanbang.ai/api/couple-court/cases", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "bEaReR test-token",
+      },
+      body: "{}",
+    });
+    expect(() => requireSafeJsonMutation(request)).not.toThrow();
+  });
+
   it("enforces the actual UTF-8 body size when content-length is absent", async () => {
     const request = new Request("https://hanbang.ai/api/couple-court/cases", {
       method: "POST",
@@ -106,5 +158,36 @@ describe("couple court mutation boundary", () => {
       code: "REQUEST_TOO_LARGE",
       status: 413,
     });
+  });
+
+  it("cancels a chunked body as soon as its byte limit is exceeded", async () => {
+    let chunksRead = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        chunksRead += 1;
+        controller.enqueue(new TextEncoder().encode("1234567890"));
+        if (chunksRead >= 20) controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = new Request("https://hanbang.ai/api/couple-court/cases", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://hanbang.ai",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    await expect(readCourtJson(request, 25)).rejects.toMatchObject({
+      code: "REQUEST_TOO_LARGE",
+      status: 413,
+    });
+    expect(cancelled).toBe(true);
+    expect(chunksRead).toBeLessThan(20);
   });
 });

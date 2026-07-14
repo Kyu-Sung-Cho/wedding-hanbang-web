@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '120s';
+SET lock_timeout = '5s';
+SET statement_timeout = '120s';
 
 -- The worker must be able to prove email-scoped PII deletion even after
 -- GoTrue has already removed the auth row on a retry. The snapshot remains in
@@ -327,5 +326,3 @@ COMMENT ON COLUMN public.account_deletion_jobs.email_scopes IS
   'Temporary normalized email scopes used only to prove email-scoped PII deletion across retries; NULL after completion.';
 COMMENT ON COLUMN public.account_deletion_jobs.email_snapshot_at IS
   'Time the temporary email scope was captured or refreshed; NULL after completion.';
-
-COMMIT;

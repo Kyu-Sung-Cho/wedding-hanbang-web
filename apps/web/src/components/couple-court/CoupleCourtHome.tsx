@@ -10,6 +10,7 @@ import type { CourtCase, PublicCourtCase } from "./types";
 import {
   ContinueArrow,
   categoryLabel,
+  CourtButton,
   CourtLink,
   CourtPage,
   CourtSeal,
@@ -74,22 +75,50 @@ function PopularCaseCard({ post }: { post: PublicCourtCase }) {
 
 export default function CoupleCourtHome({ publicEnabled }: { publicEnabled: boolean }) {
   const [cases, setCases] = useState<CourtCase[]>([]);
+  const [nextCasesCursor, setNextCasesCursor] = useState<string | null>(null);
+  const [loadingMoreCases, setLoadingMoreCases] = useState(false);
+  const [moreCasesError, setMoreCasesError] = useState<string | null>(null);
   const [popularCases, setPopularCases] = useState<PublicCourtCase[]>([]);
+  const [popularLoading, setPopularLoading] = useState(publicEnabled);
+  const [popularError, setPopularError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const homeViewTracked = useRef(false);
+  const popularRequestId = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setMoreCasesError(null);
     try {
-      setCases(await listCases());
+      const page = await listCases();
+      setCases(page.cases);
+      setNextCasesCursor(page.nextCursor);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "내 사건을 불러오지 못했어요.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadMoreCases = useCallback(async () => {
+    if (!nextCasesCursor || loadingMoreCases) return;
+    setLoadingMoreCases(true);
+    setMoreCasesError(null);
+    try {
+      const page = await listCases(nextCasesCursor);
+      setCases((current) => {
+        const byId = new Map(current.map((courtCase) => [courtCase.id, courtCase]));
+        for (const courtCase of page.cases) byId.set(courtCase.id, courtCase);
+        return Array.from(byId.values());
+      });
+      setNextCasesCursor(page.nextCursor);
+    } catch (loadError) {
+      setMoreCasesError(loadError instanceof Error ? loadError.message : "이전 사건을 불러오지 못했어요.");
+    } finally {
+      setLoadingMoreCases(false);
+    }
+  }, [loadingMoreCases, nextCasesCursor]);
 
   useEffect(() => {
     if (!homeViewTracked.current) {
@@ -99,22 +128,42 @@ export default function CoupleCourtHome({ publicEnabled }: { publicEnabled: bool
     void load();
   }, [load]);
 
-  useEffect(() => {
+  const loadPopularCases = useCallback(async () => {
     if (!publicEnabled) return;
-    let active = true;
-    void listPublicCases({ category: "all", mode: "all", sort: "popular", page: 1, limit: 3 })
-      .then(({ posts }) => {
-        if (!active) return;
-        setPopularCases(posts);
-      })
-      .catch(() => {
-        // The private mediation flow remains usable if the optional public feed
-        // is unavailable. Never replace real posts with fabricated popularity.
-      });
-    return () => {
-      active = false;
-    };
+    const requestId = ++popularRequestId.current;
+    setPopularLoading(true);
+    setPopularError(null);
+    try {
+      const { posts } = await listPublicCases({ category: "all", mode: "all", sort: "popular", page: 1, limit: 3 });
+      if (popularRequestId.current !== requestId) return;
+      setPopularCases(posts);
+    } catch (loadError) {
+      if (popularRequestId.current !== requestId) return;
+      setPopularError(loadError instanceof Error ? loadError.message : "인기 공개재판을 불러오지 못했어요.");
+    } finally {
+      if (popularRequestId.current === requestId) setPopularLoading(false);
+    }
   }, [publicEnabled]);
+
+  useEffect(() => {
+    void loadPopularCases();
+    return () => {
+      popularRequestId.current += 1;
+    };
+  }, [loadPopularCases]);
+
+  const myCasesSection = (
+    <section id="my-cases" className="scroll-mt-24 pt-12" aria-labelledby="my-cases-title">
+      <SectionHeading titleId="my-cases-title" title="내 사건" description="작성 중인 내용과 상대방 답변, 판결 상태를 여기서 이어갈 수 있어요." action={<CourtLink href="/couple-court/new" variant="secondary">새 사건 접수</CourtLink>} />
+      {loading ? <LoadingState label="내 사건을 확인하는 중이에요." /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : cases.length === 0 ? (
+        <EmptyState title="아직 접수한 사건이 없어요" description="가벼운 서운함도 괜찮아요. 내 마음과 원하는 결정을 차근차근 적어보세요." action={<CourtLink href="/couple-court/new">첫 사건 접수하기</CourtLink>} />
+      ) : <div>
+        <div className="grid gap-4 md:grid-cols-2">{cases.map((courtCase) => <CaseCard key={courtCase.id} courtCase={courtCase} />)}</div>
+        {moreCasesError && <p className="mt-4 text-sm font-semibold text-[#9B3F3F]" role="alert">{moreCasesError}</p>}
+        {nextCasesCursor && <div className="mt-5 flex justify-center"><CourtButton type="button" variant="secondary" disabled={loadingMoreCases} onClick={() => void loadMoreCases()}>{loadingMoreCases ? "이전 사건을 불러오는 중…" : "이전 사건 더 보기"}</CourtButton></div>}
+      </div>}
+    </section>
+  );
 
   return (
     <CourtPage>
@@ -150,9 +199,15 @@ export default function CoupleCourtHome({ publicEnabled }: { publicEnabled: bool
         </div>
       </section>
 
+      {myCasesSection}
+
       {publicEnabled && <section className="pt-12" aria-labelledby="popular-cases-title">
         <SectionHeading titleId="popular-cases-title" title="오늘의 인기 사건" description="공개 심사를 통과한 익명 판결 중 의견과 대화가 많이 모인 사건이에요." action={<CourtLink href="/couple-court/public" variant="text" className="px-0">전체 공개재판 <ContinueArrow /></CourtLink>} />
-        {popularCases.length > 0
+        {popularLoading
+          ? <LoadingState label="인기 공개재판을 확인하는 중이에요." />
+          : popularError
+            ? <ErrorState message={popularError} onRetry={() => void loadPopularCases()} />
+            : popularCases.length > 0
           ? <div className="grid gap-4 md:grid-cols-3">{popularCases.map((post) => <PopularCaseCard key={post.id} post={post} />)}</div>
           : <Surface className="border-dashed"><p className="font-bold text-[#263832]">아직 공개 심사를 마친 인기 사건이 없어요</p><p className="mt-2 text-sm leading-6 text-[#65716C]">가짜 투표나 예시 사건을 인기 순위처럼 보여주지 않습니다. 공개된 판결이 생기면 이곳에 표시돼요.</p></Surface>}
       </section>}
@@ -169,13 +224,6 @@ export default function CoupleCourtHome({ publicEnabled }: { publicEnabled: bool
             </article>
           ))}
         </div>
-      </section>
-
-      <section id="my-cases" className="scroll-mt-24 pt-12" aria-labelledby="my-cases-title">
-        <SectionHeading titleId="my-cases-title" title="내 사건" description="작성 중인 내용과 상대방 답변, 판결 상태를 여기서 이어갈 수 있어요." action={<CourtLink href="/couple-court/new" variant="secondary">새 사건 접수</CourtLink>} />
-        {loading ? <LoadingState label="내 사건을 확인하는 중이에요." /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : cases.length === 0 ? (
-          <EmptyState title="아직 접수한 사건이 없어요" description="가벼운 서운함도 괜찮아요. 내 마음과 원하는 결정을 차근차근 적어보세요." action={<CourtLink href="/couple-court/new">첫 사건 접수하기</CourtLink>} />
-        ) : <div className="grid gap-4 md:grid-cols-2">{cases.map((courtCase) => <CaseCard key={courtCase.id} courtCase={courtCase} />)}</div>}
       </section>
 
       <section className="pt-12" aria-labelledby="court-process-title">

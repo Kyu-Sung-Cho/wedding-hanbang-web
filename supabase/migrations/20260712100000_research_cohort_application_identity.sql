@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '120s';
+SET lock_timeout = '5s';
+SET statement_timeout = '120s';
 
 -- A separate table preserves rollback compatibility with the currently
 -- deployed preregistration API, whose email-only uniqueness must remain intact.
@@ -170,5 +169,3 @@ COMMENT ON COLUMN public.research_cohort_applications.receipt_email_status IS
   'Best-effort email-verification delivery state; selection notifications are separate.';
 COMMENT ON COLUMN public.research_cohort_applications.email_verified_at IS
   'Mailbox-ownership confirmation time. Only verified rows are selection-eligible.';
-
-COMMIT;

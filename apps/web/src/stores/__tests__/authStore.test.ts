@@ -15,6 +15,11 @@ Object.defineProperty(window, "location", {
 
 import { useAuthStore } from "../authStore";
 import { useCommunityStore } from "../communityStore";
+import {
+  courtCaseDraftKey,
+  courtStatementDraftKey,
+  publicCommentDraftKey,
+} from "@/lib/coupleCourt/draftStorage";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -46,6 +51,7 @@ function resetStore() {
 describe("useAuthStore", () => {
   beforeEach(() => {
     resetStore();
+    window.sessionStorage.clear();
     mockFetch.mockReset();
     setDemoCookie(false);
   });
@@ -444,6 +450,28 @@ describe("useAuthStore", () => {
       expect(state.isDemo).toBe(false);
       expect(state.isInitialized).toBe(false);
       expect(state.initError).toBeNull();
+    });
+
+    it("removes the departing user's private Court drafts only", () => {
+      const ownCase = courtCaseDraftKey("u1");
+      const ownStatement = courtStatementDraftKey("u1", "case-1", true);
+      const ownPublicComment = publicCommentDraftKey("u1", "post-1");
+      const otherCase = courtCaseDraftKey("u2");
+      const otherPublicComment = publicCommentDraftKey("u2", "post-1");
+      window.sessionStorage.setItem(ownCase, "private case");
+      window.sessionStorage.setItem(ownStatement, "private statement");
+      window.sessionStorage.setItem(ownPublicComment, "private public comment");
+      window.sessionStorage.setItem(otherCase, "other account");
+      window.sessionStorage.setItem(otherPublicComment, "other public comment");
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" } });
+
+      useAuthStore.getState().reset();
+
+      expect(window.sessionStorage.getItem(ownCase)).toBeNull();
+      expect(window.sessionStorage.getItem(ownStatement)).toBeNull();
+      expect(window.sessionStorage.getItem(ownPublicComment)).toBeNull();
+      expect(window.sessionStorage.getItem(otherCase)).toBe("other account");
+      expect(window.sessionStorage.getItem(otherPublicComment)).toBe("other public comment");
     });
   });
 });

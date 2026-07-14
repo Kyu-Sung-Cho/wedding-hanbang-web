@@ -78,7 +78,8 @@ export async function GET(req: Request) {
       const { count, error } = await getServiceClient()
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("is_admin", true);
+        .eq("is_admin", true)
+        .is("account_deleting_at", null);
       if (error) {
         console.error("ADMIN_AUTH_ADMIN_INVENTORY_LOOKUP_FAILED", {
           context: "exists-check",
@@ -108,7 +109,7 @@ export async function GET(req: Request) {
 
     const { data: profile, error: profileError } = await getServiceClient()
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin, account_deleting_at")
       .eq("id", user.id)
       .single();
     if (profileError) {
@@ -122,7 +123,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
-      isAdmin: profile?.is_admin === true,
+      isAdmin: profile?.is_admin === true && profile.account_deleting_at === null,
       email: user.email,
     });
   } catch {
@@ -180,7 +181,8 @@ export async function POST(req: Request) {
       const { count, error: countError } = await serviceClient
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("is_admin", true);
+        .eq("is_admin", true)
+        .is("account_deleting_at", null);
 
       if (countError) {
         console.error("ADMIN_AUTH_ADMIN_INVENTORY_LOOKUP_FAILED", {
@@ -276,7 +278,7 @@ export async function POST(req: Request) {
 
       const { data: currentProfile, error: currentProfileError } = await serviceClient
         .from("profiles")
-        .select("is_admin")
+        .select("is_admin, account_deleting_at")
         .eq("id", currentUser.id)
         .single();
       if (currentProfileError) {
@@ -288,7 +290,7 @@ export async function POST(req: Request) {
           { status: 503 }
         );
       }
-      if (!currentProfile?.is_admin) {
+      if (!currentProfile?.is_admin || currentProfile.account_deleting_at !== null) {
         return NextResponse.json({ error: "관리자 권한이 없습니다." }, { status: 403 });
       }
 
@@ -365,7 +367,7 @@ export async function POST(req: Request) {
 
     const { data: profile, error: profileError } = await serviceClient
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin, account_deleting_at")
       .eq("id", user.id)
       .single();
 
@@ -379,7 +381,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (profile?.is_admin) {
+    if (profile?.is_admin && profile.account_deleting_at === null) {
       return NextResponse.json({ success: true, message: "관리자 로그인 성공" });
     }
 

@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Run the safety gates for stacked and ordinary pull requests alike. A
+  # base-branch filter here leaves stacked PR heads without any CI evidence.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

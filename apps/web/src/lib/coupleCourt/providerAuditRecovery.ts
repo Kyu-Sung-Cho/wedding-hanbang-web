@@ -1,4 +1,5 @@
 import { CourtApiError } from "@/app/api/couple-court/_shared";
+import { logAIInteraction } from "@/lib/compliance/ai-log";
 import { getCourtVerdictStructuredOutputName } from "@/lib/coupleCourt/config";
 import { logRecoveredCourtVerdictAudit } from "@/lib/coupleCourt/judge";
 import {
@@ -21,7 +22,15 @@ interface RecoveryIdentity {
   requestKey: string;
 }
 
-interface RecoveryClaim extends RecoveryIdentity {
+interface RecoveryUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheWriteInputTokens: number | null;
+  cachedInputTokens: number | null;
+}
+
+interface LiveRecoveryClaim extends RecoveryIdentity {
+  subjectDeleted: false;
   providerState: "result_staged" | "failed_invalid";
   userId: string | null;
   coupleId: string | null;
@@ -33,17 +42,21 @@ interface RecoveryClaim extends RecoveryIdentity {
   mode: CourtMode;
   category: CourtCategory;
   tone: CourtTone;
-  usage: {
-    inputTokens: number | null;
-    outputTokens: number | null;
-    cacheWriteInputTokens: number | null;
-    cachedInputTokens: number | null;
-  };
+  usage: RecoveryUsage;
 }
+
+interface DeletedRecoveryClaim extends RecoveryIdentity {
+  subjectDeleted: true;
+  model: string;
+  costUsd: number | null;
+  usage: RecoveryUsage;
+}
+
+type RecoveryClaim = LiveRecoveryClaim | DeletedRecoveryClaim;
 
 export interface CourtProviderAuditRecoveryResult {
   recovered: boolean;
-  providerState: RecoveryClaim["providerState"] | null;
+  providerState: LiveRecoveryClaim["providerState"] | null;
 }
 
 function firstRow(value: unknown): UnknownRow | null {
@@ -63,6 +76,45 @@ function safeIntegerOrNull(value: unknown): number | null | undefined {
     : undefined;
 }
 
+function safeCostOrNull(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && value >= 0
+    && value <= 9_999.999999
+    ? value
+    : undefined;
+}
+
+function parseRecoveryUsage(value: unknown): RecoveryUsage | null {
+  const usage = isRecord(value) ? value : null;
+  const inputTokens = safeIntegerOrNull(usage?.input_tokens);
+  const outputTokens = safeIntegerOrNull(usage?.output_tokens);
+  const cachedInputTokens = safeIntegerOrNull(usage?.cached_input_tokens);
+  const cacheWriteInputTokens = safeIntegerOrNull(usage?.cache_write_input_tokens);
+  if (
+    !usage
+    || inputTokens === undefined
+    || outputTokens === undefined
+    || cachedInputTokens === undefined
+    || cacheWriteInputTokens === undefined
+    || (inputTokens === null) !== (outputTokens === null)
+    || (inputTokens === null && (cachedInputTokens !== null || cacheWriteInputTokens !== null))
+    || (inputTokens !== null && (
+      (cachedInputTokens ?? 0) > inputTokens
+      || (cacheWriteInputTokens ?? 0) > inputTokens
+    ))
+  ) {
+    return null;
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    cacheWriteInputTokens,
+    cachedInputTokens,
+  };
+}
+
 function parseRecoveryIdentity(row: UnknownRow): RecoveryIdentity | null {
   const verdictId = row.verdict_id;
   const recoveryLeaseToken = row.recovery_lease_token;
@@ -78,7 +130,10 @@ function parseRecoveryIdentity(row: UnknownRow): RecoveryIdentity | null {
   return { verdictId, recoveryLeaseToken, requestKey };
 }
 
-function parseRecoveryClaim(row: UnknownRow, identity: RecoveryIdentity): RecoveryClaim | null {
+function parseLiveRecoveryClaim(
+  row: UnknownRow,
+  identity: RecoveryIdentity,
+): LiveRecoveryClaim | null {
   const providerState = row.provider_state;
   const providerErrorCode = row.provider_error_code;
   const userId = nullableUuid(row.audit_user_id);
@@ -93,20 +148,22 @@ function parseRecoveryClaim(row: UnknownRow, identity: RecoveryIdentity): Recove
   const tone = row.tone;
   const recoveryAttemptCount = row.recovery_attempt_count;
   const pendingAt = row.provider_audit_pending_at;
-  const usage = isRecord(row.usage) ? row.usage : null;
-  const inputTokens = safeIntegerOrNull(usage?.input_tokens);
-  const outputTokens = safeIntegerOrNull(usage?.output_tokens);
-  const cachedInputTokens = safeIntegerOrNull(usage?.cached_input_tokens);
-  const cacheWriteInputTokens = safeIntegerOrNull(usage?.cache_write_input_tokens);
+  const usage = parseRecoveryUsage(row.usage);
 
   if (
     row.claim_status !== "execute"
+    || row.subject_deleted !== false
     || row.provider_audit_state !== "pending"
     || (providerState !== "result_staged" && providerState !== "failed_invalid")
     || (providerState === "result_staged" && providerErrorCode !== null)
     || (providerState === "failed_invalid" && (
       typeof providerErrorCode !== "string"
-      || !["safety_high_risk", "safety_level_changed", "court_archived"].includes(providerErrorCode)
+      || ![
+        "safety_high_risk",
+        "safety_level_changed",
+        "court_archived",
+        "provider_result_unstaged",
+      ].includes(providerErrorCode)
     ))
     || userId === undefined
     || coupleId === undefined
@@ -130,22 +187,13 @@ function parseRecoveryClaim(row: UnknownRow, identity: RecoveryIdentity): Recove
     || recoveryAttemptCount < 1
     || recoveryAttemptCount > 10_000
     || !usage
-    || inputTokens === undefined
-    || outputTokens === undefined
-    || cachedInputTokens === undefined
-    || cacheWriteInputTokens === undefined
-    || (inputTokens === null) !== (outputTokens === null)
-    || (inputTokens === null && (cachedInputTokens !== null || cacheWriteInputTokens !== null))
-    || (inputTokens !== null && (
-      (cachedInputTokens ?? 0) > inputTokens
-      || (cacheWriteInputTokens ?? 0) > inputTokens
-    ))
   ) {
     return null;
   }
 
   return {
     ...identity,
+    subjectDeleted: false,
     providerState,
     userId,
     coupleId,
@@ -157,13 +205,75 @@ function parseRecoveryClaim(row: UnknownRow, identity: RecoveryIdentity): Recove
     mode,
     category,
     tone,
-    usage: {
-      inputTokens,
-      outputTokens,
-      cacheWriteInputTokens,
-      cachedInputTokens,
-    },
+    usage,
   };
+}
+
+const DELETED_CLAIM_ALLOWED_FIELDS = new Set([
+  "claim_status",
+  "subject_deleted",
+  "verdict_id",
+  "provider_audit_state",
+  "provider_audit_pending_at",
+  "recovery_attempt_count",
+  "recovery_lease_token",
+  "recovery_lease_expires_at",
+  "request_key",
+  "audit_model",
+  "audit_cost_usd",
+  "usage",
+]);
+
+function parseDeletedRecoveryClaim(
+  row: UnknownRow,
+  identity: RecoveryIdentity,
+): DeletedRecoveryClaim | null {
+  const model = row.audit_model;
+  const costUsd = safeCostOrNull(row.audit_cost_usd);
+  const pendingAt = row.provider_audit_pending_at;
+  const recoveryAttemptCount = row.recovery_attempt_count;
+  const recoveryLeaseExpiresAt = row.recovery_lease_expires_at;
+  const usage = parseRecoveryUsage(row.usage);
+  if (
+    row.claim_status !== "execute"
+    || row.subject_deleted !== true
+    || row.provider_audit_state !== "pending"
+    || typeof model !== "string"
+    || !/^[A-Za-z0-9._:/-]{1,128}$/.test(model)
+    || costUsd === undefined
+    || typeof pendingAt !== "string"
+    || !Number.isFinite(Date.parse(pendingAt))
+    || typeof recoveryLeaseExpiresAt !== "string"
+    || !Number.isFinite(Date.parse(recoveryLeaseExpiresAt))
+    || typeof recoveryAttemptCount !== "number"
+    || !Number.isSafeInteger(recoveryAttemptCount)
+    || recoveryAttemptCount < 1
+    || recoveryAttemptCount > 10_000
+    || !usage
+    || Object.keys(row).some((field) => !DELETED_CLAIM_ALLOWED_FIELDS.has(field))
+  ) {
+    return null;
+  }
+  return {
+    ...identity,
+    subjectDeleted: true,
+    model,
+    costUsd,
+    usage,
+  };
+}
+
+function parseRecoveryClaim(
+  row: UnknownRow,
+  identity: RecoveryIdentity,
+): RecoveryClaim | null {
+  if (row.subject_deleted === true) {
+    return parseDeletedRecoveryClaim(row, identity);
+  }
+  if (row.subject_deleted === false) {
+    return parseLiveRecoveryClaim(row, identity);
+  }
+  return null;
 }
 
 async function recordRecoveryFailure(
@@ -250,20 +360,49 @@ export async function recoverOneCourtProviderAudit(
   }
 
   try {
-    await logRecoveredCourtVerdictAudit({
-      userId: claim.userId,
-      coupleId: claim.coupleId,
-      mode: claim.mode,
-      category: claim.category,
-      tone: claim.tone,
-      preflightSafetyLevel: claim.preflightSafetyLevel,
-      inputHash: claim.inputHash,
-      promptVersion: claim.promptVersion,
-      schemaVersion: claim.schemaVersion,
-      model: claim.model,
-      providerRequestKey: claim.requestKey,
-      usage: claim.usage,
-    });
+    if (claim.subjectDeleted) {
+      await logAIInteraction({
+        userId: null,
+        coupleId: null,
+        sessionId: null,
+        messageId: null,
+        interactionType: "couple_court_verdict",
+        specialistType: null,
+        userInput: null,
+        aiOutput: null,
+        toolName: null,
+        toolInput: null,
+        toolOutput: null,
+        latencyMs: 0,
+        success: true,
+        errorMessage: null,
+        model: claim.model,
+        tokensInput: claim.usage.inputTokens,
+        tokensOutput: claim.usage.outputTokens,
+        cacheReadTokens: claim.usage.cachedInputTokens,
+        cacheWriteTokens: claim.usage.cacheWriteInputTokens,
+        ...(claim.costUsd === null ? {} : { costUsd: claim.costUsd }),
+        metadata: null,
+        idempotencyKey: claim.requestKey,
+        required: true,
+        expectedSubjectDeleted: true,
+      });
+    } else {
+      await logRecoveredCourtVerdictAudit({
+        userId: claim.userId,
+        coupleId: claim.coupleId,
+        mode: claim.mode,
+        category: claim.category,
+        tone: claim.tone,
+        preflightSafetyLevel: claim.preflightSafetyLevel,
+        inputHash: claim.inputHash,
+        promptVersion: claim.promptVersion,
+        schemaVersion: claim.schemaVersion,
+        model: claim.model,
+        providerRequestKey: claim.requestKey,
+        usage: claim.usage,
+      });
+    }
   } catch {
     await recordRecoveryFailure(service, adminUserId, identity, "required_audit_write_failed");
     throw new CourtApiError(
@@ -290,6 +429,7 @@ export async function recoverOneCourtProviderAudit(
     finalizedError
     || finalizedRow?.verdict_id !== claim.verdictId
     || finalizedRow.provider_audit_state !== "audited"
+    || (claim.subjectDeleted && finalizedRow.subject_deleted !== true)
   ) {
     await recordRecoveryFailure(service, adminUserId, identity, "audit_finalize_failed");
     throw new CourtApiError(
@@ -299,5 +439,8 @@ export async function recoverOneCourtProviderAudit(
     );
   }
 
-  return { recovered: true, providerState: claim.providerState };
+  return {
+    recovered: true,
+    providerState: claim.subjectDeleted ? null : claim.providerState,
+  };
 }

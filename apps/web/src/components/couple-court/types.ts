@@ -38,6 +38,8 @@ export interface CourtCase {
   publicStatus?: string;
   publicSnapshotVersion?: number;
   publicPreview?: PublicSnapshotPreview;
+  /** Active consent for the current authenticated participant and snapshot only. */
+  publicViewerConsented?: boolean;
   /** The authenticated viewer's latest statement only. Never the other participant's. */
   ownStatement?: StatementInput;
 }
@@ -51,7 +53,7 @@ export interface CreateCaseInput {
 }
 
 export interface StatementInput {
-  /** Stable across retries of one submit click, omitted on read-only ownStatement projections. */
+  /** Stable across exact retries; returned only on the authenticated viewer's own statement. */
   submissionRequestId?: string;
   facts: string;
   feelings: string;

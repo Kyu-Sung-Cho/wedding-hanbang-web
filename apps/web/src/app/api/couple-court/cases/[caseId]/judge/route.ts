@@ -31,15 +31,19 @@ import {
   markCourtVerdictProviderStartedForUser,
   reserveCourtVerdictProviderCallForUser,
   settleCourtHighRiskProviderResultForUser,
+  settleCourtUnstagedProviderResult,
   stageCourtVerdictProviderResultForUser,
 } from "@/lib/coupleCourt/repository";
 import {
   isCourtCategory,
   isCourtMode,
   isCourtTone,
+  type CourtCategory,
+  type CourtMode,
   type CourtParticipantRole,
   type CourtSafetyRiskType,
   type CourtStatementInput,
+  type CourtTone,
 } from "@/lib/coupleCourt/types";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isUuid } from "@/utils/requestValidation";
@@ -61,6 +65,33 @@ interface RouteContext {
 }
 
 type UnknownRow = Record<string, unknown>;
+type ProviderUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_write_input_tokens: number;
+  cached_input_tokens: number;
+};
+
+interface UnstagedProviderAudit {
+  userId: string;
+  coupleId: string | null;
+  mode: CourtMode;
+  category: CourtCategory;
+  tone: CourtTone;
+  preflightSafetyLevel: "normal" | "sensitive";
+  inputHash: string;
+  promptVersion: string;
+  schemaVersion: string;
+  model: string;
+  providerRequestKey: string;
+  usage: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    cacheWriteInputTokens: number | null;
+    cachedInputTokens: number | null;
+  };
+  rawUsage: ProviderUsage | undefined;
+}
 
 function stringValue(row: UnknownRow, key: string): string {
   return typeof row[key] === "string" ? row[key] : "";
@@ -100,6 +131,13 @@ function safeJudgeErrorCode(error: unknown): string {
 export async function POST(request: Request, context: RouteContext) {
   let claimed: { verdictId: string; userId: string; leaseToken: string } | null = null;
   let providerResultStaged = false;
+  let providerUnstagedSettled = false;
+  // TypeScript cannot see assignments performed by the nested provider
+  // callback when control later reaches the outer catch. A mutable ref keeps
+  // that paid-response evidence both runtime-safe and correctly typed.
+  const providerUnstagedAuditRef: { current: UnstagedProviderAudit | null } = {
+    current: null,
+  };
   let providerStarted = false;
   let providerHighRiskDetected = false;
   let providerHighRiskSettled = false;
@@ -431,6 +469,30 @@ export async function POST(request: Request, context: RouteContext) {
       onValidated: mockEnabled
         ? undefined
         : async (verdict, response) => {
+            // Capture the payload-free audit identity before either persistence
+            // path. If the callback throws after the paid response arrives,
+            // the catch path can recreate the exact keyed audit without ever
+            // retaining verdict prose or missions.
+            providerUnstagedAuditRef.current = {
+              userId: user.id,
+              coupleId,
+              mode,
+              category,
+              tone,
+              preflightSafetyLevel,
+              inputHash,
+              promptVersion: COURT_VERDICT_PROMPT_VERSION,
+              schemaVersion: COURT_VERDICT_SCHEMA_VERSION,
+              model: response.model,
+              providerRequestKey: providerRequestKey!,
+              usage: {
+                inputTokens: response.usage?.input_tokens ?? null,
+                outputTokens: response.usage?.output_tokens ?? null,
+                cacheWriteInputTokens: response.usage?.cache_write_input_tokens ?? null,
+                cachedInputTokens: response.usage?.cached_input_tokens ?? null,
+              },
+              rawUsage: response.usage,
+            };
             if (verdict.safety.level === "high_risk") {
               providerHighRiskDetected = true;
               providerHighRiskMessage = verdict.safety.supportMessage
@@ -451,18 +513,43 @@ export async function POST(request: Request, context: RouteContext) {
               providerHighRiskSettled = true;
               return;
             }
-            await stageCourtVerdictProviderResultForUser({
-              verdictId: activeVerdictId,
-              userId: user.id,
-              leaseToken: activeLeaseToken,
-              inputHash,
-              result: verdict as unknown as UnknownRow,
-              missions: verdict.missions as unknown as UnknownRow[],
-              model,
-              auditModel: response.model,
-              usage: response.usage,
-            });
-            providerResultStaged = true;
+            try {
+              await stageCourtVerdictProviderResultForUser({
+                verdictId: activeVerdictId,
+                userId: user.id,
+                leaseToken: activeLeaseToken,
+                inputHash,
+                result: verdict as unknown as UnknownRow,
+                missions: verdict.missions as unknown as UnknownRow[],
+                model,
+                auditModel: response.model,
+                usage: response.usage,
+              });
+              providerResultStaged = true;
+            } catch (stageError) {
+              try {
+                const settlement = await settleCourtUnstagedProviderResult({
+                  verdictId: activeVerdictId,
+                  leaseToken: activeLeaseToken,
+                  inputHash,
+                  requestKey: providerRequestKey!,
+                  auditModel: response.model,
+                  usage: response.usage,
+                });
+                if (settlement.provider_state === "result_staged") {
+                  providerResultStaged = true;
+                } else if (settlement.provider_state === "failed_invalid") {
+                  providerUnstagedSettled = true;
+                } else {
+                  throw new Error("COUPLE_COURT_UNSTAGED_SETTLEMENT_INVALID");
+                }
+              } catch {
+                // The route catch retries this payload-free settlement before
+                // falling back to the existing manual unknown-result fence.
+                console.error("COUPLE_COURT_UNSTAGED_PROVIDER_SETTLEMENT_FAILED");
+              }
+              throw stageError;
+            }
           },
       // The paid request belongs to the server lease, not to the browser
       // connection. Navigation or a dropped mobile network must not abort a
@@ -510,58 +597,100 @@ export async function POST(request: Request, context: RouteContext) {
     return noStoreJson({ status: "ready" });
   } catch (error) {
     if (providerHighRiskDetected) {
-      if (
-        !providerHighRiskSettled
-        && claimed
-        && activeInputHash
-        && activeProviderRequestKey
-        && providerHighRiskAuditModel
-        && providerHighRiskCategories.length > 0
-      ) {
+      const highRiskClaim = claimed;
+      const highRiskInputHash = activeInputHash;
+      const highRiskRequestKey = activeProviderRequestKey;
+      const highRiskAuditModel = providerHighRiskAuditModel;
+      const canSettleHighRisk = Boolean(
+        highRiskClaim
+        && highRiskInputHash
+        && highRiskRequestKey
+        && highRiskAuditModel
+        && providerHighRiskCategories.length > 0,
+      );
+      const settleHighRisk = async () => {
+        if (
+          !highRiskClaim
+          || !highRiskInputHash
+          || !highRiskRequestKey
+          || !highRiskAuditModel
+          || providerHighRiskCategories.length === 0
+        ) return;
+        await settleCourtHighRiskProviderResultForUser({
+          verdictId: highRiskClaim.verdictId,
+          userId: highRiskClaim.userId,
+          leaseToken: highRiskClaim.leaseToken,
+          inputHash: highRiskInputHash,
+          requestKey: highRiskRequestKey,
+          categories: providerHighRiskCategories,
+          auditModel: highRiskAuditModel,
+          usage: providerHighRiskUsage,
+        });
+        providerHighRiskSettled = true;
+      };
+
+      if (!providerHighRiskSettled && canSettleHighRisk) {
         try {
-          await settleCourtHighRiskProviderResultForUser({
-            verdictId: claimed.verdictId,
-            userId: claimed.userId,
-            leaseToken: claimed.leaseToken,
-            inputHash: activeInputHash,
-            requestKey: activeProviderRequestKey,
-            categories: providerHighRiskCategories,
-            auditModel: providerHighRiskAuditModel,
-            usage: providerHighRiskUsage,
-          });
-          providerHighRiskSettled = true;
+          await settleHighRisk();
         } catch {
           console.error("COUPLE_COURT_PROVIDER_HIGH_RISK_SETTLEMENT_RETRY_FAILED");
+        }
+      }
+      if (!providerHighRiskSettled && highRiskClaim) {
+        // Persist the terminal lease first, then immediately replay the
+        // payload-free high-risk settlement. This closes the recoverable
+        // failed_unknown race without issuing another provider request.
+        try {
+          await failCourtVerdictForUser({
+            verdictId: highRiskClaim.verdictId,
+            userId: highRiskClaim.userId,
+            leaseToken: highRiskClaim.leaseToken,
+            errorCode: "safety_escalation_failed",
+          });
+        } catch {
+          console.error("COUPLE_COURT_PROVIDER_SAFETY_FAIL_MARK_FAILED");
+        }
+        if (canSettleHighRisk) {
+          try {
+            await settleHighRisk();
+          } catch {
+            console.error("COUPLE_COURT_PROVIDER_HIGH_RISK_POST_FAIL_SETTLEMENT_FAILED");
+          }
         }
       }
       if (
         providerHighRiskSettled
         && !providerHighRiskAuditFinalized
-        && claimed
-        && activeProviderRequestKey
+        && highRiskClaim
+        && highRiskRequestKey
       ) {
         try {
+          const audit = providerUnstagedAuditRef.current;
+          if (audit) {
+            await logRecoveredCourtVerdictAudit({
+              userId: audit.userId,
+              coupleId: audit.coupleId,
+              mode: audit.mode,
+              category: audit.category,
+              tone: audit.tone,
+              preflightSafetyLevel: audit.preflightSafetyLevel,
+              inputHash: audit.inputHash,
+              promptVersion: audit.promptVersion,
+              schemaVersion: audit.schemaVersion,
+              model: audit.model,
+              providerRequestKey: audit.providerRequestKey,
+              usage: audit.usage,
+            });
+          }
           await finalizeCourtProviderAudit({
-            verdictId: claimed.verdictId,
-            requestKey: activeProviderRequestKey,
+            verdictId: highRiskClaim.verdictId,
+            requestKey: highRiskRequestKey,
           });
           providerHighRiskAuditFinalized = true;
         } catch {
           // A durable pending audit envelope remains claimable by the admin
           // recovery worker. Safety has already been escalated atomically.
           console.error("COUPLE_COURT_PROVIDER_HIGH_RISK_AUDIT_PENDING");
-        }
-      }
-      if (!providerHighRiskSettled && claimed) {
-        try {
-          await failCourtVerdictForUser({
-            verdictId: claimed.verdictId,
-            userId: claimed.userId,
-            leaseToken: claimed.leaseToken,
-            errorCode: "safety_escalation_failed",
-          });
-        } catch {
-          console.error("COUPLE_COURT_PROVIDER_SAFETY_FAIL_MARK_FAILED");
         }
       }
       claimed = null;
@@ -571,9 +700,38 @@ export async function POST(request: Request, context: RouteContext) {
         providerHighRiskMessage ?? COURT_IMMEDIATE_SAFETY_MESSAGE,
       ));
     }
-    if (claimed && !providerResultStaged) {
+    if (
+      claimed
+      && !providerResultStaged
+      && providerUnstagedAuditRef.current
+      && activeInputHash
+      && activeProviderRequestKey
+    ) {
+      const unstagedAudit = providerUnstagedAuditRef.current;
+      if (!providerUnstagedSettled) {
+        try {
+          const settlement = await settleCourtUnstagedProviderResult({
+            verdictId: claimed.verdictId,
+            leaseToken: claimed.leaseToken,
+            inputHash: activeInputHash,
+            requestKey: activeProviderRequestKey,
+            auditModel: unstagedAudit.model,
+            usage: unstagedAudit.rawUsage,
+          });
+          if (settlement.provider_state === "result_staged") {
+            providerResultStaged = true;
+          } else if (settlement.provider_state === "failed_invalid") {
+            providerUnstagedSettled = true;
+          }
+        } catch {
+          console.error("COUPLE_COURT_UNSTAGED_PROVIDER_SETTLEMENT_RETRY_FAILED");
+        }
+      }
+    }
+    if (claimed && !providerResultStaged && !providerUnstagedSettled) {
+      let failed = false;
       try {
-        const failed = await failCourtVerdictForUser({
+        failed = await failCourtVerdictForUser({
           verdictId: claimed.verdictId,
           userId: claimed.userId,
           leaseToken: claimed.leaseToken,
@@ -583,6 +741,100 @@ export async function POST(request: Request, context: RouteContext) {
       } catch {
         console.error("COUPLE_COURT_VERDICT_FAIL_MARK_FAILED");
       }
+
+      // A validated provider response is known and billable. Once the generic
+      // failure fence has persisted its terminal lease, replay the payload-free
+      // settlement from failed_unknown so a transient stage outage cannot
+      // leave the paid call permanently unaudited.
+      const audit = providerUnstagedAuditRef.current;
+      if (
+        audit
+        && activeInputHash
+        && activeProviderRequestKey
+        && !providerResultStaged
+        && !providerUnstagedSettled
+      ) {
+        try {
+          const settlement = await settleCourtUnstagedProviderResult({
+            verdictId: claimed.verdictId,
+            leaseToken: claimed.leaseToken,
+            inputHash: activeInputHash,
+            requestKey: activeProviderRequestKey,
+            auditModel: audit.model,
+            usage: audit.rawUsage,
+          });
+          if (settlement.provider_state === "result_staged") {
+            providerResultStaged = true;
+          } else if (settlement.provider_state === "failed_invalid") {
+            providerUnstagedSettled = true;
+          }
+        } catch {
+          console.error("COUPLE_COURT_UNSTAGED_PROVIDER_POST_FAIL_SETTLEMENT_FAILED");
+        }
+      }
+    }
+    if (
+      claimed
+      && providerUnstagedSettled
+      && providerUnstagedAuditRef.current
+      && activeProviderRequestKey
+    ) {
+      const unstagedAudit = providerUnstagedAuditRef.current;
+      try {
+        await logRecoveredCourtVerdictAudit({
+            userId: unstagedAudit.userId,
+            coupleId: unstagedAudit.coupleId,
+            mode: unstagedAudit.mode,
+            category: unstagedAudit.category,
+            tone: unstagedAudit.tone,
+            preflightSafetyLevel: unstagedAudit.preflightSafetyLevel,
+            inputHash: unstagedAudit.inputHash,
+            promptVersion: unstagedAudit.promptVersion,
+            schemaVersion: unstagedAudit.schemaVersion,
+            model: unstagedAudit.model,
+            providerRequestKey: unstagedAudit.providerRequestKey,
+            usage: unstagedAudit.usage,
+        });
+        await finalizeCourtProviderAudit({
+          verdictId: claimed.verdictId,
+          requestKey: activeProviderRequestKey,
+        });
+      } catch {
+        // The payload-free envelope remains in the service-only audit queue.
+        console.error("COUPLE_COURT_UNSTAGED_PROVIDER_AUDIT_PENDING");
+      }
+
+      try {
+        const latest = await getCourtCaseForUser((await context.params).caseId, claimed.userId);
+        if (latest.case.workflow_status === "archived") {
+          claimed = null;
+          return courtErrorResponse(new CourtApiError(
+            409,
+            "COURT_CASE_ARCHIVED",
+            "사건이 보관되어 판결 마무리를 중단했어요.",
+          ));
+        }
+        if (latest.case.safety_level === "high_risk") {
+          claimed = null;
+          return courtErrorResponse(new CourtApiError(
+            409,
+            "COURT_SAFETY_REDIRECT",
+            COURT_IMMEDIATE_SAFETY_MESSAGE,
+          ));
+        }
+      } catch (stateError) {
+        if (stateError instanceof CourtApiError && stateError.status === 404) {
+          claimed = null;
+          return courtErrorResponse(stateError);
+        }
+      }
+
+      claimed = null;
+      return courtErrorResponse(new CourtApiError(
+        503,
+        "COURT_PROVIDER_RESULT_UNSTAGED",
+        "판결 비용은 중복되지 않게 기록했지만 결과 저장을 마무리하지 못했어요. 운영 확인 전에는 자동으로 다시 요청하지 않습니다.",
+      ));
     }
     if (providerResultStaged) {
       try {

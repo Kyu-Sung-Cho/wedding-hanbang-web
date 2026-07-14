@@ -41,4 +41,40 @@ describe("request Supabase bearer boundary", () => {
       "Bearer explicit-native-token",
     );
   });
+
+  it("recognizes a mixed-case bearer scheme without consuming browser cookies", async () => {
+    mocks.createServerClient.mockReturnValue({ auth: { getUser: vi.fn() } });
+    const request = new Request("https://hanbang.ai/api/couple-court/cases", {
+      headers: {
+        Authorization: "bEaReR mixed-case-native-token",
+        Cookie: "sb-session=must-not-be-consumed",
+      },
+    });
+
+    await createClientFromRequest(request);
+
+    expect(mocks.cookies).not.toHaveBeenCalled();
+    const options = mocks.createServerClient.mock.calls[0]?.[2];
+    expect(options.cookies.getAll()).toEqual([]);
+    expect(options.global.headers.Authorization).toBe(
+      "Bearer mixed-case-native-token",
+    );
+  });
+
+  it("keeps malformed authorization cookie-free instead of changing identity", async () => {
+    mocks.createServerClient.mockReturnValue({ auth: { getUser: vi.fn() } });
+    const request = new Request("https://hanbang.ai/api/couple-court/cases", {
+      headers: {
+        Authorization: "Bearer",
+        Cookie: "sb-session=must-not-be-consumed",
+      },
+    });
+
+    await createClientFromRequest(request);
+
+    expect(mocks.cookies).not.toHaveBeenCalled();
+    const options = mocks.createServerClient.mock.calls[0]?.[2];
+    expect(options.cookies.getAll()).toEqual([]);
+    expect(options.global.headers.Authorization).not.toBe("Bearer");
+  });
 });

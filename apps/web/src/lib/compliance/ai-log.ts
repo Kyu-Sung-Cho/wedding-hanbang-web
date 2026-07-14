@@ -4,8 +4,8 @@
 // 목적: 모든 AI API 호출을 ai_interactions_log에 기록
 // 특징:
 //   - Service role로 INSERT (유저 권한 무관)
-//   - try/catch로 감싸 예외 절대 propagate 안 함
-//   - fire-and-forget: `void logAIInteraction(...)`로 호출 시 await 불필요
+//   - 기본(best-effort) 로그 실패는 삼키되 required 감사 실패는 호출자에게 전파
+//   - fire-and-forget은 required가 아닌 호출에만 사용
 //   - 가격표 내장 → cost_usd 자동 계산
 // 컴플라이언스:
 //   - 현재 LLM 호출 래퍼는 user_input / ai_output 원문을 복제하지 않고 null로 기록
@@ -222,6 +222,8 @@ export interface AIInteractionLogInput {
   idempotencyKey?: string | null;
   /** true면 감사 장부 실패를 호출자에게 전파해 성공처럼 진행하지 않는다. */
   required?: boolean;
+  /** Optional trust-boundary assertion for a deletion-aware required writer. */
+  expectedSubjectDeleted?: true;
 }
 
 const getAdminClient = createAdminClient;
@@ -247,24 +249,13 @@ export function sanitizeAIErrorCode(value: string | null | undefined): string | 
     : "ai_interaction_failed";
 }
 
-function canonicalAuditValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalAuditValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalAuditValue(item)]),
-    );
-  }
-  return value;
-}
-
 // -------------------------------------------
 // 공개 헬퍼: logAIInteraction
 // -------------------------------------------
 /**
- * AI 호출 기록. 예외는 내부에서 삼키고 콘솔에만 남김.
- * fire-and-forget 패턴:
+ * AI 호출 기록. 기본 로그 실패는 콘솔에 남기고 삼키며,
+ * `required: true`인 감사 로그 실패는 호출자에게 전파한다.
+ * best-effort fire-and-forget 패턴:
  *   void logAIInteraction({ ... });  // main flow 안 막음
  */
 export async function logAIInteraction(
@@ -275,6 +266,11 @@ export async function logAIInteraction(
     const idempotencyKey = params.idempotencyKey ?? null;
     if (idempotencyKey !== null && !/^[a-f0-9]{64}$/.test(idempotencyKey)) {
       throw new Error("AI_LOG_IDEMPOTENCY_KEY_INVALID");
+    }
+    if (params.expectedSubjectDeleted !== undefined
+      && (!idempotencyKey || !params.required)
+    ) {
+      throw new Error("AI_LOG_SUBJECT_EXPECTATION_SCOPE_INVALID");
     }
 
     const cost =
@@ -319,67 +315,67 @@ export async function logAIInteraction(
       tokens_output: params.tokensOutput ?? null,
       cost_usd: cost,
       metadata: metadataWithCache,
-      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     };
+
+    if (idempotencyKey) {
+      if (!params.required || params.interactionType !== "couple_court_verdict") {
+        throw new Error("AI_LOG_IDEMPOTENCY_SCOPE_INVALID");
+      }
+      const auditIdentity = {
+        user_id: insertRow.user_id,
+        couple_id: insertRow.couple_id,
+        session_id: insertRow.session_id,
+        message_id: insertRow.message_id,
+        interaction_type: insertRow.interaction_type,
+        specialist_type: insertRow.specialist_type,
+        user_input: insertRow.user_input,
+        ai_output: insertRow.ai_output,
+        tool_name: insertRow.tool_name,
+        tool_input: insertRow.tool_input,
+        tool_output: insertRow.tool_output,
+        success: insertRow.success,
+        error_message: insertRow.error_message,
+        model: insertRow.model,
+        tokens_input: insertRow.tokens_input,
+        tokens_output: insertRow.tokens_output,
+        metadata: insertRow.metadata,
+      };
+      const { data, error } = await admin.rpc("write_court_provider_audit", {
+        p_request_key: idempotencyKey,
+        p_audit_identity: auditIdentity,
+        p_cost_usd: cost,
+      });
+      if (error) {
+        console.error("AI_LOG_REQUIRED_RPC_FAILED");
+        throw new Error("AI_LOG_REQUIRED_INSERT_FAILED");
+      }
+      const result = Array.isArray(data) ? data[0] : data;
+      const auditLogId = result && typeof result === "object"
+        ? (result as Record<string, unknown>).audit_log_id
+        : null;
+      const reused = result && typeof result === "object"
+        ? (result as Record<string, unknown>).reused
+        : null;
+      const subjectDeleted = result && typeof result === "object"
+        ? (result as Record<string, unknown>).subject_deleted
+        : null;
+      if (
+        typeof auditLogId !== "string"
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          .test(auditLogId)
+        || typeof reused !== "boolean"
+        || typeof subjectDeleted !== "boolean"
+        || (params.expectedSubjectDeleted !== undefined
+          && subjectDeleted !== params.expectedSubjectDeleted)
+      ) {
+        throw new Error("AI_LOG_REQUIRED_CONTRACT_INVALID");
+      }
+      return;
+    }
+
     const { error } = await admin.from("ai_interactions_log").insert(insertRow);
 
     if (error) {
-      // If the original insert committed but its response was lost, a retry
-      // sees the unique key. Reuse is safe only for the exact same semantic
-      // audit event; a conflicting row remains a hard required-audit failure.
-      if (idempotencyKey) {
-        const { data: existing, error: lookupError } = await admin
-          .from("ai_interactions_log")
-          .select([
-            "user_id",
-            "couple_id",
-            "session_id",
-            "message_id",
-            "interaction_type",
-            "specialist_type",
-            "user_input",
-            "ai_output",
-            "tool_name",
-            "tool_input",
-            "tool_output",
-            "success",
-            "error_message",
-            "model",
-            "tokens_input",
-            "tokens_output",
-            "metadata",
-          ].join(","))
-          .eq("idempotency_key", idempotencyKey)
-          .maybeSingle();
-        const expectedComparable = {
-          user_id: insertRow.user_id,
-          couple_id: insertRow.couple_id,
-          session_id: insertRow.session_id,
-          message_id: insertRow.message_id,
-          interaction_type: insertRow.interaction_type,
-          specialist_type: insertRow.specialist_type,
-          user_input: insertRow.user_input,
-          ai_output: insertRow.ai_output,
-          tool_name: insertRow.tool_name,
-          tool_input: insertRow.tool_input,
-          tool_output: insertRow.tool_output,
-          success: insertRow.success,
-          error_message: insertRow.error_message,
-          model: insertRow.model,
-          tokens_input: insertRow.tokens_input,
-          tokens_output: insertRow.tokens_output,
-          metadata: insertRow.metadata,
-        };
-        if (
-          !lookupError
-          && existing
-          && JSON.stringify(canonicalAuditValue(existing))
-            === JSON.stringify(canonicalAuditValue(expectedComparable))
-        ) {
-          return;
-        }
-        console.error("AI_LOG_IDEMPOTENCY_CONFLICT", lookupError ?? error);
-      }
       console.error("AI_LOG_INSERT_FAILED", error);
       if (params.required) {
         throw new Error("AI_LOG_REQUIRED_INSERT_FAILED");

@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '110s';
+SET lock_timeout = '5s';
+SET statement_timeout = '110s';
 
 -- Deterministic retention for public application/survey collection.
 
@@ -196,5 +195,3 @@ COMMENT ON COLUMN public.customer_survey_responses.expires_at IS
   'Anonymous product-research response deletion deadline (maximum 365 days).';
 COMMENT ON FUNCTION public.enforce_application_survey_retention() IS
   'Daily deterministic deletion of expired beta applications and anonymous survey responses.';
-
-COMMIT;

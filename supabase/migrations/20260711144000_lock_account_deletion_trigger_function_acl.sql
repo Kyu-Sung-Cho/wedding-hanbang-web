@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '60s';
+SET lock_timeout = '5s';
+SET statement_timeout = '60s';
 
 -- Trigger guards execute through their bound triggers. They are not RPCs and
 -- no client or service worker needs direct EXECUTE. Reinstall the reviewed
@@ -325,5 +324,3 @@ BEGIN
   END IF;
 END;
 $$;
-
-COMMIT;

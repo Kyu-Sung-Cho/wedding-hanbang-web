@@ -29,11 +29,11 @@ const extractPrivacyContractCtes = (sql: string) => {
 };
 
 describe("privacy minimum forward migration", () => {
-  it("is one bounded forward transaction without destructive cascades", () => {
-    expect(migration.match(/^BEGIN;$/gm)).toHaveLength(1);
-    expect(migration.match(/^COMMIT;$/gm)).toHaveLength(1);
-    expect(migration).toContain("SET LOCAL lock_timeout = '5s';");
-    expect(migration).toContain("SET LOCAL statement_timeout = '120s';");
+  it("uses the bounded CLI-owned forward transaction without destructive cascades", () => {
+    expect(migration).not.toMatch(/^BEGIN;$/gm);
+    expect(migration).not.toMatch(/^COMMIT;$/gm);
+    expect(migration).toContain("SET lock_timeout = '5s';");
+    expect(migration).toContain("SET statement_timeout = '120s';");
     expect(migration).not.toMatch(/\bCASCADE\b/i);
     expect(migration).toContain(
       "LOCK TABLE public.cohort_contracts IN ACCESS EXCLUSIVE MODE;"

@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 -- Protected rate-limit keys are HMAC digests, so a raw UUID suffix cannot be
 -- recovered during account deletion. Store the authenticated subject as a
@@ -441,5 +440,3 @@ BEGIN
   END IF;
 END;
 $$;
-
-COMMIT;

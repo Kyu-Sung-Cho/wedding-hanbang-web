@@ -32,7 +32,12 @@ export async function POST(request: Request, context: RouteContext) {
     const { caseId } = await context.params;
     const publicPostId = typeof body.public_post_id === "string" ? body.public_post_id : "";
     const snapshotHash = typeof body.snapshot_hash === "string" ? body.snapshot_hash : "";
-    if (!isUuid(caseId) || !isUuid(publicPostId) || !/^[a-f0-9]{64}$/.test(snapshotHash)) {
+    if (
+      !isUuid(caseId)
+      || !isUuid(publicPostId)
+      || !/^[a-f0-9]{64}$/.test(snapshotHash)
+      || typeof body.consented !== "boolean"
+    ) {
       throw new CourtApiError(400, "COURT_PUBLIC_CONSENT_INVALID", "공개 동의 대상을 확인해 주세요.");
     }
     const current = await getCourtCaseForUser(caseId, user.id);
@@ -43,7 +48,7 @@ export async function POST(request: Request, context: RouteContext) {
       publicPostId,
       userId: user.id,
       snapshotHash,
-      consented: body.consented === true,
+      consented: body.consented,
     });
     return noStoreJson({ consent });
   } catch (error) {

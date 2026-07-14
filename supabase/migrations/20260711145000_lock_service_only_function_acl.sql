@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 -- This RPC mutates the shared rate-limit ledger and is called only through the
 -- server-side service client. Enforce that trust boundary in both ACL and body,
@@ -385,5 +384,3 @@ BEGIN
   END IF;
 END;
 $$;
-
-COMMIT;

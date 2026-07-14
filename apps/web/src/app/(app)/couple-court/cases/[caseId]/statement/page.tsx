@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import StatementForm from "@/components/couple-court/StatementForm";
 import { createClient } from "@/lib/supabase/server";
+import { weddingPath } from "@/lib/weddingPaths";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,13 @@ export default async function CoupleCourtStatementPage({
 }) {
   const { caseId } = await params;
   const query = await searchParams;
+  const revision = Array.isArray(query.revision) ? query.revision[0] : query.revision;
+  const revisionMode = revision === "1";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/couple-court/cases/${caseId}/statement`)}`);
+    const statementPath = `/couple-court/cases/${caseId}/statement${revisionMode ? "?revision=1" : ""}`;
+    redirect(`/login?next=${encodeURIComponent(weddingPath(statementPath))}`);
   }
-  return <StatementForm caseId={caseId} revisionMode={query.revision === "1"} draftOwnerId={user.id} />;
+  return <StatementForm caseId={caseId} revisionMode={revisionMode} draftOwnerId={user.id} />;
 }

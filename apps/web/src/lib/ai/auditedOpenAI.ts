@@ -173,7 +173,8 @@ async function createOpenAIResponseWithAuditInternal<T>(
       },
       safety_identifier: safetyIdentifier,
       service_tier: "default",
-      // 보조 호출은 대부분 일회성·동적 입력이라 재사용되지 않는 유료 cache write를 막는다.
+      // implicit cache breakpoint를 끄고 explicit breakpoint도 두지 않는다.
+      // 이 요청 설정은 애플리케이션 cache write만 제어하며 ZDR을 뜻하지 않는다.
       prompt_cache_options: { mode: "explicit" },
       store: false,
     };

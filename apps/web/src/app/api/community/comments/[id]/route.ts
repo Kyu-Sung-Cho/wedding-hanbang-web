@@ -13,10 +13,10 @@ function getServiceClient() {
 async function isAdmin(userId: string): Promise<boolean> {
   const { data } = await getServiceClient()
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin, account_deleting_at")
     .eq("id", userId)
     .single();
-  return data?.is_admin === true;
+  return data?.is_admin === true && data.account_deleting_at === null;
 }
 
 // 댓글 수정 (작성자만)

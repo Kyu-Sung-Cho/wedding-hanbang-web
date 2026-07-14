@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '90s';
+SET lock_timeout = '5s';
+SET statement_timeout = '90s';
 
 -- Keep the complete authorization predicate behind one source-hashed helper.
 -- The four policies below then have a tiny, anchored expression that can be
@@ -87,5 +86,3 @@ CREATE POLICY "decision_nodes_select_with_privacy"
   USING (
     public.can_read_amora_couple_data(couple_id, visibility::text)
   );
-
-COMMIT;

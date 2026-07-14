@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, FilePenLine, HeartHandshake, LockKeyhole, MessagesSquare, Save, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, FilePenLine, HeartHandshake, LockKeyhole, MessagesSquare, Save, ShieldAlert, ShieldCheck, Sparkles, X } from "lucide-react";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { COURT_CATEGORY_CATALOG } from "@/lib/coupleCourt/catalog";
 import Link from "next/link";
-import { createCase, submitStatement } from "./api";
+import { createCase, submitStatement, type CourtStatementSubmissionSafety } from "./api";
 import { captureCourtEvent } from "./analytics";
 import {
   clearLegacyCourtDrafts,
@@ -15,7 +15,7 @@ import {
   writeScopedCourtDraft,
 } from "./draftStorage";
 import type { CourtMode, CourtTone } from "./types";
-import { COURT_CATEGORIES, CourtButton, CourtPage, SafetyNotice } from "./CourtPrimitives";
+import { COURT_CATEGORIES, CourtButton, CourtLink, CourtPage, SafetyNotice } from "./CourtPrimitives";
 
 const hurtActionOptions = [
   { value: "delayed_response", label: "답변을 미뤘다" },
@@ -69,8 +69,14 @@ interface DraftState {
   desiredOutcomes: DesiredOutcome[];
   desiredAgreement: string;
   selfChange: string;
+  safetyConcern: boolean;
   tone: CourtTone;
   createdCaseId?: string;
+}
+
+interface DraftIntentConflict {
+  requestedMode: CourtMode | null;
+  requestedCategory: string | null;
 }
 
 const EMPTY_DRAFT: DraftState = {
@@ -90,6 +96,7 @@ const EMPTY_DRAFT: DraftState = {
   desiredOutcomes: [],
   desiredAgreement: "",
   selfChange: "",
+  safetyConcern: false,
   tone: "gentle",
 };
 
@@ -180,6 +187,85 @@ function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isBoundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
+export function parseStoredCaseDraft(value: unknown): DraftState | null {
+  if (!isRecord(value)) return null;
+  const mode = value.mode === "solo" || value.mode === "couple" || value.mode === ""
+    ? value.mode
+    : null;
+  const category = typeof value.category === "string"
+    && (value.category === "" || COURT_CATEGORIES.some((option) => option.value === value.category))
+    ? value.category
+    : null;
+  const hurtAction = hurtActionOptions.some((option) => option.value === value.hurtAction)
+    ? value.hurtAction as HurtAction
+    : value.hurtAction === "" ? "" : null;
+  const agreementType = agreementTypeOptions.some((option) => option.value === value.agreementType)
+    ? value.agreementType as AgreementType
+    : value.agreementType === "" ? "" : null;
+  const desiredOutcomes = Array.isArray(value.desiredOutcomes)
+    && value.desiredOutcomes.length <= desiredOutcomeOptions.length
+    && value.desiredOutcomes.every(
+      (outcome): outcome is DesiredOutcome => typeof outcome === "string"
+        && desiredOutcomeOptions.some((option) => option.value === outcome),
+    )
+    && new Set(value.desiredOutcomes).size === value.desiredOutcomes.length
+    ? value.desiredOutcomes
+    : null;
+  const tone = toneOptions.some((option) => option.value === value.tone)
+    ? value.tone as CourtTone
+    : null;
+  if (
+    !isUuid(value.creationRequestId)
+    || !isUuid(value.submissionRequestId)
+    || mode === null
+    || category === null
+    || !isBoundedString(value.title, 120)
+    || !isBoundedString(value.facts, 1200)
+    || hurtAction === null
+    || !isBoundedString(value.hurtActionOther, 120)
+    || !isBoundedString(value.feelings, 600)
+    || agreementType === null
+    || !isBoundedString(value.agreementTypeOther, 120)
+    || !isBoundedString(value.expectations, 800)
+    || !isBoundedString(value.attempts, 800)
+    || desiredOutcomes === null
+    || !isBoundedString(value.desiredAgreement, 500)
+    || !isBoundedString(value.selfChange, 300)
+    || typeof value.safetyConcern !== "boolean"
+    || tone === null
+    || (value.createdCaseId !== undefined && !isUuid(value.createdCaseId))
+  ) return null;
+  return {
+    creationRequestId: value.creationRequestId,
+    submissionRequestId: value.submissionRequestId,
+    mode,
+    category,
+    title: value.title,
+    facts: value.facts,
+    hurtAction,
+    hurtActionOther: value.hurtActionOther,
+    feelings: value.feelings,
+    agreementType,
+    agreementTypeOther: value.agreementTypeOther,
+    expectations: value.expectations,
+    attempts: value.attempts,
+    desiredOutcomes,
+    desiredAgreement: value.desiredAgreement,
+    selfChange: value.selfChange,
+    safetyConcern: value.safetyConcern,
+    tone,
+    createdCaseId: value.createdCaseId,
+  };
+}
+
 export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: string }) {
   const router = useRouter();
   const draftStorageKey = courtCaseDraftKey(draftOwnerId);
@@ -189,23 +275,35 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
   const [saveMessage, setSaveMessage] = useState("이 화면을 떠나기 전까지 안전하게 임시 보관해요.");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedSafety, setSubmittedSafety] = useState<CourtStatementSubmissionSafety | null>(null);
+  const [submittedCaseId, setSubmittedCaseId] = useState<string | null>(null);
+  const [draftIntentConflict, setDraftIntentConflict] = useState<DraftIntentConflict | null>(null);
   const startTracked = useRef(false);
   const stepPanelRef = useRef<HTMLElement>(null);
+  const conflictPanelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedMode = params.get("mode");
+    const modeFromQuery = requestedMode === "solo" || requestedMode === "couple"
+      ? requestedMode
+      : null;
     const requestedCategory = params.get("category");
     const categoryFromQuery = COURT_CATEGORIES.some((option) => option.value === requestedCategory)
       ? requestedCategory
       : null;
     try {
       clearLegacyCourtDrafts(window.sessionStorage);
-      const parsed = readScopedCourtDraft<Partial<DraftState>>(
+      const stored = readScopedCourtDraft<unknown>(
         window.sessionStorage,
         draftStorageKey,
         draftOwnerId,
-      ) ?? {};
+      );
+      const restored = parseStoredCaseDraft(stored);
+      const parsed: Partial<DraftState> = restored ?? {};
+      if (stored !== null && restored === null) {
+        window.sessionStorage.removeItem(draftStorageKey);
+      }
       const savedMode = parsed.mode === "solo" || parsed.mode === "couple" ? parsed.mode : "";
       const savedCategory = COURT_CATEGORIES.some((option) => option.value === parsed.category) ? parsed.category ?? "" : "";
       const savedTitle = typeof parsed.title === "string" ? parsed.title.trim() : "";
@@ -218,6 +316,20 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
       const submissionRequestId = isUuid(parsed.submissionRequestId)
         ? parsed.submissionRequestId
         : window.crypto.randomUUID();
+      const hasIntentConflict = Boolean(
+        restored
+        && !savedCreatedCaseId
+        && (
+          (modeFromQuery && savedMode && modeFromQuery !== savedMode)
+          || (categoryFromQuery && savedCategory && categoryFromQuery !== savedCategory)
+        ),
+      );
+      if (hasIntentConflict) {
+        setDraftIntentConflict({
+          requestedMode: modeFromQuery,
+          requestedCategory: categoryFromQuery,
+        });
+      }
       const resolvedCategory = savedCreatedCaseId ? savedCategory : categoryFromQuery ?? savedCategory;
       const resolvedCategoryLabel = COURT_CATEGORY_CATALOG.find((category) => category.id === resolvedCategory)?.label;
       const savedHurtAction = hurtActionOptions.find((option) => option.value === parsed.hurtAction)?.value ?? "";
@@ -230,11 +342,15 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
         ...parsed,
         creationRequestId,
         submissionRequestId,
-        mode: savedCreatedCaseId
+        mode: hasIntentConflict
           ? savedMode
-          : requestedMode === "solo" || requestedMode === "couple" ? requestedMode : savedMode,
-        category: resolvedCategory,
-        title: savedCreatedCaseId
+          : savedCreatedCaseId
+          ? savedMode
+          : modeFromQuery ?? savedMode,
+        category: hasIntentConflict ? savedCategory : resolvedCategory,
+        title: hasIntentConflict
+          ? savedTitle
+          : savedCreatedCaseId
           ? savedTitle
           : categoryFromQuery && categoryFromQuery !== savedCategory
             ? `${resolvedCategoryLabel ?? "기타"} 의견 차이 사건`
@@ -242,6 +358,7 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
         hurtAction: savedHurtAction,
         agreementType: savedAgreementType,
         desiredOutcomes: savedDesiredOutcomes,
+        safetyConcern: parsed.safetyConcern === true,
         createdCaseId: savedCreatedCaseId,
       });
       if (savedCreatedCaseId) setStep(6);
@@ -251,7 +368,7 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
         ...EMPTY_DRAFT,
         creationRequestId: window.crypto.randomUUID(),
         submissionRequestId: window.crypto.randomUUID(),
-        mode: requestedMode === "solo" || requestedMode === "couple" ? requestedMode : "",
+        mode: modeFromQuery ?? "",
         category: categoryFromQuery ?? "",
         title: queryCategoryLabel ? `${queryCategoryLabel} 의견 차이 사건` : "",
       });
@@ -260,7 +377,7 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
     if (!startTracked.current) {
       startTracked.current = true;
       captureCourtEvent("couple_court_case_start", {
-        mode: requestedMode === "solo" || requestedMode === "couple" ? requestedMode : undefined,
+        mode: modeFromQuery ?? undefined,
       });
     }
   }, [draftOwnerId, draftStorageKey]);
@@ -281,10 +398,14 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
 
   useEffect(() => {
     if (!hydrated) return;
+    if (draftIntentConflict) {
+      conflictPanelRef.current?.focus({ preventScroll: true });
+      return;
+    }
     stepPanelRef.current?.focus({ preventScroll: true });
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
-  }, [step, hydrated]);
+  }, [draftIntentConflict, step, hydrated]);
 
   const categoryQuestions = COURT_CATEGORY_CATALOG.find((category) => category.id === draft.category)?.questionPrompts ?? [];
   const progress = Math.round(step / 6 * 100);
@@ -327,6 +448,45 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
     }));
     setError(null);
     captureCourtEvent("couple_court_category_select", { mode: draft.mode, category });
+  }
+
+  function keepExistingDraft() {
+    setDraftIntentConflict(null);
+    setSaveMessage("기존 초안을 그대로 이어서 작성해요.");
+  }
+
+  function startFreshFromRequestedIntent() {
+    if (!draftIntentConflict) return;
+    const requestedCategory = draftIntentConflict.requestedCategory ?? "";
+    const requestedCategoryLabel = COURT_CATEGORY_CATALOG.find(
+      (category) => category.id === requestedCategory,
+    )?.label;
+    const nextDraft: DraftState = {
+      ...EMPTY_DRAFT,
+      creationRequestId: window.crypto.randomUUID(),
+      submissionRequestId: window.crypto.randomUUID(),
+      mode: draftIntentConflict.requestedMode ?? "",
+      category: requestedCategory,
+      title: requestedCategoryLabel
+        ? `${requestedCategoryLabel} 의견 차이 사건`
+        : "",
+    };
+    try {
+      window.sessionStorage.removeItem(draftStorageKey);
+      writeScopedCourtDraft(
+        window.sessionStorage,
+        draftStorageKey,
+        draftOwnerId,
+        nextDraft,
+      );
+      setSaveMessage("새 사건 초안을 이 탭에 저장했어요.");
+    } catch {
+      setSaveMessage("임시 저장을 사용할 수 없어요. 이 페이지를 닫지 마세요.");
+    }
+    setDraft(nextDraft);
+    setStep(1);
+    setError(null);
+    setDraftIntentConflict(null);
   }
 
   function toggleDesiredOutcome(outcome: DesiredOutcome) {
@@ -420,13 +580,14 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
       const desiredOutcomes = draft.desiredOutcomes
         .map((outcome) => optionLabel(desiredOutcomeOptions, outcome))
         .join(", ");
-      await submitStatement(caseId, {
+      const submission = await submitStatement(caseId, {
         submissionRequestId: draft.submissionRequestId,
         facts: draft.facts.trim(),
         feelings: `[가장 서운했던 행동]\n${hurtAction}\n\n[그때 느낀 마음]\n${draft.feelings.trim()}`,
         expectations: `[사전 약속 유형]\n${agreementType}\n\n[원래 약속하거나 기대한 내용]\n${draft.expectations.trim()}`,
         attempts: draft.attempts.trim(),
         desiredAgreement: `[바라는 결과]\n${desiredOutcomes}\n\n[내가 바꿀 수 있는 행동]\n${draft.selfChange.trim()}\n\n[구체적인 합의]\n${draft.desiredAgreement.trim() || "아직 구체적인 합의를 정하지 못했어요."}`,
+        ...(draft.safetyConcern ? { safetyLevel: "high_risk" as const } : {}),
       });
       captureCourtEvent("couple_court_statement_submit", {
         mode: draft.mode,
@@ -434,10 +595,22 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
         tone: draft.tone,
         status: "initial",
       });
+      if (draft.safetyConcern || submission?.safety?.level === "high_risk") {
+        captureCourtEvent("couple_court_safety_redirect", {
+          mode: draft.mode,
+          category: draft.category,
+          status: "statement",
+        });
+      }
       try {
         window.sessionStorage.removeItem(draftStorageKey);
       } catch {
         // Submission already succeeded; blocked storage must not stop navigation.
+      }
+      if (submission?.safety?.level === "high_risk") {
+        setSubmittedCaseId(caseId);
+        setSubmittedSafety(submission.safety);
+        return;
       }
       router.push(weddingPath(`/couple-court/cases/${caseId}`));
     } catch (submitError) {
@@ -451,6 +624,61 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
   }
 
   if (!hydrated) return <CourtPage><div className="min-h-[420px]" role="status" aria-live="polite"><span className="sr-only">작성 화면을 준비하는 중입니다.</span></div></CourtPage>;
+  if (submittedSafety?.level === "high_risk" && submittedCaseId) return <CourtPage className="max-w-[760px]"><div className="pt-6"><SafetyNotice highRisk />{submittedSafety.resourceMessage && <p className="mt-4 rounded-[16px] border border-[#B45353]/20 bg-white p-4 text-base leading-7 text-[#5E6C66]" role="alert">{submittedSafety.resourceMessage}</p>}<p className="mt-4 text-sm leading-6 text-[#65716C]">사건과 진술은 안전하게 저장됐어요. 책임 비율이나 공개 기능보다 현재 안전과 도움 안내를 먼저 확인해 주세요.</p><div className="mt-6 flex justify-center"><CourtLink href={`/couple-court/cases/${submittedCaseId}`} variant="secondary">안전 안내가 있는 사건 화면으로</CourtLink></div></div></CourtPage>;
+  if (draftIntentConflict) {
+    const savedCategoryLabel = COURT_CATEGORY_CATALOG.find(
+      (category) => category.id === draft.category,
+    )?.label ?? "선택하지 않음";
+    const requestedCategoryLabel = COURT_CATEGORY_CATALOG.find(
+      (category) => category.id === draftIntentConflict.requestedCategory,
+    )?.label ?? "선택하지 않음";
+    return (
+      <CourtPage className="max-w-[680px]">
+        <section
+          ref={conflictPanelRef}
+          tabIndex={-1}
+          aria-labelledby="draft-choice-title"
+          className="mt-6 rounded-[24px] border border-[#E1D7CB] bg-white p-5 shadow-[0_16px_44px_rgba(38,56,50,0.06)] outline-none sm:p-8"
+        >
+          <p className="text-xs font-bold tracking-[0.14em] text-[#8F6662]">작성 중인 초안 발견</p>
+          <h1 id="draft-choice-title" className="mt-2 text-[28px] font-bold leading-tight text-[#263832]">
+            기존 초안을 어떻게 할까요?
+          </h1>
+          <p className="mt-3 text-base leading-7 text-[#65716C]">
+            다른 주제로 시작하는 링크를 열었지만, 이 탭에는 아직 제출하지 않은 초안이 남아 있어요. 작성한 내용을 임의로 바꾸지 않을게요.
+          </p>
+          <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[16px] border border-[#D7E1DC] bg-[#F2F7F4] p-4">
+              <dt className="text-sm font-bold text-[#36534E]">기존 초안</dt>
+              <dd className="mt-1 text-sm leading-6 text-[#5E6C66]">
+                {draft.mode === "couple" ? "둘이 중재받기" : draft.mode === "solo" ? "혼자 임시판결" : "방식 미선택"} · {savedCategoryLabel}
+              </dd>
+            </div>
+            <div className="rounded-[16px] border border-[#E4D9CC] bg-[#FCFAF6] p-4">
+              <dt className="text-sm font-bold text-[#705E48]">새로 연 조건</dt>
+              <dd className="mt-1 text-sm leading-6 text-[#5E6C66]">
+                {draftIntentConflict.requestedMode === "couple" ? "둘이 중재받기" : draftIntentConflict.requestedMode === "solo" ? "혼자 임시판결" : "방식 미선택"} · {requestedCategoryLabel}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-7 grid gap-3">
+            <CourtButton onClick={keepExistingDraft} className="w-full">
+              <FilePenLine className="h-4 w-4" aria-hidden="true" />기존 초안 이어쓰기
+            </CourtButton>
+            <CourtButton onClick={startFreshFromRequestedIntent} variant="secondary" className="w-full">
+              기존 초안을 지우고 새 사건 시작
+            </CourtButton>
+            <Link {...weddingLinkProps("/couple-court")} className="inline-flex min-h-11 items-center justify-center rounded-[14px] text-sm font-semibold text-[#65716C] outline-none hover:bg-[#F5F1EB] focus-visible:ring-2 focus-visible:ring-[#36534E]">
+              취소하고 사건 목록으로
+            </Link>
+          </div>
+          <p className="mt-5 text-sm leading-6 text-[#8D3535]">
+            새 사건을 시작하면 이 탭에 저장된 기존 초안은 복구할 수 없어요. 서버에 이미 접수된 사건은 삭제되지 않습니다.
+          </p>
+        </section>
+      </CourtPage>
+    );
+  }
 
   return (
     <CourtPage className="max-w-[760px]">
@@ -478,8 +706,23 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
               <RadioChoiceGroup id="hurt-action" legend="가장 서운했던 행동은 무엇인가요?" options={hurtActionOptions} value={draft.hurtAction} onChange={(value) => update("hurtAction", value)} error={error && !draft.hurtAction ? "가장 서운했던 행동을 하나 선택해 주세요." : undefined} />
               {draft.hurtAction === "other" && <Field id="hurt-action-other-text" label="기타 행동을 짧게 적어주세요" value={draft.hurtActionOther} onChange={(value) => update("hurtActionOther", value)} minLength={2} maxLength={120} rows={2} error={error && draft.hurtActionOther.trim().length < 2 ? "기타 행동을 2자 이상 적어 주세요." : undefined} />}
               <Field id="feelings" label="그때 어떤 마음이었나요?" hint="상대방을 평가하기보다 내 감정을 중심으로 적어주세요. 최소 10자" value={draft.feelings} onChange={(value) => update("feelings", value)} minLength={10} maxLength={600} rows={3} error={error && draft.feelings.trim().length < 10 ? "그때 느낀 마음을 10자 이상 적어 주세요." : undefined} />
+              <div className="rounded-[16px] border border-[#D9CFC3] bg-[#FCFAF6] p-4">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3">
+                  <input
+                    id="case-safety-concern"
+                    type="checkbox"
+                    checked={draft.safetyConcern}
+                    onChange={(event) => update("safetyConcern", event.target.checked)}
+                    className="mt-1 h-5 w-5 shrink-0 accent-[#36534E] outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
+                  />
+                  <span>
+                    <span className="flex items-center gap-2 font-bold text-[#263832]"><ShieldAlert className="h-4 w-4 text-[#9B3F3F]" aria-hidden="true" />위협·강요·폭력처럼 안전 확인이 필요한 내용이 포함돼요</span>
+                    <span className="mt-1 block text-sm leading-6 text-[#65716C]">선택하면 책임 비율, 농담, 공개 기능보다 안전 안내를 우선합니다.</span>
+                  </span>
+                </label>
+              </div>
             </div>
-            <div className="mt-5"><SafetyNotice /></div>
+            <div className="mt-5"><SafetyNotice highRisk={draft.safetyConcern} /></div>
           </>}
 
           {step === 4 && <>
@@ -511,6 +754,7 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
             <p className="text-xs font-bold tracking-[0.14em] text-[#8F6662]">판결 설정</p>
             <h1 id="step-6-title" className="mt-2 text-[28px] font-bold leading-tight text-[#263832]">아모라가 어떻게 말해드릴까요?</h1>
             <p className="mt-3 text-base leading-7 text-[#65716C]">말투만 달라지고 사실 판단, 안전 기준, 해결책의 품질은 모두 같아요.</p>
+            {draft.safetyConcern && <div className="mt-5"><SafetyNotice highRisk /></div>}
             <fieldset className="mt-6" aria-describedby={draft.createdCaseId ? "case-settings-lock-notice" : undefined}><legend className="sr-only">판결 말투</legend><div className="grid gap-3">{toneOptions.map((tone) => <ChoiceButton key={tone.value} selected={draft.tone === tone.value} onClick={() => update("tone", tone.value)} disabled={Boolean(draft.createdCaseId)}><span className="flex items-start justify-between gap-4"><span><span className="block text-lg font-bold text-[#263832]">{tone.title}</span><span className="mt-1 block text-base leading-7 text-[#65716C]">{tone.description}</span></span>{draft.tone === tone.value && <Check className="mt-1 h-5 w-5 shrink-0 text-[#36534E]" aria-hidden="true" />}</span></ChoiceButton>)}</div></fieldset>
             <div className="mt-6 rounded-[18px] border border-[#9DB5AC]/35 bg-[#F2F7F4] p-4"><p className="flex items-center gap-2 font-bold text-[#263832]"><LockKeyhole className="h-5 w-5 text-[#36534E]" aria-hidden="true" />처음에는 비공개로 접수돼요</p><p className="mt-2 text-sm leading-6 text-[#5E6C66]">원문은 공개되지 않아요. 공개재판을 원할 때는 판결 뒤 익명화된 별도 미리보기를 확인하고 다시 동의해야 해요.</p></div>
             <div className="mt-4 rounded-[18px] border border-[#E4D9CC] p-4">
@@ -528,11 +772,12 @@ export default function CaseCreationWizard({ draftOwnerId }: { draftOwnerId: str
 
         <div className="sticky bottom-2 z-20 mt-5 rounded-[20px] border border-[#E1D7CB] bg-[#FFFDF8]/95 p-3 shadow-[0_14px_40px_rgba(38,56,50,0.14)] backdrop-blur sm:p-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           {draft.createdCaseId && <p id="case-settings-lock-notice" className="mb-3 rounded-[12px] bg-[#EEF4F1] px-3 py-2 text-sm font-semibold leading-6 text-[#36534E]" role="status">사건 번호가 이미 만들어져 설정을 잠갔어요. 같은 사건에 진술 제출만 다시 시도합니다.</p>}
+          {step === 6 && draft.safetyConcern && <p className="mb-3 rounded-[12px] border border-[#B45353]/20 bg-[#FFF7F5] px-3 py-2 text-sm font-semibold leading-6 text-[#8D3535]" role="alert">접수 후에는 재미있는 판결이나 공개 기능보다 안전 확인과 도움 안내를 먼저 보여드려요.</p>}
           {error && <p className="mb-3 rounded-[12px] bg-[#FFF3F1] px-3 py-2 text-sm font-semibold leading-6 text-[#9B3F3F]" role="alert">{error}</p>}
           <div className="flex gap-2">
             {step > 1 && !draft.createdCaseId && <CourtButton onClick={() => { setError(null); setStep((current) => current - 1); }} variant="secondary" className="shrink-0 px-4"><ArrowLeft className="h-4 w-4" aria-hidden="true" />이전</CourtButton>}
             <CourtButton type="submit" disabled={submitting} className="flex-1">
-              {submitting ? <><Sparkles className="h-4 w-4 animate-pulse motion-reduce:animate-none" aria-hidden="true" />사건을 안전하게 접수하는 중…</> : step === 6 ? <>{draft.createdCaseId ? "진술 제출 다시 시도" : "사건 접수하기"} <Check className="h-4 w-4" aria-hidden="true" /></> : <>다음 <ChevronRight className="h-4 w-4" aria-hidden="true" /></>}
+              {submitting ? <><Sparkles className="h-4 w-4 animate-pulse motion-reduce:animate-none" aria-hidden="true" />{draft.safetyConcern ? "안전 안내를 우선 적용하는 중…" : "사건을 안전하게 접수하는 중…"}</> : step === 6 ? <>{draft.createdCaseId ? "진술 제출 다시 시도" : "사건 접수하기"} <Check className="h-4 w-4" aria-hidden="true" /></> : <>다음 <ChevronRight className="h-4 w-4" aria-hidden="true" /></>}
             </CourtButton>
           </div>
         </div>

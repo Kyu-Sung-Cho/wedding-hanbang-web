@@ -349,8 +349,10 @@ export async function chatWithToolsStream(options: {
     include: ["reasoning.encrypted_content"],
     safety_identifier: safetyIdentifier,
     service_tier: "default",
-    // 명시 모드에 cache breakpoint를 두지 않아 private/첨부/대화 원문을
-    // billable prompt cache에 쓰지 않는다. 계약상 보유 상한 확인 전 보수 기본값.
+    // 명시 모드는 provider의 implicit cache breakpoint를 끄며, 이 요청에는
+    // explicit breakpoint도 두지 않는다. 이는 애플리케이션이 cache write를
+    // 선택하지 않는 보수 기본값이지만 OpenAI의 abuse-monitoring/ZDR 정책을
+    // 대체하지는 않는다.
     prompt_cache_options: { mode: "explicit" },
     store: false,
     stream: true,

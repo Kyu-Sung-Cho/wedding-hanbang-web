@@ -166,8 +166,11 @@ export default function PrivacyPage() {
               >
                OpenAI 데이터 처리 안내
               </a>
-              . 현재 아모라 요청은 명시적 캐시 모드에서 cache breakpoint를 설정하지 않아
-              질문·첨부·대화 원문을 프롬프트 캐시에 쓰지 않도록 구성합니다.
+              . 현재 아모라 요청은 명시적 캐시 모드로 provider의 암묵적 cache breakpoint를 끄고
+              별도 breakpoint도 두지 않아 애플리케이션이 prompt cache write를 선택하지 않습니다.
+              다만 <code>store: false</code>와 이 캐시 설정만으로 Zero Data Retention이 보장되는 것은
+              아닙니다. OpenAI 정책상 프롬프트 캐시가 적용되는 경우 암호화된 계산 텐서가 최대 24시간
+              보관될 수 있으며, ZDR 승인 여부는 운영 조직·프로젝트 설정에서 별도로 확인해야 합니다.
             </p>
             <div className="mt-4 rounded-xl border border-black/[0.06] bg-white p-4 text-[13px] leading-relaxed text-charcoal">
               <h3 className="mb-2 text-[13px] font-medium text-noir-800">OpenAI 국외 처리 안내</h3>
@@ -179,7 +182,7 @@ export default function PrivacyPage() {
                 </li>
                 <li>이전 항목: 질문, 최근 대화 맥락, 선택적으로 첨부한 이미지·PDF, 도구 실행에 필요한 맥락</li>
                 <li>목적: GPT-5.6 추론, 안전성·오남용 방지</li>
-                <li>보유기간: Responses 저장 비활성화. 오남용 모니터링 로그는 원칙적으로 최대 30일이며, 현재 애플리케이션은 프롬프트 cache write를 요청하지 않음</li>
+                <li>보유기간: Responses 저장 비활성화. 오남용 모니터링 로그는 원칙적으로 최대 30일이며, 프롬프트 캐시 적용 시 암호화된 계산 텐서는 최대 24시간. 현재 애플리케이션은 implicit·explicit cache breakpoint를 사용하지 않음</li>
                 <li>거부 방법·효과: 아모라에 내용을 입력하거나 파일을 첨부하지 않을 수 있으며, 이 경우 해당 AI 상담 기능 이용이 제한됩니다.</li>
               </ul>
             </div>

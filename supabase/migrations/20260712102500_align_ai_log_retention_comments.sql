@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '30s';
+SET lock_timeout = '5s';
+SET statement_timeout = '30s';
 
 -- Align catalog documentation with the retention function that is already the
 -- executable policy. Do not claim a fixed statutory period here: legal review
@@ -21,5 +20,3 @@ COMMENT ON COLUMN public.ai_interactions_log.error_message IS
 
 COMMENT ON COLUMN public.ai_interactions_log.metadata IS
   'Bounded operational metadata. Identifying fields are removed after 90 days; aggregate rows are deleted after 1 year.';
-
-COMMIT;

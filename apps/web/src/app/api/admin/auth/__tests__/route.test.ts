@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   profileCount: vi.fn(),
+  profileCountEq: vi.fn(),
   profileSingle: vi.fn(),
   profileUpsert: vi.fn(),
 }));
@@ -53,10 +54,11 @@ describe("/api/admin/auth POST", () => {
       error: null,
     });
     mocks.deleteUser.mockResolvedValue({ error: null });
+    mocks.profileCountEq.mockReturnValue({ is: mocks.profileCount });
     mocks.createServiceClient.mockReturnValue({
       auth: { admin: { createUser: mocks.createUser, deleteUser: mocks.deleteUser } },
       from: vi.fn(() => ({
-        select: vi.fn(() => ({ eq: mocks.profileCount })),
+        select: vi.fn(() => ({ eq: mocks.profileCountEq })),
         upsert: mocks.profileUpsert,
       })),
     });
@@ -163,6 +165,30 @@ describe("/api/admin/auth POST", () => {
     );
   });
 
+  it("treats a deleting administrator session as non-admin", async () => {
+    mocks.createClientFromRequest.mockResolvedValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: "admin-1", email: "admin@example.com" } },
+      }) },
+    });
+    mocks.profileSingle.mockResolvedValueOnce({
+      data: { is_admin: true, account_deleting_at: "2026-07-14T00:00:00.000Z" },
+      error: null,
+    });
+    mocks.createServiceClient.mockReturnValueOnce({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ single: mocks.profileSingle })),
+        })),
+      })),
+    });
+
+    const response = await GET(new Request("http://localhost/api/admin/auth"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isAdmin: false });
+  });
+
   it("does not treat a failed login profile query as a non-admin result", async () => {
     const sensitiveMessage = "database host=private.internal";
     mocks.createClientFromRequest.mockResolvedValueOnce({
@@ -197,6 +223,77 @@ describe("/api/admin/auth POST", () => {
       "ADMIN_AUTH_PROFILE_LOOKUP_FAILED",
       { context: "login" },
     );
+  });
+
+  it("rejects login for an administrator whose deletion has started", async () => {
+    mocks.createClientFromRequest.mockResolvedValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "admin-1" } } }) },
+    });
+    mocks.profileSingle.mockResolvedValueOnce({
+      data: { is_admin: true, account_deleting_at: "2026-07-14T00:00:00.000Z" },
+      error: null,
+    });
+    mocks.createServiceClient.mockReturnValueOnce({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ single: mocks.profileSingle })),
+        })),
+      })),
+    });
+
+    const response = await POST(new Request("http://localhost/api/admin/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "login",
+        setupPassword: process.env.ADMIN_PASSWORD,
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+  });
+
+  it("does not let a deleting administrator create another administrator", async () => {
+    mocks.createClientFromRequest.mockResolvedValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "admin-1" } } }) },
+    });
+    mocks.profileSingle.mockResolvedValueOnce({
+      data: { is_admin: true, account_deleting_at: "2026-07-14T00:00:00.000Z" },
+      error: null,
+    });
+    mocks.createServiceClient.mockReturnValueOnce({
+      auth: { admin: { createUser: mocks.createUser, deleteUser: mocks.deleteUser } },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ single: mocks.profileSingle })),
+        })),
+        upsert: mocks.profileUpsert,
+      })),
+    });
+
+    const response = await POST(new Request("http://localhost/api/admin/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create-admin",
+        setupPassword: process.env.ADMIN_PASSWORD,
+        email: "next-admin@example.com",
+        password: "StrongAdmin1!",
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("counts only active administrators for inventory checks", async () => {
+    const response = await GET(new Request(
+      "http://localhost/api/admin/auth?check=exists",
+    ));
+
+    expect(response.status).toBe(200);
+    expect(mocks.profileCountEq).toHaveBeenCalledWith("is_admin", true);
+    expect(mocks.profileCount).toHaveBeenCalledWith("account_deleting_at", null);
   });
 
   it("removes a newly-created auth user when profile creation fails", async () => {

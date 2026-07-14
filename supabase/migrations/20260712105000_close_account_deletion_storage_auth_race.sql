@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '120s';
+SET lock_timeout = '5s';
+SET statement_timeout = '120s';
 
 LOCK TABLE auth.users IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE public.account_deletion_jobs IN SHARE ROW EXCLUSIVE MODE;
@@ -566,5 +565,3 @@ COMMENT ON FUNCTION public.block_storage_owner_write_during_account_deletion() I
   'Trigger-only fence requiring a live Auth owner and blocking direct Storage writes after account deletion begins.';
 COMMENT ON FUNCTION public.block_auth_user_delete_until_account_cleanup_ready() IS
   'Trigger-only fence that preserves Storage ownership and consumes a short cleanup proof before managed auth.users deletion.';
-
-COMMIT;

@@ -1,7 +1,6 @@
-BEGIN;
 
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '30s';
+SET lock_timeout = '5s';
+SET statement_timeout = '30s';
 
 -- 죽은 청첩장/AI대본 테이블 정리 (감사 2.5 L1 + 0.2 죽은 코드 병합).
 --
@@ -125,5 +124,3 @@ DROP TABLE IF EXISTS public.invitation_photos RESTRICT;
 DROP TABLE IF EXISTS public.invitations RESTRICT;
 DROP TABLE IF EXISTS public.invitation_templates RESTRICT;
 DROP TABLE IF EXISTS public.ai_scripts RESTRICT;
-
-COMMIT;

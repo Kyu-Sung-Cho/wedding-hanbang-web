@@ -10,6 +10,10 @@ const readRepo = (path: string) => readFileSync(resolve(repoRoot, path), "utf8")
 const packageJson = JSON.parse(readRepo("package.json")) as {
   scripts: Record<string, string>;
 };
+const webPackageJson = JSON.parse(readRepo("apps/web/package.json")) as {
+  devDependencies: Record<string, string>;
+};
+const lockfile = readRepo("pnpm-lock.yaml");
 const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
   productionSupabaseProjectRefs: string[];
   approvedNonProductionSupabaseProjectRefs: string[];
@@ -94,11 +98,24 @@ const authIdentityDeletionStartMigration = readRepo(
 const accountDeletionStorageAuthRaceMigration = readRepo(
   "supabase/migrations/20260712105000_close_account_deletion_storage_auth_race.sql"
 );
+const deletingAdminPrivilegeMigration = readRepo(
+  "supabase/migrations/20260713110100_block_deleting_admin_privileges.sql"
+);
+const weddingCodeCollectionCreatorMigration = readRepo(
+  "supabase/migrations/20260705160000_wedding_code_responses.sql"
+);
+const weddingCodeCollectionRetirementMigration = readRepo(
+  "supabase/migrations/20260714104000_disable_wedding_code_collection.sql"
+);
+const weddingCodeCollectionIntegration = readRepo(
+  "apps/web/src/lib/weddingCode/__tests__/collectionRetirementMigrationIntegration.test.ts"
+);
 const vercelConfig = JSON.parse(readRepo("apps/web/vercel.json"));
 const agentsGuide = readRepo("AGENTS.md");
 const productionReleaseRunbook = readRepo(
   "docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md"
 );
+const supabaseRemoteOperations = readRepo("docs/SUPABASE_REMOTE_OPERATIONS.md");
 const fullQaReport = readRepo("docs/codex-tasks/FULL_QA_2026-07-12.md");
 
 function functionSourceMd5(sql: string, functionName: string): string {
@@ -113,8 +130,62 @@ function functionSourceMd5(sql: string, functionName: string): string {
 }
 
 describe("release safety contract", () => {
-  it("prevents a main merge from racing production database gates", () => {
+  it("does not treat checked-in Vercel Git intent as provider-side safety proof", () => {
     expect(vercelConfig.git?.deploymentEnabled).toBe(false);
+    for (const marker of [
+      "2026-07-14 read-only Vercel UI",
+      "Every commit pushed to main will create a Production Deployment",
+      "Auto-assign Custom Production Domains: Enabled",
+    ]) {
+      expect(agentsGuide).toContain(marker);
+      expect(productionReleaseRunbook).toContain(marker);
+    }
+    expect(agentsGuide).toContain(
+      "checked-in 의도일 뿐 provider 상태 증거가 아니다",
+    );
+    expect(agentsGuide).toContain(
+      "`main` 직접 push·병합과 운영 배포를 금지한다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "저장소에 고정한 의도일 뿐 Vercel provider 상태의 증거가 아니다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "2026-07-14 현재 GO 23은 release trigger mode가 아직 완전히 attested되지 않아 실패 상태다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "`staged-controller` mode",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "`git-integrated-p0` mode",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "현재 P0 merge는 여전히 NO-GO",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "자동 배포 기능 자체가 모든 P0에서 곧바로 NO-GO라는 뜻은 아니다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "#### 0-D. 제한된 Git-integrated WeddingCode P0 mode",
+    );
+    for (const marker of [
+      "U4tSiF85BfeFVMnoG7Kq5rSAqjvY",
+      "wedding-hanbang-me2k784f2-hanbang.vercel.app",
+      "source prefix `8d8933e`",
+      "Vercel SSO `302`와 `X-Robots-Tag: noindex`",
+      "앱 canary 성공으로 세지 않는다",
+      "branch protection API와 ruleset API가 모두",
+      "`--match-head-commit`과 exact-SHA 재확인은 현재 수동 fail-closed 절차",
+    ]) {
+      expect(productionReleaseRunbook).toContain(marker);
+    }
+    expect(agentsGuide).not.toContain(
+      "Git 자동 배포와 deploy hook은 비활성이다",
+    );
+    expect(productionReleaseRunbook).not.toContain(
+      "`apps/web/vercel.json`은 모든 Git push/PR의 자동 Vercel 배포를 차단한다",
+    );
+    expect(fullQaReport).toContain("2026-07-14 정정");
+    expect(fullQaReport).toContain("위 정정으로 폐기된 과거 판단");
   });
 
   it("pins the controller-only Vercel release path without logging protection bypass secrets", () => {
@@ -126,7 +197,9 @@ describe("release safety contract", () => {
     expect(agentsGuide).toContain("로컬 Vercel CLI는 운영 proof를 만들지 않는다");
     expect(agentsGuide).not.toContain("vercel@55.0.0 inspect");
     expect(agentsGuide).not.toContain("`--prod --skip-domain`");
-    expect(agentsGuide).toContain("자동 Git 배포는 계속 비활성");
+    expect(agentsGuide).toContain(
+      "승인된 P0 Git-integrated mode에서는 두 자동 설정의 활성 상태 자체를 expected contract로 고정",
+    );
     expect(productionReleaseRunbook).toContain("controller-only 실행 계약");
     expect(productionReleaseRunbook).toContain("로컬 CLI 실행 금지");
     expect(productionReleaseRunbook).not.toContain("$VercelCliVersion");
@@ -344,6 +417,11 @@ describe("release safety contract", () => {
   });
 
   it("runs the no-install history gate before any CI dependency lifecycle", () => {
+    const normalizedWorkflow = ciWorkflow.replace(/\r/g, "");
+    const pullRequestTrigger = ciWorkflow.slice(
+      ciWorkflow.indexOf("  pull_request:"),
+      ciWorkflow.indexOf("\n\npermissions:"),
+    );
     const historyJob = ciWorkflow.slice(
       ciWorkflow.indexOf("  secret-history:"),
       ciWorkflow.indexOf("  quality:")
@@ -353,6 +431,35 @@ describe("release safety contract", () => {
       ciWorkflow.indexOf("  quality:")
     );
     const qualityJob = ciWorkflow.slice(ciWorkflow.indexOf("  quality:"));
+    expect(pullRequestTrigger).toContain("pull_request:");
+    expect(pullRequestTrigger).not.toContain("branches:");
+    const permissionsBlock = normalizedWorkflow.slice(
+      normalizedWorkflow.indexOf("permissions:"),
+      normalizedWorkflow.indexOf("\n\nconcurrency:"),
+    );
+    expect(permissionsBlock.trim()).toBe("permissions:\n  contents: read");
+    expect(normalizedWorkflow).not.toMatch(
+      /^\s{2}(?:pull_request_target|workflow_run|issue_comment):/m,
+    );
+    expect(normalizedWorkflow).not.toMatch(/\$\{\{\s*secrets\./i);
+    expect(normalizedWorkflow).not.toMatch(/^\s*environment\s*:/mi);
+    expect(normalizedWorkflow).not.toMatch(
+      /^\s*[a-z0-9_-]+\s*:\s*write\s*(?:#.*)?$/mi,
+    );
+    expect(normalizedWorkflow).not.toMatch(
+      /\b(?:vercel\s+(?:deploy|--prod)|supabase\s+(?:db\s+push|migration\s+up)|(?:pnpm|npm|yarn)\s+(?:run\s+)?deploy)\b/i,
+    );
+    const checkoutLines = normalizedWorkflow.split("\n")
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => line.includes("uses: actions/checkout@"));
+    expect(checkoutLines.length).toBeGreaterThan(0);
+    for (const checkout of checkoutLines) {
+      expect(checkout.line).toMatch(/actions\/checkout@[0-9a-f]{40}(?:\s|$)/);
+      expect(normalizedWorkflow.split("\n").slice(
+        checkout.index + 1,
+        checkout.index + 5,
+      ).join("\n")).toContain("persist-credentials: false");
+    }
     expect(historyJob).toContain("fetch-depth: 0");
     expect(historyJob).toContain("package-manager-cache: false");
     expect(historyJob).toContain("node ./scripts/scan-tracked-secrets.mjs");
@@ -611,32 +718,34 @@ describe("release safety contract", () => {
         /\(\s*'(?:auth|public|storage)'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g
       )].map((match) => match[1]).sort();
 
-    expect(preflightSignatures).toHaveLength(54);
+    expect(preflightSignatures).toHaveLength(76);
     expect(postDeploySignatures).toEqual(preflightSignatures);
     const preflightTriggerFunctionSignatures = extractSignatures(
       preflightTriggerFunctions
     );
-    expect(preflightTriggerFunctionSignatures).toHaveLength(12);
+    expect(preflightTriggerFunctionSignatures).toHaveLength(13);
     expect(extractSignatures(postDeployTriggerFunctions)).toEqual(
       preflightTriggerFunctionSignatures
     );
     const preflightTriggerBindingNames = extractBindingNames(
       preflightTriggerBindings
     );
-    expect(preflightTriggerBindingNames).toHaveLength(13);
+    expect(preflightTriggerBindingNames).toHaveLength(14);
     expect(extractBindingNames(postDeployTriggerBindings)).toEqual(
       preflightTriggerBindingNames
     );
-    expect(ship).toContain("$script:expectedDependencyFunctionCount = 54");
-    expect(ship).toContain("$script:expectedDependencyCronCount = 5");
+    expect(ship).toContain("$script:expectedDependencyFunctionCount = 76");
+    expect(ship).toContain("$script:expectedDependencyCronCount = 7");
+    expect(ship).toContain("$script:expectedCourtProviderTableStageCount = 5");
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerFunctionCount = 12"
+      "$script:expectedClientDeniedTriggerFunctionCount = 13"
     );
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerBindingCount = 13"
+      "$script:expectedClientDeniedTriggerBindingCount = 14"
     );
     expect(ship).toContain("dependency_function_status");
     expect(ship).toContain("dependency_cron_status");
+    expect(ship).toContain("court_provider_table_stage_status");
     expect(ship).toContain("$status.existing_replaceable -ne $true");
     expect(ship).toContain("$status.exact -ne $true");
 
@@ -814,6 +923,246 @@ describe("release safety contract", () => {
     );
   });
 
+  it("fails closed on every active-admin policy and the complete table-policy allowlist", () => {
+    const expectedActivePolicies = [
+      ["settlements", "관리자: 전체 정산 관리", "ALL", "admin", false, true],
+      ["vendor_leads", "vendor_leads_admin_all", "ALL", "admin_service", true, true],
+      ["amora_quote_checks", "amora_quote_checks_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_personas", "community_agent_personas_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_personas", "community_agent_personas_admin_write", "ALL", "admin", true, true],
+      ["community_agent_content_drafts", "community_agent_drafts_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_content_drafts", "community_agent_drafts_admin_write", "ALL", "admin", true, true],
+      ["community_agent_activity_log", "community_agent_activity_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_activity_log", "community_agent_activity_admin_write", "ALL", "admin", true, true],
+      ["community_agent_daily_state", "community_agent_daily_state_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_daily_state", "community_agent_daily_state_admin_write", "ALL", "admin", true, true],
+      ["community_agent_automation_runs", "community_agent_automation_runs_admin_select", "SELECT", "admin", false, false],
+      ["community_agent_automation_runs", "community_agent_automation_runs_admin_write", "ALL", "admin", true, true],
+    ] as const;
+    const expectedPolicyAllowlist = [
+      ["settlements", "관리자: 전체 정산 관리"],
+      ["settlements", "서비스: 전체 관리"],
+      ["settlements", "업체: 본인 정산 조회"],
+      ["vendor_leads", "vendor_leads_admin_all"],
+      ["amora_quote_checks", "amora_quote_checks_admin_select"],
+      ["amora_quote_checks", "amora_quote_checks_owner_select"],
+      ["amora_quote_checks", "amora_quote_checks_service_all"],
+      ["community_agent_personas", "community_agent_personas_admin_select"],
+      ["community_agent_personas", "community_agent_personas_admin_write"],
+      ["community_agent_content_drafts", "community_agent_drafts_admin_select"],
+      ["community_agent_content_drafts", "community_agent_drafts_admin_write"],
+      ["community_agent_activity_log", "community_agent_activity_admin_select"],
+      ["community_agent_activity_log", "community_agent_activity_admin_write"],
+      ["community_agent_daily_state", "community_agent_daily_state_admin_select"],
+      ["community_agent_daily_state", "community_agent_daily_state_admin_write"],
+      ["community_agent_automation_runs", "community_agent_automation_runs_admin_select"],
+      ["community_agent_automation_runs", "community_agent_automation_runs_admin_write"],
+    ] as const;
+
+    expect(expectedActivePolicies).toHaveLength(13);
+    expect(expectedPolicyAllowlist).toHaveLength(17);
+    for (const [tableName, policyName, command, kind, legacyCheck, activeCheck]
+      of expectedActivePolicies) {
+      expect(deletingAdminPrivilegeMigration).toContain(
+        `CREATE POLICY "${policyName}"`,
+      );
+      const tuple = `('${tableName}', '${policyName}', '${command}', '${kind}', ${legacyCheck}, ${activeCheck})`;
+      expect(productionPreflight).toContain(tuple);
+      expect(postDeploy).toContain(tuple);
+    }
+    for (const sql of [productionPreflight, postDeploy]) {
+      const allowlistStart = sql.indexOf(
+        "required_active_admin_table_policy_allowlist",
+      );
+      const allowlistEnd = sql.indexOf(
+        "active_admin_policy_allowlist_inventory",
+        allowlistStart,
+      );
+      expect(allowlistStart).toBeGreaterThanOrEqual(0);
+      expect(allowlistEnd).toBeGreaterThan(allowlistStart);
+      const allowlist = sql.slice(allowlistStart, allowlistEnd);
+      for (const [tableName, policyName] of expectedPolicyAllowlist) {
+        expect(allowlist).toContain(`('${tableName}', '${policyName}')`);
+      }
+      expect(sql).toContain("PROVISIONAL_ACTIVE_ADMIN_POLICY_CANONICAL");
+      expect(sql).toContain("inventory.expected_count = 17");
+      expect(sql).toContain("inventory.actual_count = 17");
+      expect(sql).toContain("inventory.missing_count = 0");
+      expect(sql).toContain("inventory.unexpected_count = 0");
+      expect(sql).toContain("count(*) = 13");
+      expect(sql).toContain("policy_row.roles = ARRAY['public'::name]");
+      expect(sql).toContain("policy_row.permissive = 'PERMISSIVE'");
+      expect(sql).toContain("table_row.relrowsecurity");
+      expect(sql).toContain(
+        "existsselect1fromprofilesprofilewhereprofile.id=selectauth.uidasuidandprofile.is_admin=trueandprofile.account_deleting_atisnull",
+      );
+      expect(sql).toContain(
+        "selectauth.roleasrole=''service_role''::textorexistsselect1fromprofilesprofilewhereprofile.id=selectauth.uidasuidandprofile.is_admin=trueandprofile.account_deleting_atisnull",
+      );
+    }
+    for (const marker of [
+      "$script:expectedActiveAdminPolicyCount = 13",
+      "$script:expectedActiveAdminPolicyAllowlistCount = 17",
+      '"20260713110100" -in $PendingVersions',
+      "active_admin_policy_replacement_safe",
+      "active_admin_policies_exact",
+      "active_admin_policy_allowlist_exact",
+      "$Contract.all_active_admin_policies_exact -ne $true",
+      "$Contract.active_admin_policy_allowlist_exact -ne $true",
+      "PROVISIONAL_ACTIVE_ADMIN_POLICY_CANONICAL",
+      "Production push remains disabled until ship is bound to a live fence snapshot",
+    ]) {
+      expect(`${productionPreflight}\n${postDeploy}\n${ship}`).toContain(marker);
+    }
+  });
+
+  it("separates the current WeddingCode absence fence from future DB retirement", () => {
+    expect(createHash("sha256")
+      .update(weddingCodeCollectionCreatorMigration.replace(/\r/gu, ""), "utf8")
+      .digest("hex"))
+      .toBe("8542fd971af41927e8be4c0d9f15c2e06c5fabcf5092d6c5674d9935e9b27cf5");
+    expect(createHash("sha256")
+      .update(weddingCodeCollectionRetirementMigration.replace(/\r/gu, ""), "utf8")
+      .digest("hex"))
+      .toBe("45f6c7ae60675d9bb60359392ce6d1f6d2da624049a5fb1b76b93d847272393a");
+
+    for (const marker of [
+      "FROM PUBLIC, anon, authenticated, service_role;",
+      "ADD CONSTRAINT wedding_code_collection_retired",
+      "CHECK (false) NOT VALID;",
+      "there is no service_role write window between migration files",
+    ]) {
+      expect(weddingCodeCollectionCreatorMigration).toContain(marker);
+    }
+    expect(weddingCodeCollectionCreatorMigration).not.toMatch(
+      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER)[\s\S]*wedding_code_responses/iu,
+    );
+    expect(weddingCodeCollectionCreatorMigration).not.toMatch(
+      /CREATE POLICY\s+wc_responses_service_only/iu,
+    );
+    expect(webPackageJson.devDependencies["@electric-sql/pglite"]).toBe("0.5.4");
+    expect(lockfile).toContain("'@electric-sql/pglite@0.5.4':");
+    for (const marker of [
+      'resolve(migrationsPath, "20260705160000_wedding_code_responses.sql")',
+      'resolve(migrationsPath, "20260706100000_wc_couple_token.sql")',
+      'resolve(migrationsPath, "20260714104000_disable_wedding_code_collection.sql")',
+      "accepts the production state where the table and RPCs are already absent",
+      "keeps the complete pending migration chain fail-closed from table creation onward",
+      "preserves historical rows while removing legacy ACL, policy, RPC, insert, and update paths",
+    ]) {
+      expect(weddingCodeCollectionIntegration).toContain(marker);
+    }
+
+    for (const marker of [
+      "DO $lock_wedding_code_table_if_present$",
+      "DO $drop_insert_overloads$",
+      "DO $drop_pairing_overloads$",
+      "v_insert_overload_count <> 0",
+      "IF v_table IS NULL THEN",
+      "DROP FUNCTION %s",
+    ]) {
+      expect(weddingCodeCollectionRetirementMigration).toContain(marker);
+    }
+
+    for (const contract of [productionPreflight, postDeploy]) {
+      for (const marker of [
+        "wedding_code_collection_retirement_inventory",
+        "wedding_code_collection_retirement_modes",
+        "wedding_code_collection_retirement_status",
+        "NOT inventory.table_present",
+        "absent_exact",
+        "retired_exact",
+        "boundary_mode",
+        "'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'",
+        "'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'",
+        "has_any_column_privilege",
+        "policy_count",
+        "constraint_row.conname = 'wedding_code_collection_retired'",
+        "'CHECK (false) NOT VALID'",
+        "insert_rpc_overload_count = 0",
+        "pair_rpc_overload_count = 0",
+      ]) {
+        expect(contract).toContain(marker);
+      }
+      expect(contract).toContain(
+        "Retirement fence: rejects every INSERT and UPDATE without scanning preserved historical rows. DELETE requires a separate approved purge migration.",
+      );
+      expect(contract).toContain(
+        "Retired WeddingCode collection. Historical rows are preserved; any deletion requires a separate approved retention/purge migration.",
+      );
+    }
+
+    const weddingShipStart = ship.indexOf("$weddingCollectionRetirement =");
+    const weddingShipEnd = ship.indexOf(
+      "$privacyMinimumPending",
+      weddingShipStart,
+    );
+    expect(weddingShipStart).toBeGreaterThanOrEqual(0);
+    expect(weddingShipEnd).toBeGreaterThan(weddingShipStart);
+    const weddingShipContract = ship.slice(weddingShipStart, weddingShipEnd);
+    for (const marker of [
+      '"20260714104000" -in $PendingVersions',
+      '"20260705160000" -in $PendingVersions',
+      "wedding_code_collection_retirement_status",
+      "absent_exact -ne $true",
+      "WeddingCode pre-creator boundary must have no response table or legacy RPC overloads.",
+      "WeddingCode collection boundary is neither fully absent nor exactly retired.",
+      "$Contract.wedding_code_collection_retirement_exact -ne $true",
+    ]) {
+      expect(ship).toContain(marker);
+    }
+    expect(weddingShipContract).not.toContain("20260710110000");
+    expect(weddingShipContract).not.toContain("insert_rpc_present");
+    for (const key of [
+      "'wedding_code_collection_absent_exact'",
+      "'wedding_code_collection_retirement_exact'",
+      "'wedding_code_collection_disabled_exact'",
+    ]) {
+      expect(postDeploy).toContain(key);
+    }
+    expect(supabaseRemoteOperations).toContain(
+      "`20260714104000_disable_wedding_code_collection.sql`",
+    );
+    expect(supabaseRemoteOperations).toContain(
+      "현재 local migration은 총 129개",
+    );
+    expect(supabaseRemoteOperations).toContain("migration history 최신은 `20260630233211`");
+    expect(supabaseRemoteOperations).toContain("suffix는 57개");
+    expect(supabaseRemoteOperations).toContain(
+      "현재-prod WeddingCode P0 경계는 migration 적용이 아니라 **table/functions 부재 유지**",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "#### 5-A. WeddingCode 수집 영구 차단 검증",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "DB를 바꾸지 않고 부재를 유지하는 `absent` 모드",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "`supabase db push`, migration repair, SQL Editor 또는 141040만 골라 적용해 현장에서 맞추지 않는다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "DB-zero-diff 자격은 release 실행 경로에 DB credential·migration runner·remote DB 명령이 없고",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "같은 transaction에서 모든 앱 역할 권한을 회수하고 policy 없이 `CHECK (false) NOT VALID`",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "planned chain에는 migration 사이 쓰기 허용 구간이 없다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "PGlite `0.5.4` 실제 실행 테스트",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "not applicable — zero DB/Storage mutation",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "테이블이 생긴 뒤의 retirement는 forward-only 보안 경계다",
+    );
+    expect(productionReleaseRunbook).toContain(
+      "이전 immutable deployment URL",
+    );
+  });
+
   it("attests application-email and auth-deletion trigger bodies and bindings", () => {
     for (const [migration, functionName] of [
       [applicationEmailLifecycleMigration, "lock_application_email_lifecycle_write"],
@@ -987,7 +1336,7 @@ describe("release safety contract", () => {
     const exactContracts = extractPreflightCronContracts(
       dependencyCronPreflight
     );
-    expect(placeholderContracts).toHaveLength(5);
+    expect(placeholderContracts).toHaveLength(7);
     expect(exactContracts).toEqual(placeholderContracts);
     expect(extractPostDeployCronContracts(postDeploy)).toEqual(
       placeholderContracts.map((contract) => ({
@@ -1010,6 +1359,8 @@ describe("release safety contract", () => {
       "delete-expired-amora-request-claims",
       "reconcile-stale-amora-chat-requests",
       "enforce-ai-interaction-retention",
+      "enforce-court-provider-deletion-handoff-retention",
+      "enforce-court-provider-request-key-reveal-audit-retention",
       "enforce-application-survey-retention",
       "delete-expired-rate-limit-buckets",
     ]) {
