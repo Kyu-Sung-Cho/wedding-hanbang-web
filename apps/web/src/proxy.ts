@@ -3,6 +3,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
+  if (
+    request.nextUrl.pathname === "/wedding-code/result" ||
+    (request.nextUrl.pathname === "/wedding-code" &&
+      request.nextUrl.searchParams.has("ct"))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/wedding-code";
+    url.searchParams.delete("ct");
+    return NextResponse.redirect(url);
+  }
+
   if (request.nextUrl.pathname === "/wedding/wedding" || request.nextUrl.pathname.startsWith("/wedding/wedding/")) {
     const url = request.nextUrl.clone();
     url.pathname = url.pathname.replace(/^\/wedding\/wedding(?=\/|$)/, "/wedding");

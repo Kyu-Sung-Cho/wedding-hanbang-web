@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin, getServiceClient, seedGate } from "@/lib/utils/adminAuth";
 
-const supabaseAdmin = getServiceClient();
-
 // 메이크업샵 시드 데이터 (15곳)
 const MAKEUP_SHOPS = [
   // ── 프리미엄 (3곳) ──
@@ -188,6 +186,8 @@ export async function POST(req: Request) {
   }
   const gate = seedGate();
   if (gate) return gate;
+
+  const supabaseAdmin = getServiceClient();
 
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };
 

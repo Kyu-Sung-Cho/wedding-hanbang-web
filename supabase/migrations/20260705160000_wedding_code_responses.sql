@@ -1,8 +1,7 @@
--- 웨딩코드 v0.3 스모크 응답 테이블 — 인앱 프로토타입 수집 채널.
--- 결정 기록: docs/wedding-code/16_inapp_prototype_decision_v1.md
---   (15번 Non-Goals의 "no routes/DB"를 수집 수단에 한해 해제 — 채점·유형·캐릭터 금지는 유지)
--- PII 없음(이메일·이름·전화 수집 안 함). 쓰기는 서버 API(service_role)만,
--- 클라이언트 직접 읽기/쓰기 전면 차단.
+-- Historical WeddingCode candidate schema. Collection was retired before this
+-- migration reached production, so the table is born fail-closed. It remains
+-- in the chain only to keep later historical migrations replayable; no
+-- application role may read or write it.
 
 CREATE TABLE IF NOT EXISTS public.wedding_code_responses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,9 +30,23 @@ CREATE INDEX IF NOT EXISTS idx_wc_responses_created ON public.wedding_code_respo
 CREATE INDEX IF NOT EXISTS idx_wc_responses_stage ON public.wedding_code_responses (participant_stage);
 
 ALTER TABLE public.wedding_code_responses ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.wedding_code_responses FROM anon, authenticated;
-GRANT ALL ON public.wedding_code_responses TO service_role;
+REVOKE ALL ON public.wedding_code_responses
+  FROM PUBLIC, anon, authenticated, service_role;
 
 DROP POLICY IF EXISTS wc_responses_service_only ON public.wedding_code_responses;
-CREATE POLICY wc_responses_service_only ON public.wedding_code_responses
-  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- NOT VALID avoids a historical scan if this file is replayed against a
+-- manually restored table, while PostgreSQL still rejects every new INSERT or
+-- UPDATE. This fence is installed in the same migration transaction as CREATE
+-- TABLE, so there is no service_role write window between migration files.
+ALTER TABLE public.wedding_code_responses
+  DROP CONSTRAINT IF EXISTS wedding_code_collection_retired,
+  ADD CONSTRAINT wedding_code_collection_retired
+  CHECK (false) NOT VALID;
+
+COMMENT ON CONSTRAINT wedding_code_collection_retired
+  ON public.wedding_code_responses IS
+  'Initial fail-closed fence. The later retirement migration re-verifies application ACLs, policies, RPCs, and this constraint.';
+
+COMMENT ON TABLE public.wedding_code_responses IS
+  'Retired WeddingCode candidate schema. Application collection is disabled.';

@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { Bookmark, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PostCard from "@/components/community/PostCard";
+import CommunityConfigurationUnavailable from "@/components/community/CommunityConfigurationUnavailable";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
 
@@ -13,28 +14,55 @@ export default function MyBookmarksPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const [connectionFailed, setConnectionFailed] = useState(false);
+  const configurationUnavailable =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    connectionFailed;
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/bookmarks"))}`); return; }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
 
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
       try {
+        const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user) {
+          router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/bookmarks"))}`);
+          return;
+        }
+
         // 북마크한 글 목록 가져오기
         const res = await fetch("/api/community/posts?bookmarked=true&limit=100");
         if (res.ok) {
           const data = await res.json();
-          setPosts(data.posts ?? []);
+          if (!cancelled) setPosts(data.posts ?? []);
         }
-      } catch { /* ignore */ }
-      setLoading(false);
-    })();
-  }, [router, supabase.auth]);
+        if (!cancelled) setLoading(false);
+      } catch {
+        if (!cancelled) {
+          setConnectionFailed(true);
+          setLoading(false);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (configurationUnavailable) {
+    return (
+      <CommunityConfigurationUnavailable
+        retryHref={weddingPath("/community/my/bookmarks")}
+      />
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

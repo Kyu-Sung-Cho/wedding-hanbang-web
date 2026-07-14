@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin, getServiceClient, seedGate } from "@/lib/utils/adminAuth";
 
-const supabaseAdmin = getServiceClient();
-
 // 30개 드레스샵 시드 데이터
 const DRESS_SHOPS = [
   // ── 프리미엄 (5곳) ──
@@ -244,6 +242,8 @@ export async function POST(req: Request) {
   const gate = seedGate();
   if (gate) return gate;
 
+  const supabaseAdmin = getServiceClient();
+
   const results = { vendors: 0, products: 0, timeslots: 0, errors: [] as string[] };
 
   for (const shop of DRESS_SHOPS) {
@@ -326,6 +326,8 @@ export async function PUT(req: Request) {
   }
   const gate = seedGate();
   if (gate) return gate;
+
+  const supabaseAdmin = getServiceClient();
 
   // 1. 모든 approved 드레스샵 조회
   const { data: vendors, error: vendorError } = await supabaseAdmin
