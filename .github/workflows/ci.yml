@@ -40,6 +40,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
           ANTHROPIC_API_KEY: placeholder
+          # OpenAI adapter tests inject a fake client. Keep the production cutover off in CI.
+          AMORA_OPENAI_ENABLED: "false"
           RESEND_API_KEY: placeholder
           NEXT_PUBLIC_SITE_URL: https://hanbang.ai
           ADMIN_PASSWORD: placeholder

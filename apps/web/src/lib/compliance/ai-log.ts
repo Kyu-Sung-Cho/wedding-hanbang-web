@@ -1,15 +1,15 @@
 // =============================================
 // AI Interaction Log — Bucket C 로깅 헬퍼
 // =============================================
-// 목적: 모든 Claude API 호출을 ai_interactions_log에 기록
+// 목적: 모든 AI API 호출의 비용·상태 메타데이터를 ai_interactions_log에 기록
 // 특징:
 //   - Service role로 INSERT (유저 권한 무관)
 //   - try/catch로 감싸 예외 절대 propagate 안 함
 //   - fire-and-forget: `void logAIInteraction(...)`로 호출 시 await 불필요
 //   - 가격표 내장 → cost_usd 자동 계산
 // 컴플라이언스:
-//   - user_input / ai_output 원문 그대로 저장 (민감정보 포함 가능)
-//   - DB COMMENT로 개인정보보호법 + AI 기본법 compliance 표기됨
+//   - 대화/도구 원문은 canonical 도메인 행에만 두고 비용 로그에는 복제하지 않음
+//   - 중단된 공급자 요청은 0원이 아닌 usage_status=unknown으로 구분
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -18,11 +18,38 @@ import type { InteractionType, SpecialistType } from "@/types/moat.types";
 // -------------------------------------------
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
-// 출처: Anthropic 공식 가격 (확인일: 2026-06-17)
-// https://platform.claude.com/docs/en/about-claude/pricing
-// cache_write = 표준 input × 1.25 (캐시 생성 시 25% premium)
-// cache_read  = 표준 input × 0.10 (캐시 hit 시 90% 할인)
-const MODEL_COSTS: Record<string, { in: number; out: number; cacheWrite: number; cacheRead: number }> = {
+// OpenAI 공식 가격 확인일: 2026-07-14
+// https://developers.openai.com/api/docs/pricing
+interface TokenRates {
+  in: number;
+  out: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+interface ModelCost extends TokenRates {
+  longContext?: TokenRates & { threshold: number };
+}
+
+const MODEL_COSTS: Record<string, ModelCost> = {
+  "gpt-5.6-terra": {
+    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
+    cacheWrite: 3.125 / 1_000_000, cacheRead: 0.25 / 1_000_000,
+    longContext: {
+      threshold: 272_000,
+      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
+      cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
+    },
+  },
+  "gpt-5.6-luna": {
+    in: 1 / 1_000_000, out: 6 / 1_000_000,
+    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000,
+    longContext: {
+      threshold: 272_000,
+      in: 2 / 1_000_000, out: 9 / 1_000_000,
+      cacheWrite: 2.5 / 1_000_000, cacheRead: 0.2 / 1_000_000,
+    },
+  },
   "claude-fable-5": {
     in: 10 / 1_000_000, out: 50 / 1_000_000,
     cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
@@ -90,12 +117,32 @@ export function calcCostUsd(
   cacheReadTokens?: number | null
 ): number | null {
   if (!model || tokensIn == null || tokensOut == null) return null;
-  // 모델명 부분 매칭 (버전 suffix 허용)
-  const key = Object.keys(MODEL_COSTS).find((k) => model.startsWith(k)) ?? null;
+  const key = Object.keys(MODEL_COSTS)
+    .sort((a, b) => b.length - a.length)
+    .find((candidate) => model.startsWith(candidate)) ?? null;
   if (!key) return null;
-  const rate = MODEL_COSTS[key];
-  // tokensIn 은 Anthropic 기준 '캐시 안 된 input' 만 포함 (cache_creation/cache_read 와 분리).
-  // 셋 다 별도 가격으로 합산.
+  const modelCost = MODEL_COSTS[key];
+  const rate = modelCost.longContext && tokensIn > modelCost.longContext.threshold
+    ? modelCost.longContext
+    : modelCost;
+
+  if (model.startsWith("gpt-")) {
+    // OpenAI input_tokens는 cache read/write를 포함하므로 구간을 분리한다.
+    const cachedTokens = Math.min(Math.max(cacheReadTokens ?? 0, 0), tokensIn);
+    const writtenTokens = Math.min(
+      Math.max(cacheCreationTokens ?? 0, 0),
+      Math.max(tokensIn - cachedTokens, 0)
+    );
+    const uncachedTokens = Math.max(tokensIn - cachedTokens - writtenTokens, 0);
+    return (
+      uncachedTokens * rate.in +
+      writtenTokens * rate.cacheWrite +
+      cachedTokens * rate.cacheRead +
+      tokensOut * rate.out
+    );
+  }
+
+  // 과거 Anthropic usage는 uncached/cache-write/cache-read가 분리되어 있다.
   return (
     tokensIn * rate.in +
     tokensOut * rate.out +
@@ -134,6 +181,81 @@ export interface AIInteractionLogInput {
   metadata?: Record<string, unknown> | null;
 }
 
+const SENSITIVE_LOG_VALUE_PATTERN = /(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{20,}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
+
+function safeStoredError(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (SENSITIVE_LOG_VALUE_PATTERN.test(value)) return "redacted_error";
+  return /^[A-Za-z0-9_.:-]{1,240}$/.test(value) ? value : "redacted_error";
+}
+
+const SAFE_AI_LOG_METADATA_KEYS = new Set([
+  "ai_provider",
+  "audit_wrapper",
+  "comment_position",
+  "correction_count",
+  "covered_range",
+  "endpoint",
+  "exceeded_max_rounds",
+  "extracted_by",
+  "extraction_type",
+  "input_count_request_id",
+  "message_count",
+  "model_role",
+  "post_author_id",
+  "post_category",
+  "post_id",
+  "provider_error_category",
+  "provider_error_code",
+  "provider_attempted",
+  "provider_request_id",
+  "provider_response_id",
+  "reasoning_effort",
+  "region",
+  "routing_reason",
+  "schema_name",
+  "score",
+  "source",
+  "source_policy",
+  "stage_tag",
+  "structured_output",
+  "tool_rounds",
+  "tools_used",
+  "unknown_paid_attempt",
+  "usage_status",
+  "vendor_category",
+  "visibility",
+]);
+
+function safeMetadataValue(value: unknown): unknown | undefined {
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    return value.length <= 240 && !SENSITIVE_LOG_VALUE_PATTERN.test(value)
+      ? value
+      : undefined;
+  }
+  if (Array.isArray(value) && value.length <= 25) {
+    const safeItems = value.map(safeMetadataValue);
+    return safeItems.every((item) => item !== undefined) ? safeItems : undefined;
+  }
+  // 중첩 객체는 원문 payload를 숨길 수 있으므로 비용 로그에서 허용하지 않는다.
+  return undefined;
+}
+
+function sanitizeLogMetadata(
+  metadata: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  if (!metadata) return {};
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!SAFE_AI_LOG_METADATA_KEYS.has(key)) continue;
+    const sanitized = safeMetadataValue(value);
+    if (sanitized !== undefined) safe[key] = sanitized;
+  }
+  return safe;
+}
+
 const getAdminClient = createAdminClient;
 
 // -------------------------------------------
@@ -161,7 +283,12 @@ export async function logAIInteraction(
       );
 
     // cache 토큰은 metadata 에 동봉 (schema 변경 없이 추적 가능)
-    const baseMetadata = params.metadata ?? {};
+    const baseMetadata = {
+      ...sanitizeLogMetadata(params.metadata),
+      content_logging: "disabled",
+      ...(params.userInput ? { user_input_chars: params.userInput.length } : {}),
+      ...(params.aiOutput ? { ai_output_chars: params.aiOutput.length } : {}),
+    };
     const metadataWithCache =
       params.cacheCreationTokens || params.cacheReadTokens
         ? {
@@ -178,14 +305,14 @@ export async function logAIInteraction(
       message_id: params.messageId ?? null,
       interaction_type: params.interactionType,
       specialist_type: params.specialistType ?? null,
-      user_input: params.userInput ?? null,
-      ai_output: params.aiOutput ?? null,
+      user_input: null,
+      ai_output: null,
       tool_name: params.toolName ?? null,
-      tool_input: params.toolInput ?? null,
-      tool_output: params.toolOutput ?? null,
+      tool_input: null,
+      tool_output: null,
       latency_ms: params.latencyMs ?? null,
       success: params.success ?? true,
-      error_message: params.errorMessage ?? null,
+      error_message: safeStoredError(params.errorMessage),
       model: params.model ?? null,
       tokens_input: params.tokensInput ?? null,
       tokens_output: params.tokensOutput ?? null,
