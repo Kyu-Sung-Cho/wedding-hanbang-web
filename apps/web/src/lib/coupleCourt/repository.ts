@@ -1461,18 +1461,33 @@ export async function withdrawCourtPublicPostForUser(
 
 export async function listCourtPublicFeed(options: {
   limit: number;
-  before?: string | null;
-}): Promise<UnknownRow[]> {
+  offset: number;
+  category?: string | null;
+  mode?: "solo" | "couple" | null;
+  sort: "latest" | "popular";
+}): Promise<{ posts: UnknownRow[]; total: number }> {
   const admin = createAdminClient();
   let query = admin
     .from("court_public_feed")
-    .select("id,sanitized_snapshot_json,snapshot_hash,snapshot_version,category,mode,tone,comments_enabled,vote_count,vote_counts,comment_count,published_at,updated_at")
+    .select(
+      "id,sanitized_snapshot_json,snapshot_hash,snapshot_version,category,mode,tone,comments_enabled,vote_count,vote_counts,comment_count,published_at,updated_at",
+      { count: "exact" },
+    );
+  if (options.category) query = query.eq("category", options.category);
+  if (options.mode) query = query.eq("mode", options.mode);
+  if (options.sort === "popular") {
+    query = query.order("vote_count", { ascending: false });
+  }
+  query = query
     .order("published_at", { ascending: false })
-    .limit(options.limit);
-  if (options.before) query = query.lt("published_at", options.before);
-  const { data, error } = await query;
+    .order("id", { ascending: false })
+    .range(options.offset, options.offset + options.limit - 1);
+  const { data, error, count } = await query;
   if (error) repositoryError(error);
-  return (data ?? []) as UnknownRow[];
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+    repositoryError({ code: "invalid_public_feed_count" });
+  }
+  return { posts: (data ?? []) as UnknownRow[], total: count };
 }
 
 export async function getCourtPublicPost(publicPostId: string): Promise<UnknownRow | null> {

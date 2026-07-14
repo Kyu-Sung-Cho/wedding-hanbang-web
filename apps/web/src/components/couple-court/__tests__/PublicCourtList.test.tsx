@@ -1,11 +1,12 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PublicCourtListOptions, PublicCourtListPage } from "../api";
 import type { PublicCourtCase } from "../types";
 import PublicCourtList, { parsePublicCourtQuery } from "../PublicCourtList";
 
 const mocks = vi.hoisted(() => ({
-  listPublicCases: vi.fn<() => Promise<PublicCourtCase[]>>(),
+  listPublicCases: vi.fn(),
   replace: vi.fn(),
 }));
 
@@ -38,6 +39,22 @@ function publicCase(index: number, overrides: Partial<PublicCourtCase> = {}): Pu
     commentsEnabled: true,
     safetyLevel: "normal",
     ...overrides,
+  };
+}
+
+function publicPage(
+  posts: PublicCourtCase[],
+  total = posts.length,
+  page = 1,
+): PublicCourtListPage {
+  const limit = 6;
+  return {
+    posts,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    hasMore: page * limit < total,
   };
 }
 
@@ -77,7 +94,7 @@ describe("PublicCourtList URL state", () => {
   });
 
   it("restores filters, sorting and the requested page after a reload", async () => {
-    mocks.listPublicCases.mockResolvedValue(Array.from({ length: 8 }, (_, index) => publicCase(index + 1)));
+    mocks.listPublicCases.mockResolvedValue(publicPage([publicCase(2), publicCase(1)], 8, 2));
     window.history.replaceState(
       {},
       "",
@@ -93,13 +110,23 @@ describe("PublicCourtList URL state", () => {
     expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("2 / 2");
     expect(container.textContent).toContain("공개 사건 2");
     expect(container.textContent).not.toContain("공개 사건 8");
+    expect(mocks.listPublicCases).toHaveBeenCalledWith({
+      category: "budget",
+      mode: "solo",
+      sort: "popular",
+      page: 2,
+      limit: 6,
+    });
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("resets the page when a filter changes and writes the canonical share URL", async () => {
-    const posts = Array.from({ length: 8 }, (_, index) => publicCase(index + 1));
-    posts[0] = publicCase(1, { category: "family" });
-    mocks.listPublicCases.mockResolvedValue(posts);
+    const familyPost = publicCase(1, { category: "family" });
+    mocks.listPublicCases.mockImplementation(async (options: PublicCourtListOptions) => (
+      options.category === "family"
+        ? publicPage([familyPost], 1, 1)
+        : publicPage([publicCase(8), publicCase(7)], 8, 2)
+    ));
     window.history.replaceState({}, "", "/wedding/couple-court/public?page=2");
 
     await act(async () => root.render(<PublicCourtList />));
@@ -110,6 +137,7 @@ describe("PublicCourtList URL state", () => {
       category.value = "family";
       category.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    await settle();
 
     expect(mocks.replace).toHaveBeenLastCalledWith(
       "/wedding/couple-court/public?category=family",
@@ -120,9 +148,11 @@ describe("PublicCourtList URL state", () => {
   });
 
   it("restores state on browser history navigation", async () => {
-    const solo = Array.from({ length: 7 }, (_, index) => publicCase(index + 1));
-    const couple = Array.from({ length: 7 }, (_, index) => publicCase(index + 11, { mode: "couple" }));
-    mocks.listPublicCases.mockResolvedValue([...solo, ...couple]);
+    mocks.listPublicCases.mockImplementation(async (options: PublicCourtListOptions) => (
+      options.mode === "couple"
+        ? publicPage([publicCase(11, { mode: "couple" })], 7, 2)
+        : publicPage(Array.from({ length: 6 }, (_, index) => publicCase(index + 1)), 14, 1)
+    ));
 
     await act(async () => root.render(<PublicCourtList />));
     await settle();
@@ -132,6 +162,7 @@ describe("PublicCourtList URL state", () => {
       window.history.pushState({}, "", "/wedding/couple-court/public?mode=couple&page=2");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
+    await settle();
 
     expect(container.querySelectorAll("fieldset button")[2]?.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("2 / 2");
@@ -140,7 +171,7 @@ describe("PublicCourtList URL state", () => {
   });
 
   it("removes malformed managed values while preserving unrelated query data", async () => {
-    mocks.listPublicCases.mockResolvedValue([publicCase(1)]);
+    mocks.listPublicCases.mockResolvedValue(publicPage([publicCase(1)]));
     window.history.replaceState(
       {},
       "",
@@ -157,7 +188,7 @@ describe("PublicCourtList URL state", () => {
   });
 
   it("clamps an out-of-range page after the result set loads", async () => {
-    mocks.listPublicCases.mockResolvedValue(Array.from({ length: 8 }, (_, index) => publicCase(index + 1)));
+    mocks.listPublicCases.mockResolvedValue(publicPage([publicCase(8), publicCase(7)], 8, 2));
     window.history.replaceState({}, "", "/wedding/couple-court/public?page=999");
 
     await act(async () => root.render(<PublicCourtList />));
@@ -168,5 +199,16 @@ describe("PublicCourtList URL state", () => {
       "/wedding/couple-court/public?page=2",
       { scroll: false },
     );
+  });
+
+  it("shows a filter-specific empty state when the server finds no global match", async () => {
+    mocks.listPublicCases.mockResolvedValue(publicPage([], 0, 1));
+    window.history.replaceState({}, "", "/wedding/couple-court/public?category=family");
+
+    await act(async () => root.render(<PublicCourtList />));
+    await settle();
+
+    expect(container.textContent).toContain("선택한 조건의 공개 사건은 아직 없어요");
+    expect(container.querySelector<HTMLSelectElement>('select[name="category"]')?.value).toBe("family");
   });
 });

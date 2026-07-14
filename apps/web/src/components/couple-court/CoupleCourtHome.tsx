@@ -102,17 +102,10 @@ export default function CoupleCourtHome({ publicEnabled }: { publicEnabled: bool
   useEffect(() => {
     if (!publicEnabled) return;
     let active = true;
-    void listPublicCases()
-      .then((posts) => {
+    void listPublicCases({ category: "all", mode: "all", sort: "popular", page: 1, limit: 3 })
+      .then(({ posts }) => {
         if (!active) return;
-        setPopularCases([...posts]
-          .sort((left, right) => {
-            const engagement = (right.votes?.total ?? 0) + (right.commentsCount ?? 0)
-              - (left.votes?.total ?? 0) - (left.commentsCount ?? 0);
-            if (engagement !== 0) return engagement;
-            return new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime();
-          })
-          .slice(0, 3));
+        setPopularCases(posts);
       })
       .catch(() => {
         // The private mediation flow remains usable if the optional public feed

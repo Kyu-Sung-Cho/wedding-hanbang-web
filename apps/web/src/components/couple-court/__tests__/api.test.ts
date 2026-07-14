@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { archiveCase, cancelInvite, createInvite, createPublicComment, createPublicPreview, deleteCase, getVerdict, normalizeCase, normalizePublicCase, normalizeVerdict, setPublicConsent } from "../api";
+import { archiveCase, cancelInvite, createInvite, createPublicComment, createPublicPreview, deleteCase, getVerdict, listPublicCases, normalizeCase, normalizePublicCase, normalizeVerdict, setPublicConsent } from "../api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -164,6 +164,47 @@ describe("couple court client contract", () => {
     expect(result.votes?.counts?.both_need_change).toBe(3);
     expect(result.facts).toEqual([]);
     expect(result.missions).toEqual([]);
+  });
+
+  it("sends public filters and pagination to the server and preserves its page contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      posts: [{
+        id: "post-1",
+        category: "budget",
+        mode: "couple",
+        vote_count: 9,
+        sanitized_snapshot_json: {
+          safeTitle: "익명 예산 사건",
+          oneLine: "추가금 확인 규칙을 정했어요.",
+          resultLabel: "공동 규칙 권고",
+        },
+      }],
+      total: 13,
+      page: 2,
+      limit: 6,
+      total_pages: 3,
+      has_more: true,
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(listPublicCases({
+      category: "budget",
+      mode: "couple",
+      sort: "popular",
+      page: 2,
+      limit: 6,
+    })).resolves.toMatchObject({
+      total: 13,
+      page: 2,
+      limit: 6,
+      totalPages: 3,
+      hasMore: true,
+      posts: [{ id: "post-1", votes: { total: 9 } }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/couple-court/public?category=budget&mode=couple&sort=popular&page=2&limit=6",
+      expect.objectContaining({ credentials: "same-origin", cache: "no-store" }),
+    );
   });
 
   it("accepts the public-preview RPC top-level public_post_id contract", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronLeft, ChevronRight, MessageCircle, Scale, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -51,11 +51,6 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(date);
 }
 
-function publishedTime(value?: string) {
-  const time = value ? new Date(value).getTime() : 0;
-  return Number.isFinite(time) ? time : 0;
-}
-
 function PublicCard({ post }: { post: PublicCourtCase }) {
   return (
     <Surface as="article" className="flex h-full flex-col">
@@ -80,6 +75,7 @@ function PublicCard({ post }: { post: PublicCourtCase }) {
 export default function PublicCourtList() {
   const router = useRouter();
   const [posts, setPosts] = useState<PublicCourtCase[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("all");
@@ -88,22 +84,7 @@ export default function PublicCourtList() {
   const [page, setPage] = useState(1);
   const [urlReady, setUrlReady] = useState(false);
   const [urlSyncRevision, setUrlSyncRevision] = useState(0);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setPosts(await listPublicCases());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "공개재판을 불러오지 못했어요.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     const restoreFromUrl = () => {
@@ -121,35 +102,38 @@ export default function PublicCourtList() {
     return () => window.removeEventListener("popstate", restoreFromUrl);
   }, []);
 
-  const availableCategories = useMemo(() => new Set(posts.map((post) => post.category)), [posts]);
-  const categoryOptions = useMemo(
-    () => COURT_CATEGORIES.filter((option) => availableCategories.has(option.value) || option.value === category),
-    [availableCategories, category],
-  );
-  const filtered = useMemo(() => {
-    const rows = posts.filter((post) => (
-      (category === "all" || post.category === category)
-      && (mode === "all" || post.mode === mode)
-    ));
-    return [...rows].sort((left, right) => {
-      if (sort === "popular") {
-        const voteDifference = (right.votes?.total ?? 0) - (left.votes?.total ?? 0);
-        if (voteDifference !== 0) return voteDifference;
-      }
-      return publishedTime(right.createdAt) - publishedTime(left.createdAt);
-    });
-  }, [category, mode, posts, sort]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PUBLIC_CASES_PER_PAGE));
-  const currentPage = Math.min(page, totalPages);
-  const visiblePosts = useMemo(
-    () => filtered.slice((currentPage - 1) * PUBLIC_CASES_PER_PAGE, currentPage * PUBLIC_CASES_PER_PAGE),
-    [currentPage, filtered],
-  );
+  const load = useCallback(async () => {
+    if (!urlReady) return;
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listPublicCases({ category, mode, sort, page, limit: PUBLIC_CASES_PER_PAGE });
+      if (sequence !== requestSequence.current) return;
+      setPosts(result.posts);
+      setTotal(result.total);
+      if (result.page !== page) setPage(result.page);
+    } catch (loadError) {
+      if (sequence !== requestSequence.current) return;
+      setError(loadError instanceof Error ? loadError.message : "공개재판을 불러오지 못했어요.");
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
+  }, [category, mode, page, sort, urlReady]);
 
   useEffect(() => {
-    if (!urlReady || loading || page === currentPage) return;
-    setPage(currentPage);
-  }, [currentPage, loading, page, urlReady]);
+    void load();
+  }, [load]);
+
+  useEffect(() => () => {
+    requestSequence.current += 1;
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(total / PUBLIC_CASES_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const hasActiveFilter = category !== "all" || mode !== "all";
+  const showFilters = total > 0 || hasActiveFilter;
 
   useEffect(() => {
     if (!urlReady || urlSyncRevision < 1) return;
@@ -196,17 +180,17 @@ export default function PublicCourtList() {
       <section className="pt-10" aria-labelledby="public-cases-title">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><p className="text-xs font-bold tracking-[0.14em] text-[#8F6662]">ANONYMOUS CASES</p><h2 id="public-cases-title" className="mt-2 text-2xl font-bold text-[#263832]">공개된 익명 판결</h2></div>
-          {availableCategories.size > 0 && <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
-            <label className="text-sm font-semibold text-[#5E6C66]">주제<select name="category" value={category} onChange={(event) => changeCategory(event.target.value)} className="mt-1 block min-h-11 w-full rounded-full border border-[#D8CDC1] bg-white px-4 text-sm text-[#263832] outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15"><option value="all">전체 주제</option>{categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          {showFilters && <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+            <label className="text-sm font-semibold text-[#5E6C66]">주제<select name="category" value={category} onChange={(event) => changeCategory(event.target.value)} className="mt-1 block min-h-11 w-full rounded-full border border-[#D8CDC1] bg-white px-4 text-sm text-[#263832] outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15"><option value="all">전체 주제</option>{COURT_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <label className="text-sm font-semibold text-[#5E6C66]">정렬<select name="sort" value={sort} onChange={(event) => changeSort(event.target.value)} className="mt-1 block min-h-11 w-full rounded-full border border-[#D8CDC1] bg-white px-4 text-sm text-[#263832] outline-none focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15"><option value="latest">최신순</option><option value="popular">의견 많은 순</option></select></label>
           </div>}
         </div>
 
-        {posts.length > 0 && <fieldset className="mt-5"><legend className="sr-only">판결 방식</legend><div className="inline-flex w-full rounded-full border border-[#D8CDC1] bg-white p-1 sm:w-auto">{([{ value: "all", label: "전체" }, { value: "solo", label: "1인 임시판결" }, { value: "couple", label: "쌍방 판결" }] as const).map((option) => <button key={option.value} type="button" onClick={() => changeMode(option.value)} aria-pressed={mode === option.value} className={`min-h-11 flex-1 rounded-full px-4 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] sm:flex-none ${mode === option.value ? "bg-[#36534E] text-white" : "text-[#65716C] hover:bg-[#F2F7F4]"}`}>{option.label}</button>)}</div></fieldset>}
+        {showFilters && <fieldset className="mt-5"><legend className="sr-only">판결 방식</legend><div className="inline-flex w-full rounded-full border border-[#D8CDC1] bg-white p-1 sm:w-auto">{([{ value: "all", label: "전체" }, { value: "solo", label: "1인 임시판결" }, { value: "couple", label: "쌍방 판결" }] as const).map((option) => <button key={option.value} type="button" onClick={() => changeMode(option.value)} aria-pressed={mode === option.value} className={`min-h-11 flex-1 rounded-full px-4 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] sm:flex-none ${mode === option.value ? "bg-[#36534E] text-white" : "text-[#65716C] hover:bg-[#F2F7F4]"}`}>{option.label}</button>)}</div></fieldset>}
 
-        <div className="mt-5">{loading ? <LoadingState label="익명 판결을 불러오는 중이에요." /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : posts.length === 0 ? <EmptyState title="아직 공개 심사를 마친 사건이 없어요" description="공개 데이터가 준비되기 전에는 예시 통계나 가짜 사건을 보여드리지 않아요. 둘만의 중재실은 바로 이용할 수 있어요." action={<CourtLink href="/couple-court/new">비공개 사건 시작</CourtLink>} /> : filtered.length === 0 ? <EmptyState title="선택한 조건의 공개 사건은 아직 없어요" description="다른 주제나 판결 방식을 선택해 보세요." /> : <div className="grid gap-4 md:grid-cols-2">{visiblePosts.map((post) => <PublicCard key={post.id} post={post} />)}</div>}</div>
+        <div className="mt-5">{loading ? <LoadingState label="익명 판결을 불러오는 중이에요." /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : posts.length === 0 && hasActiveFilter ? <EmptyState title="선택한 조건의 공개 사건은 아직 없어요" description="다른 주제나 판결 방식을 선택해 보세요." /> : posts.length === 0 ? <EmptyState title="아직 공개 심사를 마친 사건이 없어요" description="공개 데이터가 준비되기 전에는 예시 통계나 가짜 사건을 보여드리지 않아요. 둘만의 중재실은 바로 이용할 수 있어요." action={<CourtLink href="/couple-court/new">비공개 사건 시작</CourtLink>} /> : <div className="grid gap-4 md:grid-cols-2">{posts.map((post) => <PublicCard key={post.id} post={post} />)}</div>}</div>
 
-        {!loading && !error && filtered.length > 0 && totalPages > 1 && <nav className="mt-7 flex items-center justify-center gap-3" aria-label="공개 재판 페이지">
+        {!loading && !error && posts.length > 0 && totalPages > 1 && <nav className="mt-7 flex items-center justify-center gap-3" aria-label="공개 재판 페이지">
           <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-[#D8CDC1] bg-white px-4 text-sm font-bold text-[#36534E] outline-none hover:bg-[#F8FAF9] focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45" aria-label="이전 페이지"><ChevronLeft className="h-4 w-4" aria-hidden="true" />이전</button>
           <p className="min-w-16 text-center text-sm font-semibold text-[#65716C]" aria-live="polite"><span className="sr-only">현재 페이지 </span>{currentPage} / {totalPages}</p>
           <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-[#D8CDC1] bg-white px-4 text-sm font-bold text-[#36534E] outline-none hover:bg-[#F8FAF9] focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45" aria-label="다음 페이지">다음<ChevronRight className="h-4 w-4" aria-hidden="true" /></button>

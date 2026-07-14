@@ -521,9 +521,58 @@ export async function withdrawPublicPost(caseId: string, publicPostId: string): 
   });
 }
 
-export async function listPublicCases(): Promise<PublicCourtCase[]> {
-  const payload = await requestJson("/api/couple-court/public");
-  return arrayValue(unwrap(payload, ["posts", "cases", "data"])).map(normalizePublicCase).filter((item) => Boolean(item.id));
+export interface PublicCourtListOptions {
+  category: string;
+  mode: "all" | CourtMode;
+  sort: "latest" | "popular";
+  page: number;
+  limit: number;
+}
+
+export interface PublicCourtListPage {
+  posts: PublicCourtCase[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+function nonNegativeInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : fallback;
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1
+    ? value
+    : fallback;
+}
+
+export async function listPublicCases(options: PublicCourtListOptions): Promise<PublicCourtListPage> {
+  const params = new URLSearchParams();
+  if (options.category !== "all") params.set("category", options.category);
+  if (options.mode !== "all") params.set("mode", options.mode);
+  if (options.sort !== "latest") params.set("sort", options.sort);
+  if (options.page > 1) params.set("page", String(options.page));
+  params.set("limit", String(options.limit));
+
+  const payload = record(await requestJson(`/api/couple-court/public?${params.toString()}`));
+  const posts = arrayValue(unwrap(payload, ["posts", "cases", "data"]))
+    .map(normalizePublicCase)
+    .filter((item) => Boolean(item.id));
+  const total = nonNegativeInteger(payload.total, posts.length);
+  const limit = positiveInteger(payload.limit, options.limit);
+  const page = positiveInteger(payload.page, options.page);
+  return {
+    posts,
+    total,
+    page,
+    limit,
+    totalPages: positiveInteger(payload.total_pages, Math.max(1, Math.ceil(total / limit))),
+    hasMore: booleanValue(page * limit < total, payload.has_more),
+  };
 }
 
 export async function getPublicCase(postId: string): Promise<PublicCourtCase> {
