@@ -1,23 +1,33 @@
-# Amora DB backup evidence — 2026-07-14 (HBAM1 superseded)
+# Amora DB backup evidence — 2026-07-14
 
-## Status: not a Stage B pass
+## Status: HBAM2 logical capture passed; Stage B remains open
 
-This record describes an earlier HBAM1 targeted capture. Security review found
-that HBAM1 did not authenticate a shared backup-set identity across its two
-artifacts, and its PGlite check parsed logical rows in V8 before staging them.
-That could lose precision for integers outside JavaScript's safe range.
+## Fresh production HBAM2 capture and immediate verification
 
-The hardened scripts now require HBAM2, exact artifact/path/ACL checks, an exact
-11-table allowlist, and raw `$1::jsonb` staging without V8 row parsing. No fresh
-production backup was run as part of that code-only hardening. Therefore:
+A clean committed implementation at
+`b4acc4e0d8edf4369e65842286589dcafdd2d72a` performed a fresh read-only
+production capture and immediate verification on 2026-07-14:
 
-- the capture below is historical evidence only;
-- it must not be verified by weakening the HBAM2 verifier;
-- Stage B backup/recovery is **not complete**;
-- actual isolated-schema restore, RLS validation, and RPC validation are also
-  **not complete**.
+- preflight: `2026-07-14T13:47:06.275044Z`;
+- data snapshot: `2026-07-14T13:47:14.800150Z`;
+- publication: `2026-07-14T13:47:22.184722Z`;
+- exact table allowlist: 11 tables;
+- total rows: 2,893;
+- authenticated creator/verifier anchors matched;
+- schema and relation-identity contracts matched;
+- source canonical digests and PGlite JSONB round trip passed;
+- 13 primary/unique constraints and 8 included foreign keys were checked;
+- application-created plaintext payload files: none.
 
-## Current HBAM2 code-only verification
+The full backup directory, backup-set ID, manifest SHA-256, DPAPI key blobs,
+and complete production receipt are deliberately not committed. They remain in
+the operator's external task record and fixed private local backup root.
+
+This passes the fresh logical capture gate only. Provider physical-backup
+freshness, isolated real-schema restore, RLS/RPC contracts, and migration
+write-fence rehearsal remain incomplete, so Stage B is **not complete**.
+
+## Current HBAM2 implementation verification
 
 The replacement implementation now also requires server-side read-only
 transactions and timeouts, one stable RLS-bypass role, standalone
@@ -86,14 +96,13 @@ ciphertext mutation. Its PGlite operation was a generic JSONB staging check,
 not a restore into production schema. Because of the shared-identity and V8
 precision findings, those results do not satisfy the hardened backup gate.
 
-## Required replacement evidence
+## Remaining Stage B evidence
 
-A new evidence record may be marked successful only after all of the following:
+Current state:
 
-1. a fresh production HBAM2 capture with one authenticated `backup_set_id`;
-2. ordinary HBAM2 verification of exact files, containment, ACLs, hashes,
-   allowlist, and counts;
-3. the raw authenticated PGlite JSONB canonical round-trip;
-4. a separate isolated real-schema restore and RLS/RPC contract test;
-5. independently recorded physical-backup freshness and migration dry-run
-   results.
+1. **Passed** — fresh production HBAM2 capture with an authenticated set ID.
+2. **Passed** — exact files, containment, ACLs, hashes, allowlist, and counts.
+3. **Passed** — raw authenticated PGlite canonical JSONB round trip.
+4. **Open** — isolated real-schema restore and RLS/RPC contract test.
+5. **Open** — independently recorded provider physical-backup freshness.
+6. **Open** — exact migration dry-run, write fence, and rollback evidence.
