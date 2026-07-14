@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
 import type { ImageAttachment } from "@/lib/ai/claude";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
-import { loadFeedbackLessons } from "@/lib/ai/feedbackLessons";
+import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
@@ -136,20 +136,14 @@ async function insertAiMessageWithIdempotency(params: {
 async function autoSaveDissatisfaction(params: {
   userId: string;
   coupleId: string;
-  signal: string;
-  userMessage: string;
-  previousAiMessageId?: string;
+  signal: "correction" | "retry" | "frustration" | "negative" | "confusion" | "disengagement";
+  visibility: "shared" | "bride_private" | "groom_private";
 }) {
   try {
-    const admin = getServiceClient();
-    await admin.from("chat_feedback").insert({
-      user_id: params.userId,
-      couple_id: params.coupleId,
-      message_id: params.previousAiMessageId || null,
-      rating: "bad",
-      category: params.signal,
-      correction: params.userMessage,
-      message_content: null,
+    await saveAutomaticDissatisfaction(params, async (record) => {
+      const admin = getServiceClient();
+      const { error } = await admin.from("chat_feedback").insert(record);
+      if (error) throw error;
     });
   } catch (err) {
     console.error("자동 불만족 피드백 저장 실패 (무시됨):", err);
@@ -447,7 +441,7 @@ export async function POST(request: Request) {
   const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, feedbackLessons, amoraProfiles] = await Promise.all([
+  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, amoraProfiles] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
@@ -487,9 +481,7 @@ export async function POST(request: Request) {
       .eq("category", "conflict_resolution")
       .order("created_at", { ascending: false })
       .limit(5),
-    // 7. 피드백 학습 내용 (AI 품질 개선용)
-    loadFeedbackLessons(coupleId),
-    // 8. 아모라 장기 개인화 프로필 (shared + 본인 private만)
+    // 7. 아모라 장기 개인화 프로필 (shared + 본인 private만)
     loadAmoraProfiles(coupleId, visibility),
   ]);
 
@@ -627,9 +619,6 @@ export async function POST(request: Request) {
   // 직전 AI 메시지 (마지막 assistant 메시지)
   const lastAiMsg = [...typedMessages].reverse().find((m) => m.role === "assistant");
   const lastAiText = lastAiMsg?.content ?? "";
-  // 직전 AI 메시지의 DB ID (id 필드가 있다면)
-  const lastAiMessageId = (lastAiMsg as { id?: string })?.id;
-
   // 불만족 감지
   const dissatisfaction = detectDissatisfaction(lastUserText, lastAiText);
 
@@ -653,8 +642,7 @@ export async function POST(request: Request) {
       userId: user.id,
       coupleId,
       signal: dissatisfaction.signal,
-      userMessage: lastUserText,
-      previousAiMessageId: lastAiMessageId,
+      visibility,
     });
   }
 
@@ -691,7 +679,6 @@ export async function POST(request: Request) {
     chatSummaries,
     preferences: preferences ?? undefined,
     amoraProfiles,
-    feedbackLessons,
     pastDecisions,
     pastConflicts,
   }) + specialistAddon;

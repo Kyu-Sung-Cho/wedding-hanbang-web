@@ -251,7 +251,6 @@ export async function POST(req: NextRequest) {
       scheduleEvents: [],
       chatSummaries,
       preferences: undefined,
-      feedbackLessons: [],
       pastDecisions,
       pastConflicts: pastConflictsForPrompt,
     });
