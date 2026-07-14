@@ -2,11 +2,17 @@
 
 > 문서 기준일: 2026-07-14
 >
-> 구현 브랜치: `feature/couple-court` (`agent/amora-openai-gpt56`, PR #38의 후속 기능 브랜치)
+> 현재 보존·통합 브랜치: `integration/couple-court-reconciled-20260714`
 >
-> 코드 체크포인트: `1d7f8f17` — 기능 코드, 서버 공개 피드 paging, 보안·release health·무쓰기 live canary와 Bearer/cookie 격리 회귀까지 커밋된 기준
+> 코드 체크포인트: `4a39a85ce16cab1570afcb56bb7611005a174a37` — WIP backup
+> `e7c3106382fc5b537fa5f90db5ca30b0a0c04022`와 운영 기준 `origin/main`
+> `d2eab99304c0d79fbbe6f20354074b229c9035cf`를 충돌 해결한 merge 기준
 >
-> 출시 상태: **미출시 / 운영 NO-GO**
+> 원본 보존 브랜치: `backup/couple-court-wip-20260714`; PR #38
+> (`agent/amora-openai-gpt56`, `08f1309764762feda1828adfc9ecbbb85a25c26a`)은
+> 강제 갱신하지 않는 역사 보존용 Draft다. 로컬 `feature/couple-court`는 이전 체크포인트이므로 재개 기준이 아니다.
+>
+> 출시 상태: **미출시 / 병합·운영 배포·DB migration·모바일 store 제출 NO-GO**
 > 미완료 증거: 실제 DB 적용, 인증된 2인 브라우저 E2E, Expo 실기기 빌드, 운영 배포, 배포 후 카나리
 >
 > 이 문서는 위 코드 체크포인트의 계약을 설명한다. 마이그레이션 파일이 존재한다는 사실은 어떤 Supabase 환경에도 적용됐다는 증거가 아니며, 이 문서 자체는 원격 DB 변경이나 배포 승인이 아니다.
@@ -717,11 +723,11 @@ rollout 중 확인할 지표:
 
 | 항목 | 상태 | 해석 |
 | --- | --- | --- |
-| 제품·API·UI 코드 | `feature/couple-court` 코드 체크포인트 `1d7f8f17`까지 커밋 | 출시 증거 아님 |
-| 관련 단위·계약 테스트 | 앞선 전체 웹 172파일·1,326개·모바일 22개 통과 후, 운영 안전 경계 집중 웹 5파일·79개와 live-smoke 7개, Bearer 격리 포함 3파일·27개 통과 | 문서 반영 뒤 최종 SHA 전체 재실행 필요 |
-| lint·typecheck·build | 루트 lint 통과, 4개 패키지 typecheck 통과, Next production build 108개 정적 페이지 생성 통과 | 실제 배포 검증과 별개 |
+| 제품·API·UI 코드 | 통합 체크포인트 `4a39a85ce16cab1570afcb56bb7611005a174a37`까지 커밋 | 보존·충돌 해결 증거일 뿐 출시 증거 아님 |
+| 관련 단위·계약 테스트 | Windows clean checkout에서 웹 211파일·1,641개와 모바일 22개 통과. `qa:local`의 복구·Auth·write-fence·Vercel·live-smoke 계약도 통과 | 실제 DB·인증된 브라우저·운영 canary와 별개 |
+| lint·typecheck·build | 루트 lint, 4개 패키지 typecheck, Next production build 107개 정적 페이지 생성, `qa:local` 통과 | 실제 배포 검증과 별개 |
 | SQL 정적 contract | migration contract 29개, Couple Court 345 SQL/48 PLpgSQL, 전체 활성 117파일·2,783 SQL/216 PLpgSQL parser 검증 통과 | 실제 PostgreSQL replay 대체 불가 |
-| 비밀정보·working tree 위생 | 앞선 전체 추적·미추적 1,161파일·Git 1,144커밋 검사와 현재 scanner 단위 7개 통과 | 새 문서 커밋을 포함한 최종 history scan·외부 secret manager 검증과 별개 |
+| 비밀정보·working tree 위생 | 추적·미추적 1,217파일·Git 1,154커밋 full-history scan과 scanner 단위 7개 통과 | 외부 secret manager·공급자 회전 증거와 별개 |
 | disposable DB fresh/upgrade | 미완료 | blocker |
 | 인증된 2인 브라우저 E2E | 미완료 | blocker |
 | 360/390/430 실제 브라우저 QA | 공개 화면 3개 폭과 private 홈 430px 수동 확인, 가로 넘침 없음 | 인증된 전체 흐름·키보드·스크린리더 검증은 미완료 |
@@ -752,14 +758,17 @@ rollout 중 확인할 지표:
 
 ```powershell
 git fetch origin
-git switch feature/couple-court
-git pull --ff-only origin feature/couple-court
+git switch --track origin/integration/couple-court-reconciled-20260714
 git status --short --branch
-git merge-base --is-ancestor 1d7f8f17 HEAD
-corepack pnpm install
+git merge-base --is-ancestor 4a39a85ce16cab1570afcb56bb7611005a174a37 HEAD
+corepack pnpm install --frozen-lockfile
 ```
 
-다른 컴퓨터에 로컬 브랜치가 아직 없으면 `git switch --track origin/feature/couple-court`로 처음 만든다. `git merge-base`가 0이 아니면 인계 체크포인트를 포함하지 않은 것이므로 작업을 시작하지 말고 fetch/branch를 다시 확인한다. 기존 `apps/web/.env.local`은 복사나 checkout으로 덮어쓰지 않는다.
+이미 같은 이름의 로컬 브랜치가 있으면 먼저 사용자 변경을 보존한 뒤
+`git switch integration/couple-court-reconciled-20260714`와
+`git pull --ff-only origin integration/couple-court-reconciled-20260714`를 사용한다.
+`git merge-base`가 0이 아니면 인계 체크포인트를 포함하지 않은 것이므로 작업을 시작하지 말고
+fetch/branch를 다시 확인한다. 기존 `apps/web/.env.local`은 복사나 checkout으로 덮어쓰지 않는다.
 
 그다음 순서:
 

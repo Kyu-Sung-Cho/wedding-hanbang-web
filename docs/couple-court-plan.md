@@ -1,10 +1,14 @@
 # 한방 커플재판소 구현 계획과 현재 계약
 
-> 상태: 기능 브랜치 구현·검증 중. 운영 DB 적용, 인증된 브라우저 E2E, 모바일 실기기 빌드, 운영 배포는 아직 하지 않았다.
+> 상태: 보존·통합 브랜치 검증 중. 운영 DB 적용, 인증된 브라우저 E2E, 모바일 실기기 빌드,
+> `main` 병합과 운영 배포는 하지 않았다.
 >
-> 기준 브랜치: `feature/couple-court` (`agent/amora-openai-gpt56`, PR #38 후속)
+> 기준 브랜치: `integration/couple-court-reconciled-20260714`
 >
-> 코드 체크포인트: `1d7f8f17` — 기능, 공개 피드 서버 paging, 보안·release health·무쓰기 live canary와 Bearer/cookie 격리 회귀까지 커밋된 기준
+> 코드 체크포인트: `4a39a85ce16cab1570afcb56bb7611005a174a37` — WIP backup
+> `e7c3106382fc5b537fa5f90db5ca30b0a0c04022`를 `origin/main`
+> `d2eab99304c0d79fbbe6f20354074b229c9035cf`와 충돌 해결한 merge 기준. PR #38은 역사 보존용
+> Draft이며 이 브랜치를 강제 갱신하거나 운영에 병합하는 절차가 아니다.
 >
 > 기준일: 2026-07-14
 > 제품 원칙: 신뢰와 안전을 재미보다 우선하고, 승패보다 실제 합의를 완성한다.
@@ -427,9 +431,18 @@ release health는 private/AI/public/mock의 원시 exact-true 값과 Terra provi
 - [ ] 기능 플래그 off 배포 → private → AI → public 순차 rollout
 - [ ] 배포 후 canary와 비용·오류·안전 신고 관찰
 
-2026-07-14 코드 체크포인트 전후로 루트 lint, 4개 패키지 typecheck, 웹 172파일·1,326개와 모바일 22개 전체 테스트, Next production build(정적 페이지 108개), migration contract 29개를 통과했다. SQL parser는 Couple Court 345 SQL/48 PLpgSQL과 전체 활성 117파일·2,783 SQL/216 PLpgSQL을 검증했다. 운영 안전 경계는 웹 집중 5파일·79개, live-smoke 7개, Bearer/cookie 격리 포함 3파일·27개, web typecheck, focused ESLint, PowerShell parser를 통과했다. web/iOS/Android Expo export와 모바일 release 정적 검사 77 pass·1 warning·0 fail도 통과했으며, warning은 social login hard-disabled 상태가 스토어 출시 인증을 대신할 수 없다는 뜻이다. 공개 화면은 360/390/430px, private 홈은 430px에서 가로 넘침과 주요 터치 영역을 수동 확인했다.
+2026-07-14 통합 체크포인트에서 루트 lint, 4개 패키지 typecheck, 웹 211파일·1,641개와
+모바일 22개 전체 테스트, Next production build(정적 페이지 107개)를 통과했다. 같은 clean Windows
+worktree에서 full-history secret scan과 복구·Auth·write-fence·Vercel·live-smoke 계약을 포함한
+`corepack pnpm qa:local`도 최종 통과했다. 이전 기능 체크포인트의 SQL parser는 Couple Court
+345 SQL/48 PLpgSQL과 전체 활성 117파일·2,783 SQL/216 PLpgSQL을 검증했다. web/iOS/Android
+Expo export의 과거 증거와 모바일 release 정적 검사 77 pass·1 warning·0 fail은 유지되며, warning은
+social login hard-disabled 상태가 store release 인증을 대신할 수 없다는 뜻이다. 공개 화면은 과거
+360/390/430px, private 홈은 430px에서 가로 넘침과 주요 터치 영역을 수동 확인했다.
 
-다만 문서 반영 뒤 최종 SHA에서 전체 게이트를 한 번 더 실행해야 하며, 과거 실행 기록은 실제 DB 적용·fresh/upgrade replay를 대신하지 않는다. 인증된 2인 전체 브라우저 E2E, 키보드·스크린리더 전체 회귀, 서명 EAS·실기기 빌드, Terra 실제 호출 canary, 운영 배포·배포 후 카나리는 아직 미완료다.
+이 검증은 실제 DB 적용·fresh/upgrade replay를 대신하지 않는다. 인증된 2인 전체 브라우저 E2E,
+키보드·스크린리더 전체 회귀, 서명 EAS·실기기 빌드, Terra 실제 호출 canary, 운영 배포·배포 후
+카나리는 아직 미완료다.
 
 ## 16. 실행·검증·운영 전 인계
 
