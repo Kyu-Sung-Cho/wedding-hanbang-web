@@ -1,5 +1,10 @@
 # WeddingCode Next Feature Priority
 
+> [!CAUTION]
+> **RETIRED — DO NOT RUN.** 아래 “Immediate Next Actions”의 모집, Production 링크 사용,
+> 미니 테스트를 실행하지 않는다. 현재 우선순위와 재개 금지 조건은
+> [2026-07-14 containment handoff](../codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
+
 Date: 2026-07-08
 State: production two-person flow technically verified
 Current gate: user validation, not more distribution

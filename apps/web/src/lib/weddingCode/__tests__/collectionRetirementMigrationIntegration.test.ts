@@ -37,6 +37,14 @@ async function expectQueryRejected(db: PGlite, sql: string) {
   await expect(db.exec(sql)).rejects.toThrow();
 }
 
+async function supportsMaintainPrivilege(db: PGlite): Promise<boolean> {
+  const version = await db.query<{ version_num: string }>(
+    "SELECT current_setting('server_version_num') AS version_num"
+  );
+
+  return Number(version.rows[0]?.version_num) >= 170_000;
+}
+
 describe("WeddingCode collection retirement migration in PostgreSQL", () => {
   it(
     "accepts the production state where the table and RPCs are already absent",
@@ -140,7 +148,8 @@ describe("WeddingCode collection retirement migration in PostgreSQL", () => {
             marker TEXT NOT NULL
           );
           ALTER TABLE public.wedding_code_responses ENABLE ROW LEVEL SECURITY;
-          GRANT ALL ON public.wedding_code_responses TO service_role;
+          GRANT ALL ON public.wedding_code_responses
+            TO PUBLIC, anon, authenticated, service_role;
           CREATE POLICY wc_responses_service_only
             ON public.wedding_code_responses
             FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -158,6 +167,31 @@ describe("WeddingCode collection retirement migration in PostgreSQL", () => {
           RETURNS VOID LANGUAGE SQL AS 'SELECT';
           GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
         `);
+
+        const supportsMaintain = await supportsMaintainPrivilege(db);
+        if (supportsMaintain) {
+          const publicBefore = await db.query<{
+            public_maintain_grants: number;
+          }>(`
+            SELECT count(*)::INT AS public_maintain_grants
+            FROM pg_class AS class_row
+            CROSS JOIN LATERAL aclexplode(
+              coalesce(class_row.relacl, acldefault('r', class_row.relowner))
+            ) AS acl_row
+            WHERE class_row.oid = 'public.wedding_code_responses'::regclass
+              AND acl_row.grantee = 0
+              AND acl_row.privilege_type = 'MAINTAIN'
+          `);
+          expect(publicBefore.rows[0]?.public_maintain_grants).toBe(1);
+
+          for (const role of ["anon", "authenticated", "service_role"]) {
+            const before = await db.query<{ has_maintain: boolean }>(
+              `SELECT has_table_privilege($1, 'public.wedding_code_responses', 'MAINTAIN') AS has_maintain`,
+              [role]
+            );
+            expect(before.rows[0]?.has_maintain).toBe(true);
+          }
+        }
 
         await applyMigration(db, retirement);
 
@@ -189,6 +223,28 @@ describe("WeddingCode collection retirement migration in PostgreSQL", () => {
           db,
           "UPDATE public.wedding_code_responses SET marker = 'blocked-owner';"
         );
+
+        if (supportsMaintain) {
+          for (const role of ["anon", "authenticated", "service_role"]) {
+            const after = await db.query<{ has_maintain: boolean }>(
+              `SELECT has_table_privilege($1, 'public.wedding_code_responses', 'MAINTAIN') AS has_maintain`,
+              [role]
+            );
+            expect(after.rows[0]?.has_maintain).toBe(false);
+          }
+
+          const publicAcl = await db.query<{ public_maintain_grants: number }>(`
+            SELECT count(*)::INT AS public_maintain_grants
+            FROM pg_class AS class_row
+            CROSS JOIN LATERAL aclexplode(
+              coalesce(class_row.relacl, acldefault('r', class_row.relowner))
+            ) AS acl_row
+            WHERE class_row.oid = 'public.wedding_code_responses'::regclass
+              AND acl_row.grantee = 0
+              AND acl_row.privilege_type = 'MAINTAIN'
+          `);
+          expect(publicAcl.rows[0]?.public_maintain_grants).toBe(0);
+        }
 
         const postCheck = await db.query<{
           row_count: number;

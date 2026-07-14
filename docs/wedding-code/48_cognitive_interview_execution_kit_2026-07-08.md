@@ -1,5 +1,10 @@
 # WeddingCode v0.5 Cognitive Interview Execution Kit
 
+> [!CAUTION]
+> **RETIRED — DO NOT RUN.** 아래 Production 링크를 사용해 응답을 제출하거나 모집하지 않는다.
+> 비수집 연구를 새로 승인·설계하기 전까지는
+> [2026-07-14 containment handoff](../codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
+
 Date: 2026-07-08
 Use after: `47_prod_couple_flow_qa_2026-07-08.md`
 Target: 5 one-on-one interviews

@@ -1,5 +1,10 @@
 # WeddingCode 수집 채널 결정: 노코드 폼 → 인앱 프로토타입 (2026-07-05)
 
+> [!CAUTION]
+> **RETIRED — DO NOT RUN.** 이 문서는 과거 결정 기록이다. Production 수집, 링크 배포,
+> API 재개, SQL 실행 지침으로 사용하지 않는다. 현재 경계와 재개 금지 조건은
+> [2026-07-14 containment handoff](../codex-tasks/SESSION_HANDOFF_2026-07-14_WEDDING_CODE_CONTAINMENT.md)를 따른다.
+
 ## 결정
 
 v0.3 스모크 테스트를 Tally 등 외부 노코드 폼 대신 **hanbang.ai/wedding-code 인앱

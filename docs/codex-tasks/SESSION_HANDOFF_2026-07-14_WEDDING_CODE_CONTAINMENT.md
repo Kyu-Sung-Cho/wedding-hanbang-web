@@ -1,138 +1,142 @@
 # Wedding Code Containment Handoff — 2026-07-14
 
-## 상태
+## 현재 상태
 
-- 작업 브랜치: `hotfix/disable-wedding-code-collection`
-- 기준 커밋: `8d8933e18a973dbc74ce097c46fca0de0d08cda5`
-- 이 문서 작성 시점에 핫픽스는 운영에 배포되지 않았다.
-- 이 문서에는 비밀값이나 실제 환경변수 값을 기록하지 않는다.
+- PR: `#39` (`hotfix/disable-wedding-code-collection`)
+- merge 및 Production source SHA: `5eed1c370e24808e4caa81a3395b3128cfb864f8`
+- Vercel Production: `59RjXEzenfmqLuKs8922fgw4mtXK`, `Current/Ready`, `hanbang.ai`
+- 웨딩코드 웹 수집 경계와 운영 DB 쓰기 경계는 닫혔다.
+- 문항과 결과 해석의 타당도는 검증 완료가 아니다. 별도 승인 없이 테스트나 수집을 다시 열지 않는다.
+- 이 문서에는 비밀값, 환경변수 값, 행 본문, 로컬 암호화 키를 기록하지 않는다.
 
-## 2026-07-14 운영 관찰
+## 사고 전 관찰과 정정
 
-`https://hanbang.ai/wedding-code`를 읽기 전용으로 확인했을 때 운영 번들은
-`v0.5-candidate.4`를 표시했고, 기존 3분 테스트와 응답 수집 동의 UI가 노출되고 있었다.
-
-유효한 응답 데이터는 전송하지 않았다. 안전한 무효 요청으로 경계를 확인한 결과 다음 운영 API는
-`410 Gone`이 아니라 기존 `400 Bad Request`를 반환했다.
+핫픽스 전 `https://hanbang.ai/wedding-code`는 `v0.5-candidate.4` 수집 UI를 노출했고, 세 API는
+안전한 무효 요청에 `410 Gone`이 아닌 `400 Bad Request`를 반환했다.
 
 - `POST /api/wedding-code/response`
 - `POST /api/wedding-code/pair`
 - `GET /api/wedding-code/couple-report`
 
-따라서 당시 운영은 웨딩코드 수집 경계가 닫힌 상태로 볼 수 없었다.
+초기 대시보드 관찰에서는 `wedding_code_responses`와 관련 함수를 찾지 못했고 원격 migration
+history의 마지막 항목이 `20260630233211 enable_booking_progress_realtime`로 보였다. 이 관찰을
+“운영 테이블 부재”로 해석한 것은 잘못이었다.
 
-### Supabase 읽기 전용 확인
+권위 있는 후속 검증 결과, source commit
+`ae6c0f5b06fb02d3db6e6b16a5ed808bb7dc31b3`의 원래 creator SQL은 Management API로 운영에
+직접 적용됐다. `public.wedding_code_responses`에는 13개 행이 있었고 `service_role` table ACL과
+`wc_responses_service_only` 정책이 존재했다. Management API 직접 SQL 적용은 저장소 migration
+ledger에 기록되지 않았기 때문에 ledger가 뒤처져 있었다. ledger 부재는 schema 부재의 증거가 아니다.
 
-Supabase 대시보드에서 프로젝트 `slrtobkksjmxgzatjyqb`를 읽기 전용으로 확인했다. SQL은 실행하지
-않았고 설정도 변경하지 않았다.
+## 백업 및 복구 증거
 
-- 원격 migration history의 마지막 항목은
-  `20260630233211 enable_booking_progress_realtime`였다.
-- `public` 테이블 목록에 `wedding_code_responses`가 없었다.
-- `wedding_code`로 검색한 `public` 함수도 없었다.
-- 프로젝트는 Free Plan이라 Supabase 관리형 백업을 제공받지 않는다.
+- Supabase 프로젝트는 Free Plan이 아니라 **Pro Plan**이며 Daily Backup이 활성화돼 있다.
+- fence 전 확인한 최신 physical backup 시각: `2026-07-13 20:13:33 UTC`
+- 암호화 logical backup 생성: `2026-07-14 15:51 KST`
+- logical source SHA-256:
+  `2D5F1E077CBC11B2993B92BA225E5E33DA1D577B510BF3CE91F4AC504FA04E71`
+- encrypted artifact SHA-256:
+  `A3973B3AF6E2FB8A2E2DAE283EB4E41D42EA0DFC18F186A3E167B59DE3C1B485`
+- 격리 복구 검증: 13개 행, 13개 distinct ID, content digest
+  `2743544526a9db04c7b8ed1c83754b5c` 일치
 
-즉 현재 운영 DB에는 알려진 웨딩코드 저장 테이블과 관련 RPC가 아직 생성되지 않았다. 따라서 기존
-웹 화면과 API가 열려 있어도 현재 확인한 저장 경로에는 목적지가 없다. 기준 `main`의 원래
-2026-07 creator는 저장 테이블과 `service_role` 권한을 만들도록 작성돼 있었기 때문에, 수정 전 상태로
-일반적인 전체 `db push`를 실행하면 이 안전 경계가 다시 열릴 수 있었다. 이 사고 대응 중에는 전체
-migration push를 실행하지 않는다.
+암호화 artifact는 Git에 올리지 않았다. Windows DPAPI `CurrentUser`로 보호돼 **생성한 컴퓨터의
+같은 사용자 프로필에 종속**된다. 다른 컴퓨터나 다른 Windows 프로필에서는 복구 수단으로 간주하지
+말고, Pro physical backup 또는 승인된 새 logical export를 사용한다. 행 본문이나 키를 이 문서나
+GitHub에 복사하지 않는다.
 
-핫픽스는 아직 운영에 적용되지 않은 `20260705160000` creator도 수정해 테이블 생성과 같은 migration
-transaction 안에서 모든 application role 권한을 회수하고 `CHECK (false) NOT VALID`를 설치한다.
-따라서 향후 전체 chain을 적용할 때 creator와 후행 retirement migration 사이에 `service_role` 쓰기가
-열리는 migration 간격도 남기지 않는다. 이미 creator가 적용된 다른 환경은 `20260714104000` 후행
-retirement migration이 모든 ACL·policy·RPC를 회수하고 같은 제약을 다시 검증한다.
+## 운영 DB targeted fence 영수증
 
-### Vercel 배포 및 복구 기준
+운영에는 전체 migration chain이나 저장소의 raw migration 파일을 실행하지 않았다.
+`supabase/migrations/20260714104000_disable_wedding_code_collection.sql`의 retirement contract를
+기반으로, production prestate count·min/max·digest gate, dependency gate, lock, owner write probe와
+postcheck를 추가한 **별도 standalone targeted transaction**을 SQL Editor에서 적용했다. 실행 artifact는
+Git 밖의 로컬 전용 경로
+`C:\Users\kcho1\Documents\WeddingHanbang-Private-Backups\wedding-code\20260714-155146\targeted_fence.sql`에
+보관한다. 이 artifact와 현재 저장소 migration 파일은 같은 파일이 아니며 서로의 hash로 대체하거나
+raw migration 재실행을 운영 복구 절차로 간주하면 안 된다.
 
-Vercel 대시보드에서 현재 `hanbang.ai`에 연결된 Production 배포를 읽기 전용으로 확인했다.
+- 운영에 적용한 SQL artifact SHA-256:
+  `9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88`
+- postcheck receipt SHA-256:
+  `FC81B55C2FF3491E80845516BA0C9383781632F5926B4B3D7DE48FA0C635FEF8`
+- `wedding_code_collection_retired CHECK (false) NOT VALID`: 1개
+- matching named public routines: 0
+- table triggers: 0
+- dependent views: 0
+- publication membership: 0
+- runtime-role table privileges: 0
+  (`INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER`, `MAINTAIN` 포함)
+- non-owner table ACL entries: 0
+- non-owner column ACL entries: 0
+- policies: 0
+- named insert/pair RPC overloads: 0
+- 보존 결과: 13개 행, 13개 distinct ID, digest
+  `2743544526a9db04c7b8ed1c83754b5c` 불변
 
-- deployment id: `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`
-- immutable URL: `https://wedding-hanbang-me2k784f2-hanbang.vercel.app`
-- source commit: `8d8933e18a973dbc74ce097c46fca0de0d08cda5`
-- source branch: `main`
-- domains: `hanbang.ai`, main-branch URL, immutable deployment URL
+백업·무결성 검증 과정에서 행 본문을 문서나 GitHub에 노출하지 않았고, 운영 행은 수정·삭제하지
+않았다. 운영 migration ledger는 실제 과거 적용 이력과 맞지 않지만, 이번 대응에서 **의도적으로
+repair/mark하지 않았다**. 별도 검토와 승인 전에는
+`supabase db push`, 전체 migration push, ledger repair/mark를 실행하지 않는다.
 
-현재 Vercel 설정은 `main` push가 Production 배포를 만들고, 새 Production 배포에 custom domain을
-자동 할당한다. 따라서 PR merge는 곧 운영 변경이며 Preview와 정확한 HEAD SHA 검증 전에 실행하면
-안 된다. 위 기존 배포의 `Redeploy` 경로는 확인했지만 실제 복구 동작은 실행하지 않았다.
+위 SQL SHA-256은 운영에 실제 적용한 artifact의 영수증이다. 이후 저장소에서 역사 주석을 바로잡으면
+파일의 raw hash는 달라질 수 있으므로 현재 파일 hash와 억지로 맞추지 않는다. 실행 SQL 변경은 별도
+review 대상으로 취급한다.
 
-익명 HTTP HEAD로 현재 immutable Production URL, 바로 이전 Production URL, 과거 WeddingCode Preview,
-실패한 핫픽스 Preview를 확인했다. 네 URL 모두 앱 본문을 제공하지 않고 Vercel SSO로 `302` 전환했으며
-`X-Robots-Tag: noindex`를 반환했다. 따라서 확인한 과거 deployment URL은 일반 소비자에게 열려 있지
-않다. Vercel에 인증된 승인 계정은 접근할 수 있으므로 오래된 아티팩트 자체가 삭제됐다고 해석하면
-안 된다.
+## 웹 merge, 배포 및 rollback 영수증
 
-저장소는 GitHub 비공개 저장소이며 현재 플랜에서는 branch protection/rules API가 `403`과 함께
-GitHub Pro 또는 공개 저장소가 필요하다고 응답했다. 따라서 GitHub가 required check나 review를
-강제한다고 가정하면 안 된다. 이번 핫픽스는 merge 직전에 PR HEAD를 다시 읽고, 동일 SHA의 CI와
-Vercel Preview 성공을 수동으로 확인한 뒤 `--match-head-commit`으로만 merge한다.
+- PR #39 검토 HEAD: `ed5e09707771b208a377d67be6e538ce0ad0e839`
+- exact-HEAD Preview deployment: `8X6c6ERcc4nMAwsrGXY8QKUV7WyV`, `Ready`
+- merge 및 Production source SHA: `5eed1c370e24808e4caa81a3395b3128cfb864f8`
+- Production deployment: `59RjXEzenfmqLuKs8922fgw4mtXK`, `Current/Ready`
+- immutable URL: `https://wedding-hanbang-rezz8r5vl-hanbang.vercel.app`
+- Production alias: `hanbang.ai`
+- rollback baseline deployment: `U4tSiF85BfeFVMnoG7Kq5rSAqjvY`
+- rollback baseline source SHA: `8d8933e18a973dbc74ce097c46fca0de0d08cda5`
 
-첫 핫픽스 Preview는 Supabase 변수가 Production에만 있고 Preview에는 없는 상태에서 관리자 seed
-route가 module import 시 service client를 생성해 빌드에 실패했다. 운영 비밀값을 Preview로 복사하지
-않고, 요청 인증·seed gate 통과 뒤에만 service client를 만들도록 수정했다. 같은 무설정 빌드에서
-발견한 세 커뮤니티 내 활동 페이지도 render-time client 생성을 제거하고 명시적인 안전 안내를
-표시하도록 수정했다.
+Vercel은 `main` push를 자동으로 Production에 배포하고 custom domain을 자동 할당한다. 이후 변경도
+merge 전에 exact-SHA Preview, CI, rollback 기준을 고정해야 한다. 동일 SHA라도 deployment ID가
+다르면 같은 아티팩트로 간주하지 않는다.
 
-## 이 핫픽스가 닫는 경계
+## 닫힌 웹 경계
 
-- `/wedding-code`를 입력이나 제출 기능이 없는 "정식 검증 준비 중" 안내 화면으로 교체한다.
-- 안내 화면은 현재 답변을 받거나 저장하지 않는다고 명시하고 `/wedding` 복귀 링크를 제공한다.
-- `/wedding-code`와 결과 페이지의 `noindex`를 유지한다.
-- `/wedding-code/result` 직접 접근은 React streaming과 Next 설정 redirect보다 앞선 proxy 단계에서
-  `/wedding-code`로 `307 Temporary Redirect`한다.
-- 위 3개 API는 요청 본문, 쿼리, Supabase 클라이언트를 읽거나 만들기 전에 `410 Gone`과
+- `/wedding-code`는 입력·제출 기능 없이 “정식 검증 준비 중” 안내만 표시한다.
+- `/wedding-code/result`는 React rendering 전에 `/wedding-code`로 `307` redirect한다.
+- 세 API는 요청 본문, 쿼리, Supabase client를 읽거나 만들기 전에 `410 Gone`과
   `Cache-Control: no-store`를 반환한다.
-- 기존 초대 URL의 `ct` capability token은 페이지를 렌더하거나 analytics가 실행되기 전에 query가 없는
-  `/wedding-code`로 redirect해 브라우저 주소와 분석 이벤트에서 제거한다.
-- 기존 수집 데이터의 보유 또는 삭제에 관한 약속은 화면에 추가하지 않았다.
+- 과거 초대 URL의 `ct` capability token은 rendering·analytics 전에 제거한다.
+- 관련 페이지의 `noindex`를 유지한다.
+- 기존 13개 행의 보유·삭제 결정은 별도 법적·사업적 승인 대상으로 남겨 두고 이번 작업에서는
+  삭제하지 않았다.
 
 ## 검증 증거
 
-- 웹 전체 테스트: 52개 파일, 397개 테스트 통과
-- 웹 전체 ESLint 통과
-- 웹 전체 `tsc --noEmit` 통과
-- Supabase URL·anon key·service-role 변수가 모두 없고 `.env.local`도 없는 Preview 조건에서 Next.js
-  프로덕션 빌드 통과: 정적 페이지 100개 생성, 안내 화면은 정적 제공하고 결과·토큰 redirect는
-  proxy가 React rendering 전에 처리
-- API 회귀 테스트는 읽는 순간 실패하는 요청 객체와 Supabase 생성 스파이를 사용해 요청·DB 미접촉을 검증한다.
-- 로컬 프로덕션 HTTP 검증에서 안내 `200`, 초대 토큰 제거 `307`, 결과 경로 `307`, 세 API `410`과
-  `no-store`, 비허용 메서드 `405`를 확인했다. redirect 응답과 본문에는 테스트 토큰이 남지 않았고
-  안전한 `utm_source`만 보존됐다.
-- 실제 Chromium으로 1280px desktop, 390px mobile, 320px 최소 폭을 확인했다. 320px에서
-  `innerWidth`와 `scrollWidth`가 모두 320px였고 CTA는 48px 높이로 가로 overflow 없이 표시됐다.
-- PGlite의 실제 PostgreSQL 엔진에서 세 DB 시나리오를 실행했다: 운영과 같은 table-absent 상태, 전체
-  pending creator/token/retirement chain, 기존 행·열린 ACL·policy·RPC overload가 있는 과거 상태.
-  세 시나리오 모두 통과했고 기존 행은 보존됐으며 application role 접근, owner INSERT/UPDATE,
-  insert/pair RPC overload가 모두 차단됐다.
+- 웹 테스트 52개 파일, 397개 테스트 통과
+- 웹 ESLint, `tsc --noEmit`, 환경변수 없는 Next.js Production build 통과
+- 로컬 Production HTTP: 안내 `200`, 초대 토큰 제거 `307`, 결과 `307`, 세 API `410` +
+  `no-store`, 비허용 method `405`
+- Chromium 1280px, 390px, 320px 검증. 320px에서 가로 overflow 없음, CTA 높이 48px
+- 실제 PostgreSQL(PGlite)에서 table-absent, pending chain, legacy open-surface 세 시나리오 통과
+- 운영 DB targeted postcheck에서 위 권한·policy·routine·trigger·view·publication 경계가 0이고,
+  13개 행과 digest가 보존됨을 재확인
 
-## 아직 해결되지 않은 항목
+## 다른 컴퓨터에서 이어갈 때
 
-- 확인한 과거 immutable Vercel deployment URL은 익명 사용자에게 Vercel SSO로 차단된다. 다만 승인된
-  Vercel 계정은 오래된 아티팩트에 접근할 수 있으므로 운영 권한자에게도 이전 수집 UI를 사용하지
-  않는다는 경계와 DB retirement fence가 필요하다.
-- 현재 운영 DB에는 웨딩코드 테이블과 관련 함수가 없지만, 저장소의 대기 중인 2026-07 migration은
-  테이블과 `service_role` 권한을 만들 수 있다. 향후 전체 migration chain이 적용돼도 수집 경계가
-  닫히도록 후행 retirement migration과 회귀 계약을 함께 유지해야 한다.
-- 기존에 수집된 웨딩코드 데이터의 보유·삭제는 아직 결정하거나 실행하지 않았다. 법적·사업적 결정,
-  백업, 복구 방법과 검증된 실행 계획이 먼저 필요하다. 현재 프로젝트에는 Supabase 관리형 백업이 없다.
-- 질문 문항과 결과 해석의 타당도는 검증 완료 상태가 아니다. 근거 검토와 사용자 연구 없이 테스트를 다시 열지 않는다.
-- Vercel은 현재 `main`을 자동 Production 배포하고 custom domain도 자동 할당한다. exact SHA Preview,
-  GitHub 필수 체크, 운영 롤백 기준, 배포 직후 카나리를 merge 전에 모두 고정해야 한다.
-- 현재 비공개 저장소 플랜에는 branch protection 강제가 없다. 보호 기능을 사용하려면 유료 플랜 또는
-  저장소 공개 여부에 관한 별도 사업·보안 결정을 해야 한다.
+1. `origin/main`을 fetch하고 HEAD가
+   `5eed1c370e24808e4caa81a3395b3128cfb864f8` 이상인지 먼저 확인한다.
+2. 이 문서를 운영 source of truth로 사용한다. `docs/wedding-code`의 RETIRED 실행 문서를 따라 모집,
+   Production 링크 배포, 수집 SQL 실행을 하지 않는다.
+3. `supabase db push`, 전체 migration push, migration ledger repair/mark를 실행하지 않는다.
+4. DPAPI logical backup은 원래 컴퓨터·사용자 프로필 밖에서 해독 가능하다고 가정하지 않는다.
+5. 원격 작업이 새로 필요하면 row 내용 없이 read-only precheck로 fence·13/13·digest를 다시 증명하고,
+   별도 백업·rollback·승인을 먼저 확보한다.
+6. 질문 근거 검토, 인지면접, 전문가 검토와 타당도 연구가 끝날 때까지 웹/API/DB 수집을 다시 열지
+   않는다.
 
-## 운영 해결 완료 조건
+## 남은 결정
 
-다음이 모두 확인되기 전에는 이 문제를 운영에서 해결 완료로 보고하지 않는다.
-
-1. 핫픽스를 커밋하고 배포 대상 exact SHA를 기록한다.
-2. GitHub CI와 Vercel Preview가 같은 exact SHA에서 통과한 뒤에만 merge한다. 현재 branch protection이
-   없으므로 이를 수동 fail-closed gate로 취급한다.
-3. merge 직전에도 `main` 자동 배포와 custom domain 자동 할당 설정이 바뀌지 않았는지 다시 확인한다.
-4. Production 배포의 source SHA와 `hanbang.ai` alias가 의도한 merge SHA인지 확인한다.
-5. 운영 카나리에서 안내 화면, 결과 리다이렉트, 3개 API의 `410`과 `no-store`를 확인한다.
-6. 운영 로그와 데이터베이스 관찰로 웨딩코드 쓰기가 발생하지 않음을 확인한다.
-7. 과거 immutable Vercel URL의 익명 SSO 차단을 재확인하고, 향후 migration이 만들 수 있는 DB 쓰기
-   경계도 retirement migration으로 닫는다.
+- 13개 기존 응답의 보유 기간과 삭제 여부는 법적·사업적 결정이 필요하다.
+- WeddingCode 문항과 결과 해석은 심리측정 또는 완전한 성향검사로 검증되지 않았다.
+- 비공개 저장소의 branch protection 강제 여부는 저장소 플랜과 공개 여부에 관한 별도 결정이다.
+- migration ledger와 실제 운영 schema의 차이는 별도 baseline/reconciliation 계획으로 해결해야 하며,
+  이 containment 대응이 전체 DB migration 승인을 의미하지 않는다.

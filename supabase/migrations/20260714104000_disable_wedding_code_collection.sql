@@ -1,14 +1,20 @@
 -- Permanently retire the unvalidated WeddingCode collection surface while
 -- preserving its historical rows for a separately approved retention/purge
 -- decision. This migration never reads, rewrites, or deletes those rows.
+-- Production receipt (2026-07-14): the applied SQL artifact had SHA-256
+-- 9F9C36B62A05AAE9D9552B37C67294CA7FC160DAD101F055FDA8FEE098B26D88
+-- preserved 13 rows/13 distinct IDs and their content digest. The migration
+-- ledger was deliberately not repaired; do not use this comment as approval
+-- for a full db push or ledger mark/repair.
 
 SET lock_timeout = '5s';
 SET statement_timeout = '30s';
 
 -- Supabase applies a migration inside its ledger transaction. Hold this lock
 -- until that transaction commits so an already-running old deployment cannot
--- race between ACL revocation and constraint installation. Production may have
--- already removed this unshipped table, so absence is an accepted no-op state.
+-- race between ACL revocation and constraint installation. Replay targets may
+-- legitimately lack the historical table, so absence remains an accepted
+-- no-op state even though production contained it when this fence was applied.
 DO $lock_wedding_code_table_if_present$
 DECLARE
   v_table REGCLASS :=
@@ -29,7 +35,9 @@ DECLARE
     pg_catalog.to_regclass('public.wedding_code_responses');
 BEGIN
   IF v_table IS NOT NULL THEN
-    EXECUTE 'REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.wedding_code_responses FROM PUBLIC, anon, authenticated, service_role;';
+    -- ALL PRIVILEGES is intentional: PostgreSQL 17 added MAINTAIN to the
+    -- table privilege set, and later releases may add more table privileges.
+    EXECUTE 'REVOKE ALL PRIVILEGES ON TABLE public.wedding_code_responses FROM PUBLIC, anon, authenticated, service_role;';
   END IF;
 END;
 $revoke_table_acl_if_present$;
@@ -247,10 +255,23 @@ DECLARE
     pg_catalog.to_regclass('public.wedding_code_responses');
   v_role TEXT;
   v_table_privilege TEXT;
+  v_table_privileges TEXT[] := ARRAY[
+    'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+  ]::TEXT[];
   v_column_privilege TEXT;
   v_column_name TEXT;
   v_insert_overload_count BIGINT;
 BEGIN
+  -- MAINTAIN was introduced in PostgreSQL 17. Keep this migration replayable
+  -- on older/PGlite runtimes while verifying it wherever the server supports
+  -- the privilege name.
+  IF pg_catalog.current_setting('server_version_num')::INTEGER >= 170000 THEN
+    v_table_privileges := pg_catalog.array_append(
+      v_table_privileges,
+      'MAINTAIN'
+    );
+  END IF;
+
   SELECT pg_catalog.count(*)
   INTO v_insert_overload_count
   FROM pg_catalog.pg_proc AS procedure_row
@@ -273,16 +294,32 @@ BEGIN
     RETURN;
   END IF;
 
+  -- PUBLIC is a pseudo-role rather than a pg_roles row, so verify its direct
+  -- ACL separately. REVOKE ALL above must leave no current or future table
+  -- privilege attached to PUBLIC.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS class_row
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(
+        class_row.relacl,
+        pg_catalog.acldefault('r', class_row.relowner)
+      )
+    ) AS acl_row
+    WHERE class_row.oid = v_table
+      AND acl_row.grantee = 0
+  ) THEN
+    RAISE EXCEPTION 'WEDDING_CODE_TABLE_ACL_STILL_OPEN: role=PUBLIC'
+      USING ERRCODE = '55000';
+  END IF;
+
   FOR v_role IN
     SELECT application_role.role_name
     FROM pg_catalog.unnest(
       ARRAY['anon', 'authenticated', 'service_role']::TEXT[]
     ) AS application_role(role_name)
   LOOP
-    FOREACH v_table_privilege IN ARRAY
-      ARRAY[
-        'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
-      ]::TEXT[]
+    FOREACH v_table_privilege IN ARRAY v_table_privileges
     LOOP
       IF pg_catalog.has_table_privilege(
         v_role,
