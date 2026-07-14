@@ -94,7 +94,9 @@ export function requireSafeJsonMutation(request: Request): void {
   }
 
   // Native clients authenticate with an explicit bearer token and do not
-  // necessarily send browser Origin/Sec-Fetch-Site headers.
+  // necessarily send browser Origin/Sec-Fetch-Site headers. This exception
+  // relies on createClientFromRequest selecting a cookie-free token client
+  // whenever this header is present; keep that isolation under regression test.
   if (request.headers.get("authorization")?.startsWith("Bearer ")) return;
 
   const requestOrigin = new URL(request.url).origin;
