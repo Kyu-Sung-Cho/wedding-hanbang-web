@@ -7,9 +7,14 @@ import {
 } from "@/app/api/couple-court/_shared";
 import { recoverOneCourtProviderAudit } from "@/lib/coupleCourt/providerAuditRecovery";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isRecord } from "@/utils/requestValidation";
 
 const QUEUE_LIMIT = 50;
+const ADMIN_MUTATION_RATE_LIMIT = {
+  maxRequests: 120,
+  windowMs: 60 * 60 * 1000,
+} as const;
 const POST_FIELDS = [
   "id",
   "sanitized_snapshot_json",
@@ -422,6 +427,13 @@ export async function POST(request: Request) {
     if (!authorized || !userId) return unauthorizedResponse();
 
     const body = await readCourtJson(request, 4 * 1024);
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("couple-court:admin:mutation", request, userId),
+      ADMIN_MUTATION_RATE_LIMIT,
+      userId,
+    );
+    if (limited) return limited;
+
     const target = body.target;
 
     if (target === "provider_audit_recovery") {

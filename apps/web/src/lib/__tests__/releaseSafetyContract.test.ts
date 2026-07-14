@@ -393,12 +393,17 @@ describe("release safety contract", () => {
     expect(liveSmoke).toContain('--launch-mode=<mode>');
     expect(liveSmoke).toContain('--expected-sha=<sha>');
     expect(liveSmoke).toContain('--research-intake=<state>');
+    expect(liveSmoke).toContain('--couple-court-private=<state>');
+    expect(liveSmoke).toContain('--couple-court-ai=<state>');
+    expect(liveSmoke).toContain('--couple-court-public=<state>');
     expect(liveSmoke).toContain('options.launchMode === "coming_soon"');
     expect(liveSmoke).toContain('body?.code !== "SERVICE_NOT_LAUNCHED"');
     expect(liveSmoke).toContain('intakeBody?.code !== "RESEARCH_INTAKE_CLOSED"');
     expect(liveSmoke).toContain('intakeResponse.headers()["cache-control"]?.includes("no-store")');
     expect(liveSmoke).toContain('options.researchIntake === "closed"');
     expect(liveSmoke).toContain("body.researchCohortApplicationsEnabled");
+    expect(liveSmoke).toContain("body.coupleCourtMockEnabled !== false");
+    expect(liveSmoke).toContain("body.coupleCourtProviderConfigured !== true");
     expect(liveSmoke).toContain('final.searchParams.has("next")');
     expect(liveSmoke).toContain('body.deployment !== options.expectedSha.toLowerCase()');
     expect(liveSmoke).toContain(
@@ -414,6 +419,15 @@ describe("release safety contract", () => {
     ]) {
       expect(liveSmoke).toContain(associationPath);
     }
+    const courtProbe = liveSmoke.slice(
+      liveSmoke.indexOf("export function coupleCourtPageProbePlan"),
+      liveSmoke.indexOf("function buildFullChecks")
+    );
+    expect(courtProbe).toContain("/wedding/couple-court/invite");
+    expect(courtProbe).toContain("/wedding/couple-court/public");
+    expect(courtProbe).toContain("page.request.get");
+    expect(courtProbe).not.toContain("/api/couple-court");
+    expect(courtProbe).not.toContain("page.goto");
   });
 
   it("preserves pnpm argument forwarding while rejecting unknown live-smoke options", () => {
@@ -1125,6 +1139,10 @@ describe("release safety contract", () => {
     expect(ship).toContain("$status.rateLimitKeySecretConfigured -ne $true");
     expect(ship).toContain("$status.researchCohortApplicationsEnabled -ne $false");
     expect(ship).toContain("$status.accountDeletionCronEnabled -ne $false");
+    expect(ship).toContain("$status.coupleCourtEnabled -ne $false");
+    expect(ship).toContain("$status.coupleCourtAiEnabled -ne $false");
+    expect(ship).toContain("$status.coupleCourtPublicEnabled -ne $false");
+    expect(ship).toContain("$status.coupleCourtMockEnabled -ne $false");
     expect(ship).toContain("$script:accountDeletionWorkerLeaseSeconds = 600");
     expect(ship).toContain("$script:accountDeletionMaxInvocationSeconds = 120");
     expect(ship).toContain("Assert-AccountDeletionWorkerDrainWindow");

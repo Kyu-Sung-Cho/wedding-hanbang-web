@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanCourtText,
+  courtErrorResponse,
   CourtApiError,
   isCoupleCourtAiEnabled,
   isCoupleCourtEnabled,
@@ -41,6 +42,18 @@ describe("couple court release flags", () => {
 });
 
 describe("couple court mutation boundary", () => {
+  it("prevents feature and authorization errors from being cached", async () => {
+    const response = courtErrorResponse(
+      new CourtApiError(404, "COUPLE_COURT_DISABLED", "준비 중이에요."),
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
+    expect(response.headers.get("vary")).toBe("Authorization, Cookie");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "COUPLE_COURT_DISABLED",
+    });
+  });
+
   it("rejects an oversized authored field instead of truncating its safety-relevant tail", () => {
     const authored = `${"가".repeat(20)} 마지막 안전 설명`;
     expect(() => cleanCourtText(authored, 20, "진술")).toThrowError(CourtApiError);

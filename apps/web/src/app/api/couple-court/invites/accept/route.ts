@@ -43,6 +43,10 @@ export async function POST(request: Request) {
 
   try {
     requireCoupleCourtEnabled();
+    // Reject cross-site and malformed requests before they can consume an
+    // anonymous rate-limit bucket or trigger an authentication lookup. The
+    // bounded 2 KiB body keeps this pre-auth parse inexpensive.
+    const body = await readCourtJson(request, 2048);
     const user = await getOptionalCourtUser(request);
     const limited = await checkRateLimitPersistent(
       rateLimitKey("couple-court:invite:accept", request, user?.id),
@@ -50,8 +54,6 @@ export async function POST(request: Request) {
       user?.id,
     );
     if (limited) return limited;
-
-    const body = await readCourtJson(request, 2048);
     const token = typeof body.token === "string" ? body.token.trim() : "";
     const handoffCookie = courtInviteHandoffFromRequest(request);
     if (token && !TOKEN_RE.test(token)) {

@@ -39,6 +39,13 @@ const originalVercelGitCommitSha = process.env.VERCEL_GIT_COMMIT_SHA;
 const originalTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const originalTurnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
 const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+const originalCoupleCourtEnabled = process.env.COUPLE_COURT_ENABLED;
+const originalCoupleCourtAiEnabled = process.env.COUPLE_COURT_AI_ENABLED;
+const originalCoupleCourtPublicEnabled = process.env.COUPLE_COURT_PUBLIC_ENABLED;
+const originalCoupleCourtMockEnabled = process.env.COUPLE_COURT_MOCK_ENABLED;
+const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+const originalOpenAiPrimaryModel = process.env.OPENAI_AMORA_PRIMARY_MODEL;
+const originalOpenAiPrimaryReasoning = process.env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT;
 
 afterEach(() => {
   if (originalRateLimitKeySecret === undefined) {
@@ -86,6 +93,21 @@ afterEach(() => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
   } else {
     process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+  }
+  for (const [name, original] of [
+    ["COUPLE_COURT_ENABLED", originalCoupleCourtEnabled],
+    ["COUPLE_COURT_AI_ENABLED", originalCoupleCourtAiEnabled],
+    ["COUPLE_COURT_PUBLIC_ENABLED", originalCoupleCourtPublicEnabled],
+    ["COUPLE_COURT_MOCK_ENABLED", originalCoupleCourtMockEnabled],
+    ["OPENAI_API_KEY", originalOpenAiApiKey],
+    ["OPENAI_AMORA_PRIMARY_MODEL", originalOpenAiPrimaryModel],
+    ["OPENAI_AMORA_PRIMARY_REASONING_EFFORT", originalOpenAiPrimaryReasoning],
+  ] as const) {
+    if (original === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = original;
+    }
   }
 });
 
@@ -206,6 +228,11 @@ describe("maintenance release contract", () => {
     expect(healthSource).toContain("deployment: configuredDeploymentCommit()");
     expect(healthSource).toContain("researchCohortApplicationsEnabled:");
     expect(healthSource).toContain("accountDeletionCronEnabled:");
+    expect(healthSource).toContain("coupleCourtEnabled:");
+    expect(healthSource).toContain("coupleCourtAiEnabled:");
+    expect(healthSource).toContain("coupleCourtPublicEnabled:");
+    expect(healthSource).toContain("coupleCourtMockEnabled:");
+    expect(healthSource).toContain("coupleCourtProviderConfigured:");
     expect(healthSource).toContain(
       "hasStrongRateLimitKeySecretConfig()"
     );
@@ -279,6 +306,48 @@ describe("maintenance release contract", () => {
     const enabled = (await (await GET()).json()) as Record<string, unknown>;
     expect(enabled.accountDeletionCronEnabled).toBe(true);
     expect(enabled).not.toHaveProperty("accountDeletionCronSecret");
+  });
+
+  it("reports exact raw Couple Court release switches without provider secrets", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    for (const name of [
+      "COUPLE_COURT_ENABLED",
+      "COUPLE_COURT_AI_ENABLED",
+      "COUPLE_COURT_PUBLIC_ENABLED",
+      "COUPLE_COURT_MOCK_ENABLED",
+    ] as const) {
+      delete process.env[name];
+    }
+    process.env.OPENAI_API_KEY = "invalid";
+    const missing = (await (await GET()).json()) as Record<string, unknown>;
+    expect(missing).toMatchObject({
+      coupleCourtEnabled: false,
+      coupleCourtAiEnabled: false,
+      coupleCourtPublicEnabled: false,
+      coupleCourtMockEnabled: false,
+      coupleCourtProviderConfigured: false,
+    });
+
+    process.env.OPENAI_API_KEY = ["sk", "test-only-openai-key-1234567890"].join("-");
+    process.env.OPENAI_AMORA_PRIMARY_MODEL = "gpt-5.6-terra";
+    process.env.OPENAI_AMORA_PRIMARY_REASONING_EFFORT = "none";
+    process.env.COUPLE_COURT_ENABLED = "TRUE";
+    process.env.COUPLE_COURT_AI_ENABLED = "false";
+    process.env.COUPLE_COURT_PUBLIC_ENABLED = "true";
+    process.env.COUPLE_COURT_MOCK_ENABLED = "true";
+    const configured = (await (await GET()).json()) as Record<string, unknown>;
+    expect(configured).toMatchObject({
+      coupleCourtEnabled: false,
+      coupleCourtAiEnabled: false,
+      coupleCourtPublicEnabled: true,
+      coupleCourtMockEnabled: true,
+      coupleCourtProviderConfigured: true,
+    });
+    expect(configured).not.toHaveProperty("openAiApiKey");
+    expect(configured).not.toHaveProperty("openAiModel");
+    expect(configured).not.toHaveProperty("coupleCourtProviderSecret");
   });
 
   it("reports the full deployment commit and research-intake switch without secrets", async () => {

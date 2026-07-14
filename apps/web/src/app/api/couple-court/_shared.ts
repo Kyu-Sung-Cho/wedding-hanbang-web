@@ -168,7 +168,7 @@ export function cleanCourtText(
 
 export function courtErrorResponse(error: unknown): NextResponse {
   if (error instanceof CourtApiError) {
-    return NextResponse.json(
+    return noStoreJson(
       { code: error.code, error: error.message },
       { status: error.status },
     );
@@ -176,7 +176,7 @@ export function courtErrorResponse(error: unknown): NextResponse {
 
   // Avoid persisting or returning free-text statements through error channels.
   console.error("COUPLE_COURT_REQUEST_FAILED");
-  return NextResponse.json(
+  return noStoreJson(
     { code: "COUPLE_COURT_REQUEST_FAILED", error: "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요." },
     { status: 500 },
   );

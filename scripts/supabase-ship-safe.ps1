@@ -837,6 +837,12 @@ function Assert-MaintenanceHealth {
     $status.accountDeletionCronEnabled -ne $false) {
     throw "Live deployment must keep research intake and account-deletion cron disabled during migration."
   }
+  if ($status.coupleCourtEnabled -ne $false -or
+    $status.coupleCourtAiEnabled -ne $false -or
+    $status.coupleCourtPublicEnabled -ne $false -or
+    $status.coupleCourtMockEnabled -ne $false) {
+    throw "Live deployment must keep every Couple Court capability and provider mock disabled during migration."
+  }
   $startedAt = [DateTimeOffset]::MinValue
   if (-not [DateTimeOffset]::TryParse(
       [string]$status.maintenanceStartedAt,

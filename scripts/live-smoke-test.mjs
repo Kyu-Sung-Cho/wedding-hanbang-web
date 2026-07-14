@@ -26,6 +26,9 @@ export function parseArgs(argv, env = process.env) {
     playSigningSha256: env.LIVE_SMOKE_PLAY_SIGNING_SHA256 || "",
     researchIntake: env.LIVE_SMOKE_RESEARCH_INTAKE || "closed",
     accountDeletionCron: env.LIVE_SMOKE_ACCOUNT_DELETION_CRON || "closed",
+    coupleCourtPrivate: env.LIVE_SMOKE_COUPLE_COURT_PRIVATE || "closed",
+    coupleCourtAi: env.LIVE_SMOKE_COUPLE_COURT_AI || "closed",
+    coupleCourtPublic: env.LIVE_SMOKE_COUPLE_COURT_PUBLIC || "closed",
     skipDemo: env.LIVE_SMOKE_SKIP_DEMO === "1",
     allowUnboundLocal: env.LIVE_SMOKE_ALLOW_UNBOUND_LOCAL === "1",
     timeoutMs: Number(env.LIVE_SMOKE_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
@@ -49,6 +52,9 @@ export function parseArgs(argv, env = process.env) {
     else if (arg.startsWith("--play-signing-sha256=")) options.playSigningSha256 = arg.slice("--play-signing-sha256=".length);
     else if (arg.startsWith("--research-intake=")) options.researchIntake = arg.slice("--research-intake=".length);
     else if (arg.startsWith("--account-deletion-cron=")) options.accountDeletionCron = arg.slice("--account-deletion-cron=".length);
+    else if (arg.startsWith("--couple-court-private=")) options.coupleCourtPrivate = arg.slice("--couple-court-private=".length);
+    else if (arg.startsWith("--couple-court-ai=")) options.coupleCourtAi = arg.slice("--couple-court-ai=".length);
+    else if (arg.startsWith("--couple-court-public=")) options.coupleCourtPublic = arg.slice("--couple-court-public=".length);
     else if (arg === "--headed") options.headed = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--skip-demo") options.skipDemo = true;
@@ -73,6 +79,28 @@ export function parseArgs(argv, env = process.env) {
   }
   if (!["closed", "open"].includes(options.accountDeletionCron)) {
     throw new Error("--account-deletion-cron must be closed or open");
+  }
+  for (const [name, value] of [
+    ["--couple-court-private", options.coupleCourtPrivate],
+    ["--couple-court-ai", options.coupleCourtAi],
+    ["--couple-court-public", options.coupleCourtPublic],
+  ]) {
+    if (!["closed", "open"].includes(value)) {
+      throw new Error(`${name} must be closed or open`);
+    }
+  }
+  if (
+    options.coupleCourtPrivate === "closed"
+    && (options.coupleCourtAi === "open" || options.coupleCourtPublic === "open")
+  ) {
+    throw new Error("Couple Court AI or public access cannot be open while the private feature is closed");
+  }
+  if (
+    options.launchMode === "coming_soon"
+    && [options.coupleCourtPrivate, options.coupleCourtAi, options.coupleCourtPublic]
+      .some((state) => state === "open")
+  ) {
+    throw new Error("Couple Court must remain fully closed in coming_soon launch mode");
   }
   const baseHostname = new URL(options.baseUrl).hostname;
   const isLocalTarget = ["localhost", "127.0.0.1", "::1"].includes(baseHostname);
@@ -115,6 +143,9 @@ Options:
   --play-signing-sha256=<fingerprint>  Play App Signing SHA-256; required for every remote release.
   --research-intake=<state>  closed or open. Default: closed.
   --account-deletion-cron=<state>  closed or open. Default: closed.
+  --couple-court-private=<state>  closed or open. Default: closed.
+  --couple-court-ai=<state>       closed or open. Default: closed.
+  --couple-court-public=<state>   closed or open. Default: closed.
   --headed               Show the browser window.
   --skip-demo            Skip demo login flow.
   --allow-unbound-local  Skip SHA/project identity only for localhost development.
@@ -131,6 +162,9 @@ Environment:
   LIVE_SMOKE_PLAY_SIGNING_SHA256
   LIVE_SMOKE_RESEARCH_INTAKE
   LIVE_SMOKE_ACCOUNT_DELETION_CRON
+  LIVE_SMOKE_COUPLE_COURT_PRIVATE
+  LIVE_SMOKE_COUPLE_COURT_AI
+  LIVE_SMOKE_COUPLE_COURT_PUBLIC
   LIVE_SMOKE_ALLOW_UNBOUND_LOCAL=1
   LIVE_SMOKE_HEADED=1
   LIVE_SMOKE_SKIP_DEMO=1`);
@@ -224,6 +258,7 @@ function createCheckResult(name, url) {
     consoleErrors: [],
     pageErrors: [],
     badResponses: [],
+    observations: {},
   };
 }
 
@@ -373,7 +408,58 @@ export function releaseHealthFailures(
       `Expected account-deletion cron ${options.accountDeletionCron}, got ${String(body.accountDeletionCronEnabled)}`
     );
   }
+  for (const [field, state, label] of [
+    ["coupleCourtEnabled", options.coupleCourtPrivate, "Couple Court private"],
+    ["coupleCourtAiEnabled", options.coupleCourtAi, "Couple Court AI"],
+    ["coupleCourtPublicEnabled", options.coupleCourtPublic, "Couple Court public"],
+  ]) {
+    const expected = state === "open";
+    if (body[field] !== expected) {
+      failures.push(`Expected ${label} ${state}, got ${String(body[field])}`);
+    }
+  }
+  if (!options.allowUnboundLocal && body.coupleCourtMockEnabled !== false) {
+    failures.push(
+      `Expected Couple Court provider mock closed on a remote release, got ${String(body.coupleCourtMockEnabled)}`
+    );
+  }
+  if (options.coupleCourtAi === "open" && body.coupleCourtProviderConfigured !== true) {
+    failures.push("Expected the Couple Court Terra provider configuration to be ready when AI is open");
+  }
   return failures;
+}
+
+function releaseHealthObservation(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  return {
+    deployment: body.deployment ?? null,
+    supabaseProjectRef: body.supabaseProjectRef ?? null,
+    maintenance: body.maintenance,
+    maintenanceStartedAt: body.maintenanceStartedAt ?? null,
+    rateLimitKeySecretConfigured: body.rateLimitKeySecretConfigured,
+    turnstileCredentialsConfigured: body.turnstileCredentialsConfigured,
+    turnstileCanonicalHostnameConfigured: body.turnstileCanonicalHostnameConfigured,
+    turnstileConfigured: body.turnstileConfigured,
+    researchCohortApplicationsEnabled: body.researchCohortApplicationsEnabled,
+    accountDeletionCronEnabled: body.accountDeletionCronEnabled,
+    coupleCourtEnabled: body.coupleCourtEnabled,
+    coupleCourtAiEnabled: body.coupleCourtAiEnabled,
+    coupleCourtPublicEnabled: body.coupleCourtPublicEnabled,
+    coupleCourtMockEnabled: body.coupleCourtMockEnabled,
+    coupleCourtProviderConfigured: body.coupleCourtProviderConfigured,
+  };
+}
+
+async function fetchReleaseHealth(page, options) {
+  const response = await page.request.get(
+    `${options.baseUrl}/api/health/maintenance?release_check=${Date.now()}`,
+    { maxRedirects: 0 }
+  );
+  return {
+    status: response.status(),
+    body: await response.json().catch(() => null),
+    cacheControl: response.headers()["cache-control"] ?? "",
+  };
 }
 
 function buildReleaseHealthCheck() {
@@ -381,20 +467,75 @@ function buildReleaseHealthCheck() {
     name: "release-health-contract",
     path: "/api/health/maintenance",
     async assert(page, result, options) {
-      const response = await page.request.get(
-        `${options.baseUrl}/api/health/maintenance`,
-        { maxRedirects: 0 }
-      );
-      const body = await response.json().catch(() => null);
-      const failures = releaseHealthFailures(
-        {
-          status: response.status(),
-          body,
-          cacheControl: response.headers()["cache-control"] ?? "",
-        },
-        options,
-      );
+      const health = await fetchReleaseHealth(page, options);
+      result.observations.releaseHealth = releaseHealthObservation(health.body);
+      const failures = releaseHealthFailures(health, options);
       for (const failure of failures) addFailure(result, failure);
+    },
+  };
+}
+
+export function coupleCourtPageProbePlan(options) {
+  return [
+    {
+      capability: "private",
+      path: "/wedding/couple-court/invite",
+      expectedStatus: options.coupleCourtPrivate === "open" ? 200 : 404,
+    },
+    {
+      capability: "public",
+      path: "/wedding/couple-court/public",
+      expectedStatus: options.coupleCourtPublic === "open" ? 200 : 404,
+    },
+  ];
+}
+
+function buildCoupleCourtReadOnlyBoundaryCheck() {
+  return {
+    name: "couple-court-read-only-boundary",
+    path: "/api/health/maintenance",
+    async assert(page, result, options) {
+      const before = await fetchReleaseHealth(page, options);
+      const beforeObservation = releaseHealthObservation(before.body);
+      for (const failure of releaseHealthFailures(before, options)) {
+        addFailure(result, `Before page probes: ${failure}`);
+      }
+
+      const probes = [];
+      for (const probe of coupleCourtPageProbePlan(options)) {
+        // APIRequestContext fetches raw HTML without running page JavaScript.
+        // Do not probe Court APIs here: even a GET can persist a rate-limit row.
+        const response = await page.request.get(`${options.baseUrl}${probe.path}`, {
+          maxRedirects: 0,
+        });
+        const observedStatus = response.status();
+        probes.push({
+          capability: probe.capability,
+          path: probe.path,
+          expectedStatus: probe.expectedStatus,
+          observedStatus,
+        });
+        if (observedStatus !== probe.expectedStatus) {
+          addFailure(
+            result,
+            `Expected ${probe.path} to return ${probe.expectedStatus}, got ${observedStatus}`
+          );
+        }
+      }
+
+      const after = await fetchReleaseHealth(page, options);
+      const afterObservation = releaseHealthObservation(after.body);
+      for (const failure of releaseHealthFailures(after, options)) {
+        addFailure(result, `After page probes: ${failure}`);
+      }
+      if (JSON.stringify(afterObservation) !== JSON.stringify(beforeObservation)) {
+        addFailure(result, "Release SHA, project, or feature-switch health changed during Couple Court probes");
+      }
+      result.observations.coupleCourt = {
+        before: beforeObservation,
+        probes,
+        after: afterObservation,
+      };
     },
   };
 }
@@ -746,6 +887,9 @@ function markdownReport({ options, browserPath, startedAt, finishedAt, results }
     lines.push(`- Title: ${result.title || "(none)"}`);
     lines.push(`- H1: ${result.h1 || "(none)"}`);
     lines.push(`- Screenshot: ${result.screenshot || "(none)"}`);
+    if (Object.keys(result.observations).length > 0) {
+      lines.push(`- Safe observations: \`${JSON.stringify(result.observations)}\``);
+    }
     if (result.failures.length > 0) {
       lines.push(`- Failures:`);
       result.failures.forEach((failure) => lines.push(`  - ${failure}`));
@@ -800,7 +944,15 @@ async function main() {
   const associationChecks = options.launchMode === "full" && !options.allowUnboundLocal
     ? [buildAssociationCheck()]
     : [];
-  const checks = [buildReleaseHealthCheck(), ...associationChecks, ...modeChecks];
+  const coupleCourtChecks = options.launchMode === "full"
+    ? [buildCoupleCourtReadOnlyBoundaryCheck()]
+    : [];
+  const checks = [
+    buildReleaseHealthCheck(),
+    ...associationChecks,
+    ...coupleCourtChecks,
+    ...modeChecks,
+  ];
   const results = [];
   try {
     for (const check of checks) {

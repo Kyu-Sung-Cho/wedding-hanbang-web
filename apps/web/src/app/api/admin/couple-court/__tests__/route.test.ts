@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   getServiceClient: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
+  checkRateLimitPersistent: vi.fn(),
+  rateLimitKey: vi.fn(),
   logRecoveredCourtVerdictAudit: vi.fn(),
 }));
 
@@ -15,6 +17,11 @@ vi.mock("@/lib/utils/adminAuth", () => ({
 
 vi.mock("@/lib/coupleCourt/judge", () => ({
   logRecoveredCourtVerdictAudit: mocks.logRecoveredCourtVerdictAudit,
+}));
+
+vi.mock("@/utils/rateLimit", () => ({
+  checkRateLimitPersistent: mocks.checkRateLimitPersistent,
+  rateLimitKey: mocks.rateLimitKey,
 }));
 
 import {
@@ -99,6 +106,10 @@ describe("couple court admin moderation route", () => {
     vi.clearAllMocks();
     mocks.verifyAdmin.mockResolvedValue({ authorized: true, userId: ADMIN_ID });
     mocks.rpc.mockResolvedValue({ data: { ignored_private_field: "never-returned" }, error: null });
+    mocks.checkRateLimitPersistent.mockResolvedValue(null);
+    mocks.rateLimitKey.mockImplementation((prefix: string, _request: Request, userId?: string) => (
+      userId ? `${prefix}:${userId}` : `${prefix}:anonymous`
+    ));
     mocks.logRecoveredCourtVerdictAudit.mockResolvedValue(undefined);
     mocks.getServiceClient.mockReturnValue({ from: mocks.from, rpc: mocks.rpc });
   });
@@ -253,6 +264,20 @@ describe("couple court admin moderation route", () => {
     expect(mocks.getServiceClient).not.toHaveBeenCalled();
   });
 
+  it("rejects an unauthenticated mutation without consuming the admin rate limit", async () => {
+    mocks.verifyAdmin.mockResolvedValue({ authorized: false });
+
+    const response = await POST(mutationRequest({
+      target: "post",
+      id: POST_ID,
+      decision: "approve",
+    }));
+
+    expect(response.status).toBe(401);
+    expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("blocks cross-site JSON mutations before calling a moderation RPC", async () => {
     const response = await POST(mutationRequest(
       { target: "post", id: POST_ID, decision: "approve" },
@@ -260,6 +285,34 @@ describe("couple court admin moderation route", () => {
     ));
 
     expect(response.status).toBe(403);
+    expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns a persistent rate-limit response without invoking a moderation RPC", async () => {
+    mocks.checkRateLimitPersistent.mockResolvedValueOnce(Response.json(
+      { error: "요청이 너무 많습니다." },
+      { status: 429 },
+    ));
+
+    const request = mutationRequest({
+      target: "post",
+      id: POST_ID,
+      decision: "approve",
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(429);
+    expect(mocks.rateLimitKey).toHaveBeenCalledWith(
+      "couple-court:admin:mutation",
+      request,
+      ADMIN_ID,
+    );
+    expect(mocks.checkRateLimitPersistent).toHaveBeenCalledWith(
+      `couple-court:admin:mutation:${ADMIN_ID}`,
+      { maxRequests: 120, windowMs: 60 * 60 * 1000 },
+      ADMIN_ID,
+    );
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
 import { hasStrongRateLimitKeySecretConfig } from "@/utils/rateLimit";
 import {
@@ -41,6 +42,14 @@ export async function GET() {
       turnstileConfigured: hasTurnstileConfig(),
       researchCohortApplicationsEnabled: isResearchCohortApplicationsEnabled(),
       accountDeletionCronEnabled: process.env.ACCOUNT_DELETION_CRON_ENABLED === "true",
+      // Report the raw deployment switches rather than the effective gated
+      // values. Otherwise an invalid private=false/public=true combination
+      // would be collapsed to public=false and escape release verification.
+      coupleCourtEnabled: process.env.COUPLE_COURT_ENABLED === "true",
+      coupleCourtAiEnabled: process.env.COUPLE_COURT_AI_ENABLED === "true",
+      coupleCourtPublicEnabled: process.env.COUPLE_COURT_PUBLIC_ENABLED === "true",
+      coupleCourtMockEnabled: process.env.COUPLE_COURT_MOCK_ENABLED === "true",
+      coupleCourtProviderConfigured: hasOpenAIConfig("primary"),
     },
     {
       headers: {
