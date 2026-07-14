@@ -64,6 +64,8 @@ corepack pnpm mobile:release-check
 감사 문서는 작성 시점의 스냅샷이며 현재 코드를 대신하지 않습니다.
 
 - 현재 서비스 기준: [`WEDDINGHANBANG_SERVICE_DOC.md`](WEDDINGHANBANG_SERVICE_DOC.md)
+- 커플 재판 제품·데이터·운영 계약: [`docs/couple-court.md`](docs/couple-court.md)
+- 커플 재판 구현·검증·출시 계획: [`docs/couple-court-plan.md`](docs/couple-court-plan.md)
 - 2026-07-12 전체 QA와 현재 NO-GO 근거: [`docs/codex-tasks/FULL_QA_2026-07-12.md`](docs/codex-tasks/FULL_QA_2026-07-12.md)
 - 운영 출시·백업·롤백 순서: [`docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md`](docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md)
 - 모바일 스토어 출시 체크리스트: [`docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md`](docs/MOBILE_APP_STORE_RELEASE_CHECKLIST_2026-06-30.md)

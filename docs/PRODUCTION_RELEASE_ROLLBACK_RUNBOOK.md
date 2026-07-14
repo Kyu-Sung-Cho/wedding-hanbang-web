@@ -206,6 +206,10 @@ controller는 승인된 환경 snapshot을 아래 안전 상태로 만들고 변
 - `MAINTENANCE_MODE=false`
 - `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`
 - `ACCOUNT_DELETION_CRON_ENABLED=false`
+- `COUPLE_COURT_ENABLED=false`
+- `COUPLE_COURT_AI_ENABLED=false`
+- `COUPLE_COURT_PUBLIC_ENABLED=false`
+- `COUPLE_COURT_MOCK_ENABLED=false`
 - 새 런타임에는 `OPENAI_API_KEY`와 고정된 Luna/Terra model 설정만 두고 `ANTHROPIC_API_KEY`는 Production 환경에서 제거
 - 검토된 production Supabase ref와 회전·검증된 비밀만 사용
 
@@ -219,11 +223,15 @@ supabaseProjectRef = protected production ref
 maintenance = false
 researchCohortApplicationsEnabled = false
 accountDeletionCronEnabled = false
+coupleCourtEnabled = false
+coupleCourtAiEnabled = false
+coupleCourtPublicEnabled = false
+coupleCourtMockEnabled = false
 공개 allowlist 정상, 로그인·앱·일반 API 차단
 ```
 
 ```powershell
-node ./scripts/live-smoke-test.mjs --base-url=$AnchorUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+node ./scripts/live-smoke-test.mjs --base-url=$AnchorUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --couple-court-private=closed --couple-court-ai=closed --couple-court-public=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
 SHA, Supabase ref, 환경 계약, deployment ID 중 하나라도 다르면 staged deployment를 promote하지 않는다. 모두 통과하고 독립 승인이 있으면 controller가 create 직전과 같은 `main` SHA를 다시 확인한 뒤 같은 deployment ID만 승격하고, 승격 뒤 alias API와 `hanbang.ai` canary를 다시 실행한다.
@@ -243,6 +251,7 @@ SHA, Supabase ref, 환경 계약, deployment ID 중 하나라도 다르면 stage
 - 확인 메일 링크를 재작성하지 않도록 비활성화한 Resend click tracking 설정
 - 이번 핵심 출시에서는 `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`; 실제 연구 접수 공개는 선정·통지·삭제 운영 승인과 전용 E2E를 갖춘 별도 exact-SHA staged release에서만 수행
 - 이번 핵심 출시에서는 `ACCOUNT_DELETION_CRON_ENABLED=false`; fresh/upgrade migration, encrypted backup, isolated restore drill, queue health와 삭제 canary를 갖춘 별도 exact-SHA staged release에서만 활성화
+- `COUPLE_COURT_ENABLED=false`, `COUPLE_COURT_AI_ENABLED=false`, `COUPLE_COURT_PUBLIC_ENABLED=false`, `COUPLE_COURT_MOCK_ENABLED=false`
 
 controller는 create 직전 `main` HEAD와 exact SHA를 다시 확인하고 외부 allowlist의 team/project/repository ID로 maintenance deployment를 staged한다. strict provider response 검증이 실패하면 URL이나 receipt를 생산하지 않는다.
 
@@ -256,6 +265,10 @@ deployment = $ReviewedSha 전체 40자리
 rateLimitKeySecretConfigured = true
 researchCohortApplicationsEnabled = false
 accountDeletionCronEnabled = false
+coupleCourtEnabled = false
+coupleCourtAiEnabled = false
+coupleCourtPublicEnabled = false
+coupleCourtMockEnabled = false
 ```
 
 페이지와 일반 API는 503이어야 한다. app association 세 경로와 health endpoint만 직접 응답한다. health endpoint가 404이거나 SHA·Supabase ref·flag 중 하나라도 다르거나 provider API의 deployment ID 결합이 다르면 promote하지 않는다. 모두 통과하고 독립 승인이 있으면 controller가 `main` HEAD를 다시 확인하고 같은 maintenance ID만 승격한다.
@@ -358,19 +371,21 @@ corepack pnpm supabase:ship:safe -- `
 
 자동 evidence producer가 post-deploy DB contract, migration dry-run 0개, Data API/Auth/Storage write denial, release writer, anon denial을 같은 fence ID와 SHA에 묶어야 한다. 현재는 이를 수용하는 trusted coordinator와 signed receipt가 없으므로 normal deployment를 custom domain에 연결하지 않는다.
 
-trusted controller가 Vercel Production 환경 snapshot을 `MAINTENANCE_MODE=false`와 승인된 `NEXT_PUBLIC_LAUNCH_MODE=<coming_soon-or-full>`로 갱신한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. `full` 공개에서는 다른 경계와 재사용하지 않은 32자 이상 `DEMO_SESSION_SECRET`이 Production snapshot에 있어야 하며 demo login smoke를 생략하지 않는다. 연구 접수·계정 삭제 cron은 각각의 별도 운영 gate가 통과하지 않았다면 계속 `false`다. controller는 변수 이름·target·삭제 시각·redacted digest를 기록하고 create 직전 재확인한 같은 `$ReviewedSha`로 normal 후보를 staged해 provider identity를 확인한다. 로컬 CLI는 이 작업을 수행하지 않는다.
+trusted controller가 Vercel Production 환경 snapshot을 `MAINTENANCE_MODE=false`와 승인된 `NEXT_PUBLIC_LAUNCH_MODE=<coming_soon-or-full>`로 갱신한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. `full` 공개에서는 다른 경계와 재사용하지 않은 32자 이상 `DEMO_SESSION_SECRET`이 Production snapshot에 있어야 하며 demo login smoke를 생략하지 않는다. 연구 접수·계정 삭제 cron은 각각의 별도 운영 gate가 통과하지 않았다면 계속 `false`다. 커플재판소의 `COUPLE_COURT_ENABLED`, `COUPLE_COURT_AI_ENABLED`, `COUPLE_COURT_PUBLIC_ENABLED`도 승인된 exact snapshot으로 명시하고 `COUPLE_COURT_MOCK_ENABLED=false`를 유지한다. `coming_soon`에서는 세 기능 플래그가 모두 `false`여야 하며, `full`에서도 AI나 public을 열려면 private이 먼저 열려 있어야 한다. controller는 변수 이름·target·삭제 시각·redacted digest를 기록하고 create 직전 재확인한 같은 `$ReviewedSha`로 normal 후보를 staged해 provider identity를 확인한다. 로컬 CLI는 이 작업을 수행하지 않는다.
 
-`$NormalUrl`의 health가 `$ReviewedSha`, protected Supabase ref, `maintenance=false`, 승인된 연구 접수·삭제 cron 상태를 반환해야 한다. 선택한 launch mode에 맞춰 아래 둘 중 정확히 하나의 live smoke를 staged URL에서 실행하고, 아직 fence가 활성인 동안 쓰기 거부가 유지되는지도 확인한다.
+`$NormalUrl`의 health가 `$ReviewedSha`, protected Supabase ref, `maintenance=false`, 승인된 연구 접수·삭제 cron 상태, 세 커플재판소 상태와 `coupleCourtMockEnabled=false`를 반환해야 한다. AI가 `open`이면 `coupleCourtProviderConfigured=true`도 필요하지만 이는 provider 설정 유무만 확인하며 OpenAI 요청을 보내지 않는다. 선택한 launch mode에 맞춰 아래 둘 중 정확히 하나의 live smoke를 staged URL에서 실행하고, 아직 fence가 활성인 동안 쓰기 거부가 유지되는지도 확인한다.
 
 ```powershell
 # coming_soon을 유지하는 경우
-node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --couple-court-private=closed --couple-court-ai=closed --couple-court-public=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 
 # 별도 사업·운영 승인을 받아 full을 공개하는 경우
-node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --couple-court-private=<closed-or-open> --couple-court-ai=<closed-or-open> --couple-court-public=<closed-or-open> --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
-staged deployment ID·SHA·환경 계약 중 하나라도 다르면 fence를 해제하지 않는다.
+`full` smoke는 JavaScript를 실행하지 않는 원시 HTML 요청으로 `/wedding/couple-court/invite`와 `/wedding/couple-court/public`을 각각 기대한 `200`/`404`에 결합한다. Court API는 호출하지 않으므로 이 경계 검사는 DB·rate-limit·OpenAI 쓰기를 만들지 않는다. probe 전후의 safe health observation 전체가 동일해야 한다. `coming_soon`은 세 상태를 모두 `closed`로 강제하고 전역 launch gate가 feature route를 가리므로 이 원시 page probe를 실행하지 않는다.
+
+staged deployment ID·SHA·환경 계약 또는 probe 전후 health 중 하나라도 다르면 fence를 해제하지 않는다.
 
 signed post-migration evidence와 exact restore 전제의 독립 확인 뒤에만 Storage retirement를 별도 공식 API 단계로 실행한다. 이때도 DB write fence는 유지한다. 공개 key를 재활성화해야 한다면 기존 모바일·오래 열린 세션이 즉시 접근할 수 있으므로 fence가 활성인 상태에서만 수행하고, `$NormalUrl`에서는 거부 경계와 read-only identity만 먼저 확인한다. controller는 promote 직전 `main` HEAD·승인·fence receipt를 다시 확인하고 같은 normal deployment ID만 production domain에 승격한다. alias API의 deployment ID와 `hanbang.ai` health의 SHA·Supabase ref가 각각 정확히 일치하기 전에는 fence를 해제하지 않는다.
 
@@ -378,21 +393,24 @@ signed post-migration evidence와 exact restore 전제의 독립 확인 뒤에�
 
 ### 7. canary
 
-출시 전 `coming_soon` 배포는 exact SHA를 지정한 전용 canary를 먼저 통과해야 한다. 이 검사는 공개 allowlist, 로그인·앱 리다이렉트, UTM 정리, 일반 API 503, signed-app association 200, health deployment SHA를 함께 확인한다.
+출시 전 `coming_soon` 배포는 exact SHA를 지정한 전용 canary를 먼저 통과해야 한다. 이 검사는 공개 allowlist, 로그인·앱 리다이렉트, UTM 정리, 일반 API 503, signed-app association 200, health deployment SHA, 세 커플재판소 플래그 `closed`, 원격 mock `false`를 함께 확인한다.
 
 ```powershell
-node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --couple-court-private=closed --couple-court-ai=closed --couple-court-public=closed --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
-`full` 공개 후에도 같은 identity binding을 생략하지 않는다. 실제 배포된 연구 접수와 계정 삭제 cron 상태를 명시한다.
+`full` 공개 후에도 같은 identity binding을 생략하지 않는다. 실제 배포된 연구 접수, 계정 삭제 cron, private/AI/public 상태를 명시한다.
 
 ```powershell
-node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --couple-court-private=<closed-or-open> --couple-court-ai=<closed-or-open> --couple-court-public=<closed-or-open> --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
-원격 `full`과 `coming_soon`은 모두 exact 40-character SHA와 exact 20-character Supabase project ref가 없으면 실패해야 한다. `--allow-unbound-local` 예외는 `localhost`, `127.0.0.1`, `::1` 개발 환경에서만 허용되며 Vercel preview, production, LAN 주소에는 사용할 수 없다.
+운영 alias canary 전에 immutable staged URL에서 같은 인자로 먼저 통과시키고 그 staged deployment ID를 기록한다. promote 뒤 provider alias API로 `hanbang.ai`가 그 동일 ID를 가리킴을 별도로 증명한 뒤 apex 명령을 실행한다. health는 deployment ID를 반환하지 않으며, 같은 SHA의 서로 다른 환경 snapshot 배포도 가능하므로 SHA·health 일치만으로 동일 deployment라고 판정하지 않는다.
+
+원격 `full`과 `coming_soon`은 모두 exact 40-character SHA와 exact 20-character Supabase project ref가 없으면 실패해야 한다. `--allow-unbound-local` 예외는 `localhost`, `127.0.0.1`, `::1` 개발 환경에서만 허용되며 Vercel preview, production, LAN 주소에는 사용할 수 없다. 세 커플재판소 인자는 생략하면 코드상 `closed`가 기본이지만, 환경 snapshot과 증거를 모호하게 만들지 않도록 모든 release 명령에서 명시한다. AI/public `open`은 private `open`을 전제로 하고, `coming_soon`은 세 상태가 모두 `closed`가 아니면 browser 시작 전에 실패해야 한다.
 
 Apple/Play 서명 식별자가 없어 association 경로가 503이면 실패가 정상이며 운영 공개를 진행하지 않는다.
+`full` canary는 `/wedding/couple-court/invite`와 `/wedding/couple-court/public`의 원시 HTML만 읽어 설정에 맞는 `200`/`404`를 확인하고, 전후 health observation의 동일성을 요구한다. JavaScript와 Court API를 실행하지 않으므로 이 검사는 DB·rate-limit·OpenAI 쓰기를 만들지 않는다. AI `open`일 때 확인하는 `coupleCourtProviderConfigured=true`도 설정 증거일 뿐이며 실제 Luna/Terra 응답 canary를 대신하지 않는다. 원격에서는 `coupleCourtMockEnabled=false`가 아니면 실패한다.
 이 자동 canary는 개인정보 행을 만들지 않는다. 실제 `/api/preregister`·Turnstile·Resend 전달·2시간 서명 fragment 링크·주소창 fragment 즉시 제거·사람의 명시적 버튼 클릭 전 GET 무변경·same-origin POST·token-free 결과 URL·`email_verified_at` 전이·재발송·테스트 행 삭제는 운영자가 소유한 전용 이메일, 테스트 행 보유·삭제 승인, DB 확인·정리 증거를 같은 SHA에 별도로 남겨야 한다. Vercel/CDN 요청 로그에 capability가 없고 Resend가 링크를 tracking URL로 재작성하지 않았다는 증거도 함께 남긴다. 그 증거가 없으면 사용자 연구 접수도 GO로 판정하지 않는다.
 
 최소 10분 동안 다음을 반복 확인한다.
@@ -414,6 +432,12 @@ Apple/Play 서명 식별자가 없어 association 경로가 503이면 실패가 
 | DB push 중/직후, 앱 미검증 | maintenance와 fence 유지, 현재 DB·Storage 증거 보존, 승인된 recovery point로 restore 또는 새 프로젝트 복구 | Vercel 롤백만 하고 서비스 재개 |
 | 새 웹 공개 후 | 새 DB의 중앙 account-deletion completion과 expand schema에 호환되고 launch gate를 포함한다고 canary한 anchor에만 rollback. 그 외에는 maintenance 호환 hotfix를 새로 배포 | 과거 gate 없는 deployment로 Instant Rollback, 환경변수도 자동 복구됐다고 가정 |
 | 모바일 rollout 후 | Store rollout 중지/단계 배포 중단. 서버에서 최소 지원 버전을 올리는 결정은 별도 승인 | 이미 설치된 binary를 원격 삭제할 수 있다고 가정 |
+
+커플재판소 결함만 격리하는 rollback은 세 기능 플래그와 mock을 모두 `false`로 고정한 exact-SHA `full` 후보를 trusted controller가 사전에 immutable URL로 staged한 경우에만 허용한다. 아래 canary를 그 URL에서 통과시키고 deployment ID·환경 snapshot·전후 health·두 raw page의 `404`를 기록한다. 장애 시 먼저 write fence를 복구한 뒤 provider alias가 바로 그 canary한 deployment ID를 가리키도록 promote하고, 같은 인자로 `hanbang.ai`를 다시 검사한다. 전체 서비스를 닫아야 하면 위의 `coming_soon` anchor를 사용하되 세 커플재판소 인자도 모두 `closed`로 유지한다.
+
+```powershell
+node ./scripts/live-smoke-test.mjs --base-url=$RollbackUrl --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --couple-court-private=closed --couple-court-ai=closed --couple-court-public=closed --expected-sha=$RollbackSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
+```
 
 Vercel Instant Rollback은 코드 deployment를 바꾸지만 DB나 이후 변경된 환경 변수를 되돌리지 않는다. 현재 gate 없는 과거 production deployment는 명시적으로 **rollback 금지**다. 공식 기준: [Vercel Instant Rollback](https://vercel.com/docs/instant-rollback), [Vercel CLI rollback](https://vercel.com/docs/cli/rollback)
 
@@ -442,10 +466,11 @@ Release-control repository / protected environment / exact-SHA push CI run IDs:
 Signed staged/promoted receipt digest / attester / controller run ID:
 Vercel CLI or API version / allowlisted team / project / GitHub repository ID:
 Vercel automation-bypass consumer inventory / new-secret rollout / old-secret denial / usage review:
-Live smoke expected SHA / expected Supabase project ref:
-Launch-gate anchor staged URL / deployment ID / env snapshot / promoted UTC / canary:
+Live smoke expected SHA / expected Supabase project ref / expected Couple Court private-AI-public states:
+Live smoke observed remote mock=false / provider-config state / raw page statuses / before-after health identity:
+Launch-gate anchor staged URL / deployment ID / env snapshot / promoted alias same deployment ID / UTC / canary:
 Maintenance staged URL / deployment ID / env snapshot / promoted UTC / canary:
-Normal staged URL / deployment ID / env snapshot / promoted UTC / canary:
+Normal staged URL / deployment ID / env snapshot / promoted alias same deployment ID / UTC / canary:
 Kakao rotation / restriction / old-key denial / usage review / history decision:
 OpenAI old-key revocation / denial / usage review / Production new-key target / Luna+Terra exact-SHA canary:
 Resend domain / click-tracking disabled evidence / delivery canary:
