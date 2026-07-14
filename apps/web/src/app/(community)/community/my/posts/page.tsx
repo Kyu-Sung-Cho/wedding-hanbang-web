@@ -6,6 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
+import CommunityConfigurationUnavailable from "@/components/community/CommunityConfigurationUnavailable";
 import { useAuthStore } from "@/stores/authStore";
 import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
@@ -36,19 +37,40 @@ export default function MyPostsPage() {
   const [avatarInput, setAvatarInput] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const [connectionFailed, setConnectionFailed] = useState(false);
+  const configurationUnavailable =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    connectionFailed;
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`); return; }
-      setUserId(user.id);
-    })();
-  }, [router, supabase.auth]);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
+
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
+      try {
+        const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user) {
+          router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/posts"))}`);
+          return;
+        }
+        setUserId(user.id);
+      } catch {
+        if (!cancelled) {
+          setConnectionFailed(true);
+          setLoading(false);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   useEffect(() => {
     if (!userId) return;
@@ -84,6 +106,14 @@ export default function MyPostsPage() {
       });
     return () => controller.abort();
   }, [userId]);
+
+  if (configurationUnavailable) {
+    return (
+      <CommunityConfigurationUnavailable
+        retryHref={weddingPath("/community/my/posts")}
+      />
+    );
+  }
 
   const published = posts.filter((p) => p.visibility !== "draft");
   const drafts = posts.filter((p) => p.visibility === "draft");
