@@ -5,7 +5,12 @@ const EXTERNAL_PATH_RE = /^(?:[a-z][a-z0-9+.-]*:|#)/i;
 export function weddingPath(path = ""): string {
   if (!path || path === "/") return WEDDING_BASE_PATH;
   if (EXTERNAL_PATH_RE.test(path)) return path;
-  if (path === WEDDING_BASE_PATH || path.startsWith(`${WEDDING_BASE_PATH}/`)) {
+  if (
+    path === WEDDING_BASE_PATH ||
+    path.startsWith(`${WEDDING_BASE_PATH}/`) ||
+    path.startsWith(`${WEDDING_BASE_PATH}?`) ||
+    path.startsWith(`${WEDDING_BASE_PATH}#`)
+  ) {
     return path;
   }
   if (path === "/community") return WEDDING_BASE_PATH;

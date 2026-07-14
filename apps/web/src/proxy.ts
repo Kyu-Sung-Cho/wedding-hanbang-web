@@ -1,8 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
+  if (
+    isPreviewStubMode() &&
+    (request.nextUrl.pathname === "/api" ||
+      request.nextUrl.pathname.startsWith("/api/"))
+  ) {
+    return NextResponse.json(
+      { error: "preview_stub_api_disabled" },
+      {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      }
+    );
+  }
+
   if (
     request.nextUrl.pathname === "/wedding-code/result" ||
     (request.nextUrl.pathname === "/wedding-code" &&

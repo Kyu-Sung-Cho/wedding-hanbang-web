@@ -129,4 +129,12 @@ corepack pnpm --filter @hanbang/web test
 corepack pnpm qa:local
 ```
 
+## Preview stub safety fence
+
+- Vercel Preview may set `NEXT_PUBLIC_PREVIEW_STUB_MODE=true` without copying any production Supabase or AI secret.
+- The flag has priority over accidentally injected Supabase values: public landing auth/realtime/feed effects stay disconnected.
+- Every `/api` and `/api/*` request returns `503` with `Cache-Control: no-store`, so preview code cannot read or write through application routes.
+- Production must keep the flag absent or `false`. Missing Supabase configuration without the flag remains a visible fail-fast configuration error.
+- Rollback: remove the Preview-scoped variable (or set it to `false`) and redeploy. Do not compensate by copying production service-role or provider keys into Preview.
+
 키 값 자체를 출력하는 명령은 실행하거나 문서화하지 않는다. 환경변수는 존재 여부와 placeholder 여부만 검증한다.

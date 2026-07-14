@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import { createClient } from "@/lib/supabase/client";
 import { useCommunityStore } from "@/stores/communityStore";
 
@@ -12,6 +13,8 @@ import { useCommunityStore } from "@/stores/communityStore";
  */
 export function useCommunityRealtime() {
   useEffect(() => {
+    if (isPreviewStubMode()) return;
+
     const supabase = createClient();
 
     const channel = supabase

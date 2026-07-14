@@ -5,6 +5,7 @@ import CommunityTutorial from "@/components/community/CommunityTutorial";
 import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
 import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
+import { isPreviewStubMode } from "@/lib/previewStub";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function CommunityFeedPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
-  const initialFeed = canUseServerInitialCommunityFeed(initialQuery)
+  const initialFeed = !isPreviewStubMode() && canUseServerInitialCommunityFeed(initialQuery)
     ? await getInitialCommunityFeed(10)
     : undefined;
 

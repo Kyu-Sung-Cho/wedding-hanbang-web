@@ -51,6 +51,7 @@ import { timeAgo } from "@/utils/timeAgo";
 import { communityPostLinkProps, communityPostUrl, isCommunityCategory } from "@/lib/community/routes";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { captureEvent } from "@/lib/analytics";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import {
   FLEX_COHORT_MONTH,
   FLEX_COHORT_YEAR,
@@ -71,6 +72,12 @@ interface BestPostPayload {
 }
 
 const shell = "mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8";
+const PREVIEW_STUB_FEED: InitialCommunityFeed = {
+  posts: [],
+  total: 0,
+  hasMore: false,
+  fetchedAt: "1970-01-01T00:00:00.000Z",
+};
 const sortValues: PostSort[] = ["new", "hot", "top", "my_cohort", "my_posts"];
 const periodValues: TimePeriod[] = ["week", "month", "all"];
 
@@ -217,6 +224,7 @@ export default function CommunityLandingClient({
   initialFeed?: InitialCommunityFeed;
   initialQuery?: CommunityFeedQuery;
 }) {
+  const previewStubMode = isPreviewStubMode();
   useCommunityRealtime();
 
   const router = useRouter();
@@ -346,18 +354,22 @@ export default function CommunityLandingClient({
   }, [isSearching, searchHasMore, searchLoading, searchPage, searchQuery, selectedCategory]);
 
   useEffect(() => {
+    if (previewStubMode) {
+      useCommunityStore.getState().hydrateInitialFeed(PREVIEW_STUB_FEED);
+      return;
+    }
     if (!canUseInitialFeed || !initialFeed) return;
     useCommunityStore.getState().hydrateInitialFeed(initialFeed);
-  }, [canUseInitialFeed, initialFeed]);
+  }, [canUseInitialFeed, initialFeed, previewStubMode]);
 
   useEffect(() => {
-    if (isSearching) return;
+    if (previewStubMode || isSearching) return;
     const store = useCommunityStore.getState();
     store.setCategory(selectedCategory);
     store.setTag(tagQuery || null);
     store.setAuthorId(authorQuery || null);
     store.fetchPosts(true);
-  }, [authorQuery, currentPeriod, currentSort, isSearching, selectedCategory, tagQuery]);
+  }, [authorQuery, currentPeriod, currentSort, isSearching, previewStubMode, selectedCategory, tagQuery]);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -1158,10 +1170,13 @@ function RightPanels() {
 }
 
 function BestPostsPanel() {
+  const previewStubMode = isPreviewStubMode();
   const [posts, setPosts] = useState<TrendingPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!previewStubMode);
 
   useEffect(() => {
+    if (previewStubMode) return;
+
     let cancelled = false;
     void withSessionCache("community:landing:weekly-top-posts:5", 5 * 60 * 1000, async () => {
       const normalize = (items: TrendingPost[]) =>
@@ -1187,10 +1202,10 @@ function BestPostsPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [previewStubMode]);
 
   const title = "이번 주 인기글";
-  const moreHref = weddingPath("/community?sort=top&period=week&feed=all#community-feed");
+  const moreHref = "/community?sort=top&period=week&feed=all#community-feed";
 
   return (
     <article className="rounded-[18px] border border-[#eadfc9] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
@@ -1353,6 +1368,7 @@ function formatMarketPrice(value: number | null): string {
 }
 
 function CohortPreviewPanel() {
+  const previewStubMode = isPreviewStubMode();
   const { profile, journey, isInitialized, isLoading: authLoading } = useAuthStore();
   const [panelState, setPanelState] = useState<CohortPanelState>({ status: "idle" });
   const weddingDate = journey?.wedding_date ?? null;
@@ -1364,6 +1380,11 @@ function CohortPreviewPanel() {
     async function syncMyCohort() {
       await Promise.resolve();
       if (cancelled) return;
+
+      if (previewStubMode) {
+        setPanelState({ status: "manual" });
+        return;
+      }
 
       if (!isInitialized && !authLoading && !hasPossibleAuthSession()) {
         setPanelState({ status: "unauth" });
@@ -1438,7 +1459,7 @@ function CohortPreviewPanel() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, isInitialized, userId, weddingDate]);
+  }, [authLoading, isInitialized, previewStubMode, userId, weddingDate]);
 
   return (
     <article

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import AuthInitializer from "@/components/common/AuthInitializer";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import { createClient } from "@/lib/supabase/client";
 
 export default function CommunityAuthInitializer() {
+  const previewStubMode = isPreviewStubMode();
   const [communityHasSession, setCommunityHasSession] = useState(
     () =>
       typeof document !== "undefined" &&
@@ -12,7 +14,7 @@ export default function CommunityAuthInitializer() {
   );
 
   useEffect(() => {
-    if (communityHasSession) return;
+    if (previewStubMode || communityHasSession) return;
 
     let cancelled = false;
     const supabase = createClient();
@@ -25,8 +27,8 @@ export default function CommunityAuthInitializer() {
     return () => {
       cancelled = true;
     };
-  }, [communityHasSession]);
+  }, [communityHasSession, previewStubMode]);
 
-  if (!communityHasSession) return null;
+  if (previewStubMode || !communityHasSession) return null;
   return <AuthInitializer />;
 }
