@@ -130,7 +130,6 @@ export function getWeddingPlannerSystemPrompt(context: {
     budgetAttitude?: string | null; // 절약형, 가성비, 프리미엄
     guestCount?: string | null; // "50이하", "50-100", "100-200", "200-300", "300+"
   };
-  feedbackLessons?: string[];
   amoraProfiles?: {
     shared?: {
       personaSummary?: string | null;
@@ -437,18 +436,6 @@ ${profileBlocks.join("\n\n")}
     insightsSection = `\n## 행동 패턴 인사이트\n${behaviorInsights.map((i) => `- ${i}`).join("\n")}`;
   }
 
-  // 피드백 학습 섹션 생성
-  let feedbackLessonsSection = "";
-  if (context.feedbackLessons && context.feedbackLessons.length > 0) {
-    const lessonsText = context.feedbackLessons.map((l) => `- ${l}`).join("\n");
-    feedbackLessonsSection = `\n## 과거 피드백에서 배운 것
-이 커플(또는 다른 사용자들)이 이전에 수정해준 내용입니다. 같은 실수를 반복하지 마세요:
-${lessonsText}
-
-이 피드백들은 사용자가 직접 알려준 것이므로 최우선으로 반영하세요.
-새로운 실수를 하면 사용자가 다시 알려줄 것이고, 그것도 학습됩니다.`;
-  }
-
   // Memory Step C: 이 커플의 과거 결정 히스토리 섹션
   // decision_nodes (최근 50개) 기반. AI 추출 + favorites + bookings + onboarding 통합.
   // 토큰 효율을 위해 최근 14일 = 상세, 그 이전 = 압축 형태로 split.
@@ -585,7 +572,7 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${insightsSection}${feedbackLessonsSection}
+${categoryStatus}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${insightsSection}
 
 ## 아모라의 사고방식
 

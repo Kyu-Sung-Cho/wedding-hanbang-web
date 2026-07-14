@@ -14,6 +14,18 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("never injects raw chat feedback into the system prompt", () => {
+    const crossCoupleCanary = "CROSS_COUPLE_PRIVATE_CANARY_7f30d1";
+    const contextWithUntrustedLegacyFeedback = {
+      ...baseContext,
+      bookings: [],
+      feedbackLessons: [crossCoupleCanary],
+    };
+    const prompt = getWeddingPlannerSystemPrompt(contextWithUntrustedLegacyFeedback);
+
+    expect(prompt).not.toContain(crossCoupleCanary);
+  });
+
   it("includes actual booking cost and extra cost when outcome data exists", () => {
     const prompt = getWeddingPlannerSystemPrompt({
       ...baseContext,

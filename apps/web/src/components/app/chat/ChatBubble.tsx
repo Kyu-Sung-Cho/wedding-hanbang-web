@@ -536,7 +536,7 @@ export default function ChatBubble({
               /ai-policy 링크로 충족. 가독성 회복 (이전 사고: 매 메시지 footer 가
               과잉). */}
           {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
-          {isRecentAi && (
+          {isRecentAi && !aiIsPrivate && (
             <AiFeedbackRow
               messageId={message.id}
               onNegativeFeedback={() => onNegativeFeedback?.(message)}
