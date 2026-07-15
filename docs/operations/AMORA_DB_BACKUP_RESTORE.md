@@ -192,6 +192,13 @@ locked physical PGlite entry, opens a database, executes a query, and closes it.
 The final three cases reject a preflight-to-inventory OID replacement, an
 inventory-to-data OID replacement, and a transient inherited data relation.
 
+GitHub's Windows runner cannot satisfy the production host's committed absolute
+Node path, byte size and SHA-256 by design. CI therefore runs
+`pnpm amora:db:test-backup:ci`, which executes the 30 portable cases and
+explicitly reports `HostBoundRuntimeSmokeSkipped=true`. The normal
+`pnpm amora:db:test-backup` command must still pass all 31 cases on the actual
+production backup host before any production write.
+
 ## What PGlite does not prove
 
 PowerShell authenticates and inspects the JSON envelope, timestamps, table

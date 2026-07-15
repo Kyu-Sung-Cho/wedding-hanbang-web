@@ -85,4 +85,4 @@ jobs:
 
       - name: Exercise encrypted backup and verifier
         shell: pwsh
-        run: pnpm amora:db:test-backup
+        run: pnpm amora:db:test-backup:ci
