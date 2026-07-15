@@ -15,6 +15,7 @@ import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
 import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
+import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
@@ -459,8 +460,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       sender_id: null,
       sender_role: "ai",
       visibility: "shared",
-      content:
-        "안녕하세요, 저는 아모라예요. 데모에서는 실제 저장 없이 예산, 일정, 견적, 준비 체크리스트 상담 흐름을 미리 체험할 수 있어요. 지금 궁금한 준비 항목을 편하게 물어보세요.",
+      content: AMORA_DEMO_WELCOME,
       metadata: {},
       created_at: new Date().toISOString(),
     };
@@ -471,7 +471,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       suggestions:
         state.suggestions.length > 0
           ? state.suggestions
-          : ["이번 주에 먼저 할 일 알려줘", "스냅 촬영 준비 체크해줘", "예산 배분 다시 봐줘"],
+          : [...AMORA_DEMO_SUGGESTIONS],
       error: null,
     }));
   }, [coupleId, isDemo, profile]);
