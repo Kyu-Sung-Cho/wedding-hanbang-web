@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getWeddingPlannerSystemPrompt } from "../prompts";
+import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "../../chat/amoraDemoCopy";
 
 const baseContext = {
   weddingDate: null,
@@ -14,6 +15,34 @@ const baseContext = {
 };
 
 describe("getWeddingPlannerSystemPrompt", () => {
+  it("puts the caring voice contract ahead of operational rules", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    const voiceIndex = prompt.indexOf("최우선 대화 원칙 — 친언니처럼 다정하고 끝까지 챙기는 아모라");
+    const dateRuleIndex = prompt.indexOf("날짜 처리 절대 규칙");
+
+    expect(voiceIndex).toBeGreaterThan(-1);
+    expect(dateRuleIndex).toBeGreaterThan(voiceIndex);
+    expect(prompt).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
+    expect(prompt).toContain("반영되지 않았다는 사실");
+  });
+
+  it("does not force a robotic three-suggestion ending on every reply", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+
+    expect(prompt).toContain("이어서 할 수 있는 것 (선택)");
+    expect(prompt).toContain("모든 답변에 붙이지 마세요");
+    expect(prompt).not.toContain("## 후속 질문 (필수)");
+    expect(prompt).not.toContain("수백 커플의 결혼을 도운");
+  });
+
+  it("keeps the warmer demo greeting honest about non-persistence", () => {
+    expect(AMORA_DEMO_WELCOME).toContain("실제 일정·예산에 저장되지는 않지만");
+    expect(AMORA_DEMO_WELCOME).toContain("제가 같이 챙겨볼게요");
+    expect(AMORA_DEMO_SUGGESTIONS).toHaveLength(3);
+    expect(new Set(AMORA_DEMO_SUGGESTIONS).size).toBe(AMORA_DEMO_SUGGESTIONS.length);
+  });
+
   it("never injects raw chat feedback into the system prompt", () => {
     const crossCoupleCanary = "CROSS_COUPLE_PRIVATE_CANARY_7f30d1";
     const contextWithUntrustedLegacyFeedback = {

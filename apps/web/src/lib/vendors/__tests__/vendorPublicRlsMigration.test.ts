@@ -141,7 +141,7 @@ async function visibleCounts(db: PGlite) {
 
 describe("vendor public RLS hardening migration", () => {
   it("contains no vendor data mutation and removes only the known drift policies", () => {
-    expect(migration).toMatch(/^--[\s\S]*\nBEGIN;\n/);
+    expect(migration).toMatch(/^--[\s\S]*\r?\n\s*BEGIN;\r?\n/);
     expect(migration.trimEnd()).toMatch(/COMMIT;$/);
     expect(migration).toContain("SET lock_timeout = '5s';");
     expect(migration).toContain("SET statement_timeout = '30s';");
