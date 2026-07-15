@@ -12,9 +12,30 @@ import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
+function GlobalChatAssistant({ hasContextualAssistant }: { hasContextualAssistant: boolean }) {
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+
+  return (
+    <>
+      <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
+
+      {!chatPanelOpen && !hasContextualAssistant && (
+        <button
+          type="button"
+          onClick={() => setChatPanelOpen(true)}
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
+          title="아모라 AI 상담"
+          aria-label="아모라 AI 상담"
+        >
+          <Sparkles className="h-5 w-5 md:h-6 md:w-6" />
+        </button>
+      )}
+    </>
+  );
+}
+
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const pathname = usePathname();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
@@ -66,18 +87,8 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         )}
       </div>
 
-      <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
-
-      {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
-        <button
-          type="button"
-          onClick={() => setChatPanelOpen(true)}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
-          title="아모라 AI 상담"
-          aria-label="아모라 AI 상담"
-        >
-          <Sparkles className="h-5 w-5 md:h-6 md:w-6" />
-        </button>
+      {!isChatPage && (
+        <GlobalChatAssistant hasContextualAssistant={hasContextualAssistant} />
       )}
     </div>
   );
