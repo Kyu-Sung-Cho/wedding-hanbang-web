@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { getWeddingPlannerSystemPrompt } from "../prompts";
 import { getSpecialistPromptAddon } from "../stage-router";
 import { buildAmoraSystemPrompt } from "../amoraPromptComposer";
-import { AMORA_FINAL_TURN_GUARD, AMORA_MEDIATION_TURN_GUARD } from "../amoraVoice";
+import {
+  AMORA_DEMO_TURN_GUARD,
+  AMORA_FINAL_TURN_GUARD,
+  AMORA_MEDIATION_TURN_GUARD,
+} from "../amoraVoice";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "../../chat/amoraDemoCopy";
 
 const baseContext = {
@@ -63,14 +67,19 @@ describe("getWeddingPlannerSystemPrompt", () => {
     const generalAddon = getSpecialistPromptAddon("general");
     const assembledPrompt = buildAmoraSystemPrompt(
       { ...baseContext, bookings: [] },
-      { specialist: "budget_optimizer" },
+      {
+        specialist: "budget_optimizer",
+        requestKind: "chat",
+        persistenceMode: "durable",
+      },
     );
     const expertiseIndex = assembledPrompt.indexOf("[전문분야 — 예산 최적화]");
     const guardIndex = assembledPrompt.indexOf("[이번 답변의 대화 우선순위]");
 
     expect(expertiseIndex).toBeGreaterThan(-1);
     expect(guardIndex).toBeGreaterThan(expertiseIndex);
-    expect(AMORA_FINAL_TURN_GUARD).toContain("확정형 발화는 감정 표현과 섞여 있어도 실행 역할이 우선");
+    expect(AMORA_FINAL_TURN_GUARD).toContain("request_kind: chat");
+    expect(AMORA_FINAL_TURN_GUARD).toContain("감정 표현과 섞여 있어도 실행 역할이 우선");
     expect(AMORA_FINAL_TURN_GUARD).toContain("[INITIAL_GREETING]");
     expect(AMORA_FINAL_TURN_GUARD).toContain("감정 토로가 아닙니다");
     expect(AMORA_FINAL_TURN_GUARD).toContain("표현 선호는 개인화의 근거로 쓸 수 있지만");
@@ -86,7 +95,12 @@ describe("getWeddingPlannerSystemPrompt", () => {
           `summary-${index}-${"가".repeat(1_500)}`
         ),
       },
-      { specialist: "general", mode: "mediation", maxChars: 48_000 },
+      {
+        specialist: "general",
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        maxChars: 48_000,
+      },
     );
 
     expect(prompt.length).toBeLessThanOrEqual(48_000);
@@ -95,6 +109,57 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
     expect(prompt.indexOf(AMORA_MEDIATION_TURN_GUARD.trim())).toBeGreaterThan(-1);
     expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+  });
+
+  it("makes demo persistence limits explicit near the final prompt boundary", () => {
+    const prompt = buildAmoraSystemPrompt(
+      {
+        ...baseContext,
+        bookings: [],
+        chatSummaries: Array.from({ length: 100 }, (_, index) =>
+          `summary-${index}-${"가".repeat(1_500)}`
+        ),
+      },
+      {
+        specialist: "general",
+        persistenceMode: "demo",
+        requestKind: "chat",
+        maxChars: 48_000,
+      },
+    );
+
+    expect(prompt.length).toBeLessThanOrEqual(48_000);
+    expect(prompt).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+    expect(prompt).toContain("[체험 상담 저장 경계]");
+    expect(AMORA_DEMO_TURN_GUARD).toContain("실제 일정·예산·예약에는 저장되지 않았다고");
+    expect(AMORA_DEMO_TURN_GUARD).toContain("제3자");
+    expect(AMORA_DEMO_TURN_GUARD).toContain("인용");
+    expect(AMORA_DEMO_TURN_GUARD).toContain("가정");
+    expect(AMORA_DEMO_TURN_GUARD).toContain("첨부 문서");
+    expect(AMORA_DEMO_TURN_GUARD).not.toContain("[MEDIATION_REQUEST]");
+    expect(prompt.indexOf(AMORA_DEMO_TURN_GUARD.trim())).toBeGreaterThan(
+      prompt.indexOf("최우선 대화 원칙"),
+    );
+    expect(prompt.indexOf(AMORA_FINAL_TURN_GUARD.trim())).toBeGreaterThan(
+      prompt.indexOf(AMORA_DEMO_TURN_GUARD.trim()),
+    );
+  });
+
+  it("selects the demo persistence guard only from the trusted turn kind", () => {
+    const context = { ...baseContext, bookings: [] };
+
+    expect(buildAmoraSystemPrompt(context, {
+      persistenceMode: "demo",
+      requestKind: "chat",
+    })).toContain("[체험 상담 저장 경계]");
+    expect(buildAmoraSystemPrompt(context, {
+      persistenceMode: "demo",
+      requestKind: "initial_greeting",
+    })).not.toContain("[체험 상담 저장 경계]");
+    expect(buildAmoraSystemPrompt(context, {
+      persistenceMode: "demo",
+      requestKind: "mediation",
+    })).not.toContain("[체험 상담 저장 경계]");
   });
 
   it("does not infer personality or preference from budget allocation", () => {

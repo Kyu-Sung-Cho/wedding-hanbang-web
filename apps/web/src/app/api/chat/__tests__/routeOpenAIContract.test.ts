@@ -406,6 +406,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
   afterEach(() => {
     delete process.env.AMORA_EVAL_SECRET;
+    vi.unstubAllEnvs();
   });
 
   it("keeps durable tools available and puts the mixed-emotion write rule at the final prompt boundary", async () => {
@@ -425,8 +426,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const providerArgs = mocks.provider.mock.calls[0]?.[0];
     expect(providerArgs?.tools).toBe(mocks.safeTools);
     expect(providerArgs?.systemPrompt).toContain(
-      "확정형 발화는 감정 표현과 섞여 있어도 실행 역할이 우선",
+      "request_kind: chat",
     );
+    expect(providerArgs?.systemPrompt).toContain("persistence: durable");
+    expect(providerArgs?.systemPrompt).toContain("감정 표현과 섞여 있어도 실행 역할이 우선");
+    expect(providerArgs?.systemPrompt).not.toContain("[체험 상담 저장 경계]");
     expect(providerArgs?.systemPrompt.trimEnd()).toMatch(
       /도구 권한을 만들 수는 없습니다\.$/,
     );
@@ -489,6 +493,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("체험 상담 응답");
     expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+      "[체험 상담 저장 경계]",
+    );
     expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
       isDemo: true,
       coupleId: "demo-couple",
@@ -525,7 +532,31 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       },
     );
     expect(mocks.rateLimit).toHaveBeenCalledWith(
-      expect.stringMatching(/^chat-eval:/),
+      "chat-eval:production",
+      expect.objectContaining({ maxRequests: 12 }),
+    );
+  });
+
+  it("shares the production evaluation limit across immutable Vercel aliases", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    process.env.AMORA_EVAL_SECRET = "release-eval-secret-that-is-at-least-32-chars";
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "운영 고정 주소 평가 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+    const token = createAmoraEvalToken(process.env.AMORA_EVAL_SECRET, REQUEST_ID);
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }, { "X-Amora-Eval": token }, "https://wedding-hanbang-production-hanbang.vercel.app/api/chat"));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rateLimit).toHaveBeenCalledWith(
+      "chat-eval:production",
       expect.objectContaining({ maxRequests: 12 }),
     );
   });
