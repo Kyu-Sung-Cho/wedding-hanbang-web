@@ -39,7 +39,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
-          ANTHROPIC_API_KEY: placeholder
           # OpenAI adapter tests inject a fake client. Keep the production cutover off in CI.
           AMORA_OPENAI_ENABLED: "false"
           RESEND_API_KEY: placeholder
@@ -48,3 +47,31 @@ jobs:
           DECART_API_KEY: placeholder
           NAVER_CLIENT_ID: placeholder
           NAVER_CLIENT_SECRET: placeholder
+
+      - name: Supabase release manifest fence
+        run: pnpm supabase:release:fence
+
+  windows-backup:
+    name: Windows Backup Safety Gate
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Exercise encrypted backup and verifier
+        shell: pwsh
+        run: pnpm amora:db:test-backup

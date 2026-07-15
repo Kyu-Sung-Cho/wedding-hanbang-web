@@ -106,14 +106,14 @@ export async function DELETE(request: Request) {
       }
 
       case "delete_shared": {
-        // 둘 다 새로 시작 — 양쪽 영향. shared 메시지만 삭제 (private은 보존).
-        const { count, error } = await admin
-          .from("chat_messages")
-          .delete({ count: "exact" })
-          .eq("couple_id", coupleId)
-          .eq("visibility", "shared");
-        if (error) throw error;
-        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
+        // 공유 기록의 실제 삭제는 양쪽 동의가 필요한 clear-request 흐름만 허용한다.
+        return NextResponse.json(
+          {
+            error: "공유 대화 삭제 방식이 변경되었습니다. 함께 새로 시작하기를 이용해주세요.",
+            code: "SHARED_HARD_DELETE_DISABLED",
+          },
+          { status: 410 },
+        );
       }
 
       case "delete_private": {

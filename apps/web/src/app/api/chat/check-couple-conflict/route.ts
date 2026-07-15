@@ -10,7 +10,7 @@
  *  3. detectCoupleConflict 실행 (휴리스틱 + borderline LLM 검증)
  *  4. 트리거 시:
  *     a. cooldown 락 — 최근 10분 내 mediation 메시지 있으면 abort (race condition 방어)
- *     b. Claude API 호출하여 [MEDIATION_REQUEST] 응답 생성
+ *     b. OpenAI Responses API로 [MEDIATION_REQUEST] 응답 생성
  *     c. extractMediation 으로 [mediation] 마커 파싱
  *     d. chat_messages 에 sender_type='ai', visibility='shared', metadata.mediation 으로 INSERT
  *  5. Realtime 이 양쪽 클라이언트에 mediation 메시지 자동 전달
@@ -27,11 +27,20 @@ import { extractMediation } from "@/lib/ai/mediation";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { checkAmoraCostGuard, reserveAmoraTurn } from "@/lib/ai/costGuard";
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
+import {
+  claimChatRequest,
+  completeChatRequest,
+  failChatRequest,
+} from "@/lib/ai/chatRequestClaim";
+import { createHash } from "node:crypto";
 
-const MEDIATION_MODEL = "claude-sonnet-4-6";
 const MEDIATION_COOLDOWN_MIN = 10;
 const RECENT_MESSAGE_LIMIT = 20;
+const MAX_MEDIATION_SYSTEM_CHARS = 48_000;
+const MAX_MEDIATION_MESSAGE_CHARS = 1_200;
+const MAX_CONFLICT_CONTEXT_CHARS = 2_000;
 
 function getAdminClient() {
   return createServiceClient(
@@ -41,6 +50,12 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
+  let durableClaim: {
+    coupleId: string;
+    requestKey: string;
+    userId: string;
+    visibility: "shared";
+  } | null = null;
   try {
     // ── 1. 인증 + 커플 확인 ───────────────────────────────────
     const supabase = await createClientFromRequest(req);
@@ -113,7 +128,7 @@ export async function POST(req: NextRequest) {
     // ── 3. 최근 shared 메시지 조회 ───────────────────────────
     const { data: rawMessages } = await admin
       .from("chat_messages")
-      .select("content, sender_type, sender_id, created_at, visibility, metadata")
+      .select("id, content, sender_type, sender_id, created_at, visibility, metadata")
       .eq("couple_id", coupleId)
       .eq("visibility", "shared")
       .order("created_at", { ascending: false })
@@ -121,6 +136,20 @@ export async function POST(req: NextRequest) {
 
     if (!rawMessages || rawMessages.length < 2) {
       return NextResponse.json({ triggered: false, reason: "insufficient_messages" });
+    }
+
+    // Partner-addressed messages are private correspondence. Until both people
+    // explicitly opt in to provider processing, fail closed before either the
+    // conflict-verification or mediation OpenAI calls can receive their text.
+    const containsPartnerOnlyMessage = rawMessages.some((message) => {
+      const metadata = message.metadata as { target?: unknown } | null;
+      return metadata?.target === "partner";
+    });
+    if (containsPartnerOnlyMessage) {
+      return NextResponse.json({
+        triggered: false,
+        reason: "privacy_consent_required",
+      });
     }
 
     const recentMessages: CoupleMessage[] = rawMessages
@@ -166,12 +195,38 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 6. mediation 메시지 생성 ─────────────────────────────
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
+    if (!hasOpenAIConfig("primary")) {
       return NextResponse.json({
         triggered: false,
-        reason: "ANTHROPIC_API_KEY 없음",
+        reason: "openai_not_configured",
       });
+    }
+
+    const mediationDigest = createHash("sha256")
+      .update(coupleId)
+      .update("\0")
+      .update(
+        rawMessages
+          .map((message) => String(message.id))
+          .sort()
+          .join(","),
+      )
+      .digest("hex");
+    durableClaim = {
+      coupleId,
+      requestKey: `mediation:${mediationDigest}`,
+      userId: user.id,
+      visibility: "shared",
+    };
+    const claim = await claimChatRequest(durableClaim, admin);
+    if (claim.action === "completed") {
+      return NextResponse.json({ triggered: false, reason: "already_completed" });
+    }
+    if (claim.action === "in_progress") {
+      return NextResponse.json({ triggered: false, reason: "in_progress" }, { status: 409 });
+    }
+    if (claim.action === "conflict") {
+      return NextResponse.json({ triggered: false, reason: "request_conflict" }, { status: 409 });
     }
 
     // 6-a. 시스템 프롬프트 빌드용 컨텍스트 조회
@@ -253,27 +308,28 @@ export async function POST(req: NextRequest) {
       preferences: undefined,
       pastDecisions,
       pastConflicts: pastConflictsForPrompt,
-    });
+    }).slice(0, MAX_MEDIATION_SYSTEM_CHARS);
 
-    // 6-e. Claude API 호출용 메시지 — recent 메시지에 [MEDIATION_REQUEST] 추가
+    // 6-e. OpenAI Responses 입력 — recent 메시지에 [MEDIATION_REQUEST] 추가
     const messageList = recentMessages.map((m) => {
+      const boundedContent = m.content.trim().slice(0, MAX_MEDIATION_MESSAGE_CHARS);
       if (m.senderRole === "ai") {
-        return { role: "assistant" as const, content: m.content };
+        return { role: "assistant" as const, content: boundedContent };
       }
       const roleLabel = m.senderRole === "bride" ? "신부" : "신랑";
       const target = m.metadata?.target;
       const prefix = target === "partner" ? `[${roleLabel}→상대방]` : `[${roleLabel}]`;
-      return { role: "user" as const, content: `${prefix} ${m.content}` };
+      return { role: "user" as const, content: `${prefix} ${boundedContent}` };
     });
 
     const triggerRoleLabel =
       profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "사용자";
     messageList.push({
       role: "user" as const,
-      content: `[${triggerRoleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등이 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${detection.conflictContext}`,
+      content: `[${triggerRoleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등이 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${detection.conflictContext.slice(0, MAX_CONFLICT_CONTEXT_CHARS)}`,
     });
 
-    // 6-f. Claude 호출 (non-streaming)
+    // 6-f. OpenAI 호출 (non-streaming, 고위험 중재는 Terra)
     // 실제 LLM 호출 직전 원자 예약 — 앞단 읽기전용 체크와 달리 여기서 턴 1회를
     // 소모 확정한다 (동시 요청 상한 초과 방지, 감사 2.3 H1).
     const reserved = await reserveAmoraTurn(admin, {
@@ -281,34 +337,34 @@ export async function POST(req: NextRequest) {
       isAdmin: profile?.is_admin === true,
     });
     if (!reserved.allowed) {
+      await failChatRequest({ ...durableClaim, failureCode: "COST_GUARD_REJECTED" }, admin)
+        .catch((error) => console.error("[check-couple-conflict] claim release failed", error));
+      durableClaim = null;
       return NextResponse.json({ triggered: false, reason: "cost_guard" });
     }
 
-    const completion = await createAnthropicMessageWithAudit({
-      params: {
-        model: MEDIATION_MODEL,
-        max_tokens: 800,
-        system: systemPrompt,
-        messages: messageList,
-        temperature: 0.6,
-      },
+    const completion = await createOpenAIResponseWithAudit({
+      modelRole: "primary",
+      maxOutputTokens: 800,
+      instructions: systemPrompt,
+      input: messageList,
       audit: {
         userId: user.id,
         coupleId,
         interactionType: "chat_turn",
         specialistType: "general",
-        userInput: detection.conflictContext ?? "",
+        userInput: null,
         metadata: { source: "auto_conflict_detection", score: detection.score },
       },
     });
 
-    const fullText = completion.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
+    const fullText = completion.text;
 
     const { cleanText, mediation } = extractMediation(fullText);
     if (!cleanText.trim()) {
+      await failChatRequest({ ...durableClaim, failureCode: "EMPTY_RESPONSE" }, admin)
+        .catch((error) => console.error("[check-couple-conflict] claim failure marker failed", error));
+      durableClaim = null;
       return NextResponse.json({ triggered: false, reason: "empty_response" });
     }
 
@@ -329,10 +385,13 @@ export async function POST(req: NextRequest) {
       });
     if (lateMediationFound) {
       // 다른 클라이언트가 먼저 mediation INSERT — 우리는 abort
+      await failChatRequest({ ...durableClaim, failureCode: "COOLDOWN_RACE_LOST" }, admin)
+        .catch((error) => console.error("[check-couple-conflict] claim release failed", error));
+      durableClaim = null;
       return NextResponse.json({ triggered: false, reason: "race_lost" });
     }
 
-    const { data: inserted } = await admin
+    const { data: inserted, error: insertError } = await admin
       .from("chat_messages")
       .insert({
         couple_id: coupleId,
@@ -347,24 +406,62 @@ export async function POST(req: NextRequest) {
           source: "auto_conflict_detection",
           score: detection.score,
           llmVerified: detection.llmVerified,
+          client_request_id: durableClaim.requestKey,
         },
       })
       .select("id")
       .single();
 
+    if (insertError || !inserted?.id) {
+      if (insertError?.code === "23505") {
+        const { data: existing } = await admin
+          .from("chat_messages")
+          .select("id")
+          .eq("couple_id", coupleId)
+          .eq("metadata->>client_request_id", durableClaim.requestKey)
+          .eq("sender_type", "ai")
+          .eq("role", "assistant")
+          .eq("visibility", "shared")
+          .limit(1);
+        if (existing?.[0]?.id) {
+          await completeChatRequest(
+            { ...durableClaim, messageId: existing[0].id as string },
+            admin,
+          );
+          durableClaim = null;
+          return NextResponse.json({ triggered: false, reason: "race_lost" });
+        }
+      }
+      console.error("[check-couple-conflict] mediation persistence failed", insertError);
+      await failChatRequest({ ...durableClaim, failureCode: "PERSISTENCE_FAILED" }, admin)
+        .catch((error) => console.error("[check-couple-conflict] claim failure marker failed", error));
+      durableClaim = null;
+      return NextResponse.json(
+        { triggered: false, reason: "persistence_failed" },
+        { status: 503 },
+      );
+    }
+
+    await completeChatRequest({ ...durableClaim, messageId: inserted.id }, admin);
+    durableClaim = null;
+
     return NextResponse.json({
       triggered: true,
-      messageId: inserted?.id ?? null,
+      messageId: inserted.id,
       score: detection.score,
       reason: detection.reason,
       llmVerified: detection.llmVerified,
     });
   } catch (err) {
     console.error("check-couple-conflict 에러:", err);
+    if (durableClaim) {
+      await failChatRequest({ ...durableClaim, failureCode: "MEDIATION_FAILED" }, getAdminClient())
+        .catch((claimError) => console.error("[check-couple-conflict] claim failure marker failed", claimError));
+    }
     return NextResponse.json(
       {
         triggered: false,
-        reason: `error: ${err instanceof Error ? err.message : "unknown"}`,
+        reason: "internal_error",
       },
       { status: 500 },
     );

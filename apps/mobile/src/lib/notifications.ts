@@ -1,6 +1,7 @@
 // 푸시 알림 설정 및 토큰 관리
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "./supabase";
@@ -51,24 +52,29 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   // Expo Push Token 발급 (EAS Build에서만 작동, Expo Go에서는 스킵)
+  let token: string;
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    const token = tokenData.data;
-
-    // Supabase profiles에 push token 저장
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({ push_token: token })
-        .eq("id", user.id);
-    }
-
-    return token;
-  } catch {
-    // Expo Go에서는 projectId가 없어서 실패 — 정상 (EAS Build 후 작동)
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId
+      ?? Constants.easConfig?.projectId;
+    if (!projectId) return null;
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch (error) {
+    // 오프라인/Expo Go에서는 다음 앱 활성화 또는 로그인 때 다시 시도한다.
+    if (__DEV__) console.warn("[Push] 토큰 발급 실패:", error);
     return null;
   }
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error(`Push token user lookup failed: ${userError.message}`);
+  if (!user) return null;
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ push_token: token })
+    .eq("id", user.id);
+  if (error) throw new Error(`Push token persistence failed: ${error.message}`);
+
+  return token;
 }
 
 /**

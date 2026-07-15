@@ -1,6 +1,41 @@
 # Amora DB backup evidence — 2026-07-14
 
-## Status: HBAM2 logical capture passed; Stage B remains open
+## Status: HBAM2 and provider-clone gates passed; logical replay remains open
+
+## 2026-07-15 provider backup and isolated-clone evidence
+
+The production Supabase backup UI showed the latest available scheduled backup
+at `2026-07-14 20:13:53 UTC`, status `COMPLETED`, with a Restore action. The
+restore-to-new-project history showed isolated clone `syhmfxauqyhgdcokrheg`
+completed at `2026-07-14 23:04:45 UTC`.
+
+All six Amora expand migrations and both contract artifacts were exercised on
+that clone. A real hosted-API integration then passed:
+
+- Auth signup/profile trigger and account deletion cascade/anonymization;
+- invite-code/couple creation and atomic couple reset with idempotent retry;
+- partner data retention and final cleanup;
+- 12 concurrent chat claims with one acquisition;
+- 12 concurrent mutating-tool claims with one acquisition;
+- 10 concurrent cost reservations with the configured cap held at three.
+
+This proves the provider physical-restore path plus the real hosted schema,
+Auth, RLS/RPC contracts and concurrency fences. It does **not** prove that the
+HBAM2 logical artifacts can be restored independently into a blank isolated
+target. That separate logical replay remains open and must not be described as
+complete.
+
+The production dry-run also matched exactly the 15 hash-pinned migrations in
+the release manifest (`before-reconcile`: nine historical ledger entries plus
+six expand migrations). No production migration, migration-history repair or
+Storage permission change was performed while collecting this evidence.
+
+The hash-pinned read-only audit
+`20260714165500_audit_historical_release_effects.sql` subsequently returned
+`HISTORICAL_RELEASE_EFFECTS_VERIFIED` on both the isolated clone and production.
+It verified the existing turn reservation, rate-limit GC, retired invitation
+tables, synthetic vendor containment, profile care columns and WeddingCode
+retirement fence without modifying application data or migration history.
 
 ## Fresh production HBAM2 capture and immediate verification
 
@@ -23,9 +58,10 @@ The full backup directory, backup-set ID, manifest SHA-256, DPAPI key blobs,
 and complete production receipt are deliberately not committed. They remain in
 the operator's external task record and fixed private local backup root.
 
-This passes the fresh logical capture gate only. Provider physical-backup
-freshness, isolated real-schema restore, RLS/RPC contracts, and migration
-write-fence rehearsal remain incomplete, so Stage B is **not complete**.
+This paragraph describes the state at the time of the 2026-07-14 capture. The
+later provider backup/clone and hosted contract evidence above closes those
+specific gates. Independent HBAM2 logical replay and production write-fence
+execution remain incomplete, so Stage B is **not complete**.
 
 ## Current HBAM2 implementation verification
 
@@ -103,6 +139,11 @@ Current state:
 1. **Passed** — fresh production HBAM2 capture with an authenticated set ID.
 2. **Passed** — exact files, containment, ACLs, hashes, allowlist, and counts.
 3. **Passed** — raw authenticated PGlite canonical JSONB round trip.
-4. **Open** — isolated real-schema restore and RLS/RPC contract test.
-5. **Open** — independently recorded provider physical-backup freshness.
-6. **Open** — exact migration dry-run, write fence, and rollback evidence.
+4. **Passed for provider restore** — isolated real-schema/Auth clone plus
+   hosted RLS/RPC/concurrency contracts.
+5. **Passed** — independently recorded provider physical-backup freshness and
+   Restore availability.
+6. **Passed in read-only mode** — exact production migration dry-run.
+7. **Open** — independent HBAM2 logical replay into a blank isolated target.
+8. **Open** — production migration ledger reconciliation, write fence and
+   expand apply.

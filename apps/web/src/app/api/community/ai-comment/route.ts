@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 // 아모라 서비스 계정 ID (환경변수 또는 고정값)
 const AMORA_USER_ID = process.env.AMORA_SERVICE_USER_ID ?? "00000000-0000-0000-0000-000000000000";
+const MAX_TITLE_CHARS = 200;
+const MAX_CONTENT_CHARS = 500;
+const MAX_TAGS = 10;
+const MAX_TAG_CHARS = 40;
+const MAX_COST_CATEGORIES = 12;
+const MAX_COST_LABEL_CHARS = 60;
+const MAX_MODEL_INPUT_CHARS = 3_000;
+
+function plainText(value: unknown, maxLength: number): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -91,41 +107,56 @@ export async function POST(req: NextRequest) {
     let costSummary = "";
     if (post.cost_data) {
       const cd = post.cost_data as { totalCost?: number; region?: string; categories?: Array<{ label: string; cost: number }> };
-      costSummary = `\n비용 데이터: 총 ${cd.totalCost ?? "미상"}만원, 지역: ${cd.region ?? "미상"}`;
+      const totalCost = typeof cd.totalCost === "number" && Number.isFinite(cd.totalCost)
+        ? cd.totalCost
+        : "미상";
+      costSummary = `\n비용 데이터: 총 ${totalCost}만원, 지역: ${plainText(cd.region, 60) || "미상"}`;
       if (cd.categories && cd.categories.length > 0) {
-        costSummary += "\n항목: " + cd.categories.map((c) => `${c.label} ${c.cost}만원`).join(", ");
+        costSummary += "\n항목: " + cd.categories
+          .slice(0, MAX_COST_CATEGORIES)
+          .map((c) => `${plainText(c.label, MAX_COST_LABEL_CHARS)} ${Number.isFinite(c.cost) ? c.cost : "미상"}만원`)
+          .join(", ");
       }
     }
     if (post.price_data) {
       const pd = post.price_data as { vendor_category?: string; base_price?: number; extra_price?: number; vendor_name?: string };
-      costSummary += `\n가격 데이터: ${pd.vendor_category ?? ""} 기본금 ${pd.base_price ?? 0}만원, 추가금 ${pd.extra_price ?? 0}만원`;
-      if (pd.vendor_name) costSummary += `, 업체: ${pd.vendor_name}`;
+      const basePrice = typeof pd.base_price === "number" && Number.isFinite(pd.base_price)
+        ? pd.base_price
+        : "미상";
+      const extraPrice = typeof pd.extra_price === "number" && Number.isFinite(pd.extra_price)
+        ? pd.extra_price
+        : "미상";
+      costSummary += `\n가격 데이터: ${plainText(pd.vendor_category, 60)} 기본금 ${basePrice}만원, 추가금 ${extraPrice}만원`;
+      if (pd.vendor_name) costSummary += `, 업체: ${plainText(pd.vendor_name, 100)}`;
     }
 
     // 본문 축약 (너무 긴 글 방지)
-    const contentPreview = post.content
-      .replace(/<[^>]*>/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 500);
+    const contentPreview = plainText(post.content, MAX_CONTENT_CHARS);
+    const titlePreview = plainText(post.title, MAX_TITLE_CHARS);
+    const categoryPreview = plainText(post.category, 40);
+    const tagPreview = (Array.isArray(post.tags) ? post.tags : [])
+      .slice(0, MAX_TAGS)
+      .map((tag) => plainText(tag, MAX_TAG_CHARS))
+      .filter(Boolean)
+      .join(", ");
 
-    const userContent = `${categoryHint}
+    const postContext = `${categoryHint}
 
-제목: ${post.title}
-카테고리: ${post.category}
-태그: ${(post.tags ?? []).join(", ") || "없음"}
+제목: ${titlePreview}
+카테고리: ${categoryPreview}
+태그: ${tagPreview || "없음"}
 본문: ${contentPreview}${costSummary}
 
+`.slice(0, MAX_MODEL_INPUT_CHARS);
+
+    const userContent = `${postContext}
 위 게시글에 대한 아모라의 짧은 댓글을 작성해주세요. (2-3문장 + CTA)`;
 
-    const model = "claude-haiku-4-5-20251001";
-    const message = await createAnthropicMessageWithAudit({
-      params: {
-        model,
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userContent }],
-      },
+    const message = await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 300,
+      instructions: SYSTEM_PROMPT,
+      input: userContent,
       audit: {
         userId: post.author_id ?? null,
         interactionType: "community_amora_comment",
@@ -141,8 +172,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const firstBlock = message.content[0];
-    const aiText = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
+    const aiText = message.text.trim();
 
     if (!aiText) {
       return NextResponse.json({ error: "AI 응답 생성 실패" }, { status: 500 });

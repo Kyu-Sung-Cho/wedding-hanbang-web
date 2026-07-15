@@ -8,6 +8,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+throw "Disabled: unscoped migration shipping is unsafe. Follow docs/operations/AMORA_PRODUCTION_RELEASE.md."
+
 function Show-Help {
   Write-Host ""
   Write-Host "Supabase safe ship"

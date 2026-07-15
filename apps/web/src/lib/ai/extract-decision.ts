@@ -1,7 +1,7 @@
 // =============================================
 // Decision Extractor — Memory Step B (v2: multi-extraction)
 // =============================================
-// 목적: /api/chat 턴 종료 후 Haiku로 "사용자가 결정/선호를 표현했나?" 분류
+// 목적: /api/chat 턴 종료 후 저비용 OpenAI 모델로 "사용자가 결정/선호를 표현했나?" 분류
 //       → decision_nodes INSERT (recordDecision 헬퍼 경유)
 // v2 변경:
 //   - Array 반환 → 한 메시지에 복수 개념 있을 때 각각 row 생성
@@ -16,10 +16,9 @@
 // =============================================
 
 import { recordDecision } from "@/lib/memory/record-decision";
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import type { StageTag, DecisionType } from "@/types/moat.types";
 
-const EXTRACT_MODEL = "claude-haiku-4-5-20251001";
 const CONTEXT_WINDOW_MESSAGES = 6;
 const MAX_MESSAGE_CHARS = 600;
 const MAX_INPUT_CHARS = 6_000;
@@ -68,7 +67,7 @@ function formatMessagesForExtraction(messages: MessageInput[]): string {
 }
 
 // -------------------------------------------
-// Haiku 분류기 (v2 — array)
+// 저비용 모델 분류기 (v2 — array)
 // -------------------------------------------
 const EXTRACT_SYSTEM_PROMPT = `당신은 웨딩 대화에서 사용자의 [의사결정] 또는 [선호]를 추출하는 JSON 분류기입니다.
 
@@ -127,7 +126,97 @@ interface ExtractionItem {
   confidence: number;
 }
 
-async function extractWithHaiku(
+interface ExtractionResponse {
+  extractions: ExtractionItem[];
+}
+
+const EXTRACTION_RESPONSE_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["extractions"],
+  properties: {
+    extractions: {
+      type: "array",
+      maxItems: MAX_EXTRACTIONS_PER_TURN,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["type", "category", "title", "value", "reasoning", "confidence"],
+        properties: {
+          type: { type: "string", enum: ["decision", "preference"] },
+          category: { type: "string", enum: [...ALLOWED_CATEGORIES] },
+          title: { type: "string", minLength: 1, maxLength: 30 },
+          value: { type: "string", maxLength: 80 },
+          reasoning: {
+            anyOf: [
+              { type: "string", maxLength: 200 },
+              { type: "null" },
+            ],
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+      },
+    },
+  },
+};
+
+export function validateExtractionResponse(value: unknown): ExtractionResponse {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("invalid extraction response");
+  }
+  const extractions = (value as { extractions?: unknown }).extractions;
+  if (!Array.isArray(extractions) || extractions.length > MAX_EXTRACTIONS_PER_TURN) {
+    throw new Error("invalid extraction list");
+  }
+
+  return {
+    extractions: extractions.map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new Error("invalid extraction item");
+      }
+      const record = item as Record<string, unknown>;
+      const type = record.type;
+      const category = record.category;
+      const title = record.title;
+      const extractedValue = record.value;
+      const reasoning = record.reasoning;
+      const confidence = record.confidence;
+      if (type !== "decision" && type !== "preference") throw new Error("invalid extraction type");
+      if (
+        typeof category !== "string" ||
+        !(ALLOWED_CATEGORIES as readonly string[]).includes(category)
+      ) throw new Error("invalid extraction category");
+      if (type === "preference" && category !== "preference") {
+        throw new Error("invalid preference category");
+      }
+      if (category === "conflict_resolution" && type !== "decision") {
+        throw new Error("invalid conflict resolution type");
+      }
+      if (typeof title !== "string" || title.trim().length === 0 || title.length > 30) {
+        throw new Error("invalid extraction title");
+      }
+      if (typeof extractedValue !== "string" || extractedValue.length > 80) {
+        throw new Error("invalid extraction value");
+      }
+      if (reasoning !== null && (typeof reasoning !== "string" || reasoning.length > 200)) {
+        throw new Error("invalid extraction reasoning");
+      }
+      if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+        throw new Error("invalid extraction confidence");
+      }
+      return {
+        type,
+        category,
+        title: title.trim(),
+        value: extractedValue.trim(),
+        reasoning: typeof reasoning === "string" ? reasoning.trim() || null : null,
+        confidence,
+      };
+    }),
+  };
+}
+
+async function extractWithOpenAI(
   conversation: string,
   audit: { userId?: string | null; coupleId: string; stageTag?: StageTag | null }
 ): Promise<{
@@ -135,13 +224,17 @@ async function extractWithHaiku(
   usage?: { input_tokens: number; output_tokens: number };
 } | null> {
   try {
-    const response = await createAnthropicMessageWithAudit({
-      params: {
-        model: EXTRACT_MODEL,
-        max_tokens: 500,
-        system: EXTRACT_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: conversation }],
+    const response = await createOpenAIStructuredResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 500,
+      instructions: EXTRACT_SYSTEM_PROMPT,
+      input: conversation,
+      responseFormat: {
+        name: "amora_decision_extractions",
+        description: "웨딩 대화에서 확인된 결정과 선호 목록",
+        schema: EXTRACTION_RESPONSE_SCHEMA,
       },
+      validate: validateExtractionResponse,
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
@@ -153,37 +246,14 @@ async function extractWithHaiku(
         },
       },
     });
-    const firstBlock = response.content[0];
-    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
-    if (!text) return null;
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]) as { extractions?: unknown };
-    if (!Array.isArray(parsed.extractions)) return { extractions: [], usage: response.usage ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens } : undefined };
-
-    const raw = parsed.extractions.slice(0, MAX_EXTRACTIONS_PER_TURN);
-    const extractions: ExtractionItem[] = raw
-      .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
-      .map((r) => ({
-        type: (r.type === "decision" || r.type === "preference" ? r.type : "preference") as "decision" | "preference",
-        category: typeof r.category === "string" ? r.category : "other",
-        title: typeof r.title === "string" ? r.title : "",
-        value: typeof r.value === "string" ? r.value : "",
-        reasoning: typeof r.reasoning === "string" ? r.reasoning : null,
-        confidence: typeof r.confidence === "number" ? r.confidence : 0.5,
-      }))
-      .filter((e) => e.title.trim().length > 0);
-
     return {
-      extractions,
+      extractions: response.data.extractions,
       usage: response.usage
         ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens }
         : undefined,
     };
   } catch (err) {
-    console.error("[extract-decision] Haiku 호출 실패:", err);
+    console.error("[extract-decision] OpenAI 호출 실패:", err);
     return null;
   }
 }
@@ -214,7 +284,7 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     const conversation = formatMessagesForExtraction(recent);
     if (!conversation) return;
 
-    const result = await extractWithHaiku(conversation, {
+    const result = await extractWithOpenAI(conversation, {
       userId: input.userId ?? null,
       coupleId: input.coupleId,
       stageTag: input.stageTag ?? null,
@@ -228,7 +298,6 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
     }
 
     // 각 extraction마다 decision_nodes INSERT
-    const nodeIds: Array<string | null> = [];
     for (const ext of extractions) {
       const category = (ALLOWED_CATEGORIES as readonly string[]).includes(ext.category)
         ? ext.category
@@ -240,7 +309,7 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
       const decisionType: DecisionType = ext.type === "decision" ? "decided" : "considering";
       const confidence = Math.min(1, Math.max(0, ext.confidence));
 
-      const { nodeId } = await recordDecision({
+      await recordDecision({
         coupleId: input.coupleId,
         userId: input.userId,
         category: finalCategory,
@@ -253,11 +322,10 @@ export async function maybeExtractDecision(input: MaybeExtractDecisionInput): Pr
         confidence,
         visibility: input.visibility ?? "shared",
         metadata: {
-          extracted_by: "haiku",
+          extracted_by: "openai_luna",
           extraction_type: ext.type,
         },
       });
-      nodeIds.push(nodeId);
     }
 
   } catch (err) {

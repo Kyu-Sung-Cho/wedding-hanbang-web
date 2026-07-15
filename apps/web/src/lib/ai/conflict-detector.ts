@@ -3,7 +3,7 @@
  *
  * 설계:
  *  - A안: 휴리스틱 강화 (정규화, 회상 필터, 턴 패턴, 농담 필터, pastConflicts 가중치)
- *  - B안: borderline(5~9점) 케이스만 Haiku 검증으로 false positive 제거
+ *  - B안: borderline(5~9점) 케이스만 저비용 OpenAI 검증으로 false positive 제거
  *  - 점수 < 5: 확실히 비-갈등 → 즉시 false
  *  - 점수 5~9: borderline → LLM 검증 (수동공격·반어·맥락 판단)
  *  - 점수 ≥ 10: 확실한 갈등 → LLM 호출 없이 즉시 true
@@ -14,9 +14,11 @@
  *  ChatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
  */
 
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 
-const FAST_MODEL = "claude-haiku-4-5-20251001";
+const MAX_LLM_MESSAGE_CHARS = 800;
+const MAX_LLM_INPUT_CHARS = 8_000;
 
 // ──────────────────────────────────────────────────────────────
 // 타입
@@ -342,12 +344,43 @@ function runHeuristics(
 // LLM 검증 (B안) — borderline 만 호출
 // ──────────────────────────────────────────────────────────────
 
+interface ConflictVerificationResponse {
+  conflict: boolean;
+  reason: string;
+}
+
+const CONFLICT_VERIFICATION_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["conflict", "reason"],
+  properties: {
+    conflict: { type: "boolean" },
+    reason: { type: "string", minLength: 1, maxLength: 80 },
+  },
+};
+
+export function validateConflictVerification(value: unknown): ConflictVerificationResponse {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("invalid conflict verification");
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.conflict !== "boolean") throw new Error("invalid conflict flag");
+  if (
+    typeof record.reason !== "string" ||
+    record.reason.trim().length === 0 ||
+    record.reason.length > 80
+  ) {
+    throw new Error("invalid conflict reason");
+  }
+  return { conflict: record.conflict, reason: record.reason.trim() };
+}
+
 async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
   audit?: { coupleId?: string | null; userId?: string | null }
 ): Promise<{ isConflict: boolean; reason: string }> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return { isConflict: false, reason: "ANTHROPIC_API_KEY 없음 — LLM 검증 스킵" };
+  if (!hasOpenAIConfig("fast")) {
+    return { isConflict: false, reason: "OpenAI 비활성 — LLM 검증 스킵" };
   }
 
   // 최근 10개만 + 라벨링
@@ -362,58 +395,48 @@ async function verifyWithLLM(
             : m.senderRole === "ai"
               ? "아모라"
               : "?";
-      return `${role}: ${m.content}`;
+      const content = m.content.trim().slice(0, MAX_LLM_MESSAGE_CHARS);
+      return `${role}: ${content}`;
     })
-    .join("\n");
+    .join("\n")
+    .slice(-MAX_LLM_INPUT_CHARS);
 
-  const prompt = `아래는 한 커플의 채팅 마지막 부분입니다. 지금 둘 사이에 갈등이 진행 중인지 판단하세요.
-
-${formatted}
+  const instructions = `아래 커플 채팅에서 지금 둘 사이에 갈등이 진행 중인지 판단하세요.
 
 판단 기준:
 - 진짜 갈등: 두 사람이 서로 의견 대립·비난·감정 표출을 주고받음. 한쪽이 답답해하고 다른 쪽이 방어하거나 무시하는 패턴
 - 갈등 아님: 회상(과거·제3자 일 이야기), 농담, 단순 결정 토의, 한쪽 푸념(상대방 향하지 않음), 단순 거절
 
-응답은 정확히 한 줄 JSON만:
-{"conflict": true|false, "reason": "한국어 한 줄로 판단 이유 (30자 이내)"}`;
+판단 이유는 한국어 한 줄, 80자 이내로 작성하세요.`;
 
   try {
-    const res = await createAnthropicMessageWithAudit({
-      params: {
-        model: FAST_MODEL,
-        max_tokens: 100,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0,
+    const res = await createOpenAIStructuredResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 100,
+      instructions,
+      input: formatted,
+      responseFormat: {
+        name: "amora_conflict_verification",
+        description: "커플의 현재 갈등 진행 여부",
+        schema: CONFLICT_VERIFICATION_SCHEMA,
       },
+      validate: validateConflictVerification,
       audit: {
         userId: audit?.userId ?? null,
         coupleId: audit?.coupleId ?? null,
         interactionType: "chat_turn",
-        userInput: formatted,
+        userInput: null,
         metadata: { source: "conflict_detector_verify" },
       },
     });
-
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
-
-    // JSON 추출 — 응답 앞뒤에 다른 텍스트 있을 수 있어 robust 파싱
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { isConflict: false, reason: "LLM 응답 JSON 파싱 실패" };
-    }
-    const parsed = JSON.parse(jsonMatch[0]) as { conflict?: boolean; reason?: string };
     return {
-      isConflict: parsed.conflict === true,
-      reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 80) : "이유 없음",
+      isConflict: res.data.conflict,
+      reason: res.data.reason,
     };
-  } catch (err) {
+  } catch {
     return {
       isConflict: false,
-      reason: `LLM 검증 에러: ${err instanceof Error ? err.message : String(err)}`,
+      reason: "LLM 검증 실패",
     };
   }
 }

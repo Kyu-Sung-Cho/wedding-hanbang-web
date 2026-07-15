@@ -26,8 +26,6 @@ interface BookingRequestBody {
 }
 
 interface ProductPriceRow {
-  price: number | null;
-  discount_price: number | null;
   name: string | null;
 }
 
@@ -88,20 +86,25 @@ export async function POST(req: Request) {
 
     // 상품 금액 조회
     const admin = createAdminClient();
-    let amount = 0;
     let productName: string | null = null;
     if (productId) {
-      const { data: product } = await admin
+      const { data: product, error: productError } = await admin
         .from("vendor_products")
-        .select("price, discount_price, name")
+        .select("name")
         .eq("id", productId)
         .eq("vendor_id", vendorId)
+        .eq("is_active", true)
         .maybeSingle();
-      if (product) {
-        const typedProduct = product as ProductPriceRow;
-        amount = typedProduct.discount_price ?? typedProduct.price ?? 0;
-        productName = typedProduct.name ?? null;
+      if (productError || !product) {
+        if (productError) {
+          console.error("Booking product lookup failed", { code: productError.code });
+        }
+        return NextResponse.json(
+          { error: "선택한 상품을 확인할 수 없습니다." },
+          { status: productError ? 503 : 400 }
+        );
       }
+      productName = (product as ProductPriceRow).name ?? null;
     }
 
     // Atomic booking via Postgres RPC — TOCTOU 방어.
@@ -120,7 +123,8 @@ export async function POST(req: Request) {
       p_bride_name: brideName || "",
       p_groom_name: groomName || "",
       p_contact_phone: contactPhone || "",
-      p_amount: amount,
+      // Backward-compatible parameter only. The RPC derives canonical price.
+      p_amount: 0,
       p_memo: memo || "",
     });
 
@@ -138,6 +142,21 @@ export async function POST(req: Request) {
       if (msg.includes("invalid_staff_vendor")) {
         return NextResponse.json({ error: "선택한 담당자가 이 업체 소속이 아닙니다." }, { status: 400 });
       }
+      if (msg.includes("vendor_unavailable")) {
+        return NextResponse.json({ error: "현재 예약 가능한 업체가 아닙니다." }, { status: 409 });
+      }
+      if (msg.includes("duplicate_couple_slot") || msg.includes("vendor_bookings_one_active_couple_vendor_slot")) {
+        return NextResponse.json(
+          { error: "같은 업체와 시간에 이미 활성 예약이 있습니다. 기존 예약을 먼저 확인해주세요." },
+          { status: 409 }
+        );
+      }
+      if (msg.includes("invalid_booking_input")) {
+        return NextResponse.json({ error: "예약 요청 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+      if (msg.includes("past_booking_datetime")) {
+        return NextResponse.json({ error: "이미 지난 시간에는 예약할 수 없습니다." }, { status: 409 });
+      }
       console.error("Booking create RPC error:", rpcError);
       return NextResponse.json({ error: "예약 생성에 실패했습니다." }, { status: 500 });
     }
@@ -153,6 +172,11 @@ export async function POST(req: Request) {
       console.error("Booking fetch after RPC error:", fetchError);
       return NextResponse.json({ error: "예약 조회에 실패했습니다." }, { status: 500 });
     }
+    const persistedAmount = Number(booking.amount ?? 0);
+    if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
+      console.error("Booking amount after RPC was invalid", { bookingId });
+      return NextResponse.json({ error: "예약 금액 확인에 실패했습니다." }, { status: 500 });
+    }
 
     const syncResult = await syncBookingProgressAfterCreate(admin, {
       coupleId: profile.couple_id,
@@ -160,7 +184,7 @@ export async function POST(req: Request) {
         id: bookingId as unknown as string,
         date,
         time,
-        amount,
+        amount: persistedAmount,
       },
       vendorId,
       productId,
@@ -192,7 +216,7 @@ export async function POST(req: Request) {
               vendor_name: v?.name ?? null,
               booking_date: date,
               booking_time: time,
-              amount,
+              amount: persistedAmount,
             },
             decisionType: "booked",
             source: "vendor_booking",

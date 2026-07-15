@@ -91,15 +91,6 @@ export default function RootLayout() {
     return disposeAuthListener;
   }, []);
 
-  // 푸시 알림 등록 (EAS Build에서만 작동, Expo Go에서는 스킵)
-  useEffect(() => {
-    if (fontsLoaded && !__DEV__) {
-      import("@/lib/notifications").then(({ registerForPushNotifications }) => {
-        registerForPushNotifications().catch(() => {});
-      });
-    }
-  }, [fontsLoaded]);
-
   if (!fontsLoaded && !fontError) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>

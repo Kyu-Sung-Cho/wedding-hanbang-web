@@ -1,7 +1,12 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { chatWithToolsStream, buildToolResultContent, buildMultimodalContent } from "@/lib/ai/claude";
-import type { ImageAttachment } from "@/lib/ai/claude";
+import {
+  buildMultimodalContent,
+  buildToolResultInput,
+  chatWithToolsStream,
+} from "@/lib/ai/openai";
+import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
+import { chooseAmoraChatModelRole } from "@/lib/ai/modelConfig";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
@@ -16,120 +21,126 @@ import { extractMediation } from "@/lib/ai/mediation";
 import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
 import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
+import {
+  AiMessagePersistenceError,
+  findPersistedAiMessage,
+  persistAiMessage,
+  type PersistedAiMessage,
+} from "@/lib/ai/chatMessagePersistence";
+import {
+  ChatRequestClaimError,
+  claimChatRequest,
+  completeChatRequest,
+  failChatRequest,
+} from "@/lib/ai/chatRequestClaim";
 import { NextResponse } from "next/server";
-import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { createHash, randomUUID } from "node:crypto";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
 export const maxDuration = 300;
 
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = 2;
+// Auxiliary LLM memory jobs need a durable queue and their own budget ledger.
+// Keep them off by default instead of silently losing/over-spending work after
+// a serverless response has closed.
+const AUXILIARY_MEMORY_ENABLED = process.env.AMORA_AUXILIARY_MEMORY_ENABLED === "true";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_ATTACHMENTS = 5;
-const FETCH_TIMEOUT_MS = 10_000;
 const MAX_EXTRACTED_TEXT_CHARS = 80_000;
+const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
+const MAX_CONTEXT_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 20_000;
+const MAX_TOTAL_MESSAGE_CHARS = 200_000;
+const CLIENT_REQUEST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache, no-store",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+};
+
+function getStoredSuggestions(message: PersistedAiMessage): string[] {
+  const value = message.metadata?.suggestions;
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && item.length <= 160)
+    .slice(0, 4);
+}
+
+function deriveBoundRequestId(clientRequestId: string, userMessageId: string): string {
+  const digest = createHash("sha256")
+    .update(`amora-chat-request\0${clientRequestId}\0${userMessageId}`, "utf8")
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  // Keep the durable key compatible with the UUID-shaped database contract.
+  digest[12] = "5";
+  digest[16] = "8";
+  const value = digest.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
+  const metadata = { ...(message.metadata ?? {}) };
+  delete metadata.client_request_id;
+  return {
+    ...metadata,
+    stageTag: message.stageTag,
+    specialistType: message.specialistType,
+    serverMessageId: message.id,
+    serverCreatedAt: message.createdAt,
+    replayed: message.reused,
+  };
+}
+
+function replayPersistedMessage(message: PersistedAiMessage): Response {
+  const events: Array<Record<string, unknown>> = [];
+  const suggestions = getStoredSuggestions(message);
+  if (suggestions.length > 0) events.push({ type: "suggestions", suggestions });
+  events.push({
+    type: "done",
+    fullContent: message.content ?? "",
+    metadata: getDoneMetadata(message),
+  });
+  const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  return new Response(payload, { headers: SSE_HEADERS });
+}
+
+function isValidChatMessages(value: unknown): value is Array<{
+  role: "user" | "assistant";
+  content: string;
+  id?: string;
+}> {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CONTEXT_MESSAGES) {
+    return false;
+  }
+  let totalChars = 0;
+  let hasUserMessage = false;
+  for (const message of value) {
+    if (!isRecord(message)) return false;
+    if (message.role !== "user" && message.role !== "assistant") return false;
+    if (typeof message.content !== "string") return false;
+    const length = message.content.length;
+    if (length < 1 || length > MAX_MESSAGE_CHARS || !message.content.trim()) return false;
+    if (message.id !== undefined &&
+        (typeof message.id !== "string" || message.id.length < 1 || message.id.length > 128)) {
+      return false;
+    }
+    totalChars += length;
+    if (totalChars > MAX_TOTAL_MESSAGE_CHARS) return false;
+    if (message.role === "user") hasUserMessage = true;
+  }
+  return hasUserMessage;
+}
 
 // Service role 클라이언트 (RLS 우회 — 자동 피드백 저장용)
 function getServiceClient() {
   return createAdminClient();
-}
-
-// AI 메시지를 chat_messages에 INSERT — client_request_id 기반 idempotency
-// 모바일 retry / 중복 fetch 시 동일 클라이언트 요청 ID 사용.
-// UNIQUE INDEX (couple_id, metadata->>'client_request_id') 가 race도 막아줌.
-// 중복 INSERT는 unique violation 발생 → catch 후 SELECT로 기존 row 반환.
-async function insertAiMessageWithIdempotency(params: {
-  isDemo: boolean;
-  coupleId: string;
-  cleanText: string;
-  clientRequestId: string | null;
-  metadata: Record<string, unknown>;
-  stageTag: string | null;
-  specialistType: string | null;
-  visibility: "shared" | "bride_private" | "groom_private";
-}): Promise<{ id: string | null; createdAt: string | null }> {
-  if (params.isDemo || !params.cleanText) {
-    return { id: null, createdAt: null };
-  }
-  const admin = getServiceClient();
-
-  // client_request_id를 metadata에 포함하여 UNIQUE INDEX가 작동하게 함
-  const metadataWithRid = params.clientRequestId
-    ? { ...params.metadata, client_request_id: params.clientRequestId }
-    : params.metadata;
-
-  // 1) clientRequestId 있으면 먼저 조회 (race 전 빠른 path)
-  if (params.clientRequestId) {
-    try {
-      const { data: existing } = await admin
-        .from("chat_messages")
-        .select("id, created_at")
-        .eq("couple_id", params.coupleId)
-        .eq("metadata->>client_request_id", params.clientRequestId)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        return {
-          id: existing[0].id as string,
-          createdAt: existing[0].created_at as string,
-        };
-      }
-    } catch {
-      // SELECT 실패는 무시 — 아래 INSERT 시도로 진행
-    }
-  }
-
-  // 2) INSERT 시도
-  try {
-    const { data: inserted, error: insertErr } = await admin
-      .from("chat_messages")
-      .insert({
-        couple_id: params.coupleId,
-        sender_id: null,
-        sender_type: "ai",
-        role: "assistant",
-        content: params.cleanText,
-        metadata: metadataWithRid,
-        stage_tag: params.stageTag,
-        specialist_type: params.specialistType,
-        visibility: params.visibility,
-      })
-      .select("id, created_at")
-      .single();
-
-    if (inserted) {
-      return {
-        id: inserted.id as string,
-        createdAt: inserted.created_at as string,
-      };
-    }
-
-    // 3) UNIQUE 충돌 — race로 다른 요청이 먼저 INSERT 했음. 그 row를 가져옴.
-    if (insertErr && (insertErr.code === "23505" || /duplicate|unique/i.test(insertErr.message)) && params.clientRequestId) {
-      const { data: conflicted } = await admin
-        .from("chat_messages")
-        .select("id, created_at")
-        .eq("couple_id", params.coupleId)
-        .eq("metadata->>client_request_id", params.clientRequestId)
-        .limit(1);
-      if (conflicted && conflicted.length > 0) {
-        return {
-          id: conflicted[0].id as string,
-          createdAt: conflicted[0].created_at as string,
-        };
-      }
-    }
-
-    console.error("AI 메시지 서버 INSERT 실패:", insertErr);
-    return { id: null, createdAt: null };
-  } catch (err) {
-    console.error("AI 메시지 서버 INSERT 예외:", err);
-    return { id: null, createdAt: null };
-  }
 }
 
 // 자동 피드백 저장 (비동기, 에러 무시 — 채팅 흐름 방해 금지)
@@ -158,9 +169,9 @@ async function extractDocxText(base64: string): Promise<string> {
   return result.value.trim();
 }
 
-// 첨부파일 처리: Claude에 보낼 형태로 변환
+// 첨부파일 처리: OpenAI Responses API에 보낼 형태로 변환
 interface ProcessedAttachment {
-  visionAttachments: ImageAttachment[]; // 이미지/PDF → Claude vision/document
+  visionAttachments: ImageAttachment[]; // 이미지/PDF → OpenAI image/file input
   textAttachments: string[]; // DOCX/XLSX → 추출된 텍스트
 }
 
@@ -194,113 +205,6 @@ function assertBase64UnderLimit(value: string): string {
   return clean;
 }
 
-function isPrivateIpAddress(address: string): boolean {
-  const version = isIP(address);
-  if (version === 4) {
-    const [a, b] = address.split(".").map(Number);
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 198 && (b === 18 || b === 19)) ||
-      a >= 224
-    );
-  }
-
-  if (version === 6) {
-    const lower = address.toLowerCase();
-    return (
-      lower === "::" ||
-      lower === "::1" ||
-      lower.startsWith("fc") ||
-      lower.startsWith("fd") ||
-      lower.startsWith("fe80") ||
-      lower.startsWith("::ffff:127.") ||
-      lower.startsWith("::ffff:10.") ||
-      lower.startsWith("::ffff:192.168.")
-    );
-  }
-
-  return false;
-}
-
-async function assertSafeRemoteUrl(rawUrl: string): Promise<URL> {
-  const url = new URL(rawUrl);
-  if (url.protocol !== "https:") {
-    throw new Error("https URL만 첨부할 수 있습니다.");
-  }
-  if (url.username || url.password) {
-    throw new Error("인증 정보가 포함된 URL은 허용되지 않습니다.");
-  }
-
-  const hostname = url.hostname.toLowerCase();
-  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-    throw new Error("로컬 주소는 허용되지 않습니다.");
-  }
-  if (isIP(hostname)) {
-    if (isPrivateIpAddress(hostname)) throw new Error("내부 네트워크 주소는 허용되지 않습니다.");
-    return url;
-  }
-
-  const addresses = await lookup(hostname, { all: true });
-  if (addresses.length === 0 || addresses.some((addr) => isPrivateIpAddress(addr.address))) {
-    throw new Error("내부 네트워크로 해석되는 URL은 허용되지 않습니다.");
-  }
-
-  return url;
-}
-
-async function readResponseBodyWithLimit(response: Response): Promise<Buffer> {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
-    return buffer;
-  }
-
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
-    chunks.push(Buffer.from(value));
-  }
-  return Buffer.concat(chunks, total);
-}
-
-async function fetchRemoteAttachment(rawUrl: string, expectedMediaType: string): Promise<Buffer> {
-  const url = await assertSafeRemoteUrl(rawUrl);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "error",
-    });
-    if (!response.ok) throw new Error(`첨부 URL 응답 실패: ${response.status}`);
-
-    const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_FILE_SIZE) throw new Error("첨부파일 크기 초과");
-
-    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
-    if (contentType && contentType !== expectedMediaType) {
-      throw new Error("첨부 URL의 Content-Type이 요청과 다릅니다.");
-    }
-
-    return await readResponseBodyWithLimit(response);
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function safeFileName(value: string | undefined, fallback: string): string {
   return (value ?? fallback).replace(/[^\w .()[\]\-가-힣]/g, "").slice(0, 120) || fallback;
 }
@@ -321,20 +225,19 @@ async function processAttachments(attachments: unknown[]): Promise<ProcessedAtta
 
     if (VISION_TYPES.includes(item.mediaType)) {
       if (item.url) {
-        try {
-          const buffer = await fetchRemoteAttachment(item.url, item.mediaType);
-          visionAttachments.push({
-            base64: buffer.toString("base64"),
-            mediaType: item.mediaType as ImageAttachment["mediaType"],
-          });
-        } catch (err) {
-          console.error("첨부 URL 다운로드 거부/실패:", err);
-        }
+        // Never fetch an arbitrary client URL from the server. DNS validation
+        // followed by fetch is vulnerable to rebinding; clients send bounded
+        // base64 or use the message-authorized signing endpoint instead.
+        console.warn("Remote attachment URLs are not accepted");
       } else if (item.base64) {
         try {
           visionAttachments.push({
             base64: assertBase64UnderLimit(item.base64),
             mediaType: item.mediaType as ImageAttachment["mediaType"],
+            fileName:
+              item.mediaType === "application/pdf"
+                ? safeFileName(item.fileName, "attachment.pdf")
+                : undefined,
           });
         } catch (err) {
           console.error("base64 첨부 거부:", err);
@@ -361,6 +264,9 @@ async function processAttachments(attachments: unknown[]): Promise<ProcessedAtta
 }
 
 export async function POST(request: Request) {
+  if (isBodyTooLarge(request, MAX_REQUEST_BODY_BYTES)) {
+    return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+  }
   // 인증 체크 (웹: 쿠키, 앱: Bearer 토큰)
   const supabase = await createClientFromRequest(request);
   const {
@@ -377,52 +283,111 @@ export async function POST(request: Request) {
   });
   if (limited) return limited;
 
-  let body;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BODY_BYTES) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
+    const parsed = JSON.parse(rawBody) as unknown;
+    if (!isRecord(parsed)) throw new Error("invalid body");
+    body = parsed;
   } catch {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const { messages, coupleId, senderName, weddingContext, attachments, isDemo: bodyIsDemo, clientRequestId: bodyClientRequestId, visibility: bodyVisibility } = body;
+  const {
+    messages,
+    coupleId,
+    senderName,
+    weddingContext,
+    attachments,
+    conflictContext,
+    isDemo: bodyIsDemo,
+    clientRequestId: bodyClientRequestId,
+    userMessageId: bodyUserMessageId,
+    requestKind: bodyRequestKind,
+    visibility: bodyVisibility,
+  } = body;
+  if (!isValidChatMessages(messages) || !isUuid(coupleId)) {
+    return NextResponse.json(
+      { error: "메시지 또는 커플 ID 형식이 올바르지 않습니다." },
+      { status: 400 },
+    );
+  }
+  if (senderName !== undefined &&
+      (typeof senderName !== "string" || senderName.length > 100)) {
+    return NextResponse.json({ error: "이름 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+  if (weddingContext !== undefined && !isRecord(weddingContext)) {
+    return NextResponse.json({ error: "웨딩 정보 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+  if (bodyVisibility !== undefined &&
+      !["shared", "bride_private", "groom_private"].includes(String(bodyVisibility))) {
+    return NextResponse.json({ error: "채팅 공개 범위가 올바르지 않습니다." }, { status: 400 });
+  }
+  if (
+    bodyRequestKind !== undefined &&
+    bodyRequestKind !== "chat" &&
+    bodyRequestKind !== "initial_greeting" &&
+    bodyRequestKind !== "mediation"
+  ) {
+    return NextResponse.json({ error: "요청 종류가 올바르지 않습니다." }, { status: 400 });
+  }
+  if (
+    bodyRequestKind === "mediation" &&
+    (typeof conflictContext !== "string" ||
+      !conflictContext.trim() ||
+      conflictContext.length > 2_000)
+  ) {
+    return NextResponse.json({ error: "중재 맥락 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+  const attachmentInput = attachments ?? body.images ?? [];
+  if (!Array.isArray(attachmentInput) || attachmentInput.length > MAX_ATTACHMENTS) {
+    return NextResponse.json({ error: "첨부파일 형식이 올바르지 않습니다." }, { status: 400 });
+  }
   const isDemo =
     bodyIsDemo === true &&
     hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
-  const clientRequestId: string | null = typeof bodyClientRequestId === "string" && bodyClientRequestId.length > 0
-    ? bodyClientRequestId
-    : null;
+  if (bodyClientRequestId !== undefined &&
+      (typeof bodyClientRequestId !== "string" || !CLIENT_REQUEST_ID_RE.test(bodyClientRequestId))) {
+    return NextResponse.json(
+      { error: "요청 식별자 형식이 올바르지 않습니다.", code: "INVALID_CLIENT_REQUEST_ID" },
+      { status: 400 },
+    );
+  }
+  if (bodyUserMessageId !== undefined &&
+      (typeof bodyUserMessageId !== "string" || !isUuid(bodyUserMessageId))) {
+    return NextResponse.json(
+      { error: "저장 메시지 식별자 형식이 올바르지 않습니다.", code: "INVALID_USER_MESSAGE_ID" },
+      { status: 400 },
+    );
+  }
+  const rawClientRequestId = bodyClientRequestId ?? randomUUID();
+  const requestKind =
+    bodyRequestKind === "initial_greeting"
+      ? "initial_greeting"
+      : bodyRequestKind === "mediation"
+        ? "mediation"
+        : "chat";
   const requestedVisibility: "shared" | "bride_private" | "groom_private" =
     bodyVisibility === "bride_private" || bodyVisibility === "groom_private" ? bodyVisibility : "shared";
   let visibility: "shared" | "bride_private" | "groom_private" = requestedVisibility;
 
-  if (!messages || !coupleId) {
-    return NextResponse.json(
-      { error: "메시지와 커플 ID가 필요합니다." },
-      { status: 400 }
-    );
-  }
-
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
-  const { data: userProfile } = await supabase
+  const { data: userProfile } = await getServiceClient()
     .from("profiles")
-    .select("couple_id, role, is_admin")
+    .select("couple_id, role, is_admin, name")
     .eq("id", user.id)
     .single();
 
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
-
-  // 비용 가드레일 — 커플 누적/전역 일일 상한 (유통 테스트 전 지갑 보호).
-  // 원자적 체크+예약이라 동시 요청도 상한을 초과할 수 없다 (감사 2.3 H1).
-  // 면제는 DB로 검증된 is_admin만 — body의 isDemo는 클라이언트 조작 가능이라 신뢰 금지.
-  const costGuard = await reserveAmoraTurn(getServiceClient(), {
-    coupleId,
-    isAdmin: userProfile?.is_admin === true,
-  });
-  if (!costGuard.allowed) {
-    return NextResponse.json({ error: costGuard.message }, { status: 429 });
-  }
+  const safeSenderName =
+    typeof userProfile.name === "string" && userProfile.name.trim()
+      ? userProfile.name.trim().slice(0, 100)
+      : "고객";
 
   if (requestedVisibility !== "shared") {
     const role = userProfile?.role;
@@ -437,15 +402,113 @@ export async function POST(request: Request) {
     visibility = allowedPrivateVisibility;
   }
 
+  const visibleClientRequestKey = `chat:${user.id}:${rawClientRequestId}`;
+  const durableClientRequestUuid =
+    requestKind === "chat" && typeof bodyUserMessageId === "string"
+      ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
+      : rawClientRequestId;
+  const clientRequestId = requestKind === "initial_greeting"
+    ? `greeting:${user.id}`
+    : `chat:${user.id}:${durableClientRequestUuid}`;
+
+  // A completed retry must not reserve cost, rerun the model, or replay tools.
+  if (!isDemo) {
+    try {
+      const existing = await findPersistedAiMessage({
+        coupleId,
+        clientRequestId,
+        visibility,
+      });
+      if (existing) return replayPersistedMessage(existing);
+    } catch (error) {
+      console.warn("[chat] completed-request replay lookup failed", error);
+    }
+  }
+
+  const claimParams = {
+    coupleId,
+    requestKey: clientRequestId,
+    userId: user.id,
+    visibility,
+  } as const;
+  let requestClaimAcquired = false;
+
+  if (!isDemo) {
+    try {
+      const claim = await claimChatRequest(claimParams);
+      if (claim.action === "completed") {
+        const completed = await findPersistedAiMessage({
+          coupleId,
+          clientRequestId,
+          visibility,
+        });
+        if (completed?.id === claim.messageId) return replayPersistedMessage(completed);
+        return NextResponse.json(
+          { error: "저장된 답변을 확인하지 못했습니다.", code: "CHAT_REPLAY_INCONSISTENT" },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      if (claim.action === "in_progress") {
+        return NextResponse.json(
+          {
+            error: "같은 답변을 아직 만들고 있어요. 잠시 후 다시 확인해주세요.",
+            code: "CHAT_REQUEST_IN_PROGRESS",
+            retryAfterMs: claim.retryAfterMs,
+          },
+          {
+            status: 409,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": String(Math.max(1, Math.ceil(claim.retryAfterMs / 1000))),
+            },
+          },
+        );
+      }
+      if (claim.action === "conflict") {
+        return NextResponse.json(
+          { error: "요청 식별자가 다른 대화와 충돌했습니다.", code: "CHAT_REQUEST_CONFLICT" },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      requestClaimAcquired = true;
+    } catch (error) {
+      console.error("[chat] durable request claim failed", error);
+      return NextResponse.json(
+        { error: "대화를 안전하게 시작하지 못했습니다. 잠시 후 다시 시도해주세요.", code: "CHAT_REQUEST_CLAIM_FAILED" },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
+  const releaseClaimBeforeStream = async (failureCode: string) => {
+    if (!requestClaimAcquired) return;
+    await failChatRequest({ ...claimParams, failureCode }).catch((error) => {
+      console.error("[chat] pre-stream claim release failed", error);
+    });
+    requestClaimAcquired = false;
+  };
+
   // 첨부파일 처리
-  const { visionAttachments, textAttachments } = await processAttachments(attachments || body.images || []);
+  const { visionAttachments, textAttachments } = await processAttachments(attachmentInput);
 
   // 병렬로 커플 관련 데이터 전체 조회
-  const [journeyResult, profilesResult, bookingsResult, summariesResult, decisionsResult, conflictsResult, amoraProfiles] = await Promise.all([
+  const [
+    journeyResult,
+    profilesResult,
+    bookingsResult,
+    summariesResult,
+    decisionsResult,
+    conflictsResult,
+    messagesResult,
+    amoraProfiles,
+  ] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
-    supabase.from("profiles").select("name, role").eq("couple_id", coupleId),
+    supabase
+      .from("couple_profile_directory")
+      .select("name, role")
+      .eq("couple_id", coupleId),
     // 3. 예약 내역 (취소 제외)
     supabase.from("vendor_bookings")
       .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo, vendors(name, category)")
@@ -481,7 +544,24 @@ export async function POST(request: Request) {
       .eq("category", "conflict_resolution")
       .order("created_at", { ascending: false })
       .limit(5),
-    // 7. 아모라 장기 개인화 프로필 (shared + 본인 private만)
+    // 7. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
+    // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
+    (() => {
+      const q = supabase
+        .from("chat_messages")
+        .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
+        .eq("couple_id", coupleId)
+        // 상대에게 직접 보낸 메시지는 커플이 공유해서 보는 데이터여도
+        // Amora/OpenAI 입력은 아니다. DB에서 먼저 제외하고 아래에서 한 번 더
+        // 걸러 PostgREST 필터 회귀가 생겨도 provider 경계를 넘지 않게 한다.
+        .or("metadata->>target.is.null,metadata->>target.neq.partner")
+        .order("created_at", { ascending: false })
+        .limit(MAX_CONTEXT_MESSAGES);
+      return visibility === "shared"
+        ? q.eq("visibility", "shared")
+        : q.in("visibility", ["shared", visibility]);
+    })(),
+    // 8. 아모라 장기 개인화 프로필 (shared + 본인 private만)
     loadAmoraProfiles(coupleId, visibility),
   ]);
 
@@ -610,11 +690,145 @@ export async function POST(request: Request) {
     createdAt: c.created_at,
   }));
 
+  type CanonicalChatRow = {
+    id: string;
+    sender_id: string | null;
+    sender_type: "bride" | "groom" | "ai";
+    role: "user" | "assistant";
+    content: string;
+    metadata: { target?: string } | null;
+    visibility: "shared" | "bride_private" | "groom_private";
+    created_at: string;
+  };
+
+  if (!isDemo && messagesResult.error) {
+    console.error("Canonical chat history lookup failed:", messagesResult.error.message);
+    await releaseClaimBeforeStream("CHAT_HISTORY_UNAVAILABLE");
+    return NextResponse.json(
+      { error: "저장된 대화를 확인하지 못했습니다.", code: "CHAT_HISTORY_UNAVAILABLE" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  let canonicalRows = ((messagesResult.data ?? []) as CanonicalChatRow[])
+    .filter((row) => row.metadata?.target !== "partner")
+    .reverse();
+  let isDurableUserMessageBound = false;
+  if (!isDemo && requestKind === "chat" && typeof bodyUserMessageId === "string") {
+    const requestedIndex = canonicalRows.findIndex((row) => row.id === bodyUserMessageId);
+    const requestedRow = requestedIndex >= 0 ? canonicalRows[requestedIndex] : null;
+    if (
+      !requestedRow ||
+      requestedRow.sender_id !== user.id ||
+      requestedRow.sender_type === "ai" ||
+      requestedRow.role !== "user" ||
+      requestedRow.visibility !== visibility
+    ) {
+      await releaseClaimBeforeStream("USER_MESSAGE_SCOPE_MISMATCH");
+      return NextResponse.json(
+        {
+          error: "보낸 메시지와 요청의 연결을 확인하지 못했습니다. 다시 전송해주세요.",
+          code: "USER_MESSAGE_SCOPE_MISMATCH",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    canonicalRows = canonicalRows.slice(0, requestedIndex + 1);
+    isDurableUserMessageBound = true;
+  }
+
+  const canonicalMessages = canonicalRows.map((row) => {
+    if (row.sender_type === "ai" || row.role === "assistant") {
+      return { role: "assistant" as const, content: row.content, id: row.id };
+    }
+    const roleLabel = row.sender_type === "bride" ? "신부" : "신랑";
+    const targetLabel = row.metadata?.target === "partner" ? "→상대방" : "";
+    return {
+      role: "user" as const,
+      content: `[${roleLabel}${targetLabel}] ${row.content}`,
+      id: row.id,
+    };
+  });
+
+  // Signed demo만 DB가 없으므로 client history를 사용한다. 실제 사용자 턴은
+  // canonical DB history만 prompt source로 허용한다.
+  let typedMessages: Array<{ role: "user" | "assistant"; content: string; id?: string }> =
+    isDemo
+      ? (messages as Array<{ role: "user" | "assistant"; content: string; id?: string }>)
+      : canonicalMessages;
+  let lastUserText: string;
+
+  if (requestKind === "initial_greeting") {
+    const roleLabel =
+      userProfile.role === "groom"
+        ? "신랑"
+        : userProfile.role === "bride"
+          ? "신부"
+          : "사용자";
+    lastUserText = "[INITIAL_GREETING]";
+    typedMessages = [
+      ...typedMessages,
+      { role: "user", content: `[${roleLabel}] ${lastUserText}` },
+    ];
+  } else if (requestKind === "mediation") {
+    const roleLabel =
+      userProfile.role === "groom"
+        ? "신랑"
+        : userProfile.role === "bride"
+          ? "신부"
+          : "사용자";
+    lastUserText = `[MEDIATION_REQUEST] ${String(conflictContext).trim()}`;
+    typedMessages = [
+      ...typedMessages,
+      {
+        role: "user",
+        content: `[${roleLabel}] [MEDIATION_REQUEST] 커플 대화의 의견 차이를 중립적으로 중재해주세요. 최근 맥락: ${String(conflictContext).trim()}`,
+      },
+    ];
+  } else if (isDemo) {
+    lastUserText =
+      [...typedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  } else {
+    const latestUserRow = [...canonicalRows]
+      .reverse()
+      .find((row) => row.role === "user" && row.sender_type !== "ai");
+    if (!latestUserRow || latestUserRow.sender_id !== user.id) {
+      await releaseClaimBeforeStream("USER_MESSAGE_NOT_PERSISTED");
+      return NextResponse.json(
+        {
+          error: "보낸 메시지 저장을 아직 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          code: "USER_MESSAGE_NOT_PERSISTED",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store", "Retry-After": "1" } },
+      );
+    }
+    const latestClientUserText = [...(messages as Array<{ role: "user" | "assistant"; content: string }>)]
+      .reverse()
+      .find((message) => message.role === "user")?.content;
+    if (!isDurableUserMessageBound && latestClientUserText !== latestUserRow.content) {
+      await releaseClaimBeforeStream("LEGACY_USER_MESSAGE_MISMATCH");
+      return NextResponse.json(
+        {
+          error: "저장된 최신 메시지와 요청 내용이 달라 다시 전송이 필요합니다.",
+          code: "LEGACY_USER_MESSAGE_MISMATCH",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    lastUserText = latestUserRow.content;
+  }
+
+  // Reserve cost only after canonical history/authz/idempotent replay checks.
+  const costGuard = await reserveAmoraTurn(getServiceClient(), {
+    coupleId,
+    isAdmin: userProfile?.is_admin === true,
+  });
+  if (!costGuard.allowed) {
+    await releaseClaimBeforeStream("COST_GUARD_REJECTED");
+    return NextResponse.json({ error: costGuard.message }, { status: 429 });
+  }
+
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
-  // 현재 사용자 메시지 (마지막 user 메시지)
-  const typedMessages = messages as Array<{ role: string; content: string; id?: string }>;
-  const lastUserMsg = [...typedMessages].reverse().find((m) => m.role === "user");
-  const lastUserText = lastUserMsg?.content ?? "";
 
   // 직전 AI 메시지 (마지막 assistant 메시지)
   const lastAiMsg = [...typedMessages].reverse().find((m) => m.role === "assistant");
@@ -673,7 +887,7 @@ export async function POST(request: Request) {
     progress,
     brideName,
     groomName,
-    senderName,
+    senderName: safeSenderName,
     bookings,
     scheduleEvents,
     chatSummaries,
@@ -684,10 +898,10 @@ export async function POST(request: Request) {
   }) + specialistAddon;
 
   // 메시지 포맷팅
-  const formattedMessages: MessageParam[] = messages.map(
+  const formattedMessages: ChatInputItem[] = typedMessages.map(
     (m: { role: string; content: string }, index: number) => {
       const role = m.role === "assistant" ? ("assistant" as const) : ("user" as const);
-      const isLastUserMessage = role === "user" && index === messages.length - 1;
+      const isLastUserMessage = role === "user" && index === typedMessages.length - 1;
 
       if (isLastUserMessage) {
         // 문서 텍스트가 있으면 메시지에 포함
@@ -701,18 +915,32 @@ export async function POST(request: Request) {
           return {
             role,
             content: buildMultimodalContent(enrichedText, visionAttachments),
-          };
+          } as ChatInputItem;
         }
 
-        return { role, content: enrichedText };
+        return { role, content: enrichedText } as ChatInputItem;
       }
 
-      return { role, content: m.content };
+      return { role, content: m.content } as ChatInputItem;
     }
   );
 
+  const modelRole =
+    requestKind === "mediation"
+      ? ("primary" as const)
+      : chooseAmoraChatModelRole({
+          specialistType,
+          userText: lastUserText,
+          correctionCount,
+        });
+  // Old deployed clients do not send userMessageId. They remain answer-compatible,
+  // but may not execute a mutation because the intent is not bound to one DB row.
+  const availableTools =
+    requestKind === "chat" && isDurableUserMessageBound ? BETA_SAFE_TOOLS : [];
+
   const executionContext = {
     coupleId,
+    requestKey: clientRequestId,
     currentUserText: lastUserText,
     weddingContext: {
       weddingDate: journey?.wedding_date ?? weddingContext?.weddingDate ?? null,
@@ -724,6 +952,15 @@ export async function POST(request: Request) {
 
   // SSE 스트림 응답 생성
   const encoder = new TextEncoder();
+  const turnAbortController = new AbortController();
+  let toolExecutionCompleted = false;
+  const abortBeforeDurableTool = () => {
+    if (!toolExecutionCompleted && !turnAbortController.signal.aborted) {
+      turnAbortController.abort();
+    }
+  };
+  if (request.signal.aborted) abortBeforeDurableTool();
+  else request.signal.addEventListener("abort", abortBeforeDurableTool, { once: true });
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -771,24 +1008,27 @@ export async function POST(request: Request) {
           // tool_use가 발견되면 text_clear로 리셋 후 도구 실행
           const result = await chatWithToolsStream({
             systemPrompt,
-            messages: currentMessages,
-            tools: BETA_SAFE_TOOLS,
+            input: currentMessages,
+            tools: availableTools,
             onTextDelta: (token) => {
               send({ type: "text_delta", content: token });
             },
+            modelRole,
+            safetyIdentifierScope: user.id,
+            signal: toolExecutionCompleted ? undefined : turnAbortController.signal,
           });
 
           // 라운드별 토큰/모델 집계
           if (result.usage) {
             totalTokensIn += result.usage.input_tokens ?? 0;
             totalTokensOut += result.usage.output_tokens ?? 0;
-            totalCacheCreationTokens += result.usage.cache_creation_input_tokens ?? 0;
+            totalCacheCreationTokens += result.usage.cache_write_input_tokens ?? 0;
             totalCacheReadTokens += result.usage.cache_read_input_tokens ?? 0;
           }
           if (result.model) lastModel = result.model;
 
           // tool use가 없으면 최종 응답 (이미 토큰별로 스트리밍됨)
-          if (result.toolUseBlocks.length === 0) {
+          if (result.toolCalls.length === 0) {
             const { cleanText: afterSuggest, suggestions } = extractSuggestions(
               result.fullText
             );
@@ -801,33 +1041,54 @@ export async function POST(request: Request) {
 
             // 서버 사이드 INSERT (with 10s idempotency)
             // 모바일 retry / 중복 fetch 시 동일 내용을 또 INSERT하지 않음.
-            const insertResult = await insertAiMessageWithIdempotency({
+            const insertResult = await persistAiMessage({
               isDemo,
               coupleId,
               cleanText,
               clientRequestId,
-              metadata: { toolResults, toolsUsed, senderName, ...(mediation ? { mediation } : {}) },
+              metadata: {
+                toolResults,
+                toolsUsed,
+                senderName: safeSenderName,
+                ...(visibleClientRequestKey !== clientRequestId
+                  ? { client_visible_request_id: visibleClientRequestKey }
+                  : {}),
+                ...(suggestions.length > 0 ? { suggestions } : {}),
+                ...(mediation ? { mediation } : {}),
+              },
               stageTag,
               specialistType,
               visibility,
             });
-            const serverMessageId: string | null = insertResult.id;
-            const serverCreatedAt: string | null = insertResult.createdAt;
+            if (!isDemo) {
+              if (!insertResult.id) {
+                throw new AiMessagePersistenceError("Persisted AI message id was missing");
+              }
+              await completeChatRequest({
+                ...claimParams,
+                messageId: insertResult.id,
+              });
+              requestClaimAcquired = false;
+            }
+            if (insertResult.reused) {
+              send({ type: "text_clear" });
+              const storedSuggestions = getStoredSuggestions(insertResult);
+              if (storedSuggestions.length > 0) {
+                send({ type: "suggestions", suggestions: storedSuggestions });
+              }
+            }
 
             send({
               type: "done",
-              fullContent: cleanText,
-              metadata: {
-                toolResults,
-                toolsUsed,
-                senderName,
-                stageTag,
-                specialistType,
-                serverMessageId,
-                serverCreatedAt,
-                ...(mediation ? { mediation } : {}),
-              },
+              fullContent: insertResult.content ?? cleanText,
+              metadata: getDoneMetadata(insertResult),
             });
+
+            if (insertResult.reused) {
+              clearInterval(heartbeat);
+              controller.close();
+              return;
+            }
 
             // D1: 성공 turn 로깅 (fire-and-forget)
             void logAIInteraction({
@@ -835,8 +1096,8 @@ export async function POST(request: Request) {
               coupleId,
               interactionType: "chat_turn",
               specialistType,
-              userInput: lastUserText,
-              aiOutput: cleanText,
+              userInput: null,
+              aiOutput: null,
               latencyMs: elapsedMs(turnStartedAt),
               success: true,
               model: lastModel,
@@ -849,6 +1110,10 @@ export async function POST(request: Request) {
                 tools_used: toolsUsed,
                 tool_rounds: round + 1,
                 correction_count: correctionCount,
+                request_key: clientRequestId,
+                user_message_id: typeof bodyUserMessageId === "string" ? bodyUserMessageId : null,
+                user_input_sha256: createHash("sha256").update(lastUserText).digest("hex"),
+                ai_output_sha256: createHash("sha256").update(cleanText).digest("hex"),
               },
             });
 
@@ -857,7 +1122,7 @@ export async function POST(request: Request) {
               ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
               { role: "assistant" as const, content: cleanText },
             ];
-            void maybeSummarize({
+            if (AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
               coupleId,
               userId: user.id,
               messages: messagesWithLatest,
@@ -867,7 +1132,7 @@ export async function POST(request: Request) {
             });
 
             // Memory Step B: 이번 턴 decision/preference 추출 (fire-and-forget)
-            void maybeExtractDecision({
+            if (AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
               coupleId,
               userId: user.id,
               messages: messagesWithLatest,
@@ -877,7 +1142,7 @@ export async function POST(request: Request) {
             });
 
             // Excavation 기법 사용 분류 (fire-and-forget)
-            void maybeClassifyExcavation({
+            if (AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
               coupleId,
               userId: user.id,
               lastUserText,
@@ -886,7 +1151,7 @@ export async function POST(request: Request) {
             });
 
             // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-            void maybeUpdateAmoraProfile({
+            if (AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
               coupleId,
               userId: user.id,
               visibility,
@@ -913,17 +1178,35 @@ export async function POST(request: Request) {
             "analyze_quote", "analyze_contract_readiness", "simulate_guest_guarantee",
           ]);
 
-          const toolResultContents: ContentBlockParam[] = [];
-          // 유저 메시지에 [quote_analysis] 태그가 있는지 확인
-          const roundLastUserMsg = currentMessages.filter((m) => m.role === "user").pop();
-          const roundLastUserText = typeof roundLastUserMsg?.content === "string"
-            ? roundLastUserMsg.content
-            : Array.isArray(roundLastUserMsg?.content)
-              ? (roundLastUserMsg.content as ContentBlockParam[]).filter((b) => (b as { type: string }).type === "text").map((b) => (b as { text: string }).text).join("")
-              : "";
-          const hasQuoteAnalysisTag = roundLastUserText.includes("[quote_analysis]");
+          const toolResultInputs: ChatInputItem[] = [];
+          // 유저가 보낸 canonical 마지막 메시지만 신뢰한다. Provider가 생성한
+          // output item을 다시 훑어 태그 권한을 추론하지 않는다.
+          const hasQuoteAnalysisTag = lastUserText.includes("[quote_analysis]");
 
-          for (const toolUse of result.toolUseBlocks) {
+          for (const toolUse of result.toolCalls) {
+            if (!toolExecutionCompleted && turnAbortController.signal.aborted) {
+              throw new DOMException("Chat request aborted before tool execution", "AbortError");
+            }
+
+            if (toolUse.parseError) {
+              const invalidResult = JSON.stringify({
+                success: false,
+                error_code: "INVALID_TOOL_INPUT",
+                error: "도구 입력 형식이 올바르지 않습니다. 정의된 스키마에 맞게 다시 시도하세요.",
+              });
+              send({
+                type: "tool_result",
+                result: {
+                  toolName: toolUse.name,
+                  toolInput: {},
+                  toolOutput: JSON.parse(invalidResult),
+                  success: false,
+                },
+              });
+              toolResultInputs.push(buildToolResultInput(toolUse.callId, invalidResult));
+              continue;
+            }
+
             toolsUsed.push(toolUse.name);
 
             // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움
@@ -936,6 +1219,9 @@ export async function POST(request: Request) {
 
             send({ type: "tool_start", toolName: toolUse.name, toolInput: toolUse.input });
             const execResult = await executeTool(toolUse.name, toolUse.input, executionContext);
+            // Once a tool has returned, finish and persist this claimed turn even
+            // if the client disconnects. Retrying a mutating tool is less safe.
+            toolExecutionCompleted = true;
             toolResults.push(execResult);
             send({ type: "tool_result", result: execResult });
             // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
@@ -943,39 +1229,40 @@ export async function POST(request: Request) {
             const reminder = UI_RENDERED_TOOLS.has(toolUse.name)
               ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
               : "";
-            toolResultContents.push(buildToolResultContent(toolUse.id, outputJson + reminder));
+            toolResultInputs.push(
+              buildToolResultInput(toolUse.callId, outputJson + reminder)
+            );
           }
 
-          const assistantContent: ContentBlockParam[] = [];
-          if (result.fullText) {
-            assistantContent.push({ type: "text", text: result.fullText } as ContentBlockParam);
-          }
-          for (const toolUse of result.toolUseBlocks) {
-            assistantContent.push({ type: "tool_use", id: toolUse.id, name: toolUse.name, input: toolUse.input } as ContentBlockParam);
-          }
-
+          // store:false이므로 reasoning(암호화 content 포함), assistant message,
+          // function_call 원본과 function_call_output을 모두 다음 요청에 재전송한다.
           currentMessages = [
             ...currentMessages,
-            { role: "assistant" as const, content: assistantContent },
-            { role: "user" as const, content: toolResultContents },
+            ...result.outputItems,
+            ...toolResultInputs,
           ];
         }
 
         // 최대 라운드 초과 시 마지막 호출 (역시 실시간 스트리밍)
         const finalResult = await chatWithToolsStream({
           systemPrompt,
-          messages: currentMessages,
-          tools: BETA_SAFE_TOOLS,
+          input: currentMessages,
+          // MAX_TOOL_ROUNDS 이후에는 새 mutation 요청을 받지 않고 기존 결과를
+          // 사용자용 문장으로 정리하게 한다.
+          tools: [],
           onTextDelta: (token) => {
             send({ type: "text_delta", content: token });
           },
+          modelRole,
+          safetyIdentifierScope: user.id,
+          signal: toolExecutionCompleted ? undefined : turnAbortController.signal,
         });
 
         // 마지막 호출 토큰/모델 집계
         if (finalResult.usage) {
           totalTokensIn += finalResult.usage.input_tokens ?? 0;
           totalTokensOut += finalResult.usage.output_tokens ?? 0;
-          totalCacheCreationTokens += finalResult.usage.cache_creation_input_tokens ?? 0;
+          totalCacheCreationTokens += finalResult.usage.cache_write_input_tokens ?? 0;
           totalCacheReadTokens += finalResult.usage.cache_read_input_tokens ?? 0;
         }
         if (finalResult.model) lastModel = finalResult.model;
@@ -990,38 +1277,62 @@ export async function POST(request: Request) {
         }
 
         // 서버 사이드 INSERT (MAX_TOOL_ROUNDS 초과 분기 — idempotency 포함)
-        const insertResult2 = await insertAiMessageWithIdempotency({
+        const insertResult2 = await persistAiMessage({
           isDemo,
           coupleId,
           cleanText,
           clientRequestId,
-          metadata: { toolResults, toolsUsed, senderName, ...(mediation ? { mediation } : {}) },
+          metadata: {
+            toolResults,
+            toolsUsed,
+            senderName: safeSenderName,
+            ...(visibleClientRequestKey !== clientRequestId
+              ? { client_visible_request_id: visibleClientRequestKey }
+              : {}),
+            ...(suggestions.length > 0 ? { suggestions } : {}),
+            ...(mediation ? { mediation } : {}),
+          },
           stageTag,
           specialistType,
           visibility,
         });
+        if (!isDemo) {
+          if (!insertResult2.id) {
+            throw new AiMessagePersistenceError("Persisted AI message id was missing");
+          }
+          await completeChatRequest({
+            ...claimParams,
+            messageId: insertResult2.id,
+          });
+          requestClaimAcquired = false;
+        }
+
+        if (insertResult2.reused) {
+          send({ type: "text_clear" });
+          const storedSuggestions = getStoredSuggestions(insertResult2);
+          if (storedSuggestions.length > 0) {
+            send({ type: "suggestions", suggestions: storedSuggestions });
+          }
+        }
 
         send({
           type: "done",
-          fullContent: cleanText,
-          metadata: {
-            toolResults,
-            toolsUsed,
-            senderName,
-            stageTag,
-            specialistType,
-            serverMessageId: insertResult2.id,
-            serverCreatedAt: insertResult2.createdAt,
-            ...(mediation ? { mediation } : {}),
-          },
+          fullContent: insertResult2.content ?? cleanText,
+          metadata: getDoneMetadata(insertResult2),
         });
+
+        if (insertResult2.reused) {
+          clearInterval(heartbeat);
+          controller.close();
+          return;
+        }
 
         // Memory Step A + B: 요약 생성 + decision/preference 추출 (fire-and-forget)
         const messagesWithLatest = [
           ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
           { role: "assistant" as const, content: cleanText },
         ];
-        void maybeSummarize({
+        if (AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
           coupleId,
           userId: user.id,
           messages: messagesWithLatest,
@@ -1029,7 +1340,7 @@ export async function POST(request: Request) {
           lastToMessageId,
           visibility,
         });
-        void maybeExtractDecision({
+        if (AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
           coupleId,
           userId: user.id,
           messages: messagesWithLatest,
@@ -1037,7 +1348,7 @@ export async function POST(request: Request) {
           lastUserText,
           visibility,
         });
-        void maybeClassifyExcavation({
+        if (AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
           coupleId,
           userId: user.id,
           lastUserText,
@@ -1046,7 +1357,7 @@ export async function POST(request: Request) {
         });
 
         // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-        void maybeUpdateAmoraProfile({
+        if (AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
           coupleId,
           userId: user.id,
           visibility,
@@ -1064,8 +1375,8 @@ export async function POST(request: Request) {
           coupleId,
           interactionType: "chat_turn",
           specialistType,
-          userInput: lastUserText,
-          aiOutput: cleanText,
+          userInput: null,
+          aiOutput: null,
           latencyMs: elapsedMs(turnStartedAt),
           success: true,
           model: lastModel,
@@ -1079,18 +1390,42 @@ export async function POST(request: Request) {
             tool_rounds: MAX_TOOL_ROUNDS,
             exceeded_max_rounds: true,
             correction_count: correctionCount,
+            request_key: clientRequestId,
+            user_message_id: typeof bodyUserMessageId === "string" ? bodyUserMessageId : null,
+            user_input_sha256: createHash("sha256").update(lastUserText).digest("hex"),
+            ai_output_sha256: createHash("sha256").update(cleanText).digest("hex"),
           },
         });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error("채팅 API 에러:", errMsg);
+        if (requestClaimAcquired) {
+          await failChatRequest({
+            ...claimParams,
+            failureCode:
+              err instanceof AiMessagePersistenceError
+                ? err.code
+                : err instanceof ChatRequestClaimError
+                  ? err.code
+                  : "CHAT_TURN_FAILED",
+          }).catch((claimError) => {
+            console.error("[chat] durable request failure marker failed", claimError);
+          });
+          requestClaimAcquired = false;
+        }
         // 내부 에러 원문(모델명·스택·DB 제약 등)을 클라이언트에 노출하지 않는다.
         // 원문은 위 console.error·아래 logAIInteraction에만 남긴다.
         send({
           type: "error",
-          message: errMsg.includes("timeout") || errMsg.includes("abort")
-            ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-            : "AI 응답 생성에 실패했어요. 잠시 후 다시 시도해주세요.",
+          code:
+            err instanceof AiMessagePersistenceError || err instanceof ChatRequestClaimError
+              ? err.code
+              : undefined,
+          message: err instanceof AiMessagePersistenceError || err instanceof ChatRequestClaimError
+            ? "답변 저장을 완료하지 못했어요. 같은 요청으로 다시 시도해주세요."
+            : errMsg.includes("timeout") || errMsg.includes("abort")
+              ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
+              : "AI 응답 생성에 실패했어요. 잠시 후 다시 시도해주세요.",
         });
 
         // D1: 실패 turn 로깅 (fire-and-forget)
@@ -1099,7 +1434,7 @@ export async function POST(request: Request) {
           coupleId,
           interactionType: "chat_turn",
           specialistType,
-          userInput: lastUserText,
+          userInput: null,
           aiOutput: null,
           latencyMs: elapsedMs(turnStartedAt),
           success: false,
@@ -1111,6 +1446,9 @@ export async function POST(request: Request) {
           cacheReadTokens: totalCacheReadTokens || null,
           metadata: {
             stage_tag: stageTag,
+            request_key: clientRequestId,
+            user_message_id: typeof bodyUserMessageId === "string" ? bodyUserMessageId : null,
+            user_input_sha256: createHash("sha256").update(lastUserText).digest("hex"),
           },
         });
       }
@@ -1118,14 +1456,10 @@ export async function POST(request: Request) {
       clearInterval(heartbeat);
       controller.close();
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
+    cancel() {
+      abortBeforeDurableTool();
     },
   });
+
+  return new Response(stream, { headers: SSE_HEADERS });
 }

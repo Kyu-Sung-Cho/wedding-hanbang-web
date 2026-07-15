@@ -37,12 +37,20 @@ const checks = [
     args: ["pnpm", "mobile:release-check"],
   },
   {
+    name: "mobile tests",
+    args: ["pnpm", "--filter", "@hanbang/mobile", "test"],
+  },
+  {
     name: "mobile typecheck",
     args: ["pnpm", "--filter", "@hanbang/mobile", "typecheck"],
   },
   {
     name: "mobile lint",
     args: ["pnpm", "--filter", "@hanbang/mobile", "lint"],
+  },
+  {
+    name: "mobile bundle export",
+    args: ["pnpm", "--filter", "@hanbang/mobile", "build"],
   },
   {
     name: "shared typecheck",

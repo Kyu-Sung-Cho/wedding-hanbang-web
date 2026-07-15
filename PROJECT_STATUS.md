@@ -2,6 +2,7 @@
 
 > ⚠️ **경고 (2026-07-03 감사)**: 이 문서는 2026-06-11 "Week 1 수술"(청첩장·B2B 포털·결제·전자계약 등 약 2.5만 줄 삭제) **이전** 스냅샷입니다.
 > 여기 기술된 기능 중 상당수는 현재 코드에 없습니다. 현재 상태는 `CLAUDE.md`, 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
+> 아래 Claude/Anthropic 운영 표기는 현재 사양이 아닙니다. 2026-07-15 전환 브랜치는 OpenAI Responses API(GPT-5.6 Luna·Terra) 전용이고, 아직 운영 활성화 전이므로 `docs/operations/AMORA_PRODUCTION_RELEASE.md`의 게이트를 우선합니다.
 
 > **최종 업데이트**: 2026-04-22
 > **도메인**: hanbang.ai / www.hanbang.ai

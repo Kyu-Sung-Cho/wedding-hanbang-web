@@ -19,9 +19,7 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "드레스 피팅과 업체 후기 사진 촬영에 카메라가 필요해요.",
-        "NSPhotoLibraryUsageDescription": "후기와 커뮤니티 사진을 올리려면 사진 접근이 필요해요.",
-        "NSMicrophoneUsageDescription": "영상 촬영 시 마이크가 필요해요."
+        "NSPhotoLibraryUsageDescription": "후기와 커뮤니티에 선택한 사진을 올리려면 사진 접근이 필요해요."
       },
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -35,11 +33,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FBF8F2"
       },
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
-      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -67,6 +60,14 @@
       "expo-font",
       "expo-secure-store",
       "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "후기와 커뮤니티에 선택한 사진을 올리려면 사진 접근이 필요해요.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

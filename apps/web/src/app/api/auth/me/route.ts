@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 
@@ -18,11 +19,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
+    const admin = createAdminClient();
     const _debug: Record<string, unknown> = {};
 
     // 프로필 조회 (RLS: profiles_select_own)
     let profile = null;
-    const { data: profileData, error: profileSelectErr } = await supabase
+    const { data: profileData, error: profileSelectErr } = await admin
       .from("profiles")
       .select("*")
       .eq("id", user.id)
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
           ?? user.user_metadata?.full_name
           ?? user.email?.split("@")[0]
           ?? "사용자";
-        const { error: nameErr } = await supabase
+        const { error: nameErr } = await admin
           .from("profiles")
           .update({ name })
           .eq("id", user.id);
@@ -50,7 +52,9 @@ export async function GET(request: Request) {
       }
     } else {
       // 프로필 없으면 생성
-      const { data: newProfile, error: profileInsertErr } = await supabase
+      // Direct client INSERT is disabled. Repair only the authenticated user's
+      // exact profile row through the server-side service client.
+      const { data: newProfile, error: profileInsertErr } = await admin
         .from("profiles")
         .insert({
           id: user.id,
@@ -96,8 +100,8 @@ export async function GET(request: Request) {
             : coupleData.bride_id;
         if (partnerId) {
           const { data: partnerData, error: partnerErr } = await supabase
-            .from("profiles")
-            .select("*")
+            .from("couple_profile_directory")
+            .select("id, name, role, couple_id")
             .eq("id", partnerId)
             .single();
           if (partnerErr) _debug.partnerSelectError = partnerErr.message;

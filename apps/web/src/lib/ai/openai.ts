@@ -32,6 +32,8 @@ const schemaValidator = new Ajv({
   coerceTypes: false,
 });
 const compiledToolSchemas = new WeakMap<object, ValidateFunction>();
+const FUNCTION_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_FUNCTION_CALL_ID_LENGTH = 128;
 
 export type OpenAIUsageStatus = "complete" | "unknown";
 export type OpenAIErrorCategory =
@@ -266,7 +268,7 @@ export function buildMultimodalContent(
 function toOpenAITools(tools: AiToolDefinition[]): FunctionTool[] {
   const names = new Set<string>();
   return tools.map((tool) => {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(tool.name) || names.has(tool.name)) {
+    if (!FUNCTION_NAME_RE.test(tool.name) || names.has(tool.name)) {
       throw new OpenAIProviderError("[openai] invalid tool name", {
         category: "invalid_request",
         providerCode: "invalid_tool_name",
@@ -285,6 +287,75 @@ function toOpenAITools(tools: AiToolDefinition[]): FunctionTool[] {
       strict: false,
     };
   });
+}
+
+function getPriorFunctionCallIds(input: string | ResponseInput): Set<string> {
+  const callIds = new Set<string>();
+  if (typeof input === "string") return callIds;
+
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { type?: unknown; call_id?: unknown };
+    if (
+      (record.type === "function_call" || record.type === "function_call_output") &&
+      typeof record.call_id === "string"
+    ) {
+      callIds.add(record.call_id);
+    }
+  }
+  return callIds;
+}
+
+function assertValidFunctionCalls(
+  functionCalls: Array<Extract<ResponseOutputItem, { type: "function_call" }>>,
+  tools: AiToolDefinition[],
+  input: string | ResponseInput,
+  context: Pick<
+    ProviderErrorDetails,
+    "model" | "usage" | "usageStatus" | "requestId" | "responseId"
+  >
+): void {
+  const allowedNames = new Set(tools.map((tool) => tool.name));
+  const seenCallIds = getPriorFunctionCallIds(input);
+
+  for (const item of functionCalls) {
+    if (item.status !== "completed") {
+      throw new OpenAIProviderError("[openai] incomplete function call", {
+        category: "response_invalid",
+        ...context,
+        providerCode: "invalid_function_call_status",
+      });
+    }
+
+    if (
+      typeof item.call_id !== "string" ||
+      item.call_id.trim().length === 0 ||
+      item.call_id.length > MAX_FUNCTION_CALL_ID_LENGTH
+    ) {
+      throw new OpenAIProviderError("[openai] invalid function call id", {
+        category: "response_invalid",
+        ...context,
+        providerCode: "invalid_function_call_id",
+      });
+    }
+
+    if (!FUNCTION_NAME_RE.test(item.name) || !allowedNames.has(item.name)) {
+      throw new OpenAIProviderError("[openai] invalid function call name", {
+        category: "response_invalid",
+        ...context,
+        providerCode: "invalid_function_call_name",
+      });
+    }
+
+    if (seenCallIds.has(item.call_id)) {
+      throw new OpenAIProviderError("[openai] duplicate function call id", {
+        category: "response_invalid",
+        ...context,
+        providerCode: "duplicate_function_call_id",
+      });
+    }
+    seenCallIds.add(item.call_id);
+  }
 }
 
 function parseToolArguments(value: string): {
@@ -585,8 +656,16 @@ export async function chatWithToolsStream(options: {
 
   const usage = normalizeResponseUsage(finalResponse);
   const functionCallItems = finalResponse.output.filter(
-    (item) => item.type === "function_call"
+    (item): item is Extract<ResponseOutputItem, { type: "function_call" }> =>
+      item.type === "function_call"
   );
+  assertValidFunctionCalls(functionCallItems, tools, input, {
+    model: finalResponse.model,
+    usage,
+    usageStatus: usage ? "complete" : "unknown",
+    requestId,
+    responseId: finalResponse.id,
+  });
   if (functionCallItems.length > 1) {
     throw new OpenAIProviderError("[openai] too many function calls", {
       category: "response_invalid",

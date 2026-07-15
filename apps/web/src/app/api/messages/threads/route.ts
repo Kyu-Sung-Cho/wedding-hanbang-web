@@ -46,12 +46,10 @@ export async function GET(req: NextRequest) {
       }
 
       // 고객 이름 조회
-      const customerIds = [...customerMap.keys()];
-      const { data: profiles } = customerIds.length > 0
-        ? await supabase.from("profiles").select("id, name").in("id", customerIds)
-        : { data: [] };
-
-      const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.name]));
+      // Do not resolve arbitrary customer ids through the service role. A vendor
+      // can create a thread id before a verified relationship exists, so exposing
+      // profile names here would become a UUID-to-real-name lookup oracle.
+      const profileMap: Record<string, string> = {};
 
       for (const [customerId, msgs] of customerMap) {
         const last = msgs[0];

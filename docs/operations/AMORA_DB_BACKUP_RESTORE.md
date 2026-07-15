@@ -6,17 +6,25 @@ restore or authorization to change production.
 
 ## Current gate
 
-Stage B remains **open** until all of the following are complete:
+Stage B remains **open**, with the following evidence as of 2026-07-15 KST:
 
-1. a fresh production HBAM2 capture and verification;
-2. a current provider-managed physical backup;
-3. restoration into an isolated database with the real schema and Auth
-   dependency;
-4. RLS and RPC contract tests against that restored database;
-5. an exact migration dry-run with a short write fence and rollback procedure.
+1. **Passed:** fresh production HBAM2 capture and immediate verification;
+2. **Passed:** provider backup `2026-07-14 20:13:53 UTC` is `COMPLETED`
+   and exposes a Restore action;
+3. **Partially passed:** Supabase restored production into isolated clone
+   `syhmfxauqyhgdcokrheg`, including real schema, Auth and data. This proves the
+   provider physical-restore path, but it is not a replay of the HBAM2 logical
+   artifacts into a blank target;
+4. **Passed on the provider clone:** hosted RLS/RPC/Auth contract and concurrency
+   tests after all release expand migrations;
+5. **Partially passed:** the production remote dry-run matches exactly 15
+   hash-pinned manifest files. Production write-fence execution, ledger
+   reconciliation and migration apply remain open.
 
 PGlite proves authenticated JSONB integrity and precision. It does not install
-the production schema, policies, triggers, or functions.
+the production schema, policies, triggers, or functions. The provider clone
+adds real hosted-schema evidence but still does not prove the independently
+restorable HBAM2 logical path.
 
 ## Covered data and schema
 

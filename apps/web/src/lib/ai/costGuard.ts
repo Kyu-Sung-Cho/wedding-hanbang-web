@@ -1,4 +1,4 @@
-// 아모라(Claude) 비용 가드레일 — 유통 테스트 전 지갑 보호용.
+// 아모라 AI 비용 가드레일 — 유통 테스트 전 지갑 보호용.
 //
 // 두 겹의 차단기:
 //  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
@@ -34,7 +34,7 @@ const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 
 export interface CostGuardResult {
   allowed: boolean;
-  reason?: "couple_quota" | "global_daily";
+  reason?: "couple_quota" | "global_daily" | "guard_unavailable";
   message?: string;
   /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
   remaining?: number;
@@ -54,6 +54,13 @@ const DENY_COUPLE: CostGuardResult = {
   reason: "couple_quota",
   message:
     "베타 기간 무료 상담을 모두 사용하셨어요. 더 많은 상담은 곧 열릴 예정이에요 — 그때 가장 먼저 알려드릴게요.",
+};
+
+const DENY_UNAVAILABLE: CostGuardResult = {
+  allowed: false,
+  reason: "guard_unavailable",
+  message:
+    "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
 };
 
 // LLM 턴 1회를 원자적으로 "체크+예약" (감사 2.3 H1 — TOCTOU 레이스 해소).
@@ -87,9 +94,9 @@ export async function reserveAmoraTurn(
     if (row?.reason === "global_daily") return DENY_GLOBAL;
     if (row?.reason === "couple_quota") return DENY_COUPLE;
 
-    // 알 수 없는 응답 형태 — 가드 오류가 정상 사용을 막으면 안 됨 (fail-open)
-    console.error("[costGuard] 예약 RPC 응답 형태 불명 (통과 처리):", JSON.stringify(row ?? null));
-    return ALLOW;
+    // Unknown reservation state must never create an unmetered provider call.
+    console.error("[costGuard] 예약 RPC 응답 형태 불명 (차단):", JSON.stringify(row ?? null));
+    return DENY_UNAVAILABLE;
   } catch (err) {
     console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
     return checkAmoraCostGuard(admin, params);
@@ -132,9 +139,8 @@ export async function checkAmoraCostGuard(
     .gte("created_at", startOfTodayKstUtc);
 
   if (globalErr) {
-    // 카운트 실패 시 차단하지 않음 — 가드 오류가 정상 사용을 막으면 안 됨 (fail-open)
-    console.error("[costGuard] 전역 카운트 실패 (통과 처리):", globalErr.message);
-    return ALLOW;
+    console.error("[costGuard] 전역 카운트 실패 (차단):", globalErr.message);
+    return DENY_UNAVAILABLE;
   }
   if ((globalToday ?? 0) >= GLOBAL_DAILY_CAP) {
     return DENY_GLOBAL;
@@ -148,8 +154,8 @@ export async function checkAmoraCostGuard(
     .eq("interaction_type", "chat_turn");
 
   if (coupleErr) {
-    console.error("[costGuard] 커플 카운트 실패 (통과 처리):", coupleErr.message);
-    return ALLOW;
+    console.error("[costGuard] 커플 카운트 실패 (차단):", coupleErr.message);
+    return DENY_UNAVAILABLE;
   }
   if ((coupleTotal ?? 0) >= FREE_PER_COUPLE) {
     return DENY_COUPLE;

@@ -1,0 +1,48 @@
+{
+  "release": "amora-openai-20260714",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "migrationFloor": "20260704120000",
+  "historicalReconciliation": [
+    { "file": "20260704120000_create_amora_turn_reserve_rpc.sql", "sha256": "af7cc6a16458da66ff59caa75ebd419ce4d32275254b5e88ac7ba54a659e92b3" },
+    { "file": "20260704130000_add_rate_limit_gc.sql", "sha256": "46e26b0058822b112ea799ce4081f5bf8631b5d5d905caf91dbb5f7068fee5a8" },
+    { "file": "20260704131000_drop_dead_invitation_tables.sql", "sha256": "bf263b3180a689da6f43ab55c72532c84f7189342a1653c2c557932bf99c8703" },
+    { "file": "20260705090000_hide_seed_vendors.sql", "sha256": "260599795099921c9cd18edfdddb61a889172eacb3b708436418c881a03e989a" },
+    { "file": "20260705120000_add_care_notifications_flag.sql", "sha256": "31c106ffb5edf527996d9c5a2fe3ecf7e1a761811a76a83a07f045f3b9b8cbbc" },
+    { "file": "20260705140000_add_phone_care_channel.sql", "sha256": "fcd2fd733cabc47689cbdbafa40f7e747e23437fb91889aaa82309fc86e41df8" },
+    { "file": "20260705160000_wedding_code_responses.sql", "sha256": "d7d3e500233cd8729d71bed07d10bf2c4940aab9dbdff5558a0e68e7adbaea82" },
+    { "file": "20260706100000_wc_couple_token.sql", "sha256": "b26fb00e1cdb9d561845d29ba94c6f12e1b27af31876d163ee5daa0f9474ddc7" },
+    { "file": "20260714104000_disable_wedding_code_collection.sql", "sha256": "6fd38aaa80321353892bccd573fa6869393907a5eae73ee9f8551072716d9ed5" }
+  ],
+  "expandMigrations": [
+    { "file": "20260714160000_harden_amora_privacy_boundaries.sql", "sha256": "249d19e16d4e2e8d2b3957b12e0aa3da7942a3eac706233a73ffb09be04c58e6" },
+    { "file": "20260714163000_atomic_chat_clear_request.sql", "sha256": "39776ff7240297c6e18f4fba28d09c22772df210a473b3444751fd52698b4529" },
+    { "file": "20260714164000_harden_amora_tool_idempotency.sql", "sha256": "a0a707024c40427a9e93e9d116de260ef7e1e6c9ffe4e5458a795e2c7b4b369e" },
+    { "file": "20260714164500_expand_atomic_couple_reset.sql", "sha256": "9805ea68c06cfe95d8cbb1e2e50e9cf4c52bc65233f652cc6c69838e18be179f" },
+    { "file": "20260714164600_expand_push_token_persistence.sql", "sha256": "7b8c9dd304e19bfa7e51173ab29fb6fa485f41f39601683af39cfa920d50cebb" },
+    { "file": "20260714164700_expand_account_deletion_integrity.sql", "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691" }
+  ],
+  "historicalEffectAudit": {
+    "file": "supabase/contract-migrations/20260714165500_audit_historical_release_effects.sql",
+    "sha256": "9d626616070e96b16be4cdb34f3560d1caf05f944ea1c1ada73fb6587a0f6863"
+  },
+  "manualPlatformOperations": [
+    {
+      "file": "supabase/platform-operations/storage/20260714162000_chat_attachment_expand.sql",
+      "sha256": "f796c6ffbf5ee7fcb7a54cdebc595a537ec5d94e3baba908e621806022daf754"
+    },
+    {
+      "file": "supabase/platform-operations/storage/20260714167000_chat_attachment_contract.sql",
+      "sha256": "2d46aeb3af4f7ca31ae5adb15757f70298311c0a651b87060b2e9db0aca717f6"
+    }
+  ],
+  "requiredDocuments": [
+    {
+      "file": "docs/operations/AMORA_PRODUCTION_RELEASE.md",
+      "sha256": "2eca23e8a9322ed75e6a2b9be89ad6c5c93d183a3fe0134e0da2182e330a75bc"
+    },
+    {
+      "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",
+      "sha256": "0775964df10bc42cda78fa9bc1f89a3d0cd7ab2b97ad77b722f8ab7f17ec3e7e"
+    }
+  ]
+}

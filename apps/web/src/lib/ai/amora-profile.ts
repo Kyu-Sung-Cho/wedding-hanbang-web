@@ -7,7 +7,7 @@
 // =============================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createAnthropicMessageWithAudit } from "@/lib/ai/auditedAnthropic";
+import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 
 export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -81,9 +81,9 @@ interface MaybeUpdateAmoraProfileInput {
   isDemo?: boolean;
 }
 
-const PROFILE_MODEL = "claude-haiku-4-5-20251001";
 const MAX_MESSAGE_CHARS = 900;
 const MAX_INPUT_CHARS = 8_000;
+const MAX_CURRENT_PROFILE_CHARS = 20_000;
 const MAX_TEXT_FIELD_CHARS = 500;
 const MAX_LIST_ITEMS = 8;
 const MAX_LIST_ITEM_CHARS = 140;
@@ -263,23 +263,26 @@ function shouldAttemptProfileUpdate(input: MaybeUpdateAmoraProfileInput): boolea
 function profileForPrompt(profile: AmoraCoupleProfile | null | undefined): Record<string, unknown> | null {
   if (!profile) return null;
   return {
-    persona_summary: profile.personaSummary,
-    budget_posture: profile.budgetPosture,
-    decision_style: profile.decisionStyle,
-    taste_profile: profile.tasteProfile,
-    communication_style: profile.communicationStyle,
-    conflict_pattern: profile.conflictPattern,
-    sensitive_topics: profile.sensitiveTopics,
-    recommendation_rules: profile.recommendationRules,
-    open_questions: profile.openQuestions,
-    confidence_score: profile.confidenceScore,
-    evidence: profile.evidence,
+    persona_summary: sanitizeText(profile.personaSummary, null),
+    budget_posture: sanitizeText(profile.budgetPosture, null),
+    decision_style: sanitizeText(profile.decisionStyle, null),
+    taste_profile: sanitizeText(profile.tasteProfile, null),
+    communication_style: sanitizeText(profile.communicationStyle, null),
+    conflict_pattern: sanitizeText(profile.conflictPattern, null),
+    sensitive_topics: sanitizeList(profile.sensitiveTopics, []),
+    recommendation_rules: sanitizeList(profile.recommendationRules, []),
+    open_questions: sanitizeList(profile.openQuestions, []),
+    confidence_score: sanitizeConfidence(profile.confidenceScore, 0.5),
+    evidence: sanitizeEvidence(profile.evidence, []),
     version: profile.version,
   };
 }
 
 function compactJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
+  const json = JSON.stringify(value, null, 2);
+  return json.length <= MAX_CURRENT_PROFILE_CHARS
+    ? json
+    : JSON.stringify({ omitted_due_to_size: true });
 }
 
 function sanitizeText(value: unknown, fallback: string | null): string | null {
@@ -319,15 +322,169 @@ function sanitizeEvidence(value: unknown, fallback: AmoraProfileEvidence[]): Amo
   return evidence.slice(0, MAX_EVIDENCE_ITEMS);
 }
 
-function parseProfileResponse(text: string): { shouldUpdate: boolean; profile: Record<string, unknown> | null } | null {
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
-  const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-  const shouldUpdate = parsed.should_update === true || parsed.shouldUpdate === true;
-  const profile = typeof parsed.profile === "object" && parsed.profile !== null
-    ? parsed.profile as Record<string, unknown>
-    : null;
-  return { shouldUpdate, profile };
+interface AmoraProfileUpdateResponse {
+  shouldUpdate: boolean;
+  profile: Record<string, unknown> | null;
+}
+
+const nullableProfileText = (maxLength: number): Record<string, unknown> => ({
+  anyOf: [
+    { type: "string", maxLength },
+    { type: "null" },
+  ],
+});
+
+const PROFILE_RESPONSE_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["should_update", "profile"],
+  properties: {
+    should_update: { type: "boolean" },
+    profile: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "persona_summary",
+            "budget_posture",
+            "decision_style",
+            "taste_profile",
+            "communication_style",
+            "conflict_pattern",
+            "sensitive_topics",
+            "recommendation_rules",
+            "open_questions",
+            "confidence_score",
+            "evidence",
+          ],
+          properties: {
+            persona_summary: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            budget_posture: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            decision_style: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            taste_profile: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            communication_style: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            conflict_pattern: nullableProfileText(MAX_TEXT_FIELD_CHARS),
+            sensitive_topics: {
+              type: "array",
+              maxItems: MAX_LIST_ITEMS,
+              items: { type: "string", maxLength: MAX_LIST_ITEM_CHARS },
+            },
+            recommendation_rules: {
+              type: "array",
+              maxItems: MAX_LIST_ITEMS,
+              items: { type: "string", maxLength: MAX_LIST_ITEM_CHARS },
+            },
+            open_questions: {
+              type: "array",
+              maxItems: MAX_LIST_ITEMS,
+              items: { type: "string", maxLength: MAX_LIST_ITEM_CHARS },
+            },
+            confidence_score: { type: "number", minimum: 0, maximum: 1 },
+            evidence: {
+              type: "array",
+              maxItems: MAX_EVIDENCE_ITEMS,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["insight", "source", "confidence", "at"],
+                properties: {
+                  insight: { type: "string", minLength: 1, maxLength: MAX_LIST_ITEM_CHARS },
+                  source: nullableProfileText(60),
+                  confidence: {
+                    anyOf: [
+                      { type: "number", minimum: 0, maximum: 1 },
+                      { type: "null" },
+                    ],
+                  },
+                  at: nullableProfileText(40),
+                },
+              },
+            },
+          },
+        },
+        { type: "null" },
+      ],
+    },
+  },
+};
+
+function isBoundedNullableText(value: unknown, maxLength: number): boolean {
+  return value === null || (typeof value === "string" && value.length <= maxLength);
+}
+
+function isBoundedStringList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_LIST_ITEMS &&
+    value.every((item) => typeof item === "string" && item.length <= MAX_LIST_ITEM_CHARS)
+  );
+}
+
+export function validateAmoraProfileUpdate(value: unknown): AmoraProfileUpdateResponse {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("invalid profile response");
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.should_update !== "boolean") throw new Error("invalid should_update");
+  if (record.profile === null) {
+    if (record.should_update) throw new Error("profile required when update is true");
+    return { shouldUpdate: false, profile: null };
+  }
+  if (!record.profile || typeof record.profile !== "object" || Array.isArray(record.profile)) {
+    throw new Error("invalid profile payload");
+  }
+  if (!record.should_update) throw new Error("profile must be null when update is false");
+
+  const profile = record.profile as Record<string, unknown>;
+  for (const key of [
+    "persona_summary",
+    "budget_posture",
+    "decision_style",
+    "taste_profile",
+    "communication_style",
+    "conflict_pattern",
+  ]) {
+    if (!isBoundedNullableText(profile[key], MAX_TEXT_FIELD_CHARS)) {
+      throw new Error(`invalid profile field: ${key}`);
+    }
+  }
+  for (const key of ["sensitive_topics", "recommendation_rules", "open_questions"]) {
+    if (!isBoundedStringList(profile[key])) throw new Error(`invalid profile list: ${key}`);
+  }
+  if (
+    typeof profile.confidence_score !== "number" ||
+    !Number.isFinite(profile.confidence_score) ||
+    profile.confidence_score < 0 ||
+    profile.confidence_score > 1
+  ) {
+    throw new Error("invalid profile confidence");
+  }
+  if (!Array.isArray(profile.evidence) || profile.evidence.length > MAX_EVIDENCE_ITEMS) {
+    throw new Error("invalid profile evidence");
+  }
+  for (const item of profile.evidence) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("invalid profile evidence item");
+    }
+    const evidence = item as Record<string, unknown>;
+    if (
+      typeof evidence.insight !== "string" ||
+      evidence.insight.trim().length === 0 ||
+      evidence.insight.length > MAX_LIST_ITEM_CHARS ||
+      !isBoundedNullableText(evidence.source, 60) ||
+      !isBoundedNullableText(evidence.at, 40) ||
+      (evidence.confidence !== null &&
+        (typeof evidence.confidence !== "number" ||
+          !Number.isFinite(evidence.confidence) ||
+          evidence.confidence < 0 ||
+          evidence.confidence > 1))
+    ) {
+      throw new Error("invalid profile evidence item");
+    }
+  }
+
+  return { shouldUpdate: true, profile };
 }
 
 const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 아모라의 "커플 개인화 프로필 편집기"입니다.
@@ -359,7 +516,7 @@ const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 아모라의 
     "recommendation_rules": ["다음 답변에서 바로 적용할 실무 규칙"],
     "open_questions": ["정말 필요할 때만 확인할 미해결 질문"],
     "confidence_score": 0.0,
-    "evidence": [{"insight":"근거 요약","source":"recent_chat","confidence":0.0}]
+    "evidence": [{"insight":"근거 요약","source":"recent_chat","confidence":0.0,"at":null}]
   }
 }
 
@@ -380,21 +537,20 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       ? "shared: 두 사람이 함께 보는 아모라 대화에만 사용"
       : `${input.visibility}: 해당 사용자 개인 상담에만 사용`;
 
-    const response = await createAnthropicMessageWithAudit({
-      params: {
-        model: PROFILE_MODEL,
-        max_tokens: 750,
-        system: PROFILE_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content:
-              `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
-              `[현재 프로필]\n${currentProfileJson}\n\n` +
-              `[최근 대화]\n${conversation}`,
-          },
-        ],
+    const response = await createOpenAIStructuredResponseWithAudit({
+      modelRole: "fast",
+      maxOutputTokens: 750,
+      instructions: PROFILE_SYSTEM_PROMPT,
+      input:
+        `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
+        `[현재 프로필]\n${currentProfileJson}\n\n` +
+        `[최근 대화]\n${conversation}`,
+      responseFormat: {
+        name: "amora_couple_profile_update",
+        description: "커플별 장기 개인화 프로필 갱신 결과",
+        schema: PROFILE_RESPONSE_SCHEMA,
       },
+      validate: validateAmoraProfileUpdate,
       audit: {
         userId: input.userId ?? null,
         coupleId: input.coupleId,
@@ -408,11 +564,7 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       },
     });
 
-    const firstBlock = response.content[0];
-    const text = firstBlock && firstBlock.type === "text" ? firstBlock.text.trim() : "";
-    if (!text) return;
-
-    const parsed = parseProfileResponse(text);
+    const parsed = response.data;
     if (!parsed?.shouldUpdate || !parsed.profile) return;
 
     const profile = parsed.profile;

@@ -1,36 +1,249 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { recordDecision } from "@/lib/memory/record-decision";
+
 import { determineStage } from "@/lib/ai/stage-router";
-import { getEvents, upsertMomentEvent } from "@/utils/scheduleEvents";
+import {
+  parseMembershipRpcResponse,
+  type CoupleRole,
+  type MembershipAction,
+} from "@/lib/couples/membershipRpc";
+import { recordDecision } from "@/lib/memory/record-decision";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { upsertMomentEvent } from "@/utils/scheduleEvents";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 const ONBOARDING_JOIN_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
-
-function getJoinCoupleErrorMessage(error: string | undefined) {
-  if (error === "Invalid invite code.") return "초대 코드가 올바르지 않습니다. 코드를 다시 확인해주세요.";
-  if (error === "This account is already linked to another couple.") {
-    return "이미 다른 커플에 연결된 계정입니다.";
-  }
-  if (error === "Bride slot is already linked.") return "이미 신부 역할이 연결되어 있습니다.";
-  if (error === "Groom slot is already linked.") return "이미 신랑 역할이 연결되어 있습니다.";
-  if (error === "Invalid role.") return "역할 정보가 올바르지 않습니다.";
-  if (error === "Unauthenticated.") return "로그인이 필요합니다.";
-  return error ?? "커플 연결에 실패했습니다.";
-}
+const DEFAULT_TOTAL_BUDGET = 20_000_000;
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY 환경변수가 설정되지 않았습니다.");
+    throw new Error("Supabase admin configuration is missing");
   }
 
   return createAdminClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+type AdminClient = ReturnType<typeof getAdmin>;
+
+class OnboardingPersistenceError extends Error {
+  constructor(operation: string, cause?: unknown) {
+    super(`Onboarding persistence failed: ${operation}`, { cause });
+    this.name = "OnboardingPersistenceError";
+  }
+}
+
+function asProgress(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function storedProgress(value: unknown): Record<string, unknown> {
+  if (value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new OnboardingPersistenceError("journey progress validation");
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function hasSanggyeonryeEvent(progress: Record<string, unknown>): boolean {
+  const events = progress.__events;
+  if (events === undefined) return false;
+  if (!Array.isArray(events)) {
+    throw new OnboardingPersistenceError("journey progress validation");
+  }
+
+  return events.some(
+    (event) =>
+      Boolean(event) &&
+      typeof event === "object" &&
+      (event as { momentType?: unknown }).momentType === "sanggyeonrye",
+  );
+}
+
+async function ensureProfileExists(
+  admin: AdminClient,
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> },
+) {
+  const { data: profile, error: profileReadError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileReadError) {
+    throw new OnboardingPersistenceError("profile lookup", profileReadError);
+  }
+
+  if (profile) return;
+
+  const metadataName =
+    typeof user.user_metadata?.name === "string" ? user.user_metadata.name.trim() : "";
+  const { error: profileInsertError } = await admin.from("profiles").insert({
+    id: user.id,
+    name: metadataName || user.email?.split("@")[0] || "사용자",
+    email: user.email ?? null,
+    onboarding_completed: false,
+    onboarding_step: 0,
+  });
+
+  if (profileInsertError) {
+    throw new OnboardingPersistenceError("profile creation", profileInsertError);
+  }
+}
+
+async function completeProfile(
+  admin: AdminClient,
+  userId: string,
+  coupleId: string,
+) {
+  const { data: profile, error } = await admin
+    .from("profiles")
+    .update({ onboarding_completed: true, onboarding_step: 5 })
+    .eq("id", userId)
+    .select("id, couple_id")
+    .single();
+
+  if (error || !profile || profile.couple_id !== coupleId) {
+    throw new OnboardingPersistenceError("profile completion", error);
+  }
+}
+
+type JourneyInput = {
+  coupleId: string;
+  weddingDate: string | null;
+  venue: string | null;
+  totalBudget: number | null;
+  progress: Record<string, unknown>;
+  sanggyeonryeDate: string | null;
+};
+
+async function readJourney(admin: AdminClient, coupleId: string) {
+  const { data, error } = await admin
+    .from("wedding_journeys")
+    .select("id, progress")
+    .eq("couple_id", coupleId)
+    .maybeSingle();
+
+  if (error) {
+    throw new OnboardingPersistenceError("journey lookup", error);
+  }
+
+  if (data && typeof data.id !== "string") {
+    throw new OnboardingPersistenceError("journey lookup validation");
+  }
+
+  return data;
+}
+
+async function ensureJourney(admin: AdminClient, input: JourneyInput) {
+  let journey = await readJourney(admin, input.coupleId);
+
+  if (!journey) {
+    const { data: inserted, error: insertError } = await admin
+      .from("wedding_journeys")
+      .insert({
+        couple_id: input.coupleId,
+        wedding_date: input.weddingDate,
+        venue: input.venue,
+        total_budget: input.totalBudget ?? DEFAULT_TOTAL_BUDGET,
+        progress: input.progress,
+      })
+      .select("id, progress")
+      .single();
+
+    if (!insertError && inserted) {
+      if (typeof inserted.id !== "string") {
+        throw new OnboardingPersistenceError("journey creation verification");
+      }
+      if (
+        input.sanggyeonryeDate &&
+        !hasSanggyeonryeEvent(storedProgress(inserted.progress))
+      ) {
+        throw new OnboardingPersistenceError("journey creation verification");
+      }
+      return;
+    }
+
+    // A lost-response retry or the partner can win the unique(couple_id)
+    // insert race. Re-read that canonical row; every other failure is fatal.
+    if (insertError?.code !== "23505") {
+      throw new OnboardingPersistenceError("journey creation", insertError);
+    }
+
+    journey = await readJourney(admin, input.coupleId);
+    if (!journey) {
+      throw new OnboardingPersistenceError("journey creation race recovery", insertError);
+    }
+  }
+
+  if (!input.sanggyeonryeDate) return;
+
+  // Compare-and-swap the complete JSON value. `apply_journey_progress_patch`
+  // is atomic for top-level keys but replaces the whole __events array, so a
+  // simultaneous partner edit to that same array could be lost. The exact old
+  // value predicate makes that race a zero-row update; we then re-read and
+  // merge again without overwriting either writer.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const rawProgress = journey.progress;
+    const existingProgress = storedProgress(rawProgress);
+    if (hasSanggyeonryeEvent(existingProgress)) return;
+
+    const { newProgress } = upsertMomentEvent(existingProgress, {
+      momentType: "sanggyeonrye",
+      date: input.sanggyeonryeDate,
+      title: "상견례",
+    });
+
+    let update = admin
+      .from("wedding_journeys")
+      .update({ progress: newProgress })
+      .eq("id", journey.id);
+    update =
+      rawProgress === null
+        ? update.is("progress", null)
+        : update.filter("progress", "eq", JSON.stringify(rawProgress));
+
+    const { data: updated, error: updateError } = await update
+      .select("progress")
+      .maybeSingle();
+    if (updateError) {
+      throw new OnboardingPersistenceError("sanggyeonrye merge", updateError);
+    }
+    if (updated) {
+      if (!hasSanggyeonryeEvent(storedProgress(updated.progress))) {
+        throw new OnboardingPersistenceError("sanggyeonrye merge verification");
+      }
+      return;
+    }
+
+    const reloaded = await readJourney(admin, input.coupleId);
+    if (!reloaded) {
+      throw new OnboardingPersistenceError("journey disappeared during merge");
+    }
+    journey = reloaded;
+  }
+
+  throw new OnboardingPersistenceError("sanggyeonrye merge contention");
+}
+
+function validDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 export async function POST(request: Request) {
@@ -46,52 +259,59 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const {
-      role,
-      coupleAction,
+      role: rawRole,
+      coupleAction: rawCoupleAction,
       partnerInviteCode,
       weddingDate: rawWeddingDate,
       venue: rawVenue,
-      sanggyeonryeDate,
+      sanggyeonryeDate: rawSanggyeonryeDate,
       totalBudget: rawTotalBudget,
       progress,
     } = body;
 
-    if (!role || !coupleAction) {
-      return NextResponse.json(
-        { error: "역할과 커플 연동 방법을 선택해주세요." },
-        { status: 400 }
-      );
-    }
-
-    if (role !== "bride" && role !== "groom") {
+    if (rawRole !== "bride" && rawRole !== "groom") {
       return NextResponse.json({ error: "유효하지 않은 역할입니다." }, { status: 400 });
     }
+    const role: CoupleRole = rawRole;
 
-    if (coupleAction !== "create" && coupleAction !== "join") {
+    if (rawCoupleAction !== "create" && rawCoupleAction !== "join") {
       return NextResponse.json({ error: "유효하지 않은 커플 연결 방식입니다." }, { status: 400 });
     }
+    const coupleAction: MembershipAction = rawCoupleAction;
 
-    // 입력 검증 — 인증·커플 스코프지만 거대 숫자/음수/무제한 텍스트가 예산 계산·
-    // 표시를 깨뜨릴 수 있어 경계에서 정규화한다.
-    const weddingDate =
-      typeof rawWeddingDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawWeddingDate)
-        ? rawWeddingDate
-        : null;
+    let normalizedInviteCode: string | null = null;
+    if (coupleAction === "join") {
+      const limited = checkRateLimit(
+        rateLimitKey("onboarding_couple_join", request, user.id),
+        ONBOARDING_JOIN_RATE,
+      );
+      if (limited) return limited;
+
+      if (typeof partnerInviteCode !== "string") {
+        return NextResponse.json({ error: "파트너 초대 코드를 입력해주세요." }, { status: 400 });
+      }
+
+      normalizedInviteCode = partnerInviteCode.trim().toUpperCase();
+      if (!/^WH-[A-Z0-9]{6,12}$/.test(normalizedInviteCode)) {
+        return NextResponse.json({ error: "초대 코드 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+    }
+
+    const weddingDate = validDate(rawWeddingDate) ? rawWeddingDate : null;
     const venue =
-      typeof rawVenue === "string" && rawVenue.trim() ? rawVenue.trim().slice(0, 100) : null;
-    const budgetNum = Number(rawTotalBudget);
-    const totalBudget =
-      Number.isFinite(budgetNum) && budgetNum > 0 && budgetNum <= 10_000_000_000
-        ? Math.round(budgetNum)
+      typeof rawVenue === "string" && rawVenue.trim()
+        ? rawVenue.trim().slice(0, 100)
         : null;
-
-    // 상견례 날짜를 받으면 모멘트 루프 연료로 progress.__events에 태깅 저장.
-    // (D-3/D-1/D+1에 아모라가 먼저 챙기는 첫 관계 모멘트 — moments.ts:sanggyeonrye)
-    const hasSanggyeonryeDate =
-      typeof sanggyeonryeDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sanggyeonryeDate);
-    const baseProgress =
-      progress && typeof progress === "object" ? (progress as Record<string, unknown>) : {};
-    const journeyProgress = hasSanggyeonryeDate
+    const budgetNumber = Number(rawTotalBudget);
+    const totalBudget =
+      Number.isFinite(budgetNumber) && budgetNumber > 0 && budgetNumber <= 10_000_000_000
+        ? Math.round(budgetNumber)
+        : null;
+    const sanggyeonryeDate = validDate(rawSanggyeonryeDate)
+      ? rawSanggyeonryeDate
+      : null;
+    const baseProgress = asProgress(progress);
+    const journeyProgress = sanggyeonryeDate
       ? upsertMomentEvent(baseProgress, {
           momentType: "sanggyeonrye",
           date: sanggyeonryeDate,
@@ -99,361 +319,61 @@ export async function POST(request: Request) {
         }).newProgress
       : baseProgress;
 
-    // admin 클라이언트 (RLS 우회)
     const admin = getAdmin();
+    await ensureProfileExists(admin, user);
 
-    // 프로필 존재 확인 (admin으로 통일)
-    const { data: existingProfile } = await admin
-      .from("profiles")
-      .select("id, couple_id")
-      .eq("id", user.id)
-      .single();
+    const rpcResponse =
+      coupleAction === "create"
+        ? await supabase.rpc("create_couple_for_current_user", { p_role: role })
+        : await supabase.rpc("join_couple", {
+            p_invite_code: normalizedInviteCode,
+            p_role: role,
+          });
 
-    if (!existingProfile) {
-      // 프로필 생성
-      const { error: profileInsertErr } = await admin.from("profiles").insert({
-        id: user.id,
-        name: user.user_metadata?.name ?? user.email?.split("@")[0] ?? "사용자",
-        email: user.email,
-        onboarding_completed: false,
-        onboarding_step: 0,
-      });
-      if (profileInsertErr) {
-        console.error("프로필 생성 에러:", profileInsertErr);
-      }
-    }
-
-    let coupleId: string;
-    let inviteCode: string | null = null;
-
-    // 이미 커플에 소속된 사용자의 create/join 재실행을 차단한다(join RPC와 대칭).
-    // 가드가 없으면 create가 새 커플을 만들고 기존 커플의 슬롯을 고아로 남겨
-    // 파트너가 대체 불가능해지고 wedding_journeys가 중복된다(온보딩 재실행 UX로 우발 가능).
-    if (existingProfile?.couple_id) {
+    if (rpcResponse.error) {
+      console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
       return NextResponse.json(
-        { error: "이미 커플에 연결되어 있습니다.", coupleId: existingProfile.couple_id },
-        { status: 409 }
+        { error: "커플 연결을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
+        { status: 500 },
       );
     }
 
-    if (coupleAction === "create") {
-      // 초대 코드 생성 (DB 함수) — admin으로 호출
-      const { data: codeResult, error: rpcError } = await admin.rpc("generate_invite_code");
-      if (rpcError) {
-        console.error("초대 코드 생성 에러:", rpcError);
-        // fallback: 직접 생성
-        const hex = Array.from({ length: 6 }, () =>
-          "0123456789ABCDEF"[Math.floor(Math.random() * 16)]
-        ).join("");
-        inviteCode = `WH-${hex}`;
-      } else {
-        inviteCode = codeResult as string;
-      }
-
-      // 커플 생성
-      const coupleData: Record<string, unknown> = {
-        invite_code: inviteCode,
-      };
-      if (role === "bride") {
-        coupleData.bride_id = user.id;
-      } else {
-        coupleData.groom_id = user.id;
-      }
-
-      const { data: couple, error: coupleError } = await admin
-        .from("couples")
-        .insert(coupleData)
-        .select()
-        .single();
-
-      if (coupleError || !couple) {
-        console.error("커플 생성 에러:", coupleError);
-        return NextResponse.json(
-          { error: "커플 정보 생성에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-      coupleId = couple.id;
-
-      // 프로필에 couple_id 설정
-      const { error: profileUpdateErr } = await admin
-        .from("profiles")
-        .update({
-          role,
-          couple_id: coupleId,
-          onboarding_completed: true,
-          onboarding_step: 5,
-        })
-        .eq("id", user.id);
-
-      if (profileUpdateErr) {
-        console.error("프로필 업데이트 에러:", profileUpdateErr);
-      }
-
-      // 웨딩 여정 생성
-      const { error: journeyError } = await admin.from("wedding_journeys").insert({
-        couple_id: coupleId,
-        wedding_date: weddingDate || null,
-        venue: venue || null,
-        total_budget: totalBudget || 20000000,
-        progress: journeyProgress,
-      });
-
-      if (journeyError) {
-        console.error("웨딩 여정 생성 에러:", journeyError);
-      }
-    } else {
-      const useLegacyDirectJoin = false;
-
-      if (!useLegacyDirectJoin) {
-        const limited = checkRateLimit(
-          rateLimitKey("onboarding_couple_join", request, user.id),
-          ONBOARDING_JOIN_RATE
-        );
-        if (limited) return limited;
-
-        if (!partnerInviteCode || typeof partnerInviteCode !== "string") {
-          return NextResponse.json({ error: "파트너 초대 코드를 입력해주세요." }, { status: 400 });
-        }
-
-        const trimmedCode = partnerInviteCode.trim().toUpperCase();
-        if (!/^WH-[A-Z0-9]{6,12}$/.test(trimmedCode)) {
-          return NextResponse.json({ error: "초대 코드 형식이 올바르지 않습니다." }, { status: 400 });
-        }
-
-        const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
-          p_invite_code: trimmedCode,
-          p_role: role,
-        });
-
-        if (joinError) {
-          console.error("[onboarding join] RPC failed:", joinError);
-          return NextResponse.json({ error: "커플 연결에 실패했습니다." }, { status: 500 });
-        }
-
-        const result = joinResult as { success?: boolean; error?: string; couple_id?: string; invite_code?: string };
-        if (result.error || !result.success || !result.couple_id) {
-          return NextResponse.json(
-            { error: getJoinCoupleErrorMessage(result.error) },
-            { status: result.error === "Invalid invite code." ? 404 : 409 }
-          );
-        }
-
-        coupleId = result.couple_id;
-        inviteCode = result.invite_code ?? trimmedCode;
-
-        const { error: profileCompletionError } = await admin
-          .from("profiles")
-          .update({
-            onboarding_completed: true,
-            onboarding_step: 5,
-          })
-          .eq("id", user.id);
-
-        if (profileCompletionError) {
-          console.error("[onboarding join] profile completion failed:", profileCompletionError);
-        }
-
-        const { data: existingJourney } = await admin
-          .from("wedding_journeys")
-          .select("id, progress")
-          .eq("couple_id", coupleId)
-          .maybeSingle();
-
-        if (!existingJourney) {
-          await admin.from("wedding_journeys").insert({
-            couple_id: coupleId,
-            wedding_date: weddingDate || null,
-            venue: venue || null,
-            total_budget: totalBudget || 20000000,
-            progress: journeyProgress,
-          });
-        } else if (hasSanggyeonryeDate) {
-          const existingProgress = (existingJourney.progress ?? {}) as Record<string, unknown>;
-          const alreadyHasSanggyeonrye = getEvents(existingProgress).some(
-            (event) => event.momentType === "sanggyeonrye"
-          );
-
-          if (!alreadyHasSanggyeonrye) {
-            const { newProgress } = upsertMomentEvent(existingProgress, {
-              momentType: "sanggyeonrye",
-              date: sanggyeonryeDate,
-              title: "상견례",
-            });
-            const { error: patchError } = await admin.rpc("apply_journey_progress_patch", {
-              p_couple_id: coupleId,
-              p_patch: { __events: getEvents(newProgress) },
-            });
-            if (patchError) {
-              await admin
-                .from("wedding_journeys")
-                .update({ progress: newProgress })
-                .eq("id", existingJourney.id);
-            }
-          }
-        }
-      } else {
-      // ===== 파트너 코드로 기존 커플에 조인 =====
-      if (!partnerInviteCode) {
-        return NextResponse.json(
-          { error: "파트너 초대 코드를 입력해주세요." },
-          { status: 400 }
-        );
-      }
-
-      const trimmedCode = partnerInviteCode.trim().toUpperCase();
-
-      // 1. 초대 코드로 커플 찾기
-      const { data: couple, error: findError } = await admin
-        .from("couples")
-        .select("*")
-        .eq("invite_code", trimmedCode)
-        .maybeSingle();
-
-      if (findError) {
-        console.error("[온보딩 조인] 커플 조회 에러:", findError);
-        return NextResponse.json(
-          { error: `커플 조회 실패: ${findError.message}` },
-          { status: 500 }
-        );
-      }
-
-      if (!couple) {
-        return NextResponse.json(
-          { error: "유효하지 않은 초대 코드입니다. 코드를 다시 확인해주세요." },
-          { status: 404 }
-        );
-      }
-
-      // 2. 자기 자신의 코드인지 확인
-      if (couple.bride_id === user.id || couple.groom_id === user.id) {
-        return NextResponse.json(
-          { error: "본인의 초대 코드로는 연동할 수 없습니다." },
-          { status: 409 }
-        );
-      }
-
-      // 3. 역할 슬롯 확인
-      if (role === "bride" && couple.bride_id) {
-        return NextResponse.json(
-          { error: "이미 신부가 연동되어 있습니다. 신랑으로 참여해주세요." },
-          { status: 409 }
-        );
-      }
-      if (role === "groom" && couple.groom_id) {
-        return NextResponse.json(
-          { error: "이미 신랑이 연동되어 있습니다. 신부로 참여해주세요." },
-          { status: 409 }
-        );
-      }
-
-      // 4. 커플에 합류 — 동시 join race 방어 (atomic conditional update).
-      //
-      // 이전 버그: 위 3 단계 read-then-write 사이에 다른 사용자가 동일 역할로
-      // join 하면 두 update 모두 같은 row 를 덮어써서 한 명의 데이터가 손실.
-      // 해결: WHERE 절에 `<role>_id IS NULL` 추가. Postgres row-level lock 으로
-      // 직렬화되어 후속 update 는 0 rows affected → race loser 가 명시적 에러 받음.
-      const coupleUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      const roleField = role === "bride" ? "bride_id" : "groom_id";
-      coupleUpdate[roleField] = user.id;
-
-      const { data: updatedRows, error: coupleUpdateError } = await admin
-        .from("couples")
-        .update(coupleUpdate)
-        .eq("id", couple.id)
-        .is(roleField, null)
-        .select("id");
-
-      if (coupleUpdateError) {
-        console.error("[온보딩 조인] 커플 업데이트 에러:", coupleUpdateError);
-        return NextResponse.json(
-          { error: `커플 연동 실패: ${coupleUpdateError.message}` },
-          { status: 500 }
-        );
-      }
-
-      // affected rows 0 → race 에서 졌거나 그 사이 다른 사용자가 슬롯 차지
-      if (!updatedRows || updatedRows.length === 0) {
-        return NextResponse.json(
-          { error: "방금 다른 사용자가 이 자리로 연동했어요. 다시 시도해주세요." },
-          { status: 409 }
-        );
-      }
-
-      coupleId = couple.id;
-      inviteCode = couple.invite_code;
-
-      // 5. 프로필 업데이트
-      const { error: profileUpdateError } = await admin
-        .from("profiles")
-        .update({
-          role,
-          couple_id: coupleId,
-          onboarding_completed: true,
-          onboarding_step: 5,
-        })
-        .eq("id", user.id);
-
-      if (profileUpdateError) {
-        console.error("[온보딩 조인] 프로필 업데이트 에러:", profileUpdateError);
-      }
-
-      // 6. 기존 웨딩 여정 확인 (파트너가 이미 세팅해둔 것 공유)
-      const { data: existingJourney } = await admin
-        .from("wedding_journeys")
-        .select("id, progress")
-        .eq("couple_id", coupleId)
-        .maybeSingle();
-
-      if (!existingJourney) {
-        await admin.from("wedding_journeys").insert({
-          couple_id: coupleId,
-          wedding_date: weddingDate || null,
-          venue: venue || null,
-          total_budget: totalBudget || 20000000,
-          progress: journeyProgress,
-        });
-      } else if (hasSanggyeonryeDate) {
-        // 파트너가 이미 journey를 만들어둔 경우에도 join하는 쪽이 입력한 상견례
-        // 날짜는 버리지 않고 병합 — 단, 파트너가 이미 등록했다면 보존 우선(덮어쓰기 금지).
-        const existingProgress = (existingJourney.progress ?? {}) as Record<string, unknown>;
-        const alreadyHasSanggyeonrye = getEvents(existingProgress).some(
-          (event) => event.momentType === "sanggyeonrye"
-        );
-        if (!alreadyHasSanggyeonrye) {
-          const { newProgress } = upsertMomentEvent(existingProgress, {
-            momentType: "sanggyeonrye",
-            date: sanggyeonryeDate,
-            title: "상견례",
-          });
-          const { error: patchError } = await admin.rpc("apply_journey_progress_patch", {
-            p_couple_id: coupleId,
-            p_patch: { __events: getEvents(newProgress) },
-          });
-          if (patchError) {
-            // RPC 미배포 폴백 — 온보딩 직후라 동시수정 경합은 사실상 없음
-            await admin
-              .from("wedding_journeys")
-              .update({ progress: newProgress })
-              .eq("id", existingJourney.id);
-          }
-        }
-      }
-
-      }
+    const membership = parseMembershipRpcResponse(rpcResponse.data, role, coupleAction);
+    if (!membership.ok) {
+      console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
+      return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
-    // D2 Hook 3: 온보딩 완료 시 decision_nodes 기록 (fire-and-forget)
-    // wedding_date/venue/total_budget 중 실제로 저장된 필드만 기록
+    try {
+      await completeProfile(admin, user.id, membership.coupleId);
+      await ensureJourney(admin, {
+        coupleId: membership.coupleId,
+        weddingDate,
+        venue,
+        totalBudget,
+        progress: journeyProgress,
+        sanggyeonryeDate,
+      });
+    } catch (error) {
+      // The membership RPC is atomic and idempotent, so a retry finishes these
+      // post-steps against the same couple instead of creating another couple.
+      console.error(`[onboarding ${coupleAction}] completion failed`, error);
+      return NextResponse.json(
+        { error: "온보딩 저장을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
+        { status: 500 },
+      );
+    }
+
+    // Optional memory enrichment is deliberately outside the core completion
+    // transaction. It must not mutate or roll back the canonical onboarding data.
     void (async () => {
       try {
-        const stageTag = determineStage(weddingDate ?? null);
+        const stageTag = determineStage(weddingDate);
         const baseMeta = { hook: "onboarding", role, coupleAction };
 
         if (weddingDate) {
           await recordDecision({
-            coupleId,
+            coupleId: membership.coupleId,
             userId: user.id,
             category: "timeline",
             title: "예식일 확정",
@@ -468,10 +388,10 @@ export async function POST(request: Request) {
 
         if (venue) {
           await recordDecision({
-            coupleId,
+            coupleId: membership.coupleId,
             userId: user.id,
             category: "venue",
-            title: String(venue),
+            title: venue,
             chosenValue: { venue },
             decisionType: "considering",
             stageTag,
@@ -481,9 +401,9 @@ export async function POST(request: Request) {
           });
         }
 
-        if (hasSanggyeonryeDate) {
+        if (sanggyeonryeDate) {
           await recordDecision({
-            coupleId,
+            coupleId: membership.coupleId,
             userId: user.id,
             category: "timeline",
             title: "상견례 일정",
@@ -496,9 +416,9 @@ export async function POST(request: Request) {
           });
         }
 
-        if (totalBudget && totalBudget > 0) {
+        if (totalBudget) {
           await recordDecision({
-            coupleId,
+            coupleId: membership.coupleId,
             userId: user.id,
             category: "budget",
             title: "총 예산 설정",
@@ -510,21 +430,23 @@ export async function POST(request: Request) {
             metadata: baseMeta,
           });
         }
-      } catch (err) {
-        console.error("[onboarding recordDecision] 실패 (무시):", err);
+      } catch (error) {
+        console.error("[onboarding recordDecision] optional enrichment failed", error);
       }
     })();
 
     return NextResponse.json({
       success: true,
-      coupleId,
-      inviteCode,
+      coupleId: membership.coupleId,
+      inviteCode: membership.inviteCode,
+      created: membership.changed,
+      idempotent: membership.idempotent,
     });
-  } catch (err) {
-    console.error("온보딩 에러:", err);
+  } catch (error) {
+    console.error("[onboarding] unexpected error", error);
     return NextResponse.json(
-      { error: `서버 오류: ${err instanceof Error ? err.message : "알 수 없는 오류"}` },
-      { status: 500 }
+      { error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." },
+      { status: 500 },
     );
   }
 }
