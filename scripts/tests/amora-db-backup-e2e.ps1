@@ -1,6 +1,5 @@
 param(
-  [switch] $KeepArtifacts,
-  [switch] $SkipHostBoundRuntimeSmoke
+  [switch] $KeepArtifacts
 )
 
 Set-StrictMode -Version Latest
@@ -882,24 +881,22 @@ try {
   Assert-True -Condition $customNodeRejected -Message 'Production runtime fence accepted a custom Node executable.'
   [void]$testNames.Add('production custom Node runtime rejected')
 
-  if (-not $SkipHostBoundRuntimeSmoke) {
-    $trustedRuntimeFence = $null
-    try {
-      $trustedRuntimeFence = New-HBAM2VerifierRuntimeFence `
-        -RepoRoot $repoRoot -RequestedNode 'node.exe' -SelfTest $false -Contract $runtimeContract
-      $trustedSmoke = Invoke-TrustedPGliteSmoke `
-        -RuntimeFence $trustedRuntimeFence `
-        -ScriptPath (Join-Path $repoRoot 'apps\web\scripts\amora-db-jsonb-roundtrip.mjs') `
-        -TableNames $ExpectedTables
-      Assert-True -Condition ($trustedSmoke.ExitCode -eq 0) -Message "Trusted runtime smoke failed: $($trustedSmoke.StdErr)"
-      $trustedReceipt = Get-JsonOutput -Output $trustedSmoke.StdOut
-      Assert-True `
-        -Condition ([bool]$trustedReceipt.JsonbRoundTripVerified -and [int]$trustedReceipt.TableCount -eq 11) `
-        -Message 'Trusted runtime smoke returned an invalid receipt.'
-      Assert-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence
-    } finally { Close-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence }
-    [void]$testNames.Add('trusted Node and physical PGlite tree import/query/lock passes')
-  }
+  $trustedRuntimeFence = $null
+  try {
+    $trustedRuntimeFence = New-HBAM2VerifierRuntimeFence `
+      -RepoRoot $repoRoot -RequestedNode 'node.exe' -SelfTest $false -Contract $runtimeContract
+    $trustedSmoke = Invoke-TrustedPGliteSmoke `
+      -RuntimeFence $trustedRuntimeFence `
+      -ScriptPath (Join-Path $repoRoot 'apps\web\scripts\amora-db-jsonb-roundtrip.mjs') `
+      -TableNames $ExpectedTables
+    Assert-True -Condition ($trustedSmoke.ExitCode -eq 0) -Message "Trusted runtime smoke failed: $($trustedSmoke.StdErr)"
+    $trustedReceipt = Get-JsonOutput -Output $trustedSmoke.StdOut
+    Assert-True `
+      -Condition ([bool]$trustedReceipt.JsonbRoundTripVerified -and [int]$trustedReceipt.TableCount -eq 11) `
+      -Message 'Trusted runtime smoke returned an invalid receipt.'
+    Assert-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence
+  } finally { Close-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence }
+  [void]$testNames.Add('trusted Node and physical PGlite tree import/query/lock passes')
 
   $logicalSqlResult = Invoke-NodeSelfTest `
     -NodeCli $nodeCli `
@@ -1219,7 +1216,6 @@ try {
     Tests = @($testNames)
     ProductionDatabaseQueried = $false
     FakeSupabaseCli = $true
-    HostBoundRuntimeSmokeSkipped = [bool]$SkipHostBoundRuntimeSmoke
     PlaintextWrittenToBackupDirectory = $false
     TemporaryArtifactsKept = [bool]$KeepArtifacts
   } | ConvertTo-Json -Compress -Depth 5

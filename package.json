@@ -33,7 +33,6 @@
     "amora:db:verify-backup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/amora-db-verify-backup.ps1",
     "amora:db:jsonb-roundtrip": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/amora-db-verify-backup.ps1",
     "amora:db:test-backup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/tests/amora-db-backup-e2e.ps1",
-    "amora:db:test-backup:ci": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/tests/amora-db-backup-e2e.ps1 -SkipHostBoundRuntimeSmoke",
     "amora:db:test-preview": "node ./apps/web/scripts/amora-preview-integration.mjs",
     "qa:local": "node ./scripts/verify-local.mjs",
     "qa:live": "node ./scripts/live-smoke-test.mjs",

@@ -192,11 +192,11 @@ locked physical PGlite entry, opens a database, executes a query, and closes it.
 The final three cases reject a preflight-to-inventory OID replacement, an
 inventory-to-data OID replacement, and a transient inherited data relation.
 
-GitHub's Windows runner cannot satisfy the production host's committed absolute
-Node path, byte size and SHA-256 by design. CI therefore runs
-`pnpm amora:db:test-backup:ci`, which executes the 30 portable cases and
-explicitly reports `HostBoundRuntimeSmokeSkipped=true`. The normal
-`pnpm amora:db:test-backup` command must still pass all 31 cases on the actual
+The harness is intentionally host-bound: it requires the committed absolute
+Node path, byte size and SHA-256, a user-owned private NTFS ACL, and CurrentUser
+DPAPI. GitHub-hosted Windows runners do not satisfy those production-host
+invariants, so this gate is not run as hosted CI. The normal
+`pnpm amora:db:test-backup` command must pass all 31 cases on the actual
 production backup host before any production write.
 
 ## What PGlite does not prove
