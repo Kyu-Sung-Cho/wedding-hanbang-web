@@ -52,6 +52,7 @@ function expectIncludes(values, expected, label) {
 
 const appConfig = readJson("apps/mobile/app.json").expo;
 const easConfig = readJson("apps/mobile/eas.json");
+const mobileMetroConfig = readText("apps/mobile/metro.config.js");
 const rootPackage = readJson("package.json");
 const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
@@ -131,14 +132,24 @@ expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profi
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
-expect(rootPackage.packageManager === "pnpm@11.7.0", "Root packageManager pins pnpm 11.7.0 for Corepack");
+expect(rootPackage.packageManager === "pnpm@11.7.0", "Root packageManager pins pnpm 11.7.0");
+expect(
+  !mobileMetroConfig.includes('require("metro-cache")'),
+  "Mobile Metro config uses Expo's declared default cache"
+);
 
 for (const profileName of ["development", "preview", "production"]) {
   const profile = easConfig.build?.[profileName];
   expect(profile?.node === "22.13.0", `EAS ${profileName} profile pins Node 22.13.0`);
-  expect(profile?.corepack === true, `EAS ${profileName} profile enables Corepack`);
-  expect(profile?.pnpm === undefined, `EAS ${profileName} profile avoids a duplicate global pnpm install`);
+  expect(profile?.corepack === undefined, `EAS ${profileName} profile avoids the Corepack/global-pnpm collision`);
+  expect(profile?.pnpm === "11.7.0", `EAS ${profileName} profile installs pnpm 11.7.0 exactly once`);
+  expect(profile?.channel === profileName, `EAS ${profileName} profile uses the ${profileName} update channel`);
 }
+
+expect(
+  mobilePackage.dependencies?.["react-native-worklets"] === "0.5.1",
+  "Mobile installs the Expo 54 compatible react-native-worklets peer"
+);
 
 for (const scriptName of [
   "eas:init",
