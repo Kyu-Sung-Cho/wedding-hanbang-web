@@ -71,24 +71,6 @@ function writeBackup(backup: WcResultBackup): void {
   }
 }
 
-function formatPercent(value: number | null): string {
-  if (value === null) return "-";
-  return `${Math.round(value)}%`;
-}
-
-function confidenceLabel(value: string): string {
-  switch (value) {
-    case "balanced":
-      return "균형";
-    case "slightly_close":
-      return "조금 기울어짐";
-    case "close":
-      return "뚜렷함";
-    default:
-      return "응답 부족";
-  }
-}
-
 function axisSideLabels(axisKey: string): { left: string; right: string } {
   const axis = WEDDING_CODE_V05_PUBLIC_AXES.find((candidate) => candidate.key === axisKey);
   return {
@@ -328,14 +310,12 @@ export default function WeddingCodeResultClient() {
                   <>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-[16px] font-semibold text-[#263832]">{axis.labelKo}</h2>
-                <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[#36534E]">
-                  {confidenceLabel(axis.confidenceBand)}
-                </span>
               </div>
               <p className="mt-2 text-[14px] font-medium leading-[1.75] text-[#34445a]">{axis.summaryKo}</p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <AxisMeter label={labels.left} value={axis.leftScore} />
-                <AxisMeter label={labels.right} value={axis.rightScore} />
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-[12px] bg-[#F7F1E8] px-4 py-3 text-[12px] font-semibold text-[#36534E]">
+                <span>{labels.left}</span>
+                <span aria-hidden="true" className="text-[#A77B74]">↔</span>
+                <span>{labels.right}</span>
               </div>
                   </>
                 );
@@ -475,21 +455,6 @@ export default function WeddingCodeResultClient() {
   );
 }
 
-function AxisMeter({ label, value }: { label: string; value: number | null }) {
-  const width = value === null ? 0 : Math.min(100, Math.max(0, value));
-  return (
-    <div className="min-w-0">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-[#6d625a]">{label}</span>
-        <span className="text-[12px] font-semibold text-[#263832]">{formatPercent(value)}</span>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#efe6d7]">
-        <div className="h-full rounded-full bg-[#36534E]" style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  );
-}
-
 function CoupleReportSection({
   state,
   onRefresh,
@@ -547,15 +512,10 @@ function CoupleReportSection({
   return (
     <section className={`${card} mt-5 p-5 sm:p-6`}>
       <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">커플 비교</p>
-      <div className="mt-2 flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-[20px] font-semibold leading-[1.35] text-[#263832]">{report.titleKo}</h2>
-          <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
-            {report.overlapLabelKo}
-          </p>
-        </div>
-        <p className="shrink-0 text-[34px] font-semibold leading-none text-[#263832]">
-          {formatPercent(report.overlapScore)}
+      <div className="mt-2">
+        <h2 className="text-[20px] font-semibold leading-[1.35] text-[#263832]">{report.titleKo}</h2>
+        <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
+          {report.overlapLabelKo}
         </p>
       </div>
 
@@ -668,12 +628,9 @@ function CoupleSolutionCard({
 }) {
   return (
     <div className="rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{card.categoryKo}</p>
-          <p className="mt-1 text-[14px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
-        </div>
-        <p className="shrink-0 text-[12px] font-semibold text-[#36534E]">{formatPercent(card.overlapScore)}</p>
+      <div>
+        <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{card.categoryKo}</p>
+        <p className="mt-1 text-[14px] font-semibold leading-snug text-[#263832]">{card.titleKo}</p>
       </div>
       <div className="mt-3 grid gap-2.5">
         <div>
@@ -705,9 +662,8 @@ function CoupleAxisRow({
     <div className={`rounded-[14px] border px-4 py-3.5 ${
       emphasis ? "border-[#36534E]/25 bg-[#EEF4F1]" : "border-[#eadfc9] bg-[#fffdf7]"
     }`}>
-      <div className="flex items-center justify-between gap-3">
+      <div>
         <p className="text-[11px] font-semibold tracking-wide text-[#9d6f36]">{label}</p>
-        <p className="text-[12px] font-semibold text-[#263832]">{formatPercent(axis.overlapScore)}</p>
       </div>
       <p className="mt-1 text-[14px] font-semibold text-[#263832]">{axis.labelKo}</p>
       <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#5d6879]">{axis.summaryKo}</p>

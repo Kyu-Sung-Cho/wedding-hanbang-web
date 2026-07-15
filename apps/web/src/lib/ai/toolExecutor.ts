@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
@@ -64,35 +65,6 @@ function getAdminClient() {
 // - search_vendors writes best-effort search telemetry only; it is intentionally
 //   treated as a read because suppressing a live catalog result on log failure
 //   would be worse than an at-least-once analytics count.
-const IDEMPOTENT_ASSIGNMENT_TOOLS = [
-  "update_budget",
-  "update_wedding_date",
-  "update_task_status",
-  "update_venue",
-  "update_category_budget",
-  "apply_budget_plan",
-  "delete_category",
-  "reset_category",
-  "update_schedule_event",
-  "delete_schedule_event",
-  "toggle_checklist_item",
-  "update_amora_action",
-  "cancel_booking",
-] as const;
-
-const CREATE_OR_APPEND_TOOLS = [
-  "add_custom_category",
-  "add_schedule_event",
-  "add_amora_action",
-  "log_wedding_event",
-  "create_booking",
-] as const;
-
-const MUTATING_TOOLS = new Set<string>([
-  ...IDEMPOTENT_ASSIGNMENT_TOOLS,
-  ...CREATE_OR_APPEND_TOOLS,
-]);
-
 type DurableToolClaim =
   | { action: "acquired" }
   | { action: "completed"; result: unknown }
@@ -194,7 +166,7 @@ export async function executeTool(
   toolInput: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
-  if (!MUTATING_TOOLS.has(toolName)) {
+  if (!isMutatingTool(toolName)) {
     try {
       return await executeToolOnce(toolName, toolInput, context);
     } catch (error) {

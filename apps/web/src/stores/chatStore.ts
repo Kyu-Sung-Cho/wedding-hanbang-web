@@ -23,6 +23,7 @@ import type {
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { determineStage } from "@/lib/ai/stage-router";
 import type { AmoraActionItem } from "@/lib/amora/actions";
+import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
 
 type ClearScope = "shared" | "private";
@@ -184,25 +185,7 @@ interface ChatStoreState {
 
 // 일정/예산/예약 등 journey.progress 를 변경하는 tool 들 — 처리 후 백엔드와
 // sync 가 누락된 케이스 대비 refreshJourney 트리거.
-const PROGRESS_AFFECTING_TOOLS = new Set([
-  "add_schedule_event",
-  "update_schedule_event",
-  "delete_schedule_event",
-  "update_task_status",
-  "toggle_checklist_item",
-  "update_budget",
-  "update_category_budget",
-  "apply_budget_plan",
-  "add_custom_category",
-  "delete_category",
-  "reset_category",
-  "add_amora_action",
-  "update_amora_action",
-  "create_booking",
-  "cancel_booking",
-  "update_wedding_date",
-  "update_venue",
-]);
+const PROGRESS_AFFECTING_TOOLS = new Set<string>(MUTATING_TOOL_NAMES);
 
 // 도구 결과를 authStore에 반영
 function syncToolResult(result: ToolExecutionResult) {
@@ -345,10 +328,12 @@ function syncToolResult(result: ToolExecutionResult) {
       authStore.updateJourneyLocal({ progress: restReset as typeof curProgressReset });
       break;
     }
-    case "add_schedule_event": {
+    case "add_schedule_event":
+    case "log_wedding_event": {
       const currentP1 = authStore.journey?.progress ?? {};
       const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const newEvt = result.toolOutput.event as { id: string };
+      const newEvt = result.toolOutput.event as { id: string } | undefined;
+      if (!newEvt?.id) break;
       const hasEvent = curEvents1.some((event) => event.id === newEvt.id);
       authStore.updateJourneyLocal({
         progress: {
@@ -1000,7 +985,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       // progress 를 건드린 tool 이 있으면 백엔드와 한 번 더 sync — /lounge,
       // /schedule, /budget 페이지가 stale 상태로 남는 안전망 (이전 사고).
       if (progressTouched) {
-        useAuthStore.getState().refreshJourney();
+        await useAuthStore.getState().refreshJourney();
       }
     } catch (err) {
       console.error("AI 응답 에러:", err);

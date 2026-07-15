@@ -3,9 +3,6 @@ import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
 export const WEDDING_CODE_V05_VERSION = "v0.5-candidate.4";
 export const WEDDING_CODE_V05_COMPATIBLE_VERSIONS = [
   WEDDING_CODE_V05_VERSION,
-  "v0.5-candidate.3",
-  "v0.5-candidate.2",
-  "v0.5-candidate.1",
 ] as const;
 
 export type WeddingCodeV05QuestionKey =
