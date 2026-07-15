@@ -84,5 +84,8 @@ jobs:
           )
 
       - name: Exercise encrypted backup and verifier
-        shell: pwsh
+        # The harness intentionally launches Windows PowerShell child processes.
+        # Starting from pwsh can leak its PSModulePath into powershell.exe and
+        # prevent Microsoft.PowerShell.Security/Get-Acl from loading.
+        shell: powershell
         run: pnpm amora:db:test-backup:ci
