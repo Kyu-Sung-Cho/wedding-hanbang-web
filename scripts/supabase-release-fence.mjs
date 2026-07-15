@@ -42,9 +42,11 @@ function verifyHashPinnedArtifact(entry, label) {
 }
 
 function verifyStaticManifest() {
+  const appliedHotfixes = manifest.appliedHotfixes ?? [];
   const declared = [
     ...manifest.historicalReconciliation,
     ...manifest.expandMigrations,
+    ...appliedHotfixes,
   ];
   const declaredNames = new Set(declared.map((entry) => entry.file));
   const migrationDir = join(repoRoot, "supabase", "migrations");
@@ -78,7 +80,7 @@ function verifyStaticManifest() {
     verifyHashPinnedArtifact(entry, "required release document");
   }
 
-  console.log(`Static release manifest verified (${declared.length} migrations, ${manifest.manualPlatformOperations.length} platform operations, ${manifest.requiredDocuments.length} required documents).`);
+  console.log(`Static release manifest verified (${declared.length} migrations; applied-hotfix count ${appliedHotfixes.length}; ${manifest.manualPlatformOperations.length} platform operations; ${manifest.requiredDocuments.length} required documents).`);
 }
 
 function parsePending(output) {

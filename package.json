@@ -27,6 +27,7 @@
     "supabase:release:fence": "node ./scripts/supabase-release-fence.mjs",
     "supabase:release:fence:remote": "node ./scripts/supabase-release-fence.mjs --remote",
     "supabase:security:probe": "node ./scripts/supabase-anon-probe.mjs",
+    "supabase:vendor-security:probe": "node ./scripts/vendor-public-rls-probe.mjs",
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
     "amora:costs": "node ./scripts/amora-cost-report.mjs",
     "amora:db:backup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/amora-db-backup.ps1",
