@@ -135,6 +135,38 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     });
   });
 
+  it("릴리스 평가는 별도 원장으로 글로벌 예약을 유지하고 커플 한도만 적용하지 않는다", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const r = await reserveAmoraTurn(admin, { ...BASE, quotaScope: "release_eval" });
+
+    expect(r.allowed).toBe(true);
+    expect(r.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 300,
+    });
+  });
+
+  it.each(["error", "throw"] as const)(
+    "릴리스 평가는 원자 예약 RPC %s 시 읽기전용 폴백 없이 fail-closed 한다",
+    async (rpc) => {
+      const { admin } = makeReserveAdmin({
+        rpc,
+        counts: { global: 10, couple: 0 },
+      });
+
+      const r = await reserveAmoraTurn(admin, {
+        ...BASE,
+        quotaScope: "release_eval",
+      });
+
+      expect(r.allowed).toBe(false);
+      expect(r.reason).toBe("guard_unavailable");
+    },
+  );
+
   it("전역 상한 도달 시 차단 + 사용자 메시지", async () => {
     const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "global_daily" } });
     const r = await reserveAmoraTurn(admin, BASE);

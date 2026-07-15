@@ -24,7 +24,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-detector";
 import { extractMediation } from "@/lib/ai/mediation";
-import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
+import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { checkAmoraCostGuard, reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
     }));
 
     // 6-d. 시스템 프롬프트 생성
-    const systemPrompt = getWeddingPlannerSystemPrompt({
+    const systemPrompt = buildAmoraSystemPrompt({
       weddingDate: (journey?.wedding_date as string | null) ?? null,
       budget: (journey?.total_budget as number | null) ?? 0,
       venue: (journey?.venue as string | null) ?? null,
@@ -308,7 +308,11 @@ export async function POST(req: NextRequest) {
       preferences: undefined,
       pastDecisions,
       pastConflicts: pastConflictsForPrompt,
-    }).slice(0, MAX_MEDIATION_SYSTEM_CHARS);
+    }, {
+      specialist: "general",
+      mode: "mediation",
+      maxChars: MAX_MEDIATION_SYSTEM_CHARS,
+    });
 
     // 6-e. OpenAI Responses 입력 — recent 메시지에 [MEDIATION_REQUEST] 추가
     const messageList = recentMessages.map((m) => {

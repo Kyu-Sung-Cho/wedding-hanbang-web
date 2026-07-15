@@ -7,13 +7,14 @@ import {
 } from "@/lib/ai/openai";
 import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
 import { chooseAmoraChatModelRole } from "@/lib/ai/modelConfig";
-import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
+import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
+import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
-import { determineStage, routeSpecialist, getSpecialistPromptAddon } from "@/lib/ai/stage-router";
+import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { maybeSummarize } from "@/lib/ai/summarize";
 import { maybeExtractDecision } from "@/lib/ai/extract-decision";
@@ -66,6 +67,19 @@ const SSE_HEADERS = {
 const DEMO_COUPLE_ID = "demo-couple";
 const DEMO_ACTOR_ID = "amora-signed-demo";
 const DEMO_COST_GUARD_COUPLE_ID = "00000000-0000-4000-8000-000000000000";
+const EVAL_ACTOR_ID = "amora-release-eval";
+const EVAL_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000001";
+
+function getEvalRequestLimit(request: Request): { key: string; maxRequests: number } {
+  const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.+$/, "");
+  const isProduction = hostname === "hanbang.ai" || hostname.endsWith(".hanbang.ai");
+  return {
+    key: `chat-eval:${hostname || "unknown"}`,
+    // The production CLI makes exactly six provider requests per run and never
+    // retries. One extra run is allowed for a failed release/rollback check.
+    maxRequests: isProduction ? 12 : 36,
+  };
+}
 
 function getStoredSuggestions(message: PersistedAiMessage): string[] {
   const value = message.metadata?.suggestions;
@@ -300,6 +314,18 @@ export async function POST(request: Request) {
   const isDemo =
     bodyIsDemo === true &&
     hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+  const evalToken = request.headers.get(AMORA_EVAL_HEADER);
+  const isEvaluation =
+    isDemo &&
+    typeof bodyClientRequestId === "string" &&
+    CLIENT_REQUEST_ID_RE.test(bodyClientRequestId) &&
+    verifyAmoraEvalToken(evalToken, bodyClientRequestId);
+  if (evalToken && !isEvaluation) {
+    return NextResponse.json(
+      { error: "운영 평가 인증을 확인하지 못했습니다." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // Real users authenticate with Supabase. The public demo is authorized by a
   // separate signed, HttpOnly session cookie and never receives database write access.
@@ -312,14 +338,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
-  const actorId = user?.id ?? DEMO_ACTOR_ID;
+  const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
+  const evalLimit = isEvaluation ? getEvalRequestLimit(request) : null;
   const limited = await checkRateLimitPersistent(
-    isDemo
+    evalLimit
+      ? evalLimit.key
+      : isDemo
       ? rateLimitKey("chat-demo", request)
       : rateLimitKey("chat", request, actorId),
     {
-      maxRequests: 60,
-      windowMs: 60 * 60 * 1000,
+      maxRequests: evalLimit?.maxRequests ?? 60,
+      windowMs: evalLimit ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
     },
   );
   if (limited) return limited;
@@ -409,7 +438,11 @@ export async function POST(request: Request) {
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
-  const dataCoupleId = isDemo ? DEMO_COST_GUARD_COUPLE_ID : coupleId;
+  const dataCoupleId = isEvaluation
+    ? EVAL_COST_LEDGER_COUPLE_ID
+    : isDemo
+      ? DEMO_COST_GUARD_COUPLE_ID
+      : coupleId;
   const safeSenderName =
     typeof userProfile.name === "string" && userProfile.name.trim()
       ? userProfile.name.trim().slice(0, 100)
@@ -852,6 +885,7 @@ export async function POST(request: Request) {
   const costGuard = await reserveAmoraTurn(getServiceClient(), {
     coupleId: dataCoupleId,
     isAdmin: userProfile?.is_admin === true,
+    quotaScope: isEvaluation ? "release_eval" : "standard",
   });
   if (!costGuard.allowed) {
     await releaseClaimBeforeStream("COST_GUARD_REJECTED");
@@ -899,7 +933,6 @@ export async function POST(request: Request) {
   const weddingDateForStage = journey?.wedding_date ?? weddingContext?.weddingDate ?? null;
   const stageTag = determineStage(weddingDateForStage);
   const specialistType = routeSpecialist(lastUserText, stageTag);
-  const specialistAddon = getSpecialistPromptAddon(specialistType);
 
   // Private 모드 안내 (신부/신랑이 단독으로 아모라에게 털어놓는 채팅)
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
@@ -910,7 +943,7 @@ export async function POST(request: Request) {
       `- 답변은 평소처럼 따뜻하고 실용적으로. 비공개라고 톤을 어둡게 하지 마세요.\n\n`
     : "";
 
-  const systemPrompt = cautionPrefix + privacyPrefix + getWeddingPlannerSystemPrompt({
+  const systemPrompt = cautionPrefix + privacyPrefix + buildAmoraSystemPrompt({
     weddingDate: weddingDateForStage,
     budget: journey?.total_budget ?? weddingContext?.budget ?? 0,
     venue: journey?.venue ?? weddingContext?.venue ?? null,
@@ -925,7 +958,10 @@ export async function POST(request: Request) {
     amoraProfiles,
     pastDecisions,
     pastConflicts,
-  }) + specialistAddon;
+  }, {
+    specialist: specialistType,
+    mode: requestKind === "mediation" ? "mediation" : "chat",
+  });
 
   // 메시지 포맷팅
   const formattedMessages: ChatInputItem[] = typedMessages.map(
