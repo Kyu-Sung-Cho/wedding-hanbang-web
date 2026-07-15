@@ -4,6 +4,7 @@
 
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`;
 - verified runtime baseline: `bd879a74668d24695b101307224f4d44b08abc7a`;
+- current production recovery baseline: `202ca8ec7e7058a79a7167008bda32464dd47605`;
 - Amora release merge: PR #43 / `56b7fee1ad3688cc44370dd9c45244c6da461c42`;
 - native-build repair merge: PR #47 / `77288c6ab739a6e88975dee490ee9842b727a209`;
 - PR #48 (`/sai`) followed immediately and is included in the verified main
@@ -55,6 +56,47 @@ remove it), choose a reviewed positive `AMORA_FREE_MESSAGES_PER_COUPLE`, and
 redeploy. Do not disable the whole cost guard unless responding to a separately
 approved incident, because that would also remove the global cost ceiling.
 
+## Production OpenAI activation and chat recovery
+
+On 2026-07-15 KST, a real account received the generic message that AI response
+generation had failed. Vercel Runtime Logs identified the server-side cause at
+17:16:15 KST: `POST /api/chat` returned an SSE response while the route logged
+`[ai-config] OpenAI is not enabled`. The Production environment already had an
+OpenAI API key, but `AMORA_OPENAI_ENABLED` was absent.
+
+The non-secret Production switch was added as sensitive configuration with the
+value `true`, then production was redeployed. While verifying the fix, the
+signed no-login demo exposed a second consumer-facing regression: `/api/chat`
+required a Supabase user before parsing the signed demo session and also
+rejected the canonical `demo-couple` identifier as a non-UUID. PR #53 fixes the
+authorization order and demo identifier mapping while preserving all cost
+controls. Signed demo requests use an isolated actor and a synthetic UUID only
+for read-only context/cost-guard calls; demo requests cannot select a real
+couple and perform no durable chat, profile, summary, audit or feedback writes.
+Unsigned requests still return 401, and authenticated-user authorization is
+unchanged.
+
+Release receipt:
+
+- PR #53: `fix(web): restore signed Amora demo chat`;
+- merge commit: `202ca8ec7e7058a79a7167008bda32464dd47605`;
+- GitHub PR quality gate: run `29401924691`, success;
+- post-merge GitHub quality gate: run `29402656001`, success;
+- Vercel Production deployment: `CBwxpo8dUwBsgggZR5NN6QBoFgyA`, Ready,
+  Current, source `202ca8ec`, domain `hanbang.ai`;
+- live provider canary at 18:00 KST: signed demo question received a real Amora
+  answer; matching Vercel log was `POST 200 hanbang.ai /api/chat` at
+  18:00:34 KST with no error message;
+- post-deploy live smoke: 5/5 routes passed, including demo login/lounge and
+  the mobile Amora panel;
+- homepage canary: HTTP 200, no browser console errors, real content present,
+  total load 2,878 ms.
+
+Provider rollback is configuration-only: set `AMORA_OPENAI_ENABLED=false` (or
+remove it) and redeploy. This intentionally returns Amora to fail-closed mode.
+If the signed-demo authorization change itself must be rolled back, revert PR
+#53 through a new reviewed PR; do not reset or force-push `main`.
+
 ## What is implemented
 
 - Amora main/auxiliary runtime uses the OpenAI Responses API only;
@@ -74,7 +116,7 @@ approved incident, because that would also remove the global cost ceiling.
 
 ## Evidence already passed
 
-- web: 85 test files / 577 tests;
+- web after PR #53: 87 test files / 587 tests;
 - mobile tests, all package type checks and lint;
 - Next production build (100 routes);
 - Expo iOS/Android/Web export;
@@ -111,9 +153,10 @@ approved incident, because that would also remove the global cost ceiling.
 - PR #43 and the EAS follow-up PRs #44, #45 and #47 were merged. Runtime-baseline
   GitHub CI run `29387007474` passed, including the local quality gate and
   Supabase release-manifest fence;
-- Vercel production deployment `5V5iydv5vij5ceK9YwJetbhX5B2d` serves current
-  main with OpenAI still fail-closed. Two mobile-width canary passes across six
-  routes produced zero console errors; all three WeddingCode APIs remained 410;
+- historical Vercel deployment `5V5iydv5vij5ceK9YwJetbhX5B2d` served the
+  earlier main while OpenAI was still fail-closed. Two mobile-width canary
+  passes across six routes produced zero console errors; all three WeddingCode
+  APIs remained 410. The later activation receipt is recorded above;
 - Android EAS production build
   `e6cc6b8f-a377-4aba-8e83-5a9c509cd229` finished from the exact runtime baseline with
   `versionCode 2`. The 65,249,946-byte AAB passed ZIP structure checks and has
@@ -128,7 +171,6 @@ fresh clean-tree backup before production writes.
 
 ## Still deliberately not done
 
-- no production OpenAI activation or real-key smoke;
 - no EAS iOS cloud build yet. Apple signing credentials still require the
   account holder's interactive Apple login and two-factor authentication;
 - no independent replay of the HBAM2 logical artifact into a blank isolated
@@ -141,8 +183,9 @@ fresh clean-tree backup before production writes.
 
 ## Hard gates and decisions
 
-1. Real OpenAI smoke needs a controlled non-production key. Production has a
-   key configured, but pulled values are redacted and the enable flag is absent.
+1. Production OpenAI activation and a signed-demo real-provider canary are
+   complete. Never copy the Production key into Git, logs, screenshots or a
+   handoff; future operators should verify only presence and runtime behavior.
 2. Web server Sentry and mobile Sentry/PostHog destinations are not configured.
 3. OpenAI DPA/region/retention/ZDR/support-channel decisions are human legal and
    operational gates.
@@ -165,8 +208,10 @@ pnpm supabase:release:fence
 node scripts/supabase-release-fence.mjs --remote --expect=clean
 ```
 
-Continue from current `main`, not PR #38 or PR #46. First finish Apple credential
-setup and the traceable iOS production build. Then obtain a controlled
-non-production OpenAI key and observability/legal decisions before any provider
-canary. Never skip from a green web/Android build directly to OpenAI enablement
-or DB/Storage contract removal.
+Continue from current `main`, not PR #38 or PR #46. Confirm that PR #53 and its
+documentation follow-up are present, then finish Apple credential setup and the
+traceable iOS production build. Production OpenAI is enabled and its signed-demo
+provider canary passed; use a separate controlled non-production key for future
+destructive, load or failure-injection tests. Observability and legal decisions
+remain open. Never treat the successful provider canary as approval for
+DB/Storage contract removal.
