@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildCareEmailSubject, buildCareEmailHtml } from "@/lib/care/careEmail";
+import { hasUnanimousCareConsent } from "@/lib/care/careConsent";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -27,6 +28,15 @@ export const maxDuration = 120;
 const MAX_FIRES_PER_RUN = 100;
 // 조회 커플 상한 — 규모가 커지면 페이지네이션으로 전환할 것 (그 전에 이 캡이 알림).
 const MAX_JOURNEYS = 500;
+const LOOKUP_CHUNK_SIZE = 100;
+
+function chunks<T>(values: readonly T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}
 
 function getAdmin() {
   return createAdminClient(
@@ -45,7 +55,16 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = getAdmin();
-  const stats = { couples: 0, due: 0, fired: 0, alreadySent: 0, emails: 0, emailErrors: 0 };
+  const stats = {
+    couples: 0,
+    due: 0,
+    skippedNoConsent: 0,
+    skippedEmailConsentChanged: 0,
+    fired: 0,
+    alreadySent: 0,
+    emails: 0,
+    emailErrors: 0,
+  };
 
   try {
     const { data: journeys, error: journeysError } = await admin
@@ -61,6 +80,41 @@ export async function GET(req: NextRequest) {
       console.warn(`[care-cron] journeys가 캡(${MAX_JOURNEYS})에 도달 — 페이지네이션 전환 필요`);
     }
 
+    // Consent data is fetched in bounded batches. Avoid two database round trips
+    // per due couple while keeping PostgREST URLs below practical limits.
+    const coupleIds = [...new Set((journeys ?? []).map((journey) => journey.couple_id))];
+    const coupleResults = await Promise.all(
+      chunks(coupleIds, LOOKUP_CHUNK_SIZE).map((ids) => admin
+        .from("couples")
+        .select("id, bride_id, groom_id")
+        .in("id", ids)),
+    );
+    if (coupleResults.some((result) => result.error)) {
+      console.error("[care-cron] couples 동의 조회 실패");
+      return NextResponse.json({ error: "couples 조회 실패", ...stats }, { status: 503 });
+    }
+    const coupleById = new Map(
+      coupleResults.flatMap((result) => result.data ?? []).map((couple) => [couple.id, couple]),
+    );
+    const currentMemberIds = [...new Set(
+      [...coupleById.values()]
+        .flatMap((couple) => [couple.bride_id, couple.groom_id])
+        .filter((value): value is string => typeof value === "string"),
+    )];
+    const memberResults = await Promise.all(
+      chunks(currentMemberIds, LOOKUP_CHUNK_SIZE).map((ids) => admin
+        .from("profiles")
+        .select("id, email, name, care_notifications_enabled, care_notifications_consented_at")
+        .in("id", ids)),
+    );
+    if (memberResults.some((result) => result.error)) {
+      console.error("[care-cron] profiles 동의 조회 실패");
+      return NextResponse.json({ error: "profiles 조회 실패", ...stats }, { status: 503 });
+    }
+    const memberById = new Map(
+      memberResults.flatMap((result) => result.data ?? []).map((member) => [member.id, member]),
+    );
+
     const resendKey = process.env.RESEND_API_KEY;
     const resend = resendKey ? new Resend(resendKey) : null;
 
@@ -74,6 +128,29 @@ export async function GET(req: NextRequest) {
       });
       if (dueCells.length === 0) continue;
       stats.due += 1;
+
+      // 공유 대화에 먼저 말을 거는 기능이므로 현재 연결된 두 사람 모두의
+      // 명시적 동의가 필요하다. 한 명만 연결된 커플은 그 한 명의 동의로 충분하다.
+      const couple = coupleById.get(journey.couple_id);
+      if (!couple) {
+        stats.skippedNoConsent += 1;
+        continue;
+      }
+      const memberIds = [...new Set(
+        [couple.bride_id, couple.groom_id]
+          .filter((value): value is string => typeof value === "string"),
+      )];
+      if (memberIds.length === 0) {
+        stats.skippedNoConsent += 1;
+        continue;
+      }
+      const members = memberIds
+        .map((id) => memberById.get(id))
+        .filter((member): member is NonNullable<typeof member> => Boolean(member));
+      if (!hasUnanimousCareConsent(memberIds, members)) {
+        stats.skippedNoConsent += 1;
+        continue;
+      }
 
       // 이미 발화된 셀 제외 (proactive 라우트와 동일 패턴)
       const dueKeys = dueCells.map((cell) => `moment:${cell.dedupeKey}`);
@@ -95,25 +172,24 @@ export async function GET(req: NextRequest) {
       }
 
       // 채팅에 선삽입 — 23505(유니크 위반)면 다른 경로가 먼저 발화한 것 → 알림 생략
-      const { error: insertError } = await admin.from("chat_messages").insert({
-        couple_id: journey.couple_id,
-        sender_id: null,
-        sender_type: "ai",
-        role: "assistant",
-        content: cell.message,
-        visibility: "shared",
-        metadata: {
-          client_request_id: `moment:${cell.dedupeKey}`,
-          moment: {
-            dedupeKey: cell.dedupeKey,
-            momentType: cell.momentType,
-            cellKind: cell.cellKind,
-            momentDate: cell.momentDate,
-            memoryKeys: cell.memoryKeys,
-            channel: "care_cron",
+      const { data: insertedMessageId, error: insertError } = await admin.rpc(
+        "insert_amora_care_message",
+        {
+          p_couple_id: journey.couple_id,
+          p_content: cell.message,
+          p_metadata: {
+            client_request_id: `moment:${cell.dedupeKey}`,
+            moment: {
+              dedupeKey: cell.dedupeKey,
+              momentType: cell.momentType,
+              cellKind: cell.cellKind,
+              momentDate: cell.momentDate,
+              memoryKeys: cell.memoryKeys,
+              channel: "care_cron",
+            },
           },
         },
-      });
+      );
 
       if (insertError) {
         if (insertError.code === "23505") {
@@ -123,17 +199,30 @@ export async function GET(req: NextRequest) {
         }
         continue;
       }
+      if (typeof insertedMessageId !== "string") {
+        // Consent changed after the batch read. The DB function rechecked it
+        // atomically and refused the shared message.
+        stats.skippedNoConsent += 1;
+        continue;
+      }
       stats.fired += 1;
 
       // 수신 동의된 커플 멤버에게 이메일 (최대 2명). 실패는 기록만 — 재시도 없음.
       if (!resend) continue;
-      const { data: members } = await admin
+      // The DB RPC atomically guards the shared chat write. Re-read consent as
+      // close as possible to the external email side effect as a second fence;
+      // a post-batch opt-out must not reuse the stale member snapshot.
+      const { data: refreshedMembers, error: refreshedMembersError } = await admin
         .from("profiles")
-        .select("email, name, care_notifications_enabled")
-        .eq("couple_id", journey.couple_id);
-
-      for (const member of members ?? []) {
-        if (member.care_notifications_enabled === false) continue;
+        .select("id, email, name, care_notifications_enabled, care_notifications_consented_at")
+        .in("id", memberIds);
+      if (refreshedMembersError || !hasUnanimousCareConsent(memberIds, refreshedMembers ?? [])) {
+        stats.skippedEmailConsentChanged += 1;
+        continue;
+      }
+      for (const member of refreshedMembers ?? []) {
+        if (member.care_notifications_enabled !== true) continue;
+        if (typeof member.care_notifications_consented_at !== "string") continue;
         if (typeof member.email !== "string" || !member.email.includes("@")) continue;
         try {
           await resend.emails.send({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +21,8 @@ import {
   MapPin,
   Sparkles,
   RotateCcw,
+  BrainCircuit,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -31,6 +34,7 @@ import type {
   BudgetTendency,
   GuestCount,
 } from "@/types/onboarding.types";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
 const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
@@ -792,27 +796,28 @@ export default function SettingsPage() {
             <div>
               <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기</p>
               <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 등 일정 전후에 아모라가 이메일로 먼저 안부를 물어요
+                상견례·청첩장 모임 전후에 먼저 챙겨요. 공유 대화 알림은 두 분 모두 켜야 시작돼요
               </p>
             </div>
             <button
+              type="button"
+              role="switch"
+              aria-label="아모라 먼저 챙기기"
+              aria-checked={profile?.care_notifications_enabled === true}
               onClick={() => {
                 if (isDemo) return;
                 updateProfile({
-                  care_notifications_enabled: !(profile?.care_notifications_enabled ?? true),
+                  care_notifications_enabled: profile?.care_notifications_enabled !== true,
                 }).catch(() => {});
               }}
-              className={`w-12 h-7 rounded-full transition-colors relative ${
-                (profile?.care_notifications_enabled ?? true)
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a]"
-                  : "bg-[#B5ADA3]/30"
-              }`}
+              className="relative h-11 w-14 flex-shrink-0 rounded-full"
             >
-              <div
-                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
-                  (profile?.care_notifications_enabled ?? true) ? "left-[22px]" : "left-0.5"
-                }`}
-              />
+              <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${
+                profile?.care_notifications_enabled === true ? "bg-[#8F6662]" : "bg-[#C7D1C2]"
+              }`} />
+              <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+                profile?.care_notifications_enabled === true ? "translate-x-7" : "translate-x-1.5"
+              }`} />
             </button>
           </div>
           {/* 휴대폰 번호 — 알림톡/문자 케어 채널 준비 (서버 저장) */}
@@ -884,6 +889,33 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+      </motion.div>
+
+      {/* 아모라 기억 관리 */}
+      <motion.div
+        {...fadeIn}
+        transition={{ duration: 0.5, delay: 0.13 }}
+        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+      >
+        <Link
+          {...weddingLinkProps("/settings/amora-memory")}
+          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
+        >
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] shadow-[0_4px_14px_rgba(143,102,98,0.2)]">
+            <BrainCircuit className="h-5 w-5 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-medium text-[#243832]">아모라가 기억하는 것</span>
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+              기억을 켜거나 끄고, 잘못 이해한 내용은 직접 고치거나 지울 수 있어요
+            </span>
+          </span>
+          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+            <ShieldCheck className="h-4 w-4" />
+            내 통제
+          </span>
+          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B89785]" />
+        </Link>
       </motion.div>
 
       {/* 기타 메뉴 */}

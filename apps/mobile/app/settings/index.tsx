@@ -35,6 +35,7 @@ import {
   EyeOff,
   Users,
   Copy,
+  BrainCircuit,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
@@ -84,6 +85,8 @@ export default function SettingsScreen() {
   const [pushEnabled, setPushEnabled] = useState(true);
   const [communityNotifEnabled, setCommunityNotifEnabled] = useState(true);
   const [partnerNotifEnabled, setPartnerNotifEnabled] = useState(true);
+  const [careNotificationsEnabled, setCareNotificationsEnabled] = useState(false);
+  const [careSaving, setCareSaving] = useState(false);
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -134,6 +137,27 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
   }, []);
 
+  const toggleCare = useCallback(async (value: boolean) => {
+    if (careSaving) return;
+    setCareSaving(true);
+    try {
+      const response = await apiFetch("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ care_notifications_enabled: value }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "설정을 저장하지 못했어요.");
+      setCareNotificationsEnabled(value);
+    } catch (toggleError) {
+      Alert.alert(
+        "설정을 저장하지 못했어요",
+        toggleError instanceof Error ? toggleError.message : "다시 시도해주세요.",
+      );
+    } finally {
+      setCareSaving(false);
+    }
+  }, [careSaving]);
+
   // 현재 데이터 로드
   useEffect(() => {
     (async () => {
@@ -145,9 +169,11 @@ export default function SettingsScreen() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("name, role, couple_id")
+          .select("name, role, couple_id, care_notifications_enabled")
           .eq("id", user.id)
           .single();
+
+        setCareNotificationsEnabled(profile?.care_notifications_enabled === true);
 
         let weddingDate = "";
         let venue = "";
@@ -624,12 +650,43 @@ export default function SettingsScreen() {
           {saving ? "저장 중" : saved ? "저장 완료" : "저장하기"}
         </PrimaryButton>
 
+        {/* 아모라 기억 */}
+        <View style={styles.sectionHeader}>
+          <BrainCircuit size={16} color={colors.rose[500]} />
+          <Text style={styles.sectionTitle}>아모라</Text>
+        </View>
+        <Surface style={styles.card}>
+          <ActionRow
+            icon={<BrainCircuit size={18} color={colors.noir[800]} />}
+            title="아모라가 기억하는 것"
+            description="기억 동의, 수정, 삭제를 직접 관리해요"
+            onPress={() => router.push("/settings/amora-memory" as const)}
+          />
+        </Surface>
+
         {/* 섹션 3: 알림 설정 */}
         <View style={styles.sectionHeader}>
           <Bell size={16} color={colors.rose[500]} />
           <Text style={styles.sectionTitle}>알림 설정</Text>
         </View>
         <Surface style={styles.card}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleLabel}>아모라 먼저 챙기기</Text>
+              <Text style={styles.toggleHint}>일정 전후 공유 대화와 이메일은 두 분 모두 켜야 시작돼요</Text>
+            </View>
+            <Switch
+              value={careNotificationsEnabled}
+              onValueChange={(value) => void toggleCare(value)}
+              disabled={careSaving}
+              trackColor={{ false: colors.ivory[200], true: colors.sage.pale }}
+              thumbColor={careNotificationsEnabled ? colors.success : colors.taupe[400]}
+              accessibilityLabel="아모라 먼저 챙기기"
+            />
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <Text style={styles.toggleLabel}>푸시 알림</Text>

@@ -11,6 +11,10 @@ with target_table_names(name) as (
     ('ai_interactions_log'::text),
     ('amora_turn_counters'::text),
     ('amora_couple_profiles'::text),
+    ('amora_mediation_acceptances'::text),
+    ('amora_memory_consents'::text),
+    ('amora_memory_jobs'::text),
+    ('amora_memory_settings'::text),
     ('amora_actions'::text),
     ('wedding_journeys'::text),
     ('profiles'::text),
@@ -34,7 +38,18 @@ included_functions as materialized (
         'update_updated_at_column',
         'is_couple_member',
         'can_read_profile',
-        'set_amora_action_status_timestamps'
+        'set_amora_action_status_timestamps',
+        'enqueue_amora_memory_job',
+        'claim_amora_memory_job',
+        'finish_amora_memory_job',
+        'upsert_amora_memory_node',
+        'update_amora_memory_node',
+        'delete_amora_memory_node',
+        'insert_amora_memory_summary',
+        'accept_amora_mediation',
+        'insert_amora_care_message',
+        'set_amora_memory_consent',
+        'clear_amora_memory_scope'
       )
       or exists (
         select 1

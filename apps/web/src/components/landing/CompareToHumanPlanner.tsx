@@ -12,7 +12,7 @@ interface Row {
 const ROWS: Row[] = [
   { label: "상담 시간", human: "영업시간 내", amora: "24시간 365일" },
   { label: "비용", human: "200~500만원", amora: "무료 (베타)" },
-  { label: "선호 발굴", human: "경험 기반", amora: "심리학·행동경제학 기반" },
+  { label: "선호 정리", human: "상담 경험 기반", amora: "대화에서 확인한 조건·취향 기반" },
   { label: "커플 소통", human: "각자 공유", amora: "실시간 함께 + 따로" },
   { label: "의사결정 기록", human: "메모장", amora: "Couple Memory Graph" },
   { label: "업체 정보", human: "제한적", amora: "AI 맞춤 추천" },

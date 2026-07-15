@@ -31,7 +31,8 @@ function setup({
   auditError?: TestError | null;
 } = {}) {
   const sequence: string[] = [];
-  const auditInsert = vi.fn(async (_payload: unknown) => {
+  const auditInsert = vi.fn(async (payload: unknown) => {
+    void payload;
     sequence.push("audit");
     return { error: auditError };
   });

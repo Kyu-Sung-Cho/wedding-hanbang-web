@@ -186,6 +186,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
 # Amora AI — OpenAI 전용 런타임. 안전 게이트 통과 후 명시적으로 활성화
 AMORA_OPENAI_ENABLED=false
+AMORA_AUXILIARY_MEMORY_ENABLED=false
 OPENAI_API_KEY=sk-xxx...
 OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
 OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
@@ -375,6 +376,22 @@ For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md befo
 - 실제 전환 전에는 운영 DB 백업·복구 리허설, canonical 서버 대화 경계, 메시지 멱등성, 위기 응답, 비용 제한, route 통합 테스트를 먼저 통과시킨다.
 - OpenAI 키나 원문 대화·첨부 내용은 코드, Git, 로그, 오류 메시지, 문서에 기록하지 않는다.
 - 현재 단계와 남은 게이트는 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`를 기준으로 인수인계한다.
+
+## Amora Memory and Care Safety Protocol
+
+- 현재 제품 기준은 `docs/AMORA_ENGINE_V2_2026-07-16.md`, 운영 절차는
+  `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`다. 이전 아모라
+  아이디어 문서의 심리 굴착, 성별 공식, 인간 검토 SLA는 구현 요구사항이 아니다.
+- `AMORA_AUXILIARY_MEMORY_ENABLED` 기본값은 `false`다. DB 마이그레이션, 백업·복구,
+  비활성 카나리가 끝나기 전에 켜지 않는다.
+- 기억 동의는 소급되지 않는다. 최초 활성화 또는 재활성화 이전의 대화를 나중에
+  컴파일하지 않는다.
+- 메모리 큐·저장·수정·삭제·요약과 공유 케어 발송은 API의 사전 조회만 믿지 않고
+  서비스 전용 DB 함수가 회원 범위와 최신 동의를 원자적으로 다시 확인해야 한다.
+- 사용자 수정 기억은 자동 컴파일러가 덮어쓰지 않고, 개별 삭제 의미 키는 전체
+  초기화 전까지 tombstone으로 재생성을 막는다.
+- 주민등록번호, 연락처, 이메일, 계좌·카드·비밀번호, 정확한 주소, 건강·성 관련
+  민감정보는 모델 프롬프트뿐 아니라 결정적 서버 필터로도 저장을 차단한다.
 
 ## WeddingCode Additional Fable-Adapted Protocol
 

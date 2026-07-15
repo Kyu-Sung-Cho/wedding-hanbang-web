@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
-    // Rate limit — 이 라우트는 mediation 시 LLM(Sonnet)을 호출하므로, 메인 채팅과
+    // Rate limit — 이 라우트는 중재 시 OpenAI 모델을 호출하므로, 메인 채팅과
     // 별개로 호출 빈도를 제한해 borderline 구간 반복 호출로 인한 LLM 폭주를 막는다.
     const limited = checkRateLimit(rateLimitKey("conflict-check", req, user.id), {
       maxRequests: 30,

@@ -9,6 +9,10 @@ target_relations(name, relation_oid) as (
     ('ai_interactions_log'::text, 'public.ai_interactions_log'::regclass),
     ('amora_actions'::text, 'public.amora_actions'::regclass),
     ('amora_couple_profiles'::text, 'public.amora_couple_profiles'::regclass),
+    ('amora_mediation_acceptances'::text, 'public.amora_mediation_acceptances'::regclass),
+    ('amora_memory_consents'::text, 'public.amora_memory_consents'::regclass),
+    ('amora_memory_jobs'::text, 'public.amora_memory_jobs'::regclass),
+    ('amora_memory_settings'::text, 'public.amora_memory_settings'::regclass),
     ('amora_turn_counters'::text, 'public.amora_turn_counters'::regclass),
     ('chat_feedback'::text, 'public.chat_feedback'::regclass),
     ('chat_messages'::text, 'public.chat_messages'::regclass),
@@ -45,6 +49,18 @@ amora_actions_rows as materialized (
 ),
 amora_couple_profiles_rows as materialized (
   select to_jsonb(t) as row_data from only public.amora_couple_profiles as t
+),
+amora_mediation_acceptances_rows as materialized (
+  select to_jsonb(t) as row_data from only public.amora_mediation_acceptances as t
+),
+amora_memory_consents_rows as materialized (
+  select to_jsonb(t) as row_data from only public.amora_memory_consents as t
+),
+amora_memory_jobs_rows as materialized (
+  select to_jsonb(t) as row_data from only public.amora_memory_jobs as t
+),
+amora_memory_settings_rows as materialized (
+  select to_jsonb(t) as row_data from only public.amora_memory_settings as t
 ),
 amora_turn_counters_rows as materialized (
   select to_jsonb(t) as row_data from only public.amora_turn_counters as t
@@ -122,6 +138,46 @@ select jsonb_build_object(
           '' order by row_data::text
         ), ''), 'UTF8')), 'hex')
       ) from amora_couple_profiles_rows
+    ),
+    'amora_mediation_acceptances', (
+      select jsonb_build_object(
+        'row_count', count(*),
+        'rows', coalesce(jsonb_agg(row_data order by row_data::text), '[]'::jsonb),
+        'canonical_sha256', encode(sha256(convert_to(coalesce(string_agg(
+          octet_length(row_data::text)::text || ':' || row_data::text || E'\n',
+          '' order by row_data::text
+        ), ''), 'UTF8')), 'hex')
+      ) from amora_mediation_acceptances_rows
+    ),
+    'amora_memory_consents', (
+      select jsonb_build_object(
+        'row_count', count(*),
+        'rows', coalesce(jsonb_agg(row_data order by row_data::text), '[]'::jsonb),
+        'canonical_sha256', encode(sha256(convert_to(coalesce(string_agg(
+          octet_length(row_data::text)::text || ':' || row_data::text || E'\n',
+          '' order by row_data::text
+        ), ''), 'UTF8')), 'hex')
+      ) from amora_memory_consents_rows
+    ),
+    'amora_memory_jobs', (
+      select jsonb_build_object(
+        'row_count', count(*),
+        'rows', coalesce(jsonb_agg(row_data order by row_data::text), '[]'::jsonb),
+        'canonical_sha256', encode(sha256(convert_to(coalesce(string_agg(
+          octet_length(row_data::text)::text || ':' || row_data::text || E'\n',
+          '' order by row_data::text
+        ), ''), 'UTF8')), 'hex')
+      ) from amora_memory_jobs_rows
+    ),
+    'amora_memory_settings', (
+      select jsonb_build_object(
+        'row_count', count(*),
+        'rows', coalesce(jsonb_agg(row_data order by row_data::text), '[]'::jsonb),
+        'canonical_sha256', encode(sha256(convert_to(coalesce(string_agg(
+          octet_length(row_data::text)::text || ':' || row_data::text || E'\n',
+          '' order by row_data::text
+        ), ''), 'UTF8')), 'hex')
+      ) from amora_memory_settings_rows
     ),
     'amora_turn_counters', (
       select jsonb_build_object(

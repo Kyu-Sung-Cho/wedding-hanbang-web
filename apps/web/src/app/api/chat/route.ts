@@ -14,13 +14,15 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
+import { guardDemoPersistenceDisclosure } from "@/lib/ai/amoraDemoPersistence";
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
-import { maybeSummarize } from "@/lib/ai/summarize";
-import { maybeExtractDecision } from "@/lib/ai/extract-decision";
 import { extractMediation } from "@/lib/ai/mediation";
-import { maybeClassifyExcavation } from "@/lib/ai/classify-excavation";
-import { loadAmoraProfiles, maybeUpdateAmoraProfile } from "@/lib/ai/amora-profile";
+import { loadAmoraProfiles } from "@/lib/ai/amora-profile";
+import {
+  enqueueAmoraMemoryJob,
+  getAmoraMemoryEnablement,
+} from "@/lib/ai/amoraMemoryQueue";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import {
   AiMessagePersistenceError,
@@ -46,10 +48,6 @@ import { createHash, randomUUID } from "node:crypto";
 export const maxDuration = 300;
 
 const MAX_TOOL_ROUNDS = 2;
-// Auxiliary LLM memory jobs need a durable queue and their own budget ledger.
-// Keep them off by default instead of silently losing/over-spending work after
-// a serverless response has closed.
-const AUXILIARY_MEMORY_ENABLED = process.env.AMORA_AUXILIARY_MEMORY_ENABLED === "true";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_ATTACHMENTS = 5;
 const MAX_EXTRACTED_TEXT_CHARS = 80_000;
@@ -566,9 +564,9 @@ export async function POST(request: Request) {
     bookingsResult,
     summariesResult,
     decisionsResult,
-    conflictsResult,
     messagesResult,
     amoraProfiles,
+    memoryEnablement,
   ] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
@@ -587,10 +585,10 @@ export async function POST(request: Request) {
     //    shared turn → shared summary만 / private turn → shared + 본인 visibility
     (() => {
       const q = supabase.from("chat_summaries")
-        .select("summary, created_at, message_count, to_message_id")
+        .select("summary, visibility, created_at, message_count, to_message_id")
         .eq("couple_id", dataCoupleId)
         .order("created_at", { ascending: false })
-        .limit(3);
+        .limit(6);
       return (
         visibility === "shared"
           ? q.eq("visibility", "shared")
@@ -598,21 +596,14 @@ export async function POST(request: Request) {
       );
     })(),
     // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)
-    //    "6개월 전 결정도 기억" 마케팅 약속 실현 — 활성 사용자도 충분히 소화.
+    //    사용자가 동의한 범위의 활성 기억과 명시적 제품 결정만 사용한다.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
     supabase.from("decision_nodes")
-      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at")
+      .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
       .eq("couple_id", dataCoupleId)
       .order("created_at", { ascending: false })
       .limit(50),
-    // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개) — visibility 격리용으로 컬럼도 select
-    supabase.from("decision_nodes")
-      .select("title, chosen_value, reasoning, stage_tag, visibility, created_at")
-      .eq("couple_id", dataCoupleId)
-      .eq("category", "conflict_resolution")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    // 7. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
+    // 6. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
     // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
     (() => {
       const q = supabase
@@ -629,9 +620,23 @@ export async function POST(request: Request) {
         ? q.eq("visibility", "shared")
         : q.in("visibility", ["shared", visibility]);
     })(),
-    // 8. 아모라 장기 개인화 프로필 (shared + 본인 private만)
+    // 7. 아모라 장기 개인화 프로필 (shared + 본인 private만)
     loadAmoraProfiles(dataCoupleId, visibility),
+    // 8. 대화에서 자동 정리한 기억은 명시적으로 켠 범위에서만 사용한다.
+    isDemo
+      ? Promise.resolve({ shared: false, bride_private: false, groom_private: false })
+      : getAmoraMemoryEnablement(
+          dataCoupleId,
+          visibility === "shared" ? ["shared"] : ["shared", visibility],
+        ),
   ]);
+
+  const memoryEnabledForTurn = memoryEnablement[visibility] === true;
+  const sharedMemoryEnabledForTurn = memoryEnablement.shared === true;
+  const consentedAmoraProfiles = {
+    shared: sharedMemoryEnabledForTurn ? amoraProfiles.shared : null,
+    private: visibility !== "shared" && memoryEnabledForTurn ? amoraProfiles.private : null,
+  };
 
   const journey = journeyResult.data;
   if (!isDemo && journeyResult.error) {
@@ -696,16 +701,17 @@ export async function POST(request: Request) {
   // 대화 요약은 visibility별 RLS 정책을 통해 shared/bride/groom 범위가 분리된다.
   const summariesData = (summariesResult.data ?? []) as Array<{
     summary: string;
+    visibility: "shared" | "bride_private" | "groom_private";
     created_at: string;
     message_count: number | null;
     to_message_id: string | null;
   }>;
-  const chatSummaries = summariesData.map((s) => s.summary);
-
-  // Memory Step A: 마지막 요약 watermark (trigger용)
-  const lastSummary = summariesData[0] ?? null;
-  const lastCoveredCount = lastSummary?.message_count ?? 0;
-  const lastToMessageId = lastSummary?.to_message_id ?? null;
+  const chatSummaries = summariesData
+    .filter((summary) => summary.visibility === "shared"
+      ? sharedMemoryEnabledForTurn
+      : summary.visibility === visibility && memoryEnabledForTurn)
+    .slice(0, 3)
+    .map((summary) => summary.summary);
 
   // Memory Step C: 의사결정 히스토리 정리 — 프라이버시 가드
   // RLS는 partner private을 막지만 본인 private은 응답에 포함됨.
@@ -721,11 +727,25 @@ export async function POST(request: Request) {
     source: string;
     visibility: "shared" | "bride_private" | "groom_private";
     created_at: string;
+    memory_key: string | null;
+    superseded_at: string | null;
+    metadata: { extracted_by?: string } | null;
   }>;
+  const isAutomaticMemory = (decision: typeof rawDecisions[number]) =>
+    decision.memory_key !== null || typeof decision.metadata?.extracted_by === "string";
   const decisionsData =
     visibility === "shared"
-      ? rawDecisions.filter((d) => d.visibility === "shared")
-      : rawDecisions.filter((d) => d.visibility === "shared" || d.visibility === visibility);
+      ? rawDecisions.filter((d) =>
+          d.visibility === "shared"
+          && d.superseded_at === null
+          && (sharedMemoryEnabledForTurn || !isAutomaticMemory(d)))
+      : rawDecisions.filter((d) =>
+          (d.visibility === "shared" || d.visibility === visibility)
+          && d.superseded_at === null
+          && (
+            !isAutomaticMemory(d)
+            || (d.visibility === "shared" ? sharedMemoryEnabledForTurn : memoryEnabledForTurn)
+          ));
   const pastDecisions = decisionsData.map((d) => ({
     category: d.category,
     decisionType: d.decision_type,
@@ -737,26 +757,18 @@ export async function POST(request: Request) {
     createdAt: d.created_at,
   }));
 
-  // Mediation 강화: 갈등→합의 히스토리 정리 — 같은 visibility 격리 적용
-  const rawConflicts = (conflictsResult.data ?? []) as Array<{
-    title: string;
-    chosen_value: { value?: string } | null;
-    reasoning: string | null;
-    stage_tag: string | null;
-    visibility: "shared" | "bride_private" | "groom_private";
-    created_at: string;
-  }>;
-  const conflictsData =
-    visibility === "shared"
-      ? rawConflicts.filter((c) => c.visibility === "shared")
-      : rawConflicts.filter((c) => c.visibility === "shared" || c.visibility === visibility);
-  const pastConflicts = conflictsData.map((c) => ({
+  // 갈등 합의도 위에서 같은 동의·visibility 필터를 통과한 결정만 사용한다.
+  // 따라서 과거 자동 추출 데이터가 기억 동의 없이 별도 경로로 새지 않는다.
+  const pastConflicts = decisionsData
+    .filter((decision) => decision.category === "conflict_resolution")
+    .slice(0, 5)
+    .map((c) => ({
     title: c.title,
     resolution: c.chosen_value?.value ?? null,
     reasoning: c.reasoning,
     stageTag: c.stage_tag,
     createdAt: c.created_at,
-  }));
+    }));
 
   type CanonicalChatRow = {
     id: string;
@@ -960,7 +972,7 @@ export async function POST(request: Request) {
     scheduleEvents,
     chatSummaries,
     preferences: preferences ?? undefined,
-    amoraProfiles,
+    amoraProfiles: consentedAmoraProfiles,
     pastDecisions,
     pastConflicts,
   }, {
@@ -1106,6 +1118,18 @@ export async function POST(request: Request) {
             );
             // 갈등 중재 마커 추출 — 본문에서 [mediation]...[/mediation] 제거 + 4필드 metadata로
             const { cleanText, mediation } = extractMediation(afterSuggest);
+            const demoPersistenceGuard =
+              isDemo && requestKind === "chat"
+                ? guardDemoPersistenceDisclosure(cleanText, lastUserText)
+                : { text: cleanText, appendedNotice: null };
+            const persistenceSafeText = demoPersistenceGuard.text;
+
+            if (demoPersistenceGuard.appendedNotice) {
+              send({
+                type: "text_delta",
+                content: `${cleanText.trim() ? "\n\n" : ""}${demoPersistenceGuard.appendedNotice}`,
+              });
+            }
 
             if (suggestions.length > 0) {
               send({ type: "suggestions", suggestions });
@@ -1116,7 +1140,7 @@ export async function POST(request: Request) {
             const insertResult = await persistAiMessage({
               isDemo,
               coupleId,
-              cleanText,
+              cleanText: persistenceSafeText,
               clientRequestId,
               metadata: {
                 toolResults,
@@ -1150,9 +1174,18 @@ export async function POST(request: Request) {
               }
             }
 
+            if (!isDemo && insertResult.id) {
+              await enqueueAmoraMemoryJob({
+                coupleId,
+                userId: actorId,
+                visibility,
+                toMessageId: insertResult.id,
+              });
+            }
+
             send({
               type: "done",
-              fullContent: insertResult.content ?? cleanText,
+              fullContent: insertResult.content ?? persistenceSafeText,
               metadata: getDoneMetadata(insertResult),
             });
 
@@ -1187,52 +1220,6 @@ export async function POST(request: Request) {
                 user_input_sha256: createHash("sha256").update(lastUserText).digest("hex"),
                 ai_output_sha256: createHash("sha256").update(cleanText).digest("hex"),
               },
-            });
-
-            // Memory Step A: 10 메시지+ 누적 시 요약 생성 (fire-and-forget)
-            const messagesWithLatest = [
-              ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
-              { role: "assistant" as const, content: cleanText },
-            ];
-            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
-              coupleId,
-              userId: actorId,
-              messages: messagesWithLatest,
-              lastCoveredCount,
-              lastToMessageId,
-              visibility,
-            });
-
-            // Memory Step B: 이번 턴 decision/preference 추출 (fire-and-forget)
-            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
-              coupleId,
-              userId: actorId,
-              messages: messagesWithLatest,
-              stageTag,
-              lastUserText,
-              visibility,
-            });
-
-            // Excavation 기법 사용 분류 (fire-and-forget)
-            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
-              coupleId,
-              userId: actorId,
-              lastUserText,
-              aiResponseText: cleanText,
-              stageTag,
-            });
-
-            // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
-              coupleId,
-              userId: actorId,
-              visibility,
-              messages: messagesWithLatest,
-              lastUserText,
-              aiResponseText: cleanText,
-              currentProfile: visibility === "shared" ? amoraProfiles.shared : amoraProfiles.private,
-              stageTag,
-              isDemo,
             });
 
             clearInterval(heartbeat);
@@ -1387,6 +1374,15 @@ export async function POST(request: Request) {
           }
         }
 
+        if (!isDemo && insertResult2.id) {
+          await enqueueAmoraMemoryJob({
+            coupleId,
+            userId: actorId,
+            visibility,
+            toMessageId: insertResult2.id,
+          });
+        }
+
         send({
           type: "done",
           fullContent: insertResult2.content ?? cleanText,
@@ -1398,48 +1394,6 @@ export async function POST(request: Request) {
           controller.close();
           return;
         }
-
-        // Memory Step A + B: 요약 생성 + decision/preference 추출 (fire-and-forget)
-        const messagesWithLatest = [
-          ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
-          { role: "assistant" as const, content: cleanText },
-        ];
-        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
-          coupleId,
-          userId: actorId,
-          messages: messagesWithLatest,
-          lastCoveredCount,
-          lastToMessageId,
-          visibility,
-        });
-        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
-          coupleId,
-          userId: actorId,
-          messages: messagesWithLatest,
-          stageTag,
-          lastUserText,
-          visibility,
-        });
-        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
-          coupleId,
-          userId: actorId,
-          lastUserText,
-          aiResponseText: cleanText,
-          stageTag,
-        });
-
-        // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
-          coupleId,
-          userId: actorId,
-          visibility,
-          messages: messagesWithLatest,
-          lastUserText,
-          aiResponseText: cleanText,
-          currentProfile: visibility === "shared" ? amoraProfiles.shared : amoraProfiles.private,
-          stageTag,
-          isDemo,
-        });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
         if (!isDemo) void logAIInteraction({

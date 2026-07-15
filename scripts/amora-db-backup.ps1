@@ -23,6 +23,10 @@ $ExpectedTables = @(
   'ai_interactions_log',
   'amora_actions',
   'amora_couple_profiles',
+  'amora_mediation_acceptances',
+  'amora_memory_consents',
+  'amora_memory_jobs',
+  'amora_memory_settings',
   'amora_turn_counters',
   'chat_feedback',
   'chat_messages',
@@ -40,7 +44,18 @@ $RequiredFunctionIdentities = @(
   'join_couple(text,text)',
   'generate_invite_code()',
   'redact_old_ai_interactions(interval)',
-  'create_profile_on_signup()'
+  'create_profile_on_signup()',
+  'enqueue_amora_memory_job(uuid,uuid,text,uuid)',
+  'claim_amora_memory_job(integer)',
+  'finish_amora_memory_job(uuid,boolean,text,integer)',
+  'upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb)',
+  'update_amora_memory_node(uuid,text,uuid,uuid,text,text)',
+  'delete_amora_memory_node(uuid,text,uuid,uuid)',
+  'insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)',
+  'accept_amora_mediation(uuid,uuid,uuid,text,text)',
+  'insert_amora_care_message(uuid,text,jsonb)',
+  'set_amora_memory_consent(uuid,text,uuid,boolean)',
+  'clear_amora_memory_scope(uuid,text,uuid)'
 )
 
 function Show-Help {

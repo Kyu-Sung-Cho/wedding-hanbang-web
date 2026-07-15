@@ -1,8 +1,11 @@
 # Amora database backup and recovery runbook
 
 This runbook is the safety gate for the Amora OpenAI migration. The HBAM2
-backup protects the 11 Amora-related tables, but it is not by itself a database
-restore or authorization to change production.
+backup protects the 15 Amora-related tables after the Engine V2 expand
+migration, but it is not by itself a database restore or authorization to
+change production. A pre-migration backup must use the clean pre-release
+`main` commit whose 11-table allowlist matches the then-current schema; after
+the expand, use this 15-table version.
 
 ## Current gate
 
@@ -38,6 +41,10 @@ PostgreSQL statement, so the included rows share one statement snapshot:
 - `ai_interactions_log`
 - `amora_actions`
 - `amora_couple_profiles`
+- `amora_mediation_acceptances`
+- `amora_memory_consents`
+- `amora_memory_jobs`
+- `amora_memory_settings`
 - `amora_turn_counters`
 - `chat_feedback`
 - `chat_messages`
@@ -71,14 +78,14 @@ physical backup remains the disaster-recovery layer.
   `rolsuper` or `rolbypassrls`.
 - A read-only preflight runs before data capture. The local gate allows at most
   16 MiB estimated table size and 250,000 estimated rows; every SQL payload is
-  capped at 32 MiB. All 11 targets must be standalone ordinary tables; missing
-  tables, partition parents, and inheritance parents or children are rejected
-  rather than relying on partial size estimates.
+  capped at 32 MiB. All 15 targets must be present as standalone ordinary
+  tables; missing tables, partition parents, and inheritance parents or
+  children are rejected rather than relying on partial size estimates.
 - Query processes have a 150-second default wall-clock timeout.
 - Schema inventory is captured before and after the data statement. Publication
   fails if their canonical contract SHA-256 values differ.
 - Preflight, inventory-before, the data statement, and inventory-after must
-  report the same 11 relation OIDs and standalone ordinary-table shape. Every
+  report the same 15 relation OIDs and standalone ordinary-table shape. Every
   row CTE reads `FROM ONLY public.<table>`, so a transient inheritance child is
   never included. This closes rename/recreate and attach/detach DDL ABA races.
 - Each table carries a SHA-256 computed by source PostgreSQL from canonical
@@ -230,7 +237,18 @@ Before enabling the OpenAI runtime:
 7. exercise exact signatures `reserve_amora_turn(uuid,integer,integer)`,
    `apply_journey_progress_patch(uuid,jsonb,text[])`,
    `join_couple(text,text)`, `generate_invite_code()`,
-   `redact_old_ai_interactions(interval)`, and the signup contract;
+   `redact_old_ai_interactions(interval)`,
+   `enqueue_amora_memory_job(uuid,uuid,text,uuid)`,
+   `claim_amora_memory_job(integer)`,
+   `finish_amora_memory_job(uuid,boolean,text,integer)`,
+   `upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb)`,
+   `update_amora_memory_node(uuid,text,uuid,uuid,text,text)`,
+   `delete_amora_memory_node(uuid,text,uuid,uuid)`,
+   `insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)`,
+   `set_amora_memory_consent(uuid,text,uuid,boolean)`,
+   `clear_amora_memory_scope(uuid,text,uuid)`,
+   `accept_amora_mediation(uuid,uuid,uuid,text,text)`,
+   `insert_amora_care_message(uuid,text,jsonb)`, and the signup contract;
 8. destroy the isolated plaintext target after recording non-sensitive results.
 
 The current scripts intentionally have no production restore mode. Such a mode

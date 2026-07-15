@@ -10,6 +10,10 @@ $ExpectedTables = @(
   'ai_interactions_log',
   'amora_actions',
   'amora_couple_profiles',
+  'amora_mediation_acceptances',
+  'amora_memory_consents',
+  'amora_memory_jobs',
+  'amora_memory_settings',
   'amora_turn_counters',
   'chat_feedback',
   'chat_messages',
@@ -578,6 +582,7 @@ $record = [ordered]@{
 
 $tableNames = @(
   'ai_interactions_log', 'amora_actions', 'amora_couple_profiles',
+  'amora_mediation_acceptances', 'amora_memory_consents', 'amora_memory_jobs', 'amora_memory_settings',
   'amora_turn_counters', 'chat_feedback', 'chat_messages',
   'chat_summaries', 'couples', 'decision_nodes', 'profiles',
   'wedding_journeys'
@@ -696,6 +701,17 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     [ordered]@{ identity = 'generate_invite_code()'; definition = 'create function public.generate_invite_code() returns text language sql as $$ select ''TEST'' $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
     [ordered]@{ identity = 'redact_old_ai_interactions(interval)'; definition = 'create function public.redact_old_ai_interactions(interval) returns integer language sql as $$ select 0 $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
     [ordered]@{ identity = 'create_profile_on_signup()'; definition = 'create function public.create_profile_on_signup() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
+    [ordered]@{ identity = 'enqueue_amora_memory_job(uuid,uuid,text,uuid)'; definition = 'create function public.enqueue_amora_memory_job(uuid,uuid,text,uuid) returns text language sql as $$ select ''disabled''::text $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_memory_job(integer)'; definition = 'create function public.claim_amora_memory_job(integer) returns setof public.amora_memory_jobs language sql as $$ select * from public.amora_memory_jobs where false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finish_amora_memory_job(uuid,boolean,text,integer)'; definition = 'create function public.finish_amora_memory_job(uuid,boolean,text,integer) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb)'; definition = 'create function public.upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'update_amora_memory_node(uuid,text,uuid,uuid,text,text)'; definition = 'create function public.update_amora_memory_node(uuid,text,uuid,uuid,text,text) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'delete_amora_memory_node(uuid,text,uuid,uuid)'; definition = 'create function public.delete_amora_memory_node(uuid,text,uuid,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)'; definition = 'create function public.insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'accept_amora_mediation(uuid,uuid,uuid,text,text)'; definition = 'create function public.accept_amora_mediation(uuid,uuid,uuid,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'insert_amora_care_message(uuid,text,jsonb)'; definition = 'create function public.insert_amora_care_message(uuid,text,jsonb) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'set_amora_memory_consent(uuid,text,uuid,boolean)'; definition = 'create function public.set_amora_memory_consent(uuid,text,uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'clear_amora_memory_scope(uuid,text,uuid)'; definition = 'create function public.clear_amora_memory_scope(uuid,text,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'set_updated_at()'; definition = 'create function public.set_updated_at() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
     [ordered]@{ identity = 'can_read_profile(uuid)'; definition = 'create function public.can_read_profile(uuid) returns boolean language sql stable as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
     [ordered]@{ identity = 'set_amora_action_status_timestamps()'; definition = 'create function public.set_amora_action_status_timestamps() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null }
@@ -892,7 +908,7 @@ try {
     Assert-True -Condition ($trustedSmoke.ExitCode -eq 0) -Message "Trusted runtime smoke failed: $($trustedSmoke.StdErr)"
     $trustedReceipt = Get-JsonOutput -Output $trustedSmoke.StdOut
     Assert-True `
-      -Condition ([bool]$trustedReceipt.JsonbRoundTripVerified -and [int]$trustedReceipt.TableCount -eq 11) `
+      -Condition ([bool]$trustedReceipt.JsonbRoundTripVerified -and [int]$trustedReceipt.TableCount -eq $ExpectedTables.Count) `
       -Message 'Trusted runtime smoke returned an invalid receipt.'
     Assert-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence
   } finally { Close-HBAM2VerifierRuntimeFence -Fence $trustedRuntimeFence }

@@ -1,8 +1,8 @@
 # 웨딩한방 (hanbang.ai) — 전체 기능 문서
 
 > ⚠️ **경고 (2026-07-03 감사)**: 이 문서는 2026-06-11 "Week 1 수술"(청첩장·B2B 포털·결제·전자계약 등 약 2.5만 줄 삭제) **이전** 스냅샷입니다.
-> 여기 기술된 기능 중 상당수는 현재 코드에 없습니다. 현재 상태는 `CLAUDE.md`, 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
-> 특히 아래 Claude/Anthropic 설명은 현재 런타임 사양이 아닙니다. 2026-07-15 전환 브랜치는 OpenAI Responses API의 GPT-5.6 Luna·Terra 전용이며, 운영 활성화 상태는 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`와 배포 기록을 우선합니다.
+> 여기 기술된 기능 중 상당수는 현재 코드에 없습니다. 코드 대조는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md`, 아모라의 현재 제품·기술 기준은 `docs/AMORA_ENGINE_V2_2026-07-16.md`를 우선합니다.
+> 특히 아래 Claude/Anthropic 설명은 역사 기록일 뿐 현재 런타임 사양이 아닙니다. 현재 런타임은 OpenAI Responses API의 GPT-5.6 Luna·Terra 전용이며, 장기기억·케어·중재의 활성 상태는 `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`와 실제 배포 기록으로만 판단합니다.
 
 > 최종 업데이트: 2026-03-01
 
@@ -98,7 +98,7 @@
 - **채팅방 관리**: 생성, 삭제, 대화 초기화
 - **실시간 동기화**: Supabase Realtime 구독
 
-**AI 기능 (Claude API):**
+**AI 기능 (현재 OpenAI Responses API):**
 - 스트리밍 응답 (SSE)
 - Tool Use 통합:
   - 예산 업데이트 / 웨딩날짜 변경 / 할일 상태 변경
@@ -474,10 +474,10 @@
 | Realtime | 채팅 메시지, 예약 알림 실시간 동기화 |
 | Storage | 업체 사진, 고객 업로드 |
 
-### Claude AI (Anthropic)
+### 아모라 AI (OpenAI)
 | 항목 | 상세 |
 |------|------|
-| 모델 | Claude 3.5 Sonnet |
+| 모델 | GPT-5.6 Luna(기본)·Terra(복잡/고위험) |
 | 기능 | Tool Use (예산/일정/체크리스트 조작), 스트리밍 응답 |
 | 최대 Tool 라운드 | 5회/요청 |
 | 타임아웃 | 60초 |
@@ -532,7 +532,7 @@
 | 스타일링 | Tailwind CSS 4 |
 | 상태관리 | Zustand |
 | 백엔드/DB | Supabase (PostgreSQL, Auth, Realtime, Storage) |
-| AI | Claude API (Anthropic) — Tool Use + Streaming |
+| AI | OpenAI Responses API — GPT-5.6 Luna·Terra, Tool Use + Streaming |
 | 결제 | 토스페이먼츠 (Toss Payments V2) |
 | 이메일 | Resend |
 | 배포 | Vercel |

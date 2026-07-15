@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     reserve: vi.fn(),
     rateLimit: vi.fn(),
     adminFrom: vi.fn(),
+    enqueueMemory: vi.fn(),
     PersistenceError,
     ClaimError,
   };
@@ -161,6 +162,14 @@ vi.mock("@/lib/ai/classify-excavation", () => ({
 vi.mock("@/lib/ai/amora-profile", () => ({
   loadAmoraProfiles: vi.fn(async () => ({ shared: null, private: null })),
   maybeUpdateAmoraProfile: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/ai/amoraMemoryQueue", () => ({
+  getAmoraMemoryEnablement: vi.fn(async () => ({
+    shared: false,
+    bride_private: false,
+    groom_private: false,
+  })),
+  enqueueAmoraMemoryJob: mocks.enqueueMemory.mockResolvedValue("disabled"),
 }));
 
 import { POST } from "@/app/api/chat/route";
@@ -503,6 +512,29 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.completeClaim).not.toHaveBeenCalled();
     expect(mocks.adminFrom).not.toHaveBeenCalledWith("profiles");
     expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("adds a server-owned non-persistence notice when demo AI omits it", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "날짜가 정해지니 갑자기 현실로 다가와 숨 막힐 수 있어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+      messages: [{ role: "user", content: "결혼식은 내년 5월 3일로 정했는데 벌써 숨 막혀." }],
+    }));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("실제 일정에는 아직 저장되지 않았어요");
+    expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
+      cleanText: expect.stringContaining("실제 일정에는 아직 저장되지 않았어요"),
+    }));
   });
 
   it("uses a signed, request-bound release evaluation path without consuming demo quota", async () => {

@@ -11,6 +11,10 @@ with target_table_names(name) as (
     ('ai_interactions_log'::text),
     ('amora_turn_counters'::text),
     ('amora_couple_profiles'::text),
+    ('amora_mediation_acceptances'::text),
+    ('amora_memory_consents'::text),
+    ('amora_memory_jobs'::text),
+    ('amora_memory_settings'::text),
     ('amora_actions'::text),
     ('wedding_journeys'::text),
     ('profiles'::text),
@@ -37,7 +41,7 @@ target_tables as materialized (
   join pg_namespace as n on n.oid = c.relnamespace
   where n.nspname = 'public'
     -- Partition parents can hide child size/reltuples from this bound. Fail
-    -- closed by counting ordinary tables only; table_count must still be 11.
+    -- closed by counting ordinary tables only; table_count must still be 15.
     and c.relkind = 'r'
     and not exists (
       select 1 from pg_inherits as inheritance
@@ -82,7 +86,7 @@ preflight as materialized (
 )
 select
   case
-    when (payload ->> 'table_count')::integer = 11
+    when (payload ->> 'table_count')::integer = 15
      and (payload ->> 'current_role_bypasses_rls')::boolean
      and (payload ->> 'estimated_total_bytes')::bigint <= 33554432
      and pg_column_size(payload) <= 33554432

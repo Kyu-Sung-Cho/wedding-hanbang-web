@@ -37,11 +37,11 @@ export default function Hero() {
 
             {/* Sub */}
             <p className="text-charcoal text-[15px] md:text-[17px] leading-[1.85] font-light max-w-[520px] mx-auto md:mx-0">
-              당신도 모르는 당신의 선호를 끌어내고,
+              말해주신 취향과 조건을 차분히 정리하고,
               <br />
               파트너와 합의로 가도록 중재하고,
               <br />
-              6개월 전 결정까지 기억합니다.
+              기억을 켜면 확정한 선택을 다음 상담에도 이어갑니다.
             </p>
 
             {/* CTA */}

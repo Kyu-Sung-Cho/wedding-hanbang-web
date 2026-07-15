@@ -16,6 +16,7 @@ export interface Profile {
   is_admin: boolean;
   /** 아모라 케어 아웃바운드(모멘트 이메일 등) 수신 여부 — 기본 true */
   care_notifications_enabled?: boolean;
+  care_notifications_consented_at?: string | null;
   /** 휴대폰 번호(숫자만) — 알림톡/문자 케어 채널용 */
   phone?: string | null;
   /** 카톡·문자 케어 수신 동의 시각 — null=미동의 */

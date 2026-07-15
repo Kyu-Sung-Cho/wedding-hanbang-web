@@ -216,6 +216,9 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
       }
       updates.care_notifications_enabled = body.care_notifications_enabled;
+      updates.care_notifications_consented_at = body.care_notifications_enabled
+        ? new Date().toISOString()
+        : null;
     }
 
     // 휴대폰 번호 — 알림톡/문자 케어 채널용. 숫자만 저장, 삭제 시 채널 동의도 함께 해제.

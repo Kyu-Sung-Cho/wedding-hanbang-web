@@ -10,7 +10,7 @@ const manifestPath = join(
   repoRoot,
   "supabase",
   "release-manifests",
-  "amora-openai-20260714.json"
+  "amora-engine-v2-20260716.json"
 );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const args = new Set(process.argv.slice(2));

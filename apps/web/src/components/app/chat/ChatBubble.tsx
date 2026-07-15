@@ -466,6 +466,7 @@ export default function ChatBubble({
   // AI 메시지
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
+    const mediationBlock = message.metadata?.mediation as MediationBlock | undefined;
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
@@ -517,6 +518,7 @@ export default function ChatBubble({
               </div>
             )}
           </div>
+          {mediationBlock && <MediationCard block={mediationBlock} messageId={message.id} />}
           <span className="text-sm text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
@@ -555,11 +557,6 @@ export default function ChatBubble({
 
   // 사용자 메시지에서 선택 태그 숨김
   const displayContent = stripSelectionTags(content);
-
-  // 갈등 중재 시각 카드 — AI가 [mediation] 마커로 응답하면 백엔드가 metadata.mediation에 추출.
-  const mediationBlock: MediationBlock | undefined = message.metadata?.mediation as
-    | MediationBlock
-    | undefined;
 
   // 이미지 URL 목록
   // 상대방에게 보낸 직접 메시지 여부
@@ -639,7 +636,6 @@ export default function ChatBubble({
             {displayContent}
           </p>
         </div>
-        {mediationBlock && <MediationCard block={mediationBlock} />}
         <span className="text-sm text-[#B5ADA3] ml-1">
           {formatTime(created_at)}
         </span>
