@@ -72,6 +72,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Seed isolated project-ref fence for the fake CLI harness
+        shell: pwsh
+        run: |
+          $refDirectory = Join-Path $PWD "supabase/.temp"
+          [IO.Directory]::CreateDirectory($refDirectory) | Out-Null
+          [IO.File]::WriteAllText(
+            (Join-Path $refDirectory "project-ref"),
+            "selftestref000000000",
+            [Text.UTF8Encoding]::new($false)
+          )
+
       - name: Exercise encrypted backup and verifier
         shell: pwsh
         run: pnpm amora:db:test-backup
