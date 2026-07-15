@@ -3,15 +3,15 @@
   "projectRef": "slrtobkksjmxgzatjyqb",
   "migrationFloor": "20260704120000",
   "historicalReconciliation": [
-    { "file": "20260704120000_create_amora_turn_reserve_rpc.sql", "sha256": "af7cc6a16458da66ff59caa75ebd419ce4d32275254b5e88ac7ba54a659e92b3" },
-    { "file": "20260704130000_add_rate_limit_gc.sql", "sha256": "46e26b0058822b112ea799ce4081f5bf8631b5d5d905caf91dbb5f7068fee5a8" },
-    { "file": "20260704131000_drop_dead_invitation_tables.sql", "sha256": "bf263b3180a689da6f43ab55c72532c84f7189342a1653c2c557932bf99c8703" },
-    { "file": "20260705090000_hide_seed_vendors.sql", "sha256": "260599795099921c9cd18edfdddb61a889172eacb3b708436418c881a03e989a" },
-    { "file": "20260705120000_add_care_notifications_flag.sql", "sha256": "31c106ffb5edf527996d9c5a2fe3ecf7e1a761811a76a83a07f045f3b9b8cbbc" },
-    { "file": "20260705140000_add_phone_care_channel.sql", "sha256": "fcd2fd733cabc47689cbdbafa40f7e747e23437fb91889aaa82309fc86e41df8" },
-    { "file": "20260705160000_wedding_code_responses.sql", "sha256": "d7d3e500233cd8729d71bed07d10bf2c4940aab9dbdff5558a0e68e7adbaea82" },
-    { "file": "20260706100000_wc_couple_token.sql", "sha256": "b26fb00e1cdb9d561845d29ba94c6f12e1b27af31876d163ee5daa0f9474ddc7" },
-    { "file": "20260714104000_disable_wedding_code_collection.sql", "sha256": "6fd38aaa80321353892bccd573fa6869393907a5eae73ee9f8551072716d9ed5" }
+    { "file": "20260704120000_create_amora_turn_reserve_rpc.sql", "sha256": "038b01509be4c37cdac1f66636d506d44c7f80f6534ffb6acc728f5d159c87d5" },
+    { "file": "20260704130000_add_rate_limit_gc.sql", "sha256": "c5b62f2beb97356752957cb52f5aa7646e4b1b421028e7f355cb9215fc6f45d1" },
+    { "file": "20260704131000_drop_dead_invitation_tables.sql", "sha256": "8568274d8adb0b69f46f7f7c3195caef7b8718bea9dd5b27c8645c20022abb3a" },
+    { "file": "20260705090000_hide_seed_vendors.sql", "sha256": "4da494004e7828c0f530d017f77e3d5bda5ba67674d1ea22e7f7528d0590e5f9" },
+    { "file": "20260705120000_add_care_notifications_flag.sql", "sha256": "46b2beb045cf393b525cd292576f9f934e6214fb027a78947e2f2f88f78ac739" },
+    { "file": "20260705140000_add_phone_care_channel.sql", "sha256": "0d9e530e7464baa857dc4873128b0f4bd20667941540982af97669f548bc1ac5" },
+    { "file": "20260705160000_wedding_code_responses.sql", "sha256": "e71837365e187fbf363daff7a2fa7aa96cf034ad3c02290fbe00d6927cf64fa1" },
+    { "file": "20260706100000_wc_couple_token.sql", "sha256": "9b1f73e238af4549211b327da6a4f7051cf820b29c03a0a46be1514d7664a726" },
+    { "file": "20260714104000_disable_wedding_code_collection.sql", "sha256": "538ecac33df31f1ef16b15dae51fc218abcd83c79147e58d3a6de9a6ff7a83fb" }
   ],
   "expandMigrations": [
     { "file": "20260714160000_harden_amora_privacy_boundaries.sql", "sha256": "249d19e16d4e2e8d2b3957b12e0aa3da7942a3eac706233a73ffb09be04c58e6" },

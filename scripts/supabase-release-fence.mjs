@@ -21,7 +21,11 @@ function fail(message) {
 }
 
 function sha256(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+  // Git may materialize text files with CRLF on Windows and LF on Linux.
+  // Hash canonical UTF-8 text so the release fence detects content changes
+  // without rejecting an otherwise identical checkout on another OS.
+  const canonicalText = readFileSync(path, "utf8").replace(/\r\n?/g, "\n");
+  return createHash("sha256").update(canonicalText, "utf8").digest("hex");
 }
 
 function filesFor(section) {
