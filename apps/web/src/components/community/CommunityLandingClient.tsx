@@ -464,7 +464,7 @@ export default function CommunityLandingClient({
       <div ref={observerRef} className="h-1" />
       <Link
         {...weddingLinkProps("/community/post/write")}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:hidden"
         aria-label="글쓰기"
         data-tutorial-target="community-write"
       >
@@ -564,7 +564,7 @@ function SearchHub({
           <button
             type="submit"
             aria-label="검색"
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#36534E]"
+            className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[#36534E] transition-colors hover:bg-[#eef4f1]"
           >
             <Search className="h-6 w-6" />
           </button>
@@ -603,7 +603,7 @@ function SearchHub({
           <button
             type="button"
             onClick={() => setDetailOpen((open) => !open)}
-            className={`inline-flex h-10 items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-semibold transition-colors ${
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-semibold transition-colors ${
               detailOpen || activeDetailCount > 0
                 ? "border-[#36534E] bg-[#eef4f1] text-[#36534E]"
                 : "border-[#eadfc9] bg-white text-[#36534E] hover:border-[#36534E]/40"
@@ -822,7 +822,7 @@ function LatestPosts({
                 <select
                   value={currentSort}
                   onChange={(event) => onSortChange(event.target.value as PostSort)}
-                  className="h-10 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
+                  className="h-11 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
                 >
                   {sortValues.map((sort) => (
                     <option key={sort} value={sort}>
@@ -838,7 +838,7 @@ function LatestPosts({
                   <select
                     value={currentPeriod}
                     onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-                    className="h-10 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
+                    className="h-11 w-[100px] appearance-none rounded-full border border-[#eadfc9] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
                   >
                     {periodValues.map((period) => (
                       <option key={period} value={period}>
@@ -854,7 +854,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               {...weddingLinkProps(fullFeedHref)}
-              className="inline-flex h-10 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
+              className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
               aria-label={feedMoreLabel}
             >
               더보기
@@ -863,7 +863,7 @@ function LatestPosts({
           )}
           <Link
             {...weddingLinkProps("/community/post/write")}
-            className="hidden h-10 w-[100px] items-center justify-center gap-1.5 rounded-full bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+            className="hidden h-11 w-[100px] items-center justify-center gap-1.5 rounded-full bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
             data-tutorial-target="community-write"
           >
             글쓰기
@@ -1054,21 +1054,25 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
   }
 
   return (
-    <Link
-      {...communityPostLinkProps(post.id)}
+    <article
       className={`relative grid gap-2.5 py-2 first:pt-0 last:pb-0 sm:gap-3 ${
         imageUrl
           ? "grid-cols-[minmax(0,1fr)_72px] sm:grid-cols-[minmax(0,1fr)_104px] xl:grid-cols-[minmax(0,1fr)_112px]"
           : "grid-cols-1"
       }`}
     >
+      <Link
+        {...communityPostLinkProps(post.id)}
+        aria-label={`${post.title} 게시글 보기`}
+        className="absolute inset-0 z-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]/40"
+      />
       {toast && (
-        <span className="absolute right-0 top-4 z-10 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
+        <span className="pointer-events-none absolute right-0 top-4 z-20 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
 
-      <div className="min-w-0">
+      <div className="pointer-events-none relative z-10 min-w-0">
         <div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] font-medium text-[#7a8290]">
           <span className="shrink-0 rounded-md bg-[#f6ead9] px-1.5 py-0.5 text-[10px] font-medium text-[#9d6f36]">
             {categoryInfo?.shortLabel ?? "커뮤니티"}
@@ -1088,12 +1092,12 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           )}
           <span className="min-w-0 truncate">{post.author?.nickname ?? "익명"}</span>
           <span className="shrink-0">{timeAgo(post.created_at)}</span>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={handleLike}
               disabled={voting}
-              className={`inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 transition-colors ${
+              className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-full px-1 py-0.5 transition-colors ${
                 isLiked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#34445a] hover:bg-[#fff8ec]"
               }`}
               aria-label="좋아요"
@@ -1140,7 +1144,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         )}
       </div>
       {imageUrl && (
-        <div className="relative h-[52px] w-[72px] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:h-[58px] sm:w-[104px] xl:h-[60px] xl:w-[112px]">
+        <div className="pointer-events-none relative z-10 h-[52px] w-[72px] overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:h-[58px] sm:w-[104px] xl:h-[60px] xl:w-[112px]">
           <Image
             src={imageUrl}
             alt=""
@@ -1151,7 +1155,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           />
         </div>
       )}
-    </Link>
+    </article>
   );
 }
 
