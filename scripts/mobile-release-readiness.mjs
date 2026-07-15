@@ -131,12 +131,13 @@ expect(easConfig.build?.preview?.distribution === "internal", "EAS preview profi
 expect(easConfig.build?.production?.environment === "production", "EAS production profile uses production environment");
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
+expect(rootPackage.packageManager === "pnpm@11.7.0", "Root packageManager pins pnpm 11.7.0 for Corepack");
 
 for (const profileName of ["development", "preview", "production"]) {
   const profile = easConfig.build?.[profileName];
   expect(profile?.node === "22.13.0", `EAS ${profileName} profile pins Node 22.13.0`);
   expect(profile?.corepack === true, `EAS ${profileName} profile enables Corepack`);
-  expect(profile?.pnpm === "11.7.0", `EAS ${profileName} profile pins pnpm 11.7.0`);
+  expect(profile?.pnpm === undefined, `EAS ${profileName} profile avoids a duplicate global pnpm install`);
 }
 
 for (const scriptName of [
