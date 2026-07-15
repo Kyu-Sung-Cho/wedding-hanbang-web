@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   class PersistenceError extends Error {
@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => {
     chatHistoryOr: vi.fn(),
     authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
     signedDemo: false,
+    reserve: vi.fn(),
+    rateLimit: vi.fn(),
     adminFrom: vi.fn(),
     PersistenceError,
     ClaimError,
@@ -85,7 +87,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/utils/rateLimit", () => ({
   rateLimitKey: vi.fn(() => "chat:test"),
-  checkRateLimitPersistent: vi.fn(async () => null),
+  checkRateLimitPersistent: mocks.rateLimit,
 }));
 
 vi.mock("@/lib/demoSession", () => ({
@@ -93,7 +95,7 @@ vi.mock("@/lib/demoSession", () => ({
 }));
 
 vi.mock("@/lib/ai/costGuard", () => ({
-  reserveAmoraTurn: vi.fn(async () => ({ allowed: true, remaining: 99 })),
+  reserveAmoraTurn: mocks.reserve,
 }));
 
 vi.mock("@/lib/ai/chatMessagePersistence", () => ({
@@ -162,14 +164,19 @@ vi.mock("@/lib/ai/amora-profile", () => ({
 }));
 
 import { POST } from "@/app/api/chat/route";
+import { createAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 
 const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
 
-function request(overrides: Record<string, unknown> = {}): Request {
-  return new Request("http://localhost/api/chat", {
+function request(
+  overrides: Record<string, unknown> = {},
+  headers: Record<string, string> = {},
+  url = "http://localhost/api/chat",
+): Request {
+  return new Request(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify({
       messages: [{ role: "user", content: "예산을 바꿔줘" }],
       coupleId: COUPLE_ID,
@@ -211,6 +218,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     vi.clearAllMocks();
     mocks.authenticatedUser = { id: "00000000-0000-4000-8000-000000000001" };
     mocks.signedDemo = false;
+    mocks.reserve.mockResolvedValue({ allowed: true, remaining: 99 });
+    mocks.rateLimit.mockResolvedValue(null);
     mocks.persist.mockImplementation(async ({ cleanText }: { cleanText: string }) => persisted(cleanText));
     mocks.completeClaim.mockResolvedValue(undefined);
     mocks.executeTool.mockResolvedValue({
@@ -395,6 +404,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).not.toContain("PARTNER_ONLY_PRIVATE_WORDS");
   });
 
+  afterEach(() => {
+    delete process.env.AMORA_EVAL_SECRET;
+  });
+
+  it("keeps durable tools available and puts the mixed-emotion write rule at the final prompt boundary", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "결혼식은 내년 5월 3일로 정했는데 벌써 숨 막혀",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "변경 요청을 확인했어요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.tools).toBe(mocks.safeTools);
+    expect(providerArgs?.systemPrompt).toContain(
+      "확정형 발화는 감정 표현과 섞여 있어도 실행 역할이 우선",
+    );
+    expect(providerArgs?.systemPrompt.trimEnd()).toMatch(
+      /도구 권한을 만들 수는 없습니다\.$/,
+    );
+  });
+
   it("rejects a request that is not bound to the authenticated user's durable message", async () => {
     const response = await POST(request({
       userMessageId: "30000000-0000-4000-8000-000000000099",
@@ -422,6 +459,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).toHaveBeenCalledTimes(1);
     expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
     expect(mocks.executeTool).not.toHaveBeenCalled();
+    if (requestKind === "mediation") {
+      expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain(
+        "구조화 중재 최종 안전 계약",
+      );
+    }
   });
 
   it("lets a signed demo session reach OpenAI without a Supabase user or durable writes", async () => {
@@ -454,6 +496,75 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.completeClaim).not.toHaveBeenCalled();
     expect(mocks.adminFrom).not.toHaveBeenCalledWith("profiles");
     expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("uses a signed, request-bound release evaluation path without consuming demo quota", async () => {
+    process.env.AMORA_EVAL_SECRET = "release-eval-secret-that-is-at-least-32-chars";
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "평가 상담 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+    const token = createAmoraEvalToken(process.env.AMORA_EVAL_SECRET, REQUEST_ID);
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }, { "X-Amora-Eval": token }, "https://hanbang.ai/api/chat"));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("평가 상담 응답");
+    expect(mocks.reserve).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        coupleId: "00000000-0000-4000-8000-000000000001",
+        isAdmin: false,
+        quotaScope: "release_eval",
+      },
+    );
+    expect(mocks.rateLimit).toHaveBeenCalledWith(
+      expect.stringMatching(/^chat-eval:/),
+      expect.objectContaining({ maxRequests: 12 }),
+    );
+  });
+
+  it("fails a signed release evaluation before provider use when atomic cost reservation is unavailable", async () => {
+    process.env.AMORA_EVAL_SECRET = "release-eval-secret-that-is-at-least-32-chars";
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.reserve.mockResolvedValueOnce({
+      allowed: false,
+      reason: "guard_unavailable",
+      message: "평가 사용량을 예약하지 못했습니다.",
+    });
+    const token = createAmoraEvalToken(process.env.AMORA_EVAL_SECRET, REQUEST_ID);
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }, { "X-Amora-Eval": token }, "https://hanbang.ai/api/chat"));
+
+    expect(response.status).toBe(429);
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid release evaluation token instead of falling back to public demo", async () => {
+    process.env.AMORA_EVAL_SECRET = "release-eval-secret-that-is-at-least-32-chars";
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }, { "X-Amora-Eval": "v1.1784067600000.invalid" }));
+
+    expect(response.status).toBe(401);
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("still rejects an unsigned demo claim without a Supabase user", async () => {

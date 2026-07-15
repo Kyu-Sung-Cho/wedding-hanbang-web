@@ -36,9 +36,6 @@ const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
 const DISABLED_COUPLE_CAP = 2_147_483_647;
-const EFFECTIVE_COUPLE_CAP = COUPLE_QUOTA_ENABLED
-  ? FREE_PER_COUPLE
-  : DISABLED_COUPLE_CAP;
 
 export interface CostGuardResult {
   allowed: boolean;
@@ -47,6 +44,13 @@ export interface CostGuardResult {
   /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
   remaining?: number;
 }
+
+type CostGuardParams = {
+  coupleId: string;
+  isAdmin: boolean;
+  /** Release evals use their own ledger key but must still reserve global cost. */
+  quotaScope?: "standard" | "release_eval";
+};
 
 const ALLOW: CostGuardResult = { allowed: true };
 
@@ -78,17 +82,24 @@ const DENY_UNAVAILABLE: CostGuardResult = {
 // RPC 미배포/실패 시 기존 읽기전용 가드로 폴백 (무중단, patchJourneyProgress 패턴).
 export async function reserveAmoraTurn(
   admin: SupabaseClient,
-  params: { coupleId: string; isAdmin: boolean }
+  params: CostGuardParams,
 ): Promise<CostGuardResult> {
   if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
+  const appliesCoupleQuota =
+    params.quotaScope !== "release_eval" && COUPLE_QUOTA_ENABLED;
+  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
 
   try {
     const { data, error } = await admin.rpc("reserve_amora_turn", {
       p_couple_id: params.coupleId,
-      p_couple_cap: EFFECTIVE_COUPLE_CAP,
+      p_couple_cap: coupleCap,
       p_global_cap: GLOBAL_DAILY_CAP,
     });
     if (error) {
+      if (params.quotaScope === "release_eval") {
+        console.error("[costGuard] 평가 원자 예약 실패 (차단):", error.message);
+        return DENY_UNAVAILABLE;
+      }
       console.error("[costGuard] 원자 예약 실패 (읽기전용 가드 폴백):", error.message);
       return checkAmoraCostGuard(admin, params);
     }
@@ -99,18 +110,22 @@ export async function reserveAmoraTurn(
       // 조회 실패는 remaining만 비울 뿐 통과 여부에 영향 없음.
       return {
         allowed: true,
-        remaining: COUPLE_QUOTA_ENABLED
+        remaining: appliesCoupleQuota
           ? await readCoupleRemaining(admin, params.coupleId)
           : undefined,
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
-    if (row?.reason === "couple_quota" && COUPLE_QUOTA_ENABLED) return DENY_COUPLE;
+    if (row?.reason === "couple_quota" && appliesCoupleQuota) return DENY_COUPLE;
 
     // Unknown reservation state must never create an unmetered provider call.
     console.error("[costGuard] 예약 RPC 응답 형태 불명 (차단):", JSON.stringify(row ?? null));
     return DENY_UNAVAILABLE;
   } catch (err) {
+    if (params.quotaScope === "release_eval") {
+      console.error("[costGuard] 평가 원자 예약 예외 (차단):", err);
+      return DENY_UNAVAILABLE;
+    }
     console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
     return checkAmoraCostGuard(admin, params);
   }
@@ -139,7 +154,7 @@ async function readCoupleRemaining(
 // 커플 단위로 아모라 사용 가능 여부 판정. LLM 턴 로그 수로 비용을 추정.
 export async function checkAmoraCostGuard(
   admin: SupabaseClient,
-  params: { coupleId: string; isAdmin: boolean }
+  params: CostGuardParams,
 ): Promise<CostGuardResult> {
   if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
 
@@ -159,7 +174,7 @@ export async function checkAmoraCostGuard(
     return DENY_GLOBAL;
   }
 
-  if (!COUPLE_QUOTA_ENABLED) {
+  if (!COUPLE_QUOTA_ENABLED || params.quotaScope === "release_eval") {
     return ALLOW;
   }
 
