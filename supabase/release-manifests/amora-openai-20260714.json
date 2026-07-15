@@ -22,6 +22,9 @@
     { "file": "20260714164700_expand_account_deletion_integrity.sql", "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691" },
     { "file": "20260714164800_expand_signup_profile_integrity.sql", "sha256": "41cdc88ab8550022e14ae1cc5bca12826d1f1360b69324b28767518b3479feef" }
   ],
+  "appliedHotfixes": [
+    { "file": "20260715210000_harden_vendor_public_read_policies.sql", "sha256": "097748bb0e09eb520a1ddc1305a574dfcd83e45056053a7012c8323bcceee8a7" }
+  ],
   "historicalEffectAudit": {
     "file": "supabase/contract-migrations/20260714165500_audit_historical_release_effects.sql",
     "sha256": "9d626616070e96b16be4cdb34f3560d1caf05f944ea1c1ada73fb6587a0f6863"

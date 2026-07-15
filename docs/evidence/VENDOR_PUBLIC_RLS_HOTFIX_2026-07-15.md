@@ -78,6 +78,9 @@ the key value and database rows were not printed or written to disk.
 - Monorepo lint: passed with one pre-existing unused-variable warning and no
   errors.
 - Migration dry-run: exactly one expected migration.
+- Release manifest static fence: passed with the migration hash pinned as an
+  applied hotfix.
+- Release manifest remote fence: `clean`, with 0 pending migrations.
 
 ## Remaining release boundary
 
