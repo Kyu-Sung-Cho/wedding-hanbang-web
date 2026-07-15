@@ -2,9 +2,13 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { upsertMomentEvent } from "@/utils/scheduleEvents";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
-import { isCoupleInviteCode, normalizeCoupleInviteCode } from "@hanbang/shared";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import {
+  isCoupleInviteCode,
+  normalizeCoupleInviteCode,
+  normalizeOptionalBudgetWon,
+} from "@hanbang/shared";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const ONBOARDING_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
@@ -47,12 +51,20 @@ export async function POST(request: Request) {
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json({ error: "로그인 상태를 확인하지 못했습니다." }, { status: 503 });
+    }
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("onboarding", request, user.id), ONBOARDING_RATE);
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("onboarding", request, user.id),
+      ONBOARDING_RATE,
+      user.id,
+    );
     if (limited) return limited;
 
     const body = await request.json().catch(() => null);
@@ -69,15 +81,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "유효하지 않은 커플 연결 방식입니다." }, { status: 400 });
     }
 
+    const weddingDateWasSupplied = !(
+      body.weddingDate === undefined || body.weddingDate === null || body.weddingDate === ""
+    );
+    const sanggyeonryeDateWasSupplied = !(
+      body.sanggyeonryeDate === undefined || body.sanggyeonryeDate === null || body.sanggyeonryeDate === ""
+    );
     const weddingDate = normalizeDateOnly(body.weddingDate);
     const sanggyeonryeDate = normalizeDateOnly(body.sanggyeonryeDate);
+    if (weddingDateWasSupplied && !weddingDate) {
+      return NextResponse.json({ error: "결혼 예정일 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    if (sanggyeonryeDateWasSupplied && !sanggyeonryeDate) {
+      return NextResponse.json({ error: "상견례 날짜 형식이 올바르지 않습니다." }, { status: 400 });
+    }
     const venue = typeof body.venue === "string" && body.venue.trim()
       ? body.venue.trim().slice(0, 100)
       : null;
-    const rawBudget = Number(body.totalBudget);
-    const totalBudget = Number.isFinite(rawBudget) && rawBudget > 0 && rawBudget <= 10_000_000_000
-      ? Math.round(rawBudget)
-      : 20_000_000;
+    const budgetWasSupplied = !(
+      body.totalBudget === undefined || body.totalBudget === null || body.totalBudget === ""
+    );
+    if (
+      budgetWasSupplied &&
+      (typeof body.totalBudget !== "number" ||
+        !Number.isSafeInteger(body.totalBudget) ||
+        body.totalBudget < 0 ||
+        body.totalBudget > 10_000_000_000)
+    ) {
+      return NextResponse.json({ error: "예산 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const totalBudget = normalizeOptionalBudgetWon(body.totalBudget);
     const baseProgress = isRecord(body.progress) ? body.progress : {};
     const journeyProgress = sanggyeonryeDate
       ? upsertMomentEvent(baseProgress, {
@@ -121,13 +154,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "커플 정보를 생성할 수 없습니다." }, { status });
       }
       const result = data as { success?: boolean; couple_id?: string; invite_code?: string } | null;
-      if (!result?.success || !result.couple_id || !result.invite_code) {
+      const normalizedResultInviteCode = result?.invite_code
+        ? normalizeCoupleInviteCode(result.invite_code)
+        : "";
+      if (
+        !result?.success ||
+        !isUuid(result.couple_id) ||
+        !isCoupleInviteCode(normalizedResultInviteCode)
+      ) {
         return NextResponse.json({ error: "커플 정보 생성 결과를 확인하지 못했습니다." }, { status: 500 });
       }
       return NextResponse.json({
         success: true,
         coupleId: result.couple_id,
-        inviteCode: result.invite_code,
+        inviteCode: normalizedResultInviteCode,
       });
     }
 
@@ -158,17 +198,24 @@ export async function POST(request: Request) {
       couple_id?: string;
       invite_code?: string;
     } | null;
-    if (!result?.success || !result.couple_id) {
+    if (!result?.success) {
       return NextResponse.json(
         { error: getJoinCoupleErrorMessage(result?.error) },
         { status: 409 }
       );
     }
 
+    if (!isUuid(result.couple_id)) {
+      return NextResponse.json(
+        { error: "커플 연결 결과를 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({
       success: true,
       coupleId: result.couple_id,
-      inviteCode: result.invite_code ?? inviteCode,
+      inviteCode,
     });
   } catch (err) {
     console.error("[onboarding] unexpected error:", err);

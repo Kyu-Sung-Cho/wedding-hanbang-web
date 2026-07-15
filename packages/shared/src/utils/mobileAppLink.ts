@@ -7,11 +7,6 @@ export const MOBILE_APP_SHARE_ROUTE_CONTRACTS = {
     source: "/app/community/post/:id",
     destination: "/wedding/community/post/:id",
   },
-  vendor: {
-    expoPrefix: "/vendors/",
-    source: "/app/vendors/:id",
-    destination: "/wedding/vendors/:id",
-  },
 } as const;
 
 export const MOBILE_APP_ASSOCIATION_PATHS = [

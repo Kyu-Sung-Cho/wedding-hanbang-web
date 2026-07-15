@@ -9,22 +9,14 @@ function post(id: string, createdAt: string): PostWithAuthor {
   return {
     id,
     author_id: "author-1",
+    viewer_is_author: false,
     category: "free",
     title: id,
     content: "",
-    images: [],
-    slides: null,
     visibility: "public",
     ad_disclosure: "general",
     sponsorship_detail: null,
-    ai_comment: null,
     is_resolved: false,
-    is_verified_review: false,
-    verification_doc_url: null,
-    price_data: null,
-    is_quick_review: false,
-    rating: null,
-    cohort_room_id: null,
     under_review: false,
     upvote_count: 0,
     downvote_count: 0,
@@ -33,9 +25,7 @@ function post(id: string, createdAt: string): PostWithAuthor {
     bookmark_count: 0,
     is_pinned: false,
     is_weekly_best: false,
-    vendor_tags: [],
     tags: [],
-    cost_data: null,
     created_at: createdAt,
     updated_at: createdAt,
     author: communityProfile("author-1", "tester"),
@@ -50,7 +40,6 @@ function communityProfile(userId: string, nickname: string): CommunityProfile {
     user_id: userId,
     nickname,
     avatar_url: null,
-    rank: "sprout",
     wedding_year: null,
     wedding_month: null,
     wedding_completed: false,
@@ -77,13 +66,13 @@ function comment(
     post_id: postId,
     parent_id: null,
     author_id: author.user_id,
+    viewer_is_author: false,
     content,
     upvote_count: 0,
     is_deleted: false,
     created_at: "2026-06-15T00:00:00.000Z",
     updated_at: "2026-06-15T00:00:00.000Z",
     author,
-    user_vote: null,
     replies,
   };
 }
@@ -114,6 +103,65 @@ describe("useCommunityStore feed cache", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(useCommunityStore.getState().posts[0].id).toBe("network-new");
+  });
+
+  it("does not disguise a malformed feed response as a genuine empty feed", async () => {
+    const existingPost = post("already-rendered", "2026-06-15T00:00:00.000Z");
+    useCommunityStore.setState({ posts: [existingPost], total: 1 });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    await useCommunityStore.getState().fetchPosts(true);
+
+    const state = useCommunityStore.getState();
+    expect(state.posts.map((item) => item.id)).toEqual(["already-rendered"]);
+    expect(state.total).toBe(1);
+    expect(state.errorMessage).toBeTruthy();
+  });
+
+  it("does not turn a malformed successful vote response into zero counts", async () => {
+    const existingPost = {
+      ...post("vote-target", "2026-06-15T00:00:00.000Z"),
+      upvote_count: 7,
+      downvote_count: 2,
+    };
+    useCommunityStore.setState({ posts: [existingPost] });
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await expect(
+      useCommunityStore.getState().votePost(existingPost.id, 1),
+    ).rejects.toThrow();
+
+    expect(useCommunityStore.getState().posts[0]).toMatchObject({
+      upvote_count: 7,
+      downvote_count: 2,
+    });
+  });
+
+  it("does not claim create, update, or delete success from malformed 2xx bodies", async () => {
+    const existingPost = post("post-existing", "2026-06-15T00:00:00.000Z");
+    useCommunityStore.setState({ posts: [existingPost] });
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const created = await useCommunityStore.getState().createPost({
+      category: "free",
+      title: "title",
+      content: "content",
+      visibility: "public",
+      ad_disclosure: "general",
+    });
+    const updated = await useCommunityStore.getState().updatePost(existingPost.id, {
+      title: "updated",
+    });
+    const deleted = await useCommunityStore.getState().deletePost(existingPost.id);
+
+    expect(created).toBeNull();
+    expect(updated).toBe(false);
+    expect(deleted).toBe(false);
+    expect(useCommunityStore.getState().posts.map((item) => item.id)).toContain(existingPost.id);
+    expect(useCommunityStore.getState().errorMessage).toBeTruthy();
   });
 
   it("keeps the short fresh-cache skip for non-latest feeds", async () => {
@@ -197,15 +245,21 @@ describe("useCommunityStore feed cache", () => {
   it("applies the current user's new nickname to cached community state", () => {
     const oldAuthor = communityProfile("author-1", "old-name");
     const otherAuthor = communityProfile("author-2", "other-name");
-    const ownPost = { ...post("own-post", "2026-06-15T00:00:00.000Z"), author: oldAuthor };
+    const ownPost = {
+      ...post("own-post", "2026-06-15T00:00:00.000Z"),
+      author: oldAuthor,
+      viewer_is_author: true,
+    };
     const otherPost = {
       ...post("other-post", "2026-06-15T00:00:00.000Z"),
       author_id: otherAuthor.user_id,
       author: otherAuthor,
     };
-    const currentPost = { ...ownPost, vendor_details: [] } as PostDetail;
+    const currentPost = { ...ownPost } as PostDetail;
     const ownReply = comment("reply-1", oldAuthor);
     const ownComment = comment("comment-1", oldAuthor, [ownReply]);
+    ownReply.viewer_is_author = true;
+    ownComment.viewer_is_author = true;
     const otherComment = comment("comment-2", otherAuthor);
 
     sessionStorage.setItem(
@@ -219,7 +273,7 @@ describe("useCommunityStore feed cache", () => {
       comments: [ownComment, otherComment],
     });
 
-    useCommunityStore.getState().applyOwnNickname("author-1", "new-name");
+    useCommunityStore.getState().applyConfirmedOwnCommunityNickname("new-name");
 
     const state = useCommunityStore.getState();
     expect(state.communityProfile?.nickname).toBe("new-name");
@@ -229,6 +283,38 @@ describe("useCommunityStore feed cache", () => {
     expect(state.comments[0].author.nickname).toBe("new-name");
     expect(state.comments[0].replies?.[0].author.nickname).toBe("new-name");
     expect(state.comments[1].author.nickname).toBe("other-name");
+    expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
+  });
+
+  it("removes a newly muted author from memory and every feed cache immediately", () => {
+    const mutedAuthor = communityProfile("author-1", "muted");
+    const visibleAuthor = communityProfile("author-2", "visible");
+    const mutedPost = { ...post("muted-post", "2026-06-15T00:00:00.000Z"), author: mutedAuthor };
+    const visiblePost = {
+      ...post("visible-post", "2026-06-16T00:00:00.000Z"),
+      author_id: visibleAuthor.user_id,
+      author: visibleAuthor,
+    };
+    sessionStorage.setItem(
+      "community:feed:all:hot:_:_:_",
+      JSON.stringify({ posts: [mutedPost, visiblePost], total: 2, hasMore: false, ts: Date.now() }),
+    );
+    useCommunityStore.setState({
+      posts: [mutedPost, visiblePost],
+      total: 2,
+      currentPost: mutedPost as PostDetail,
+      comments: [comment("muted-comment", mutedAuthor), comment("visible-comment", visibleAuthor)],
+      commentsPostId: mutedPost.id,
+    });
+
+    useCommunityStore.getState().hideAuthorLocally(mutedAuthor.user_id);
+
+    const state = useCommunityStore.getState();
+    expect(state.posts.map((item) => item.id)).toEqual(["visible-post"]);
+    expect(state.total).toBe(1);
+    expect(state.currentPost?.id).toBe("muted-post");
+    expect(state.comments).toEqual([]);
+    expect(state.commentsPostId).toBeNull();
     expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
   });
 
@@ -290,6 +376,75 @@ describe("useCommunityStore feed cache", () => {
     expect(state.comments.map((c) => c.id)).toEqual(["comment-new"]);
   });
 
+  it("preserves already rendered comments and exposes a retryable error when refresh fails", async () => {
+    const author = communityProfile("author-1", "tester");
+    const existing = comment("comment-existing", author, [], "post-1");
+    useCommunityStore.setState({
+      comments: [existing],
+      commentsPostId: "post-1",
+      commentsLoadStatus: "ready",
+      commentsLoadError: null,
+    });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: "댓글 조회가 일시적으로 불가능합니다." }),
+    });
+
+    const ok = await useCommunityStore.getState().fetchComments("post-1");
+
+    const state = useCommunityStore.getState();
+    expect(ok).toBe(false);
+    expect(state.comments.map((item) => item.id)).toEqual(["comment-existing"]);
+    expect(state.commentsLoadStatus).toBe("error");
+    expect(state.commentsLoadError).toContain("일시적으로");
+  });
+
+  it("marks an initial comments failure as an error instead of a genuine empty result", async () => {
+    mockFetch.mockRejectedValue(new Error("network down"));
+
+    const ok = await useCommunityStore.getState().fetchComments("post-1");
+
+    const state = useCommunityStore.getState();
+    expect(ok).toBe(false);
+    expect(state.comments).toEqual([]);
+    expect(state.commentsPostId).toBe("post-1");
+    expect(state.commentsLoadStatus).toBe("error");
+    expect(state.commentsLoadError).toBeTruthy();
+  });
+
+  it("has no dormant new-comment mutation while publishing is retired", () => {
+    const author = communityProfile("author-1", "tester");
+    const existing = comment("comment-existing", author, [], "post-1", "keep me");
+    useCommunityStore.setState({
+      comments: [existing],
+      commentsPostId: "post-1",
+      commentsLoadStatus: "ready",
+      commentsLoadError: null,
+    });
+
+    expect(useCommunityStore.getState()).not.toHaveProperty("createComment");
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useCommunityStore.getState().comments.map((item) => item.id)).toEqual(["comment-existing"]);
+    expect(useCommunityStore.getState().commentsLoadStatus).toBe("ready");
+  });
+
+  it("leaves the existing comment untouched when edit or delete is rejected", async () => {
+    const author = communityProfile("author-1", "tester");
+    const existing = comment("comment-1", author, [], "post-1", "keep me");
+    useCommunityStore.setState({ comments: [existing], commentsPostId: "post-1" });
+    mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+    const edited = await useCommunityStore.getState().updateComment("comment-1", "replace me");
+    const deleted = await useCommunityStore.getState().deleteComment("comment-1");
+
+    const stored = useCommunityStore.getState().comments[0];
+    expect(edited).toBe(false);
+    expect(deleted).toBe(false);
+    expect(stored.content).toBe("keep me");
+    expect(stored.is_deleted).toBe(false);
+  });
+
   it("updates edited comments inside the current comment tree", async () => {
     const author = communityProfile("author-1", "tester");
     const reply = {
@@ -332,5 +487,35 @@ describe("useCommunityStore feed cache", () => {
 
     expect(ok).toBe(false);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a post request failure distinct from a missing post", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: "게시글 조회가 일시적으로 불가능합니다." }),
+    });
+
+    await useCommunityStore.getState().fetchPostDetail("post-1");
+
+    const state = useCommunityStore.getState();
+    expect(state.currentPost).toBeNull();
+    expect(state.postLoadStatus).toBe("error");
+    expect(state.postLoadError).toContain("일시적으로");
+  });
+
+  it("uses the missing state only for an explicit 404 response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "게시글을 찾을 수 없습니다." }),
+    });
+
+    await useCommunityStore.getState().fetchPostDetail("post-1");
+
+    const state = useCommunityStore.getState();
+    expect(state.currentPost).toBeNull();
+    expect(state.postLoadStatus).toBe("not_found");
+    expect(state.postLoadError).toBeNull();
   });
 });

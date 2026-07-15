@@ -37,6 +37,10 @@ vi.mock("@/lib/turnstile", () => ({
 }));
 
 import { POST } from "../route";
+import {
+  SIGNUP_PRIVACY_VERSION,
+  SIGNUP_TERMS_VERSION,
+} from "@/lib/auth/signupConsent";
 
 const GENERIC_MESSAGE =
   "요청을 확인했습니다. 가입 가능한 이메일이면 인증 안내가 도착합니다. 받지 못했다면 잠시 후 다시 시도해주세요.";
@@ -50,6 +54,8 @@ function request(headers: Record<string, string> = {}) {
       password: "Strong1!",
       name: "홍길동",
       turnstileToken: "verified-token",
+      termsVersion: SIGNUP_TERMS_VERSION,
+      privacyVersion: SIGNUP_PRIVACY_VERSION,
     }),
   });
 }

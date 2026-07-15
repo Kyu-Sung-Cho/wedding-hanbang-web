@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus } from "@/utils/checklist";
 import { findCategoryScheduleEvent, getEvents, upsertCategoryEvent } from "@/utils/scheduleEvents";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import TimelineView from "@/components/app/schedule/TimelineView";
@@ -13,15 +13,17 @@ import CalendarView from "@/components/app/schedule/CalendarView";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
+import {
+  ScheduleEventConflictError,
+  mutateScheduleEvent,
+} from "@/lib/schedule/scheduleEventClient";
+import {
+  ChecklistItemConflictError,
+  mutateChecklistItem,
+} from "@/lib/checklist/checklistItemClient";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
-import { formatLocalDateOnly, parseLocalDateOnly } from "@hanbang/shared";
-
-const CATEGORY_KEYS = [
-  "meeting", "venue", "studio", "dress", "makeup", "ring",
-  "hanbok", "yedan", "honeymoon", "houseware", "housing",
-  "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-];
+import { formatLocalDateOnly, getJourneyProgressCounts, parseLocalDateOnly } from "@hanbang/shared";
 
 const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례", venue: "예식장", studio: "스튜디오",
@@ -83,7 +85,7 @@ interface ScheduleContentProps {
 }
 
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, isDemo, updateJourney, updateJourneyLocal } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -92,6 +94,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [inlineMutationError, setInlineMutationError] = useState("");
   const [pendingChecklistSchedule, setPendingChecklistSchedule] =
     useState<PendingChecklistSchedule | null>(null);
 
@@ -117,23 +120,15 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       .slice(0, 5);
   }, [events, todayStr]);
 
-  // 임박 카테고리
+  // 사용자가 직접 시작했지만 아직 일정을 등록하지 않은 항목
   const imminentCategories = useMemo(
-    () => getImminentCategories(progress, weddingDate, events),
-    [progress, weddingDate, events]
+    () => getImminentCategories(progress, events),
+    [progress, events]
   );
 
-  // 전체 체크리스트 완료 수
-  const { totalDone, totalItems } = CATEGORY_KEYS.reduce(
-    (acc, key) => {
-      const template = CHECKLIST_MAP[key];
-      if (!template) return acc;
-      const existing = progress[key];
-      const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
-      const { done, total } = getChecklistCounts(merged);
-      return { totalDone: acc.totalDone + done, totalItems: acc.totalItems + total };
-    },
-    { totalDone: 0, totalItems: 0 }
+  const { done: totalDone, total: totalItems } = useMemo(
+    () => getJourneyProgressCounts(progress),
+    [progress]
   );
 
   const today = new Date();
@@ -145,20 +140,82 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     setSelectedCategory(key);
   }, []);
 
+  const persistRemoteScheduleMutation = useCallback(
+    async (mutation: Parameters<typeof mutateScheduleEvent>[0]) => {
+      try {
+        const result = await mutateScheduleEvent(mutation);
+        updateJourneyLocal({
+          progress: result.progress as unknown as Record<string, ProgressItem>,
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof ScheduleEventConflictError) {
+          updateJourneyLocal({
+            progress: error.progress as unknown as Record<string, ProgressItem>,
+          });
+        }
+        throw error;
+      }
+    },
+    [updateJourneyLocal],
+  );
+
+  const persistRemoteChecklistMutation = useCallback(
+    async (mutation: Parameters<typeof mutateChecklistItem>[0]) => {
+      try {
+        const result = await mutateChecklistItem(mutation);
+        updateJourneyLocal({
+          progress: result.progress as unknown as Record<string, ProgressItem>,
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof ChecklistItemConflictError) {
+          updateJourneyLocal({
+            progress: error.progress as unknown as Record<string, ProgressItem>,
+          });
+        }
+        throw error;
+      }
+    },
+    [updateJourneyLocal],
+  );
+
   // 타임라인 인라인 체크리스트 토글
   const handleToggleChecklistItem = useCallback(
     async (categoryKey: string, itemId: string) => {
       if (!journey) return;
 
-      const newProgress = buildChecklistProgress(
-        progress as unknown as Record<string, unknown>,
-        categoryKey,
-        itemId
-      );
+      const template = CHECKLIST_MAP[categoryKey];
+      const existing = progress[categoryKey] as ProgressItem | undefined;
+      if (!template) return;
+      const current = mergeChecklist(
+        template.items,
+        existing?.checklist,
+        existing?.status,
+      ).find((item) => item.id === itemId);
+      if (!current) return;
 
-      await updateJourney({ progress: newProgress as unknown as Record<string, ProgressItem> });
+      if (isDemo) {
+        const newProgress = buildChecklistProgress(
+          progress as unknown as Record<string, unknown>,
+          categoryKey,
+          itemId,
+        );
+        const saved = await updateJourney({
+          progress: newProgress as unknown as Record<string, ProgressItem>,
+        });
+        if (!saved) throw new Error("체크리스트를 저장하지 못했습니다.");
+        return;
+      }
+
+      await persistRemoteChecklistMutation({
+        categoryKey,
+        itemId,
+        done: !current.done,
+        expectedDone: current.done,
+      });
     },
-    [journey, progress, updateJourney]
+    [journey, progress, isDemo, updateJourney, persistRemoteChecklistMutation]
   );
 
   const handleChecklistItemClick = useCallback(
@@ -198,20 +255,72 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           },
           pendingChecklistSchedule.categoryLabel
         );
-        nextProgress = upserted.newProgress;
+        if (isDemo) {
+          nextProgress = upserted.newProgress;
+        } else {
+          const currentEvent = getEvents(nextProgress).find(
+            (event) => event.id === upserted.event.id,
+          );
+          const result = await persistRemoteScheduleMutation(
+            upserted.created
+              ? { operation: "add", event: upserted.event }
+              : {
+                  operation: "update",
+                  eventId: upserted.event.id,
+                  event: upserted.event,
+                  expectedUpdatedAt: currentEvent?.updatedAt ?? "",
+                },
+          );
+          nextProgress = result.progress;
+        }
       }
 
-      nextProgress = buildChecklistProgress(
-        nextProgress,
-        pendingChecklistSchedule.categoryKey,
-        pendingChecklistSchedule.itemId,
-        true
-      );
-
-      await updateJourney({ progress: nextProgress as unknown as Record<string, ProgressItem> });
+      if (isDemo) {
+        nextProgress = buildChecklistProgress(
+          nextProgress,
+          pendingChecklistSchedule.categoryKey,
+          pendingChecklistSchedule.itemId,
+          true,
+        );
+        const saved = await updateJourney({
+          progress: nextProgress as unknown as Record<string, ProgressItem>,
+        });
+        if (!saved) {
+          throw new Error("체크리스트를 저장하지 못했습니다. 최신 내용을 확인한 뒤 다시 시도해 주세요.");
+        }
+      } else {
+        const categoryKey = pendingChecklistSchedule.categoryKey;
+        const itemId = pendingChecklistSchedule.itemId;
+        const template = CHECKLIST_MAP[categoryKey];
+        const existing = nextProgress[categoryKey] as ProgressItem | undefined;
+        const current = template && mergeChecklist(
+          template.items,
+          existing?.checklist,
+          existing?.status,
+        ).find((item) => item.id === itemId);
+        if (!current) {
+          throw new Error("체크리스트 항목을 최신 상태에서 찾지 못했습니다.");
+        }
+        if (!current.done) {
+          await persistRemoteChecklistMutation({
+            categoryKey,
+            itemId,
+            done: true,
+            expectedDone: false,
+          });
+        }
+      }
       setPendingChecklistSchedule(null);
     },
-    [journey, pendingChecklistSchedule, progress, updateJourney]
+    [
+      journey,
+      pendingChecklistSchedule,
+      progress,
+      isDemo,
+      updateJourney,
+      persistRemoteScheduleMutation,
+      persistRemoteChecklistMutation,
+    ]
   );
 
   // 이벤트 CRUD
@@ -259,23 +368,53 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       let saved = false;
 
       if (eventFormMode === "edit" && editingEvent) {
-        const updatedEvents = currentEvents.map((e) =>
-          e.id === editingEvent.id
-            ? { ...e, ...data, updatedAt: new Date().toISOString() }
-            : e
-        );
-        saved = await updateJourney({
-          progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
-        });
+        const updatedEvent: ScheduleEvent = {
+          ...editingEvent,
+          ...data,
+          updatedAt: new Date().toISOString(),
+        };
+        if (isDemo) {
+          const updatedEvents = currentEvents.map((event) =>
+            event.id === editingEvent.id ? updatedEvent : event
+          );
+          saved = await updateJourney({
+            progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
+          });
+        } else {
+          await persistRemoteScheduleMutation({
+            operation: "update",
+            eventId: editingEvent.id,
+            event: updatedEvent,
+            expectedUpdatedAt: editingEvent.updatedAt,
+          });
+          saved = true;
+        }
       } else if (data.categoryKey && data.categoryKey !== "general") {
-        const { newProgress } = upsertCategoryEvent(
+        const upserted = upsertCategoryEvent(
           progressObj,
           data,
           CATEGORY_LABELS[data.categoryKey]
         );
-        saved = await updateJourney({
-          progress: newProgress as unknown as Record<string, ProgressItem>,
-        });
+        if (isDemo) {
+          saved = await updateJourney({
+            progress: upserted.newProgress as unknown as Record<string, ProgressItem>,
+          });
+        } else {
+          const existingEvent = currentEvents.find(
+            (event) => event.id === upserted.event.id,
+          );
+          await persistRemoteScheduleMutation(
+            upserted.created
+              ? { operation: "add", event: upserted.event }
+              : {
+                  operation: "update",
+                  eventId: upserted.event.id,
+                  event: upserted.event,
+                  expectedUpdatedAt: existingEvent?.updatedAt ?? "",
+                },
+          );
+          saved = true;
+        }
       } else {
         const now = new Date().toISOString();
         const newEvent: ScheduleEvent = {
@@ -287,9 +426,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           createdAt: now,
           updatedAt: now,
         };
-        saved = await updateJourney({
-          progress: { ...progress, __events: [...currentEvents, newEvent] } as unknown as Record<string, ProgressItem>,
-        });
+        if (isDemo) {
+          saved = await updateJourney({
+            progress: { ...progress, __events: [...currentEvents, newEvent] } as unknown as Record<string, ProgressItem>,
+          });
+        } else {
+          await persistRemoteScheduleMutation({ operation: "add", event: newEvent });
+          saved = true;
+        }
       }
 
       if (!saved) {
@@ -300,7 +444,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setEditingEvent(null);
       setSelectedDateForAdd(null);
     },
-    [journey, progress, eventFormMode, editingEvent, updateJourney]
+    [journey, progress, eventFormMode, editingEvent, isDemo, updateJourney, persistRemoteScheduleMutation]
   );
 
   const handleDeleteEvent = useCallback(
@@ -309,11 +453,24 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
       const progressObj = progress as Record<string, unknown>;
       const currentEvents = getEvents(progressObj);
-      const filtered = currentEvents.filter((e) => e.id !== eventId);
-
-      const deleted = await updateJourney({
-        progress: { ...progress, __events: filtered } as unknown as Record<string, ProgressItem>,
-      });
+      const currentEvent = currentEvents.find((event) => event.id === eventId);
+      if (!currentEvent) {
+        throw new Error("삭제할 일정을 최신 목록에서 찾지 못했습니다. 화면을 새로고침해 주세요.");
+      }
+      let deleted = false;
+      if (isDemo) {
+        const filtered = currentEvents.filter((event) => event.id !== eventId);
+        deleted = await updateJourney({
+          progress: { ...progress, __events: filtered } as unknown as Record<string, ProgressItem>,
+        });
+      } else {
+        await persistRemoteScheduleMutation({
+          operation: "delete",
+          eventId,
+          expectedUpdatedAt: currentEvent.updatedAt,
+        });
+        deleted = true;
+      }
 
       if (!deleted) {
         throw new Error("일정을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.");
@@ -322,7 +479,24 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setEventFormMode(null);
       setEditingEvent(null);
     },
-    [journey, progress, updateJourney]
+    [journey, progress, isDemo, updateJourney, persistRemoteScheduleMutation]
+  );
+
+  const handleConfirmedInlineDelete = useCallback(
+    async (eventId: string) => {
+      setInlineMutationError("");
+      try {
+        await handleDeleteEvent(eventId);
+        setPendingDeleteId(null);
+      } catch (error) {
+        setInlineMutationError(
+          error instanceof Error
+            ? error.message
+            : "일정을 삭제하지 못했습니다. 다시 시도해 주세요.",
+        );
+      }
+    },
+    [handleDeleteEvent],
   );
 
   // 날짜 포맷
@@ -379,11 +553,11 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
           {/* Progress */}
           <div className="rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-              PROGRESS
+            <p className="text-[11px] font-semibold tracking-[0.08em] text-[#36534E]">
+              시작한 항목 완료율
             </p>
             <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
-              {progressPct}%
+              {totalItems > 0 ? `${progressPct}%` : "기록 없음"}
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
               <div
@@ -392,7 +566,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               />
             </div>
             <p className="mt-2 text-[13px] font-medium text-[#5d6879]">
-              {totalDone}/{totalItems} 완료
+              {totalItems > 0 ? `${totalDone}/${totalItems} 완료` : "시작하거나 완료한 체크만 계산해요"}
             </p>
           </div>
 
@@ -407,6 +581,15 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="mt-3 text-[13px] font-medium text-[#5d6879]">다가오는 일정</p>
           </div>
         </div>
+
+        {inlineMutationError && (
+          <p
+            role="alert"
+            className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700"
+          >
+            {inlineMutationError}
+          </p>
+        )}
 
         {/* Main content: left view + right sidebar */}
         <div className="grid grid-cols-1 gap-4 animate-fade-in xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
@@ -455,7 +638,6 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   onToggleChecklistItem={handleChecklistItemClick}
                   events={events}
                   onEditEvent={handleEditEvent}
-                  onDeleteEvent={handleDeleteEvent}
                   onAddEvent={handleAddEventQuick}
                 />
               ) : (
@@ -471,11 +653,11 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
           {/* Right sidebar */}
           <div className="grid self-start gap-4 lg:grid-cols-2 xl:grid-cols-1">
-            {/* Imminent Alerts */}
+            {/* Generic planning-order reference */}
             {imminentCategories.length > 0 && (
               <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
                 <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
-                  긴급 확인
+                  일반적인 준비 순서 참고
                 </h3>
                 <ImminentAlerts
                   items={imminentCategories}
@@ -535,8 +717,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             <>
                               <button
                                 onClick={() => {
-                                  handleDeleteEvent(evt.id);
-                                  setPendingDeleteId(null);
+                                  void handleConfirmedInlineDelete(evt.id);
                                 }}
                                 className="px-2 py-1 rounded-md text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
                               >
@@ -619,11 +800,13 @@ function ChecklistSchedulePrompt({
   const [date, setDate] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!pending) return;
     setDate(pending.existingEvent?.date ?? "");
     setMemo(pending.existingEvent?.memo ?? pending.itemLabel);
+    setError("");
   }, [pending]);
 
   if (!pending) return null;
@@ -631,8 +814,15 @@ function ChecklistSchedulePrompt({
   const saveWithDate = async () => {
     if (!date || saving) return;
     setSaving(true);
+    setError("");
     try {
       await onComplete({ date, memo });
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "체크리스트를 저장하지 못했습니다. 다시 시도해 주세요.",
+      );
     } finally {
       setSaving(false);
     }
@@ -641,8 +831,15 @@ function ChecklistSchedulePrompt({
   const completeOnly = async () => {
     if (saving) return;
     setSaving(true);
+    setError("");
     try {
       await onComplete({});
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "체크리스트를 저장하지 못했습니다. 다시 시도해 주세요.",
+      );
     } finally {
       setSaving(false);
     }
@@ -677,6 +874,14 @@ function ChecklistSchedulePrompt({
         </div>
 
         <div className="space-y-4 px-6 py-5">
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700"
+            >
+              {error}
+            </p>
+          )}
           <div>
             <label className="mb-1.5 block text-[12px] font-semibold text-[#6d625a]">
               날짜

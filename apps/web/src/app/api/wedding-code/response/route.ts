@@ -3,13 +3,12 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 /**
- * Anonymous response collection is disabled until purpose/items/retention,
- * withdrawal/deletion, and consent versioning are implemented and reviewed.
- * The questionnaire still works entirely in the browser.
+ * WeddingCode and its response collection are retired. Keep this handler
+ * request-independent so legacy clients cannot submit or persist answers.
  */
 export async function POST() {
   return NextResponse.json(
-    { error: "응답 수집은 중단되었습니다. 개인 결과는 이 기기에서만 계산됩니다." },
+    { error: "웨딩코드와 응답 수집은 현재 제공하지 않습니다." },
     { status: 410, headers: { "Cache-Control": "no-store" } }
   );
 }

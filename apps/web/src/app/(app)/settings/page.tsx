@@ -16,16 +16,15 @@ import {
   Pencil,
   Save,
   X,
-  Trash2,
   MapPin,
   Sparkles,
   RotateCcw,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
-import { createClient } from "@/lib/supabase/client";
 import { shouldReloadAfterFreshSpaceResponse } from "@/lib/couple/relinkResponse";
+import SettingsResourceLinks from "@/components/app/settings/SettingsResourceLinks";
+import { patchJourneyPreferences } from "@/lib/journey/journeyPreferencesClient";
 import type { Profile } from "@/types/database.types";
 import type {
   WeddingStyle,
@@ -33,7 +32,7 @@ import type {
   BudgetTendency,
   GuestCount,
 } from "@/types/onboarding.types";
-import { parseLocalDateOnly } from "@hanbang/shared";
+import { normalizeOptionalBudgetWon, parseLocalDateOnly } from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
 const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
@@ -53,9 +52,9 @@ const PRIORITY_OPTIONS: { value: PriorityItem; label: string }[] = [
 ];
 
 const BUDGET_TENDENCY_OPTIONS: { value: BudgetTendency; label: string }[] = [
-  { value: "saving", label: "절약형" },
-  { value: "balanced", label: "가성비" },
-  { value: "premium", label: "프리미엄" },
+  { value: "saving", label: "비용 우선" },
+  { value: "balanced", label: "균형" },
+  { value: "premium", label: "경험 우선" },
 ];
 
 const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
@@ -108,30 +107,20 @@ const fadeIn = {
   animate: { opacity: 1, y: 0 },
 };
 
-async function purgeLocalUserData(): Promise<void> {
-  try { localStorage.clear(); } catch { /* storage unavailable */ }
-  try { sessionStorage.clear(); } catch { /* storage unavailable */ }
-  try {
-    for (const cookie of document.cookie.split(";")) {
-      const name = cookie.split("=")[0]?.trim();
-      if (name) document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-    }
-  } catch { /* cookie cleanup best effort */ }
-  try {
-    if ("caches" in window) {
-      const names = await caches.keys();
-      await Promise.all(names.map((name) => caches.delete(name)));
-    }
-  } catch { /* cache cleanup best effort */ }
-  try {
-    const { default: posthog } = await import("posthog-js");
-    posthog.reset(true);
-  } catch { /* analytics may be disabled */ }
-}
-
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
-  const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
+  const {
+    user,
+    profile,
+    partner,
+    couple,
+    journey,
+    isDemo,
+    signOut,
+    updateJourney,
+    updateJourneyLocal,
+    updateProfile,
+  } = useAuthStore();
+  const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs(profile?.id ?? null);
   const [copied, setCopied] = useState(false);
   const [coupleCode, setCoupleCode] = useState("");
   const [isFullyLinked, setIsFullyLinked] = useState(false);
@@ -140,29 +129,22 @@ export default function SettingsPage() {
   const [coupleCodeLoading, setCoupleCodeLoading] = useState(false);
   const [coupleCodeError, setCoupleCodeError] = useState("");
 
-  // 휴대폰 번호 (업체 상담 예약 요청 연락처)
-  const [phoneInput, setPhoneInput] = useState("");
+  // 현재 사용처가 없는 과거 휴대폰 번호는 새로 받지 않고 삭제만 지원한다.
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    setPhoneInput(profile?.phone ?? "");
-  }, [profile?.phone]);
-
-  const phoneDirty = (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "");
-
-  async function savePhone() {
-    if (isDemo || phoneSaving) return;
+  async function deleteStoredPhone() {
+    if (isDemo || phoneSaving || !profile?.has_phone) return;
     setPhoneSaving(true);
     setPhoneMessage(null);
     try {
       await updateProfile({
-        phone: phoneInput,
+        phone: "",
         phone_care_consent: false,
       });
-      setPhoneMessage("저장했어요.");
+      setPhoneMessage("기존 번호를 삭제했어요.");
     } catch (err) {
-      setPhoneMessage(err instanceof Error ? err.message : "저장에 실패했어요.");
+      setPhoneMessage(err instanceof Error ? err.message : "삭제에 실패했어요.");
     } finally {
       setPhoneSaving(false);
       window.setTimeout(() => setPhoneMessage(null), 4000);
@@ -180,16 +162,10 @@ export default function SettingsPage() {
   const [budgetInput, setBudgetInput] = useState("");
   const [venueInput, setVenueInput] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-  const [deleteReason, setDeleteReason] = useState("");
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
-  const [comingSoonToast, setComingSoonToast] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [journeySaveError, setJourneySaveError] = useState("");
@@ -296,10 +272,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput.trim(),
-          sync_community_nickname: true,
-        }),
+        body: JSON.stringify({ name: nameInput.trim() }),
       });
       const data = (await res.json().catch(() => ({}))) as ProfileUpdateResponse;
       if (!res.ok) {
@@ -308,7 +281,6 @@ export default function SettingsPage() {
       }
       if (data.profile) {
         useAuthStore.setState({ profile: data.profile });
-        useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
       }
       setEditingName(false);
     } catch {
@@ -330,8 +302,12 @@ export default function SettingsPage() {
 
   // 예산 저장
   const saveBudget = async () => {
-    const value = parseInt(budgetInput) * 10000;
-    if (isNaN(value) || value <= 0) return;
+    const input = budgetInput.trim();
+    const value = normalizeOptionalBudgetWon(input ? Number(input) * 10000 : 0);
+    if (input && value === 0) {
+      setJourneySaveError("총 예산을 만원 단위 숫자로 입력하거나 미정이면 비워주세요.");
+      return;
+    }
     setSaving(true);
     setJourneySaveError("");
     const saved = await updateJourney({ total_budget: value });
@@ -350,8 +326,7 @@ export default function SettingsPage() {
     else setJourneySaveError("예식장을 저장하지 못했습니다. 입력값을 유지했으니 다시 시도해주세요.");
   };
 
-  // 웨딩 스타일 선호도 — journey.progress.__preferences 안에 저장됨.
-  // progress 자체는 다른 체크리스트 항목들도 들어있으므로 머지해서 PATCH.
+  // 웨딩 스타일 선호도는 전용 원자 API가 __preferences 필드만 수정한다.
   // 칩 클릭 즉시 저장 (편집 모드 없음).
   const prefs = (journey?.progress as Record<string, unknown> | undefined)?.__preferences as
     | {
@@ -374,20 +349,30 @@ export default function SettingsPage() {
       guestCount: GuestCount | null;
     }>
   ) => {
-    const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
+    if (preferenceSaving) return;
     const nextPrefs = { ...draftPrefs, ...partial };
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
+    setJourneySaveError("");
     try {
-      const saved = await updateJourney({
-        progress: { ...currentProgress, __preferences: nextPrefs } as never,
-      });
-      if (!saved) {
-        setDraftPrefs(prefs ?? {});
-        setJourneySaveError("웨딩 스타일을 저장하지 못했습니다. 이전 값으로 되돌렸어요.");
+      if (isDemo) {
+        const currentProgress = (journey?.progress ?? {}) as Record<string, unknown>;
+        const saved = await updateJourney({
+          progress: { ...currentProgress, __preferences: nextPrefs } as never,
+        });
+        if (!saved) throw new Error("웨딩 스타일을 저장하지 못했습니다.");
+      } else {
+        const result = await patchJourneyPreferences(partial);
+        updateJourneyLocal({ progress: result.progress as never });
+        setDraftPrefs(result.preferences);
       }
-    } catch {
+    } catch (error) {
       setDraftPrefs(prefs ?? {});
+      setJourneySaveError(
+        error instanceof Error
+          ? error.message
+          : "웨딩 스타일을 저장하지 못했습니다. 이전 값으로 되돌렸어요.",
+      );
     } finally {
       setPreferenceSaving(false);
     }
@@ -397,49 +382,6 @@ export default function SettingsPage() {
     const cur = draftPrefs.priorities ?? [];
     const next = cur.includes(value) ? cur.filter((p) => p !== value) : [...cur, value];
     await updatePreferences({ priorities: next });
-  };
-
-  const DELETE_REASONS = [
-    { value: "unsatisfied", label: "서비스 불만족" },
-    { value: "alternative", label: "다른 서비스 이용" },
-    { value: "wedding_done", label: "결혼 준비 완료" },
-    { value: "privacy", label: "개인정보 우려" },
-    { value: "low_usage", label: "사용 빈도 낮음" },
-    { value: "other", label: "기타" },
-  ];
-
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== "탈퇴합니다" || !deleteReason) return;
-    setDeleting(true);
-    setDeleteError("");
-
-    try {
-      const res = await fetch("/api/auth/delete", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: deleteReason }),
-      });
-      const data = (await res.json().catch(() => ({}))) as ApiMessageResponse;
-
-      if (res.status !== 202) {
-        setDeleteError(apiResponseMessage(data, "계정 삭제에 실패했습니다."));
-        return;
-      }
-
-      try {
-        await createClient().auth.signOut();
-      } catch {
-        // The durable server job is already queued. Continue with local purge
-        // even if remote session revocation is temporarily unavailable.
-      }
-      useAuthStore.getState().reset();
-      await purgeLocalUserData();
-      window.location.href = "/login";
-    } catch {
-      setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const handleResetWedding = async () => {
@@ -469,7 +411,7 @@ export default function SettingsPage() {
   };
 
   const userName = profile?.name ?? "사용자";
-  const userEmail = profile?.email ?? "";
+  const userEmail = user?.email ?? "";
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
@@ -508,7 +450,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     name="name"
-                    aria-label="이름"
+                    aria-label="이름 또는 서로 부를 이름"
+                    placeholder="계정에서 사용할 이름"
                     type="text"
                     value={nameInput}
                     onChange={(e) => {
@@ -519,10 +462,10 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
                     autoFocus
                   />
-                  <button type="button" onClick={saveName} disabled={saving} aria-label="이름 저장" className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button type="button" onClick={saveName} disabled={saving} aria-label="계정 이름 저장" className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => { setEditingName(false); setNameError(""); }} aria-label="이름 편집 취소" className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                  <button type="button" onClick={() => { setEditingName(false); setNameError(""); }} aria-label="계정 이름 편집 취소" className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -539,7 +482,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
-                  aria-label="이름 편집"
+                  aria-label="계정 이름 편집"
                   className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
@@ -547,6 +490,9 @@ export default function SettingsPage() {
               </div>
             )}
             <p className="text-base text-[#504444] font-light mt-1">{userEmail}</p>
+            <p className="mt-1 text-xs text-[#7A7169]">
+              아모라와 파트너에게 표시되는 계정 이름이며, 커뮤니티 별명과는 별개예요.
+            </p>
           </div>
         </div>
 
@@ -697,7 +643,7 @@ export default function SettingsPage() {
           <div>
             <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">웨딩 스타일</h3>
             <p className="text-base text-[#504444] font-light">
-              아모라가 추천·예산 짤 때 쓰는 취향 정보예요
+              아모라가 답변을 내 준비 상황에 맞게 정리할 때 참고하는 정보예요
               <span className="ml-2 text-sm text-[#B5ADA3]">
                 {preferenceSaving ? "저장 중..." : "선택하면 바로 저장돼요"}
               </span>
@@ -716,6 +662,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     key={opt.value}
+                    disabled={preferenceSaving}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
                     aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -741,6 +688,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     key={opt.value}
+                    disabled={preferenceSaving}
                     onClick={() => togglePriority(opt.value)}
                     aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -766,6 +714,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     key={opt.value}
+                    disabled={preferenceSaving}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
                     aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -791,6 +740,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     key={opt.value}
+                    disabled={preferenceSaving}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
                     aria-pressed={selected}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -964,54 +914,35 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          {/* 선제 아웃바운드는 명시 동의·철회·중복방지 E2E 전까지 하드 비활성 */}
-          <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
-            <div>
-              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 선제 알림 · 준비 중</p>
-              <p className="text-sm text-[#B5ADA3] font-light">
-                현재 아모라는 사용자가 채팅을 열었을 때만 답합니다. 이메일·문자 자동 발송은 꺼져 있어요.
-              </p>
+          {/* 새 번호는 받지 않고, 과거에 저장된 값이 있을 때 삭제 경로만 제공한다. */}
+          {Boolean(profile?.has_phone) && (
+            <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
+              <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-[#F6F3F2] px-4 py-3">
+                <div>
+                  <p className="text-sm text-[#504444]">기존 저장 번호</p>
+                  <p className="mt-0.5 text-xs text-[#928980]">현재 사용하거나 외부에 전송하지 않습니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={deleteStoredPhone}
+                  disabled={isDemo || phoneSaving}
+                  className="shrink-0 rounded-lg border border-[#D8C7BB] bg-white px-3 py-2 text-sm font-medium text-[#795252] disabled:opacity-40"
+                >
+                  {phoneSaving ? "삭제 중" : "기존 저장 번호 삭제"}
+                </button>
+              </div>
+              {phoneMessage && (
+                <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
+              )}
             </div>
-            <button
-              type="button"
-              disabled
-              aria-label="아모라 선제 알림, 준비 중"
-              className="w-12 h-7 rounded-full relative bg-[#B5ADA3]/30 cursor-not-allowed"
-            >
-              <div className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm" />
-            </button>
-          </div>
-          {/* 사용자가 선택적으로 저장하는 연락처 */}
-          <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
-            <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
-            <p className="text-sm text-[#B5ADA3] font-light mb-3">
-              선택적으로 저장할 수 있는 연락처입니다. 업체 연결 준비 중에는 상담 요청에 사용하거나 업체에 전송하지 않으며, 아모라 자동 알림에도 사용하지 않습니다.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="tel"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="010-1234-5678"
-                disabled={isDemo}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[15px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all disabled:opacity-50"
-              />
-              <button
-                onClick={savePhone}
-                disabled={isDemo || phoneSaving || !phoneDirty}
-                className="px-5 py-2.5 rounded-xl bg-[#795252] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors flex-shrink-0"
-              >
-                {phoneSaving ? "저장 중" : "저장"}
-              </button>
-            </div>
-            {phoneMessage && (
-              <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
-            )}
-          </div>
+          )}
           {[
-            { key: "schedule" as const, label: "앱 안 일정 카드", desc: "D-day 체크리스트 안내 표시" },
-            { key: "budget" as const, label: "앱 안 예산 카드", desc: "입력한 예산 기준 안내 표시" },
-            { key: "ai" as const, label: "앱 안 준비 팁", desc: "정적 맞춤 팁 표시" },
+            {
+              key: "schedule" as const,
+              label: "내가 등록한 일정 알림",
+              desc: "일정에 직접 저장한 날짜와 제목만 앱 안에서 표시",
+            },
           ].map((item) => (
             <div
               key={item.key}
@@ -1048,35 +979,7 @@ export default function SettingsPage() {
         transition={{ duration: 0.5, delay: 0.15 }}
         className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6"
       >
-        {[
-          { label: "이용약관" },
-          { label: "개인정보 처리방침" },
-          { label: "문의 안내" },
-          { label: "앱 버전", value: "v1.0.0 (Beta)" },
-        ].map((item) => (
-          <button
-            key={item.label}
-            onClick={() => {
-              if (!item.value) {
-                setComingSoonToast(item.label);
-                setTimeout(() => setComingSoonToast(""), 3000);
-              }
-            }}
-            className="w-full flex items-center justify-between px-6 py-5 hover:bg-[#F6F3F2] transition-colors"
-          >
-            <span className="text-[17px] text-[#1A1A1F]">{item.label}</span>
-            {item.value ? (
-              <span className="text-base text-[#B5ADA3]">{item.value}</span>
-            ) : (
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
-            )}
-          </button>
-        ))}
-        {comingSoonToast && (
-          <div className="px-6 py-3 bg-amber-50">
-            <p className="text-sm text-amber-700">{comingSoonToast} 페이지는 준비 중입니다.</p>
-          </div>
-        )}
+        <SettingsResourceLinks />
       </motion.div>
 
       {/* 로그아웃 & 탈퇴 */}
@@ -1093,13 +996,12 @@ export default function SettingsPage() {
           로그아웃
         </button>
 
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 text-[#B5ADA3] text-base font-light hover:text-red-400 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-          계정 탈퇴
-        </button>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+          <p className="text-sm font-semibold text-amber-950">계정 삭제 기능 점검 중</p>
+          <p className="mt-1 text-xs leading-relaxed text-amber-900">
+            삭제 작업자와 실패 복구가 확인되지 않아 현재 요청을 받지 않습니다. 이 기능이 검증되기 전에는 공개 운영하지 않습니다.
+          </p>
+        </div>
       </motion.div>
 
       {/* 새 커플 시작 모달 */}
@@ -1164,100 +1066,6 @@ export default function SettingsPage() {
                   {resettingWedding ? "초기화 중..." : "다시 시작"}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 계정 탈퇴 모달 */}
-      <AnimatePresence>
-        {showDeleteModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] bg-white rounded-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
-            >
-              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
-                <Trash2 className="w-6 h-6 text-red-400" />
-              </div>
-
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
-                정말 탈퇴하시겠어요?
-              </h3>
-              <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
-                본인 비공개 상담과 직접 작성한 내용은 삭제되며 계정은 복구할 수 없습니다.
-                <br />
-                파트너의 공동 계획·AI 답변과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있습니다.
-                <br />
-                요청이 접수되면 바로 로그아웃되며, 삭제는 서버에서 안전하게 계속 처리됩니다.
-              </p>
-
-              {/* 탈퇴 사유 */}
-              <div className="mb-5">
-                <p className="text-sm text-[#504444] mb-3">탈퇴 사유를 선택해주세요</p>
-                <div className="space-y-2">
-                  {DELETE_REASONS.map((r) => (
-                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
-                      deleteReason === r.value ? "bg-[#795252]/5 ring-1 ring-[#795252]/20" : "bg-[#F6F3F2] hover:bg-[#EDE7E5]"
-                    }`}>
-                      <input
-                        type="radio"
-                        name="deleteReason"
-                        value={r.value}
-                        checked={deleteReason === r.value}
-                        onChange={() => setDeleteReason(r.value)}
-                        className="w-4 h-4 accent-[#795252]"
-                      />
-                      <span className="text-base text-[#1A1A1F]">{r.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-5">
-                <p className="text-sm text-[#504444] mb-2">
-                  확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
-                </p>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="탈퇴합니다"
-                  className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[#B5ADA3]"
-                />
-              </div>
-
-              {deleteError && (
-                <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
-              )}
-
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || deleting}
-                className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {deleting ? "삭제 요청 접수 중..." : "계정 영구 삭제"}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmText("");
-                   setDeleteError("");
-                   setDeleteReason("");
-                 }}
-                className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
-              >
-                취소
-              </button>
             </motion.div>
           </motion.div>
         )}

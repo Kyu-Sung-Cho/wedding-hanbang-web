@@ -27,7 +27,7 @@ export default function AIPolicyPage() {
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[#504444]">
-            최종 수정: 2026년 7월 11일 · 생성형 AI 사용 및 결과 표시 원칙 반영
+            최종 수정: 2026년 7월 14일 · 실제 안전·삭제·문의 운영 범위 반영
           </p>
         </div>
 
@@ -59,14 +59,16 @@ export default function AIPolicyPage() {
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
                 <li>비용·개인정보·도구 사용·위기 응답의 안전 경계를 코드와 내부 문서로 관리합니다.</li>
                 <li>중요한 계약·금액·일정 판단은 사용자가 원문과 업체를 확인한 뒤 직접 결정하도록 안내합니다.</li>
-                <li>오류와 안전 문제를 문의 이메일로 알릴 수 있습니다. 공개 운영 전 실제 수신·처리 경로를 검증하며, 대응 시간은 사안과 운영 여건에 따라 달라질 수 있습니다.</li>
+                <li>자해·타해, 즉각적인 신체 위험, 관계폭력·스토킹 단서가 명확하면 생성형 답변보다 고정된 긴급 안내를 먼저 제공합니다.</li>
+                <li>오류와 안전 문제의 공개 접수 경로는 실제 수신·처리 절차를 검증한 뒤에만 안내합니다.</li>
               </ul>
             </div>
 
             <div>
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">3. 사용자 권리</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
-                <li>채팅 메시지는 사용자가 확인·삭제할 수 있으며, 보안·감사 기록은 개인정보 처리방침의 최소 보유기간 후 비식별화·삭제됩니다.</li>
+                <li>비공개 대화는 본인이 영구 삭제할 수 있습니다. 공유 대화는 양쪽 화면에서 정리할 수 있지만 현재 물리 삭제는 지원하지 않습니다.</li>
+                <li>보안·감사 기록은 개인정보처리방침에 공개한 별도 보유기간과 삭제·비식별화 절차를 따릅니다.</li>
                 <li>Couple Memory는 사용자가 자신의 결혼 준비 기록을 관리하기 위한 데이터이며, 운영자가 임의의 영업 자산처럼 판매하지 않습니다.</li>
                 <li>제3자에게 판매하지 않습니다.</li>
               </ul>
@@ -92,15 +94,8 @@ export default function AIPolicyPage() {
             <li>
               <strong className="text-[#1b1c1c]">담당</strong>: 웨딩한방 운영자
             </li>
-            <li>
-              <strong className="text-[#1b1c1c]">이메일</strong>:{" "}
-              <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-                support@hanbang.ai
-              </a>
-            </li>
-            <li>
-              <strong className="text-[#1b1c1c]">연락처</strong>: 이메일 문의
-            </li>
+            <li><strong className="text-[#1b1c1c]">현재 상태</strong>: 공개 문의 접수 기능 닫힘</li>
+            <li><strong className="text-[#1b1c1c]">공개 조건</strong>: 수신·본인 확인·처리 기록·삭제 절차 검증 완료</li>
           </ul>
         </section>
 
@@ -125,19 +120,16 @@ export default function AIPolicyPage() {
             문제 신고
           </h2>
           <p className="text-sm text-[#504444] leading-relaxed">
-            AI 답변 오류, 부적절한 내용, 환각 현상 등을 발견하시면{" "}
-            <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-              support@hanbang.ai
-            </a>
-            로 알려주세요. 공개 운영 전 해당 주소의 실제 수신·처리 경로를 검증합니다.
+            현재 공개 문제 신고 접수는 열지 않았습니다. 수신 확인, 담당자 권한, 처리 기록과 개인정보 보호
+            절차를 검증한 뒤 이 페이지에 실제 이용 가능한 접수 방법을 안내하겠습니다.
           </p>
         </section>
 
         {/* 하단 */}
         <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[#504444]/70">
           <p>
-            본 문서는 관련 AI 법령의 투명성 취지와 웨딩한방의 자체 운영 원칙을 반영합니다.
-            중요한 변경은 이 페이지에 업데이트됩니다.
+            본 문서는 웨딩한방의 현재 자체 운영 원칙을 설명하며, 법률 검토나 규제 준수 완료를
+            증명하는 문서가 아닙니다. 중요한 변경은 이 페이지에 업데이트됩니다.
           </p>
         </div>
       </main>

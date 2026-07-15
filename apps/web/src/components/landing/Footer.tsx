@@ -3,14 +3,12 @@
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
-import { CONTACT } from "@/lib/constants/contact";
 import { weddingPath } from "@/lib/weddingPaths";
 
 const SERVICE_LINKS = [
   { label: "아모라 채팅", href: weddingPath("/chat") },
   { label: "커뮤니티", href: weddingPath() },
   { label: "시세 정보", href: weddingPath("/market-prices") },
-  { label: "내 즐겨찾기", href: weddingPath("/favorites") },
 ];
 
 const COMING_SOON_LINKS = [
@@ -28,12 +26,11 @@ const POLICY_LINKS = [
 ];
 
 const CONTACT_LINKS = [
-  { label: CONTACT.email, href: `mailto:${CONTACT.email}`, external: true },
-  { label: CONTACT.instagramLabel, href: CONTACT.instagramHref, external: true },
+  { label: "문의 접수 상태", href: "/support" },
 ];
 
 export default function Footer() {
-  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
   const serviceLinks = isComingSoon ? COMING_SOON_LINKS : SERVICE_LINKS;
   return (
     <footer className="bg-noir-800 text-ivory-50 pt-20 pb-10 px-[clamp(20px,5vw,60px)]">
@@ -99,14 +96,12 @@ export default function Footer() {
             <ul className="space-y-3">
               {CONTACT_LINKS.map((link) => (
                 <li key={link.href}>
-                  <a
+                  <Link
                     href={link.href}
-                    target={link.href.startsWith("http") ? "_blank" : undefined}
-                    rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
                     className="text-ivory-50/80 hover:text-white text-sm font-light transition-colors break-all"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -119,13 +114,13 @@ export default function Footer() {
         {/* 베타 운영 및 거래 범위 고지 */}
         <div className="pt-8 mt-8 border-t border-white/10 space-y-3">
           <p className="text-ivory-50/70 text-xs leading-relaxed">
-            <span className="text-rose-light font-medium">문의 이메일</span> ·
-            <a href={`mailto:${CONTACT.email}`} className="ml-1 underline hover:text-white">{CONTACT.email}</a>
+            <span className="text-rose-light font-medium">문의</span> ·
+            <Link href="/support" className="ml-1 underline hover:text-white">공개 문의 접수 점검 중</Link>
           </p>
           <p className="text-ivory-50/80 text-xs leading-relaxed">
             {isComingSoon
               ? "정식 베타 공개 전 사용자 연구 계획을 안내하고 있습니다. 현재 접수 가능 여부와 개인정보 조건은 사용자 연구 안내 페이지에서 확인해 주세요. 아직 로그인·앱 기능은 제공하지 않습니다."
-              : "현재 베타 계정 이용 범위에서는 웨딩 서비스의 결제나 계약을 체결·대행하지 않습니다. 업체 연결 기능은 준비 중이며 현재 상담 요청이나 문의를 업체에 전송하지 않습니다. 공개된 가격·운영시간은 참고용이므로 최신 구성과 변경·취소 조건은 업체의 공식 연락처로 직접 확인해 주세요. 정식 사업자 정보와 거래 고지는 사업 개시 전에 갱신합니다."}
+              : "현재 베타 계정 이용 범위에서는 웨딩 서비스의 결제나 계약을 체결·대행하지 않습니다. 업체 연결 기능은 제공하지 않으며 재개 여부와 시점도 정해지지 않았습니다. 상담 요청이나 문의는 업체에 전송하지 않습니다. 공개 조사 가격은 시장 참고용이므로 최신 구성과 변경·취소 조건은 업체의 공식 연락처로 직접 확인해 주세요. 정식 사업자 정보와 거래 고지는 사업 개시 전에 갱신합니다."}
           </p>
         </div>
 
@@ -135,7 +130,7 @@ export default function Footer() {
             &copy; 2026 Wedding Hanbang.
           </p>
           <p className="text-ivory-50/80 text-xs leading-relaxed">
-            AI 답변·시세·견적 결과는 참고용이며, 중요한 결정은 원문과 업체를 직접 확인해 주세요.
+            AI 답변·공개 시세·커뮤니티 경험은 참고용이며, 중요한 결정은 업체 원문을 직접 확인해 주세요.
           </p>
         </div>
       </div>

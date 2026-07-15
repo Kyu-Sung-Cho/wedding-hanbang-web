@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { AppState } from "react-native";
 import type { AppStateStatus, NativeEventSubscription } from "react-native";
 import { persistActiveMobileAuthReturnPath } from "./mobileAuthIntent";
+import { setCommunityCacheOwner } from "./communityPostCache";
 
 let initialized = false;
 let appStateSubscription: NativeEventSubscription | null = null;
@@ -25,7 +26,8 @@ export function initAuthListener() {
   syncAutoRefreshWithAppState(AppState.currentState);
   appStateSubscription = AppState.addEventListener("change", syncAutoRefreshWithAppState);
 
-  const { data } = supabase.auth.onAuthStateChange((event) => {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    setCommunityCacheOwner(session?.user.id ?? null);
     if (event === "SIGNED_OUT") {
       void persistActiveMobileAuthReturnPath()
         .catch((error: unknown) => {
@@ -47,4 +49,5 @@ export function disposeAuthListener() {
   appStateSubscription?.remove();
   appStateSubscription = null;
   supabase.auth.stopAutoRefresh();
+  setCommunityCacheOwner(null);
 }

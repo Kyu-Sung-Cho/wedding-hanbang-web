@@ -13,24 +13,53 @@ export default function MyBookmarksPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
-    (async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/bookmarks"))}`); return; }
-
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
+        const supabase = createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!user) {
+          router.push(`/login?redirect=${encodeURIComponent(weddingPath("/community/my/bookmarks"))}`);
+          return;
+        }
+
         // 북마크한 글 목록 가져오기
         const res = await fetch("/api/community/posts?bookmarked=true&limit=100");
-        if (res.ok) {
-          const data = await res.json();
-          setPosts(data.posts ?? []);
+        if (!res.ok) throw new Error("bookmarks_load_failed");
+        const data: unknown = await res.json();
+        const payload = data as { posts?: unknown };
+        if (
+          !data ||
+          typeof data !== "object" ||
+          Array.isArray(data) ||
+          !Array.isArray(payload.posts) ||
+          !payload.posts.every(
+            (post) => Boolean(post) && typeof post === "object" && typeof (post as Record<string, unknown>).id === "string",
+          )
+        ) {
+          throw new Error("bookmarks_invalid_response");
         }
-      } catch { /* ignore */ }
-      setLoading(false);
-    })();
-  }, [router]);
+        if (!cancelled) {
+          setPosts(payload.posts as PostWithAuthor[]);
+        }
+      } catch {
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt, router]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -44,6 +73,18 @@ export default function MyBookmarksPage() {
       {loading ? (
         <div className="py-16 flex justify-center">
           <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
+        </div>
+      ) : loadError ? (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center">
+          <p className="text-[14px] font-medium text-red-800">북마크를 불러오지 못했어요.</p>
+          <p className="mt-1 text-[12px] text-red-700">저장한 글이 없어진 것은 아니에요.</p>
+          <button
+            type="button"
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            className="mt-4 rounded-xl bg-white px-5 py-2.5 text-[13px] font-medium text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-100"
+          >
+            다시 시도
+          </button>
         </div>
       ) : posts.length === 0 ? (
         <div className="py-16 text-center">

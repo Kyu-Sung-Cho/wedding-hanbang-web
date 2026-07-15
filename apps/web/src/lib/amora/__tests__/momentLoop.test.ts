@@ -87,6 +87,13 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     );
   });
 
+  it("does not invent a honeymoon or family-visit date from the wedding date", () => {
+    const cells = buildDueMomentCells({ weddingDate: "2026-06-15", progress: {}, now: NOW });
+
+    expect(cells.map((cell) => cell.momentType)).not.toContain("honeymoon_departure");
+    expect(cells.map((cell) => cell.momentType)).not.toContain("family_visit_after");
+  });
+
   it("우선순위: 같은 날 d1이 d3보다 먼저 온다", () => {
     const progress = {
       __events: [

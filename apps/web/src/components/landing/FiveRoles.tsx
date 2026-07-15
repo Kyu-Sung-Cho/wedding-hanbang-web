@@ -12,11 +12,11 @@ interface Role {
 const ROLES: Role[] = [
   {
     number: "01",
-    title: "받은 견적 확인하기",
+    title: "업체 원문 확인하기",
     body: (
       <>
-        금액만 보지 않고
-        <span className="text-noir-800"> 포함 범위와 추가 조건</span>을 직접 확인합니다.
+        견적서·계약서에 적힌
+        <span className="text-noir-800"> 포함 범위와 추가 조건</span>을 업체에 직접 확인합니다.
       </>
     ),
   },
@@ -35,7 +35,7 @@ const ROLES: Role[] = [
     title: "예산에 직접 기록하기",
     body: (
       <>
-        확인한 견적과 추가 조건을
+        업체가 서면으로 확정한 금액과 추가 조건을
         <span className="text-noir-800"> 내 예산표에 이어서</span> 관리합니다.
       </>
     ),
@@ -55,8 +55,8 @@ const ROLES: Role[] = [
     title: "비슷한 후기 찾아보기",
     body: (
       <>
-        같은 지역, 비슷한 예산의 사례를
-        <span className="text-noir-800"> 커뮤니티에서 함께</span> 확인합니다.
+        웨딩홀·스드메처럼 같은 준비 주제의 후기를
+        <span className="text-noir-800"> 커뮤니티에서 찾아</span> 참고합니다.
       </>
     ),
   },
@@ -76,12 +76,12 @@ export default function FiveRoles() {
         >
           <SectionLabel label="준비 도구" />
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
-            견적에서 일정까지,
+            질문에서 기록까지,
             <br />
             <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            견적과 커뮤니티에서 확인한 내용을 예산·일정 도구에 직접 이어서 관리할 수 있습니다.
+            업체 원문과 커뮤니티에서 참고한 내용을 확정 사실과 구분해 예산·일정에 직접 기록할 수 있습니다.
           </p>
         </motion.div>
 

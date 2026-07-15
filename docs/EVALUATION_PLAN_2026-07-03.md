@@ -1,5 +1,7 @@
 # 웨딩한방 보수적 전체 평가 계획 (2026-07-03)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 체크된 완료 항목, 보안 등급, 업체·견적·예약 판정과 운영 명령은 2026-07-03~04 감사 이력이며 현재 작업 계획이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > **역사 문서**: Fable/Claude 관련 운영 규칙은 당시 개발 세션 기록입니다. 현재 아모라 제품 런타임은 OpenAI GPT-5.6 Terra/Luna이며 이 문서를 런타임 설정 근거로 사용하지 않습니다.
 
 > **원칙**: "증명되기 전까지는 안 되는 것으로 간주한다."

@@ -1,5 +1,7 @@
 # Wedding Hanbang Positioning 2026
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 거래 신뢰 인프라, 계약 진단, 업체 연결·추천과 성과 주장은 현재 포지셔닝이나 소비자 약속이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **목표 포지셔닝 문서입니다.** 아래 거래 신뢰 네트워크·업체 연결·계약 진단·성과 지표는 현재 제공 기능이나 소비자 대상 보장이 아닙니다. 현재 업체 연결과 결제는 비활성입니다. 현재 기능과 공개 문구는 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
 

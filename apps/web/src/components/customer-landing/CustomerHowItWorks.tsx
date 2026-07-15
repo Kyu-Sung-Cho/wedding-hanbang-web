@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 
 const steps = [
   {
@@ -12,11 +12,11 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
       </svg>
     ),
-    title: isComingSoon ? "베타 계정 만들기 (예정)" : "베타 계정 만들기",
+    title: isComingSoon ? "베타 계정 흐름 (운영 전)" : "베타 계정 만들기",
     desc: isComingSoon
-      ? "정식 베타가 열리면 이메일로 내 준비 공간을 만드는 단계입니다."
+      ? "계정 흐름은 구현되어 있지만 원격 데이터와 삭제 절차의 운영 검증 전에는 실제 계정을 열지 않습니다."
       : "이메일로 내 준비 공간을 만들거나, 가입 전 예시 앱을 먼저 둘러보세요.",
-    highlight: isComingSoon ? "정식 베타 예정" : "계정과 예시 앱 분리",
+    highlight: isComingSoon ? "운영 검증 전" : "계정과 예시 앱 분리",
   },
   {
     num: "02",
@@ -26,7 +26,7 @@ const steps = [
       </svg>
     ),
     title: "커플 연동",
-    desc: "초대 코드로 연결하고 일정, 예산과 준비 진행을 함께 확인하세요.",
+    desc: "현재 베타는 신부 1명·신랑 1명 구조에서만 초대 코드로 연결해 일정과 예산 기록을 함께 확인합니다.",
     highlight: "초대 코드 공유",
   },
   {
@@ -36,8 +36,8 @@ const steps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
       </svg>
     ),
-    title: "AI 온보딩",
-    desc: "결혼일, 예산과 선호도를 입력해 기본 체크리스트와 안내를 준비합니다.",
+    title: "준비 정보 설정",
+    desc: "결혼일은 미정으로 둘 수 있고, 확정한 예산과 일정만 직접 기록합니다.",
     highlight: "간단한 설정",
   },
   {
@@ -74,7 +74,7 @@ export default function CustomerHowItWorks() {
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
           {isComingSoon
-            ? "정식 베타에서 제공할 4단계 준비 흐름을 미리 확인하세요."
+            ? "현재 계정·앱 기능은 열려 있지 않습니다. 아래는 구현된 4단계 흐름입니다."
             : "4단계로 준비 공간을 만들고 아모라와 커플 도구를"}
           {!isComingSoon && (
             <>

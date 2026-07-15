@@ -35,6 +35,10 @@ import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/che
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
+import {
+  ChecklistItemConflictError,
+  mutateChecklistItem,
+} from "@/lib/checklist/checklistItemClient";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -68,7 +72,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
-  not_started: "시작전",
+  not_started: "미정",
 };
 
 interface Props {
@@ -78,9 +82,10 @@ interface Props {
 }
 
 export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }: Props) {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, isDemo, updateJourney, updateJourneyLocal } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const titleId = useId();
   const { dialogRef } = useAccessibleDialog({ isOpen, onClose });
 
@@ -91,6 +96,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   useEffect(() => {
     if (!isOpen || !template) return;
     const timer = window.setTimeout(() => {
+      setSaveError("");
       const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
       setChecklist(merged);
     }, 0);
@@ -100,28 +106,67 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   const toggleItem = useCallback(
     async (itemId: string) => {
       if (saving) return;
-
-      const updated = checklist.map((c) =>
-        c.id === itemId ? { ...c, done: !c.done } : c
-      );
-      setChecklist(updated);
-
-      const newStatus = calculateStatus(updated);
-      const newProgress: Record<string, ProgressItem> = {
-        ...progress,
-        [categoryKey]: {
-          ...(existing ?? { category: categoryKey }),
-          category: categoryKey,
-          status: newStatus,
-          checklist: updated,
-        },
-      };
-
+      const current = checklist.find((item) => item.id === itemId);
+      if (!current) return;
+      const nextDone = !current.done;
       setSaving(true);
-      await updateJourney({ progress: newProgress });
-      setSaving(false);
+      setSaveError("");
+      try {
+        if (isDemo) {
+          const updated = checklist.map((item) =>
+            item.id === itemId ? { ...item, done: nextDone } : item
+          );
+          const saved = await updateJourney({
+            progress: {
+              ...progress,
+              [categoryKey]: {
+                ...(existing ?? { category: categoryKey }),
+                category: categoryKey,
+                status: calculateStatus(updated),
+                checklist: updated,
+              },
+            },
+          });
+          if (!saved) throw new Error("체크리스트를 저장하지 못했습니다.");
+          setChecklist(updated);
+          return;
+        }
+
+        const result = await mutateChecklistItem({
+          categoryKey,
+          itemId,
+          done: nextDone,
+          expectedDone: current.done,
+        });
+        updateJourneyLocal({
+          progress: result.progress as unknown as Record<string, ProgressItem>,
+        });
+        const category = result.progress[categoryKey] as ProgressItem | undefined;
+        if (!category?.checklist) throw new Error("저장 결과를 확인하지 못했습니다.");
+        setChecklist(category.checklist);
+      } catch (error) {
+        if (error instanceof ChecklistItemConflictError) {
+          updateJourneyLocal({
+            progress: error.progress as unknown as Record<string, ProgressItem>,
+          });
+          const category = error.progress[categoryKey] as ProgressItem | undefined;
+          if (category?.checklist) setChecklist(category.checklist);
+        }
+        setSaveError(error instanceof Error ? error.message : "체크리스트를 저장하지 못했습니다.");
+      } finally {
+        setSaving(false);
+      }
     },
-    [checklist, saving, progress, categoryKey, existing, updateJourney]
+    [
+      checklist,
+      saving,
+      isDemo,
+      progress,
+      categoryKey,
+      existing,
+      updateJourney,
+      updateJourneyLocal,
+    ]
   );
 
   if (!template || !isOpen) return null;
@@ -194,6 +239,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
         {/* 체크리스트 */}
         <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
+          {saveError && (
+            <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {saveError}
+            </p>
+          )}
           <div className="flex flex-col gap-1">
             {checklist.map((item) => (
               <button

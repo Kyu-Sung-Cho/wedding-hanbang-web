@@ -66,7 +66,10 @@ export function hasImmediateKoreanCrisisSignal(userText: string): boolean {
 }
 
 /**
- * Fixed Korean response verified against official Korean help routes:
+ * Fixed Korean response re-verified 2026-07-14 against official help routes:
+ * - Ministry of Health and Welfare: https://www.mohw.go.kr/menu.es?mid=a10201010000
+ * - Korean National Police: https://www.police.go.kr/www/agency/intro/intro0601.jsp
+ * - National Fire Agency: https://nfa.go.kr/nfa/safetyinfo/emergencyservice/119emergencydeclaration
  * 109 (24-hour suicide-prevention counselling), 112 (police), 119 (rescue/EMS).
  * It offers immediate safety steps without diagnosis or a promise of treatment.
  */

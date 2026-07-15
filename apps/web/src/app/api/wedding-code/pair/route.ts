@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   return NextResponse.json(
-    { error: "커플 비교 기능을 안전 점검 중입니다.", pairingStatus: "disabled" },
+    { error: "웨딩코드와 커플 비교는 현재 제공하지 않습니다.", pairingStatus: "retired" },
     { status: 410, headers: { "Cache-Control": "no-store" } }
   );
 }

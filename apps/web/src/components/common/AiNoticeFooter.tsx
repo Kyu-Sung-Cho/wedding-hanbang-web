@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CONTACT } from "@/lib/constants/contact";
 
 type Variant = "light" | "dark";
 
@@ -41,10 +40,9 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
             </Link>
           </p>
           <p>
-            문의:{" "}
-            <a href={`mailto:${CONTACT.email}`} className={`underline ${linkHoverCls} transition-colors`}>
-              {CONTACT.email}
-            </a>
+            <Link href="/support" className={`inline-flex min-h-11 items-center underline ${linkHoverCls} transition-colors`}>
+              공개 문의 접수 상태 확인
+            </Link>
           </p>
         </div>
       </div>

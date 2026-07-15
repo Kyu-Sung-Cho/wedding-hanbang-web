@@ -84,9 +84,7 @@ describe("mobile app association contract", () => {
         "https://hanbang.ai/app/community/post/abc?source=share#comments"
       )
     ).toBe("/community/post/abc?source=share#comments");
-    expect(rewriteMobileAppLink("https://hanbang.ai/app/vendors/vendor-123")).toBe(
-      "/vendors/vendor-123"
-    );
+    expect(rewriteMobileAppLink("https://hanbang.ai/app/vendors/vendor-123")).toBe("/");
     expect(rewriteMobileAppLink("/bookings?id=abc")).toBe("/bookings?id=abc");
     expect(rewriteMobileAppLink("hanbang:///settings")).toBe("hanbang:///settings");
   });
@@ -95,10 +93,6 @@ describe("mobile app association contract", () => {
     expect(
       createMobileAppShareUrl({ kind: "communityPost", id: "post-123" })
     ).toBe("https://hanbang.ai/app/community/post/post-123");
-    expect(createMobileAppShareUrl({ kind: "vendor", id: "vendor_123" })).toBe(
-      "https://hanbang.ai/app/vendors/vendor_123"
-    );
-
     for (const id of ["", " post-123", "post/123", "post?draft=true"]) {
       expect(() =>
         createMobileAppShareUrl({ kind: "communityPost", id })
@@ -108,8 +102,6 @@ describe("mobile app association contract", () => {
     for (const routeFile of [
       "apps/mobile/app/community/post/[id].tsx",
       "apps/web/src/app/(community)/community/post/[id]/page.tsx",
-      "apps/mobile/app/vendors/[id].tsx",
-      "apps/web/src/app/(app)/vendors/[id]/page.tsx",
     ]) {
       expect(readRepo(routeFile).length).toBeGreaterThan(0);
     }
@@ -160,13 +152,9 @@ describe("mobile app association contract", () => {
 
   it("uses canonical app links in the selected consumer share buttons", () => {
     const postCard = readRepo("apps/web/src/components/community/PostCard.tsx");
-    const mobileVendor = readRepo("apps/mobile/app/vendors/[id].tsx");
 
     expect(postCard).toContain(
       'createMobileAppShareUrl({ kind: "communityPost", id: post.id })'
-    );
-    expect(mobileVendor).toContain(
-      'createMobileAppShareUrl({ kind: "vendor", id: vendor.id })'
     );
   });
 });

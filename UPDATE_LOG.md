@@ -1,5 +1,7 @@
 # 웨딩한방 웹 (hanbang.ai) 업데이트 기록
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 배포 성공, 완료 기능과 과거 URL은 날짜별 변경 이력일 뿐 현재 배포·기능 상태를 증명하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](./WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](./PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./docs/CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 ---
 
 ## 배포 기록

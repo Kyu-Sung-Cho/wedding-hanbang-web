@@ -15,7 +15,6 @@ import {
   TrendingUp,
   Camera,
   Shield,
-  Users,
   Sparkles,
   Check,
   Megaphone,
@@ -160,101 +159,50 @@ function SlideRealReview() {
       <p className="text-base text-[#635b51] font-light text-center">
         <span className="text-[#36534E] font-medium">가격, 사진, 솔직한 평가</span>까지
         <br />
-        직접 경험한 후기로 비교하세요
+        이용자가 작성한 후기는 확인 질문을 찾는 참고로 보세요
       </p>
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────
-   Slide 3 — 동기방 (시나리오: 혼자라서 불안할 때)
+   Slide 3 — 이용자 작성 정보의 안전한 활용
    ───────────────────────────────────────────── */
-function SlideCohort() {
+function SlideSourceCheck() {
   return (
     <div className="flex flex-col items-center px-6">
-      {/* 시나리오 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Users className="w-5 h-5 text-[#36534E]" />
+          <Search className="w-5 h-5 text-[#36534E]" />
           <span className="text-base text-[#36534E] font-medium">
-            상황: 주변에 결혼 준비하는 친구가 없을 때
+            상황: 후기에서 중요한 정보를 발견했을 때
           </span>
         </div>
         <span className="inline-flex rounded-full border border-[#dfc9c1] bg-[#fbf8f2] px-2.5 py-1 text-xs font-medium text-[#635b51]">
-          화면 예시 · 실제 대화나 참여 인원이 아닙니다
+          이용자 작성 정보 · 사실 확인 필요
         </span>
       </div>
 
-      {/* 동기방 카드 */}
       <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="text-[17px] text-[#263832] font-semibold">예시 동기방</div>
-            <div className="text-sm text-[#7a8290] font-light mt-0.5">같은 시기 커플 화면 예시</div>
-          </div>
-          <div className="px-2.5 py-1 rounded-full bg-[#36534E]/10 text-sm text-[#36534E] font-medium">
-            실제 인원 아님
-          </div>
-        </div>
-        <div className="flex items-center mb-3">
+        <div className="text-[17px] text-[#263832] font-semibold mb-3">후기를 본 뒤 세 가지 확인</div>
+        <div className="space-y-2.5">
           {[
-            "from-[#36534E] to-[#2B423E]",
-            "from-[#A8D8A8] to-sage-500",
-            "from-[#7EB8D8] to-[#5A9CC0]",
-            "from-[#B89785] to-[#DCC9A0]",
-            "from-[#D88B8B] to-[#2B423E]",
-          ].map((grad, i) => (
-            <div
-              key={i}
-              className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad} border-2 border-white shadow-sm ${i > 0 ? "-ml-2" : ""}`}
-              style={{ zIndex: 5 - i }}
-            />
+            "작성 시점과 지역이 내 상황과 같은지",
+            "가격에 포함된 항목과 별도 비용이 무엇인지",
+            "최신 조건을 업체의 공식 문서로 다시 확인했는지",
+          ].map((question) => (
+            <div key={question} className="flex items-start gap-2 rounded-xl bg-white px-3 py-2.5 border border-[#f6efe5]">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#36534E]" />
+              <span className="text-sm leading-relaxed text-[#635b51]">{question}</span>
+            </div>
           ))}
-          <span className="text-sm text-[#7a8290] ml-2">참여 인원은 실제 방에서 확인</span>
-        </div>
-      </div>
-
-      {/* 화면 예시 대화 */}
-      <div className="w-full max-w-[380px] flex flex-col gap-2.5 mb-5">
-        <div className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#7EB8D8] to-[#5A9CC0] shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 A</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
-                스튜디오 견적에서 어떤 포함 항목을 먼저 확인하셨나요? 💭
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#B89785] to-[#DCC9A0] shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 B</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
-                원본비와 헬퍼비가 별도인지 서면으로 물어보는 건 어떨까요?
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[#2B423E] shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">예시 사용자 C</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
-                같은 질문으로 비교하면 포함 범위를 보기 쉬울 것 같아요 ✍️
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
       <p className="text-base text-[#635b51] font-light text-center">
-        <span className="text-[#36534E] font-medium">같은 시기에 결혼하는 동기들</span>과
+        후기는 정답이 아니라
         <br />
-        정보도 나누고, 응원도 하고
+        <span className="text-[#36534E] font-medium">다시 확인할 질문을 찾는 참고자료</span>예요
       </p>
     </div>
   );
@@ -293,7 +241,7 @@ function SlideAmora() {
             <div className="text-left">
               <div className="text-sm text-[#263832] font-semibold mb-0.5">아모라 상담</div>
               <div className="text-sm text-[#635b51] leading-relaxed">
-                커뮤니티에서 본 고민을 우리 상황에 맞게 다시 물어볼 수 있어요.
+                아모라는 현재 글을 자동으로 읽지 않아요. 필요한 문장을 직접 붙여 넣어 주세요.
               </div>
             </div>
           </div>
@@ -316,7 +264,6 @@ function SlideAmora() {
           {[
             { icon: Search, label: "후기 검색" },
             { icon: Bookmark, label: "북마크" },
-            { icon: Users, label: "동기방" },
             { icon: PenSquare, label: "글쓰기" },
             { icon: TrendingUp, label: "예산 관리" },
             { icon: Camera, label: "일정 관리" },
@@ -562,7 +509,7 @@ export default function CommunityGuide() {
     switch (current) {
       case 0: return <SlideEmpathy />;
       case 1: return <SlideRealReview />;
-      case 2: return <SlideCohort />;
+      case 2: return <SlideSourceCheck />;
       case 3: return <SlideAmora />;
       case 4: return <SlideHowToUse />;
       case 5: return <SlideStart onClose={() => setVisible(false)} />;

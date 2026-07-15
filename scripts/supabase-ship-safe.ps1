@@ -13,10 +13,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$script:expectedDependencyFunctionCount = 54
-$script:expectedDependencyCronCount = 5
-$script:expectedClientDeniedTriggerFunctionCount = 12
-$script:expectedClientDeniedTriggerBindingCount = 13
+$script:expectedDependencyFunctionCount = 64
+$script:expectedDependencyCronCount = 6
+$script:expectedClientDeniedTriggerFunctionCount = 15
+$script:expectedClientDeniedTriggerBindingCount = 18
 $script:accountDeletionWorkerLeaseSeconds = 600
 $script:accountDeletionMaxInvocationSeconds = 120
 $script:accountDeletionWorkerDrainSeconds = [Math]::Max(
@@ -315,6 +315,151 @@ function Assert-PreflightDynamicSourceTopology {
     $Preflight.dynamic_sources.privacy_minimum_contract_exact -ne $true) {
     throw "Applied cohort/profile/vendor/survey privacy minimum drifted from its exact remote contract."
   }
+  foreach ($field in @(
+      "vendor_catalog_lockdown_legacy_exact",
+      "vendor_catalog_lockdown_exact",
+      "disabled_browser_write_lockdown_legacy_exact",
+      "cohort_browser_lockdown_exact",
+      "journey_browser_write_lockdown_exact",
+      "chat_browser_write_lockdown_exact",
+      "community_browser_write_lockdown_exact",
+      "disabled_browser_write_lockdown_exact"
+    )) {
+    if ($Preflight.dynamic_sources.PSObject.Properties.Name -notcontains $field) {
+      throw "Production preflight omitted the fail-closed browser role matrix."
+    }
+  }
+
+  $vendorCatalogPending = "20260713104000" -in $PendingVersions
+  $vendorCatalogLegacy =
+    $Preflight.dynamic_sources.vendor_catalog_lockdown_legacy_exact -eq $true
+  $vendorCatalogClosed =
+    $Preflight.dynamic_sources.vendor_catalog_lockdown_exact -eq $true
+  if ($vendorCatalogPending) {
+    if ($vendorCatalogLegacy -eq $vendorCatalogClosed) {
+      throw "Pending migration 20260713104000 vendor catalog state is partial or ambiguous; require exactly one complete legacy/closed contract."
+    }
+  } elseif (-not $vendorCatalogClosed -or $vendorCatalogLegacy) {
+    throw "Applied migration 20260713104000 vendor catalog lockdown drifted from the exact closed contract."
+  }
+
+  $disabledBrowserWritePending = "20260713105000" -in $PendingVersions
+  $disabledBrowserWriteLegacy =
+    $Preflight.dynamic_sources.disabled_browser_write_lockdown_legacy_exact -eq $true
+  $disabledBrowserWriteClosed =
+    $Preflight.dynamic_sources.disabled_browser_write_lockdown_exact -eq $true
+  if ($disabledBrowserWritePending) {
+    if ($disabledBrowserWriteLegacy -eq $disabledBrowserWriteClosed) {
+      throw "Pending migration 20260713105000 disabled browser-write state is partial or ambiguous; require exactly one complete legacy/closed contract."
+    }
+  } elseif (-not $disabledBrowserWriteClosed -or $disabledBrowserWriteLegacy) {
+    throw "Applied migration 20260713105000 browser-write lockdown drifted from the exact closed contract."
+  }
+  $trustedBetaClosures = @(
+    [ordered]@{
+      Version = "20260713112000"
+      Label = "raw customer tracking retirement"
+      Replaceable = "raw_tracking_retirement_replaceable"
+      Exact = "raw_tracking_retirement_exact"
+    },
+    [ordered]@{
+      Version = "20260713112500"
+      Label = "profiles direct-select closure"
+      Replaceable = "profiles_direct_select_closure_replaceable"
+      Exact = "profiles_direct_select_closure_exact"
+    },
+    [ordered]@{
+      Version = "20260713113000"
+      Label = "community media retirement"
+      Replaceable = "community_media_retirement_replaceable"
+      Exact = "community_media_retirement_exact"
+    },
+    [ordered]@{
+      Version = "20260713114000"
+      Label = "congratulatory-money retirement"
+      Replaceable = "congratulatory_money_retirement_replaceable"
+      Exact = "congratulatory_money_retirement_exact"
+    },
+    [ordered]@{
+      Version = "20260713115000"
+      Label = "community text-only and Realtime closure"
+      Replaceable = "community_text_only_boundary_replaceable"
+      Exact = "community_text_only_boundary_exact"
+    },
+    [ordered]@{
+      Version = "20260713116000"
+      Label = "private community author mutes"
+      Replaceable = "community_user_mutes_replaceable"
+      Exact = "community_user_mutes_exact"
+    },
+    [ordered]@{
+      Version = "20260713117000"
+      Label = "atomic community comment safety"
+      Replaceable = "community_comment_safety_replaceable"
+      Exact = "community_comment_safety_exact"
+    },
+    [ordered]@{
+      Version = "20260713118000"
+      Label = "opaque community actor boundary"
+      Replaceable = "community_opaque_actor_boundary_replaceable"
+      Exact = "community_opaque_actor_boundary_exact"
+    },
+    [ordered]@{
+      Version = "20260713119000"
+      Label = "atomic community post lifecycle"
+      Replaceable = "community_post_lifecycle_replaceable"
+      Exact = "community_post_lifecycle_exact"
+    },
+    [ordered]@{
+      Version = "20260713120000"
+      Label = "research consent version provenance"
+      Replaceable = "research_consent_version_replaceable"
+      Exact = "research_consent_version_exact"
+    },
+    [ordered]@{
+      Version = "20260713121000"
+      Label = "atomic community post update"
+      Replaceable = "community_post_update_replaceable"
+      Exact = "community_post_update_exact"
+    },
+    [ordered]@{
+      Version = "20260713122000"
+      Label = "service role table least privilege"
+      Replaceable = "service_role_table_acl_replaceable"
+      Exact = "service_role_table_acl_exact"
+    },
+    [ordered]@{
+      Version = "20260713123000"
+      Label = "preview-only smoke fixture harness"
+      Replaceable = "preview_smoke_harness_replaceable"
+      Exact = "preview_smoke_harness_exact"
+    }
+  )
+  foreach ($closure in $trustedBetaClosures) {
+    foreach ($field in @($closure.Replaceable, $closure.Exact)) {
+      if ($Preflight.dynamic_sources.PSObject.Properties.Name -notcontains $field) {
+        throw "Production preflight omitted trusted beta contract field: $field."
+      }
+    }
+    $pending = [string]$closure.Version -in $PendingVersions
+    $replaceable =
+      $Preflight.dynamic_sources.($closure.Replaceable) -eq $true
+    $exact = $Preflight.dynamic_sources.($closure.Exact) -eq $true
+    if ($pending) {
+      if (-not $replaceable -and -not $exact) {
+        throw "Pending migration $($closure.Version) $($closure.Label) cannot safely replace the current catalog state."
+      }
+    } elseif (-not $exact) {
+      throw "Applied migration $($closure.Version) $($closure.Label) drifted from the exact closed contract."
+    }
+  }
+  if ($Preflight.dynamic_sources.PSObject.Properties.Name -notcontains
+    "research_consent_version_invalid_rows") {
+    throw "Production preflight omitted the research consent-version data inventory."
+  }
+  if ([long]$Preflight.dynamic_sources.research_consent_version_invalid_rows -ne 0) {
+    throw "Research consent provenance contains an unapproved privacy-policy version."
+  }
   $dependencyCrons = $Preflight.dynamic_sources.dependency_cron_status
   if ($null -eq $dependencyCrons) {
     throw "Production preflight omitted its dependency cron contracts."
@@ -526,6 +671,22 @@ WHERE to_jsonb(claim)->>'lease_expires_at' IS NULL;
     $leaseBackfills = [long]$leaseRow.amora_claim_lease_backfills
   }
 
+  $researchConsentVersionInvalidRows = [long]0
+  if ($Preflight.dynamic_sources.research_cohort_applications_present -eq
+    $true) {
+    $researchConsentSql = @'
+SELECT count(*)::bigint AS invalid_rows
+FROM public.research_cohort_applications AS application
+WHERE application.privacy_policy_version NOT IN (
+  '2026-07-12', '2026-07-14'
+);
+'@
+    $researchConsentRow = Read-JsonSqlRow `
+      "Dynamic research consent-version inventory" $researchConsentSql
+    $researchConsentVersionInvalidRows =
+      [long]$researchConsentRow.invalid_rows
+  }
+
   $Preflight.unique_blockers.wedding_pair_groups_over_two =
     [long]$weddingInventory.wedding_pair_groups_over_two
   $Preflight.unique_blockers.wedding_submission_groups =
@@ -535,6 +696,8 @@ WHERE to_jsonb(claim)->>'lease_expires_at' IS NULL;
   $Preflight.data_rewrites.wedding_scoring_version_backfills =
     [long]$weddingInventory.wedding_scoring_version_backfills
   $Preflight.data_rewrites.amora_claim_lease_backfills = $leaseBackfills
+  $Preflight.dynamic_sources.research_consent_version_invalid_rows =
+    $researchConsentVersionInvalidRows
 
   return $Preflight
 }
@@ -647,6 +810,7 @@ function Assert-ProductionPreflight {
     wedding_pair_groups_over_two = [long]$Preflight.unique_blockers.wedding_pair_groups_over_two
     wedding_submission_groups = [long]$Preflight.unique_blockers.wedding_submission_groups
     storage_policy_name_conflicts = [long]$Preflight.community_guard.policy_name_conflicts
+    research_consent_version_invalid_rows = [long]$Preflight.dynamic_sources.research_consent_version_invalid_rows
   }
   if ($RequireDrained) {
     $hardBlockers.active_transactions = [long]$Preflight.community_guard.active_transactions
@@ -681,6 +845,9 @@ function Assert-ProductionPreflight {
     community_nickname_pseudonymizations = [long]$Preflight.data_rewrites.community_nickname_pseudonymizations
     prereg_expiry_backfill = [long]$Preflight.data_rewrites.prereg_expiry_backfill
     care_consent_resets = [long]$Preflight.data_rewrites.care_consent_resets
+    raw_customer_events_expired = [long]$Preflight.data_rewrites.raw_customer_events_expired
+    raw_search_logs_expired = [long]$Preflight.data_rewrites.raw_search_logs_expired
+    research_consent_version_invalid_rows = [long]$Preflight.dynamic_sources.research_consent_version_invalid_rows
     community_reports_deleted = [long]$Preflight.community_guard.reports_deleted
     community_posts_marked_under_review = [long]$Preflight.community_guard.posts_marked_under_review
     prereg_rows_updated = [long]$Preflight.retention_rewrite.prereg_rows
@@ -789,6 +956,29 @@ function Assert-PostDeployContract {
     ($Contract.rate_limit_subject_contract_exact -ne $true) -or
     ($Contract.research_cohort_application_identity_exact -ne $true) -or
     ($Contract.privacy_minimum_contract_exact -ne $true) -or
+    ($Contract.atomic_journey_rpc_contract_exact -ne $true) -or
+    ($Contract.vendor_catalog_lockdown_exact -ne $true) -or
+    ($Contract.cohort_browser_lockdown_exact -ne $true) -or
+    ($Contract.journey_browser_write_lockdown_exact -ne $true) -or
+    ($Contract.chat_browser_write_lockdown_exact -ne $true) -or
+    ($Contract.community_browser_write_lockdown_exact -ne $true) -or
+    ($Contract.disabled_browser_write_lockdown_exact -ne $true) -or
+    ($Contract.raw_tracking_retirement_exact -ne $true) -or
+    ($Contract.profiles_direct_select_closure_exact -ne $true) -or
+    ($Contract.community_media_retirement_exact -ne $true) -or
+    ($Contract.congratulatory_money_retirement_exact -ne $true) -or
+    ($Contract.community_text_only_boundary_exact -ne $true) -or
+    ($Contract.community_user_mutes_exact -ne $true) -or
+    ($Contract.community_comment_safety_exact -ne $true) -or
+    ($Contract.community_opaque_actor_boundary_exact -ne $true) -or
+    ($Contract.community_post_lifecycle_exact -ne $true) -or
+    ($Contract.research_consent_version_exact -ne $true) -or
+    ([long]$Contract.research_consent_version_invalid_rows -ne 0) -or
+    ($Contract.community_post_update_exact -ne $true) -or
+    ($Contract.service_role_table_acl_exact -ne $true) -or
+    ($Contract.preview_smoke_harness_exact -ne $true) -or
+    ([long]$Contract.raw_customer_events_expired -ne 0) -or
+    ([long]$Contract.raw_search_logs_expired -ne 0) -or
     ($Contract.blocked_invite_constraint_valid -ne $true) -or
     ($Contract.public_schema_create_locked -ne $true) -or
     ($Contract.internal_service_acl_exact -ne $true) -or
@@ -828,14 +1018,21 @@ function Assert-MaintenanceHealth {
   if ($status.rateLimitKeySecretConfigured -ne $true) {
     throw "Live deployment is missing a dedicated high-entropy RATE_LIMIT_KEY_SECRET that passes the strict configuration boundary."
   }
+  if ($status.amoraUsageLimitMode -ne "unlimited_test") {
+    throw "Live deployment must attest the unlimited_test Amora usage-limit mode during the test stage."
+  }
+  if ($status.launchMode -ne "coming_soon") {
+    throw "Live deployment must attest launchMode=coming_soon; full launch is blocked until account-deletion, contact, operator, and legal gates are approved."
+  }
   if ($status.turnstileCredentialsConfigured -ne $true -or
     $status.turnstileCanonicalHostnameConfigured -ne $true -or
     $status.turnstileConfigured -ne $true) {
     throw "Live deployment is missing the complete Turnstile site/secret pair or the exact hanbang.ai configuration binding. This configuration signal does not replace real hostname/action challenge evidence."
   }
   if ($status.researchCohortApplicationsEnabled -ne $false -or
+    $status.customerSurveyIntakeEnabled -ne $false -or
     $status.accountDeletionCronEnabled -ne $false) {
-    throw "Live deployment must keep research intake and account-deletion cron disabled during migration."
+    throw "Live deployment must keep research intake, customer-survey intake, and account-deletion cron disabled during migration."
   }
   $startedAt = [DateTimeOffset]::MinValue
   if (-not [DateTimeOffset]::TryParse(
@@ -990,8 +1187,8 @@ if ($isProductionTarget -and
     $targets.productionTurnstileBoundary.canonicalHostname -cne "hanbang.ai" -or
     ((@($targets.productionTurnstileBoundary.requiredActions |
           ForEach-Object { [string]$_ })) -join ",") -cne
-      "signup,forgot_password,preregister,survey")) {
-  throw "Production push is disabled until Turnstile credentials, the hanbang.ai widget hostname, and all four hostname/action-bound Siteverify flows are independently attested."
+      "signup,forgot_password")) {
+  throw "Production push is disabled until Turnstile credentials, the hanbang.ai widget hostname, and all two active public hostname/action-bound Siteverify flows are independently attested."
 }
 if ($isProductionTarget -and
   ($targets.productionAdminPasswordLifecycle.status -ne "verified-v1" -or

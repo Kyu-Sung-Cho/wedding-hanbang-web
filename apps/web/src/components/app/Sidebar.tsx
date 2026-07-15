@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Banknote,
   BarChart3,
-  Building2,
   BookOpen,
-  CalendarClock,
   CalendarCheck,
   LayoutDashboard,
   LogOut,
@@ -21,21 +18,15 @@ import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { parseLocalDateOnly } from "@hanbang/shared";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
-const hiddenInComingSoon = ["/money"];
-
 const menuItems = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
   { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
-  { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
-  { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
   { legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
-  { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
-].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));
+];
 
 interface SidebarProps {
   isOpen: boolean;
@@ -67,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }`}
       >
         <div className="flex h-[72px] items-center justify-between px-5">
-          <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
+          <Link {...weddingLinkProps("/lounge")} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩 라운지 홈으로 이동">
             <Logo size="md" />
           </Link>
           <button

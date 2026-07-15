@@ -4,6 +4,7 @@ import {
   isCoupleInviteCode,
   manwonInputToWon,
   normalizeCoupleInviteCode,
+  normalizeOptionalBudgetWon,
   wonToManwonInput,
 } from "@hanbang/shared";
 
@@ -25,5 +26,12 @@ describe("onboarding contract shared by web and mobile", () => {
     expect(manwonInputToWon("not-a-number")).toBe(0);
     expect(wonToManwonInput(30_000_000)).toBe("3000");
     expect(manwonInputToWon(wonToManwonInput(30_000_000))).toBe(30_000_000);
+  });
+
+  it("keeps an undecided budget empty instead of inventing a default amount", () => {
+    expect(normalizeOptionalBudgetWon(undefined)).toBe(0);
+    expect(normalizeOptionalBudgetWon(null)).toBe(0);
+    expect(normalizeOptionalBudgetWon("")).toBe(0);
+    expect(normalizeOptionalBudgetWon(30_000_000)).toBe(30_000_000);
   });
 });

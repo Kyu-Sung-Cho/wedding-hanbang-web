@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
+import { isCustomerSurveyIntakeEnabled } from "@/lib/customerSurveyAvailability";
 import { hasStrongRateLimitKeySecretConfig } from "@/utils/rateLimit";
 import {
   hasCanonicalTurnstileHostname,
@@ -26,6 +27,12 @@ function configuredDeploymentCommit() {
     : null;
 }
 
+function configuredLaunchMode() {
+  const mode = process.env.NEXT_PUBLIC_LAUNCH_MODE?.trim();
+  if (mode === "coming_soon" || mode === "full") return mode;
+  return "invalid";
+}
+
 export async function GET() {
   return NextResponse.json(
     {
@@ -33,6 +40,11 @@ export async function GET() {
       maintenanceStartedAt: process.env.MAINTENANCE_STARTED_AT_UTC ?? null,
       supabaseProjectRef: configuredSupabaseProjectRef(),
       deployment: configuredDeploymentCommit(),
+      launchMode: configuredLaunchMode(),
+      amoraUsageLimitMode:
+        process.env.AMORA_USAGE_LIMITS_ENABLED === "true"
+          ? "limited"
+          : "unlimited_test",
       rateLimitKeySecretConfigured: hasStrongRateLimitKeySecretConfig(),
       // These are configuration-only signals. Actual hostname/action-bound
       // challenge success remains a separate, human-controlled release gate.
@@ -40,6 +52,7 @@ export async function GET() {
       turnstileCanonicalHostnameConfigured: hasCanonicalTurnstileHostname(),
       turnstileConfigured: hasTurnstileConfig(),
       researchCohortApplicationsEnabled: isResearchCohortApplicationsEnabled(),
+      customerSurveyIntakeEnabled: isCustomerSurveyIntakeEnabled(),
       accountDeletionCronEnabled: process.env.ACCOUNT_DELETION_CRON_ENABLED === "true",
     },
     {

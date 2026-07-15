@@ -1,10 +1,16 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
+import { getCommunityActorIdForUser } from "@/lib/community/actorIdentity";
+import { getMutedActorIds, mutedActorFilterValue } from "@/lib/community/mutes";
+import {
+  CommunityAuthorProfileUnavailableError,
+  getCommunityAuthorMap,
+  requireCommunityAuthor,
+} from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
 
 type CommunityPostWithAuthorId = {
@@ -16,7 +22,8 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClientFromRequest>>;
 
 async function attachAuthorProfiles(
   supabase: SupabaseServerClient,
-  posts: CommunityPostWithAuthorId[]
+  posts: CommunityPostWithAuthorId[],
+  viewerActorId: string | null,
 ) {
   const authorIds = [...new Set(posts.map((post) => post.author_id))].filter(
     Boolean
@@ -25,7 +32,8 @@ async function attachAuthorProfiles(
 
   return posts.map((post) => ({
     ...post,
-    author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
+    author: requireCommunityAuthor(authorMap, post.author_id),
+    viewer_is_author: Boolean(viewerActorId && post.author_id === viewerActorId),
   }));
 }
 
@@ -38,8 +46,8 @@ export async function GET(req: NextRequest) {
     const q = searchParams.get("q");
     const categoryParam = searchParams.get("category");
     const category = isCommunityCategory(categoryParam) ? categoryParam : null;
-    const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
+    const page = Math.max(1, Math.min(100, parseInt(searchParams.get("page") ?? "1") || 1));
+    const limit = Math.max(1, Math.min(20, parseInt(searchParams.get("limit") ?? "20") || 20));
     const offset = (page - 1) * limit;
 
     if (!q || q.trim().length === 0) {
@@ -58,7 +66,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Rate limit: 30 searches per minute per IP
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:search", req),
       { maxRequests: 30, windowMs: 60 * 1000 }
     );
@@ -66,20 +74,44 @@ export async function GET(req: NextRequest) {
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        {
+          status: 503,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        },
+      );
+    }
 
-    // search_vector를 사용한 전문 검색
+    const viewerActorId = await getCommunityActorIdForUser(user?.id);
+    const mutedActorIds = await getMutedActorIds(user?.id);
+    const mutedActors = mutedActorFilterValue(mutedActorIds);
+
+    // search_vector는 공개 열이 아니다. 안전한 공개 DTO 열만 대상으로 검색한다.
+    const safeTerm = cleanPostgrestSearchTerm(q, 100);
+    const escaped = safeTerm ? escapePostgrestLikePattern(safeTerm) : "";
+    if (!escaped) {
+      return NextResponse.json(
+        { error: "검색어를 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
     let query = supabase
       .from("community_posts")
       .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
-      .textSearch("search_vector", q, {
-        type: "plain",
-        config: "simple",
-      })
+      .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (mutedActors) {
+      query = query.not("author_public_id", "in", mutedActors);
+    }
 
     if (category) {
       query = query.eq("category", category);
@@ -89,83 +121,17 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("Community search error:", error);
-
-      // search_vector 칼럼이 없는 경우 ilike 폴백
-      // SQL 특수 문자 이스케이프 (SQL injection 방지)
-      const safeTerm = cleanPostgrestSearchTerm(q, 100);
-      const escaped = safeTerm ? escapePostgrestLikePattern(safeTerm) : "";
-      if (!escaped) {
-        return NextResponse.json(
-          { error: "검색어를 입력해주세요." },
-          { status: 400 }
-        );
-      }
-      let fallbackQuery = supabase
-        .from("community_posts")
-        .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
-        .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
-        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
-        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
-        .order("created_at", { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (category) {
-        fallbackQuery = fallbackQuery.eq("category", category);
-      }
-
-      const {
-        data: fallbackPosts,
-        count: fallbackCount,
-        error: fallbackError,
-      } = await fallbackQuery;
-
-      if (fallbackError) {
-        console.error("Community search fallback error:", fallbackError);
-        return NextResponse.json(
-          { error: "검색에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-      // 인증 사용자의 투표 상태
-      const postsWithAuthors = await attachAuthorProfiles(
-        supabase,
-        (fallbackPosts ?? []) as CommunityPostWithAuthorId[]
+      return NextResponse.json(
+        { error: "검색에 실패했습니다." },
+        { status: 500 }
       );
-
-      let userVotesMap: Record<string, number> = {};
-      if (user && postsWithAuthors.length > 0) {
-        const postIds = postsWithAuthors.map((p) => p.id);
-        const { data: votes } = await supabase
-          .from("community_votes")
-          .select("post_id, vote_type")
-          .eq("user_id", user.id)
-          .in("post_id", postIds);
-
-        if (votes) {
-          userVotesMap = Object.fromEntries(
-            votes.map((v) => [v.post_id, v.vote_type])
-          );
-        }
-      }
-
-      const postsWithVotes = postsWithAuthors.map((post) => ({
-        ...post,
-        user_vote: userVotesMap[post.id] ?? null,
-      }));
-
-      const total = fallbackCount ?? 0;
-      return NextResponse.json({
-        posts: postsWithVotes,
-        total,
-        hasMore: offset + limit < total,
-      });
     }
 
     // 인증 사용자의 투표 상태
     const postsWithAuthors = await attachAuthorProfiles(
       supabase,
-      (posts ?? []) as CommunityPostWithAuthorId[]
+      (posts ?? []) as CommunityPostWithAuthorId[],
+      viewerActorId,
     );
 
     let userVotesMap: Record<string, number> = {};
@@ -189,7 +155,13 @@ export async function GET(req: NextRequest) {
       user_vote: userVotesMap[post.id] ?? null,
     }));
 
-    const total = count ?? 0;
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      return NextResponse.json(
+        { error: "검색 결과 수를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const total = count;
     return NextResponse.json({
       posts: postsWithVotes,
       total,
@@ -197,6 +169,12 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("Community search error:", err);
+    if (err instanceof CommunityAuthorProfileUnavailableError) {
+      return NextResponse.json(
+        { error: "작성자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

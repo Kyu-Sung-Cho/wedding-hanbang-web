@@ -17,6 +17,20 @@ describe("mobile Amora delivery contract", () => {
     expect(mobileChatSource).toContain("(history ?? []).slice().reverse()");
   });
 
+  it("applies the server chat clear timestamps before restoring mobile history", () => {
+    expect(mobileChatSource).toContain("readMySafeProfile()");
+    expect(mobileChatSource).toContain("readMyChatViewState()");
+    expect(mobileChatSource).toContain("chatView.shared_chat_cleared_at");
+    expect(mobileChatSource).toContain("chatView.private_chat_cleared_at");
+    expect(mobileChatSource).toContain("isMessageAfterChatClear(");
+  });
+
+  it("sends only the persisted current message id and leaves transcript reconstruction to the server", () => {
+    expect(mobileChatSource).toContain("currentUserMessageId: userMsg.id");
+    expect(mobileChatSource).not.toContain("recentContext");
+    expect(mobileChatSource).not.toContain("isMessageAllowedInAiContext");
+  });
+
   it("streams when a response reader exists and retains a text fallback", () => {
     expect(mobileChatSource).toContain("body.getReader()");
     expect(mobileChatSource).toContain("parseChatSse(await response.text())");

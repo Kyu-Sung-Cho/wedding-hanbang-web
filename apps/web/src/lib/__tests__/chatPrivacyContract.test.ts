@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chatVisibilityForMobileTarget,
   isMessageAllowedInAiContext,
+  isMessageAfterChatClear,
   isMessageVisibleForMobileTarget,
 } from "@hanbang/shared";
 
@@ -30,5 +31,25 @@ describe("mobile Amora privacy contract", () => {
     expect(isMessageAllowedInAiContext(sharedAi, "bride_private")).toBe(true);
     expect(isMessageAllowedInAiContext(bridePrivate, "bride_private")).toBe(true);
     expect(isMessageAllowedInAiContext(groomPrivate, "bride_private")).toBe(false);
+  });
+
+  it("never sends partner-only messages to Amora in any AI context", () => {
+    expect(isMessageAllowedInAiContext(sharedPartner, "shared")).toBe(false);
+    expect(isMessageAllowedInAiContext(sharedPartner, "bride_private")).toBe(false);
+    expect(isMessageAllowedInAiContext(sharedPartner, "groom_private")).toBe(false);
+  });
+
+  it("hides messages at or before the server chat clear timestamps", () => {
+    const before = { visibility: "shared", created_at: "2026-07-13T00:00:00.000Z" } as const;
+    const after = { visibility: "shared", created_at: "2026-07-13T00:00:02.000Z" } as const;
+    const privateAtClear = {
+      visibility: "bride_private",
+      created_at: "2026-07-13T00:00:01.000Z",
+    } as const;
+    const clearedAt = "2026-07-13T00:00:01.000Z";
+
+    expect(isMessageAfterChatClear(before, clearedAt, null)).toBe(false);
+    expect(isMessageAfterChatClear(after, clearedAt, null)).toBe(true);
+    expect(isMessageAfterChatClear(privateAtClear, null, clearedAt)).toBe(false);
   });
 });

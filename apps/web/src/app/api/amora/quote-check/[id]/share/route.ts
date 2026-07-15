@@ -9,11 +9,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-async function setPublicVisibility(
-  req: NextRequest,
-  context: RouteContext,
-  isPublic: boolean
-) {
+async function revokePublicVisibility(req: NextRequest, context: RouteContext) {
   const supabase = await createClientFromRequest(req);
   const {
     data: { user },
@@ -34,11 +30,10 @@ async function setPublicVisibility(
     );
   }
 
-  const publishedAt = isPublic ? new Date().toISOString() : null;
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("amora_quote_checks")
-    .update({ is_public: isPublic, published_at: publishedAt })
+    .update({ is_public: false, published_at: null })
     .eq("id", id)
     .eq("user_id", user.id)
     .select("id, is_public, published_at")
@@ -69,12 +64,21 @@ async function setPublicVisibility(
   );
 }
 
-// Explicitly publish a private, account-saved result.
-export async function POST(req: NextRequest, context: RouteContext) {
-  return setPublicVisibility(req, context, true);
+// New public links are retired. This response is intentionally returned before
+// auth, params, or DB access so no hidden write path remains.
+export async function POST(_request: NextRequest, _context: RouteContext) {
+  void _request;
+  void _context;
+  return NextResponse.json(
+    {
+      error: "견적 체크 결과의 신규 공유는 현재 제공하지 않습니다.",
+      code: "quote_check_sharing_retired",
+    },
+    { status: 410, headers: NO_STORE_HEADERS }
+  );
 }
 
 // Revoke the bearer URL immediately. The public page/API both require is_public=true.
 export async function DELETE(req: NextRequest, context: RouteContext) {
-  return setPublicVisibility(req, context, false);
+  return revokePublicVisibility(req, context);
 }

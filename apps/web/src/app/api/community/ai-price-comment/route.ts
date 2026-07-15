@@ -1,70 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import type { PriceData } from "@/types/community.types";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
-import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = (await req.json()) as { priceData: PriceData };
-    const { priceData } = body;
+export const dynamic = "force-dynamic";
 
-    if (!priceData || typeof priceData.base_price !== "number") {
-      return NextResponse.json({ error: "priceData 누락" }, { status: 400 });
-    }
-
-    let loggingUserId: string | null = null;
-    try {
-      const supabase = await createClientFromRequest(req);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      loggingUserId = user?.id ?? null;
-    } catch {
-      // Anonymous/sessionless requests can still receive deterministic guidance.
-    }
-
-    const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-price-comment", req, loggingUserId ?? undefined), {
-      maxRequests: loggingUserId ? 80 : 30,
-      windowMs: 60 * 60 * 1000,
-    }, loggingUserId);
-    if (limited) return limited;
-
-    const startedAt = startLatencyClock();
-    const model = "deterministic-price-benchmark-v1";
-    const aiComment = buildSourceBackedPriceComment(priceData);
-
-    void logAIInteraction({
-      userId: loggingUserId,
-      interactionType: "community_amora_comment",
-      specialistType: "budget_optimizer",
-      userInput: JSON.stringify(priceData),
-      aiOutput: JSON.stringify(aiComment),
-      latencyMs: elapsedMs(startedAt),
-      success: true,
-      model,
-      metadata: {
-        endpoint: "ai-price-comment",
-        vendor_category: priceData.vendor_category ?? null,
-        region: priceData.region ?? null,
-        comment_position: "top_level",
-        source_policy: "source_backed_or_unknown",
-      },
-    });
-
-    return NextResponse.json({ aiComment });
-  } catch (err) {
-    console.error("AI price comment error:", err);
-    void logAIInteraction({
-      interactionType: "community_amora_comment",
-      success: false,
-      errorMessage: "ai_interaction_failed",
-      metadata: { endpoint: "ai-price-comment" },
-    });
-    return NextResponse.json(
-      { error: "AI 코멘트 생성 실패" },
-      { status: 500 }
-    );
-  }
+/**
+ * 서로 다른 포함 범위의 견적을 하나의 평균과 비교하면 사용자가 가격의
+ * 적정성을 오해할 수 있다. 기존 세션 없는 자동 판정 경로와 신규 구조화
+ * 가격 입력은 영구 중단한다. 과거 입력은 사용자 작성 기록으로만 조회한다.
+ */
+export async function POST() {
+  return NextResponse.json(
+    {
+      error: "자동 가격 판정은 중단되었습니다. 계약서의 포함 항목과 추가 조건을 직접 확인해 주세요.",
+    },
+    { status: 410, headers: { "Cache-Control": "no-store" } },
+  );
 }

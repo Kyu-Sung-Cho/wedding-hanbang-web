@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -157,9 +157,11 @@ function repositoryAnnotatedTags() {
   return tags;
 }
 
-function repositoryCommitPatch(commit) {
-  try {
-    return execFileSync(
+function repositoryCommitFindings(commit) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const location = `git:${commit}`;
+    const scanner = createStreamingScanner(location);
+    const child = spawn(
       "git",
       [
         "show",
@@ -174,16 +176,37 @@ function repositoryCommitPatch(commit) {
       ],
       {
         cwd: process.cwd(),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        maxBuffer: 64 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
       },
     );
-  } catch {
-    // Never forward a failed command's captured patch because it could contain
-    // the credential this boundary exists to redact.
-    throw new Error(`[repository-secret-scan] history scan failed at ${commit}`);
-  }
+    let settled = false;
+
+    const rejectSafely = () => {
+      if (settled) return;
+      settled = true;
+      // Never forward captured process output because it could contain the
+      // credential this boundary exists to redact.
+      rejectPromise(new Error(`[repository-secret-scan] history scan failed at ${commit}`));
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => scanner.push(chunk));
+    child.stdout.on("error", rejectSafely);
+    child.on("error", rejectSafely);
+    child.on("close", (code) => {
+      if (settled) return;
+      if (code !== 0) {
+        rejectSafely();
+        return;
+      }
+      settled = true;
+      resolvePromise(scanner.finish().map((finding) => ({
+        ...finding,
+        line: undefined,
+      })));
+    });
+  });
 }
 
 export function scanText(file, text) {
@@ -214,7 +237,33 @@ export function aggregateFindings(findings) {
   return [...aggregated.values()];
 }
 
-function main() {
+export function createStreamingScanner(file) {
+  let pending = "";
+  const findings = [];
+
+  const scanLine = (line) => {
+    findings.push(...scanText(file, line));
+  };
+
+  return {
+    push(chunk) {
+      pending += chunk;
+      let newlineIndex = pending.indexOf("\n");
+      while (newlineIndex >= 0) {
+        scanLine(pending.slice(0, newlineIndex + 1));
+        pending = pending.slice(newlineIndex + 1);
+        newlineIndex = pending.indexOf("\n");
+      }
+    },
+    finish() {
+      if (pending.length > 0) scanLine(pending);
+      pending = "";
+      return findings;
+    },
+  };
+}
+
+async function main() {
   const files = repositoryFiles();
   const findings = [];
 
@@ -231,10 +280,7 @@ function main() {
 
   const historyCommits = repositoryHistoryCommits();
   for (const commit of historyCommits) {
-    const patch = repositoryCommitPatch(commit);
-    for (const finding of scanText(`git:${commit}`, patch)) {
-      findings.push({ ...finding, line: undefined });
-    }
+    findings.push(...await repositoryCommitFindings(commit));
   }
 
   const commitMessages = repositoryCommitMessages();
@@ -276,4 +322,13 @@ const directRun = process.argv[1]
   ? import.meta.url === pathToFileURL(resolve(process.argv[1])).href
   : false;
 
-if (directRun) main();
+if (directRun) {
+  main().catch((error) => {
+    const message = error instanceof Error
+      && error.message.startsWith("[repository-secret-scan]")
+      ? error.message
+      : "[repository-secret-scan] scan failed safely";
+    console.error(message);
+    process.exitCode = 1;
+  });
+}

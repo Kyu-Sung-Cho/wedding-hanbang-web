@@ -15,7 +15,7 @@
 - Apple Sign In plugin is enabled.
 - Universal link domain is declared: `applinks:hanbang.ai`.
 - AASA and Digital Asset Links routes exist and fail closed until signed-app identifiers are configured.
-- Approved `/app/community/post/:id` and `/app/vendors/:id` share links are rewritten to matching Expo Router routes; unsupported `/app/*` paths are not claimed.
+- The approved `/app/community/post/:id` share link is rewritten to its matching Expo Router route; vendor share links remain retired and unsupported `/app/*` paths are not claimed.
 - EAS build profiles now exist at `apps/mobile/eas.json`.
 - EAS project is linked: `@hanbang/wedding-hanbang`.
 - EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
@@ -144,7 +144,7 @@ Do not invite external testers until all items pass with the actual production O
 - A normal consultation stays on Luna, while only the documented contract/dispute, safety, or recent repeated-correction cases escalate to Terra.
 - SSE text streaming and the post-tool follow-up response complete without dropped text or duplicate user-turn charging.
 - Image/PDF input, refusal handling, client abort, provider timeout, and user retry behavior are verified on device.
-- Input/output token ceilings, per-couple turn quota, global provider-call cap, and project budget alerts fail closed at their configured limits.
+- Input/output token ceilings and project budget alerts are verified; test-stage Amora has no lifetime, per-couple daily, or global daily consultation cap, while every provider attempt remains durably metered.
 - `store:false`, reasoning `none`, standard service tier, and zero SDK retries are confirmed in request telemetry without storing user content in logs.
 - External-processing region, DPA, retention, cross-border transfer notice, and privacy-policy language are approved before real user content is sent.
 
@@ -153,8 +153,8 @@ Do not invite external testers until all items pass with the actual production O
 Before TestFlight:
 
 - `hanbang://` scheme opens the app.
-- `https://hanbang.ai/app`, `/app/community/post/:id`, and `/app/vendors/:id` open the intended Expo route after install; unsupported `/app/*`, `/application`, and `/appetite` are not claimed.
-- Without the app installed, the two approved share routes fall back to their corresponding `/wedding` web route. Unsupported `/app/*` falls back to `/wedding` instead of a 404.
+- `https://hanbang.ai/app` and `/app/community/post/:id` open the intended Expo route after install; vendor links, unsupported `/app/*`, `/application`, and `/appetite` are not claimed.
+- Without the app installed, the approved community-post share route falls back to its corresponding `/wedding` web route. Unsupported `/app/*` falls back to `/wedding` instead of a 404.
 - `/apple-app-site-association`, `/.well-known/apple-app-site-association`, and `/.well-known/assetlinks.json` return direct 200 JSON responses without redirects, including during maintenance.
 - The AASA app ID matches the signed iOS entitlement, and Asset Links contains the Play App Signing fingerprint rather than the EAS upload key.
 - Physical iOS and Android devices pass cold-start and already-running deep-link tests.
@@ -226,7 +226,7 @@ Before web production deployment:
 - Run `corepack pnpm --filter @hanbang/web build`.
 - Run live QA against deployed URL.
 - Confirm Supabase migrations are applied.
-- Confirm `/wedding`, `/community`, login, quote-check, and vendor pages work.
+- Confirm `/wedding`, `/community`, and login work; confirm retired quote POSTs return `410`, the retired page explains the boundary, and no historical quote link remains public after migration.
 
 ## 12. Next Practical Sequence
 

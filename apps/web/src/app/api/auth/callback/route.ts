@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
 import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
+import { readMySafeProfile } from "@/lib/profile/safeProfile";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -63,11 +64,7 @@ export async function GET(request: Request) {
     }
 
     // 고객 전용: 프로필/온보딩 체크
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("onboarding_completed")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: profile, error: profileError } = await readMySafeProfile(supabase);
 
     if (profileError) {
       console.error("[auth-callback] profile_lookup_failed");

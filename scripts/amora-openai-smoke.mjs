@@ -1,31 +1,28 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
+import { assertApprovedPreviewTarget } from "./lib/preview-smoke-guard.mjs";
+
 const releaseTargets = JSON.parse(
   readFileSync(new URL("./release-targets.json", import.meta.url), "utf8")
 );
-const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+const configuredSupabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.SUPABASE_ANON_KEY;
-const expectedRef = process.env.SUPABASE_EXPECTED_PROJECT_REF;
+const expectedProjectRef = process.env.SUPABASE_EXPECTED_PROJECT_REF;
 const appUrl = process.env.AMORA_SMOKE_BASE_URL?.replace(/\/$/, "");
 
-if (!supabaseUrl || !serviceKey || !anonKey || !expectedRef || !appUrl) {
+if (!configuredSupabaseUrl || !serviceKey || !anonKey || !expectedProjectRef || !appUrl) {
   throw new Error(
     "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, " +
       "SUPABASE_EXPECTED_PROJECT_REF, and AMORA_SMOKE_BASE_URL are required."
   );
 }
-const parsedSupabase = new URL(supabaseUrl);
-if (
-  parsedSupabase.protocol !== "https:" ||
-  parsedSupabase.hostname !== `${expectedRef}.supabase.co`
-) {
-  throw new Error("Supabase URL does not match the expected preview ref.");
-}
-if (releaseTargets.productionSupabaseProjectRefs.includes(expectedRef)) {
-  throw new Error("Amora provider smoke tests are forbidden on protected production.");
-}
+const { supabaseUrl, projectRef: expectedRef } = assertApprovedPreviewTarget({
+  supabaseUrl: configuredSupabaseUrl,
+  expectedProjectRef,
+  releaseTargets,
+});
 const parsedApp = new URL(appUrl);
 if (!['http:', 'https:'].includes(parsedApp.protocol)) {
   throw new Error("AMORA_SMOKE_BASE_URL must be HTTP(S).");
@@ -42,7 +39,7 @@ const anonHeaders = {
   "Content-Type": "application/json",
 };
 const runId = `${Date.now()}-${randomBytes(4).toString("hex")}`;
-const email = `codex-amora-${runId}@example.invalid`;
+const email = `hanbang-smoke-${runId}-amora@example.invalid`;
 const password = `${randomUUID()}Aa!9`;
 let userId;
 let coupleId;
@@ -55,16 +52,16 @@ function assert(condition, message) {
 async function request(
   base,
   path,
-  { method = "GET", headers = serviceHeaders, body, prefer, allowError = false } = {}
+  { method = "GET", headers = serviceHeaders, body } = {},
 ) {
   const response = await fetch(`${base}${path}`, {
     method,
-    headers: prefer ? { ...headers, Prefer: prefer } : headers,
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(190_000),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok && !allowError) {
+  if (!response.ok) {
     const code = payload && typeof payload.code === "string" ? ` (${payload.code})` : "";
     throw new Error(`Request failed at ${path}: HTTP ${response.status}${code}`);
   }
@@ -129,55 +126,25 @@ async function chat(accessToken, { prompt, clientRequestId, visibility }) {
   return { events, done };
 }
 
-async function deleteWhere(table, filter) {
-  await admin(`/rest/v1/${table}?${filter}`, {
-    method: "DELETE",
-    prefer: "return=minimal",
-  });
-}
-
 async function cleanup() {
   const failures = [];
-  if (coupleId) {
+  let fixtureCleanupSucceeded = false;
+  if (userId) {
     try {
-      const reservations = (
-        await admin(
-          `/rest/v1/amora_usage_reservations?couple_id=eq.${encodeURIComponent(coupleId)}` +
-            "&select=request_key"
-        )
-      ).payload;
-      const requestKeys = Array.isArray(reservations)
-        ? [...new Set(reservations.map((row) => row.request_key).filter(Boolean))]
-        : [];
-      await deleteWhere(
-        "amora_usage_reservations",
-        `couple_id=eq.${encodeURIComponent(coupleId)}`
-      );
-      if (requestKeys.length > 0) {
-        await deleteWhere(
-          "amora_request_claims",
-          `request_key=in.(${requestKeys.map(encodeURIComponent).join(",")})`
-        );
-      }
-      await deleteWhere("chat_messages", `couple_id=eq.${encodeURIComponent(coupleId)}`);
-      await deleteWhere("ai_interactions_log", `couple_id=eq.${encodeURIComponent(coupleId)}`);
-      await deleteWhere("wedding_journeys", `couple_id=eq.${encodeURIComponent(coupleId)}`);
+      await rpc("cleanup_preview_smoke_fixture", {
+        p_project_ref: expectedRef,
+        p_user_ids: [userId],
+      });
+      fixtureCleanupSucceeded = true;
     } catch {
-      failures.push("amora-data");
+      failures.push("fixture-data");
     }
   }
-  if (userId) {
+  if (userId && fixtureCleanupSucceeded) {
     try {
       await admin(`/auth/v1/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
     } catch {
       failures.push("auth-user");
-    }
-  }
-  if (coupleId) {
-    try {
-      await deleteWhere("couples", `id=eq.${encodeURIComponent(coupleId)}`);
-    } catch {
-      failures.push("couple");
     }
   }
   if (failures.length > 0) {
@@ -186,6 +153,11 @@ async function cleanup() {
 }
 
 try {
+  const preflight = await rpc("assert_preview_smoke_ready", {
+    p_project_ref: expectedRef,
+  });
+  assert(preflight?.ready === true, "Preview smoke database harness is not ready.");
+
   const health = await fetch(`${appUrl}/api/health/maintenance`, {
     signal: AbortSignal.timeout(10_000),
   });
@@ -208,19 +180,9 @@ try {
   userId = created.payload?.id ?? created.payload?.user?.id;
   assert(typeof userId === "string", "Auth Admin did not create the smoke user.");
 
-  let profiles = (
+  const profiles = (
     await admin(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id`)
   ).payload;
-  if (!Array.isArray(profiles) || profiles.length !== 1) {
-    await admin("/rest/v1/profiles", {
-      method: "POST",
-      prefer: "return=minimal",
-      body: { id: userId, email, name: "Amora Provider Smoke" },
-    });
-    profiles = (
-      await admin(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id`)
-    ).payload;
-  }
   assert(Array.isArray(profiles) && profiles.length === 1, "Smoke profile is missing.");
 
   const couple = await rpc("create_amora_couple_safely", {
@@ -282,36 +244,20 @@ try {
     });
   }
 
-  const auditRows = (
-    await admin(
-      `/rest/v1/ai_interactions_log?user_id=eq.${encodeURIComponent(userId)}` +
-        "&select=model,success,metadata&order=created_at.asc"
-    )
-  ).payload;
-  assert(Array.isArray(auditRows), "AI audit query failed.");
   for (const summary of summaries) {
-    const row = auditRows.find(
-      (candidate) => candidate?.metadata?.client_request_id === summary.clientRequestId
+    const evidence = await rpc("inspect_preview_amora_smoke_turn", {
+      p_project_ref: expectedRef,
+      p_user_id: userId,
+      p_couple_id: coupleId,
+      p_client_request_id: summary.clientRequestId,
+    });
+    const turn = turns.find(
+      (candidate) => candidate.clientRequestId === summary.clientRequestId
     );
-    assert(row?.success === true, `${summary.expectedModel} audit was not successful.`);
-    assert(row?.model === summary.expectedModel, `${summary.expectedModel} was not the audited model.`);
-  }
-
-  const messages = (
-    await admin(
-      `/rest/v1/chat_messages?couple_id=eq.${encodeURIComponent(coupleId)}` +
-        "&select=sender_type,role,visibility,metadata"
-    )
-  ).payload;
-  assert(Array.isArray(messages), "Chat message verification failed.");
-  for (const turn of turns) {
-    const assistantRows = messages.filter(
-      (row) =>
-        (row?.sender_type === "ai" || row?.role === "assistant") &&
-        row?.metadata?.client_request_id === turn.clientRequestId
-    );
-    assert(assistantRows.length === 1, "Replay created a duplicate assistant message.");
-    assert(assistantRows[0].visibility === turn.visibility, "Chat visibility was not preserved.");
+    assert(evidence?.audit_success === true, `${summary.expectedModel} audit was not successful.`);
+    assert(evidence?.audit_model === summary.expectedModel, `${summary.expectedModel} was not audited.`);
+    assert(evidence?.assistant_count === 1, "Replay created a duplicate assistant message.");
+    assert(evidence?.visibility === turn?.visibility, "Chat visibility was not preserved.");
   }
 
   process.stdout.write(

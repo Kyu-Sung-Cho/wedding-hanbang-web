@@ -5,6 +5,8 @@ import CommunityTutorial from "@/components/community/CommunityTutorial";
 import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
 import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
+import { createClient } from "@/lib/supabase/server";
+import type { InitialCommunityFeedResult } from "@/types/community.types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +23,22 @@ export default async function CommunityFeedPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
-  const initialFeed = canUseServerInitialCommunityFeed(initialQuery)
-    ? await getInitialCommunityFeed(10)
-    : undefined;
+  let initialFeed: InitialCommunityFeedResult | undefined;
+
+  if (canUseServerInitialCommunityFeed(initialQuery)) {
+    // The fast SSR seed uses an anonymous public client, so it cannot know an
+    // account's private author mutes. Signed-in readers wait for the scoped API
+    // response instead of briefly seeing content they explicitly hid.
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (!authError && !user) {
+      initialFeed = await getInitialCommunityFeed(10);
+    }
+  }
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#fffdf7]" />}>

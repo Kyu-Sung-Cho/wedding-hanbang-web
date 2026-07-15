@@ -39,6 +39,7 @@ const originalVercelGitCommitSha = process.env.VERCEL_GIT_COMMIT_SHA;
 const originalTurnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const originalTurnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
 const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+const originalAmoraUsageLimitsEnabled = process.env.AMORA_USAGE_LIMITS_ENABLED;
 
 afterEach(() => {
   if (originalRateLimitKeySecret === undefined) {
@@ -86,6 +87,11 @@ afterEach(() => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
   } else {
     process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+  }
+  if (originalAmoraUsageLimitsEnabled === undefined) {
+    delete process.env.AMORA_USAGE_LIMITS_ENABLED;
+  } else {
+    process.env.AMORA_USAGE_LIMITS_ENABLED = originalAmoraUsageLimitsEnabled;
   }
 });
 
@@ -204,7 +210,10 @@ describe("maintenance release contract", () => {
     expect(healthSource).toContain("turnstileCanonicalHostnameConfigured:");
     expect(healthSource).toContain("turnstileConfigured:");
     expect(healthSource).toContain("deployment: configuredDeploymentCommit()");
+    expect(healthSource).toContain("launchMode: configuredLaunchMode()");
+    expect(healthSource).toContain("amoraUsageLimitMode:");
     expect(healthSource).toContain("researchCohortApplicationsEnabled:");
+    expect(healthSource).toContain("customerSurveyIntakeEnabled:");
     expect(healthSource).toContain("accountDeletionCronEnabled:");
     expect(healthSource).toContain(
       "hasStrongRateLimitKeySecretConfig()"
@@ -214,6 +223,46 @@ describe("maintenance release contract", () => {
     expect(healthSource).toContain('"Cache-Control": "no-store, max-age=0"');
     expect(webEnvExample).toContain("MAINTENANCE_MODE=false");
     expect(webEnvExample).toContain("MAINTENANCE_STARTED_AT_UTC=");
+  });
+
+  it("attests launch mode without treating a missing or unknown value as release authorization", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    delete process.env.NEXT_PUBLIC_LAUNCH_MODE;
+    const missing = (await (await GET()).json()) as Record<string, unknown>;
+    expect(missing.launchMode).toBe("invalid");
+
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "unexpected";
+    const unknown = (await (await GET()).json()) as Record<string, unknown>;
+    expect(unknown.launchMode).toBe("invalid");
+
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "coming_soon";
+    const closed = (await (await GET()).json()) as Record<string, unknown>;
+    expect(closed.launchMode).toBe("coming_soon");
+
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "full";
+    const full = (await (await GET()).json()) as Record<string, unknown>;
+    expect(full.launchMode).toBe("full");
+    expect(full).not.toHaveProperty("nextPublicLaunchMode");
+  });
+
+  it("attests the deployed Amora usage-limit mode without exposing configuration", async () => {
+    const { GET } = await import(
+      "../../app/api/health/maintenance/route"
+    );
+    delete process.env.AMORA_USAGE_LIMITS_ENABLED;
+    const missing = (await (await GET()).json()) as Record<string, unknown>;
+    expect(missing.amoraUsageLimitMode).toBe("unlimited_test");
+
+    process.env.AMORA_USAGE_LIMITS_ENABLED = "false";
+    const disabled = (await (await GET()).json()) as Record<string, unknown>;
+    expect(disabled.amoraUsageLimitMode).toBe("unlimited_test");
+
+    process.env.AMORA_USAGE_LIMITS_ENABLED = "true";
+    const enabled = (await (await GET()).json()) as Record<string, unknown>;
+    expect(enabled.amoraUsageLimitMode).toBe("limited");
+    expect(enabled).not.toHaveProperty("amoraUsageLimitsEnabled");
   });
 
   it("reports only whether the deployed rate-limit secret meets the strict boundary", async () => {
@@ -290,12 +339,14 @@ describe("maintenance release contract", () => {
     const closed = (await (await GET()).json()) as Record<string, unknown>;
     expect(closed.deployment).toBe("a".repeat(40));
     expect(closed.researchCohortApplicationsEnabled).toBe(false);
+    expect(closed.customerSurveyIntakeEnabled).toBe(false);
 
     process.env.VERCEL_GIT_COMMIT_SHA = "not-a-commit";
     process.env.RESEARCH_COHORT_APPLICATIONS_ENABLED = "true";
     const open = (await (await GET()).json()) as Record<string, unknown>;
     expect(open.deployment).toBeNull();
     expect(open.researchCohortApplicationsEnabled).toBe(true);
+    expect(open.customerSurveyIntakeEnabled).toBe(false);
     expect(open).not.toHaveProperty("researchEmailVerificationSecret");
   });
 });

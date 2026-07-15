@@ -10,6 +10,7 @@ import { Send, Sparkles, Heart, LockKeyhole } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { readMyChatViewState, readMySafeProfile } from "@/lib/safeProfile";
 import { apiFetch } from "@/lib/api";
 import {
   MOBILE_CHAT_DELAY_NOTICE_MS,
@@ -17,10 +18,14 @@ import {
   MobileChatTimeoutError,
   withMobileChatTimeout,
 } from "@/lib/chatRequestTimeout";
+import {
+  ChatApiError,
+  isTerminalAmoraChatError,
+} from "@/lib/chatApiError";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import {
   chatVisibilityForMobileTarget,
-  isMessageAllowedInAiContext,
+  isMessageAfterChatClear,
   isMessageVisibleForMobileTarget,
   normalizeChatVisibility,
   parseChatSse,
@@ -52,7 +57,7 @@ interface PendingAiRequest {
   requestId: string;
   tempId: string;
   body: {
-    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    currentUserMessageId: string;
     coupleId: string;
     senderName: string;
     visibility: ChatVisibility;
@@ -66,15 +71,8 @@ type AiWaitStage = "preparing" | "delayed" | "cancelling" | null;
 
 interface SendIssue {
   message: string;
-  retry: "send" | "ai";
+  retry: "send" | "ai" | "none";
   claimCode?: string;
-}
-
-class ChatApiError extends Error {
-  constructor(message: string, readonly code?: string) {
-    super(message);
-    this.name = "ChatApiError";
-  }
 }
 
 interface ChatStreamReader {
@@ -149,7 +147,7 @@ async function readResponseError(response: Response, fallback: string): Promise<
   const payload = await response.json().catch(() => null);
   const message = isRecord(payload) && typeof payload.error === "string" ? payload.error : fallback;
   const code = isRecord(payload) && typeof payload.code === "string" ? payload.code : undefined;
-  return new ChatApiError(message, code);
+  return new ChatApiError(message, response.status, code);
 }
 
 function cleanAssistantContent(content: string): string {
@@ -244,12 +242,16 @@ export default function ChatScreen() {
         if (cancelled) return;
         setUserId(user.id);
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("name, role, couple_id")
-          .eq("id", user.id)
-          .single();
+        const [profileResult, chatViewResult] = await Promise.all([
+          readMySafeProfile(),
+          readMyChatViewState(),
+        ]);
+        const { data: profile, error: profileError } = profileResult;
+        const { data: chatView, error: chatViewError } = chatViewResult;
         if (profileError || !profile) throw profileError ?? new Error("프로필을 찾을 수 없습니다.");
+        if (chatViewError || !chatView) {
+          throw chatViewError ?? new Error("chat view state unavailable");
+        }
         if (!profile.couple_id) {
           if (!cancelled) setLoadIssue("couple_missing");
           return;
@@ -273,7 +275,13 @@ export default function ChatScreen() {
         if (historyError) throw historyError;
         if (cancelled) return;
 
-        setMessages((history ?? []).slice().reverse().map((message) => {
+        setMessages((history ?? []).slice().reverse()
+          .filter((message) => isMessageAfterChatClear(
+            message,
+            chatView.shared_chat_cleared_at,
+            chatView.private_chat_cleared_at
+          ))
+          .map((message) => {
           const metadata = toMetadata(message.metadata);
           return {
             id: message.id,
@@ -409,7 +417,7 @@ export default function ChatScreen() {
           if (!signal.aborted) applyStreamUpdate(pending, next);
         });
       }, { signal: requestAbortController.signal });
-      if (parsed.error) throw new Error(parsed.error);
+      if (parsed.error) throw new ChatApiError(parsed.error, 200, parsed.errorCode);
       if (!parsed.completed) throw new Error("응답 연결이 중간에 끊겼어요.");
 
       applyStreamUpdate(pending, parsed);
@@ -420,6 +428,7 @@ export default function ChatScreen() {
     } catch (error) {
       const wasCancelled = error instanceof MobileChatCancelledError;
       const didTimeOut = error instanceof MobileChatTimeoutError;
+      const isTerminalLimit = isTerminalAmoraChatError(error);
       const detail = error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요.";
       setMessages((previous) => previous.map((message) => matchesPendingRequest(message, pending)
         ? {
@@ -431,13 +440,14 @@ export default function ChatScreen() {
                 : "아모라 답변을 불러오지 못했어요.",
           }
         : message));
+      if (isTerminalLimit) setPendingAiRequest(null);
       setSendIssue({
         message: wasCancelled
           ? "답변 생성을 중단했어요. 질문은 저장되어 있어 언제든 다시 시도할 수 있어요."
           : didTimeOut
             ? "2분 동안 답변을 받지 못했어요. 질문은 저장되어 있어 다시 시도할 수 있어요."
             : `${detail} 입력한 내용은 그대로 두었어요.`,
-        retry: "ai",
+        retry: isTerminalLimit ? "none" : "ai",
         claimCode: error instanceof ChatApiError
           || error instanceof MobileChatTimeoutError
           || error instanceof MobileChatCancelledError
@@ -542,17 +552,12 @@ export default function ChatScreen() {
           visibility: activeVisibility,
           created_at: saved.created_at as string,
         };
-        const recentContext = [...messages, userMsg]
-          .filter((message) => !message.id.startsWith("temp_"))
-          .filter((message) => isMessageAllowedInAiContext(message, activeVisibility))
-          .slice(-20)
-          .map((m) => ({ role: m.role, content: m.content }));
         const requestId = `mobile:${userMsg.id}`.slice(0, 120);
         const pending: PendingAiRequest = {
           requestId,
           tempId: `temp_${Date.now()}`,
           body: {
-            messages: recentContext,
+            currentUserMessageId: userMsg.id,
             coupleId,
             senderName: userName,
             visibility: activeVisibility,
@@ -588,6 +593,7 @@ export default function ChatScreen() {
 
   async function retrySend() {
     if (submitting || streaming) return;
+    if (sendIssue?.retry === "none") return;
     if (sendIssue?.retry === "ai" && pendingAiRequest) {
       const previous = pendingAiRequest;
       setSubmitting(true);
@@ -665,9 +671,6 @@ export default function ChatScreen() {
                 <Text style={st.toolStatusText}>{label}</Text>
               </View>
             ))}
-            {item.quotaRemaining !== undefined && (
-              <Text style={st.quotaText}>베타 무료 상담 총 30회 중 {item.quotaRemaining}회 남았어요.</Text>
-            )}
           </View>
           {isAi && Boolean(item.suggestions?.length) && (
             <View style={st.messageSuggestions}>
@@ -767,9 +770,9 @@ export default function ChatScreen() {
                 ? "커플이 함께 보는 대화예요.\n첫 메시지를 보내보세요."
                 : isPrivate
                   ? "이 대화는 나만 볼 수 있어요.\n상대방에게 공유되지 않아요."
-                  : "이 대화는 커플이 함께 볼 수 있어요.\n결혼 준비를 무엇이든 물어보세요."}
+                  : "이 대화는 커플이 함께 볼 수 있어요.\n계약서 확인 질문, 공식 조사 시세, 직접 시작한 일정·예산 정리를 물어보세요. 실시간 업체·장소 검색이나 예약은 제공하지 않아요."}
             />
-            {!isP && <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => setInput(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>}
+            {!isP && <View style={st.suggestions}>{["공식 조사 스드메 가격의 조사월과 범위를 알려줘", "내가 시작한 준비 항목을 정리해줘", "예식장 계약서에서 직접 확인할 질문을 정리해줘"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => setInput(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>}
           </View>
         ) : (
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
@@ -804,9 +807,11 @@ export default function ChatScreen() {
         {sendIssue && !loadIssue && (
           <View style={st.sendIssue} accessibilityRole="alert">
             <Text style={st.sendIssueText}>{sendIssue.message}</Text>
-            <Pressable style={st.retryLink} onPress={retrySend} disabled={submitting || streaming} accessibilityRole="button">
-              <Text style={st.retryLinkText}>{submitting || streaming ? "다시 연결 중" : "다시 시도"}</Text>
-            </Pressable>
+            {sendIssue.retry !== "none" && (
+              <Pressable style={st.retryLink} onPress={retrySend} disabled={submitting || streaming} accessibilityRole="button">
+                <Text style={st.retryLinkText}>{submitting || streaming ? "다시 연결 중" : "다시 시도"}</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -863,7 +868,6 @@ const st = StyleSheet.create({
   bubbleText: { fontSize: 15, lineHeight: 22 },
   toolStatus: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
   toolStatusText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  quotaText: { marginTop: 8, fontSize: 11, color: colors.textTertiary },
   messageSuggestions: { gap: 6, marginTop: 7 },
   messageSuggestionBtn: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   messageSuggestionText: { fontSize: 12, lineHeight: 17, color: colors.noir[800] },

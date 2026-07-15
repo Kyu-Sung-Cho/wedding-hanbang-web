@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 
 const stats = [
-  { value: 4, suffix: "개", label: "핵심 준비 도구", desc: "아모라·일정·예산·견적 체크" },
-  { value: 20, suffix: "개", label: "웨딩 카테고리", desc: "주요 준비 항목별로" },
+  { value: 4, suffix: "개", label: "핵심 준비 흐름", desc: "아모라·일정·예산·커뮤니티" },
+  { value: 20, suffix: "개", label: "선택 가능한 준비 항목", desc: "필요한 항목만 골라서" },
   { value: 1, suffix: "곳", label: "통합 준비 공간", desc: "흩어진 기록을 한곳에서" },
-  { value: 2, suffix: "인", label: "커플 연동", desc: "함께 보는 결혼 준비" },
+  { value: 2, suffix: "인", label: "현재 커플 연동", desc: "신부 1명·신랑 1명 구조" },
 ];
 
 export default function CustomerStats() {

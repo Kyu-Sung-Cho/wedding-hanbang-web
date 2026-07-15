@@ -9,7 +9,6 @@ import {
   Pressable,
   RefreshControl,
   Animated,
-  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -17,16 +16,12 @@ import {
   MessageCircle,
   ChevronUp,
   Eye,
-  PenSquare,
   MessageSquarePlus,
-  Users,
-  ChevronRight,
   Bookmark,
   FileText,
-  Zap,
-  Search,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { communityHtmlToPlainText } from "@hanbang/shared";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
@@ -36,174 +31,61 @@ import {
   putCachedCommunityPosts,
 } from "@/lib/communityPostCache";
 import ErrorRetry from "@/components/ErrorRetry";
+import { CommunityAvatar } from "@/components/community/CommunityAvatar";
 import {
-  CommunityAvatar,
-  type CommunityAvatarRole,
-} from "@/components/community/CommunityAvatar";
+  hasTrustedCommunityActor,
+  type MobileCommunityAuthor,
+} from "@/lib/communityPublicPayload";
 
 /* ───── 타입 ───── */
 
 interface PostItem {
   id: string;
+  author_id: string;
+  viewer_is_author: boolean;
   title: string;
   content: string;
   category: string;
+  ad_disclosure?: string | null;
   upvote_count: number;
   downvote_count: number;
   comment_count: number;
   view_count: number;
-  image_urls?: string[] | null;
+  visibility: "public" | "members" | "draft";
+  under_review: boolean;
   created_at: string;
-  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
+  author: MobileCommunityAuthor;
 }
 
-interface CohortRoom {
-  id: string;
-  name: string;
-  year: number;
-  month: number;
-  member_count: number;
-  message_count: number;
-  is_active: boolean;
-}
-
-interface MyCohort {
-  room_id: string;
-  room: CohortRoom;
-}
-
-type CohortCache = {
-  myCohort: MyCohort | null;
-  cohortRooms: CohortRoom[];
-  cachedAt: number;
-};
-
-type CommunityPostRow = {
-  id: string;
-  author_id: string | null;
-  category: string;
-  title: string;
-  content: string;
-  images: string[] | null;
-  upvote_count: number | null;
-  downvote_count: number | null;
-  comment_count: number | null;
-  view_count: number | null;
-  created_at: string;
-};
-
-type CommunityAuthorRow = {
-  user_id: string;
-  nickname: string | null;
-  rank: string | null;
-};
-
-type ApiPostItem = PostItem & {
-  images?: string[] | null;
-};
+type ApiPostItem = PostItem;
 
 /* ───── 상수 ───── */
 
 const CATEGORY_LABELS: Record<string, string> = {
-  is_normal: "이거 정상이야?",
+  is_normal: "계약·추가금 질문",
   tour_review: "투어/후기",
   tips_v2: "꿀팁",
   ama: "AMA",
   free: "자유",
 };
+const AD_LABELS: Record<string, string> = {
+  sponsored: "협찬",
+  ad: "광고",
+};
 
 const CATEGORIES = ["all", "is_normal", "tour_review", "tips_v2", "ama", "free"];
 const POSTS_INITIAL_LIMIT = 12;
-const COHORT_CACHE_TTL_MS = 60_000;
-const MOBILE_COMMUNITY_POST_SELECT =
-  "id, author_id, category, title, content, images, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
-
-let cohortCache: CohortCache | null = null;
-
-function communityReadablePostOrFilter(viewerId: string): string {
-  return [
-    "and(visibility.eq.public,under_review.eq.false)",
-    "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
-  ].join(",");
-}
-
-function fallbackAuthor(): PostItem["author"] {
-  return { nickname: "익명", rank: "sprout", role: null };
-}
 
 async function fetchPostsFromApi(cat: string): Promise<PostItem[]> {
   const params = cat === "all" ? "" : `&category=${cat}`;
   const data = await apiJson<{ posts: PostItem[] }>(
     `/api/community/posts?sort=new&limit=${POSTS_INITIAL_LIMIT}${params}`
   );
-  return ((data.posts ?? []) as ApiPostItem[]).map((post) => ({
-    ...post,
-    image_urls: post.image_urls ?? post.images ?? [],
-  }));
-}
-
-async function fetchPostsFromSupabase(cat: string): Promise<PostItem[]> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id;
-
-  let query = supabase
-    .from("community_posts")
-    .select(MOBILE_COMMUNITY_POST_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(POSTS_INITIAL_LIMIT);
-
-  if (cat !== "all") {
-    query = query.eq("category", cat);
+  const posts = data.posts ?? [];
+  if (!Array.isArray(posts) || !posts.every(hasTrustedCommunityActor)) {
+    throw new Error("community_actor_payload_invalid");
   }
-
-  query = userId
-    ? query.or(communityReadablePostOrFilter(userId))
-    : query.eq("visibility", "public").eq("under_review", false);
-
-  const { data: postRows, error: postError } = await query;
-  if (postError) throw postError;
-
-  const posts = (postRows ?? []) as CommunityPostRow[];
-  const authorIds = [
-    ...new Set(posts.map((post) => post.author_id).filter((id): id is string => Boolean(id))),
-  ];
-
-  let authorMap: Record<string, PostItem["author"]> = {};
-  if (authorIds.length > 0) {
-    const { data: authorRows, error: authorError } = await supabase
-      .from("community_profiles")
-      .select("user_id, nickname, rank")
-      .in("user_id", authorIds);
-
-    if (!authorError) {
-      authorMap = Object.fromEntries(
-        ((authorRows ?? []) as CommunityAuthorRow[]).map((author) => [
-          author.user_id,
-          {
-            nickname: author.nickname ?? "익명",
-            rank: author.rank ?? "sprout",
-            role: null,
-          },
-        ])
-      );
-    }
-  }
-
-  return posts.map((post) => ({
-    id: post.id,
-    title: post.title,
-    content: post.content,
-    category: post.category,
-    upvote_count: post.upvote_count ?? 0,
-    downvote_count: post.downvote_count ?? 0,
-    comment_count: post.comment_count ?? 0,
-    view_count: post.view_count ?? 0,
-    image_urls: post.images ?? [],
-    created_at: post.created_at,
-    author: post.author_id ? (authorMap[post.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
-  }));
+  return posts as ApiPostItem[];
 }
 
 function timeAgo(dateStr: string): string {
@@ -256,140 +138,8 @@ function SkeletonCard({ index }: { index: number }) {
 
 /* ───── 내 동기방 카드 ───── */
 
-function MyCohortCard({ cohort }: { cohort: MyCohort }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.myCohortCard,
-          pressed && { transform: [{ scale: 0.98 }] },
-        ]}
-        onPress={() =>
-          router.push({ pathname: "/community/cohort/[id]", params: { id: cohort.room_id } })
-        }
-        onPressIn={() =>
-          Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start()
-        }
-        onPressOut={() =>
-          Animated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }).start()
-        }
-      >
-        {/* 좌측 아이콘 */}
-        <View style={styles.myCohortIcon}>
-          <Users size={20} color={colors.gold.DEFAULT} />
-        </View>
-
-        <View style={styles.myCohortInfo}>
-          <Text style={styles.myCohortName} numberOfLines={1}>
-            {cohort.room.name}
-          </Text>
-          <View style={styles.myCohortMeta}>
-            <View style={styles.myCohortActiveDot} />
-            <Text style={styles.myCohortMetaText}>
-              {cohort.room.member_count}명 참여 중
-            </Text>
-          </View>
-        </View>
-
-        <ChevronRight size={20} color={colors.taupe[400]} />
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-/* ───── 동기방 찾기 CTA ───── */
-
-function CohortJoinCTA() {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.cohortCta,
-        pressed && { transform: [{ scale: 0.98 }] },
-      ]}
-      onPress={() => router.push("/community/cohort-discovery")}
-    >
-      <View style={styles.cohortCtaIcon}>
-        <Search size={18} color={colors.rose[500]} />
-      </View>
-      <View style={styles.cohortCtaTextWrap}>
-        <Text style={styles.cohortCtaTitle}>동기방 찾기</Text>
-        <Text style={styles.cohortCtaSub}>같은 달에 결혼하는 동기들과 소통하세요</Text>
-      </View>
-      <ChevronRight size={18} color={colors.taupe[400]} />
-    </Pressable>
-  );
-}
-
-/* ───── 동기방 탐색 수평 스크롤 ───── */
-
-function CohortExploreSection({ rooms }: { rooms: CohortRoom[] }) {
-  if (rooms.length === 0) return null;
-
-  return (
-    <View style={styles.exploreSection}>
-      <View style={styles.exploreTitleRow}>
-        <Text style={styles.exploreSectionTitle}>동기방 둘러보기</Text>
-        <Pressable
-          onPress={() => router.push("/community/cohort-discovery")}
-          hitSlop={12}
-        >
-          <Text style={styles.exploreMore}>전체보기</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.exploreScroll}
-      >
-        {rooms.map((room) => (
-          <Pressable
-            key={room.id}
-            style={({ pressed }) => [
-              styles.exploreCard,
-              pressed && { transform: [{ scale: 0.97 }] },
-            ]}
-            onPress={() =>
-              router.push({ pathname: "/community/cohort/[id]", params: { id: room.id } })
-            }
-          >
-            <Text style={styles.exploreMonth}>
-              {room.year}년 {Math.ceil(room.month / 3)}분기
-            </Text>
-            <Text style={styles.exploreRoomName} numberOfLines={2}>
-              {room.name}
-            </Text>
-            <View style={styles.exploreStats}>
-              <View style={styles.exploreStat}>
-                <Users size={12} color={colors.taupe[400]} />
-                <Text style={styles.exploreStatText}>{room.member_count}명</Text>
-              </View>
-              <View style={styles.exploreStat}>
-                <MessageCircle size={12} color={colors.taupe[400]} />
-                <Text style={styles.exploreStatText}>{room.message_count}</Text>
-              </View>
-            </View>
-            <View style={styles.exploreEnterBtn}>
-              <Text style={styles.exploreEnterText}>입장</Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-/* ───── 퀵 액션 바 ───── */
-
 function QuickActionsBar() {
   const actions = [
-    {
-      icon: <Zap size={14} color={colors.rose[500]} />,
-      label: "15초 후기",
-      onPress: () => router.push("/community/quick-review"),
-    },
     {
       icon: <FileText size={14} color={colors.noir[800]} />,
       label: "내가 쓴 글",
@@ -428,35 +178,55 @@ function QuickActionsBar() {
 /* ───── 메인 화면 ───── */
 
 export default function CommunityScreen() {
-  const [posts, setPosts] = useState<PostItem[]>(() => getCachedCommunityFeed<PostItem>("all") ?? []);
-  const [loading, setLoading] = useState(() => !getCachedCommunityFeed<PostItem>("all"));
+  const [cacheOwnerId, setCacheOwnerId] = useState<string | null>(null);
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [ownerRetryNonce, setOwnerRetryNonce] = useState(0);
   const [category, setCategory] = useState("all");
-  const [myCohort, setMyCohort] = useState<MyCohort | null>(() => cohortCache?.myCohort ?? null);
-  const [cohortRooms, setCohortRooms] = useState<CohortRoom[]>(() => cohortCache?.cohortRooms ?? []);
-  const [cohortLoading, setCohortLoading] = useState(() => !cohortCache);
-  const fabScale = useRef(new Animated.Value(1)).current;
   const hasFocusedRef = useRef(false);
 
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getUser()
+      .then(({ data: { user }, error: authError }) => {
+        if (authError || !user) {
+          throw authError ?? new Error("authenticated user not found");
+        }
+        if (!active) return;
+
+        setCacheOwnerId(user.id);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPosts([]);
+        setError(true);
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [ownerRetryNonce]);
+
   // 게시글 로드
-  const loadPosts = useCallback(async (cat: string, options?: { silent?: boolean }) => {
+  const loadPosts = useCallback(async (
+    ownerId: string,
+    cat: string,
+    options?: { silent?: boolean },
+  ) => {
     try {
       setError(false);
-      let nextPosts: PostItem[];
+      const nextPosts = await fetchPostsFromApi(cat);
 
-      try {
-        nextPosts = await fetchPostsFromApi(cat);
-      } catch {
-        nextPosts = await fetchPostsFromSupabase(cat);
-      }
-
-      putCachedCommunityFeed(cat, nextPosts);
-      putCachedCommunityPosts(nextPosts);
+      putCachedCommunityFeed(ownerId, cat, nextPosts);
+      putCachedCommunityPosts(ownerId, nextPosts);
       setPosts(nextPosts);
     } catch {
       if (!options?.silent) setPosts([]);
-      if (!options?.silent) setError(true);
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -464,120 +234,48 @@ export default function CommunityScreen() {
   }, []);
 
   // 동기방 로드
-  const loadCohortData = useCallback(async (options?: { silent?: boolean }) => {
-    if (
-      cohortCache &&
-      Date.now() - cohortCache.cachedAt < COHORT_CACHE_TTL_MS &&
-      !options?.silent
-    ) {
-      setMyCohort(cohortCache.myCohort);
-      setCohortRooms(cohortCache.cohortRooms);
-      setCohortLoading(false);
-      return;
-    }
-
-    try {
-      // 내 동기방
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
-
-      const membershipPromise = userId
-        ? supabase
-            .from("cohort_members")
-            .select("room_id, room:cohort_rooms(*)")
-            .eq("user_id", userId)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null });
-
-      const roomsPromise = supabase
-        .from("cohort_rooms")
-        .select("*")
-        .eq("is_active", true)
-        .order("year")
-        .order("month")
-        .limit(10);
-
-      const [{ data: membership }, { data: rooms }] = await Promise.all([
-        membershipPromise,
-        roomsPromise,
-      ]);
-
-      const nextMyCohort = membership?.room
-        ? {
-            room_id: membership.room_id,
-            room: membership.room as unknown as CohortRoom,
-          }
-        : null;
-      const nextRooms = (rooms as CohortRoom[]) ?? [];
-
-      cohortCache = {
-        myCohort: nextMyCohort,
-        cohortRooms: nextRooms,
-        cachedAt: Date.now(),
-      };
-
-      setMyCohort(nextMyCohort);
-      setCohortRooms(nextRooms);
-    } catch {
-      // 동기방 로드 실패 시 무시
-    } finally {
-      setCohortLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const cachedPosts = getCachedCommunityFeed<PostItem>(category);
+    if (!cacheOwnerId) return;
+
+    const cachedPosts = getCachedCommunityFeed<PostItem>(cacheOwnerId, category);
     if (cachedPosts) {
       setPosts(cachedPosts);
       setLoading(false);
       setError(false);
-      loadPosts(category, { silent: true });
+      loadPosts(cacheOwnerId, category, { silent: true });
       return;
     }
 
     setLoading(true);
-    loadPosts(category);
-  }, [category, loadPosts]);
+    loadPosts(cacheOwnerId, category);
+  }, [cacheOwnerId, category, loadPosts]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!cacheOwnerId) return;
       if (!hasFocusedRef.current) {
         hasFocusedRef.current = true;
         return;
       }
 
-      loadPosts(category, { silent: true });
-      loadCohortData({ silent: true });
-    }, [category, loadCohortData, loadPosts])
+      loadPosts(cacheOwnerId, category, { silent: true });
+    }, [cacheOwnerId, category, loadPosts])
   );
 
-  useEffect(() => {
-    loadCohortData();
-  }, [loadCohortData]);
-
-  function handleFabPressIn() {
-    Animated.spring(fabScale, { toValue: 0.92, useNativeDriver: true }).start();
-  }
-
-  function handleFabPressOut() {
-    Animated.spring(fabScale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
-  }
-
   function handleRefresh() {
+    if (!cacheOwnerId) return;
     setRefreshing(true);
-    loadPosts(category);
-    loadCohortData({ silent: true });
+    loadPosts(cacheOwnerId, category);
   }
 
   /* ── PostCard 렌더 ── */
 
   function renderPost({ item }: { item: PostItem }) {
     const catLabel = CATEGORY_LABELS[item.category] ?? item.category;
-    const preview = item.content.replace(/<[^>]*>/g, "").slice(0, 100);
+    const preview = communityHtmlToPlainText(item.content).slice(0, 100);
     const votes = item.upvote_count - item.downvote_count;
-    const nickname = item.author?.nickname ?? "익명";
-    const hasImage = item.image_urls && item.image_urls.length > 0;
+    const nickname = item.author.nickname;
+    const adLabel = AD_LABELS[item.ad_disclosure ?? "general"];
 
     return (
       <Pressable
@@ -587,7 +285,7 @@ export default function CommunityScreen() {
           pressed && { transform: [{ scale: 0.98 }] },
         ]}
         onPress={() => {
-          putCachedCommunityPost(item);
+          if (cacheOwnerId) putCachedCommunityPost(cacheOwnerId, item);
           router.push({ pathname: "/community/post/[id]", params: { id: item.id } });
         }}
       >
@@ -595,7 +293,16 @@ export default function CommunityScreen() {
           <View style={styles.postBodyLeft}>
             {/* 작성자 아바타 + 메타 */}
             <View style={styles.postMeta}>
-              <CommunityAvatar nickname={nickname} role={item.author?.role} size={24} />
+              <CommunityAvatar
+                nickname={nickname}
+                avatarUrl={item.author.avatar_url}
+                size={24}
+              />
+              {adLabel && (
+                <View style={styles.postAdBadge}>
+                  <Text style={styles.postAdText}>{adLabel}</Text>
+                </View>
+              )}
               <View style={styles.postCatBadge}>
                 <Text style={styles.postCat}>{catLabel}</Text>
               </View>
@@ -618,16 +325,6 @@ export default function CommunityScreen() {
             )}
           </View>
 
-          {/* 이미지 썸네일 */}
-          {hasImage && (
-            <View style={styles.postThumbWrap}>
-              <Image
-                source={{ uri: item.image_urls?.[0] }}
-                style={styles.postThumb}
-                resizeMode="cover"
-              />
-            </View>
-          )}
         </View>
 
         {/* 액션 바 */}
@@ -654,18 +351,6 @@ export default function CommunityScreen() {
   function renderHeader() {
     return (
       <View>
-        {/* 내 동기방 또는 찾기 CTA */}
-        <View style={styles.cohortSection}>
-          {cohortLoading ? null : myCohort ? (
-            <MyCohortCard cohort={myCohort} />
-          ) : (
-            <CohortJoinCTA />
-          )}
-        </View>
-
-        {/* 동기방 탐색 */}
-        {!cohortLoading && <CohortExploreSection rooms={cohortRooms} />}
-
         {/* 퀵 액션 바 */}
         <QuickActionsBar />
 
@@ -729,7 +414,12 @@ export default function CommunityScreen() {
             message="게시글을 불러올 수 없어요"
             onRetry={() => {
               setLoading(true);
-              loadPosts(category);
+              setError(false);
+              if (cacheOwnerId) {
+                loadPosts(cacheOwnerId, category);
+              } else {
+                setOwnerRetryNonce((value) => value + 1);
+              }
             }}
           />
         </View>
@@ -757,23 +447,12 @@ export default function CommunityScreen() {
                 <MessageSquarePlus size={40} color={colors.rose[500]} />
               </View>
               <Text style={styles.emptyTitle}>아직 작성된 글이 없어요</Text>
-              <Text style={styles.emptyText}>첫 번째 글의 주인공이 되어보세요!</Text>
+              <Text style={styles.emptyText}>새 글이 등록되면 여기에서 확인할 수 있어요.</Text>
             </View>
           }
         />
       )}
 
-      {/* 글쓰기 FAB */}
-      <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
-        <Pressable
-          style={styles.fabInner}
-          onPress={() => router.push({ pathname: "/community/post/write" })}
-          onPressIn={handleFabPressIn}
-          onPressOut={handleFabPressOut}
-        >
-          <PenSquare size={22} color="#FFFFFF" />
-        </Pressable>
-      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -797,147 +476,6 @@ const styles = StyleSheet.create({
   },
 
   // 내 동기방 섹션
-  cohortSection: { paddingHorizontal: 20, paddingTop: 16 },
-
-  myCohortCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: colors.gold.DEFAULT + "30",
-    shadowColor: colors.gold.DEFAULT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  myCohortIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.gold.DEFAULT + "15",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  myCohortInfo: { flex: 1 },
-  myCohortName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.noir[800],
-    marginBottom: 4,
-  },
-  myCohortMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  myCohortActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
-  },
-  myCohortMetaText: { fontSize: 13, color: colors.textSecondary },
-
-  // 동기방 찾기 CTA
-  cohortCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  cohortCtaIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.rose.glow,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cohortCtaTextWrap: { flex: 1 },
-  cohortCtaTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.noir[800],
-    marginBottom: 2,
-  },
-  cohortCtaSub: { fontSize: 12, color: colors.textSecondary },
-
-  // 동기방 탐색 섹션
-  exploreSection: { paddingTop: 16 },
-  exploreTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  exploreSectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.noir[800],
-  },
-  exploreMore: {
-    fontSize: 13,
-    color: colors.rose[500],
-    fontWeight: "500",
-  },
-  exploreScroll: { paddingHorizontal: 20, gap: 12 },
-  exploreCard: {
-    width: 174,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  exploreMonth: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: colors.rose[500],
-    marginBottom: 4,
-  },
-  exploreRoomName: {
-    minHeight: 42,
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "600",
-    color: colors.noir[800],
-    marginBottom: 8,
-  },
-  exploreStats: { flexDirection: "row", gap: 12, marginBottom: 12 },
-  exploreStat: { flexDirection: "row", alignItems: "center", gap: 4 },
-  exploreStatText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontFamily: "NotoSansKR_500Medium",
-  },
-  exploreEnterBtn: {
-    backgroundColor: colors.noir[800],
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  exploreEnterText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-
-  // 퀵 액션 바
   quickActionsScroll: { paddingHorizontal: 20, paddingTop: 14, gap: 10 },
   quickActionPill: {
     flexDirection: "row",
@@ -1013,6 +551,7 @@ const styles = StyleSheet.create({
   postBodyLeft: { flex: 1 },
   postMeta: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 6,
     marginBottom: 10,
@@ -1024,6 +563,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   postCat: { fontSize: 12, fontWeight: "700", color: colors.rose[500] },
+  postAdBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: "rgba(217,95,95,0.08)",
+  },
+  postAdText: { fontSize: 11, fontWeight: "700", color: colors.danger },
   postDot: { fontSize: 12, color: colors.taupe[400] },
   postAuthor: {
     fontSize: 12,
@@ -1092,26 +640,6 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSerifKR_500Medium",
   },
   emptyText: { fontSize: 14, color: colors.textTertiary },
-
-  // FAB
-  fab: {
-    position: "absolute",
-    right: 18,
-    bottom: 112,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  fabInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   // 스켈레톤
   skeletonMeta: { flexDirection: "row", gap: 8, marginBottom: 14 },

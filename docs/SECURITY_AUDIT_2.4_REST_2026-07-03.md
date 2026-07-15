@@ -1,5 +1,7 @@
 # 보안 감사 2.4 — 나머지 API 감사 (2026-07-03)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** “견고” 등급과 공개·인증 API 판정은 당시 코드에 한정된 정적 감사이며 현재 보안·기능·출시 증거가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > 대상: community·vendors·preregister·events·favorites·messages·journey·couple·survey·demo.
 > 방법: **인라인(Fable, subagent 없음)** — 전 라우트를 인증 게이트 유무로 트리아지 → 공개 쓰기 표면과 대표 인증 라우트를 직접 Read, 커뮤니티 쓰기 소유권 스팟체크.
 

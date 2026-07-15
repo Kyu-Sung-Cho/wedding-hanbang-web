@@ -1,5 +1,7 @@
 # 보안 감사 2.1 — 관리자·인증·프로필·온보딩 API (2026-07-03)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 보안 등급, 안전 확인과 취약점 수는 당시 코드 감사 기록이며 현재 안전성이나 출시 승인을 증명하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 감사 스냅샷입니다.** 아래 발견은 당시 코드 기준이며 현재 실행 지침이 아닙니다. 최신 판정은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`와 실제 코드를 따릅니다. 프로덕션 가짜 시드는 현재 환경변수 우회 없이 하드 차단됩니다.
 

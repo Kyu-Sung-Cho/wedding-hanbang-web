@@ -1,83 +1,66 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { CommunityProfile, CommunityRank } from "@/types/community.types";
-import type { UserRole } from "@/types/database.types";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
+import type { PublicCommunityAuthor } from "@/types/community.types";
 
-export type CommunityAuthorProfile = Pick<
-  CommunityProfile,
-  "user_id" | "nickname" | "avatar_url" | "rank" | "wedding_year" | "wedding_month"
-> & {
-  role: UserRole | null;
-};
-
-export function fallbackCommunityAuthor(userId: string | null | undefined): CommunityAuthorProfile {
-  return {
-    user_id: userId ?? "anonymous",
-    nickname: "익명",
-    avatar_url: null,
-    rank: "sprout",
-    wedding_year: null,
-    wedding_month: null,
-    role: null,
-  };
+export type CommunityAuthorProfile = PublicCommunityAuthor;
+export class CommunityAuthorProfileUnavailableError extends Error {
+  constructor() {
+    super("Community author profile data is unavailable");
+    this.name = "CommunityAuthorProfileUnavailableError";
+  }
 }
 
-function isUserRole(value: unknown): value is UserRole {
-  return value === "bride" || value === "groom";
+export function requireCommunityAuthor(
+  authorMap: Record<string, CommunityAuthorProfile>,
+  authorId: string,
+): CommunityAuthorProfile {
+  const author = authorMap[authorId];
+  if (!author) throw new CommunityAuthorProfileUnavailableError();
+  return author;
 }
 
 export async function getCommunityAuthorMap(
   client: SupabaseClient,
-  authorIds: Array<string | null | undefined>
+  actorIds: Array<string | null | undefined>
 ): Promise<Record<string, CommunityAuthorProfile>> {
-  const uniqueAuthorIds = [...new Set(authorIds.filter((id): id is string => Boolean(id)))];
-  if (uniqueAuthorIds.length === 0) return {};
+  const uniqueActorIds = [...new Set(actorIds.filter((id): id is string => Boolean(id)))];
+  if (uniqueActorIds.length === 0) return {};
 
   const { data: communityProfiles, error: communityProfileError } = await client
     .from("community_profiles")
-    .select("user_id, nickname, avatar_url, rank")
-    .in("user_id", uniqueAuthorIds);
+    .select("user_id:public_actor_id, nickname, avatar_url")
+    .in("public_actor_id", uniqueActorIds);
 
   if (communityProfileError) {
     console.error("[community.authors] community profile lookup failed:", communityProfileError);
+    throw new CommunityAuthorProfileUnavailableError();
   }
 
-  let roleMap: Record<string, UserRole | null> = {};
-  try {
-    const { data: profiles, error: profileError } = await createAdminClient()
-      .from("profiles")
-      .select("id, role")
-      .in("id", uniqueAuthorIds);
-
-    if (profileError) {
-      console.error("[community.authors] profile role lookup failed:", profileError);
-    } else {
-      roleMap = Object.fromEntries(
-        (profiles ?? []).map((profile) => [
-          profile.id as string,
-          isUserRole(profile.role) ? profile.role : null,
-        ])
-      );
-    }
-  } catch (error) {
-    console.error("[community.authors] profile role lookup unavailable:", error);
-  }
-
-  return Object.fromEntries(
+  const authorMap = Object.fromEntries(
     (communityProfiles ?? []).map((profile) => {
-      const userId = profile.user_id as string;
+      const userId = profile.user_id;
+      const nickname = profile.nickname;
+      if (
+        typeof userId !== "string" ||
+        typeof nickname !== "string" ||
+        nickname.trim().length === 0
+      ) {
+        throw new CommunityAuthorProfileUnavailableError();
+      }
       return [
         userId,
         {
           user_id: userId,
-          nickname: (profile.nickname as string | null) || "익명",
-          avatar_url: (profile.avatar_url as string | null) ?? null,
-          rank: ((profile.rank as CommunityRank | null) ?? "sprout"),
-          wedding_year: null,
-          wedding_month: null,
-          role: roleMap[userId] ?? null,
+          nickname: nickname.trim(),
+          avatar_url: normalizeCommunityAvatar(profile.avatar_url),
         },
       ];
     })
   );
+
+  if (uniqueActorIds.some((actorId) => !authorMap[actorId])) {
+    throw new CommunityAuthorProfileUnavailableError();
+  }
+
+  return authorMap;
 }

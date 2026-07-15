@@ -15,10 +15,22 @@ describe("proactive care safety contract", () => {
     );
   });
 
-  it("does not trigger hidden proactive work from the dashboard", () => {
-    expect(read("apps/web/src/app/(app)/dashboard/page.tsx")).not.toContain(
-      'fetch("/api/chat/proactive")'
-    );
+  it("does not trigger hidden proactive work from product screens", () => {
+    for (const path of [
+      "apps/web/src/app/(app)/dashboard/page.tsx",
+      "apps/web/src/components/app/chat/ChatContent.tsx",
+    ]) {
+      expect(read(path), path).not.toContain('fetch("/api/chat/proactive")');
+    }
+  });
+
+  it("contains no Amora event-saving path that could imply proactive follow-up", () => {
+    const scheduleTools = read("apps/web/src/lib/ai/tools/scheduleTools.ts");
+    const definitions = read("apps/web/src/lib/ai/tools.ts");
+
+    expect(scheduleTools).not.toContain("executeLogWeddingEvent");
+    expect(scheduleTools).not.toContain("saveProgress");
+    expect(definitions).not.toContain('name: "log_wedding_event"');
   });
 
   it("does not send partner messages through hidden conflict-model work", () => {
@@ -30,14 +42,14 @@ describe("proactive care safety contract", () => {
     );
   });
 
-  it("renders a local empty-chat greeting without spending an Amora turn", () => {
+  it("renders a local empty-chat greeting without consuming AI usage", () => {
     for (const path of [
       "apps/web/src/components/app/chat/ChatContent.tsx",
       "apps/web/src/components/app/chat/ChatSidePanel.tsx",
     ]) {
       const source = read(path);
       expect(source).not.toContain("requestInitialGreeting(");
-      expect(source).toContain("채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.");
+      expect(source).toContain("채팅을 여는 것만으로 AI 사용량이 발생하지 않아요.");
     }
   });
 
@@ -52,7 +64,8 @@ describe("proactive care safety contract", () => {
 
   it("refuses legacy clients that try to opt in before launch", () => {
     const route = read("apps/web/src/app/api/profile/route.ts");
-    expect(route).toContain("아모라 선제 알림은 아직 준비 중입니다.");
+    expect(route).toContain("아모라 실제 알림은 아직 준비 중입니다.");
     expect(route).toContain("문자·알림톡 자동 알림은 아직 준비 중입니다.");
+    expect(route.match(/status: 409/g)).toHaveLength(3);
   });
 });

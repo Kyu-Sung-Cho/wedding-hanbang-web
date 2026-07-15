@@ -8,7 +8,6 @@ describe("consumer dialog accessibility contract", () => {
   it.each([
     "src/components/app/schedule/EventFormModal.tsx",
     "src/components/app/schedule/CategoryChecklistModal.tsx",
-    "src/app/(app)/vendors/[id]/page.tsx",
   ])("keeps %s modal semantics and shared focus management", (path) => {
     const source = readSource(path);
 
@@ -40,12 +39,9 @@ describe("consumer dialog accessibility contract", () => {
     expect(source).not.toContain('role="button"');
   });
 
-  it("announces loading, error, and success states in core consumer flows", () => {
-    const bookings = readSource("src/app/(app)/bookings/page.tsx");
+  it("announces loading and success states in the beta application flow", () => {
     const beta = readSource("src/app/beta/BetaForm.tsx");
 
-    expect(bookings).toContain('role="status"');
-    expect(bookings).toContain('role="alert"');
     expect(beta).toContain('role="status"');
     expect(beta).toContain('aria-live="polite"');
   });

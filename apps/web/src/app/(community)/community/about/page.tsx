@@ -1,7 +1,6 @@
 ﻿import Link from "next/link";
 import {
   MessageCircle,
-  Users,
   Search,
   TrendingUp,
   Star,
@@ -19,7 +18,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 export const metadata = {
   title: "웨딩한방 안내",
   description:
-    "웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 견적 질문을 나누는 공간입니다. 동기방, 후기, 아모라 견적 체크리스트까지 한 곳에서.",
+    "웨딩한방 커뮤니티에서 이용자가 작성한 후기와 질문을 읽고, 중요한 정보는 원문과 업체에 다시 확인하세요.",
 };
 
 export default function CommunityAboutPage() {
@@ -37,9 +36,9 @@ export default function CommunityAboutPage() {
             <em className="not-italic text-[#36534E]">함께 준비해요.</em>
           </h1>
           <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed max-w-xl mx-auto">
-            웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를
-            나누는 공간이에요. 같은 시기에 결혼하는 동기들과 함께,
-            실제 경험을 참고해 더 차분하게 결정해보세요.
+            웨딩한방 커뮤니티는 예비 신랑신부가 후기와 질문을
+            나누는 공간이에요. 이용자 작성 정보는 사실 확인을 거친 자료가
+            아닐 수 있으니 중요한 결정 전에는 원문과 업체에 다시 확인하세요.
           </p>
         </div>
       </section>
@@ -60,15 +59,15 @@ export default function CommunityAboutPage() {
               예식장 추가금이 정상인지, 어디서 정보를 얻어야 할지 알기 어려워요.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
-              인터넷에 떠도는 후기는 광고인지 진짜인지 구분이 안 가고,
-              주변엔 결혼 준비하는 친구가 많지 않아요. 결국 정보 비대칭으로
-              필요 이상의 비용을 치르거나, 후회되는 결정을 내리게 돼요.
+              인터넷에 떠도는 후기는 광고인지 직접 이용한 경험인지 구분하기 어렵고,
+              주변에 같은 조건으로 결혼을 준비하는 사람이 많지 않을 수 있어요. 서로 다른
+              조건의 정보를 한데 놓고 보면 무엇을 업체에 다시 확인해야 할지 놓치기 쉽습니다.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
               <span className="font-medium text-[#36534E]">웨딩한방 커뮤니티</span>는
-              실제 경험한 신랑신부들이 솔직한 후기와 가격 정보를 나누고,
-              같은 시기에 결혼하는 동기들끼리 응원하는 공간이에요.
-              혼자 고민하던 결정을 함께 풀어나가요.
+              이용자가 후기와 질문을 작성하고 서로 참고하는 공간이에요.
+              게시글만으로 가격이나 계약 안전성을 판정하지 않고,
+              확인할 질문을 찾는 출발점으로 이용해 주세요.
             </p>
           </div>
         </div>
@@ -89,14 +88,14 @@ export default function CommunityAboutPage() {
               {
                 icon: MessageCircle,
                 title: "솔직한 후기 읽기",
-                desc: "스드메, 예식장, 신혼여행까지 — 직접 경험한 사람들의 가격, 사진, 평가를 한 번에 비교해요.",
+                desc: "스드메, 예식장, 신혼여행까지 이용자가 작성한 후기와 질문을 읽어요. 사실 여부는 별도로 확인해 주세요.",
                 color: "from-[#36534E]/15 to-[#36534E]/5",
                 iconColor: "text-[#36534E]",
               },
               {
-                icon: Users,
-                title: "동기방에서 함께 준비",
-                desc: "같은 분기에 결혼하는 커플들이 모이는 동기방. 투어 동행자도 찾고, 정보도 나누고.",
+                icon: BookOpen,
+                title: "필요한 글 북마크",
+                desc: "나중에 다시 확인할 후기와 질문을 저장하고, 업체에 물어볼 내용을 따로 정리해요.",
                 color: "from-sage-500/15 to-sage-500/5",
                 iconColor: "text-sage-500",
               },
@@ -116,15 +115,15 @@ export default function CommunityAboutPage() {
               },
               {
                 icon: TrendingUp,
-                title: "투표로 좋은 글 추천",
-                desc: "도움이 된 글에 투표하면 다른 예비부부가 참고할 글을 찾는 데 도움이 돼요. 운영 기준에 따라 BEST로 표시될 수 있어요.",
+                title: "도움된 글에 반응 남기기",
+                desc: "도움이 된 글에 투표하면 다른 예비부부가 참고할 글을 찾는 데 도움이 돼요. 최근 반응 기준에 따라 주간 인기로 표시될 수 있어요.",
                 color: "from-[#A8D8A8]/30 to-[#A8D8A8]/5",
                 iconColor: "text-sage-500",
               },
               {
                 icon: Sparkles,
-                title: "아모라 견적 체크리스트",
-                desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
+                title: "아모라와 원문 질문 정리",
+                desc: "견적서·계약서에 실제로 적힌 문장을 바탕으로 업체에 다시 확인할 질문을 정리해요. 가격이나 계약 안전성을 자동 판정하지 않아요.",
                 color: "from-[#36534E]/20 to-[#2B423E]/5",
                 iconColor: "text-[#36534E]",
               },
@@ -173,7 +172,7 @@ export default function CommunityAboutPage() {
                 bg: "#F0F9FF",
                 border: "#BAE6FD",
                 label: "일반",
-                desc: "직접 경험한 솔직한 글",
+                desc: "협찬·광고 없음으로 작성자가 표시",
               },
               {
                 Icon: Star,
@@ -189,7 +188,7 @@ export default function CommunityAboutPage() {
                 bg: "#F1F5F9",
                 border: "#CBD5E1",
                 label: "광고",
-                desc: "광고는 표시하고, 추천에서 제외",
+                desc: "광고 여부를 글에 표시",
               },
             ].map((rule) => (
               <div
@@ -220,13 +219,13 @@ export default function CommunityAboutPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-[#263832] mb-2">
-                  광고와 추천은 분명히 구분합니다
+                  광고·협찬 표시를 확인할 수 있어요
                 </h3>
                 <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed">
-                  업체와 협력 관계에 있는 글은 명확히 표시되고, 알고리즘
-                  추천에서 제외돼요. 신고된 글은 별도 기준으로 검토되며,
-                  거짓·과장된 후기는 제재 대상이에요. 신뢰는 우리 커뮤니티의
-                  가장 중요한 자산이에요.
+                  작성자가 선택한 일반·협찬·광고 표시를 글에서 확인할 수 있어요.
+                  이 표시는 웨딩한방이 경험이나 내용을 검증했다는 뜻은 아닙니다.
+                  문제가 있는 글은 신고할 수 있으며, 접수만으로 즉시 삭제나
+                  특정 조치를 보장하지 않습니다.
                 </p>
               </div>
             </div>
@@ -242,7 +241,7 @@ export default function CommunityAboutPage() {
               {
                 icon: HeartHandshake,
                 title: "서로 도와요",
-                desc: "한 명의 후기가 다른 커플의 결정을 더 쉽게 만들어요.",
+                desc: "한 명의 후기가 다른 커플의 확인 질문을 찾는 데 도움을 줘요.",
               },
               {
                 icon: BookOpen,
@@ -251,8 +250,8 @@ export default function CommunityAboutPage() {
               },
               {
                 icon: Shield,
-                title: "안전하게 지켜요",
-                desc: "커뮤니티 닉네임으로 활동하지만 인격 모독·허위 글은 제재돼요.",
+                title: "이용 규칙과 신고",
+                desc: "커뮤니티 닉네임으로 활동하고 문제가 있는 글은 신고할 수 있어요.",
               },
             ].map((item) => {
               const Icon = item.icon;

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { sanitizeMobileAuthReturnPath } from "@hanbang/shared";
@@ -63,17 +63,18 @@ describe("mobile auth reliability contract", () => {
     expect(missingTokenCheck).toBeGreaterThan(errorCheck);
   });
 
-  it("keeps text drafts in account-scoped device storage", () => {
+  it("does not retain text drafts after the unsupported mobile writers are retired", () => {
     const postSource = mobileSource("app/community/post/write.tsx");
     const reviewSource = mobileSource("app/community/quick-review.tsx");
-    const draftSource = mobileSource("src/lib/communityDrafts.ts");
 
-    expect(postSource).toContain("saveCommunityPostDraft");
-    expect(postSource).toContain("clearCommunityPostDraft");
-    expect(reviewSource).toContain("saveQuickReviewDraft");
-    expect(reviewSource).toContain("clearQuickReviewDraft");
-    expect(draftSource).toContain("userId");
-    expect(draftSource).toContain("DRAFT_MAX_AGE_MS");
+    expect(postSource).toContain('<Redirect href="/(tabs)/community"');
+    expect(reviewSource).toContain('<Redirect href="/community/post/write"');
+    expect(`${postSource}\n${reviewSource}`).not.toMatch(
+      /AsyncStorage|saveCommunityPostDraft|saveQuickReviewDraft/,
+    );
+    expect(
+      existsSync(resolve(repoRoot, "apps/mobile/src/lib/communityDrafts.ts")),
+    ).toBe(false);
   });
 });
 

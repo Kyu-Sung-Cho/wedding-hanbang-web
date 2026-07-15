@@ -2,47 +2,45 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
-import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
+import {
+  CommunityAuthorProfileUnavailableError,
+  getCommunityAuthorMap,
+  requireCommunityAuthor,
+} from "@/lib/community/authorProfiles";
+import { getCommunityActorIdForUser } from "@/lib/community/actorIdentity";
 import {
   getCommunityNicknameFallback,
   getSafeDefaultCommunityNickname,
   isCommunityNicknameUniqueViolation,
 } from "@/lib/community/nickname";
-import {
-  validateCommunityAttachmentUrl,
-  validateCommunityHtmlImageSources,
-  validateCommunityMediaUrl,
-} from "@/lib/community/mediaUrls";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
+import { getMutedActorIds, mutedActorFilterValue } from "@/lib/community/mutes";
 import {
   PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
-  communityReadablePostOrFilter,
 } from "@/lib/community/publicPostRules";
 import { isCommunityCategory } from "@/lib/community/routes";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
 import type {
   CommunityCategory,
   PostSort,
   TimePeriod,
   PostVisibility,
-  CostShareData,
   AdDisclosure,
-  PriceData,
-  AiComment,
-  CreatePollInput,
   PollSummary,
 } from "@/types/community.types";
 
-async function generateAiPriceComment(priceData: PriceData): Promise<AiComment | null> {
-  try {
-    return buildSourceBackedPriceComment(priceData);
-  } catch (err) {
-    console.error("AI price comment inline error:", err);
-    return null;
-  }
-}
+const MAX_POST_BODY_BYTES = 256 * 1024;
+const ALLOWED_CREATE_POST_FIELDS = new Set([
+  "category",
+  "title",
+  "content",
+  "visibility",
+  "tags",
+  "ad_disclosure",
+  "sponsorship_detail",
+]);
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -57,13 +55,6 @@ function cleanOptionalText(value: unknown, maxLength: number): string | undefine
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
-function invalidCommunityMediaResponse() {
-  return NextResponse.json(
-    { error: "커뮤니티 업로드로 등록된 이미지와 영상만 첨부할 수 있습니다." },
-    { status: 400 }
-  );
-}
-
 // 게시글 목록 조회
 export async function GET(req: NextRequest) {
   try {
@@ -72,7 +63,23 @@ export async function GET(req: NextRequest) {
 
     const categoryParam = searchParams.get("category");
     const category = isCommunityCategory(categoryParam) ? categoryParam : null;
-    const sort = (searchParams.get("sort") ?? "hot") as PostSort;
+    const sortParam = searchParams.get("sort") ?? "hot";
+    if (sortParam === "my_cohort") {
+      return NextResponse.json(
+        {
+          error: "동기방 게시글 모아보기는 현재 베타에서 제공하지 않습니다.",
+          code: "community_cohort_feed_retired",
+        },
+        { status: 410, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (!["hot", "new", "top", "my_posts"].includes(sortParam)) {
+      return NextResponse.json(
+        { error: "지원하지 않는 게시글 정렬 방식입니다." },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const sort = sortParam as PostSort;
     const period = (searchParams.get("period") ?? "week") as TimePeriod;
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
@@ -84,10 +91,25 @@ export async function GET(req: NextRequest) {
     // 현재 사용자 확인 (선택적)
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
 
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        {
+          status: 503,
+          headers: { "Cache-Control": "private, no-store, max-age=0" },
+        },
+      );
+    }
+
+    const viewerActorId = await getCommunityActorIdForUser(user?.id);
+    const mutedActorIds = await getMutedActorIds(user?.id);
+    const mutedActors = mutedActorFilterValue(mutedActorIds);
+
     const isLatestFeed = sort === "new";
-    const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_cohort" || sort === "my_posts";
+    const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_posts";
     const feedCacheControl = isPersonalizedFeed
       ? "private, no-store, max-age=0"
       : isLatestFeed
@@ -124,15 +146,21 @@ export async function GET(req: NextRequest) {
 
     // 작성자 필터
     if (authorId) {
-      query = query.eq("author_id", authorId);
+      query = query.eq("author_public_id", authorId);
     }
 
     // 북마크 필터 — 본인이 북마크한 글의 id만 통과
     if (bookmarkedOnly && user) {
-      const { data: bookmarks } = await supabase
+      const { data: bookmarks, error: bookmarksError } = await supabase
         .from("community_bookmarks")
         .select("post_id")
         .eq("user_id", user.id);
+      if (bookmarksError) {
+        return feedResponse(
+          { error: "저장한 글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." },
+          503,
+        );
+      }
       const bookmarkedIds = (bookmarks ?? []).map((b) => b.post_id as string);
       if (bookmarkedIds.length === 0) {
         return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
@@ -140,54 +168,35 @@ export async function GET(req: NextRequest) {
       query = query.in("id", bookmarkedIds);
     }
 
-    // 공개/멤버/작성자 전용 visibility와 under_review 규칙은 단일 Module에서 관리한다.
-    if (user) {
-      query = query.or(communityReadablePostOrFilter(user.id));
-    } else {
-      query = query
-        .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
-        .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
+    // 일반 피드에는 발행된 글만 표시한다. 본인의 임시저장/검토 중 글은
+    // 상태가 명확한 `my_posts`에서만 조회한다.
+    if (sort !== "my_posts") {
+      query = user
+        ? query
+            .in("visibility", ["public", "members"])
+            .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+        : query
+            .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
+            .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
     }
 
-    // 정렬 + my_cohort / my_posts 필터
-    if (sort === "my_cohort") {
-      // 비로그인은 빈 결과
-      if (!user) {
-        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
-      }
-      // 1. 본인이 속한 cohort room ids
-      const { data: myRooms } = await supabase
-        .from("cohort_members")
-        .select("room_id")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      const roomIds = (myRooms ?? []).map((r) => r.room_id as string);
-      if (roomIds.length === 0) {
-        // 동기방 미가입 → 빈 결과 (UI에서 가입 유도)
-        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
-      }
-      // 2. 같은 cohort room의 다른 멤버 user_ids — 본인 제외
-      const { data: cohortMembers } = await supabase
-        .from("cohort_members")
-        .select("user_id")
-        .in("room_id", roomIds)
-        .eq("is_active", true);
-      const memberIds = [
-        ...new Set((cohortMembers ?? []).map((m) => m.user_id as string)),
-      ].filter((id) => id !== user.id);
-      if (memberIds.length === 0) {
-        // 동기방에 나밖에 없음 → 빈 결과
-        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
-      }
-      // 3. 동기들이 작성한 글만 + 최신순
-      query = query.in("author_id", memberIds).order("created_at", { ascending: false });
-    } else if (sort === "my_posts") {
+    // A mute is private to the signed-in reader and must be enforced by the
+    // server before counting or paginating the feed.
+    if (mutedActors) {
+      query = query.not("author_public_id", "in", mutedActors);
+    }
+
+    // 정렬 + 내 글 필터
+    if (sort === "my_posts") {
       // 비로그인은 빈 결과
       if (!user) {
         return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
       }
       // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
-      query = query.eq("author_id", user.id).order("created_at", { ascending: false });
+      if (!viewerActorId) {
+        return feedResponse({ posts: [], total: 0, hasMore: false, page, limit });
+      }
+      query = query.eq("author_public_id", viewerActorId).order("created_at", { ascending: false });
     } else if (sort === "new") {
       query = query.order("created_at", { ascending: false });
     } else if (sort === "top") {
@@ -222,6 +231,14 @@ export async function GET(req: NextRequest) {
     }
 
     // hot 정렬의 경우 스코어 기반 재정렬
+    if (
+      typeof count !== "number" ||
+      !Number.isSafeInteger(count) ||
+      count < 0
+    ) {
+      return feedResponse({ error: "게시글 수를 확인하지 못했습니다." }, 503);
+    }
+
     let sortedPosts = posts ?? [];
     if (sort === "hot") {
       const now = Date.now();
@@ -242,11 +259,15 @@ export async function GET(req: NextRequest) {
     let userVotesMap: Record<string, number> = {};
     if (user && sortedPosts.length > 0) {
       const postIds = sortedPosts.map((p) => p.id);
-      const { data: votes } = await supabase
+      const { data: votes, error: votesError } = await supabase
         .from("community_votes")
         .select("post_id, vote_type")
         .eq("user_id", user.id)
         .in("post_id", postIds);
+
+      if (votesError) {
+        return feedResponse({ error: "내 좋아요 상태를 불러오지 못했습니다." }, 503);
+      }
 
       if (votes) {
         userVotesMap = Object.fromEntries(
@@ -263,10 +284,13 @@ export async function GET(req: NextRequest) {
     let pollSummaryMap: Record<string, PollSummary> = {};
     if (sortedPosts.length > 0) {
       const postIds = sortedPosts.map((p) => p.id);
-      const { data: polls } = await supabase
+      const { data: polls, error: pollsError } = await supabase
         .from("community_polls")
         .select("id, post_id, question, total_voters, closes_at")
         .in("post_id", postIds);
+      if (pollsError) {
+        return feedResponse({ error: "게시글 투표 정보를 불러오지 못했습니다." }, 503);
+      }
       if (polls) {
         pollSummaryMap = Object.fromEntries(
           polls.map((p: { id: string; post_id: string; question: string; total_voters: number; closes_at: string | null }) => [
@@ -285,17 +309,24 @@ export async function GET(req: NextRequest) {
     // 응답 데이터 조합
     const postsWithVotes = sortedPosts.map((post) => ({
       ...post,
-      author: authorMap[post.author_id] ?? fallbackCommunityAuthor(post.author_id),
+      author: requireCommunityAuthor(authorMap, post.author_id),
+      viewer_is_author: Boolean(viewerActorId && post.author_id === viewerActorId),
       user_vote: userVotesMap[post.id] ?? null,
       poll: pollSummaryMap[post.id] ?? null,
     }));
 
-    const total = count ?? 0;
+    const total = count;
     const hasMore = offset + limit < total;
 
     return feedResponse({ posts: postsWithVotes, total, hasMore });
   } catch (err) {
     console.error("Community posts error:", err);
+    if (err instanceof CommunityAuthorProfileUnavailableError) {
+      return NextResponse.json(
+        { error: "작성자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -306,10 +337,21 @@ export async function GET(req: NextRequest) {
 // 게시글 생성
 export async function POST(req: NextRequest) {
   try {
+    if (isBodyTooLarge(req, MAX_POST_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -319,46 +361,129 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate limit: 10 posts per 10 minutes per user
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:post:create", req, user.id),
-      { maxRequests: 10, windowMs: 10 * 60 * 1000 }
+      { maxRequests: 10, windowMs: 10 * 60 * 1000 },
+      user.id,
     );
     if (rlResult) return rlResult;
 
-    const body = await req.json();
+    const rawBody = await req.text().catch(() => null);
+    if (rawBody === null) {
+      return NextResponse.json(
+        { error: "게시글 요청을 읽지 못했습니다." },
+        { status: 400 },
+      );
+    }
+    if (new TextEncoder().encode(rawBody).byteLength > MAX_POST_BODY_BYTES) {
+      return NextResponse.json(
+        { error: "요청 데이터가 너무 큽니다." },
+        { status: 413 },
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      body = null;
+    }
+    if (!isRecord(body)) {
+      return NextResponse.json(
+        { error: "잘못된 게시글 요청입니다." },
+        { status: 400 },
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "poll")) {
+      return NextResponse.json(
+        {
+          error: "새 투표 작성은 종료되었습니다. 기존 투표는 읽을 수 있습니다.",
+          code: "community_poll_writes_retired",
+        },
+        { status: 410 },
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "price_data")) {
+      return NextResponse.json(
+        {
+          error:
+            "커뮤니티의 구조화 가격 입력은 중단되었습니다. 개인정보를 가린 실제 문서 문구와 확인할 질문은 본문에 적어주세요.",
+          code: "community_structured_fields_retired",
+          field: "price_data",
+        },
+        { status: 410 },
+      );
+    }
+    const retiredFields = [
+      "images",
+      "slides",
+      "cost_data",
+      "ai_comment",
+      "cohort_room_id",
+      "is_quick_review",
+      "is_verified_review",
+      "verification_doc_url",
+      "rating",
+      "vendor_tags",
+    ] as const;
+    const retiredField = retiredFields.find((field) =>
+      Object.prototype.hasOwnProperty.call(body, field),
+    );
+    if (retiredField) {
+      return NextResponse.json(
+        {
+          error: "사진·업체 태그·평점·구조화 금액 입력은 현재 커뮤니티에서 제공하지 않습니다.",
+          code: "community_structured_fields_retired",
+          field: retiredField,
+        },
+        { status: 410 },
+      );
+    }
+    const unknownField = Object.keys(body).find(
+      (field) => !ALLOWED_CREATE_POST_FIELDS.has(field),
+    );
+    if (unknownField) {
+      return NextResponse.json(
+        { error: "지원하지 않는 게시글 입력 항목입니다.", field: unknownField },
+        { status: 400 },
+      );
+    }
     const {
       category,
       title: rawTitle,
       content: rawContent,
-      images: rawImages,
-      slides: rawSlides,
       visibility,
-      vendor_tags: rawVendorTags,
       tags: rawTags,
-      cost_data,
       ad_disclosure: rawAdDisclosure,
       sponsorship_detail: rawSponsorshipDetail,
-      price_data: rawPriceData,
-      is_quick_review,
-      rating,
-      poll: rawPoll,
     } = body as {
       category: CommunityCategory;
       title: string;
       content: string;
-      images?: string[];
-      slides?: Array<{ type?: string; url?: string; width?: number; height?: number; thumbnail_url?: string }> | null;
       visibility: PostVisibility;
-      vendor_tags?: string[];
       tags?: string[];
-      cost_data?: CostShareData;
       ad_disclosure?: AdDisclosure;
       sponsorship_detail?: string;
-      price_data?: PriceData;
-      is_quick_review?: boolean;
-      rating?: number;
-      poll?: CreatePollInput | null;
     };
+
+    if (
+      typeof rawTitle !== "string" ||
+      rawTitle.length > 200 ||
+      typeof rawContent !== "string" ||
+      rawContent.length > 50_000 ||
+      (rawSponsorshipDetail !== undefined &&
+        (typeof rawSponsorshipDetail !== "string" ||
+          rawSponsorshipDetail.length > 500)) ||
+      (rawTags !== undefined &&
+        (!Array.isArray(rawTags) ||
+          rawTags.length > 10 ||
+          rawTags.some((tag) => typeof tag !== "string" || tag.length > 30)))
+    ) {
+      return NextResponse.json(
+        { error: "게시글 입력 형식이나 길이를 확인해주세요." },
+        { status: 400 },
+      );
+    }
 
     // 광고 표시 필수 검증
     const validAdDisclosures: AdDisclosure[] = ["general", "sponsored", "ad"];
@@ -369,6 +494,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const adDisclosure: AdDisclosure = rawAdDisclosure;
+    if (adDisclosure !== "sponsored" && rawSponsorshipDetail !== undefined) {
+      return NextResponse.json(
+        { error: "협찬 내용은 협찬 포함 글에만 입력할 수 있습니다." },
+        { status: 400 },
+      );
+    }
     let sponsorshipDetail: string | null = null;
     if (adDisclosure === "sponsored") {
       const d = cleanOptionalText(rawSponsorshipDetail, 500) ?? "";
@@ -381,19 +512,6 @@ export async function POST(req: NextRequest) {
       sponsorshipDetail = d;
     }
 
-    // price_data 검증
-    let priceData: PriceData | null = null;
-    if (rawPriceData && typeof rawPriceData.base_price === "number" && rawPriceData.base_price > 0) {
-      priceData = {
-        vendor_category: rawPriceData.vendor_category,
-        base_price: rawPriceData.base_price,
-        extra_price: rawPriceData.extra_price,
-        vendor_name: cleanOptionalText(rawPriceData.vendor_name, 100),
-        region: cleanOptionalText(rawPriceData.region, 100),
-        details: cleanOptionalText(rawPriceData.details, 1000),
-      };
-    }
-
     // 입력 검증 및 정화
     const title = cleanOptionalText(rawTitle, 200);
     if (!title || title.length === 0) {
@@ -403,165 +521,98 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const content = sanitizeHtml(typeof rawContent === "string" ? rawContent : "").slice(0, 50000);
-    const contentImagesResult = validateCommunityHtmlImageSources(content, {
-      ownerIds: user.id,
-    });
-    if (!contentImagesResult.ok) return invalidCommunityMediaResponse();
-
-    // 카드 게시물(슬라이드)이면 캡션이 비어도 허용 — 슬라이드 자체가 본문 역할.
-    const hasSlides = Array.isArray(rawSlides) && rawSlides.length > 0;
-    if (!hasSlides && (!content || content.trim().length === 0)) {
+    if (/<\s*img\b/i.test(rawContent)) {
+      return NextResponse.json(
+        {
+          error: "커뮤니티 미디어는 안전한 보관·삭제 수명주기가 검증될 때까지 제공하지 않습니다.",
+          code: "community_media_retired",
+        },
+        { status: 410 },
+      );
+    }
+    const content = sanitizeHtml(rawContent);
+    if (!content || content.trim().length === 0) {
       return NextResponse.json(
         { error: "내용을 입력해주세요." },
         { status: 400 }
       );
     }
-
     // 태그 검증: 최대 10개, 각 최대 30자
-    const tags = (Array.isArray(rawTags) ? rawTags : [])
-      .slice(0, 10)
-      .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
-      .filter((t: string) => t.length > 0);
-
-    // vendor_tags 검증: 최대 5개
-    const vendor_tags = (Array.isArray(rawVendorTags) ? rawVendorTags : [])
-      .filter((tag): tag is string => typeof tag === "string")
-      .slice(0, 5);
-
-    // 이미지 검증: 최대 10개, 각 URL은 https://로 시작
-    const images: string[] = [];
-    for (const rawImageUrl of (Array.isArray(rawImages) ? rawImages : []).slice(0, 10)) {
-      const mediaResult = validateCommunityAttachmentUrl(rawImageUrl, {
-        ownerIds: user.id,
-      });
-      if (!mediaResult.ok) return invalidCommunityMediaResponse();
-      images.push(mediaResult.url);
-    }
-
-    // 카드 게시물(인스타 캐러셀) 슬라이드 검증.
-    // 최대 10장, 각 슬라이드는 { type: 'image'|'video', url: https:// } 필수.
-    // 잘못된 형식은 자동으로 제거. 결과 배열이 비면 null로 저장 (일반 글로 처리).
-    let slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> | null = null;
-    if (Array.isArray(rawSlides) && rawSlides.length > 0) {
-      const cleaned: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
-      for (const s of rawSlides.slice(0, 10)) {
-        const type: "image" | "video" = s?.type === "video" ? "video" : "image";
-        const mediaResult = validateCommunityMediaUrl(s?.url, {
-          kind: type,
-          ownerIds: user.id,
-        });
-        if (!mediaResult.ok) return invalidCommunityMediaResponse();
-
-        const out: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
-          type,
-          url: mediaResult.url,
-        };
-        if (typeof s.width === "number" && s.width > 0) out.width = Math.min(8192, Math.round(s.width));
-        if (typeof s.height === "number" && s.height > 0) out.height = Math.min(8192, Math.round(s.height));
-        if (typeof s.thumbnail_url === "string" && s.thumbnail_url.trim().length > 0) {
-          const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
-            kind: "image",
-            ownerIds: user.id,
-          });
-          if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
-          out.thumbnail_url = thumbnailResult.url;
-        }
-        cleaned.push(out);
-      }
-      if (cleaned.length > 0) slides = cleaned;
-    }
-
-    if (!category || !visibility) {
+    const tags = (rawTags ?? []).map((tag) => sanitizeText(tag));
+    if (tags.some((tag) => tag.length === 0)) {
       return NextResponse.json(
-        { error: "필수 항목을 입력해주세요." },
-        { status: 400 }
+        { error: "빈 태그는 저장할 수 없습니다." },
+        { status: 400 },
       );
     }
 
-    let pollDraft: {
-      question: string;
-      options: Array<{ position: number; label: string; image_url: string | null }>;
-      allow_multiple: boolean;
-      is_anonymous: boolean;
-      hide_results_until_voted: boolean;
-      closes_at: string | null;
-    } | null = null;
-    if (rawPoll && typeof rawPoll === "object") {
-      const question = cleanOptionalText(rawPoll.question, 200) ?? "";
-      const rawOptions = Array.isArray(rawPoll.options) ? rawPoll.options : [];
-      const cleanOptions: Array<{ position: number; label: string; image_url: string | null }> = [];
-
-      for (const [idx, option] of rawOptions.slice(0, 10).entries()) {
-        const label = cleanOptionalText(option?.label, 100) ?? "";
-        if (!label) continue;
-
-        let imageUrl: string | null = null;
-        if (typeof option?.image_url === "string" && option.image_url.trim().length > 0) {
-          const imageResult = validateCommunityMediaUrl(option.image_url, {
-            kind: "image",
-            ownerIds: user.id,
-          });
-          if (!imageResult.ok) return invalidCommunityMediaResponse();
-          imageUrl = imageResult.url;
-        }
-
-        cleanOptions.push({ position: idx, label, image_url: imageUrl });
-      }
-
-      if (question.length > 0 && cleanOptions.length >= 2) {
-        let closesAt: string | null = null;
-        if (rawPoll.closes_at && typeof rawPoll.closes_at === "string") {
-          const t = Date.parse(rawPoll.closes_at);
-          if (!isNaN(t) && t > Date.now()) closesAt = new Date(t).toISOString();
-        }
-
-        pollDraft = {
-          question,
-          options: cleanOptions,
-          allow_multiple: !!rawPoll.allow_multiple,
-          is_anonymous: !!rawPoll.is_anonymous,
-          hide_results_until_voted: !!rawPoll.hide_results_until_voted,
-          closes_at: closesAt,
-        };
-      }
+    if (!isCommunityCategory(category) || !["public", "members", "draft"].includes(visibility)) {
+      return NextResponse.json(
+        { error: "카테고리와 공개 범위를 확인해주세요." },
+        { status: 400 }
+      );
     }
 
     const serviceClient = getServiceClient();
 
     // 커뮤니티 프로필 자동 생성 (없으면)
-    const { data: existingProfile } = await serviceClient
+    const { data: existingProfile, error: existingProfileError } = await serviceClient
       .from("community_profiles")
-      .select("user_id, post_count")
+      .select("user_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
+
+    if (existingProfileError) {
+      return NextResponse.json(
+        { error: "작성자 프로필 상태를 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     if (!existingProfile) {
       const nickname = getSafeDefaultCommunityNickname(null, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(`${user.id}:collision`);
       const createProfilePayload = {
         user_id: user.id,
-        nickname,
         badge: "member",
         post_count: 0,
         comment_count: 0,
         total_upvotes_received: 0,
       };
 
-      const { error: profileInsertError } = await serviceClient
+      let { error: profileInsertError } = await serviceClient
         .from("community_profiles")
-        .insert(createProfilePayload);
+        .insert({ ...createProfilePayload, nickname });
 
-      if (
-        profileInsertError &&
-        isCommunityNicknameUniqueViolation(profileInsertError) &&
-        nickname !== fallbackNickname
-      ) {
-        await serviceClient
+      for (let attempt = 1; attempt < 5; attempt += 1) {
+        if (!profileInsertError || !isCommunityNicknameUniqueViolation(profileInsertError)) {
+          break;
+        }
+        const retryResult = await serviceClient
           .from("community_profiles")
-          .insert({ ...createProfilePayload, nickname: fallbackNickname });
+          .insert({
+            ...createProfilePayload,
+            nickname: getCommunityNicknameFallback(),
+          });
+        profileInsertError = retryResult.error;
+      }
+
+      if (profileInsertError) {
+        return NextResponse.json(
+          { error: "작성자 프로필을 만들지 못했습니다." },
+          { status: 503 },
+        );
       }
     }
+
+    const authorActorId = await getCommunityActorIdForUser(user.id);
+    if (!authorActorId) {
+      return NextResponse.json(
+        { error: "작성자 프로필을 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
+    const authorMap = await getCommunityAuthorMap(serviceClient, [authorActorId]);
+    const publicAuthor = requireCommunityAuthor(authorMap, authorActorId);
 
     // 게시글 생성
     const { data: post, error } = await serviceClient
@@ -571,17 +622,10 @@ export async function POST(req: NextRequest) {
         category,
         title,
         content,
-        images: images ?? [],
-        slides,
         visibility,
-        vendor_tags: vendor_tags ?? [],
         tags: tags ?? [],
-        cost_data: cost_data ?? null,
         ad_disclosure: adDisclosure,
         sponsorship_detail: sponsorshipDetail,
-        price_data: priceData,
-        is_quick_review: is_quick_review ?? false,
-        rating: typeof rating === "number" ? rating : null,
         upvote_count: 0,
         downvote_count: 0,
         comment_count: 0,
@@ -590,7 +634,7 @@ export async function POST(req: NextRequest) {
         is_pinned: false,
         is_weekly_best: false,
       })
-      .select("*")
+      .select(COMMUNITY_POST_PUBLIC_SELECT)
       .single();
 
     if (error) {
@@ -599,84 +643,6 @@ export async function POST(req: NextRequest) {
         { error: "게시글 작성에 실패했습니다." },
         { status: 500 }
       );
-    }
-
-    // ─────── 폴 생성 (있을 경우) ───────
-    // 폴 INSERT 실패 시 게시글 자체를 롤백하여 고아 글 방지
-    if (pollDraft) {
-      const question = pollDraft.question;
-      const cleanOptions = pollDraft.options;
-
-      // 질문/옵션이 모두 충족된 경우에만 생성. 부분 입력이면 폴 없이 진행 (UX 친화적)
-      if (question.length > 0 && cleanOptions.length >= 2) {
-        // 마감일 검증 (미래여야 함)
-        const { data: pollRow, error: pollErr } = await serviceClient
-          .from("community_polls")
-          .insert({
-            post_id: post.id,
-            question,
-            allow_multiple: pollDraft.allow_multiple,
-            is_anonymous: pollDraft.is_anonymous,
-            hide_results_until_voted: pollDraft.hide_results_until_voted,
-            closes_at: pollDraft.closes_at,
-          })
-          .select("id")
-          .single();
-
-        if (pollErr || !pollRow) {
-          console.error("[posts.POST] poll insert failed, rolling back post:", pollErr);
-          await serviceClient.from("community_posts").delete().eq("id", post.id);
-          return NextResponse.json(
-            { error: "투표 생성에 실패했습니다." },
-            { status: 500 }
-          );
-        }
-
-        const optionsPayload = cleanOptions.map((o) => ({
-          poll_id: pollRow.id,
-          position: o.position,
-          label: o.label,
-          image_url: o.image_url,
-        }));
-
-        const { error: optErr } = await serviceClient
-          .from("community_poll_options")
-          .insert(optionsPayload);
-
-        if (optErr) {
-          console.error("[posts.POST] poll options insert failed, rolling back:", optErr);
-          await serviceClient.from("community_polls").delete().eq("id", pollRow.id);
-          await serviceClient.from("community_posts").delete().eq("id", post.id);
-          return NextResponse.json(
-            { error: "투표 선택지 생성에 실패했습니다." },
-            { status: 500 }
-          );
-        }
-      }
-    }
-
-    // post_count 증가 — 실패해도 INSERT 응답에 영향 없도록 격리
-    try {
-      await serviceClient
-        .rpc("community_increment_profile_count", {
-          p_user_id: user.id,
-          p_field: "post_count",
-        })
-        .then(({ error: rpcError }) => {
-          if (rpcError) {
-            return serviceClient
-              .from("community_profiles")
-              .update({
-                post_count: (existingProfile as Record<string, number>)
-                  ?.post_count
-                  ? (existingProfile as Record<string, number>).post_count + 1
-                  : 1,
-              })
-              .eq("user_id", user.id);
-          }
-        });
-    } catch (e) {
-      console.error("[posts.POST] post_count increment failed (non-fatal):", e);
     }
 
     // 새 글이 랜딩 / 커뮤니티 ISR 캐시에 즉시 반영되도록 — 실패해도 응답은 성공
@@ -688,25 +654,19 @@ export async function POST(req: NextRequest) {
       console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
     }
 
-    // price_data가 있으면 카테고리 무관 AI 코멘트 생성 — fire-and-forget
-    // (코멘트는 결정론적 시세 벤치마크라 비용 부담 없음. 응답을 막지 않게 백그라운드 처리)
-    if (priceData) {
-      void (async () => {
-        try {
-          const aiComment = await generateAiPriceComment(priceData);
-          if (aiComment) {
-            await serviceClient
-              .from("community_posts")
-              .update({ ai_comment: aiComment })
-              .eq("id", post.id);
-          }
-        } catch (aiErr) {
-          console.error("AI comment generation failed:", aiErr);
-        }
-      })();
-    }
-
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json(
+      {
+        post: {
+          ...post,
+          author: publicAuthor,
+          viewer_is_author: true,
+          user_vote: null,
+          user_bookmarked: false,
+          poll: null,
+        },
+      },
+      { status: 201 },
+    );
   } catch (err) {
     console.error("Create post error:", err);
     return NextResponse.json(

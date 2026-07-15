@@ -11,14 +11,12 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import {
   ChevronRight,
   LogOut,
   HelpCircle,
   TrendingUp,
-  BookOpen,
-  Store,
   Settings,
   MessageCircle,
   CalendarCheck,
@@ -26,14 +24,16 @@ import {
   Heart,
   Wallet,
   PenSquare,
-  Users,
   ThumbsUp,
   Info,
+  EyeOff,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 import * as Application from "expo-application";
-import { ActionRow, IconBadge } from "@/components/ui/AppUI";
+import { ActionRow, IconBadge, LoadingState } from "@/components/ui/AppUI";
+import ErrorRetry from "@/components/ErrorRetry";
 
 interface ProfileData {
   name: string | null;
@@ -50,6 +50,31 @@ interface ActivityStats {
   commentCount: number;
   bookmarkCount: number;
   totalUpvotes: number;
+}
+
+type ProfileLoadSource = "auth" | "profile" | "journey" | "partner";
+
+class ProfileLoadError extends Error {
+  constructor(
+    readonly source: ProfileLoadSource,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ProfileLoadError";
+  }
+}
+
+function profileLoadMessage(source: ProfileLoadSource): string {
+  switch (source) {
+    case "auth":
+      return "로그인 상태를 확인하지 못했어요.";
+    case "profile":
+      return "내 프로필을 불러오지 못했어요.";
+    case "journey":
+      return "결혼 준비 정보를 불러오지 못했어요.";
+    case "partner":
+      return "파트너 연결 정보를 불러오지 못했어요.";
+  }
 }
 
 function calcDday(dateStr: string | null): number | null {
@@ -78,78 +103,95 @@ export default function ProfileScreen() {
     totalUpvotes: 0,
   });
   const [statsError, setStatsError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadIssue, setLoadIssue] = useState<ProfileLoadSource | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadProfile = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("name, role, couple_id")
-      .eq("id", user.id)
-      .single();
-
-    let weddingDate: string | null = null;
-    let partnerName: string | null = null;
-
-    if (data?.couple_id) {
-      // 결혼일
-      const { data: journey } = await supabase
-        .from("wedding_journeys")
-        .select("wedding_date")
-        .eq("couple_id", data.couple_id)
-        .single();
-      weddingDate = journey?.wedding_date ?? null;
-
-      // 파트너 이름
-      const { data: partners } = await supabase.rpc("get_my_partner_public");
-      if (partners?.[0]) {
-        partnerName = partners[0].name ?? null;
+    setLoading(true);
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) throw new ProfileLoadError("auth", "authenticated_user_lookup_failed");
+      if (!user) {
+        router.replace("/(auth)/login");
+        return;
       }
-    }
 
-    // 커뮤니티 활동 통계
-    const { data: activityStatsRows, error: activityStatsError } = await supabase.rpc(
-      "get_my_community_activity_stats"
-    );
-    const activityStats = activityStatsRows?.[0] as
-      | {
-          post_count?: number | null;
-          comment_count?: number | null;
-          total_upvotes_received?: number | null;
+      const { data, error: profileError } = await readMySafeProfile();
+      if (profileError || !data) {
+        throw new ProfileLoadError("profile", "profile_lookup_failed");
+      }
+
+      let weddingDate: string | null = null;
+      let partnerName: string | null = null;
+
+      if (data.couple_id) {
+        const { data: journey, error: journeyError } = await supabase
+          .from("wedding_journeys")
+          .select("wedding_date")
+          .eq("couple_id", data.couple_id)
+          .single();
+        if (journeyError || !journey) {
+          throw new ProfileLoadError("journey", "journey_lookup_failed");
         }
-      | undefined;
+        weddingDate = journey.wedding_date ?? null;
 
-    // 북마크 수
-    const { count: bookmarkCount, error: bookmarkError } = await supabase
-      .from("community_bookmarks")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+        const { data: partners, error: partnerError } = await supabase.rpc(
+          "get_my_partner_public"
+        );
+        if (partnerError) {
+          throw new ProfileLoadError("partner", "partner_lookup_failed");
+        }
+        if (partners?.[0]) partnerName = partners[0].name ?? null;
+      }
 
-    if (activityStatsError || bookmarkError) {
-      setStatsError(true);
-    } else {
-      setStats({
-        postCount: activityStats?.post_count ?? 0,
-        commentCount: activityStats?.comment_count ?? 0,
-        bookmarkCount: bookmarkCount ?? 0,
-        totalUpvotes: activityStats?.total_upvotes_received ?? 0,
-      });
-      setStatsError(false);
+      const { data: activityStatsRows, error: activityStatsError } = await supabase.rpc(
+        "get_my_community_activity_stats"
+      );
+      const activityStats = activityStatsRows?.[0] as
+        | {
+            post_count?: number | null;
+            comment_count?: number | null;
+            total_upvotes_received?: number | null;
+          }
+        | undefined;
+
+      const { count: bookmarkCount, error: bookmarkError } = await supabase
+        .from("community_bookmarks")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      if (activityStatsError || bookmarkError) {
+        setStatsError(true);
+      } else {
+        setStats({
+          postCount: activityStats?.post_count ?? 0,
+          commentCount: activityStats?.comment_count ?? 0,
+          bookmarkCount: bookmarkCount ?? 0,
+          totalUpvotes: activityStats?.total_upvotes_received ?? 0,
+        });
+        setStatsError(false);
+      }
+
+      const nextProfile: ProfileData = {
+        name: data.name ?? null,
+        email: user.email ?? null,
+        role: data.role ?? null,
+        weddingDate,
+        dday: calcDday(weddingDate),
+        coupleId: data.couple_id ?? null,
+        partnerName,
+      };
+      setProfile(nextProfile);
+      setLoadIssue(null);
+    } catch (error) {
+      setLoadIssue(error instanceof ProfileLoadError ? error.source : "profile");
+    } finally {
+      setLoading(false);
     }
-
-    setProfile({
-      name: data?.name ?? null,
-      email: user.email ?? null,
-      role: data?.role ?? null,
-      weddingDate,
-      dday: calcDday(weddingDate),
-      coupleId: data?.couple_id ?? null,
-      partnerName,
-    });
   }, []);
 
   useEffect(() => {
@@ -187,6 +229,33 @@ export default function ProfileScreen() {
   const appVersion = Application.nativeApplicationVersion ?? "1.0.0";
   const buildNumber = Application.nativeBuildVersion ?? "1";
 
+  if (loading && !profile) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <LoadingState label="내 정보를 불러오고 있어요" />
+      </SafeAreaView>
+    );
+  }
+
+  if (loadIssue && !profile) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <ErrorRetry
+          message={profileLoadMessage(loadIssue)}
+          onRetry={() => void loadProfile()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <LoadingState label="로그인 상태를 확인하고 있어요" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
@@ -195,6 +264,21 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {loadIssue && profile && (
+          <View style={styles.profileLoadWarning} accessibilityRole="alert">
+            <Text style={styles.statsErrorTitle}>마지막으로 확인한 내 정보를 표시하고 있어요</Text>
+            <Text style={styles.statsErrorBody}>{profileLoadMessage(loadIssue)}</Text>
+            <Pressable
+              onPress={() => void loadProfile()}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="내 정보 다시 불러오기"
+              style={styles.statsRetryButton}
+            >
+              <Text style={styles.statsRetryText}>{loading ? "확인 중" : "다시 불러오기"}</Text>
+            </Pressable>
+          </View>
+        )}
         {/* 상단 프로필 영역 (다크 배경) */}
         <View style={styles.heroSection}>
           <Text style={styles.heroTitle}>내 정보</Text>
@@ -207,7 +291,7 @@ export default function ProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.name}>
-                  {profile?.name ?? "게스트"}
+                  {profile.name ?? "이름 미설정"}
                 </Text>
                 {roleLabel && (
                   <View style={styles.roleBadge}>
@@ -282,7 +366,7 @@ export default function ProfileScreen() {
             />
             <StatCard
               icon={ThumbsUp}
-              label="받은 추천"
+              label="받은 공감"
               value={stats.totalUpvotes}
             />
             </View>
@@ -304,19 +388,9 @@ export default function ProfileScreen() {
               onPress={() => router.push({ pathname: "/budget" as const })}
             />
             <MenuItem
-              icon={Store}
-              label="업체 탐색"
-              onPress={() => router.push({ pathname: "/vendors" })}
-            />
-            <MenuItem
               icon={TrendingUp}
               label="시세 정보"
               onPress={() => router.push({ pathname: "/market-prices" })}
-            />
-            <MenuItem
-              icon={BookOpen}
-              label="예절 가이드"
-              onPress={() => router.push({ pathname: "/etiquette" })}
               isLast
             />
           </View>
@@ -335,9 +409,9 @@ export default function ProfileScreen() {
               onPress={() => router.push({ pathname: "/community/my-bookmarks" })}
             />
             <MenuItem
-              icon={Users}
-              label="내 동기방"
-              onPress={() => router.push({ pathname: "/community/cohort-discovery" })}
+              icon={EyeOff}
+              label="숨긴 작성자"
+              onPress={() => router.push("/community/muted-authors" as Href)}
               isLast
             />
           </View>
@@ -574,6 +648,16 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     gap: 10,
+  },
+  profileLoadWarning: {
+    marginHorizontal: 20,
+    marginVertical: 12,
+    backgroundColor: "#FFF4F2",
+    borderColor: "#E8B4AB",
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   statsErrorCard: {
     minHeight: 112,

@@ -1,5 +1,8 @@
 # 세션 종합 — 2026-07-06 (일부 07-07 새벽)
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시의 완료·배포·라이브·테스트 주장과 기능 인벤토리는 현재 상태를 증명하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > **역사 문서**: AI 공급자와 모델에 관한 내용은 2026-07-06 당시 상태입니다. 2026-07-10부터 아모라 런타임은 OpenAI GPT-5.6 Terra/Luna입니다.
 
 > 이 문서는 2026-07-06 하루 작업의 전체 기록이다. **모든 변경은 배포·라이브 확인 완료,

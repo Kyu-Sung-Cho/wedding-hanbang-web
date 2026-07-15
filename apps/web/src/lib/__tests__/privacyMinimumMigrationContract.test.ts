@@ -209,7 +209,6 @@ describe("privacy minimum forward migration", () => {
       expect(sql).toContain("privacy_expected_effective_acl AS (");
       expect(sql).toContain("privacy_effective_acl AS (");
       expect(sql).toContain("privacy_minimum_contract AS (");
-      expect(sql).toContain("('cohort_contracts', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_profiles', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_achievements', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_vendor_tags', 'PUBLIC', ARRAY[]::text[])");

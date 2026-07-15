@@ -201,7 +201,7 @@ describe("OpenAI chat adapter", () => {
     await chatWithToolsStream({
       systemPrompt: "system",
       input: [{ role: "user", content: "업체 알려줘" }],
-      tools: [{ name: "search_vendors", input_schema: { type: "object" } }],
+      tools: [{ name: "get_schedule_summary", input_schema: { type: "object" } }],
       maxInputTokens: 1_000,
       beforeCreate: async () => ({
         tools: [],
@@ -212,7 +212,7 @@ describe("OpenAI chat adapter", () => {
     });
 
     expect(count).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      tools: expect.arrayContaining([expect.objectContaining({ name: "search_vendors" })]),
+      tools: expect.arrayContaining([expect.objectContaining({ name: "get_schedule_summary" })]),
     }));
     expect(count).toHaveBeenNthCalledWith(2, expect.objectContaining({
       tools: [],

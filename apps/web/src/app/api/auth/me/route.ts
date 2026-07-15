@@ -1,6 +1,11 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+import { readMySafeProfile } from "@/lib/profile/safeProfile";
+
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+} as const;
 
 function profileUnavailableResponse() {
   return NextResponse.json(
@@ -8,14 +13,23 @@ function profileUnavailableResponse() {
       code: "PROFILE_UNAVAILABLE",
       error: "프로필 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
     },
-    { status: 503, headers: { "Retry-After": "3" } }
+    { status: 503, headers: { ...PRIVATE_NO_STORE_HEADERS, "Retry-After": "3" } }
+  );
+}
+
+function accountStateUnavailableResponse() {
+  return NextResponse.json(
+    {
+      code: "ACCOUNT_STATE_UNAVAILABLE",
+      error: "커플 준비 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    },
+    { status: 503, headers: { ...PRIVATE_NO_STORE_HEADERS, "Retry-After": "3" } }
   );
 }
 
 export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
-    const includeDebug = process.env.NODE_ENV !== "production";
     const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
     const {
       data: { user },
@@ -23,31 +37,30 @@ export async function GET(request: Request) {
 
     if (!user) {
       if (isDemoRequest) {
-        return NextResponse.json({ user: null, demo: true });
+        return NextResponse.json(
+          { user: null, demo: true },
+          { headers: PRIVATE_NO_STORE_HEADERS },
+        );
       }
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+      return NextResponse.json(
+        { error: "인증이 필요합니다." },
+        { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
+      );
     }
 
-    const _debug: Record<string, unknown> = {};
-
-    // 프로필 조회 (RLS: profiles_select_own)
-    let profile = null;
-    const { data: profileData, error: profileSelectErr } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    // 원문 profiles SELECT 대신 본인 전용 최소 DTO RPC로 조회한다.
+    const { data: initialProfile, error: profileSelectErr } = await readMySafeProfile(supabase);
+    let profile = initialProfile;
 
     if (profileSelectErr) {
       console.error("AUTH_PROFILE_LOOKUP_FAILED", {
         userId: user.id,
-        reason: profileSelectErr.message,
+        state: "query_failed",
       });
       return profileUnavailableResponse();
     }
 
-    if (profileData) {
-      profile = profileData;
+    if (profile) {
 
       // 이름이 없으면 채워주기
       if (!profile.name) {
@@ -55,12 +68,7 @@ export async function GET(request: Request) {
           ?? user.user_metadata?.full_name
           ?? user.email?.split("@")[0]
           ?? "사용자";
-        const { error: nameErr } = await supabase
-          .from("profiles")
-          .update({ name })
-          .eq("id", user.id);
-        if (nameErr) _debug.nameUpdateError = nameErr.message;
-        profile.name = name;
+        profile = { ...profile, name };
       }
     } else {
       // 직접 profiles INSERT 권한은 권한상승 방지를 위해 회수했다. 서버 정의
@@ -72,19 +80,15 @@ export async function GET(request: Request) {
       if (profileInsertErr) {
         console.error("AUTH_PROFILE_ENSURE_FAILED", {
           userId: user.id,
-          reason: profileInsertErr.message,
+          state: "insert_failed",
         });
         return profileUnavailableResponse();
       } else {
-        const { data: newProfile, error: newProfileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle();
+        const { data: newProfile, error: newProfileError } = await readMySafeProfile(supabase);
         if (newProfileError || !newProfile) {
           console.error("AUTH_PROFILE_LOOKUP_AFTER_ENSURE_FAILED", {
             userId: user.id,
-            reason: newProfileError?.message ?? "profile_missing_after_ensure",
+            state: newProfileError ? "query_failed" : "profile_missing_after_ensure",
           });
           return profileUnavailableResponse();
         }
@@ -102,29 +106,37 @@ export async function GET(request: Request) {
         .from("couples")
         .select("id, bride_id, groom_id, created_at, updated_at")
         .eq("id", profile.couple_id)
-        .single();
+        .maybeSingle();
 
-      if (coupleErr) _debug.coupleSelectError = coupleErr.message;
+      if (coupleErr || !coupleData) {
+        console.error("AUTH_COUPLE_LOOKUP_FAILED", {
+          userId: user.id,
+          state: coupleErr ? "query_failed" : "linked_couple_missing",
+        });
+        return accountStateUnavailableResponse();
+      }
 
-      if (coupleData) {
-        // Invite tokens are served only by the ownership-verifying code RPC.
-        // Keep the auth-state shape stable without duplicating that secret.
-        couple = { ...coupleData, invite_code: null };
+      // Invite tokens are served only by the ownership-verifying code RPC.
+      // Keep the auth-state shape stable without duplicating that secret.
+      couple = { ...coupleData, invite_code: null };
 
-        // 파트너 정보
-        const partnerId =
-          coupleData.bride_id === user.id
-            ? coupleData.groom_id
-            : coupleData.bride_id;
-        if (partnerId) {
-          const { data: partnerRows, error: partnerErr } = await supabase
-            .rpc("get_my_partner_public");
-          if (partnerErr) _debug.partnerSelectError = partnerErr.message;
-          const partnerData = Array.isArray(partnerRows) ? partnerRows[0] : partnerRows;
-          partner = partnerData && partnerData.id === partnerId
-            ? { id: partnerData.id, name: partnerData.name, role: partnerData.role }
-            : null;
+      // 파트너 정보
+      const partnerId =
+        coupleData.bride_id === user.id
+          ? coupleData.groom_id
+          : coupleData.bride_id;
+      if (partnerId) {
+        const { data: partnerRows, error: partnerErr } = await supabase
+          .rpc("get_my_partner_public");
+        const partnerData = Array.isArray(partnerRows) ? partnerRows[0] : partnerRows;
+        if (partnerErr || !partnerData || partnerData.id !== partnerId) {
+          console.error("AUTH_PARTNER_LOOKUP_FAILED", {
+            userId: user.id,
+            state: partnerErr ? "query_failed" : "linked_partner_missing",
+          });
+          return accountStateUnavailableResponse();
         }
+        partner = { id: partnerData.id, name: partnerData.name, role: partnerData.role };
       }
 
       // 웨딩 여정 조회
@@ -132,9 +144,15 @@ export async function GET(request: Request) {
         .from("wedding_journeys")
         .select("*")
         .eq("couple_id", profile.couple_id)
-        .single();
+        .maybeSingle();
 
-      if (journeyErr) _debug.journeySelectError = journeyErr.message;
+      if (journeyErr) {
+        console.error("AUTH_JOURNEY_LOOKUP_FAILED", {
+          userId: user.id,
+          state: "query_failed",
+        });
+        return accountStateUnavailableResponse();
+      }
 
       if (journeyData) {
         journey = journeyData;
@@ -146,30 +164,38 @@ export async function GET(request: Request) {
             couple_id: profile.couple_id,
             wedding_date: null,
             venue: null,
-            total_budget: 20000000,
+            total_budget: 0,
             progress: {},
           })
           .select()
           .single();
 
-        if (journeyInsertErr) _debug.journeyInsertError = journeyInsertErr.message;
+        if (journeyInsertErr || !newJourney) {
+          console.error("AUTH_JOURNEY_ENSURE_FAILED", {
+            userId: user.id,
+            state: journeyInsertErr ? "insert_failed" : "insert_returned_no_row",
+          });
+          return accountStateUnavailableResponse();
+        }
         journey = newJourney;
       }
     }
 
-    return NextResponse.json({
-      user: { id: user.id, email: user.email },
-      profile,
-      couple,
-      partner,
-      journey,
-      ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),
-    });
-  } catch (err) {
-    console.error("Auth me 에러:", err);
+    return NextResponse.json(
+      {
+        user: { id: user.id, email: user.email },
+        profile,
+        couple,
+        partner,
+        journey,
+      },
+      { headers: PRIVATE_NO_STORE_HEADERS },
+    );
+  } catch {
+    console.error("AUTH_ME_UNHANDLED");
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: PRIVATE_NO_STORE_HEADERS }
     );
   }
 }

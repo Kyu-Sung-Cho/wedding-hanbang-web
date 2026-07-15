@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
+import { getJourneyProgressCounts } from "@hanbang/shared";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
 import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
 import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
@@ -47,7 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
-  not_started: "시작전",
+  not_started: "미정",
 };
 
 // 페이즈 정의
@@ -70,27 +71,27 @@ function buildPhases(): Phase[] {
 
   return [
     {
-      label: "초기 준비",
-      period: "12~10개월 전",
-      dday: "D-360 ~ D-270",
+      label: "기본 조건 참고",
+      period: "예식 형태와 날짜부터 확인",
+      dday: "선택 목록",
       categories: phase1,
     },
     {
-      label: "핵심 계약",
-      period: "10~6개월 전",
-      dday: "D-270 ~ D-120",
+      label: "업체 조건 참고",
+      period: "업체별 일정·계약 조건 직접 확인",
+      dday: "선택 목록",
       categories: phase2,
     },
     {
-      label: "세부 준비",
-      period: "6~3개월 전",
-      dday: "D-180 ~ D-30",
+      label: "세부 준비 참고",
+      period: "필요한 항목만 선택",
+      dday: "선택 목록",
       categories: phase3,
     },
     {
-      label: "마무리",
-      period: "3개월 ~ D-day",
-      dday: "D-90 ~ D-14",
+      label: "예식 전 확인 참고",
+      period: "확정 일정에 맞춰 직접 조정",
+      dday: "선택 목록",
       categories: phase4,
     },
   ].filter((p) => p.categories.length > 0);
@@ -155,21 +156,20 @@ export default function TimelineView({
 
   return (
     <div className="relative">
+      <p className="relative z-10 mb-4 rounded-xl border border-[#eadfc9] bg-[#fffaf0] px-4 py-3 text-[12px] font-medium leading-5 text-[#5d6879]">
+        아래 묶음은 일반적인 참고 목록이며 개인 일정이나 필수 순서가 아닙니다. 필요한 항목만 골라 시작하고 실제 마감은 업체와 직접 확인해 주세요.
+      </p>
       <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-[#795252] via-[#946a6a] to-[#C9A96E] max-md:left-[15px]" />
 
       {phases.map((phase, pi) => {
         const isPhaseExpanded = expandedPhase === pi;
 
-        const phaseStats = phase.categories.reduce(
-          (acc, cat) => {
-            const data = getCategoryData(cat.key);
-            return {
-              done: acc.done + data.done,
-              total: acc.total + data.total,
-            };
-          },
-          { done: 0, total: 0 }
+        const phaseProgress = Object.fromEntries(
+          phase.categories
+            .filter((category) => Object.prototype.hasOwnProperty.call(progress, category.key))
+            .map((category) => [category.key, progress[category.key]])
         );
+        const phaseStats = getJourneyProgressCounts(phaseProgress);
         const allPhaseDone =
           phaseStats.total > 0 && phaseStats.done === phaseStats.total;
 
@@ -211,7 +211,7 @@ export default function TimelineView({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-[12px] font-medium text-[#7a8290]">
-                    {phaseStats.done}/{phaseStats.total}
+                    {phaseStats.total > 0 ? `${phaseStats.done}/${phaseStats.total}` : "기록 없음"}
                   </span>
                   {isPhaseExpanded ? (
                     <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
@@ -271,18 +271,21 @@ export default function TimelineView({
                                   </span>
                                 )}
                               </div>
-                              {/* 진행률 바 */}
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
-                                  <div
-                                    className="h-full rounded-full bg-[#36534E] transition-all duration-500"
-                                    style={{ width: `${percent}%` }}
-                                  />
+                              {data.status === "not_started" ? (
+                                <p className="text-[12px] font-medium text-[#7a8290]">선택 항목 · 필요할 때 시작</p>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
+                                    <div
+                                      className="h-full rounded-full bg-[#36534E] transition-all duration-500"
+                                      style={{ width: `${percent}%` }}
+                                    />
+                                  </div>
+                                  <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
+                                    {data.done}/{data.total}
+                                  </span>
                                 </div>
-                                <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
-                                  {data.done}/{data.total}
-                                </span>
-                              </div>
+                              )}
                             </div>
 
                             <div className="flex-shrink-0">

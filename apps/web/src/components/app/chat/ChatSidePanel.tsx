@@ -1,19 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw } from "lucide-react";
+import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, Heart, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import ChatBubble from "./ChatBubble";
 import ActionCard from "./ActionCard";
-import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
 import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
+import AttachmentPrivacyNotice from "./AttachmentPrivacyNotice";
+import { attachmentProviderConsentVersion } from "@hanbang/shared";
 
 const MAX_ATTACHMENTS = 3;
 const MAX_TOTAL_ATTACHMENT_BYTES = 2 * 1024 * 1024;
@@ -24,7 +25,6 @@ const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
   "image/gif": { maxSize: 2 * 1024 * 1024, label: "이미지" },
   "image/webp": { maxSize: 2 * 1024 * 1024, label: "이미지" },
   "application/pdf": { maxSize: 2 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 2 * 1024 * 1024, label: "DOCX" },
 };
 
 interface AttachmentItem {
@@ -68,6 +68,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const [input, setInput] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [attachmentPrivacyConfirmed, setAttachmentPrivacyConfirmed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
   const [showMediationBanner, setShowMediationBanner] = useState(false);
@@ -89,7 +90,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       sender_role: "ai",
       visibility: "shared",
       content:
-        "안녕하세요, 저는 아모라예요. 데모에서는 실제 저장 없이 예산, 일정, 견적, 준비 체크리스트 상담 흐름을 미리 체험할 수 있어요. 지금 궁금한 준비 항목을 편하게 물어보세요.",
+        "안녕하세요, 저는 아모라예요. 데모에서는 실제 저장 없이 업체 원문에서 확인할 질문과 예산·일정 정리 흐름을 미리 체험할 수 있어요. 지금 궁금한 준비 항목을 편하게 물어보세요.",
       metadata: {},
       created_at: new Date().toISOString(),
     };
@@ -183,15 +184,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
+    if (isDemo) return;
+    if (messageTarget !== "ai") return;
     const typeInfo = ALLOWED_TYPES[file.type];
     if (!typeInfo) {
-      alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, DOCX 가능)`);
+      alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF 가능)`);
       return;
     }
     if (file.size > typeInfo.maxSize) {
       alert(`${typeInfo.label} 파일은 2MB 이하만 가능해요.`);
       return;
     }
+    setAttachmentPrivacyConfirmed(false);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -216,7 +220,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       });
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [isDemo, messageTarget]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -232,14 +236,19 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   }, [processFile]);
 
   const removeAttachment = (index: number) => {
+    setAttachmentPrivacyConfirmed(false);
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 드래그 & 드롭
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    if (isDemo || messageTarget !== "ai") {
+      e.dataTransfer.dropEffect = "none";
+      return;
+    }
     setIsDragging(true);
-  }, []);
+  }, [isDemo, messageTarget]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -249,28 +258,33 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (isDemo || messageTarget !== "ai") return;
     const files = e.dataTransfer.files;
     Array.from(files).forEach(processFile);
-  }, [processFile]);
+  }, [isDemo, messageTarget, processFile]);
 
   const handleSend = useCallback(
     async (text?: string) => {
+      if (isDemo) return;
       const content = text ?? input.trim();
       if ((!content && attachments.length === 0) || !coupleId || !profile) return;
+      if (attachments.length > 0 && !attachmentPrivacyConfirmed) return;
+      if (attachments.length > 0 && messageTarget !== "ai") return;
 
       const currentAttachments = [...attachments];
       setInput("");
       setAttachments([]);
+      setAttachmentPrivacyConfirmed(false);
 
       // 첨부만 있고 텍스트 없으면 기본 메시지 생성
       let finalContent = content;
       if (!content && currentAttachments.length > 0) {
-        const hasDoc = currentAttachments.some((a) =>
-          a.mediaType.includes("word") || a.mediaType.includes("spreadsheet") || a.mediaType.includes("ms-excel")
-        );
         const hasPdf = currentAttachments.some((a) => a.mediaType === "application/pdf");
-        if (hasDoc || hasPdf) finalContent = "이 문서를 분석해주세요.";
-        else finalContent = "이 이미지를 분석해주세요.";
+        if (hasPdf) {
+          finalContent = "이 문서에서 확인할 항목과 업체에 물어볼 질문을 뽑아주세요. 원문에 없는 내용은 추측하지 말아주세요.";
+        } else {
+          finalContent = "이 이미지에서 읽을 수 있는 내용만 바탕으로 확인할 항목과 질문을 뽑아주세요. 보이지 않는 내용은 추측하지 말아주세요.";
+        }
       }
 
       const userMessageStored = await sendMessage({
@@ -286,6 +300,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           progress: journey?.progress ?? {},
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
+        attachmentProviderConsentVersion: attachmentPrivacyConfirmed
+          ? attachmentProviderConsentVersion
+          : undefined,
         target: messageTarget,
       });
 
@@ -300,7 +317,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         return [...restored, ...current].slice(0, MAX_ATTACHMENTS);
       });
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
+    [input, attachments, attachmentPrivacyConfirmed, coupleId, profile, journey, sendMessage, messageTarget, isDemo]
   );
 
   // 중재 요청
@@ -334,8 +351,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   const getFileIcon = (mediaType: string) => {
     if (mediaType.includes("pdf")) return <FileText className="w-4 h-4 text-red-500" />;
-    if (mediaType.includes("word")) return <FileText className="w-4 h-4 text-blue-500" />;
-    if (mediaType.includes("excel") || mediaType.includes("spreadsheet")) return <FileSpreadsheet className="w-4 h-4 text-green-500" />;
     return null;
   };
 
@@ -507,7 +522,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   <Sparkles className="mx-auto mb-3 h-8 w-8 text-rose-500/30" aria-hidden="true" />
                   <p className="text-sm font-medium text-noir-800">안녕하세요, 아모라예요.</p>
                   <p className="mt-2 text-xs leading-relaxed text-taupe-500">
-                    채팅을 여는 것만으로 상담 횟수는 차감되지 않아요.
+                    채팅을 여는 것만으로 AI 사용량이 발생하지 않아요.
                     <br />궁금한 준비를 직접 입력해 주세요.
                   </p>
                 </div>
@@ -547,13 +562,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                             seen.add(key);
                             return true;
                           });
-                        })().map((result, i) =>
-                          VENDOR_TOOL_NAMES.has(result.toolName) ? (
-                            <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
-                          ) : (
-                            <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
-                          )
-                        )}
+                        })().map((result, i) => (
+                          <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
+                        ))}
                     </div>
                   );
                 });
@@ -561,7 +572,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
               {isStreaming && (
                 <div className="animate-fade-in">
-                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onSend={handleSend} onCancel={cancelAiResponse} />
+                  <StreamingBubble content={streamingContent} toolResults={streamingToolResults} onCancel={cancelAiResponse} />
                 </div>
               )}
 
@@ -638,6 +649,15 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               </div>
             )}
 
+            {attachments.length > 0 && messageTarget === "ai" && (
+              <AttachmentPrivacyNotice
+                confirmed={attachmentPrivacyConfirmed}
+                onConfirmedChange={setAttachmentPrivacyConfirmed}
+                showPartnerBoundary={hasCouplePartner}
+                compact
+              />
+            )}
+
             {/* 입력 영역 */}
             <div className="px-3 pb-3 pt-1">
               {/* 대상 토글 (커플 연동 시) */}
@@ -659,11 +679,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <button
                   type="button"
                   onClick={() => setMessageTarget("partner")}
+                  disabled={attachments.length > 0}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
                   aria-pressed={messageTarget === "partner"}
                 >
                     <Heart className="w-3 h-3" aria-hidden="true" />
@@ -672,14 +693,20 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 </div>
               )}
 
+              {messageTarget === "ai" && (
+                <p className="mb-1.5 px-1 text-[0.625rem] leading-relaxed text-taupe-500">
+                  확인할 항목과 질문을 정리해요. 실시간 업체·장소 검색이나 예약은 제공하지 않아요.
+                </p>
+              )}
+
               <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex items-center gap-1.5 p-1.5">
                 {/* 첨부파일 버튼 */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
+                  disabled={isDemo || isStreaming || messageTarget !== "ai" || attachments.length >= MAX_ATTACHMENTS}
                   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors disabled:opacity-30 flex-shrink-0"
-                  title="파일 첨부"
+                  title={messageTarget === "ai" ? "파일 첨부" : "파일 첨부는 아모라 상담에서만 사용할 수 있어요"}
                   aria-label="파일 첨부"
                 >
                   <Paperclip className="w-4 h-4 text-taupe-400" aria-hidden="true" />
@@ -690,6 +717,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                   accept={Object.keys(ALLOWED_TYPES).join(",")}
                   multiple
                   onChange={handleFileSelect}
+                  disabled={isDemo || messageTarget !== "ai"}
                   className="hidden"
                 />
 
@@ -703,13 +731,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       handleSend();
                     }
                   }}
-                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "무엇이든 물어보세요..."}
-                  disabled={isStreaming}
+                  placeholder={messageTarget === "partner" ? "상대방에게 메시지…" : "계약서·일정·예산 정리 질문…"}
+                  disabled={isDemo || isStreaming}
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button
                   onClick={() => handleSend()}
-                  disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                  disabled={
+                    isDemo ||
+                    (!input.trim() && attachments.length === 0) ||
+                    isStreaming ||
+                    (attachments.length > 0 && !attachmentPrivacyConfirmed)
+                  }
                   aria-label={messageTarget === "partner" ? "상대방에게 메시지 보내기" : "아모라에게 메시지 보내기"}
                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
                     messageTarget === "partner"

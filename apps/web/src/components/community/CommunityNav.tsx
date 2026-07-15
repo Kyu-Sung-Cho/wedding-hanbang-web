@@ -2,30 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Menu, PenSquare, X } from "lucide-react";
 import UserMenu from "@/components/community/UserMenu";
 import Logo from "@/components/ui/Logo";
-import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
+import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const baseNavItems = [
   { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
-  { linkProps: weddingLinkProps("/community/cohort"), legacyPath: "/community/cohort", label: "동기방" },
   { linkProps: weddingLinkProps("/lounge"), legacyPath: "/lounge", label: "웨딩 라운지" },
 ];
 
 export default function CommunityNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const pathname = usePathname();
   const profile = useAuthStore((state) => state.profile);
-  const currentPath = stripWeddingBasePath(pathname);
-  const isCohortRoom = /^\/community\/cohort\/[^/]+/.test(currentPath);
-  const navItems = isCohortRoom
-    ? baseNavItems.map((item) =>
-        item.legacyPath === "/community/cohort" ? { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" } : item
-      )
-    : baseNavItems;
+  const navItems = baseNavItems;
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#eadfc9] bg-[#fffdf7]/94 backdrop-blur-xl">

@@ -1,5 +1,7 @@
 # 유통 테스트 — 바로 올리는 완성본 (2026-06-12)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 제목과 본문의 “바로 올리기·그대로 복붙” 지시는 폐기됐다. 오래된 가격·법률·위약금 수치와 기능 링크를 게시하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 배포 문안 스냅샷입니다.** 현재 게시·복붙 지침이 아니며, 위약금·환급액 등 법률 계산 문구는 최신 근거와 전문가 검토 없이 사용하지 않습니다. 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

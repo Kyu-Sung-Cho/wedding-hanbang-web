@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  SIGNUP_PRIVACY_VERSION,
+  SIGNUP_TERMS_VERSION,
+} from "@/lib/auth/signupConsent";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
@@ -108,12 +112,33 @@ export async function POST(request: Request) {
       ? body.turnstileToken
       : null;
     const marketingAgreed = body.marketingAgreed;
+    const termsVersion = body.termsVersion;
+    const privacyVersion = body.privacyVersion;
     const rawNext = body.next;
     const email = normalizeEmail(rawEmail);
     const name = cleanOptionalText(rawName, 60);
     const returnPath = sanitizeAuthReturnPath(rawNext);
-    // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
-    const marketingConsent = marketingAgreed === true;
+    if (marketingAgreed !== undefined && marketingAgreed !== false) {
+      return NextResponse.json(
+        {
+          error: "마케팅 수신 동의는 별도의 검증된 선택 화면이 마련되기 전에는 받지 않습니다.",
+          code: "marketing_consent_not_collected",
+        },
+        { status: 400 },
+      );
+    }
+    if (
+      termsVersion !== SIGNUP_TERMS_VERSION ||
+      privacyVersion !== SIGNUP_PRIVACY_VERSION
+    ) {
+      return NextResponse.json(
+        {
+          error: "최신 이용약관과 개인정보 처리방침을 확인한 뒤 다시 시도해주세요.",
+          code: "signup_consent_version_mismatch",
+        },
+        { status: 400 },
+      );
+    }
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
@@ -165,7 +190,14 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        data: { name, marketing_agreed: marketingConsent },
+        data: {
+          name,
+          marketing_agreed: false,
+          signup_terms_version: SIGNUP_TERMS_VERSION,
+          signup_privacy_version: SIGNUP_PRIVACY_VERSION,
+          signup_consent_recorded_at: new Date().toISOString(),
+          signup_consent_source: "web_signup",
+        },
         redirectTo: callbackUrl.toString(),
       },
     });

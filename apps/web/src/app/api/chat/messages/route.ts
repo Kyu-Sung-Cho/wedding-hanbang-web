@@ -2,7 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { checkRateLimit, checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -13,7 +13,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "메시지가 너무 깁니다." }, { status: 413 });
     }
     const supabase = await createClientFromRequest(request);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
     if (!user) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 
     const limited = await checkRateLimitPersistent(rateLimitKey("chat:messages:create", request, user.id), {
@@ -89,7 +95,15 @@ export async function DELETE(request: Request) {
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
 
     const isDemo = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
 
@@ -135,10 +149,10 @@ export async function DELETE(request: Request) {
       isLifecycleContinuation = Boolean(lifecycle?.private_chat_deleting_at);
     }
     if (!isLifecycleContinuation) {
-      const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
+      const limited = await checkRateLimitPersistent(rateLimitKey("chat:messages:delete", request, user!.id), {
         maxRequests: 10,
         windowMs: 10 * 60 * 1000,
-      });
+      }, user!.id);
       if (limited) return limited;
     }
 

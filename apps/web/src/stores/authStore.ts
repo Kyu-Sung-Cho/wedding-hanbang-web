@@ -2,22 +2,17 @@
 
 import { create } from "zustand";
 import { createClient } from "@/lib/supabase/client";
-import { useCommunityStore } from "@/stores/communityStore";
-import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
+import type { Profile, PublicPartnerProfile, Couple, WeddingJourney } from "@/types/database.types";
 
 // 데모 모드 샘플 데이터
 const DEMO_PROFILE: Profile = {
   id: "demo",
   name: "김지은",
-  email: "demo@hanbang.ai",
   role: "bride",
   couple_id: "demo-couple",
-  avatar_url: null,
   onboarding_completed: true,
   onboarding_step: 5,
-  is_admin: false,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
+  has_phone: false,
 };
 
 const DEMO_COUPLE: Couple = {
@@ -119,21 +114,6 @@ const DEMO_JOURNEY: WeddingJourney = {
       { id: "evt_demo3", date: "2026-05-01", title: "본식 스냅 작가 후보 비교", categoryKey: "snap", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
       { id: "evt_demo4", date: "2026-06-20", title: "상견례 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
     ],
-    __amora_actions: [
-      {
-        id: "act_demo_snap_original",
-        title: "스냅 원본 제공 범위 확인하기",
-        description: "견적서에 원본 제공 여부와 추가금 기준이 같은 말로 적혀 있는지 확인해두세요.",
-        dueDate: "2026-06-18",
-        categoryKey: "snap",
-        priority: "high",
-        status: "open",
-        source: "chat",
-        href: "/chat",
-        createdAt: "2026-06-15T00:00:00.000Z",
-        updatedAt: "2026-06-15T00:00:00.000Z",
-      },
-    ],
   } as unknown as WeddingJourney["progress"],
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -194,7 +174,7 @@ let authInitializationRequestId = 0;
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
-  partner: Profile | null;
+  partner: PublicPartnerProfile | null;
   couple: Couple | null;
   journey: WeddingJourney | null;
   isLoading: boolean;
@@ -209,8 +189,10 @@ interface AuthState {
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
   refreshJourney: () => Promise<void>;
   updateProfile: (
-    updates: Partial<Pick<Profile, "name" | "care_notifications_enabled" | "phone">> & {
-      sync_community_nickname?: boolean;
+    updates: {
+      name?: string;
+      care_notifications_enabled?: boolean;
+      phone?: string | null;
       /** 카톡·문자 케어 수신 동의 — 서버가 동의 시각으로 기록 */
       phone_care_consent?: boolean;
     }
@@ -376,34 +358,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     }
 
-    // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
-    // 전체 전송은 이 클라이언트의 스테일 스냅샷으로 파트너/AI의 다른 키 변경을
-    // 통째로 롤백시킨다(커플 동시수정 유실). 서버 apply_journey_progress_patch가
-    // DB row lock으로 병합하므로 서로 다른 키의 동시 수정은 안전하다.
-    const body: Record<string, unknown> = { ...updates };
+    // progress는 체크리스트·일정·예산·환경설정별 전용 원자 API만 수정한다.
+    // 범용 경로로 받은 스냅샷을 쓰면 같은 카테고리의 동시 변경도 유실될 수 있다.
     if (updates.progress !== undefined) {
-      const prev = (journey?.progress ?? {}) as Record<string, unknown>;
-      const next = updates.progress as unknown as Record<string, unknown>;
-      const patch: Record<string, unknown> = {};
-      const removeKeys: string[] = [];
-      for (const key of Object.keys(next)) {
-        if (JSON.stringify(next[key]) !== JSON.stringify(prev[key])) {
-          patch[key] = next[key];
-        }
-      }
-      for (const key of Object.keys(prev)) {
-        if (!(key in next)) removeKeys.push(key);
-      }
-      delete body.progress;
-      const otherFieldCount = Object.keys(body).length;
-      if (Object.keys(patch).length === 0 && removeKeys.length === 0) {
-        // progress 변경이 실제로 없으면 progress 파트는 생략 (no-op 방지)
-        if (otherFieldCount === 0) return true;
-      } else {
-        body.progress_patch = patch;
-        body.progress_remove_keys = removeKeys;
-      }
+      console.error("Broad journey progress updates are disabled.");
+      return false;
     }
+    const body: Record<string, unknown> = { ...updates };
 
     try {
       const res = await fetch("/api/journey", {
@@ -430,9 +391,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (isDemo) {
       const nextProfile = profile ? { ...profile, ...updates } : null;
       set({ profile: nextProfile });
-      if (updates.sync_community_nickname && nextProfile?.name) {
-        useCommunityStore.getState().applyOwnNickname(nextProfile.id, nextProfile.name);
-      }
       return;
     }
 
@@ -451,9 +409,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       if (data.profile) {
         set({ profile: data.profile });
-        if (updates.sync_community_nickname) {
-          useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
-        }
       }
     } catch (err) {
       console.error("Profile 업데이트 에러:", err);

@@ -5,27 +5,18 @@ import { useRouter } from "next/navigation";
 import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
-import { useAuthStore } from "@/stores/authStore";
-import type { CommunityProfile, CommunityRank, PostWithAuthor } from "@/types/community.types";
+import type { CommunityProfile, PostWithAuthor } from "@/types/community.types";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
 import { createClient } from "@/lib/supabase/client";
 import { weddingPath } from "@/lib/weddingPaths";
 import { timeAgo } from "@/utils/timeAgo";
+import { useCommunityStore } from "@/stores/communityStore";
 
 const avatarOptions = ["🌿", "💍", "🌸", "🤍", "✨", "👑"];
 
-const rankLabels: Record<CommunityRank, string> = {
-  sprout: "새싹",
-  preparing: "준비중",
-  expert: "체크",
-  master: "마스터",
-  senior: "선배",
-};
-
 export default function MyPostsPage() {
   const router = useRouter();
-  const appProfile = useAuthStore((state) => state.profile);
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -50,7 +41,7 @@ export default function MyPostsPage() {
     if (!userId) return;
     const timer = window.setTimeout(() => setLoading(true), 0);
     const controller = new AbortController();
-    fetch(`/api/community/posts?author_id=${userId}&limit=100`, { signal: controller.signal })
+    fetch("/api/community/posts?sort=my_posts&limit=100", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => { setPosts(data.posts ?? []); setLoading(false); })
       .catch((err) => {
@@ -112,6 +103,11 @@ export default function MyPostsPage() {
         return;
       }
       setProfile(data.profile);
+      if (typeof data.profile?.nickname === "string") {
+        useCommunityStore
+          .getState()
+          .applyConfirmedOwnCommunityNickname(data.profile.nickname);
+      }
       setEditingProfile(false);
       setProfileMessage("프로필이 저장되었습니다.");
     } catch {
@@ -136,7 +132,6 @@ export default function MyPostsPage() {
             <Avatar
               nickname={nicknameInput || profile.nickname}
               avatarUrl={avatarInput}
-              role={profile.role ?? appProfile?.role ?? null}
               size={56}
             />
             <div className="min-w-0 flex-1">
@@ -198,7 +193,7 @@ export default function MyPostsPage() {
                     <div className="flex items-center gap-2">
                       <p className="text-base font-semibold text-[#263832]">{profile.nickname}</p>
                       <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[11px] font-medium text-[#36534E]">
-                        {rankLabels[profile.rank] ?? "회원"}
+                        커뮤니티 프로필
                       </span>
                     </div>
                     <p className="mt-1 text-xs font-medium text-[#928980]">커뮤니티에 표시되는 프로필입니다.</p>

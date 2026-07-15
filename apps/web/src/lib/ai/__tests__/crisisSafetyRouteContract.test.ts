@@ -8,22 +8,28 @@ const routeSource = readFileSync(
 );
 
 describe("Amora deterministic crisis-safety route", () => {
-  it("checks only the latest user text after authentication and bounded validation", () => {
+  it("checks only the server-canonical current user text after ownership validation", () => {
     const detectorIndex = routeSource.indexOf(
-      "hasImmediateKoreanCrisisSignal(crisisCandidateText)"
+      "hasImmediateKoreanCrisisSignal(canonicalTranscript.currentUserText)"
     );
     const authenticationIndex = routeSource.indexOf("if (!user)");
     const ownershipIndex = routeSource.indexOf("userProfile?.couple_id !== coupleId");
-    const responseBranchIndex = routeSource.indexOf("if (hasCrisisSafetySignal)");
+    const canonicalIndex = routeSource.indexOf("buildCanonicalChatTranscript({");
+    const responseBranchIndex = routeSource.indexOf(
+      "if (hasImmediateKoreanCrisisSignal(canonicalTranscript.currentUserText))"
+    );
 
     expect(detectorIndex).toBeGreaterThan(-1);
     expect(detectorIndex).toBeGreaterThan(authenticationIndex);
-    expect(responseBranchIndex).toBeGreaterThan(detectorIndex);
-    expect(responseBranchIndex).toBeLessThan(ownershipIndex);
+    expect(detectorIndex).toBeGreaterThanOrEqual(responseBranchIndex);
+    expect(responseBranchIndex).toBeGreaterThan(ownershipIndex);
+    expect(responseBranchIndex).toBeGreaterThan(canonicalIndex);
   });
 
   it("returns before rate-limit logs, attachments, HMAC, quotas, or provider calls", () => {
-    const responseBranchIndex = routeSource.indexOf("if (hasCrisisSafetySignal)");
+    const responseBranchIndex = routeSource.indexOf(
+      "if (hasImmediateKoreanCrisisSignal(canonicalTranscript.currentUserText))"
+    );
     const rateLimitIndex = routeSource.indexOf(
       'checkRateLimitPersistent(rateLimitKey("chat", request, user.id)'
     );
@@ -48,7 +54,6 @@ describe("Amora deterministic crisis-safety route", () => {
     expect(branch).toContain("return createCrisisSafetySseResponse()");
     expect(branch).not.toContain("console.");
     expect(branch).not.toContain("logAIInteraction");
-    expect(branch).not.toContain("crisisCandidateText");
   });
 
   it("marks the response as deterministic and provider-free without echoing input", () => {

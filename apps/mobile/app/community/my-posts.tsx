@@ -8,11 +8,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { FileText, ThumbsUp, MessageCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { supabase } from "@/lib/supabase";
+import { apiJson } from "@/lib/api";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
+import ErrorRetry from "@/components/ErrorRetry";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  is_normal: "이거 정상이야?",
+  is_normal: "계약·추가금 질문",
   tour_review: "투어/이용 후기",
   tips_v2: "꿀팁",
   ama: "결혼 끝났다 AMA",
@@ -21,6 +22,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 interface Post {
   id: string;
+  author_id: string;
+  viewer_is_author: boolean;
   category: string;
   title: string;
   created_at: string;
@@ -40,22 +43,29 @@ export default function MyPostsScreen() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
+    setLoadError(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("community_posts")
-        .select("id, category, title, created_at, upvote_count, comment_count")
-        .eq("author_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setPosts((data ?? []) as Post[]);
+      const data = await apiJson<{ posts: Post[] }>(
+        "/api/community/posts?sort=my_posts&limit=100",
+      );
+      if (
+        !Array.isArray(data.posts) ||
+        !data.posts.every(
+          (post) =>
+            typeof post.id === "string" &&
+            typeof post.author_id === "string" &&
+            post.viewer_is_author === true,
+        )
+      ) {
+        throw new Error("my_posts_payload_invalid");
+      }
+      setPosts(data.posts);
     } catch (err) {
       console.error("My posts load:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -87,11 +97,19 @@ export default function MyPostsScreen() {
           />
         }
       >
-        {posts.length === 0 ? (
+        {loadError ? (
+          <ErrorRetry
+            message="내가 쓴 글을 불러오지 못했어요. 저장된 글이 없어진 것은 아니에요."
+            onRetry={() => {
+              setLoading(true);
+              loadData();
+            }}
+          />
+        ) : posts.length === 0 ? (
           <EmptyState
             icon={<FileText size={48} color={colors.taupe[400]} />}
             title="아직 작성한 글이 없어요"
-            description="커뮤니티에 첫 후기를 남기면 여기에서 다시 볼 수 있어요."
+            description="과거에 작성한 글이 있으면 여기에서 확인할 수 있어요."
           />
         ) : (
           posts.map((p) => (

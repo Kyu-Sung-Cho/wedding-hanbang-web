@@ -1,12 +1,26 @@
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
-import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
+import { getCommunityAuthorMap, requireCommunityAuthor } from "@/lib/community/authorProfiles";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { createPublicClient } from "@/lib/supabase/public";
-import type { InitialCommunityFeed, PollSummary, PostWithAuthor } from "@/types/community.types";
+import type {
+  InitialCommunityFeed,
+  InitialCommunityFeedResult,
+  PollSummary,
+  PostWithAuthor,
+} from "@/types/community.types";
 
 const DEFAULT_LIMIT = 10;
+const INITIAL_FEED_UNAVAILABLE_MESSAGE =
+  "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 
-export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<InitialCommunityFeed> {
+function unavailableInitialFeed(): InitialCommunityFeedResult {
+  return {
+    status: "unavailable",
+    message: INITIAL_FEED_UNAVAILABLE_MESSAGE,
+  };
+}
+
+export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<InitialCommunityFeedResult> {
   const emptyFeed: InitialCommunityFeed = {
     posts: [],
     total: 0,
@@ -27,13 +41,22 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       .order("created_at", { ascending: false })
       .range(0, queryLimit - 1);
 
-    if (error || !queriedPosts?.length) {
-      if (error) console.error("[community.initialFeed] posts query failed:", error);
-      return emptyFeed;
+    if (error) {
+      console.error("[community.initialFeed] posts query failed:", error);
+      return unavailableInitialFeed();
+    }
+
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      console.error("[community.initialFeed] exact post count is unavailable");
+      return unavailableInitialFeed();
+    }
+
+    if (!queriedPosts?.length) {
+      return { status: "ready", feed: emptyFeed };
     }
 
     const posts = queriedPosts.slice(0, safeLimit);
-    const hasMore = (count ?? queriedPosts.length) > safeLimit;
+    const hasMore = count > safeLimit;
     const authorIds = [...new Set(posts.map((post) => post.author_id as string).filter(Boolean))];
     const postIds = posts.map((post) => post.id as string).filter(Boolean);
 
@@ -48,6 +71,7 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
 
       if (pollError) {
         console.error("[community.initialFeed] poll query failed:", pollError);
+        return unavailableInitialFeed();
       } else {
         pollSummaryMap = new Map(
           (polls ?? []).map((poll) => [
@@ -67,22 +91,26 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       const authorId = post.author_id as string;
       return {
         ...post,
-        author: authorMap[authorId] ?? fallbackCommunityAuthor(authorId),
+        author: requireCommunityAuthor(authorMap, authorId),
+        viewer_is_author: false,
         user_vote: null,
         user_bookmarked: false,
         poll: pollSummaryMap.get(post.id as string) ?? null,
       } as PostWithAuthor;
     });
 
-    const total = count ?? postsWithAuthor.length;
+    const total = count;
     return {
-      posts: postsWithAuthor,
-      total,
-      hasMore,
-      fetchedAt: new Date().toISOString(),
+      status: "ready",
+      feed: {
+        posts: postsWithAuthor,
+        total,
+        hasMore,
+        fetchedAt: new Date().toISOString(),
+      },
     };
   } catch (error) {
     console.error("[community.initialFeed] failed:", error);
-    return emptyFeed;
+    return unavailableInitialFeed();
   }
 }

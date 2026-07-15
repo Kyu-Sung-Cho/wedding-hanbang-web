@@ -91,7 +91,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
           <div className="mt-5 p-4 rounded-xl bg-[#F1F5F9] border border-[#CBD5E1] flex gap-2">
             <AlertTriangle size={18} className="text-[#334155] flex-shrink-0 mt-0.5" />
             <p className="text-sm text-[#334155]">
-              광고는 추천/검색 알고리즘에 반영되지 않습니다.
+              광고는 작성자가 선택한 표시입니다. 웨딩한방의 내용 검증이나 추천을 뜻하지 않습니다.
             </p>
           </div>
         )}

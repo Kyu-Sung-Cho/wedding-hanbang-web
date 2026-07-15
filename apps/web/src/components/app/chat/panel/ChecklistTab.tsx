@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getJourneyProgressCounts } from "@hanbang/shared";
 import {
   Users, Building2, Camera, Shirt, Palette, Gem, Flower2, Plane, Home, Key,
   Mail, Gift, Video, Package, Sparkles, Flower, Heart, Mic, Box, CheckCircle2,
@@ -28,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
-  not_started: "시작전",
+  not_started: "미정",
 };
 
 interface CategoryCheckItem {
@@ -66,10 +67,12 @@ export default function ChecklistTab() {
     return { key: cat.key, label: cat.label, icon: cat.icon, status, done, total, checklist: merged };
   });
 
-  const incomplete = categories.filter((c) => c.status !== "completed");
+  const activeIncomplete = categories.filter(
+    (c) => c.status !== "completed" && (c.status === "in_progress" || c.done > 0),
+  );
+  const reference = categories.filter((c) => c.status === "not_started" && c.done === 0);
   const completed = categories.filter((c) => c.status === "completed");
-  const totalDone = categories.reduce((s, c) => s + c.done, 0);
-  const totalItems = categories.reduce((s, c) => s + c.total, 0);
+  const { done: totalDone, total: totalItems } = getJourneyProgressCounts(progress);
   const overallPercent = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
   const renderCategoryRow = (cat: CategoryCheckItem, dimmed?: boolean) => {
@@ -153,11 +156,13 @@ export default function ChecklistTab() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* 전체 진행률 */}
+      {/* 사용자가 실제로 시작한 항목만 계산 */}
       <div className="px-4 py-3.5 border-b border-black/[0.04]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-taupe-400">전체 진행률</span>
-          <span className="text-base font-medium text-noir-800">{overallPercent}%</span>
+          <span className="text-sm text-taupe-400">시작한 항목 완료율</span>
+          <span className="text-base font-medium text-noir-800">
+            {totalItems > 0 ? `${overallPercent}%` : "기록 없음"}
+          </span>
         </div>
         <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
           <div
@@ -166,17 +171,25 @@ export default function ChecklistTab() {
           />
         </div>
         <p className="text-xs text-taupe-400 mt-1.5 text-right">
-          {totalDone}/{totalItems} 항목 완료
+          {totalItems > 0
+            ? `${totalDone}/${totalItems} 항목 완료`
+            : "아래 목록은 선택 가능한 준비 참고이며 모두 해야 하는 일이 아니에요."}
         </p>
       </div>
 
-      {/* 미완료 */}
-      <CollapsibleSection title="미완료" count={incomplete.length} defaultOpen>
+      {/* 직접 시작한 항목 */}
+      <CollapsibleSection title="진행 중" count={activeIncomplete.length} defaultOpen>
         <div className="flex flex-col gap-1">
-          {incomplete.map((cat) => renderCategoryRow(cat))}
-          {incomplete.length === 0 && (
-            <p className="text-sm text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+          {activeIncomplete.map((cat) => renderCategoryRow(cat))}
+          {activeIncomplete.length === 0 && (
+            <p className="text-sm text-taupe-400 py-2 text-center">직접 시작한 항목이 없어요.</p>
           )}
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="준비 항목 참고" count={reference.length}>
+        <div className="flex flex-col gap-1">
+          {reference.map((cat) => renderCategoryRow(cat, true))}
         </div>
       </CollapsibleSection>
 

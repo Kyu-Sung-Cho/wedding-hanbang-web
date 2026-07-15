@@ -59,8 +59,8 @@ export default function CommunityAmoraLauncher() {
           type="button"
           onClick={handleOpenAmora}
           className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#36534E] text-white shadow-[0_14px_34px_rgba(54,83,78,0.22)] transition-transform hover:-translate-y-0.5 hover:bg-[#2f4944] md:bottom-6 md:right-6 md:h-14 md:w-14"
-          title="아모라 AI 상담"
-          aria-label="아모라 AI 상담"
+          title="아모라 AI 상담 — 현재 글은 자동으로 전달되지 않아요"
+          aria-label="아모라 AI 상담 열기, 현재 글은 자동으로 전달되지 않음"
           disabled={checkingAuth}
         >
           <Sparkles className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
@@ -94,6 +94,7 @@ export default function CommunityAmoraLauncher() {
 
             <p className="mt-4 text-[14px] font-medium leading-[1.75] text-[#5d6879]">
               커뮤니티 글은 누구나 볼 수 있지만, 아모라 상담은 내 예식일과 준비 정보를 바탕으로 답해야 해서 로그인이 필요해요.
+              아모라는 현재 글을 자동으로 읽지 않으니 필요한 문장을 직접 붙여 넣어 주세요.
             </p>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">

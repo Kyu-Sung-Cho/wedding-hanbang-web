@@ -1,5 +1,8 @@
 # 업체 확보 플레이북
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 업체 검증·등급·배지, 제휴, 연락·온보딩 절차는 운영 승인 전 후보 기록일 뿐이다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **목표 운영 플레이북입니다.** 아래 업체 수, 검증 프로필, 연락·온보딩 일정과 혜택은 실행 완료나 제휴 사실이 아닙니다. 현재 새 업체 상담 요청·문의·예약은 전송하지 않습니다. 현재 범위와 재활성화 조건은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
 

@@ -1,5 +1,8 @@
 # 백로그 — 후속 작업 메모
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 항목은 작업 지시나 승인된 백로그가 아니며 현재 제품 경계와 충돌하면 재개하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **2026-05-18 백로그 스냅샷입니다.** 항목의 “현재 상태”, 파일 경로와 재개 조건은 이후 코드 변경으로 달라졌을 수 있습니다. 작업을 집기 전에 실제 코드와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)의 비활성 기능·출시 경계를 다시 확인합니다.
 

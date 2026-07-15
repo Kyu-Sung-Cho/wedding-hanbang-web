@@ -10,7 +10,6 @@ const BASE_URL = process.env.SCREENSHOT_BASE_URL || "https://www.hanbang.ai";
 
 const PAGES = [
   { name: "01-community", path: "/community" },
-  { name: "02-quote-check", path: "/community/quote-check" },
   { name: "03-vendor-A-studio", path: `/community/vendor/${encodeURIComponent("A 스튜디오")}` },
   { name: "04-chat", path: "/chat" },
   { name: "05-landing", path: "/landing" },

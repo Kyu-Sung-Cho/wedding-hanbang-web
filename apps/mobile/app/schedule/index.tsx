@@ -12,9 +12,23 @@ import {
   Plus, X, CalendarDays, Clock, Trash2, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { formatLocalDateOnly } from "@hanbang/shared";
+import { formatLocalDateOnly, getJourneyProgressCounts } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 import { apiFetch } from "@/lib/api";
+import {
+  mutateScheduleEvent,
+  ScheduleEventConflictError,
+  type MobileScheduleEvent,
+} from "@/lib/scheduleEvents";
+import {
+  mutateChecklistItem,
+  ChecklistItemConflictError,
+} from "@/lib/checklistItems";
+import {
+  getStartedScheduleActions,
+  partitionScheduleCategories,
+} from "@/lib/scheduleRecommendations";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
 import {
@@ -51,16 +65,8 @@ interface ScheduleEvent {
   updatedAt?: string;
 }
 
-type ActionUrgency = "overdue" | "urgent" | "soon" | "active";
-
-interface WeeklyAction {
-  categoryKey: string;
-  categoryLabel: string;
-  nextItemLabel: string;
-  urgency: ActionUrgency;
-  deadlineLabel: string;
-  daysUntilDeadline: number | null;
-  percent: number;
+interface IdentifiedScheduleEvent extends ScheduleEvent {
+  id: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -126,30 +132,6 @@ function formatDday(dday: number | null): string {
   return dday > 0 ? `D-${dday}` : `D+${Math.abs(dday)}`;
 }
 
-function getPhaseLabel(dday: number | null): string {
-  if (dday === null) return "결혼 예정일 설정 필요";
-  if (dday < 0) return "본식 이후 정리";
-  if (dday <= 30) return "최종 점검";
-  if (dday <= 90) return "마무리 준비";
-  if (dday <= 180) return "세부 준비";
-  if (dday <= 300) return "핵심 계약";
-  return "초기 준비";
-}
-
-function getUrgencyLabel(urgency: ActionUrgency): string {
-  if (urgency === "overdue") return "마감 지남";
-  if (urgency === "urgent") return "이번 주";
-  if (urgency === "soon") return "곧 마감";
-  return "진행 권장";
-}
-
-function getUrgencyTone(urgency: ActionUrgency): "neutral" | "rose" | "warning" | "danger" {
-  if (urgency === "overdue") return "danger";
-  if (urgency === "urgent") return "warning";
-  if (urgency === "soon") return "rose";
-  return "neutral";
-}
-
 function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
@@ -160,21 +142,69 @@ function createEventId(): string {
   return `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function normalizeScheduleEvent(event: ScheduleEvent): ScheduleEvent {
-  const now = new Date().toISOString();
-  return {
-    ...event,
-    id: event.id ?? createEventId(),
-    createdAt: event.createdAt ?? now,
-    updatedAt: event.updatedAt ?? now,
-  };
+function isScheduleEvent(value: unknown): value is ScheduleEvent {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const event = value as Record<string, unknown>;
+  return typeof event.date === "string" && typeof event.title === "string";
+}
+
+function scheduleEventFingerprint(event: ScheduleEvent): string {
+  return JSON.stringify([
+    event.date,
+    event.title,
+    event.time ?? null,
+    event.categoryKey ?? null,
+    event.sourceKey ?? null,
+    event.momentType ?? null,
+    event.memo ?? null,
+    event.createdAt ?? null,
+  ]);
+}
+
+function hashScheduleEventFingerprint(value: string): string {
+  let primary = 0x811c9dc5;
+  let secondary = 0x9e3779b9;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    primary = Math.imul(primary ^ code, 0x01000193);
+    secondary = Math.imul(secondary ^ code, 0x85ebca6b);
+  }
+  return `${(primary >>> 0).toString(36)}${(secondary >>> 0).toString(36)}`;
+}
+
+function normalizeScheduleEvents(value: unknown): IdentifiedScheduleEvent[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || !value.every(isScheduleEvent)) {
+    throw new Error("invalid schedule events");
+  }
+
+  const fingerprintOccurrences = new Map<string, number>();
+  const eventIds = new Set<string>();
+  return value.map((event) => {
+    let id: string;
+    if (typeof event.id === "string" && event.id.length > 0) {
+      id = event.id;
+    } else {
+      const fingerprint = scheduleEventFingerprint(event);
+      const occurrence = fingerprintOccurrences.get(fingerprint) ?? 0;
+      fingerprintOccurrences.set(fingerprint, occurrence + 1);
+      id = `evt_legacy_${hashScheduleEventFingerprint(fingerprint)}_${occurrence}`;
+    }
+
+    if (eventIds.has(id)) {
+      throw new Error("duplicate schedule event id");
+    }
+    eventIds.add(id);
+    return { ...event, id };
+  });
 }
 
 /* ───── main screen ───── */
 export default function ScheduleScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [progress, setProgress] = useState<Record<string, Record<string, boolean>>>({});
-  const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [journeyProgress, setJourneyProgress] = useState<Record<string, unknown>>({});
+  const [events, setEvents] = useState<IdentifiedScheduleEvent[]>([]);
   const [weddingDate, setWeddingDate] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,6 +212,7 @@ export default function ScheduleScreen() {
   const [loadError, setLoadError] = useState(false);
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [showOptionalCategories, setShowOptionalCategories] = useState(false);
 
   // 진행률 애니메이션
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -189,7 +220,8 @@ export default function ScheduleScreen() {
 
   // event modal
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editingEventUpdatedAt, setEditingEventUpdatedAt] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
@@ -203,11 +235,7 @@ export default function ScheduleScreen() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw authError ?? new Error("authenticated user not found");
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("couple_id")
-        .eq("id", user.id)
-        .single();
+      const { data: profile, error: profileError } = await readMySafeProfile();
 
       if (profileError || !profile?.couple_id) {
         throw profileError ?? new Error("couple profile not found");
@@ -225,6 +253,7 @@ export default function ScheduleScreen() {
 
       setWeddingDate(journey?.wedding_date ?? null);
       const prog = (journey?.progress as Record<string, unknown>) ?? {};
+      setJourneyProgress(prog);
 
       // 웹과 동일한 progress 구조:
       // progress[catKey] = { category, status, checklist: [{id, label, done}, ...], cost?, budget? }
@@ -267,24 +296,8 @@ export default function ScheduleScreen() {
       setCategories(cats);
       setProgress(progMap);
 
-      // 전체 진행률 애니메이션
-      if (cats.length > 0) {
-        const totalPercent = Math.round(
-          cats.reduce((sum, c) => {
-            const total = Object.keys(progMap[c.key] ?? {}).length;
-            const done = Object.values(progMap[c.key] ?? {}).filter(Boolean).length;
-            return sum + (total > 0 ? (done / total) * 100 : 0);
-          }, 0) / cats.length
-        );
-        Animated.timing(progressAnim, {
-          toValue: totalPercent,
-          duration: 800,
-          useNativeDriver: false,
-        }).start();
-      }
-
       // 이벤트 추출
-      const evts = ((prog.__events as ScheduleEvent[]) ?? []).map(normalizeScheduleEvent);
+      const evts = normalizeScheduleEvents(prog.__events);
       setEvents(evts);
       setHasLoadedData(true);
     } catch (err) {
@@ -350,56 +363,43 @@ export default function ScheduleScreen() {
     setCategories(optimistic.categories);
     setProgress(optimistic.progress);
 
-    // 웹과 동일한 구조로 DB 업데이트
+    const applyAuthoritativeCategory = (authoritativeProgress: Record<string, unknown>) => {
+      const category = authoritativeProgress[categoryKey] as
+        | { checklist?: ChecklistItem[] }
+        | undefined;
+      if (!Array.isArray(category?.checklist)) return false;
+      setJourneyProgress(authoritativeProgress);
+      const canonicalItems = category.checklist;
+      setCategories((current) => current.map((entry) =>
+        entry.key === categoryKey ? { ...entry, items: canonicalItems } : entry
+      ));
+      setProgress((current) => ({
+        ...current,
+        [categoryKey]: Object.fromEntries(
+          canonicalItems.map((item) => [item.id, item.done]),
+        ),
+      }));
+      return true;
+    };
+
     try {
-      const { data: journey } = await supabase
-        .from("wedding_journeys")
-        .select("progress")
-        .eq("couple_id", coupleId)
-        .single();
-
-      if (!journey) {
-        throw new Error("journey not found");
+      const result = await mutateChecklistItem({
+        categoryKey,
+        itemId,
+        done: nextDone,
+        expectedDone: currentDone,
+      }, apiFetch);
+      if (!applyAuthoritativeCategory(result.progress)) {
+        throw new Error("authoritative checklist missing");
       }
-
-      const currentProgress = { ...(journey.progress as Record<string, unknown>) };
-      const catTemplate = CATEGORY_CHECKLISTS.find((c) => c.key === categoryKey);
-      if (!catTemplate) {
-        throw new Error("category template not found");
+    } catch (error) {
+      if (
+        error instanceof ChecklistItemConflictError &&
+        applyAuthoritativeCategory(error.progress)
+      ) {
+        Alert.alert("최신 상태 반영", "다른 기기에서 먼저 바꾼 체크 상태를 반영했어요.");
+        return;
       }
-
-      // 기존 DB의 카테고리 데이터
-      const existing = currentProgress[categoryKey] as Record<string, unknown> | undefined;
-      const existingChecklist = (existing?.checklist as Array<{ id: string; label: string; done: boolean }>) ?? [];
-
-      // 체크리스트 배열 업데이트 (없으면 상수에서 생성)
-      const updatedChecklist = catTemplate.items.map((item) => {
-        const dbItem = existingChecklist.find((c) => c.id === item.id);
-        const done = item.id === itemId ? nextDone : (dbItem?.done ?? false);
-        return { id: item.id, label: item.label, done };
-      });
-
-      // 전체 완료 상태 계산
-      const allDone = updatedChecklist.every((i) => i.done);
-      const anyDone = updatedChecklist.some((i) => i.done);
-      const status = allDone ? "completed" : anyDone ? "in_progress" : "not_started";
-
-      currentProgress[categoryKey] = {
-        ...(existing ?? {}),
-        category: categoryKey,
-        status,
-        checklist: updatedChecklist,
-      };
-
-      const res = await apiFetch("/api/journey", {
-        method: "PATCH",
-        body: JSON.stringify({ progress_patch: { [categoryKey]: currentProgress[categoryKey] } }),
-      });
-
-      if (!res.ok) {
-        throw new Error("checklist save failed");
-      }
-    } catch {
       setCategories(previousCategories);
       setProgress(previousProgress);
       Alert.alert("오류", "체크 상태를 저장하지 못했어요. 다시 시도해주세요.");
@@ -413,68 +413,10 @@ export default function ScheduleScreen() {
     return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
   }
 
-  function getWeeklyActions(dday: number | null): WeeklyAction[] {
-    if (dday !== null && dday < 0) return [];
-
-    const actionCandidates = CATEGORY_CHECKLISTS.flatMap((template) => {
-      const stats = getCategoryStats(template.key);
-      if (stats.percent >= 100) return [];
-
-      if (dday !== null && dday > template.ddayStart) return [];
-
-      const category = categories.find((c) => c.key === template.key);
-      const nextItem = category?.items.find((item) => !item.done);
-      const daysUntilDeadline = dday === null ? null : dday - template.ddayDeadline;
-
-      let urgency: ActionUrgency = "active";
-      if (daysUntilDeadline !== null) {
-        if (daysUntilDeadline < 0) urgency = "overdue";
-        else if (daysUntilDeadline <= 7) urgency = "urgent";
-        else if (daysUntilDeadline <= 30) urgency = "soon";
-      }
-
-      const deadlineLabel =
-        daysUntilDeadline === null
-          ? "결혼 예정일을 넣으면 마감이 계산돼요"
-          : daysUntilDeadline < 0
-            ? `${Math.abs(daysUntilDeadline)}일 지났어요`
-            : daysUntilDeadline === 0
-              ? "오늘까지 권장"
-              : `${daysUntilDeadline}일 남음`;
-
-      return [{
-        categoryKey: template.key,
-        categoryLabel: template.label,
-        nextItemLabel: nextItem?.label ?? `${template.label} 체크리스트 점검`,
-        urgency,
-        deadlineLabel,
-        daysUntilDeadline,
-        percent: stats.percent,
-      }];
-    });
-
-    const urgencyRank: Record<ActionUrgency, number> = {
-      overdue: 0,
-      urgent: 1,
-      soon: 2,
-      active: 3,
-    };
-
-    return actionCandidates
-      .sort((a, b) => {
-        const urgencyDiff = urgencyRank[a.urgency] - urgencyRank[b.urgency];
-        if (urgencyDiff !== 0) return urgencyDiff;
-        if (a.daysUntilDeadline !== null && b.daysUntilDeadline !== null) {
-          return a.daysUntilDeadline - b.daysUntilDeadline;
-        }
-        return a.percent - b.percent;
-      })
-      .slice(0, 3);
-  }
-
   /* ── 이벤트 모달 ── */
   function openAddEventModal() {
-    setEditingIdx(null);
+    setEditingEventId(null);
+    setEditingEventUpdatedAt(null);
     const today = formatLocalDateOnly(new Date());
     setFormTitle("");
     setFormDate(today);
@@ -484,9 +426,21 @@ export default function ScheduleScreen() {
     setModalVisible(true);
   }
 
-  function openEditEventModal(idx: number) {
-    const evt = events[idx];
-    setEditingIdx(idx);
+  function openEditEventModal(eventId: string) {
+    const evt = events.find((event) => event.id === eventId);
+    if (!evt) {
+      Alert.alert("일정을 다시 불러와주세요", "선택한 일정이 최신 목록에 없어요.");
+      return;
+    }
+    if (evt.id.startsWith("evt_legacy_") || !evt.createdAt || !evt.updatedAt) {
+      Alert.alert(
+        "일정을 수정할 수 없어요",
+        "이전 형식으로 저장된 일정입니다. 내용을 확인한 뒤 새 일정으로 다시 등록해주세요.",
+      );
+      return;
+    }
+    setEditingEventId(eventId);
+    setEditingEventUpdatedAt(evt.updatedAt);
     setFormTitle(evt.title);
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
@@ -508,18 +462,11 @@ export default function ScheduleScreen() {
 
     setSaving(true);
     try {
-      const { data: journey } = await supabase
-        .from("wedding_journeys")
-        .select("progress")
-        .eq("couple_id", coupleId)
-        .single();
-
-      const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
-      const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
-
       const now = new Date().toISOString();
-      const existingEvent = editingIdx !== null ? currentEvents[editingIdx] : null;
-      const newEvent: ScheduleEvent = {
+      const existingEvent = editingEventId === null
+        ? null
+        : events.find((event) => event.id === editingEventId);
+      const newEvent: MobileScheduleEvent = {
         ...(existingEvent ?? {}),
         id: existingEvent?.id ?? createEventId(),
         date: formDate,
@@ -531,29 +478,35 @@ export default function ScheduleScreen() {
         updatedAt: now,
       };
 
-      let updatedEvents: ScheduleEvent[];
-      if (editingIdx !== null) {
-        updatedEvents = [...currentEvents];
-        updatedEvents[editingIdx] = newEvent;
+      let result;
+      if (editingEventId === null) {
+        result = await mutateScheduleEvent({ operation: "add", event: newEvent }, apiFetch);
       } else {
-        updatedEvents = [...currentEvents, newEvent];
+        if (!existingEvent || !editingEventUpdatedAt) {
+          throw new Error("event changed before edit");
+        }
+        result = await mutateScheduleEvent({
+          operation: "update",
+          eventId: existingEvent.id,
+          event: newEvent,
+          expectedUpdatedAt: editingEventUpdatedAt,
+        }, apiFetch);
       }
 
-      updatedEvents.sort((a, b) => a.date.localeCompare(b.date));
-
-      const updatedProgress = { ...currentProgress, __events: updatedEvents };
-      const res = await apiFetch("/api/journey", {
-        method: "PATCH",
-        body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "저장에 실패했어요");
-      }
-
+      setEvents(normalizeScheduleEvents(result.progress.__events));
       setModalVisible(false);
-      loadData();
-    } catch {
+      setEditingEventUpdatedAt(null);
+    } catch (error) {
+      if (error instanceof ScheduleEventConflictError) {
+        setEvents(normalizeScheduleEvents(error.progress.__events));
+        setModalVisible(false);
+        setEditingEventUpdatedAt(null);
+        Alert.alert(
+          "일정이 변경되었어요",
+          "다른 기기에서 먼저 변경한 최신 내용을 불러왔어요. 확인한 뒤 다시 시도해주세요.",
+        );
+        return;
+      }
       Alert.alert("오류", "저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       setSaving(false);
@@ -561,35 +514,40 @@ export default function ScheduleScreen() {
   }
 
   async function deleteEvent() {
-    if (editingIdx === null || !coupleId) return;
+    if (editingEventId === null || !coupleId) return;
     Alert.alert("삭제 확인", "이 일정을 삭제할까요?", [
       { text: "취소", style: "cancel" },
       {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
-          const { data: journey } = await supabase
-            .from("wedding_journeys")
-            .select("progress")
-            .eq("couple_id", coupleId)
-            .single();
+          try {
+            const existingEvent = events.find((event) => event.id === editingEventId);
+            if (!existingEvent || !editingEventUpdatedAt) {
+              throw new Error("event changed before delete");
+            }
+            const result = await mutateScheduleEvent({
+              operation: "delete",
+              eventId: existingEvent.id,
+              expectedUpdatedAt: editingEventUpdatedAt,
+            }, apiFetch);
 
-          const currentProgress = (journey?.progress as Record<string, unknown>) ?? {};
-          const currentEvents = (currentProgress.__events as ScheduleEvent[]) ?? [];
-          const updatedEvents = currentEvents.filter((_, i) => i !== editingIdx);
-          const updatedProgress = { ...currentProgress, __events: updatedEvents };
-
-          const res = await apiFetch("/api/journey", {
-            method: "PATCH",
-            body: JSON.stringify({ progress_patch: { __events: updatedProgress.__events } }),
-          });
-          if (!res.ok) {
+            setEvents(normalizeScheduleEvents(result.progress.__events));
+            setModalVisible(false);
+            setEditingEventUpdatedAt(null);
+          } catch (error) {
+            if (error instanceof ScheduleEventConflictError) {
+              setEvents(normalizeScheduleEvents(error.progress.__events));
+              setModalVisible(false);
+              setEditingEventUpdatedAt(null);
+              Alert.alert(
+                "일정이 변경되었어요",
+                "다른 기기에서 먼저 변경한 최신 내용을 불러왔어요. 확인한 뒤 다시 시도해주세요.",
+              );
+              return;
+            }
             Alert.alert("오류", "삭제에 실패했어요. 다시 시도해주세요.");
-            return;
           }
-
-          setModalVisible(false);
-          loadData();
         },
       },
     ]);
@@ -600,22 +558,84 @@ export default function ScheduleScreen() {
     setExpandedKey(expandedKey === key ? null : key);
   }
 
+  function renderCategoryCard(cat: Category, optional = false) {
+    const stats = getCategoryStats(cat.key);
+    const expanded = expandedKey === cat.key;
+
+    return (
+      <View key={cat.key} style={styles.catCard}>
+        <Pressable
+          style={styles.catHeader}
+          onPress={() => handleExpandToggle(cat.key)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.catLabel}>{cat.label}</Text>
+            <Text style={styles.catStat}>
+              {optional ? "선택 참고 · 필요한 경우만" : `${stats.done}/${stats.total} 완료`}
+            </Text>
+          </View>
+          <View style={styles.catRight}>
+            <Text style={styles.catPercent}>{optional ? "선택" : `${stats.percent}%`}</Text>
+            {expanded
+              ? <ChevronUp size={20} color={colors.textTertiary} />
+              : <ChevronDown size={20} color={colors.textTertiary} />
+            }
+          </View>
+        </Pressable>
+
+        {!optional ? (
+          <View style={styles.catBar}>
+            <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
+          </View>
+        ) : null}
+
+        {expanded && (
+          <View style={styles.itemList}>
+            {cat.items.map((item) => (
+              <Pressable
+                key={item.id}
+                style={({ pressed }) => [
+                  styles.itemRow,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+                onPress={() => toggleItem(cat.key, item.id, item.done)}
+              >
+                {item.done
+                  ? <CheckCircle2 size={22} color={colors.rose[500]} />
+                  : <Circle size={22} color={colors.taupe[400]} />
+                }
+                <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  }
+
   /* ── 임박 일정 (7일 이내) ── */
   const next7Days = getUpcomingDays(7);
   const upcomingEvents = events
     .filter((e) => next7Days.includes(e.date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // 전체 진행률 계산
-  const overallPercent = categories.length > 0
-    ? Math.round(
-        categories.reduce((sum, c) => sum + getCategoryStats(c.key).percent, 0) /
-          categories.length
-      )
+  const progressCounts = getJourneyProgressCounts(journeyProgress);
+  const overallPercent = progressCounts.total > 0
+    ? Math.round((progressCounts.done / progressCounts.total) * 100)
     : 0;
   const dday = calcDday(weddingDate);
-  const weeklyActions = getWeeklyActions(dday);
-  const overdueCount = weeklyActions.filter((action) => action.urgency === "overdue").length;
+  const weeklyActions = getStartedScheduleActions(categories, journeyProgress);
+  const categoryGroups = partitionScheduleCategories(categories, journeyProgress);
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: overallPercent,
+      duration: 500,
+      useNativeDriver: false,
+    }).start();
+  }, [overallPercent, progressAnim]);
 
   // 진행바 width 보간
   const progressWidth = progressAnim.interpolate({
@@ -684,29 +704,25 @@ export default function ScheduleScreen() {
           <View style={styles.opsTop}>
             <View>
               <AppText variant="caption" style={styles.opsLabel}>
-                이번 주 준비 모드
+                내가 정한 예식일
               </AppText>
               <Text style={styles.opsDday}>{formatDday(dday)}</Text>
             </View>
             <StatusPill
-              label={
-                overdueCount > 0
-                  ? `${overdueCount}개 지연`
-                  : dday === null
-                    ? "날짜 필요"
-                    : getPhaseLabel(dday)
-              }
-              tone={overdueCount > 0 ? "danger" : "rose"}
+              label={dday === null ? "일정 미설정" : "일정 연결됨"}
+              tone="neutral"
             />
           </View>
           <AppText variant="body" style={styles.opsCopy}>
             {weddingDate
-              ? `${getPhaseLabel(dday)} 단계예요. 이번 주에는 마감이 가까운 항목부터 정리하세요.`
-              : "결혼 예정일을 설정하면 D-day 기준으로 이번 주 할 일을 자동 정렬해요."}
+              ? "예식일은 내가 정한 일정을 한눈에 보는 기준이에요. 날짜만으로 체크리스트에 마감이나 긴급 상태를 만들지 않아요."
+              : "예식일을 정하지 않아도 필요한 항목만 골라 시작할 수 있어요."}
           </AppText>
           <View style={styles.summaryTop}>
-            <Text style={styles.summaryLabel}>전체 진행률</Text>
-            <Text style={styles.summaryPercent}>{overallPercent}%</Text>
+            <Text style={styles.summaryLabel}>시작한 항목 완료율</Text>
+            <Text style={styles.summaryPercent}>
+              {progressCounts.total > 0 ? `${overallPercent}%` : "기록 없음"}
+            </Text>
           </View>
           <View style={styles.summaryBar}>
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
@@ -716,8 +732,8 @@ export default function ScheduleScreen() {
         <Surface style={styles.weeklySection}>
           <View style={styles.weeklyHeader}>
             <View>
-              <AppText variant="eyebrow">WEEKLY ACTION</AppText>
-              <AppText variant="subtitle">이번 주 추천 행동</AppText>
+              <AppText variant="eyebrow">MY NEXT STEP</AppText>
+              <AppText variant="subtitle">시작한 항목의 다음 확인</AppText>
             </View>
             <CalendarDays size={18} color={colors.rose[500]} />
           </View>
@@ -734,29 +750,19 @@ export default function ScheduleScreen() {
                 }}
               >
                 <View
-                  style={[
-                    styles.weeklyActionIcon,
-                    action.urgency === "overdue" && styles.weeklyActionIconDanger,
-                  ]}
+                  style={styles.weeklyActionIcon}
                 >
-                  {action.urgency === "overdue" ? (
-                    <AlertTriangle size={17} color={colors.danger} />
-                  ) : (
-                    <Circle size={17} color={colors.rose[500]} />
-                  )}
+                  <Circle size={17} color={colors.rose[500]} />
                 </View>
                 <View style={styles.weeklyActionBody}>
                   <View style={styles.weeklyActionTitleRow}>
                     <Text style={styles.weeklyActionTitle} numberOfLines={1}>
                       {action.categoryLabel}
                     </Text>
-                    <StatusPill
-                      label={getUrgencyLabel(action.urgency)}
-                      tone={getUrgencyTone(action.urgency)}
-                    />
+                    <StatusPill label="직접 시작" tone="rose" />
                   </View>
                   <Text style={styles.weeklyActionDesc} numberOfLines={2}>
-                    {action.nextItemLabel} · {action.deadlineLabel}
+                    {action.nextItemLabel} · 필요한 경우 직접 일정을 추가하세요
                   </Text>
                 </View>
               </Pressable>
@@ -764,9 +770,9 @@ export default function ScheduleScreen() {
           ) : (
             <View style={styles.weeklyEmpty}>
               <CheckCircle2 size={24} color={colors.rose[500]} />
-              <AppText variant="bodyStrong">이번 주에 급한 준비가 없어요</AppText>
+              <AppText variant="bodyStrong">시작한 항목 중 다음 확인이 없어요</AppText>
               <AppText variant="caption" style={styles.weeklyEmptyText}>
-                아래 체크리스트를 점검하거나 새 일정을 추가해두면 파트너와 함께 동기화돼요.
+                필요한 항목을 직접 고르면 그때부터 다음 확인을 보여드려요.
               </AppText>
             </View>
           )}
@@ -779,19 +785,14 @@ export default function ScheduleScreen() {
               <CalendarDays size={18} color={colors.rose[500]} />
               <Text style={styles.upcomingTitle}>임박 일정</Text>
             </View>
-            {upcomingEvents.map((evt, i) => (
+            {upcomingEvents.map((evt) => (
               <Pressable
-                key={`${evt.date}-${evt.title}-${i}`}
+                key={evt.id}
                 style={({ pressed }) => [
                   styles.eventCard,
                   pressed && { transform: [{ scale: 0.98 }] },
                 ]}
-                onPress={() => {
-                  const idx = events.findIndex(
-                    (e) => e.date === evt.date && e.title === evt.title
-                  );
-                  if (idx >= 0) openEditEventModal(idx);
-                }}
+                onPress={() => openEditEventModal(evt.id)}
               >
                 <View style={styles.eventDateBadge}>
                   <Text style={styles.eventDateNum}>{formatDate(evt.date)}</Text>
@@ -818,74 +819,62 @@ export default function ScheduleScreen() {
           </View>
         )}
 
-        {/* 카테고리 체크리스트 — 웹 상수 기반, 항상 20개 카테고리 표시 */}
-        {(
-          categories.map((cat) => {
-            const stats = getCategoryStats(cat.key);
-            const expanded = expandedKey === cat.key;
+        <View style={styles.checklistSectionHeader}>
+          <Text style={styles.checklistSectionTitle}>내가 시작한 준비</Text>
+          <Text style={styles.checklistSectionCopy}>
+            직접 시작한 항목만 완료율에 포함돼요.
+          </Text>
+        </View>
 
-            return (
-              <View key={cat.key} style={styles.catCard}>
-                <Pressable
-                  style={styles.catHeader}
-                  onPress={() => handleExpandToggle(cat.key)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catStat}>{stats.done}/{stats.total} 완료</Text>
-                  </View>
-                  <View style={styles.catRight}>
-                    <Text style={styles.catPercent}>{stats.percent}%</Text>
-                    {expanded
-                      ? <ChevronUp size={20} color={colors.textTertiary} />
-                      : <ChevronDown size={20} color={colors.textTertiary} />
-                    }
-                  </View>
-                </Pressable>
-
-                <View style={styles.catBar}>
-                  <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
-                </View>
-
-                {expanded && (
-                  <View style={styles.itemList}>
-                    {cat.items.map((item) => (
-                      <Pressable
-                        key={item.id}
-                        style={({ pressed }) => [
-                          styles.itemRow,
-                          pressed && { transform: [{ scale: 0.98 }] },
-                        ]}
-                        onPress={() => toggleItem(cat.key, item.id, item.done)}
-                      >
-                        {item.done
-                          ? <CheckCircle2 size={22} color={colors.rose[500]} />
-                          : <Circle size={22} color={colors.taupe[400]} />
-                        }
-                        <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
-                          {item.label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            );
-          })
+        {categoryGroups.started.length > 0 ? (
+          categoryGroups.started.map((category) => renderCategoryCard(category))
+        ) : (
+          <Surface style={styles.startedEmptyCard}>
+            <AppText variant="bodyStrong">아직 시작한 준비가 없어요</AppText>
+            <AppText variant="caption" style={styles.weeklyEmptyText}>
+              아래 참고 항목에서 필요한 것만 골라 시작하세요.
+            </AppText>
+          </Surface>
         )}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.optionalToggle,
+            pressed && styles.rowPressed,
+          ]}
+          onPress={() => setShowOptionalCategories((current) => !current)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showOptionalCategories }}
+          accessibilityLabel="선택 가능한 참고 항목 보기"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.optionalToggleTitle}>
+              선택 가능한 참고 항목 {categoryGroups.optional.length}개
+            </Text>
+            <Text style={styles.optionalToggleCopy}>모두 할 필요 없어요</Text>
+          </View>
+          {showOptionalCategories
+            ? <ChevronUp size={20} color={colors.textTertiary} />
+            : <ChevronDown size={20} color={colors.textTertiary} />
+          }
+        </Pressable>
+
+        {showOptionalCategories
+          ? categoryGroups.optional.map((category) => renderCategoryCard(category, true))
+          : null}
 
         {/* 전체 일정 목록 */}
         {events.length > 0 && (
           <View style={styles.allEventsSection}>
             <Text style={styles.allEventsTitle}>전체 일정</Text>
-            {events.map((evt, i) => (
+            {events.map((evt) => (
               <Pressable
-                key={`all-${evt.date}-${evt.title}-${i}`}
+                key={evt.id}
                 style={({ pressed }) => [
                   styles.allEventRow,
                   pressed && { transform: [{ scale: 0.98 }] },
                 ]}
-                onPress={() => openEditEventModal(i)}
+                onPress={() => openEditEventModal(evt.id)}
               >
                 <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
                 <Text style={styles.allEventTitle}>{evt.title}</Text>
@@ -911,7 +900,7 @@ export default function ScheduleScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingIdx !== null ? "일정 수정" : "일정 추가"}
+                {editingEventId !== null ? "일정 수정" : "일정 추가"}
               </Text>
               <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
                 <X size={24} color={colors.textTertiary} />
@@ -980,7 +969,7 @@ export default function ScheduleScreen() {
             </ScrollView>
 
             <View style={styles.modalActions}>
-              {editingIdx !== null && (
+              {editingEventId !== null && (
                 <Pressable
                   style={({ pressed }) => [styles.deleteBtn, pressed && { transform: [{ scale: 0.96 }] }]}
                   onPress={deleteEvent}
@@ -1002,7 +991,7 @@ export default function ScheduleScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.saveBtnText}>
-                    {editingIdx !== null ? "수정 완료" : "추가하기"}
+                    {editingEventId !== null ? "수정 완료" : "추가하기"}
                   </Text>
                 )}
               </Pressable>
@@ -1094,9 +1083,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
-  },
-  weeklyActionIconDanger: {
-    backgroundColor: "rgba(217,95,95,0.12)",
   },
   weeklyActionBody: {
     flex: 1,
@@ -1217,6 +1203,49 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
   emptyHint: { fontSize: 13, color: colors.textTertiary },
+
+  checklistSectionHeader: {
+    marginTop: 8,
+    gap: 3,
+  },
+  checklistSectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.noir[800],
+    fontFamily: "NotoSerifKR_500Medium",
+  },
+  checklistSectionCopy: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  startedEmptyCard: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 20,
+  },
+  optionalToggle: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory[100],
+  },
+  optionalToggleTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.noir[800],
+  },
+  optionalToggleCopy: {
+    marginTop: 2,
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
 
   catCard: {
     backgroundColor: colors.surface,

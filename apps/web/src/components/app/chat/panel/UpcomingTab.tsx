@@ -6,14 +6,10 @@ import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
-import { formatLocalDateOnly, parseLocalDateOnly } from "@hanbang/shared";
+import { formatLocalDateOnly } from "@hanbang/shared";
 import CollapsibleSection from "./CollapsibleSection";
 
-const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
-  overdue: { badge: "bg-[#9A6B62] text-white", text: "text-[#9A6B62]" },
-  urgent: { badge: "bg-[#C4967E] text-white", text: "text-[#C4967E]" },
-  soon: { badge: "bg-[#C9A96E] text-white", text: "text-[#C9A96E]" },
-};
+const REFERENCE_COLORS = { badge: "bg-[#fff8ec] text-[#9d6f36]", text: "text-[#9d6f36]" };
 
 const CATEGORY_LABELS: Record<string, string> = {
   meeting: "상견례", venue: "예식장", studio: "스튜디오",
@@ -48,12 +44,6 @@ export default function UpcomingTab() {
     () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
     [journey?.progress]
   );
-  const weddingDateValue = journey?.wedding_date;
-  const weddingDate = useMemo(
-    () => (weddingDateValue ? parseLocalDateOnly(weddingDateValue) : null),
-    [weddingDateValue]
-  );
-
   // hydration-safe: now는 클라이언트에서만 설정
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -62,13 +52,13 @@ export default function UpcomingTab() {
   }, []);
 
   const imminentCategories = useMemo(
-    () => getImminentCategories(progress, weddingDate),
-    [progress, weddingDate]
+    () => getImminentCategories(progress),
+    [progress]
   );
 
   const completedImminent = useMemo(
-    () => getCompletedImminentCategories(progress, weddingDate),
-    [progress, weddingDate]
+    () => getCompletedImminentCategories(progress),
+    [progress]
   );
 
   const todayStr = now ? formatLocalDateOnly(now) : "";
@@ -82,16 +72,19 @@ export default function UpcomingTab() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* 임박 체크리스트 (미완료) */}
+      {/* 사용자가 직접 시작한 일정 미등록 항목 */}
       <CollapsibleSection
-        title="임박 체크리스트"
+        title="시작한 항목의 일정 확인"
         count={imminentCategories.length}
         defaultOpen
       >
         {imminentCategories.length > 0 ? (
           <div className="flex flex-col gap-2">
+            <p className="pb-1 text-center text-xs leading-relaxed text-taupe-400">
+              업체 마감으로 계산한 값이 아닙니다. 날짜가 필요한 경우에만 내 일정에 추가하세요.
+            </p>
             {imminentCategories.map((item) => {
-              const colors = URGENCY_COLORS[item.urgency];
+              const colors = REFERENCE_COLORS;
               return (
                 <div
                   key={item.key}
@@ -109,9 +102,7 @@ export default function UpcomingTab() {
                     </div>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
-                    {item.deadlineDaysLeft <= 0
-                      ? `${Math.abs(item.deadlineDaysLeft)}일 초과`
-                      : `D-${item.deadlineDaysLeft}`}
+                    일정 미설정
                   </span>
                 </div>
               );
@@ -119,14 +110,14 @@ export default function UpcomingTab() {
           </div>
         ) : (
           <p className="text-sm text-taupe-400 py-2 text-center">
-            {weddingDate ? "임박한 항목이 없습니다" : "결혼 날짜를 설정하세요"}
+            시작한 항목 중 일정 미등록 항목이 없습니다
           </p>
         )}
       </CollapsibleSection>
 
-      {/* 완료된 임박 항목 */}
+      {/* 완료한 참고 항목 */}
       <CollapsibleSection
-        title="완료된 항목"
+        title="완료한 참고 항목"
         count={completedImminent.length}
       >
         {completedImminent.length > 0 ? (
@@ -150,7 +141,7 @@ export default function UpcomingTab() {
           </div>
         ) : (
           <p className="text-sm text-taupe-400 py-2 text-center">
-            아직 완료된 임박 항목이 없습니다
+            아직 완료한 참고 항목이 없습니다
           </p>
         )}
       </CollapsibleSection>

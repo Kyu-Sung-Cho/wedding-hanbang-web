@@ -40,9 +40,45 @@ afterEach(() => {
   else process.env.MAINTENANCE_MODE = originalMaintenanceMode;
   if (originalLaunchMode === undefined) delete process.env.NEXT_PUBLIC_LAUNCH_MODE;
   else process.env.NEXT_PUBLIC_LAUNCH_MODE = originalLaunchMode;
+  vi.unstubAllEnvs();
 });
 
 describe("coming-soon protected administrator access", () => {
+  it.each([
+    ["missing", undefined],
+    ["blank", ""],
+    ["wrong case", "FULL"],
+    ["unknown", "public"],
+  ])("fails production API access closed when launch mode is %s", async (_label, mode) => {
+    delete process.env.MAINTENANCE_MODE;
+    if (mode === undefined) delete process.env.NEXT_PUBLIC_LAUNCH_MODE;
+    else process.env.NEXT_PUBLIC_LAUNCH_MODE = mode;
+    vi.stubEnv("NODE_ENV", "production");
+
+    const response = await proxy(new NextRequest("https://hanbang.ai/api/auth/signup", {
+      method: "POST",
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "SERVICE_NOT_LAUNCHED",
+    });
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("opens the application in production only for the explicit full mode", async () => {
+    delete process.env.MAINTENANCE_MODE;
+    process.env.NEXT_PUBLIC_LAUNCH_MODE = "full";
+    vi.stubEnv("NODE_ENV", "production");
+
+    const response = await proxy(new NextRequest("https://hanbang.ai/api/auth/signup", {
+      method: "POST",
+    }));
+
+    expect(response.status).toBe(204);
+    expect(mocks.updateSession).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     "/admin/login",
     "/admin",
@@ -78,6 +114,15 @@ describe("coming-soon protected administrator access", () => {
         expect(source).toContain("checkRateLimitPersistentStrict");
         expect(source).toContain("isInitialAdminSetupEnabled()");
         expect(source).toContain('process.env.NODE_ENV !== "production"');
+      } else if (
+        /synthetic_vendor_seed_retired|VENDOR_ADMIN_MUTATION_RETIRED|ADMIN_BOOKING_HISTORY_RETIRED/.test(source)
+      ) {
+        expect(source, path).toContain("status: 410");
+        expect(source, path).toContain('"Cache-Control": "private, no-store, max-age=0"');
+        expect(source, path).toMatch(/export (?:async )?function (?:GET|POST|PUT|PATCH)\(/);
+        expect(source, path).not.toMatch(
+          /verifyAdmin|createClient|SUPABASE_SERVICE_ROLE_KEY|request\.json|\.from\(/,
+        );
       } else {
         expect(source, path).toContain("verifyAdmin(");
       }

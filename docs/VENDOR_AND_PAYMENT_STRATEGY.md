@@ -1,5 +1,8 @@
 # 웨딩한방 업체 데이터 확보 & 결제 시스템 전략서
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 업체 수급, 에스크로, 결제·정산·수수료, 상담 전송은 승인된 기능이나 사업 계획이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **2026-03 역사 전략 스냅샷입니다.** 현재 구현·출시 지침이 아니며, 웨딩한방은 플랫폼 내 결제·에스크로·정산·업체 상담 전송을 제공하지 않습니다. 합성 업체 시드는 프로덕션에서 하드 차단되고 비프로덕션에서도 미승인 상태로만 생성됩니다. 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`와 실제 코드를 따릅니다.
 

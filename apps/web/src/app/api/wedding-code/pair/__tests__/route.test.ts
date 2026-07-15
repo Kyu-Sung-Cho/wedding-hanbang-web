@@ -9,8 +9,8 @@ describe("/api/wedding-code/pair POST", () => {
     expect(response.status).toBe(410);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(body).toEqual({
-      error: "커플 비교 기능을 안전 점검 중입니다.",
-      pairingStatus: "disabled",
+      error: "웨딩코드와 커플 비교는 현재 제공하지 않습니다.",
+      pairingStatus: "retired",
     });
     expect(JSON.stringify(body)).not.toMatch(/coupleToken|couple_token|response_id/i);
   });

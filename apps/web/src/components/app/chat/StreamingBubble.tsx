@@ -4,19 +4,16 @@ import { useEffect, useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import ActionCard from "./ActionCard";
-import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 
 interface StreamingBubbleProps {
   content?: string;
   toolResults: ToolExecutionResult[];
-  onSend?: (text: string) => void;
   onCancel?: () => void;
 }
 
 export default function StreamingBubble({
   content = "",
   toolResults,
-  onSend,
   onCancel,
 }: StreamingBubbleProps) {
   const [isTakingLonger, setIsTakingLonger] = useState(false);
@@ -29,13 +26,9 @@ export default function StreamingBubble({
   return (
     <div>
       {/* 도구 실행 결과 카드 — 작업 진행 중임을 시각적으로 알림 */}
-      {toolResults.map((result, i) =>
-        VENDOR_TOOL_NAMES.has(result.toolName) ? (
-          <VendorToolCard key={i} result={result} onSend={onSend} disabled />
-        ) : (
-          <ActionCard key={i} result={result} />
-        )
-      )}
+      {toolResults.map((result, i) => (
+        <ActionCard key={i} result={result} />
+      ))}
 
       <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
         <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">

@@ -7,19 +7,19 @@ import {
 describe("getRuntimeToolContract", () => {
   it("lists only the tools exposed for the current turn and forbids mutation claims", () => {
     const prompt = getRuntimeToolContract(
-      [{ name: "search_vendors" }, { name: "get_budget_status" }],
+      [{ name: "get_market_price" }, { name: "get_budget_summary" }],
       { toolCards: true },
     );
 
-    expect(prompt).toContain("get_budget_status, search_vendors");
+    expect(prompt).toContain("get_budget_summary, get_market_price");
     expect(prompt).toContain("모든 쓰기 작업이 비활성화");
     expect(prompt).toContain("완료했다고 주장하지 마세요");
     expect(prompt).toContain("신뢰할 수 없는 데이터");
-    expect(prompt).not.toContain("create_booking,");
+    expect(prompt).not.toContain("create_booking");
   });
 
   it("requires a text fallback when the client cannot render tool cards", () => {
-    const prompt = getRuntimeToolContract([{ name: "analyze_quote" }], { toolCards: false });
+    const prompt = getRuntimeToolContract([{ name: "get_market_price" }], { toolCards: false });
 
     expect(prompt).toContain("카드를 표시하지 못합니다");
     expect(prompt).toContain("핵심 결과를 답변 텍스트에");

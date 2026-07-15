@@ -1,12 +1,17 @@
+import "server-only";
+
 import { sanitizeText } from "@/utils/sanitize";
+import { randomBytes } from "node:crypto";
 
 export const COMMUNITY_NICKNAME_MAX_LENGTH = 20;
 
 const RESERVED_NICKNAME_FRAGMENTS = [
   "admin",
   "administrator",
+  "chatgpt",
   "hanbang",
   "official",
+  "openai",
   "root",
   "staff",
   "support",
@@ -14,10 +19,28 @@ const RESERVED_NICKNAME_FRAGMENTS = [
   "weddinghanbang",
   "관리자",
   "고객센터",
+  "공인",
+  "공정거래위원회",
+  "공정위",
   "공식",
+  "감정평가사",
+  "마스터",
+  "법무사",
+  "변호사",
+  "노무사",
+  "상담센터",
+  "세무사",
+  "소비자원",
   "아모라",
+  "웨딩플래너",
   "운영자",
   "웨딩한방",
+  "인증",
+  "전문가",
+  "중개사",
+  "플래너",
+  "한국소비자원",
+  "회계사",
   "한방운영",
 ];
 
@@ -98,7 +121,10 @@ export function validateCommunityNickname(raw: unknown): CommunityNicknameValida
   }
 
   if (RESERVED_NICKNAME_FRAGMENTS.some((term) => key.includes(term))) {
-    return { ok: false, message: "공식 계정으로 오해될 수 있는 닉네임은 사용할 수 없습니다." };
+    return {
+      ok: false,
+      message: "공식·전문 계정으로 오해될 수 있는 닉네임은 사용할 수 없습니다.",
+    };
   }
 
   if (PROHIBITED_NICKNAME_FRAGMENTS.some((term) => key.includes(term))) {
@@ -108,23 +134,22 @@ export function validateCommunityNickname(raw: unknown): CommunityNicknameValida
   return { ok: true, nickname, key };
 }
 
-export function getCommunityNicknameFallback(userId: string): string {
-  const hash = (seed: number) => {
-    let value = seed >>> 0;
-    for (const char of userId) {
-      value ^= char.codePointAt(0) ?? 0;
-      value = Math.imul(value, 0x01000193) >>> 0;
-    }
-    return value.toString(36).padStart(7, "0");
-  };
-  const suffix = `${hash(0x811c9dc5)}${hash(0x9e3779b9)}`.slice(0, 12);
+export function getCommunityNicknameFallback(_legacyUserId?: string): string {
+  void _legacyUserId;
+  // Never derive a public pseudonym from an auth UUID. Fresh CSPRNG entropy
+  // prevents cross-dataset correlation even when the private UUID is known.
+  const suffix = randomBytes(8).toString("hex").slice(0, 15);
   return `웨딩친구-${suffix}`;
 }
 
-export function getSafeDefaultCommunityNickname(_rawName: unknown, userId: string): string {
-  // 가입 이름은 실명일 수 있다. 최초 공개 행동에서 동의 없이 복사하지 않고,
-  // 사용자 ID 자체도 노출하지 않는 안정적인 가명을 만든다.
-  return getCommunityNicknameFallback(userId);
+export function getSafeDefaultCommunityNickname(
+  _rawName: unknown,
+  _legacyUserId?: string,
+): string {
+  void _rawName;
+  void _legacyUserId;
+  // Account names are private and never seed or populate a community identity.
+  return getCommunityNicknameFallback();
 }
 
 export function isCommunityNicknameUniqueViolation(error: unknown): boolean {

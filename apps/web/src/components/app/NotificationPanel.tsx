@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Bell, Check, AlertTriangle, Info } from "lucide-react";
+import { X, Bell, CalendarDays, AlertTriangle, Info } from "lucide-react";
 import type { ComputedNotification } from "@/hooks/useNotifications";
 
 const PRIORITY_STYLES: Record<string, { icon: React.ElementType; accent: string; bg: string }> = {
@@ -14,7 +14,7 @@ interface Props {
   notifications: ComputedNotification[];
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
-  onCategoryClick: (categoryKey: string) => void;
+  onScheduleClick: () => void;
   onClose: () => void;
 }
 
@@ -22,7 +22,7 @@ export default function NotificationPanel({
   notifications,
   onDismiss,
   onDismissAll,
-  onCategoryClick,
+  onScheduleClick,
   onClose,
 }: Props) {
   return (
@@ -63,14 +63,14 @@ export default function NotificationPanel({
         <div className="flex-1 overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-6">
-              <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/10 flex items-center justify-center mb-3">
-                <Check className="w-6 h-6 text-[#2E7D5A]" />
+              <div className="w-12 h-12 rounded-full bg-[#928980]/10 flex items-center justify-center mb-3">
+                <CalendarDays className="w-6 h-6 text-[#928980]" aria-hidden="true" />
               </div>
               <p className="text-[14px] text-[#928980] font-medium">
-                모든 알림을 확인했습니다
+                현재 표시할 일정 알림이 없어요
               </p>
               <p className="text-[12px] text-[#B5ADA3] mt-1">
-                새로운 알림이 오면 여기에 표시됩니다
+                직접 등록한 예정 일정만 이곳에 표시돼요
               </p>
             </div>
           ) : (
@@ -109,14 +109,12 @@ export default function NotificationPanel({
                             {n.message}
                           </p>
                           <div className="flex items-center gap-2 mt-2">
-                            {n.categoryKey && (
-                              <button
-                                onClick={() => onCategoryClick(n.categoryKey!)}
-                                className="text-[11px] text-[#C4967E] hover:underline"
-                              >
-                                체크리스트 보기
-                              </button>
-                            )}
+                            <button
+                              onClick={onScheduleClick}
+                              className="text-[11px] text-[#C4967E] hover:underline"
+                            >
+                              일정 보기
+                            </button>
                             {n.isNew && (
                               <button
                                 onClick={() => onDismiss(n.id)}

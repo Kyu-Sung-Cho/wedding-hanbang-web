@@ -23,7 +23,7 @@
 2. exact SHA의 CI, 타입, 테스트, lint, build, production dependency audit가 통과했다.
 3. PR은 Draft가 아니고 최신 변경을 본 독립 리뷰가 있다.
 4. Vercel production 환경 변수의 **이름·적용 대상·최종 수정 시각**을 확인했다. 값은 로그나 문서에 출력하지 않는다.
-5. exact SHA의 maintenance deployment가 `MAINTENANCE_MODE=true`로 응답하고 health endpoint가 같은 Supabase ref와 전체 40자 SHA를 반환한다.
+5. exact SHA의 maintenance deployment가 `MAINTENANCE_MODE=true`로 응답하고 health endpoint가 같은 Supabase ref, 전체 40자 SHA와 `amoraUsageLimitMode=unlimited_test`를 반환한다.
 6. 웹 maintenance를 우회하는 기존 모바일·오래 열린 브라우저의 Data API/Auth/Storage 쓰기가 실제 black-box probe에서 거부된다.
 7. production preflight의 hard blocker가 모두 0이고 rewrite/delete inventory가 승인된 수량과 같다.
 8. migration history가 local의 연속 prefix다. core baseline history만 누락됐고 catalog가 exact일 때만 전용 reconcile 절차를 먼저 사용한다.
@@ -32,14 +32,15 @@
 11. signed iOS Team ID와 Play App Signing fingerprint가 확정됐고, association JSON·웹 fallback·실기기 deep link가 같은 exact SHA에서 통과했다.
 12. 현재 과거 production deployment는 `coming_soon` 서버 gate를 포함하지 않으므로 rollback target으로 승인하지 않는다. DB 변경 전에 공개 allowlist만 여는 launch-gate 호환 deployment를 별도 생산·canary하고 deployment ID를 고정했다.
 13. 사용자 연구 접수를 공개하려면 사업 책임자가 선정 기준, 최대 인원, 검토 책임자, 선정·미선정 통지 기한, 문의·삭제 요청 SLA와 통지 문안을 승인하고 release evidence에 남겼다. 이메일 확인은 선정이 아니며, 이 운영 결정 없이 자동 선정 상태나 결과 메일을 임의로 만들지 않는다.
-14. Resend의 확인 메일 발송 도메인에서 **click tracking이 비활성화**되어 있고 링크가 tracking redirect로 재작성되지 않는다는 설정 화면·확인 시각을 증거로 남겼다. Fragment capability가 provider tracking URL에 복사될 수 있으므로 이 증거가 없으면 사용자 연구 메일을 운영 발송하지 않는다. Resend도 이메일 확인 같은 민감한 transactional email에는 추적 비활성화를 권장한다: [Open and Click Tracking](https://resend.com/docs/dashboard/domains/tracking).
-15. 운영 Supabase Auth의 mutable 설정을 read-only Management API gate로 검사해 `direct-signup-disabled-general-password-v1` 증거를 남겼고, 관리자 계정의 생성·복구·로그인 후 변경을 모두 포괄하는 12자 role-aware 정책도 별도 non-bypassable 경계에서 검증됐다. 둘 중 하나라도 없으면 중단한다.
-16. full-history scanner가 찾은 Kakao platform key 형태 값 3개의 공급자 측 회전·제한·구 값 거부·사용량 검토와 현재 환경 갱신을 증명했고, 승인된 history 처리 뒤 exact SHA secret gate가 통과했다.
-17. Cloudflare Turnstile의 운영 widget이 `hanbang.ai`만 허용하고 Production에 공개 site key와 비밀 secret key가 모두 저장됐다. 회원가입·비밀번호 복구·연구 신청·설문 네 action의 실제 토큰이 서버 Siteverify에서 각각 동일 hostname/action으로 검증되고, 다른 hostname/action·재사용·만료 토큰은 거부된 증거를 남겼다. 현재 `productionTurnstileBoundary.status`는 `not_configured`이므로 이 증거 전에는 운영 push를 중단한다. Cloudflare도 서버 검증과 지정한 hostname/action 비교를 권고한다: [Validate the token](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
-18. Supabase의 공개 recovery·resend·magic-link·OTP 메일 경로가 앱의 CAPTCHA·영속 limiter·중립 응답·전달 경계를 우회하지 않는 승인 모드를 실제 hosted 설정과 black-box probe로 증명했고, `productionSupabasePublicEmailBoundary`가 `verified-v1`이다.
-19. hosted Auth의 canonical site URL, exact redirect allow-list, JWT/refresh 회전·재사용, OTP 길이·만료와 rate limit을 read-only로 증명했고 `productionSupabaseRedirectTokenPolicy`가 `verified-v1`이다.
-20. 화면에 보이는 OAuth 공급자가 checked-in 목록과 정확히 같고 각 공급자의 실제 redirect round-trip 또는 의도된 비노출·비활성 상태를 증명해 `productionOAuthProviderContract`가 `verified-v1`이다.
-21. 2026-07-12 read-only Vercel 감사 중 내부 도구 출력에 노출된 Deployment Protection automation-bypass 비밀을 회전했다. 기존 consumer를 값 없이 inventory하고, 새 비밀을 승인된 consumer에 먼저 배포해 성공을 확인한 뒤 구 비밀의 거부와 사용 로그를 검증했다. raw `protectionBypass` object나 key는 어느 로그·문서에도 다시 출력하지 않는다.
+14. 익명 고객 설문은 인구통계·예산·자유서술의 동의 철회와 권리행사 경로가 없으므로 hard-retire 상태다. `/customersurvey`는 닫힘 안내와 legacy 브라우저 draft 제거만 수행하고 `/api/survey`는 body·rate limit·Turnstile·DB보다 먼저 `410`이어야 한다. 설문 재개는 이번 release 범위가 아니다.
+15. Resend의 확인 메일 발송 도메인에서 **click tracking이 비활성화**되어 있고 링크가 tracking redirect로 재작성되지 않는다는 설정 화면·확인 시각을 증거로 남겼다. Fragment capability가 provider tracking URL에 복사될 수 있으므로 이 증거가 없으면 사용자 연구 메일을 운영 발송하지 않는다. Resend도 이메일 확인 같은 민감한 transactional email에는 추적 비활성화를 권장한다: [Open and Click Tracking](https://resend.com/docs/dashboard/domains/tracking).
+16. 운영 Supabase Auth의 mutable 설정을 read-only Management API gate로 검사해 `direct-signup-disabled-general-password-v1` 증거를 남겼고, 관리자 계정의 생성·복구·로그인 후 변경을 모두 포괄하는 12자 role-aware 정책도 별도 non-bypassable 경계에서 검증됐다. 둘 중 하나라도 없으면 중단한다.
+17. full-history scanner가 찾은 Kakao platform key 형태 값 3개의 공급자 측 회전·제한·구 값 거부·사용량 검토와 현재 환경 갱신을 증명했고, 승인된 history 처리 뒤 exact SHA secret gate가 통과했다.
+18. Cloudflare Turnstile의 운영 widget이 `hanbang.ai`만 허용하고 Production에 공개 site key와 비밀 secret key가 모두 저장됐다. 현재 운영에서 활성인 회원가입·비밀번호 복구 두 action의 실제 토큰이 서버 Siteverify에서 각각 동일 hostname/action으로 검증되고, 다른 hostname/action·재사용·만료 토큰은 거부된 증거를 남겼다. production에서 본문·Turnstile 전에 `503`인 사용자 연구 사전등록과 검증 전에 `410`인 hard-retire 고객 설문은 Turnstile 필수 action이 아니며 각각의 닫힘 계약으로 확인한다. 현재 `productionTurnstileBoundary.status`는 `not_configured`이므로 이 증거 전에는 운영 push를 중단한다. Cloudflare도 서버 검증과 지정한 hostname/action 비교를 권고한다: [Validate the token](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+19. Supabase의 공개 recovery·resend·magic-link·OTP 메일 경로가 앱의 CAPTCHA·영속 limiter·중립 응답·전달 경계를 우회하지 않는 승인 모드를 실제 hosted 설정과 black-box probe로 증명했고, `productionSupabasePublicEmailBoundary`가 `verified-v1`이다.
+20. hosted Auth의 canonical site URL, exact redirect allow-list, JWT/refresh 회전·재사용, OTP 길이·만료와 rate limit을 read-only로 증명했고 `productionSupabaseRedirectTokenPolicy`가 `verified-v1`이다.
+21. 화면에 보이는 OAuth 공급자가 checked-in 목록과 정확히 같고 각 공급자의 실제 redirect round-trip 또는 의도된 비노출·비활성 상태를 증명해 `productionOAuthProviderContract`가 `verified-v1`이다.
+22. 2026-07-12 read-only Vercel 감사 중 내부 도구 출력에 노출된 Deployment Protection automation-bypass 비밀을 회전했다. 기존 consumer를 값 없이 inventory하고, 새 비밀을 승인된 consumer에 먼저 배포해 성공을 확인한 뒤 구 비밀의 거부와 사용 로그를 검증했다. raw `protectionBypass` object나 key는 어느 로그·문서에도 다시 출력하지 않는다.
 
 ## OpenAI 키 노출 사고 복구 — 회전 선행 gate와 exact-SHA 후행 canary
 
@@ -114,9 +115,9 @@ Cloudflare widget의 허용 hostname은 apex `hanbang.ai`만 남긴다. `www.han
 
 특히 `--skip-domain` staged deployment는 브라우저 hostname이 `*.vercel.app`이므로, 위 health가 초록이어도 `hanbang.ai` 제한 production widget의 실제 challenge 성공을 증명하지 않는다. Preview health를 production Siteverify attestation으로 승격하지 않는다.
 
-`scripts/release-targets.json`의 `productionTurnstileBoundary.status`는 `hanbang.ai`에서 실제 브라우저로 `signup`, `forgot_password`, `preregister`, `survey` 네 action을 각각 발급·검증하고, 다른 action 토큰과 다른 hostname 토큰이 거부되는 것을 확인하기 전까지 `not_configured`로 유지한다. 토큰은 5분 유효·일회용이므로 실패/재시도 때 새 토큰이 발급되는지도 확인한다. 운영 데이터나 이메일을 만드는 흐름은 운영자 소유 테스트 주소, 사전 승인된 정리 절차, 생성·삭제 증거가 있어야 한다. Cloudflare 공식 기준: [Server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/), [Explicit rendering](https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/), [Testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+`scripts/release-targets.json`의 `productionTurnstileBoundary.status`는 `hanbang.ai`에서 실제 브라우저로 `signup`, `forgot_password` 두 action을 각각 발급·검증하고, 다른 action 토큰과 다른 hostname 토큰이 거부되는 것을 확인하기 전까지 `not_configured`로 유지한다. 토큰은 5분 유효·일회용이므로 실패/재시도 때 새 토큰이 발급되는지도 확인한다. 운영 데이터나 이메일을 만드는 흐름은 운영자 소유 테스트 주소, 사전 승인된 정리 절차, 생성·삭제 증거가 있어야 한다. `preregister`는 production에서 요청 본문이나 Turnstile 검증에 도달하기 전 `503`, 고객 설문은 검증 전 `410`을 반환하므로 이 attestation에 포함하지 않고 각 hard-close 테스트로 검증한다. Cloudflare 공식 기준: [Server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/), [Explicit rendering](https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/), [Testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
 
-현재 절차에는 이 선행 attestation을 실행할 안전한 경로가 **없다**. DB push 전에 apex에 올릴 수 있는 `coming_soon` anchor는 `/login`, 가입·복구 API, 고객 설문을 차단하고 연구 접수도 닫혀 있는데, guarded ship은 네 action의 `verified-v1`을 먼저 요구한다. 따라서 상태값을 수동으로 초록색으로 바꾸거나 `supabase-ship-safe.ps1`의 검사를 제거하지 않는다. 운영 데이터·메일을 만들지 않는 인증 전용 apex surface를 별도 보안 검토해 추가하거나, DB-only ship과 최종 web promotion gate를 exact-SHA evidence로 안전하게 분리하는 후속 설계가 승인되기 전까지 이 항목은 의도된 release hard-stop이다.
+현재 절차에는 이 선행 attestation을 실행할 안전한 경로가 **없다**. DB push 전에 apex에 올릴 수 있는 `coming_soon` anchor는 `/login`, 가입·복구 API를 차단하고 연구·설문 접수도 닫혀 있는데, guarded ship은 운영 활성 두 action의 `verified-v1`을 먼저 요구한다. 따라서 상태값을 수동으로 초록색으로 바꾸거나 `supabase-ship-safe.ps1`의 검사를 제거하지 않는다. 운영 데이터·메일을 만들지 않는 인증 전용 apex surface를 별도 보안 검토해 추가하거나, DB-only ship과 최종 web promotion gate를 exact-SHA evidence로 안전하게 분리하는 후속 설계가 승인되기 전까지 이 항목은 의도된 release hard-stop이다.
 
 #### 0-A. Hosted Supabase Auth exact attestation
 
@@ -169,7 +170,7 @@ guarded ship은 `productionSupabasePublicEmailBoundary`, `productionSupabaseRedi
 PR HEAD는 merge 전 후보일 뿐 운영 artifact가 아니다. 이 저장소는 merge commit·squash·rebase를 모두 허용하므로 일반 병합은 새 SHA를 만든다. 이 release에서는 provenance를 단순하게 유지하기 위해 GitHub의 **Create a merge commit** 방식만 사용하고 force-push·squash·rebase merge를 사용하지 않는다.
 
 1. 병합 전 `$CandidateSha = gh pr view 38 --json headRefOid --jq .headRefOid`를 고정하고 CI·독립 승인·비운영 빌드를 이 SHA에 묶는다.
-2. GO 1~4의 코드·환경 identity, 13~21의 사업/보안/공급자 선행 승인, 그리고 GO 5~12의 disposable 리허설·production read-only inventory가 모두 candidate SHA에 묶여야 한다. 실제 production DB 변경은 하지 않되, post-merge 단계에서 처음 발견할 blocker가 남아 있으면 병합하지 않는다. 현재 Turnstile/Auth attester, secret 회전, backup/restore, fence, 모바일 서명 같은 blocker가 하나라도 있으면 이 단계에 도달하지 않는다.
+2. GO 1~4의 코드·환경 identity, 13~22의 사업/보안/공급자 선행 승인, 그리고 GO 5~12의 disposable 리허설·production read-only inventory가 모두 candidate SHA에 묶여야 한다. 실제 production DB 변경은 하지 않되, post-merge 단계에서 처음 발견할 blocker가 남아 있으면 병합하지 않는다. 현재 Turnstile/Auth attester, secret 회전, backup/restore, fence, 모바일 서명 같은 blocker가 하나라도 있으면 이 단계에 도달하지 않는다.
 3. 병합 직전 PR head가 바뀌는 TOCTOU를 막기 위해 `gh pr merge 38 --merge --match-head-commit $CandidateSha`만 사용한다.
 4. 병합 후 원격을 다시 fetch하고 GitHub의 `mergeCommit.oid`, `origin/main`, 로컬 checkout이 모두 같은 40자 `$ReleaseSha`인지 확인한다. `$CandidateSha`가 `$ReleaseSha`의 ancestor가 아니면 중단한다.
 5. clean `$ReleaseSha`에서 secret gate, 전체 test/lint/typecheck/build, migration fingerprints, EAS release build와 staged Vercel identity를 전부 다시 실행한다. 이후 이 문서의 `$ReviewedSha`는 `$ReleaseSha`만 뜻한다.
@@ -206,6 +207,7 @@ controller는 승인된 환경 snapshot을 아래 안전 상태로 만들고 변
 - `MAINTENANCE_MODE=false`
 - `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`
 - `ACCOUNT_DELETION_CRON_ENABLED=false`
+- `AMORA_USAGE_LIMITS_ENABLED=false` (테스트 단계 상담 횟수 무제한; health가 `unlimited_test`로 증명)
 - 새 런타임에는 `OPENAI_API_KEY`와 고정된 Luna/Terra model 설정만 두고 `ANTHROPIC_API_KEY`는 Production 환경에서 제거
 - 검토된 production Supabase ref와 회전·검증된 비밀만 사용
 
@@ -217,8 +219,11 @@ controller는 외부 allowlist의 repository/team/project ID와 exact `$Reviewed
 deployment = $ReviewedSha 전체 40자리
 supabaseProjectRef = protected production ref
 maintenance = false
+launchMode = coming_soon
+amoraUsageLimitMode = unlimited_test
 researchCohortApplicationsEnabled = false
 accountDeletionCronEnabled = false
+customerSurveyIntakeEnabled = false
 공개 allowlist 정상, 로그인·앱·일반 API 차단
 ```
 
@@ -243,6 +248,7 @@ SHA, Supabase ref, 환경 계약, deployment ID 중 하나라도 다르면 stage
 - 확인 메일 링크를 재작성하지 않도록 비활성화한 Resend click tracking 설정
 - 이번 핵심 출시에서는 `RESEARCH_COHORT_APPLICATIONS_ENABLED=false`; 실제 연구 접수 공개는 선정·통지·삭제 운영 승인과 전용 E2E를 갖춘 별도 exact-SHA staged release에서만 수행
 - 이번 핵심 출시에서는 `ACCOUNT_DELETION_CRON_ENABLED=false`; fresh/upgrade migration, encrypted backup, isolated restore drill, queue health와 삭제 canary를 갖춘 별도 exact-SHA staged release에서만 활성화
+- 익명 고객 설문은 환경변수로 재개하지 않는다. health의 `customerSurveyIntakeEnabled`는 항상 `false`이고 실제 응답 행을 만들지 않는다.
 
 controller는 create 직전 `main` HEAD와 exact SHA를 다시 확인하고 외부 allowlist의 team/project/repository ID로 maintenance deployment를 staged한다. strict provider response 검증이 실패하면 URL이나 receipt를 생산하지 않는다.
 
@@ -251,11 +257,13 @@ controller는 create 직전 `main` HEAD와 exact SHA를 다시 확인하고 외�
 ```text
 GET $MaintenanceUrl/api/health/maintenance
 maintenance = true
+launchMode = coming_soon
 supabaseProjectRef = protected production ref
 deployment = $ReviewedSha 전체 40자리
 rateLimitKeySecretConfigured = true
 researchCohortApplicationsEnabled = false
 accountDeletionCronEnabled = false
+customerSurveyIntakeEnabled = false
 ```
 
 페이지와 일반 API는 503이어야 한다. app association 세 경로와 health endpoint만 직접 응답한다. health endpoint가 404이거나 SHA·Supabase ref·flag 중 하나라도 다르거나 provider API의 deployment ID 결합이 다르면 promote하지 않는다. 모두 통과하고 독립 승인이 있으면 controller가 `main` HEAD를 다시 확인하고 같은 maintenance ID만 승격한다.
@@ -352,22 +360,36 @@ corepack pnpm supabase:ship:safe -- `
   -MaintenanceAuthorizedUntilUtc <UTC-within-30m>
 ```
 
+#### 5-A. 브라우저 권한 폐쇄 migration의 상태 전이 gate
+
+`20260713104000`과 `20260713105000`은 pending 여부만으로 안전하다고 판단하지 않는다. read-only production preflight가 각 migration에 대해 검토된 완전한 legacy 상태와 완전한 closed 상태를 따로 계산한다. migration이 pending이면 두 상태 중 정확히 하나만 참이어야 하고, 이미 적용됐으면 closed만 참이어야 한다. 둘 다 거짓인 부분 적용·정책 누락·알 수 없는 ACL 상태와 둘 다 참인 모순 상태는 push 전에 중단한다. 실제 migration은 하나의 transaction이지만, 수동 SQL이나 ledger 밖 변경으로 만들어진 중간 상태도 정상 상태로 간주하지 않는다.
+
+`20260713112000`~`20260713123000`은 각각 `replaceable`과 `exact` 원격 계약을 가진다. pending이면 현재 table·column·function 반환형·bucket 같은 선행 catalog가 검토된 migration으로 안전하게 교체 가능하거나 이미 exact여야 하고, 적용된 뒤에는 exact만 허용한다. post-deploy는 원시 고객 추적의 브라우저 ACL·쓰기 trigger·90일 초과 행 0·정확한 cron, `profiles` 직접 ACL 회수와 세 최소 RPC, private 커뮤니티 media·poll write trigger, 퇴역 축의금 장부의 service-only 제한 ACL, `community_posts` text-only 열 권한·legacy 열 거부·Realtime 부재, private `community_user_mutes` table·opaque actor mute helper·게시글/댓글 정책, 기존 댓글의 원자적 삭제, 공개 auth UUID가 아닌 서버 생성 actor ID·안전 별명·이모지 아바타, 게시글 작성 수·활성 댓글 수·삭제·수정의 원자적 service-only RPC, 연구 동의 버전 `2026-07-12`·`2026-07-14` 외 행 0을 모두 요구한다. 마지막 ACL closure는 14개 교정 대상에서 8개 table privilege(`MAINTAIN` 포함)를 실제 런타임 최소치와 하나씩 비교하고, `PUBLIC`·service column ACL, postgres 이외 grantor와 grant option이 하나라도 남으면 중단한다. definer 함수는 exact `search_path`와 `row_security=off`를 함께 가져야 하고, service role의 댓글 직접 INSERT·DELETE·table UPDATE·TRUNCATE는 금지하며 `content`·`updated_at` 열 편집만 허용한다. 물리 댓글 삭제와 게시글 cascade는 transition-table statement trigger로 게시글·작성자 집계를 함께 보정하고, post-deploy는 실제 행 집계와 저장된 `comment_count`가 일치하는지도 검사한다. 연구 동의 제약 교체는 5초 lock timeout·120초 statement timeout 안에 ACCESS EXCLUSIVE lock을 먼저 얻은 뒤 exact `pg_get_constraintdef`를 증명하지 못하면 전체 트랜잭션을 중단한다. `supabase_realtime.puballtables=true`는 private mute 관계와 공개 actor 테이블의 publication 제외를 보장할 수 없으므로 hard blocker다. preview smoke harness는 DB 관리자만 최대 24시간 비운영 ref를 허용할 수 있고, service role은 allowlist table과 `private` schema를 직접 사용할 수 없다. 운영 ref는 allowlist CHECK와 authorization 함수 양쪽에서 거부하며, 여섯 definer 함수의 source MD5·owner·config·직접 EXECUTE ACL, 두 private table의 열·제약·owner·table/column ACL, cleanup의 격리 소유권 재검증이 exact여야 한다. 승인된 비운영 ref가 없는 상태에서는 smoke를 실행하지 않는다.
+
+이 연속 계약의 선행 경계에는 `20260713112000` 원시 추적 퇴역과 `20260713116000` private 작성자 숨김이 포함된다. 둘 중 하나라도 ledger에만 있거나 catalog exact가 아니면 뒤 migration으로 보정될 것이라 가정하지 않는다.
+
+마지막 의존 순서는 `20260713117000` 댓글 안전 → `20260713118000` opaque actor → `20260713119000` 게시글 lifecycle → `20260713120000` 연구 동의 provenance → `20260713121000` 게시글 patch → `20260713122000` service table ACL closure → `20260713123000` preview-only smoke harness다. 일부만 적용됐거나 순서가 다른 원격 ledger는 연속 suffix가 아니므로 중단한다.
+
+- `20260713104000`: `anon`/`authenticated`의 vendor catalog 테이블·열 읽기와 client 정책이 없고, vendor bucket은 private이며, `community_posts.vendor_id`는 투영되지 않아야 한다. 즐겨찾기·사진 좋아요는 owner-only SELECT 정책만 허용하고 브라우저 mutation은 허용하지 않는다. `service_role` direct 권한은 `vendors`·`vendor_products` SELECT, `vendor_reviews` DELETE, `vendor_favorites` SELECT, `vendor_photo_likes` DELETE뿐이며 나머지 catalog relation은 0이다.
+- `20260713105000`: cohort 테이블·view·`is_cohort_member`는 client 권한·정책이 없다. `service_role` direct 권한은 room/member/member-report SELECT·UPDATE만 남고 messages/contracts/timeline 및 runtime 미사용 통계 view는 0이다. `wedding_journeys`는 browser SELECT와 service SELECT·UPDATE, `chat_messages`는 browser private SELECT와 service SELECT·INSERT·DELETE만 남긴다. community 12개 relation은 표별 exact 최소 권한, 11개 mutation 함수는 service-only EXECUTE이며 community/chat/cohort Storage mutation 정책은 모두 client에서 닫혀야 한다.
+- `20260713103000`, `20260713106000`, `20260713107000`, `20260713108000`: journey mutation RPC는 creator migration이 pending일 때만 부재를 허용한다. 존재하면 owner, `SECURITY DEFINER`, `search_path`, return type, CRLF-normalized source MD5, `service_role` EXECUTE와 `anon`/`authenticated` 거부가 모두 exact contract와 같아야 한다. post-deploy에서는 schedule/budget atomic RPC 쌍을 별도 결합 gate로도 확인한다.
+
+privacy-minimum contract는 cohort의 과거 client ACL·정책을 요구하지 않는다. cohort의 구조·익명성·survey 최소화는 privacy contract가, `20260713105000` 이후 역할 경계는 위 role-matrix contract가 각각 검증한다.
+
+이 항목은 로컬 migration과 release evidence의 설계 상태를 설명한다. 이번 변경에서 hosted DB에 migration을 적용하거나 원격 설정을 변경하지 않았으며, 아래 hard-stop과 독립 rehearsal 조건은 그대로 유지한다.
+
 현재 ship과 baseline reconcile은 production/non-production 모두 credential prompt 전에 hard-stop한다. write-fence는 repo-local clean filter의 arbitrary process 실행과 과거 snapshot의 cross-version HEAD 역설이 재현됐으므로 **모든 remote action을 companion file·credential·journal·Git·remote boundary 전에 중단**한다. 이 컴퓨터의 canonical journal root에는 JSON snapshot과 lifecycle lock이 각각 0개였다. Help, write-fence `Plan`, credential-free isolated contract test만 허용하며 운영 dispatcher는 없다. MarkMigrationStarted/Verified action도 제거했다. 모델이 읽는 release-target policy와 status SQL은 launcher의 LF-stable SHA-256에 고정하고 검증한 같은 UTF-8 내용을 process 안에서 사용한다. 운영 entrypoint는 dot-source를 거부한다. filter-free worktree attestation, process 내부 system-module bootstrap, provider lease, signed cross-version recovery receipt와 disposable rehearsal이 독립 검토되기 전에는 hard-stop을 삭제하거나 fuse만 바꾸지 않는다. 실패 후 수동 SQL로 이어서 적용하지 않는다.
 
 ### 6. exact-SHA normal staged 배포와 fence 해제
 
 자동 evidence producer가 post-deploy DB contract, migration dry-run 0개, Data API/Auth/Storage write denial, release writer, anon denial을 같은 fence ID와 SHA에 묶어야 한다. 현재는 이를 수용하는 trusted coordinator와 signed receipt가 없으므로 normal deployment를 custom domain에 연결하지 않는다.
 
-trusted controller가 Vercel Production 환경 snapshot을 `MAINTENANCE_MODE=false`와 승인된 `NEXT_PUBLIC_LAUNCH_MODE=<coming_soon-or-full>`로 갱신한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. `full` 공개에서는 다른 경계와 재사용하지 않은 32자 이상 `DEMO_SESSION_SECRET`이 Production snapshot에 있어야 하며 demo login smoke를 생략하지 않는다. 연구 접수·계정 삭제 cron은 각각의 별도 운영 gate가 통과하지 않았다면 계속 `false`다. controller는 변수 이름·target·삭제 시각·redacted digest를 기록하고 create 직전 재확인한 같은 `$ReviewedSha`로 normal 후보를 staged해 provider identity를 확인한다. 로컬 CLI는 이 작업을 수행하지 않는다.
+trusted controller가 Vercel Production 환경 snapshot을 `MAINTENANCE_MODE=false`와 `NEXT_PUBLIC_LAUNCH_MODE=coming_soon`으로만 갱신한다. health의 `launchMode`도 정확히 `coming_soon`이어야 하며 누락·오타·`full`은 guarded ship을 중단한다. `full`은 계정 삭제 전 과정, 연락처 수집·철회, 운영자 장애·신고 대응, 법적 주체·약관·개인정보·외부 처리자 검토가 각각 승인되고 별도 설계·테스트·릴리스 변경이 검토되기 전에는 금지한다. `MAINTENANCE_STARTED_AT_UTC`는 빈 문자열로 덮지 말고 Production 환경에서 **삭제**해 normal health가 `null`을 반환하게 한다. 이미 만들어 둔 immutable `$MaintenanceUrl`은 자신의 환경 snapshot을 유지하지만, 새 maintenance 배포가 필요하면 현재 UTC를 다시 넣어 새 deployment를 만든다. 연구 접수·계정 삭제 cron은 계속 `false`이고 고객 설문 접수 attestation도 항상 `false`다. controller는 변수 이름·target·삭제 시각·redacted digest를 기록하고 create 직전 재확인한 같은 `$ReviewedSha`로 normal 후보를 staged해 provider identity를 확인한다. 로컬 CLI는 이 작업을 수행하지 않는다.
 
-`$NormalUrl`의 health가 `$ReviewedSha`, protected Supabase ref, `maintenance=false`, 승인된 연구 접수·삭제 cron 상태를 반환해야 한다. 선택한 launch mode에 맞춰 아래 둘 중 정확히 하나의 live smoke를 staged URL에서 실행하고, 아직 fence가 활성인 동안 쓰기 거부가 유지되는지도 확인한다.
+`$NormalUrl`의 health가 `$ReviewedSha`, protected Supabase ref, `maintenance=false`, `launchMode=coming_soon`, `researchCohortApplicationsEnabled=false`, `accountDeletionCronEnabled=false`, `customerSurveyIntakeEnabled=false`를 반환해야 한다. 아래 live smoke를 staged URL에서 실행하고, 아직 fence가 활성인 동안 쓰기 거부가 유지되는지도 확인한다.
 
 ```powershell
-# coming_soon을 유지하는 경우
 node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
-
-# 별도 사업·운영 승인을 받아 full을 공개하는 경우
-node ./scripts/live-smoke-test.mjs --base-url=$NormalUrl --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --expected-sha=$ReviewedSha --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
 staged deployment ID·SHA·환경 계약 중 하나라도 다르면 fence를 해제하지 않는다.
@@ -384,24 +406,20 @@ signed post-migration evidence와 exact restore 전제의 독립 확인 뒤에�
 node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=coming_soon --research-intake=closed --account-deletion-cron=closed --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
 ```
 
-`full` 공개 후에도 같은 identity binding을 생략하지 않는다. 실제 배포된 연구 접수와 계정 삭제 cron 상태를 명시한다.
-
-```powershell
-node ./scripts/live-smoke-test.mjs --base-url=https://hanbang.ai --launch-mode=full --research-intake=<closed-or-open> --account-deletion-cron=<closed-or-open> --expected-sha=<40-char-sha> --expected-supabase-project-ref=<20-char-production-ref> --apple-team-id=<signed-team-id> --play-signing-sha256=<play-app-signing-sha256>
-```
-
-원격 `full`과 `coming_soon`은 모두 exact 40-character SHA와 exact 20-character Supabase project ref가 없으면 실패해야 한다. `--allow-unbound-local` 예외는 `localhost`, `127.0.0.1`, `::1` 개발 환경에서만 허용되며 Vercel preview, production, LAN 주소에는 사용할 수 없다.
+원격 `coming_soon`은 exact 40-character SHA와 exact 20-character Supabase project ref가 없으면 실패해야 한다. 현재 릴리스 절차에서 `--launch-mode=full`을 사용하면 승인 실패로 취급한다. `--allow-unbound-local` 예외는 `localhost`, `127.0.0.1`, `::1` 개발 환경에서만 허용되며 Vercel preview, production, LAN 주소에는 사용할 수 없다.
 
 Apple/Play 서명 식별자가 없어 association 경로가 503이면 실패가 정상이며 운영 공개를 진행하지 않는다.
 이 자동 canary는 개인정보 행을 만들지 않는다. 실제 `/api/preregister`·Turnstile·Resend 전달·2시간 서명 fragment 링크·주소창 fragment 즉시 제거·사람의 명시적 버튼 클릭 전 GET 무변경·same-origin POST·token-free 결과 URL·`email_verified_at` 전이·재발송·테스트 행 삭제는 운영자가 소유한 전용 이메일, 테스트 행 보유·삭제 승인, DB 확인·정리 증거를 같은 SHA에 별도로 남겨야 한다. Vercel/CDN 요청 로그에 capability가 없고 Resend가 링크를 tracking URL로 재작성하지 않았다는 증거도 함께 남긴다. 그 증거가 없으면 사용자 연구 접수도 GO로 판정하지 않는다.
 
 최소 10분 동안 다음을 반복 확인한다.
 
-- `/wedding`, 로그인, WeddingCode, 커플 재연결
+- `/wedding`, 로그인, 커플 재연결과 라운지 핵심 흐름
 - Amora Luna 일반 응답과 Terra 승격, replay/idempotency, 비용 원장
-- 예산·일정 저장과 권한 없는 DB/Storage 접근 거부. 이번 release에서 hard-disabled인 새 업체 예약·문의·결과·공개 후기 쓰기는 503/no-write이고 과거 기록 조회만 가능한지 확인한다. 실제 업체 write 재개는 전달·상태 왕복·연락처 철회·운영 책임이 승인된 별도 제품 gate 뒤에만 한다.
+- 예산·일정의 사용자 직접 저장과 권한 없는 DB/Storage 접근 거부
+- 업체·즐겨찾기·예약·동기방·WeddingCode 직접 URL은 미제공 안내만, 빠른 후기 직접 URL은 미제공 안내 또는 기본 글쓰기 이동만 보이는지 확인한다. 카탈로그·업체 대화·대화 목록·예약 목록·예약 결과·동기방·WeddingCode API와 과거 견적 공개 GET·신규 작성/공유 POST, 새 댓글·답글 POST는 인증·파라미터·본문·PII·DB 작업 전에 `410`을 반환해야 한다. 기존 댓글 GET과 웹 작성자의 기존 댓글 수정·삭제, 계정 삭제·명시적 견적 공개 해제 DELETE·보존 정리 외의 소비자용 읽기·쓰기가 남아 있으면 배포를 중단한다.
 - 계정 삭제 queue/cron, 5xx, console error, latency, OpenAI 비용
 - 최신 모바일과 마지막 배포 모바일의 핵심 여정
+- 모바일 커뮤니티는 읽기만 제공하고 직접 작성 화면·FAB·초안이 없으며, 웹 기본 글쓰기는 계속 작동하는지 확인
 
 데이터 손실·권한 우회·비밀 노출·결제/삭제 오작동·사이트 전체 장애 같은 critical은 한 번만 관측돼도 즉시 maintenance와 write fence를 다시 켜고 아래 rollback matrix를 따른다. 네트워크 순간 오류나 latency처럼 변동성이 큰 high 신호만 사전에 정한 횟수·시간창 기준으로 재확인한다.
 
@@ -453,7 +471,7 @@ Hosted Auth config attestation / general password policy / admin 12-char lifecyc
 Public Auth email boundary approved mode / attester / black-box evidence:
 Canonical site URL / redirect allow-list / JWT-refresh-OTP-rate-limit attestation:
 Visible OAuth flags / hosted providers / redirect round-trip or disabled evidence:
-Turnstile credential target / apex hostname / four actions / negative-action-hostname / replay-expiry evidence:
+Turnstile credential target / apex hostname / two active actions / negative-action-hostname / replay-expiry evidence:
 Demo session secret configured for full (boolean only) / demo canary:
 Supabase ref / Postgres version:
 Write-fence method and black-box probe results:

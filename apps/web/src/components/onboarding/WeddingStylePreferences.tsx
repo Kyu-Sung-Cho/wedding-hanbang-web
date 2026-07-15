@@ -47,9 +47,9 @@ const BUDGET_OPTIONS: {
   label: string;
   desc: string;
 }[] = [
-  { value: "saving", emoji: "\u{1F4B0}", label: "\uC808\uC57D\uD615", desc: "\uCD5C\uC18C\uD55C\uC73C\uB85C \uD569\uB9AC\uC801\uC73C\uB85C" },
-  { value: "balanced", emoji: "\u2696\uFE0F", label: "\uAC00\uC131\uBE44", desc: "\uAF2D \uD544\uC694\uD55C \uACF3\uC5D0 \uD22C\uC790" },
-  { value: "premium", emoji: "\u{1F48E}", label: "\uD504\uB9AC\uBBF8\uC5C4", desc: "\uCD5C\uACE0\uC758 \uD000\uB9AC\uD2F0\uB97C \uC6D0\uD574\uC694" },
+  { value: "saving", emoji: "\u{1F4B0}", label: "비용 우선", desc: "계획 예산과 필수 조건을 먼저 봐요" },
+  { value: "balanced", emoji: "\u2696\uFE0F", label: "균형", desc: "비용과 원하는 경험을 함께 봐요" },
+  { value: "premium", emoji: "\u{1F48E}", label: "경험 우선", desc: "중요한 경험과 품질 조건을 먼저 봐요" },
 ];
 
 const GUEST_OPTIONS: {
@@ -77,7 +77,7 @@ export default function WeddingStylePreferences({
           웨딩 스타일
         </h2>
         <p className="text-[14px] text-taupe-400">
-          취향에 맞는 추천을 위해 알려주세요
+          아모라가 대화를 맞춰 설명할 때 참고할 선택 정보예요
         </p>
       </div>
 

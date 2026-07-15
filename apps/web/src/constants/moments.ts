@@ -134,10 +134,10 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     },
     dAfter: {
       message: "투어 다녀온 거 고생했어!",
-      question: "어디가 제일 마음에 남았어? 받아온 견적 있으면 견적 체크 돌려줄게 — 빠진 항목부터 보자.",
+      question: "어디가 제일 마음에 남았어? 받아온 견적서 원문이 있으면 포함 범위와 추가 조건을 업체에 다시 물을 문장으로 정리해보자.",
     },
     memoryKeys: ["venue_candidates", "venue_quotes"],
-    sourceRefs: ["checklist:venue", "quoteCheck", "hiddenCosts"],
+    sourceRefs: ["checklist:venue", "hiddenCosts"],
   },
 
   dress_tour: {
@@ -258,15 +258,15 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
       message:
         "한 달 남았어. 빠뜨린 게 있을까 불안할 수 있어. 중요한 다섯 가지부터 같이 확인하자.",
       checklist: [
-        "보증인원 확정 데드라인 확인",
-        "사회자에게 식순 전달",
-        "잔금 일정표 만들기 (누가·언제·얼마)",
-        "축의대 담당 양가 1명씩 정하기",
-        "사례비 현금 봉투 준비 목록",
+        "계약서에 보증 인원·최종 통보일이 있다면 직접 확인",
+        "사회·식순을 운영한다면 담당자에게 확정본 전달",
+        "계약서에 적힌 잔금 일정 정리 (누가·언제·얼마)",
+        "축의대를 운영한다면 담당 방식 정하기",
+        "사례비를 준비한다면 지급 대상·금액 다시 확인",
       ],
     },
     memoryKeys: ["final_check_started"],
-    sourceRefs: ["etiquette:P21", "guestGuarantee"],
+    sourceRefs: ["etiquette:P21"],
   },
 
   wedding_day: {
@@ -277,7 +277,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     moneyInvolved: true,
     d3: {
       message:
-        "사흘 뒤면 본식이야. 오늘은 축의대 담당과 사례비 준비 여부를 확인하고, 축의금 기록·정산 기준도 양가와 미리 합의해두자. 식후 혼선을 줄이는 데 도움이 돼.",
+        "사흘 뒤면 본식이야. 오늘은 축의대 담당과 사례비 준비 여부만 확인해두자. 금전 기록·정산은 양가가 정한 오프라인 방식으로 관리하고, 아모라는 제3자의 이름·관계·금액이나 장부 사진을 받지 않아.",
     },
     d1: {
       message: "내일이야. 신부(신랑)는 내일 확인만 하면 돼 — 뛰는 건 다른 사람들 몫이야. 오늘은 일찍 자.",
@@ -293,9 +293,9 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     dAfter: {
       message: "진짜 결혼했네, 우리. 고생 많았어.",
       question:
-        "오늘은 축의금 장부 사진만 찍어둬 — 정산은 내일 해도 돼. 도와준 사람 목록만 알려주면 감사 인사 대상으로 기억해둘게.",
+        "오늘은 푹 쉬어도 돼. 금전 정산은 양가가 정한 안전한 방식으로 마무리하고, 감사 인사는 연락처 원본을 직접 확인해 천천히 전하자.",
     },
-    memoryKeys: ["wedding_done", "thanks_list", "settlement_note"],
+    memoryKeys: ["wedding_done"],
     sourceRefs: ["etiquette:P5", "etiquette:P9", "etiquette:P21"],
   },
 

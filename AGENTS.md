@@ -351,7 +351,7 @@ Check `packages/design-tokens/src/` for shared tokens and `apps/web/src/app/glob
 If these sources disagree, verify the rendered implementation and update the drift instead of copying an old value from this file.
 Do not deviate from an explicit approved direction without user approval.
 In QA mode, flag mismatches among `DESIGN.md`, shared tokens, and rendered code.
-For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md before changing navigation, screen hierarchy, AI flows, vendor flows, or launch-readiness behavior.
+For mobile product work, read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md as retired historical context only. Current mobile scope, navigation, AI/vendor seams, and release decisions must follow `WEDDINGHANBANG_SERVICE_DOC.md`, `PROJECT_STATUS.md`, `docs/CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`, and the actual code; never restore a feature from the retired masterplan.
 
 ## Codex Operating Protocol
 

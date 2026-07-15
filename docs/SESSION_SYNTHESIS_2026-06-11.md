@@ -1,5 +1,8 @@
 # 세션 종합 — 보수적 감사 + 10점 경로 + 업체 0→1 (2026-06-11)
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시의 점수·테스트·완료·배포 주장과 장기 전략은 현재 상태를 증명하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **2026-06-11 감사·전략 인수인계 스냅샷입니다.** 아래 점수, 테스트 수, 활성 도구 수, 결제·예약·자동 중재 상태와 90일 계획은 현재 코드 상태가 아닙니다. 최신 판정은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 실제 코드를 우선합니다.
 

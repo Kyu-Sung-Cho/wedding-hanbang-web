@@ -23,6 +23,12 @@ const releaseTargets = JSON.parse(readRepo("scripts/release-targets.json")) as {
       tokenVerificationsPerFiveMinutesPerIp: number;
     };
   };
+  productionTurnstileBoundary: {
+    status: string;
+    contract: string;
+    canonicalHostname: string;
+    requiredActions: string[];
+  };
   backupPolicy: { status: string; allowedRestoreProjectRefs: string[] };
 };
 const ship = readRepo("scripts/supabase-ship-safe.ps1");
@@ -30,6 +36,7 @@ const reconcile = readRepo("scripts/supabase-reconcile-core-baseline.ps1");
 const writeFence = readRepo("scripts/supabase-write-fence.ps1");
 const recoverySafe = readRepo("scripts/supabase-recovery-safe.mjs");
 const lifecycleSmoke = readRepo("scripts/supabase-lifecycle-smoke.mjs");
+const previewSmokeGuard = readRepo("scripts/lib/preview-smoke-guard.mjs");
 const baseline = readRepo(
   "supabase/migrations/20260202000000_legacy_core_baseline.sql"
 );
@@ -94,17 +101,85 @@ const authIdentityDeletionStartMigration = readRepo(
 const accountDeletionStorageAuthRaceMigration = readRepo(
   "supabase/migrations/20260712105000_close_account_deletion_storage_auth_race.sql"
 );
+const unlimitedAmoraMeteringMigration = readRepo(
+  "supabase/migrations/20260713101000_unlimited_amora_test_stage_metering.sql"
+);
+const atomicScheduleEventMigration = readRepo(
+  "supabase/migrations/20260713103000_atomic_schedule_event_mutations.sql"
+);
+const atomicBudgetCategoryMigration = readRepo(
+  "supabase/migrations/20260713111000_budget_manual_record_contract.sql"
+);
+const atomicChecklistItemMigration = readRepo(
+  "supabase/migrations/20260713107000_atomic_checklist_item_mutations.sql"
+);
+const atomicJourneyPreferencesMigration = readRepo(
+  "supabase/migrations/20260713108000_atomic_journey_preferences.sql"
+);
+const rawCustomerTrackingRetirementMigration = readRepo(
+  "supabase/migrations/20260713112000_retire_raw_customer_tracking.sql"
+);
+const profilesDirectSelectClosureMigration = readRepo(
+  "supabase/migrations/20260713112500_close_profiles_direct_select.sql"
+);
+const communityMediaRetirementMigration = readRepo(
+  "supabase/migrations/20260713113000_retire_public_community_media.sql"
+);
+const congratulatoryMoneyRetirementMigration = readRepo(
+  "supabase/migrations/20260713114000_retire_congratulatory_money.sql"
+);
+const communityTextOnlyBoundaryMigration = readRepo(
+  "supabase/migrations/20260713115000_close_community_legacy_payload_exposure.sql"
+);
+const communityUserMutesMigration = readRepo(
+  "supabase/migrations/20260713116000_add_community_user_mutes.sql"
+);
+const communityCommentSafetyMigration = readRepo(
+  "supabase/migrations/20260713117000_atomic_community_comment_safety.sql"
+);
+const opaqueCommunityActorMigration = readRepo(
+  "supabase/migrations/20260713118000_opaque_community_actor_ids.sql"
+);
+const communityPostLifecycleMigration = readRepo(
+  "supabase/migrations/20260713119000_atomic_community_post_lifecycle.sql"
+);
+const researchConsentVersionMigration = readRepo(
+  "supabase/migrations/20260713120000_research_cohort_consent_version.sql"
+);
+const communityPostUpdateMigration = readRepo(
+  "supabase/migrations/20260713121000_atomic_community_post_update.sql"
+);
+const serviceRoleTableAclMigration = readRepo(
+  "supabase/migrations/20260713122000_lock_service_role_table_acl.sql"
+);
+const previewSmokeHarnessMigration = readRepo(
+  "supabase/migrations/20260713123000_preview_smoke_fixture_harness.sql"
+);
+const maintenanceHealthRoute = readRepo(
+  "apps/web/src/app/api/health/maintenance/route.ts"
+);
 const vercelConfig = JSON.parse(readRepo("apps/web/vercel.json"));
 const agentsGuide = readRepo("AGENTS.md");
 const productionReleaseRunbook = readRepo(
   "docs/PRODUCTION_RELEASE_ROLLBACK_RUNBOOK.md"
 );
 const fullQaReport = readRepo("docs/codex-tasks/FULL_QA_2026-07-12.md");
+const projectStatus = readRepo("PROJECT_STATUS.md");
+const fullServiceOverview = readRepo("WEDDINGHANBANG_FULL.md");
+const serviceStandard = readRepo("WEDDINGHANBANG_SERVICE_DOC.md");
+const communityJourney = readRepo("docs/COMMUNITY_TO_SERVICE_USER_JOURNEY.md");
+const remoteOperations = readRepo("docs/SUPABASE_REMOTE_OPERATIONS.md");
+const turnstile = readRepo("apps/web/src/lib/turnstile.ts");
 
-function functionSourceMd5(sql: string, functionName: string): string {
+function functionSourceMd5(
+  sql: string,
+  functionName: string,
+  schemaName = "public"
+): string {
   const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedSchema = schemaName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = sql.match(new RegExp(
-    `CREATE OR REPLACE FUNCTION public\\.${escapedName}\\([\\s\\S]*?AS \\$\\$(?<body>[\\s\\S]*?)\\$\\$;`
+    `CREATE(?: OR REPLACE)? FUNCTION ${escapedSchema}\\.${escapedName}\\([\\s\\S]*?AS (?<delimiter>\\$[A-Za-z0-9_]*\\$)(?<body>[\\s\\S]*?)\\k<delimiter>;`
   ));
   if (!match?.groups?.body) throw new Error(`Missing function body: ${functionName}`);
   return createHash("md5")
@@ -164,6 +239,19 @@ describe("release safety contract", () => {
       status: "not_configured",
       allowedRestoreProjectRefs: [],
     });
+    expect(releaseTargets.productionTurnstileBoundary).toEqual({
+      status: "not_configured",
+      contract: "siteverify-hostname-action-v1",
+      canonicalHostname: "hanbang.ai",
+      requiredActions: ["signup", "forgot_password"],
+    });
+    expect(turnstile).not.toContain('| "survey"');
+    expect(ship).toContain('"signup,forgot_password"');
+    expect(ship).not.toContain('"signup,forgot_password,preregister"');
+    expect(ship).not.toContain("signup,forgot_password,preregister,survey");
+    expect(ship).toContain(
+      "all two active public hostname/action-bound Siteverify flows are independently attested"
+    );
     for (const script of [ship, reconcile]) {
       expect(script).toContain('productionDatabaseWriteFence -ne "verified-v1"');
       expect(script).toContain('backupPolicy.status -ne "verified-v1"');
@@ -389,6 +477,11 @@ describe("release safety contract", () => {
   });
 
   it("binds the coming-soon live canary to the exact deployment and server gate", () => {
+    expect(maintenanceHealthRoute).toContain("launchMode: configuredLaunchMode()");
+    expect(maintenanceHealthRoute).toContain('mode === "coming_soon" || mode === "full"');
+    expect(maintenanceHealthRoute).toContain('return "invalid"');
+    expect(ship).toContain('$status.launchMode -ne "coming_soon"');
+    expect(ship).toContain("full launch is blocked");
     expect(liveSmoke).toContain('if (arg === "--") continue;');
     expect(liveSmoke).toContain('--launch-mode=<mode>');
     expect(liveSmoke).toContain('--expected-sha=<sha>');
@@ -399,6 +492,7 @@ describe("release safety contract", () => {
     expect(liveSmoke).toContain('intakeResponse.headers()["cache-control"]?.includes("no-store")');
     expect(liveSmoke).toContain('options.researchIntake === "closed"');
     expect(liveSmoke).toContain("body.researchCohortApplicationsEnabled");
+    expect(liveSmoke).toContain('body.amoraUsageLimitMode !== "unlimited_test"');
     expect(liveSmoke).toContain('final.searchParams.has("next")');
     expect(liveSmoke).toContain('body.deployment !== options.expectedSha.toLowerCase()');
     expect(liveSmoke).toContain(
@@ -413,6 +507,17 @@ describe("release safety contract", () => {
       "/.well-known/assetlinks.json",
     ]) {
       expect(liveSmoke).toContain(associationPath);
+    }
+    for (const document of [
+      projectStatus,
+      fullServiceOverview,
+      serviceStandard,
+      productionReleaseRunbook,
+    ]) {
+      expect(document).toContain("coming_soon");
+      expect(document).toContain("full");
+      expect(document).toMatch(/계정 삭제/);
+      expect(document).toMatch(/법적|약관|개인정보/);
     }
   });
 
@@ -521,11 +626,10 @@ describe("release safety contract", () => {
   }, 15_000);
 
   it("forbids destructive lifecycle smoke tests on every protected production ref", () => {
-    expect(lifecycleSmoke).toContain(
-      "releaseTargets.productionSupabaseProjectRefs.includes(actualProjectRef)"
-    );
-    expect(lifecycleSmoke).toContain(
-      "Lifecycle smoke tests are forbidden on protected production projects."
+    expect(lifecycleSmoke).toContain("assertApprovedPreviewTarget");
+    expect(previewSmokeGuard).toContain("productionRefs.includes(expectedProjectRef)");
+    expect(previewSmokeGuard).toContain(
+      "Smoke tests require an explicitly approved non-production project."
     );
     expect(lifecycleSmoke).toContain("SUPABASE_EXPECTED_PROJECT_REF");
   });
@@ -597,29 +701,29 @@ describe("release safety contract", () => {
         /\(\s*'(?:auth|public|storage)'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g
       )].map((match) => match[1]).sort();
 
-    expect(preflightSignatures).toHaveLength(54);
+    expect(preflightSignatures).toHaveLength(64);
     expect(postDeploySignatures).toEqual(preflightSignatures);
     const preflightTriggerFunctionSignatures = extractSignatures(
       preflightTriggerFunctions
     );
-    expect(preflightTriggerFunctionSignatures).toHaveLength(12);
+    expect(preflightTriggerFunctionSignatures).toHaveLength(15);
     expect(extractSignatures(postDeployTriggerFunctions)).toEqual(
       preflightTriggerFunctionSignatures
     );
     const preflightTriggerBindingNames = extractBindingNames(
       preflightTriggerBindings
     );
-    expect(preflightTriggerBindingNames).toHaveLength(13);
+    expect(preflightTriggerBindingNames).toHaveLength(18);
     expect(extractBindingNames(postDeployTriggerBindings)).toEqual(
       preflightTriggerBindingNames
     );
-    expect(ship).toContain("$script:expectedDependencyFunctionCount = 54");
-    expect(ship).toContain("$script:expectedDependencyCronCount = 5");
+    expect(ship).toContain("$script:expectedDependencyFunctionCount = 64");
+    expect(ship).toContain("$script:expectedDependencyCronCount = 6");
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerFunctionCount = 12"
+      "$script:expectedClientDeniedTriggerFunctionCount = 15"
     );
     expect(ship).toContain(
-      "$script:expectedClientDeniedTriggerBindingCount = 13"
+      "$script:expectedClientDeniedTriggerBindingCount = 18"
     );
     expect(ship).toContain("dependency_function_status");
     expect(ship).toContain("dependency_cron_status");
@@ -639,8 +743,15 @@ describe("release safety contract", () => {
       "public.reconcile_stale_amora_chat_requests(integer)",
       "public.delete_expired_amora_request_claims()",
       "public.apply_journey_progress_patch(uuid,jsonb,text[])",
+      "public.mutate_journey_schedule_event(uuid,text,jsonb,text,text)",
+      "public.mutate_journey_budget_category(uuid,text,jsonb,text[],text)",
+      "public.mutate_journey_checklist_item(uuid,text,text,boolean,boolean,jsonb)",
+      "public.patch_journey_preferences(uuid,jsonb)",
       "public.create_booking_atomic(uuid,uuid,date,text,uuid,uuid,text,text,text,text,numeric,text)",
       "public.reserve_amora_usage(uuid,integer,integer,boolean)",
+      "public.reserve_amora_turn(uuid,integer,integer)",
+      "public.reserve_amora_usage_unlimited_v1(uuid,text,text,integer)",
+      "public.meter_amora_provider_usage_unlimited_v1(uuid)",
       "public.check_rate_limit(text,integer,integer)",
       "public.check_rate_limit(text,integer,integer,uuid)",
       "public.redact_old_ai_interactions(interval)",
@@ -712,6 +823,19 @@ describe("release safety contract", () => {
       [accountDeletionEmailScopeMigration, "renew_account_deletion_job_lease"],
       [accountDeletionStorageAuthRaceMigration, "list_account_deletion_owned_storage_objects"],
       [accountDeletionStorageAuthRaceMigration, "mark_account_deletion_cleanup_ready"],
+      [unlimitedAmoraMeteringMigration, "reserve_amora_usage"],
+      [unlimitedAmoraMeteringMigration, "reserve_amora_turn"],
+      [unlimitedAmoraMeteringMigration, "reserve_amora_usage_v2"],
+      [unlimitedAmoraMeteringMigration, "check_amora_usage"],
+      [unlimitedAmoraMeteringMigration, "reserve_amora_usage_unlimited_v1"],
+      [unlimitedAmoraMeteringMigration, "meter_amora_provider_usage_unlimited_v1"],
+      [atomicScheduleEventMigration, "mutate_journey_schedule_event"],
+      [atomicBudgetCategoryMigration, "mutate_journey_budget_category"],
+      [atomicChecklistItemMigration, "mutate_journey_checklist_item"],
+      [atomicJourneyPreferencesMigration, "patch_journey_preferences"],
+      [communityCommentSafetyMigration, "community_soft_delete_comment"],
+      [communityPostLifecycleMigration, "community_hard_delete_post"],
+      [communityPostUpdateMigration, "community_update_post"],
     ] as const;
 
     for (const [migration, functionName] of sharedContracts) {
@@ -727,11 +851,22 @@ describe("release safety contract", () => {
       [accountDeletionStorageAuthRaceMigration, "block_storage_owner_write_during_account_deletion"],
       [accountDeletionStorageAuthRaceMigration, "block_auth_user_delete_until_account_cleanup_ready"],
       [accountDeletionStorageAuthRaceMigration, "complete_account_deletion_job"],
+      [opaqueCommunityActorMigration, "sync_community_actor_identity"],
+      [communityPostLifecycleMigration, "maintain_community_profile_post_count"],
+      [communityPostLifecycleMigration, "maintain_community_counts_after_comment_delete"],
     ] as const) {
       const hash = functionSourceMd5(migration, functionName);
       expect(productionPreflight, functionName).toContain(hash);
       expect(postDeploy, functionName).toContain(hash);
     }
+
+    const opaqueMuteHelperHash = functionSourceMd5(
+      opaqueCommunityActorMigration,
+      "community_author_is_muted"
+    );
+    expect(opaqueMuteHelperHash).toBe("618d8f9a6968a99f285f4a09ab8da44e");
+    expect(productionPreflight).toContain(opaqueMuteHelperHash);
+    expect(postDeploy).toContain(opaqueMuteHelperHash);
   });
 
   it("attests every Amora reset read fence without a permissive client bypass", () => {
@@ -845,6 +980,8 @@ describe("release safety contract", () => {
       "CHECK (role = ANY",
       "research_cohort_applications_privacy_consent_timestamp_check",
       "research_cohort_applications_privacy_policy_check",
+      "2026-07-12",
+      "2026-07-14",
       "research_cohort_applications_receipt_lifecycle_check",
       "CHECK (receipt_email_status = ANY",
       "research_cohort_applications_retention_cap",
@@ -973,7 +1110,7 @@ describe("release safety contract", () => {
     const exactContracts = extractPreflightCronContracts(
       dependencyCronPreflight
     );
-    expect(placeholderContracts).toHaveLength(5);
+    expect(placeholderContracts).toHaveLength(6);
     expect(exactContracts).toEqual(placeholderContracts);
     expect(extractPostDeployCronContracts(postDeploy)).toEqual(
       placeholderContracts.map((contract) => ({
@@ -1123,7 +1260,9 @@ describe("release safety contract", () => {
     expect(ship).not.toContain("$reviewedHead.Substring(0, 12)");
     expect(ship).toContain("$ExpectedDeployment -notmatch '^[0-9a-f]{40}$'");
     expect(ship).toContain("$status.rateLimitKeySecretConfigured -ne $true");
+    expect(ship).toContain('$status.amoraUsageLimitMode -ne "unlimited_test"');
     expect(ship).toContain("$status.researchCohortApplicationsEnabled -ne $false");
+    expect(ship).toContain("$status.customerSurveyIntakeEnabled -ne $false");
     expect(ship).toContain("$status.accountDeletionCronEnabled -ne $false");
     expect(ship).toContain("$script:accountDeletionWorkerLeaseSeconds = 600");
     expect(ship).toContain("$script:accountDeletionMaxInvocationSeconds = 120");
@@ -1341,7 +1480,6 @@ describe("release safety contract", () => {
       expect(sql).toContain("privacy_expected_table_acl(");
       expect(sql).toContain("privacy_expected_effective_acl AS (");
       expect(sql).toContain("privacy_effective_acl AS (");
-      expect(sql).toContain("('cohort_contracts', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_profiles', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_achievements', 'PUBLIC', ARRAY[]::text[])");
       expect(sql).toContain("('community_vendor_tags', 'PUBLIC', ARRAY[]::text[])");
@@ -1382,6 +1520,394 @@ describe("release safety contract", () => {
     expect(ship).toContain(
       "$Contract.privacy_minimum_contract_exact -ne $true"
     );
+  });
+
+  it("uses all-of checks for required service privileges and any-of checks for forbidden browser privileges", () => {
+    const positiveCombinedServicePrivilege =
+      /(?<!NOT )has_table_privilege\(\s*'service_role',\s*(?:'[^']+'|[a-z_][\w.]*|to_regclass\([^)]*\)),\s*'[A-Z]+(?:,[A-Z]+)+'\s*\)/g;
+    const forbiddenBrowserAnyOf =
+      /NOT EXISTS\s*\([\s\S]{0,700}?WHERE has_table_privilege\(\s*client\.role_name,[\s\S]{0,180}?'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN'\s*\)/;
+
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).not.toMatch(positiveCombinedServicePrivilege);
+      expect(sql).toMatch(forbiddenBrowserAnyOf);
+
+      for (const privilege of ["SELECT", "INSERT", "UPDATE"]) {
+        expect(sql).toContain(
+          `'service_role', 'public.profiles', '${privilege}'`,
+        );
+      }
+      expect(sql).toContain(
+        "NOT has_table_privilege(\n        'service_role', 'public.profiles', 'DELETE'",
+      );
+      for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+        expect(sql).toContain(
+          `'service_role', 'public.community_posts', '${privilege}'`,
+        );
+      }
+      for (const privilege of ["SELECT", "INSERT", "DELETE"]) {
+        expect(sql).toContain(
+          `'service_role', table_row.oid, '${privilege}'`,
+        );
+      }
+      expect(sql).toContain(
+        "'service_role', table_row.oid,\n            'UPDATE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN'",
+      );
+    }
+  });
+
+  it("fails closed across every trusted-beta retirement and community safety migration", () => {
+    const contracts = [
+      {
+        version: "20260713112000",
+        migration: rawCustomerTrackingRetirementMigration,
+        replaceable: "raw_tracking_retirement_replaceable",
+        exact: "raw_tracking_retirement_exact",
+        migrationMarkers: [
+          "REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated, service_role",
+          "GRANT SELECT, DELETE ON TABLE public.customer_events TO service_role",
+          "GRANT DELETE ON TABLE public.search_logs TO service_role",
+          "raw-tracking column ACL remains",
+          "TRUNCATE",
+          "block_retired_raw_customer_tracking_writes",
+          "enforce_raw_customer_tracking_retention",
+          "interval '90 days'",
+        ],
+      },
+      {
+        version: "20260713112500",
+        migration: profilesDirectSelectClosureMigration,
+        replaceable: "profiles_direct_select_closure_replaceable",
+        exact: "profiles_direct_select_closure_exact",
+        migrationMarkers: [
+          "REVOKE SELECT ON TABLE public.profiles",
+          "get_my_profile_safe",
+          "get_my_partner_public",
+          "get_my_chat_view_state",
+        ],
+      },
+      {
+        version: "20260713113000",
+        migration: communityMediaRetirementMigration,
+        replaceable: "community_media_retirement_replaceable",
+        exact: "community_media_retirement_exact",
+        migrationMarkers: [
+          "block_retired_community_media_object_writes",
+          "block_retired_community_post_media_writes",
+          "block_retired_community_poll_writes",
+        ],
+      },
+      {
+        version: "20260713114000",
+        migration: congratulatoryMoneyRetirementMigration,
+        replaceable: "congratulatory_money_retirement_replaceable",
+        exact: "congratulatory_money_retirement_exact",
+        migrationMarkers: [
+          "REVOKE ALL ON TABLE public.congratulatory_money",
+          "reject_congratulatory_money_write",
+        ],
+      },
+      {
+        version: "20260713115000",
+        migration: communityTextOnlyBoundaryMigration,
+        replaceable: "community_text_only_boundary_replaceable",
+        exact: "community_text_only_boundary_exact",
+        migrationMarkers: [
+          "ALTER PUBLICATION supabase_realtime DROP TABLE public.community_posts",
+          "block_retired_community_structured_fields",
+          "search_vector",
+        ],
+      },
+      {
+        version: "20260713116000",
+        migration: communityUserMutesMigration,
+        replaceable: "community_user_mutes_replaceable",
+        exact: "community_user_mutes_exact",
+        migrationMarkers: [
+          "CREATE TABLE IF NOT EXISTS public.community_user_mutes",
+          "FORCE ROW LEVEL SECURITY",
+          "GRANT SELECT, INSERT, DELETE ON TABLE public.community_user_mutes TO service_role",
+          "CREATE OR REPLACE FUNCTION public.community_author_is_muted",
+          "AND NOT public.community_author_is_muted(author_id)",
+          "puballtables",
+        ],
+      },
+      {
+        version: "20260713117000",
+        migration: communityCommentSafetyMigration,
+        replaceable: "community_comment_safety_replaceable",
+        exact: "community_comment_safety_exact",
+        migrationMarkers: [
+          "community_soft_delete_comment",
+          "SET row_security = off",
+          "FOR UPDATE",
+          "COMMUNITY_COMMENT_DELETE_FUNCTION_ACL_NOT_EXACT",
+        ],
+      },
+      {
+        version: "20260713118000",
+        migration: opaqueCommunityActorMigration,
+        replaceable: "community_opaque_actor_boundary_replaceable",
+        exact: "community_opaque_actor_boundary_exact",
+        migrationMarkers: [
+          "public_actor_id",
+          "author_public_id",
+          "community_profiles_public_nickname_nonempty",
+          "community_profiles_public_avatar_emoji_only",
+          "sync_community_actor_identity",
+          "SECURITY DEFINER",
+          "SET row_security = off",
+          "WHERE auth_user.id = NEW.public_actor_id",
+          "GRANT UPDATE (content, updated_at)",
+          "TRUNCATE",
+          "puballtables",
+        ],
+      },
+      {
+        version: "20260713119000",
+        migration: communityPostLifecycleMigration,
+        replaceable: "community_post_lifecycle_replaceable",
+        exact: "community_post_lifecycle_exact",
+        migrationMarkers: [
+          "maintain_community_profile_post_count",
+          "maintain_community_counts_after_comment_delete",
+          "SET row_security = off",
+          "REFERENCING OLD TABLE AS deleted_community_comments",
+          "COMMUNITY_PROFILE_COMMENT_COUNT_RECONCILIATION_FAILED",
+          "community_hard_delete_post",
+          "FOR UPDATE",
+        ],
+      },
+      {
+        version: "20260713120000",
+        migration: researchConsentVersionMigration,
+        replaceable: "research_consent_version_replaceable",
+        exact: "research_consent_version_exact",
+        migrationMarkers: [
+          "SET LOCAL lock_timeout = '5s'",
+          "SET LOCAL statement_timeout = '120s'",
+          "2026-07-12",
+          "2026-07-14",
+          "pg_catalog.pg_get_constraintdef(constraint_row.oid, true)",
+          "privacy_policy_version = ANY",
+          "VALIDATE CONSTRAINT research_cohort_applications_privacy_policy_check",
+        ],
+      },
+      {
+        version: "20260713121000",
+        migration: communityPostUpdateMigration,
+        replaceable: "community_post_update_replaceable",
+        exact: "community_post_update_exact",
+        migrationMarkers: [
+          "community_update_post",
+          "SET row_security = off",
+          "p_patch jsonb",
+          "FOR UPDATE",
+          "COMMUNITY_POST_UPDATE_FUNCTION_ACL_NOT_EXACT",
+        ],
+      },
+      {
+        version: "20260713122000",
+        migration: serviceRoleTableAclMigration,
+        replaceable: "service_role_table_acl_replaceable",
+        exact: "service_role_table_acl_exact",
+        migrationMarkers: [
+          "$rebuild_service_role_table_acl$",
+          "amora_usage_reservations",
+          "'MAINTAIN'",
+          "PUBLIC table ACL remains on %",
+          "service_role direct ACL is not exact on %",
+        ],
+      },
+      {
+        version: "20260713123000",
+        migration: previewSmokeHarnessMigration,
+        replaceable: "preview_smoke_harness_replaceable",
+        exact: "preview_smoke_harness_exact",
+        migrationMarkers: [
+          "preview_smoke_projects_production_ref_check",
+          "private.assert_preview_smoke_authorized",
+          "public.assert_preview_smoke_ready",
+          "public.prepare_preview_lifecycle_smoke_fixture",
+          "public.inspect_preview_amora_smoke_turn",
+          "public.cleanup_preview_smoke_fixture",
+          "$assert_preview_smoke_acl$",
+        ],
+      },
+    ] as const;
+
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("trusted_beta_function_contracts(");
+      expect(sql).toContain("trusted_beta_trigger_contracts(");
+      expect(sql).toContain("trusted_beta_surface_contract AS (");
+      expect(sql).toContain("pg_catalog.pg_publication_tables");
+      expect(sql).toContain("community_user_mutes_no_self");
+      expect(sql).toContain("idx_community_user_mutes_muted_user");
+      expect(sql).toContain("community_user_mutes_muter_id_fkey");
+      expect(sql).toContain("community_user_mutes_muted_user_id_fkey");
+      for (const hash of [
+        "f031cc768a520d401c88ff041fe54f6a",
+        "54e4f6ece31461d0f63ffbcb1d15ee6e",
+        "4a127cecbf5bc39fed3ab8200e3ffaca",
+        "0663224c1e2322c2c02d39945cb1e659",
+        "5caa2a873cc53ade8dd64ba5163e80a1",
+        "49a00b8e5ed57e5ccc46d71edce8001d",
+        "8154296e2bd4b97fb2ab8b52ead5b39e",
+        "993ce2d6eac939878a835e4c39eb4749",
+        "06a4a3cfd01028b6bc8efffe4d308c45",
+        "8b0a42a25c812f05ba84cc060dcfc24e",
+        "1f94340d26771efa8d1fcf13e4eb875b",
+        "65e9cb5b5a27f8446bdfbe5153c74366",
+        "618d8f9a6968a99f285f4a09ab8da44e",
+        "728309d11c41d182e4b3fe827004e90c",
+        "b322f9adb70968e2a4220f404d138b0b",
+        "6aac47ba565ff0f44bed0466a6d7b5d0",
+        "0b72e707092ed3bc704bb19ff3df9aff",
+      ]) {
+        expect(sql).toContain(hash);
+      }
+    }
+    expect(productionPreflight).toContain("9a4ad31283eaa7f89e7e34fb58ea8687");
+    expect(postDeploy).not.toContain("9a4ad31283eaa7f89e7e34fb58ea8687");
+
+    for (const contract of contracts) {
+      expect(productionPreflight).toContain(
+        `AS ${contract.replaceable}`
+      );
+      expect(productionPreflight).toContain(`AS ${contract.exact}`);
+      expect(postDeploy).toContain(`'${contract.exact}'`);
+      expect(ship).toContain(`Version = "${contract.version}"`);
+      expect(ship).toContain(`Replaceable = "${contract.replaceable}"`);
+      expect(ship).toContain(`Exact = "${contract.exact}"`);
+      for (const marker of contract.migrationMarkers) {
+        expect(contract.migration).toContain(marker);
+      }
+    }
+
+    for (const [schemaName, functionName] of [
+      ["private", "assert_preview_smoke_authorized"],
+      ["private", "assert_preview_smoke_user"],
+      ["public", "assert_preview_smoke_ready"],
+      ["public", "prepare_preview_lifecycle_smoke_fixture"],
+      ["public", "inspect_preview_amora_smoke_turn"],
+      ["public", "cleanup_preview_smoke_fixture"],
+    ] as const) {
+      const hash = functionSourceMd5(
+        previewSmokeHarnessMigration,
+        functionName,
+        schemaName
+      );
+      expect(productionPreflight).toContain(hash);
+      expect(postDeploy).toContain(hash);
+    }
+    for (const productionRef of releaseTargets.productionSupabaseProjectRefs) {
+      expect(previewSmokeHarnessMigration).toContain(`'${productionRef}'`);
+      expect(productionPreflight).toContain(`'${productionRef}'`);
+      expect(postDeploy).toContain(`'${productionRef}'`);
+    }
+
+    expect(productionPreflight).toContain("'raw_customer_events_expired'");
+    expect(productionPreflight).toContain("'raw_search_logs_expired'");
+    expect(postDeploy).toContain("'raw_customer_events_expired'");
+    expect(postDeploy).toContain("'raw_search_logs_expired'");
+    expect(ship).toContain(
+      "raw_customer_events_expired = [long]$Preflight.data_rewrites.raw_customer_events_expired"
+    );
+    expect(ship).toContain(
+      "raw_search_logs_expired = [long]$Preflight.data_rewrites.raw_search_logs_expired"
+    );
+    expect(dependencyCronPreflight).toContain(
+      "'enforce-raw-customer-tracking-retention'"
+    );
+    expect(rawCustomerTrackingRetirementMigration).not.toContain(
+      "GRANT ALL PRIVILEGES"
+    );
+    expect(postDeploy).toContain(
+      "'enforce-raw-customer-tracking-retention'"
+    );
+    for (const sql of [productionPreflight, postDeploy]) {
+      expect(sql).toContain("trusted_beta_mute_policy_status AS (");
+      expect(sql).toContain("community_author_is_muted");
+      expect(sql).toContain("client_read_policy");
+      expect(sql).toContain("('community_posts', 'cp_select_drafts')");
+      expect(sql).toContain(
+        "'service_role', table_row.oid, 'UPDATE,REFERENCES'"
+      );
+      expect(sql).toContain("publication_row.puballtables");
+      expect(sql).toContain("required.service_role_execute");
+      expect(sql).toContain("required.anon_execute");
+      expect(sql).toContain("required.authenticated_execute");
+      expect(sql).toContain("trusted_beta_function_acl_status AS (");
+      expect(sql).toContain("search_path=\"\",row_security=off");
+      expect(sql).toContain(
+        "'service_role', 'public.community_comments', 'INSERT'"
+      );
+      expect(sql).toContain(
+        "'service_role', 'public.community_comments', 'TRUNCATE'"
+      );
+      expect(sql).toContain("ARRAY['content', 'updated_at']::name[]");
+      expect(sql).toContain("community_profiles_public_nickname_nonempty");
+      expect(sql).toContain("community_profiles_public_avatar_emoji_only");
+    }
+    expect(productionPreflight).toContain("research_consent_version_invalid_rows");
+    expect(productionPreflight).not.toContain(
+      "FROM public.research_cohort_applications"
+    );
+    expect(productionPreflight).not.toContain(
+      "community_profile.public_actor_id"
+    );
+    expect(productionPreflight).toContain(
+      "to_jsonb(community_profile)->>'public_actor_id'"
+    );
+    expect(postDeploy).toContain("'research_consent_version_invalid_rows'");
+    expect(ship).toContain("research_consent_version_invalid_rows");
+    expect(ship).toContain("Dynamic research consent-version inventory");
+  });
+
+  it("keeps active product and operations documents on the physical trust boundary", () => {
+    const activeProductDocuments = [
+      projectStatus,
+      fullServiceOverview,
+      serviceStandard,
+      communityJourney,
+    ];
+    for (const document of activeProductDocuments) {
+      expect(document).not.toContain("PUBLIC_BETA_CAPABILITIES");
+      expect(document).toMatch(/물리적으로|물리적|별도 설계/);
+    }
+
+    expect(projectStatus).toContain("DB 영속 rate limit");
+    expect(projectStatus).toContain("작성자 숨김");
+    expect(fullServiceOverview).toContain("text-only");
+    expect(fullServiceOverview).toContain("숨긴 작성자");
+    expect(serviceStandard).toContain("5개 읽기 도구");
+    expect(serviceStandard).toContain("OpenAI 전송 안내의 체크박스");
+    expect(serviceStandard).toContain("DOCX");
+    expect(serviceStandard).toContain("DB 영속 rate limit");
+    expect(serviceStandard).toContain("항상 `503`");
+    expect(serviceStandard).toContain("service_role");
+    expect(serviceStandard).toContain("Realtime publication");
+    expect(communityJourney).toContain("작성자 숨김");
+    expect(communityJourney).toContain("전역 스위치는 두지 않으며");
+
+    for (const operationsDocument of [
+      productionReleaseRunbook,
+      remoteOperations,
+    ]) {
+      expect(operationsDocument).toContain("20260713112000");
+      expect(operationsDocument).toContain("20260713116000");
+      expect(operationsDocument).toContain("20260713117000");
+      expect(operationsDocument).toContain("20260713118000");
+      expect(operationsDocument).toContain("20260713119000");
+      expect(operationsDocument).toContain("20260713120000");
+      expect(operationsDocument).toContain("20260713121000");
+      expect(operationsDocument).toContain("20260713122000");
+      expect(operationsDocument).toContain("20260713123000");
+      expect(operationsDocument).toContain("puballtables");
+      expect(operationsDocument).toContain("community_user_mutes");
+      expect(operationsDocument).toContain("customerSurveyIntakeEnabled");
+    }
+    expect(remoteOperations).not.toMatch(/local migration은 총 \d+개/);
   });
 
   it("reloads ambiguous replacement mutations while preserving actionable 4xx errors", () => {

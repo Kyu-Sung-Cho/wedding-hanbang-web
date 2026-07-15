@@ -8,16 +8,21 @@ expand release.
 
 1. Take a database backup and run the normal pending migrations on a
    production-size restore first.
-2. Apply the active migrations. They add the new columns, RPCs, lifecycle
-   fences, and service-route upload quota while keeping published mobile
-   contracts available.
-3. Deploy the new web/API and mobile clients.
-4. Verify both the latest client and the last published mobile binary against
-   staging: partner profile read, direct chat insert, post vote, bookmark
-   upsert/delete, and direct `community-images` upload must still work.
+2. Deploy and verify the replacement web/API/mobile clients that use
+   `/api/chat/messages`, community mutation routes, and
+   `/api/community/upload`. A mandatory-upgrade response must exist before
+   claiming support for an older binary.
+3. Apply the active migrations. They preserve rows and public/community read
+   contracts, but `20260713105000_close_disabled_browser_write_surfaces.sql`
+   deliberately removes legacy browser-role writes.
+4. Verify the latest client against staging, then prove the old direct chat,
+   vote, bookmark, community upload, journey mutation, and cohort Data API paths
+   fail with an authorization error.
 
-The expand release intentionally retains legacy direct-write surfaces. That is
-a time-bounded compatibility risk, not permission to apply the contract early.
+This release is intentionally fail-closed and breaks legacy direct-write mobile
+binaries. Do not describe it as backward compatible. If a mandatory-upgrade
+path is not live, the release remains blocked unless the product owner explicitly
+accepts that those old binaries will lose mutation capability.
 
 ## Contract release (future, manual)
 

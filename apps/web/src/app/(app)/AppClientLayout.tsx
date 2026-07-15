@@ -7,7 +7,6 @@ import { AlertCircle, RefreshCw, Sparkles } from "lucide-react";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
-import { usePageViewTracker } from "@/hooks/useEventTracker";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -30,10 +29,8 @@ export default function AppClientLayout({
   const pathname = usePathname();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
-  const hasContextualAssistant = appPathname.startsWith("/vendors");
   const { initialize, isInitialized, isLoading, isDemo, initError } = useAuthStore();
 
-  usePageViewTracker(isInitialized && !isDemo);
   useAuthSessionSync(!initialDemo && !isDemo);
 
   useEffect(() => {
@@ -106,6 +103,16 @@ export default function AppClientLayout({
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className={isChatPage ? "flex h-screen flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
+        {isDemo && (
+          <div
+            className="border-b border-[#dfc88f] bg-[#fff8ec] px-4 py-2.5 text-center text-[12px] font-medium leading-relaxed text-[#765426]"
+            role="status"
+          >
+            <strong className="font-semibold">샘플 데이터로 보는 데모</strong>
+            <span className="mx-1.5" aria-hidden="true">·</span>
+            화면의 사람·활동·일정·금액은 실제 기록이 아니며 저장되지 않아요.
+          </div>
+        )}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
         ) : (
@@ -126,7 +133,7 @@ export default function AppClientLayout({
         <ChatSidePanel isOpen onClose={() => setChatPanelOpen(false)} />
       )}
 
-      {!isChatPage && !chatPanelOpen && !hasContextualAssistant && (
+      {!isChatPage && !chatPanelOpen && (
         <button
           type="button"
           onClick={() => setChatPanelOpen(true)}

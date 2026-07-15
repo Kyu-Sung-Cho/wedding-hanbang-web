@@ -47,16 +47,12 @@ describe("sanitizeHtml", () => {
       }
     );
 
-    it("passes through <a> with safe href", () => {
-      const result = sanitizeHtml('<a href="https://example.com">link</a>');
-      expect(result).toContain('href="https://example.com"');
-      expect(result).toContain('rel="noopener noreferrer"');
+    it("keeps link text but removes legacy links", () => {
+      expect(sanitizeHtml('<a href="https://example.com">link</a>')).toBe("link");
     });
 
-    it("passes through <img> with safe src", () => {
-      const result = sanitizeHtml('<img src="/images/photo.jpg" alt="photo">');
-      expect(result).toContain('src="/images/photo.jpg"');
-      expect(result).toContain('alt="photo"');
+    it("removes legacy images instead of loading their URL", () => {
+      expect(sanitizeHtml('<img src="/images/photo.jpg" alt="photo">')).toBe("");
     });
   });
 
@@ -82,21 +78,14 @@ describe("sanitizeHtml", () => {
       expect(result).not.toMatch(/class|id|style/);
     });
 
-    it("escapes attribute values with quotes", () => {
+    it("removes every URL-bearing attribute even when the URL is local", () => {
       const result = sanitizeHtml('<a href="/path?a=1&b=2">link</a>');
-      expect(result).toContain("&amp;");
+      expect(result).toBe("link");
     });
 
-    it("adds rel=noopener noreferrer to <a> if missing", () => {
-      const result = sanitizeHtml('<a href="/safe">link</a>');
-      expect(result).toContain('rel="noopener noreferrer"');
-    });
-
-    it("overrides unsafe rel on target blank links", () => {
+    it("removes target and rel together with legacy links", () => {
       const result = sanitizeHtml('<a href="/safe" target="_blank" rel="opener">link</a>');
-      expect(result).toContain('target="_blank"');
-      expect(result).toContain('rel="noopener noreferrer"');
-      expect(result).not.toContain('rel="opener"');
+      expect(result).toBe("link");
     });
 
     it("does not add href/target to non-<a> tags", () => {

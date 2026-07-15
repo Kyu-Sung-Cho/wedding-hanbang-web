@@ -15,28 +15,19 @@ const webVendor = readFileSync(
   "utf8"
 );
 
-describe("booking consumer status contract", () => {
-  it("preserves every server lifecycle status on mobile", () => {
-    expect(mobileBookings).toContain('| "in_service"');
-    expect(mobileBookings).toContain('| "service_completed"');
-    expect(mobileBookings).toContain('| "contract_sent"');
-    expect(mobileBookings).toContain('| "contract_signed"');
-    expect(mobileBookings).toContain('| "deposit_paid"');
-    expect(mobileBookings).toContain('| "settled"');
-    expect(mobileBookings).toContain("isExpiredWithoutCompletion");
-    expect(mobileBookings).not.toMatch(
-      /return booking\.status === "completed" \|\| parseBookingDate\(booking\.booking_date\) < today/
-    );
+describe("booking consumer retirement contract", () => {
+  it("does not interpret backend lifecycle states on mobile", () => {
+    expect(mobileBookings).toContain('<PublicBetaUnavailable feature="booking" />');
+    expect(mobileBookings).not.toMatch(/in_service|service_completed|contract_signed|deposit_paid|settled|vendor_bookings/);
   });
 
-  it("keeps same-day requests upcoming on web using the local date-only contract", () => {
-    expect(webBookings).toContain("isLocalDateOnlyBefore");
-    expect(webBookings).not.toContain("new Date(b.bookingDate)");
+  it("does not interpret booking dates or statuses on web", () => {
+    expect(webBookings).toContain('<PublicBetaUnavailable feature="booking" />');
+    expect(webBookings).not.toMatch(/isLocalDateOnlyBefore|bookingDate|vendor_bookings|status/);
   });
 
-  it("shows the exact future date before a weekly slot request is sent", () => {
-    expect(webVendor).toContain("nextLocalDateForDatabaseWeekday");
-    expect(webVendor).toContain("요청 보내기");
-    expect(webVendor).not.toContain("변경/취소는 방문일 1일 전까지 가능합니다");
+  it("does not expose a date or submission flow from the retired vendor detail", () => {
+    expect(webVendor).toContain('<PublicBetaUnavailable feature="vendor" />');
+    expect(webVendor).not.toMatch(/nextLocalDateForDatabaseWeekday|요청 보내기|변경\/취소|BOOKING_REQUESTS_ENABLED/);
   });
 });

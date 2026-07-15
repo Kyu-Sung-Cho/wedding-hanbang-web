@@ -10,16 +10,11 @@ import {
   Wallet,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { communityPostPath } from "@/lib/community/routes";
 import { weddingPath } from "@/lib/weddingPaths";
-import type { CommunityCategory, PriceData } from "@/types/community.types";
+import type { CommunityCategory } from "@/types/community.types";
 
 interface ServiceCTAProps {
   category: CommunityCategory;
-  postTitle?: string;
-  postId?: string;
-  postContent?: string;
-  priceData?: PriceData | null;
 }
 
 interface CTAConfig {
@@ -34,22 +29,22 @@ const CTA_MAP: Record<string, CTAConfig> = {
   is_normal: {
     icon: FileSearch,
     label: "상황 확인",
-    title: "이 상황, 내 기준으로 한 번 더 확인해볼까요?",
-    subtext: "예식일, 예산, 준비 단계 기준으로 다음 행동을 정리합니다.",
+    title: "이 글에서 확인할 질문을 아모라와 정리해볼까요?",
+    subtext: "게시글은 이용자 작성 정보이며 검증된 사실이나 추천이 아니에요.",
     href: "/chat",
   },
   tour_review: {
     icon: MessageCircle,
     label: "후기 다음 단계",
-    title: "후기 기준으로 내 조건에 맞는 후보를 좁혀보세요.",
-    subtext: "예산, 지역, 스타일을 기준으로 아모라와 비교할 수 있어요.",
+    title: "후기에서 업체에 다시 확인할 질문을 정리하세요.",
+    subtext: "후기는 이용자 작성 정보예요. 최신 조건은 업체 공식 문서로 다시 확인해야 해요.",
     href: "/chat",
   },
   tips_v2: {
     icon: CalendarCheck,
     label: "준비 흐름",
-    title: "이 팁을 내 일정에 맞게 다시 정리해보세요.",
-    subtext: "해야 할 일과 확인 시점을 놓치지 않게 이어갑니다.",
+    title: "이 팁에서 필요한 항목만 직접 일정에 옮겨보세요.",
+    subtext: "게시글의 시점과 조건을 확인한 뒤, 직접 정한 날짜만 기록합니다.",
     href: "/schedule",
   },
   ama: {
@@ -61,62 +56,38 @@ const CTA_MAP: Record<string, CTAConfig> = {
   },
   free: {
     icon: MessageCircle,
-    label: "상담",
+    label: "질문 정리",
     title: "이 이야기를 아모라와 짧게 정리해볼까요?",
-    subtext: "필요한 경우에만 상담으로 이어가요.",
+    subtext: "필요한 내용만 직접 붙여 넣고 답변을 참고하세요.",
     href: "/chat",
   },
 };
 
 const BUDGET_CATEGORIES = new Set(["is_normal"]);
 const SCHEDULE_CATEGORIES = new Set(["tips_v2", "ama"]);
+const AMORA_CONTEXT_NOTICE =
+  "아모라는 현재 글을 자동으로 읽지 않아요. 필요한 문장을 직접 붙여 넣어 주세요.";
 
-// HTML 본문 → 프롬프트용 평문 발췌 (아모라가 링크가 아니라 내용 자체를 받게)
-function toPlainExcerpt(html: string, maxLen = 500): string {
-  const text = html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
-}
-
-function formatPriceLine(priceData: PriceData): string {
-  const parts = [
-    priceData.region ? `지역 ${priceData.region}` : null,
-    `기본금 ${priceData.base_price}만원`,
-    priceData.extra_price != null ? `추가금 ${priceData.extra_price}만원` : null,
-    priceData.details ? `상세: ${priceData.details.slice(0, 200)}` : null,
-  ].filter(Boolean);
-  return `글에 적힌 가격 정보(${priceData.vendor_category}): ${parts.join(", ")}`;
-}
-
-function buildChatHref(
-  postTitle?: string,
-  postId?: string,
-  postContent?: string,
-  priceData?: PriceData | null
-) {
-  if (!postTitle) return weddingPath("/chat");
+// 커뮤니티 본문·제목·가격은 URL query에 복사하지 않는다. URL은 브라우저 기록,
+// 접근 로그와 referrer에 남을 수 있으므로 검증되지 않은 UGC와 회원 공개 글을
+// 자동 전달하는 대신, 안전한 일반 질문만 채운다.
+function buildChatHref() {
   const prompt = [
-    "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
-    `글 제목: ${postTitle}`,
-    postContent ? `글 내용: ${toPlainExcerpt(postContent)}` : null,
-    priceData ? formatPriceLine(priceData) : null,
-    postId ? `글 링크: ${communityPostPath(postId)}` : null,
-    "내가 확인해야 할 일정, 예산, 체크리스트를 알려줘.",
+    "커뮤니티 글을 보며 생긴 궁금증을 정리하고 싶어.",
+    "현재 커뮤니티 글은 자동으로 전달되지 않았어. 내가 필요한 내용을 붙여 넣을 때까지 원문을 봤다고 가정하지 마.",
+    "게시글은 이용자 작성 정보이며 검증된 사실이나 추천이 아니라고 보고, 내 상황과 같다고 가정하지 마.",
+    "가격 적정성이나 계약 안전성을 판정하지 말고, 내가 업체 문서로 다시 확인할 질문부터 물어봐 줘.",
   ]
-    .filter(Boolean)
     .join("\n");
   return weddingPath(`/chat?prefill=${encodeURIComponent(prompt)}`);
 }
 
-export default function ServiceCTA({ category, postTitle, postId, postContent, priceData }: ServiceCTAProps) {
+export default function ServiceCTA({ category }: ServiceCTAProps) {
   const mainCta = CTA_MAP[category] ?? CTA_MAP.free;
   const MainIcon = mainCta.icon;
   const mainHref =
     mainCta.href === "/chat"
-      ? buildChatHref(postTitle, postId, postContent, priceData)
+      ? buildChatHref()
       : weddingPath(mainCta.href);
 
   let secondaryCta: CTAConfig | null = null;
@@ -124,8 +95,8 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
     secondaryCta = {
       icon: Wallet,
       label: "예산",
-      title: "확인한 금액을 예산에 반영하기",
-      subtext: "견적가와 예상 추가금을 한 곳에서 관리합니다.",
+      title: "직접 정한 금액을 예산에 기록하기",
+      subtext: "계획 금액·서명한 계약 총액·실제 납부액을 구분해 기록합니다.",
       href: "/budget",
     };
   } else if (SCHEDULE_CATEGORIES.has(category)) {
@@ -133,7 +104,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
       icon: CalendarCheck,
       label: "일정",
       title: "다음 확인일을 일정으로 넘기기",
-      subtext: "계약 전 질문과 마감일을 놓치지 않게 정리합니다.",
+      subtext: "업체와 직접 확인해 정한 날짜만 일정에 기록합니다.",
       href: "/schedule",
     };
   }
@@ -149,7 +120,11 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
         icon={MainIcon}
         label={mainCta.label}
         title={mainCta.title}
-        subtext={mainCta.subtext}
+        subtext={
+          mainCta.href === "/chat"
+            ? `${mainCta.subtext} ${AMORA_CONTEXT_NOTICE}`
+            : mainCta.subtext
+        }
       />
 
       {secondaryCta ? (

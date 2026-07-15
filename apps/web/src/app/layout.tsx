@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://hanbang.ai"),
   title: "웨딩한방 — AI와 함께 정리하는 결혼 준비",
   description:
-    "아모라 상담, 커플 일정·예산 공유, 견적 체크와 웨딩 시세를 한곳에서 관리하세요.",
+    "아모라 상담과 커플 일정·예산, 커뮤니티, 출처가 표시된 웨딩 시세를 한곳에서 확인하세요.",
   icons: {
     icon: "/images/favicon.png",
     apple: "/images/apple-touch-icon.png",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "웨딩한방 — AI와 함께 정리하는 결혼 준비",
     description:
-      "아모라 상담과 커플 일정·예산, 견적 체크를 한곳에서 관리하는 웨딩 준비 서비스.",
+      "아모라 상담과 커플 일정·예산, 커뮤니티 기록을 한곳에서 이어가는 웨딩 준비 서비스.",
     url: "https://hanbang.ai/wedding",
     siteName: "웨딩한방",
     locale: "ko_KR",

@@ -1,0 +1,2 @@
+export const SIGNUP_TERMS_VERSION = "2026-07-13";
+export const SIGNUP_PRIVACY_VERSION = "2026-07-13";

@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 16 * 1024;
 const ROLE_VALUES = ["bride", "groom"] as const;
-const PRIVACY_POLICY_VERSION = "2026-07-12";
+const PRIVACY_POLICY_VERSION = "2026-07-14";
 const RETENTION_DAYS = 180;
 const COHORT_WEDDING_DATE_MIN = "2026-07-01";
 const COHORT_WEDDING_DATE_MAX = "2026-12-31";

@@ -63,15 +63,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.7,
     },
-    {
-      url: `${BASE_URL}/wedding/community/quote-check`,
-      lastModified: STATIC_CONTENT_LAST_MODIFIED,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
   ];
 
-  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+  if (process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full") {
     return staticPages.filter(({ url }) =>
       [`${BASE_URL}/demo`, `${BASE_URL}/about`, `${BASE_URL}/beta`].includes(url)
     );

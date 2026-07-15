@@ -4,15 +4,12 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { ArrowRight, BookOpen, CalendarHeart, ClipboardCheck, ListChecks, Sparkles } from "lucide-react";
 import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
-import { QUOTE_CHECK_ITEMS } from "@/constants/hiddenCosts";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
-import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import { getEvents } from "@/utils/scheduleEvents";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
-import { parseLocalDateOnly } from "@hanbang/shared";
 
 /**
  * 주차 카드 — 라운지 최상단의 "이번 주 한 장".
@@ -24,34 +21,31 @@ interface WeeklyCardProps {
   weddingDate?: string | null;
   totalBudget?: number | null;
   progress: Record<string, ProgressItem>;
-  actions?: AmoraActionItem[];
 }
 
-export default function WeeklyCard({ weddingDate, totalBudget, progress, actions }: WeeklyCardProps) {
+export default function WeeklyCard({ weddingDate, totalBudget, progress }: WeeklyCardProps) {
   const data = useMemo(() => {
     const progressRecord = progress as Record<string, unknown>;
-    const validWedding = weddingDate ? parseLocalDateOnly(weddingDate) : null;
-
     // 아모라 한 줄 — 정적 안내만 제공하며 선제 메시지 전송을 주장하지 않는다.
     const dueCells = buildDueMomentCells({ weddingDate, progress: progressRecord });
     const topCell = dueCells[0];
     const plan = buildAmoraLifecyclePlan({ weddingDate, totalBudget, progress });
     const brief = topCell
       ? topCell.cellKind === "dAfter"
-        ? `어제 ${topCell.momentLabel} 어땠어요? 필요하면 지금 아모라와 정리해보세요.`
-        : `${topCell.momentLabel}이(가) 다가와요 — 지금 아모라와 확인할 질문을 정리해보세요.`
+        ? `어제로 등록한 ${topCell.momentLabel} 일정이 있어요. 실제로 진행했다면 아모라와 정리해보세요.`
+        : `${topCell.momentLabel} 일정이 등록돼 있어요. 필요하면 아모라와 확인할 질문을 정리해보세요.`
       : plan.primaryAction.severity === "critical" || plan.primaryAction.severity === "warning"
         ? plan.primaryAction.title
-        : "오늘은 급한 일 없어요. 이번 주 것만 천천히 보면 돼요.";
+        : "현재 기록에서 먼저 확인할 입력값은 없어요. 필요한 항목만 천천히 보면 돼요.";
     const briefHref = topCell
       ? weddingPath("/chat")
       : plan.primaryAction.severity === "critical" || plan.primaryAction.severity === "warning"
         ? plan.primaryAction.href
         : null;
 
-    // 이번 주 할 일 3 — 마감 임박 카테고리
+    // 사용자가 직접 시작했지만 아직 일정을 정하지 않은 항목
     const events = getEvents(progressRecord);
-    const imminent = getImminentCategories(progress, validWedding, events).slice(0, 3);
+    const imminent = getImminentCategories(progress, events).slice(0, 3);
 
     // 알아둘 예절 1 — 가장 임박한 카테고리의 예절 파트
     const topCategoryKey = imminent[0]?.key;
@@ -62,22 +56,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       (part) => part.number === (etiquettePartNumber ?? 21)
     );
 
-    // 추가비용 확인 질문 1 — 발생률이나 필수성을 추정하지 않고 계약 확인 질문만 노출한다.
-    const trapCategory =
-      topCategoryKey === "studio" || topCategoryKey === "dress" || topCategoryKey === "makeup"
-        ? topCategoryKey
-        : "common";
-    const trap =
-      QUOTE_CHECK_ITEMS.find((item) => item.category === trapCategory) ??
-      QUOTE_CHECK_ITEMS[0];
-
-    // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
-    const openActions = (actions ?? getAmoraActions(progressRecord))
-      .filter((action) => action.status === "open")
-      .slice(0, 3);
-
-    return { brief, briefHref, imminent, etiquettePart, trap, openActions };
-  }, [weddingDate, totalBudget, progress, actions]);
+    return { brief, briefHref, imminent, etiquettePart };
+  }, [weddingDate, totalBudget, progress]);
 
   return (
     <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
@@ -106,12 +86,13 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {/* 이번 주 할 일 */}
+        {/* 직접 시작한 항목의 일정 확인 */}
         <div className="rounded-[14px] border border-[#f0e9da] p-3.5">
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
             <ListChecks className="h-3.5 w-3.5" />
-            이번 주 할 일
+            시작한 항목의 일정 확인
           </p>
+          <p className="mb-2 text-[11px] leading-relaxed text-[#928980]">업체 마감으로 계산한 값이 아니라, 직접 시작한 항목만 표시합니다.</p>
           {data.imminent.length > 0 ? (
             <ul className="space-y-1.5">
               {data.imminent.map((category) => (
@@ -121,18 +102,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                     className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832]"
                   >
                     <span className="truncate">{category.label}</span>
-                    <span
-                      className={`shrink-0 text-[11px] font-semibold ${
-                        category.urgency === "overdue"
-                          ? "text-[#c2410c]"
-                          : category.urgency === "urgent"
-                            ? "text-[#9d6f36]"
-                            : "text-[#928980]"
-                      }`}
-                    >
-                      {category.deadlineDaysLeft < 0
-                        ? `${Math.abs(category.deadlineDaysLeft)}일 지남`
-                        : `${category.deadlineDaysLeft}일 남음`}
+                    <span className="shrink-0 text-[11px] font-semibold text-[#928980]">
+                      일정 미설정
                     </span>
                   </Link>
                 </li>
@@ -140,14 +111,12 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             </ul>
           ) : (
             <p className="text-[13px] font-medium leading-[1.5] text-[#928980]">
-              {weddingDate
-                ? "이번 주 마감 임박 항목이 없어요. 좋은 흐름이에요."
-                : "예식일을 입력하면 이번 주 할 일을 골라드려요."}
+              시작한 항목 중 일정 미등록 항목이 없어요.
             </p>
           )}
         </div>
 
-        {/* 알아둘 예절 */}
+        {/* 일반 예절 참고 */}
         {data.etiquettePart && (
           <Link
             {...weddingLinkProps(`/etiquette?part=${data.etiquettePart.number}`)}
@@ -155,7 +124,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
               <BookOpen className="h-3.5 w-3.5" />
-              알아둘 예절
+              일반 예절 참고
             </p>
             <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
               {data.etiquettePart.title}
@@ -166,47 +135,24 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           </Link>
         )}
 
-        {/* 추가비용 확인 질문 */}
-        {data.trap && (
-          <Link
-            {...weddingLinkProps("/community/quote-check")}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
-          >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              추가비용 확인
-            </p>
-            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
-              {data.trap.name}
-            </p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-              {data.trap.checkQuestion}
-            </p>
-          </Link>
-        )}
+        {/* 원문이 있을 때만 질문을 정리한다. 별도 항목 입력이나 자동 판정은 하지 않는다. */}
+        <Link
+          {...weddingLinkProps("/chat")}
+          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+        >
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            업체 원문 질문 정리
+          </p>
+          <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+            받은 문서가 있을 때만
+          </p>
+          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+            견적서·계약서에 적힌 포함 범위와 변경·취소 조건을 업체에 다시 물을 문장으로 정리해요.
+          </p>
+        </Link>
       </div>
 
-      {/* 아모라가 기억하는 다음 행동 — 채팅 밖 첫 노출 */}
-      {data.openActions.length > 0 && (
-        <div className="mt-3 rounded-[14px] border border-[#f0e9da] bg-[#fffdf7] p-3.5">
-          <p className="mb-2 text-[12px] font-semibold text-[#5d6879]">아모라가 기억하는 다음 행동</p>
-          <ul className="space-y-1.5">
-            {data.openActions.map((action) => (
-              <li key={action.id}>
-                <Link
-                  {...weddingLinkProps(action.href ? action.href.replace(/^\/wedding/, "") : "/chat")}
-                  className="flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832] hover:text-[#36534E]"
-                >
-                  <span className="truncate">{action.title}</span>
-                  {action.dueDate && (
-                    <span className="shrink-0 text-[11px] font-semibold text-[#928980]">{action.dueDate}</span>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   );
 }

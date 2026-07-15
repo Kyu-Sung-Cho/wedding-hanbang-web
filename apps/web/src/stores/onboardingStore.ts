@@ -3,9 +3,6 @@
 import { create } from "zustand";
 import type { UserRole } from "@/types/database.types";
 import {
-  PROGRESS_CHECKLIST_ITEMS,
-  type ProgressChecklistItem,
-  type ChecklistStatus,
   type WeddingPreferences,
   type WeddingStyle,
   type PriorityItem,
@@ -23,11 +20,8 @@ interface OnboardingStoreState {
   weddingDateUndecided: boolean;
   venue: string | null;
   venueUndecided: boolean;
-  sanggyeonryeDate: string | null;
-  sanggyeonryeUndecided: boolean;
   approximateBudget: number;
   preferences: WeddingPreferences;
-  progressChecklist: ProgressChecklistItem[];
 
   setStep: (step: number) => void;
   nextStep: () => void;
@@ -40,16 +34,11 @@ interface OnboardingStoreState {
   setWeddingDateUndecided: (value: boolean) => void;
   setVenue: (venue: string | null) => void;
   setVenueUndecided: (value: boolean) => void;
-  setSanggyeonryeDate: (date: string | null) => void;
-  setSanggyeonryeUndecided: (value: boolean) => void;
   setBudget: (budget: number) => void;
   setWeddingStyle: (style: WeddingStyle) => void;
   togglePriority: (item: PriorityItem) => void;
   setBudgetTendency: (tendency: BudgetTendency) => void;
   setGuestCount: (count: GuestCount) => void;
-  setChecklistItemStatus: (key: string, status: ChecklistStatus) => void;
-  setChecklistItemCost: (key: string, cost: number | undefined) => void;
-  setChecklist: (items: ProgressChecklistItem[]) => void;
   reset: () => void;
 }
 
@@ -70,18 +59,15 @@ const initialState = {
   weddingDateUndecided: false,
   venue: null as string | null,
   venueUndecided: false,
-  sanggyeonryeDate: null as string | null,
-  sanggyeonryeUndecided: false,
-  approximateBudget: 20000000,
+  approximateBudget: 0,
   preferences: { ...initialPreferences },
-  progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
 };
 
 export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   ...initialState,
 
   setStep: (step) => set({ currentStep: step }),
-  nextStep: () => set((s) => ({ currentStep: Math.min(s.currentStep + 1, 5) })),
+  nextStep: () => set((s) => ({ currentStep: Math.min(s.currentStep + 1, 4) })),
   prevStep: () => set((s) => ({ currentStep: Math.max(s.currentStep - 1, 1) })),
   setRole: (role) => set({ role }),
   setCoupleAction: (action) => set({ coupleAction: action }),
@@ -93,9 +79,6 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
   setVenue: (venue) => set({ venue }),
   setVenueUndecided: (value) =>
     set({ venueUndecided: value, venue: value ? null : undefined }),
-  setSanggyeonryeDate: (date) => set({ sanggyeonryeDate: date }),
-  setSanggyeonryeUndecided: (value) =>
-    set(value ? { sanggyeonryeUndecided: true, sanggyeonryeDate: null } : { sanggyeonryeUndecided: false }),
   setBudget: (budget) => set({ approximateBudget: budget }),
   setWeddingStyle: (style) =>
     set((s) => ({ preferences: { ...s.preferences, weddingStyle: style } })),
@@ -114,20 +97,5 @@ export const useOnboardingStore = create<OnboardingStoreState>((set) => ({
     set((s) => ({ preferences: { ...s.preferences, budgetTendency: tendency } })),
   setGuestCount: (count) =>
     set((s) => ({ preferences: { ...s.preferences, guestCount: count } })),
-  setChecklistItemStatus: (key, status) =>
-    set((s) => ({
-      progressChecklist: s.progressChecklist.map((item) =>
-        item.key === key
-          ? { ...item, status, cost: status === "completed" ? item.cost : undefined }
-          : item
-      ),
-    })),
-  setChecklistItemCost: (key, cost) =>
-    set((s) => ({
-      progressChecklist: s.progressChecklist.map((item) =>
-        item.key === key ? { ...item, cost } : item
-      ),
-    })),
-  setChecklist: (items) => set({ progressChecklist: items }),
-  reset: () => set({ ...initialState, preferences: { ...initialPreferences }, progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })) }),
+  reset: () => set({ ...initialState, preferences: { ...initialPreferences } }),
 }));

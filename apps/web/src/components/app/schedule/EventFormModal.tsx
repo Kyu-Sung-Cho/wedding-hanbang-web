@@ -59,6 +59,7 @@ export default function EventFormModal({
   const [categoryKey, setCategoryKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState("");
   const titleId = useId();
   const titleInputId = useId();
@@ -70,6 +71,7 @@ export default function EventFormModal({
   useEffect(() => {
     if (!isOpen) return;
     setError("");
+    setConfirmingDelete(false);
     if (mode === "edit" && event) {
       setTitle(event.title);
       setDate(event.date);
@@ -103,6 +105,10 @@ export default function EventFormModal({
 
   const handleDelete = async () => {
     if (!onDelete) return;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
     setDeleting(true);
     setError("");
     try {
@@ -111,6 +117,7 @@ export default function EventFormModal({
       setError(deleteError instanceof Error ? deleteError.message : "일정을 삭제하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setDeleting(false);
+      setConfirmingDelete(false);
     }
   };
 
@@ -236,7 +243,11 @@ export default function EventFormModal({
               className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-500 transition-colors disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              {deleting ? "삭제중..." : "삭제"}
+              {deleting
+                ? "삭제중..."
+                : confirmingDelete
+                ? "한 번 더 눌러 삭제"
+                : "삭제"}
             </button>
           ) : (
             <div />

@@ -16,16 +16,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Heart,
   MessageCircle,
-  Users,
   Sparkles,
   Wallet,
   CalendarDays,
   ChevronUp,
   MessageSquare,
-  AlertTriangle,
-  Check,
   Circle,
-  Crown,
 } from "lucide-react-native";
 import { colors, spacing, radius, fontSize } from "@hanbang/design-tokens";
 
@@ -72,19 +68,11 @@ function HomeSlide({ mockWidth }: MockSlideProps) {
     <View style={styles.slideInner}>
       {/* 목업 컨테이너 */}
       <View style={[styles.mockContainer, { width: mockWidth }]}>
-        {/* D-day 카드 */}
+        {/* 실제 입력 전에는 값이나 진행률을 만들어내지 않는 홈 예시 */}
         <View style={styles.homeDdayCard}>
-          <Text style={styles.homeDdayLabel}>우리의 결혼식</Text>
-          <Text style={styles.homeDdayNumber}>D-127</Text>
-          <Text style={styles.homeDdayDate}>2026. 9. 15</Text>
-
-          {/* 프로그레스 바 */}
-          <View style={styles.homeProgressContainer}>
-            <View style={styles.homeProgressBg}>
-              <View style={styles.homeProgressFill} />
-            </View>
-            <Text style={styles.homeProgressText}>35% 완료</Text>
-          </View>
+          <Text style={styles.homeDdayLabel}>예식일</Text>
+          <Text style={styles.homeDdayNumber}>미정</Text>
+          <Text style={styles.homeDdayDate}>직접 입력하면 이곳에 표시돼요</Text>
         </View>
 
         {/* 퀵 액션 */}
@@ -113,7 +101,7 @@ function HomeSlide({ mockWidth }: MockSlideProps) {
       </View>
 
       <Text style={styles.mockCaption}>
-        D-day와 해야 할 일을 한눈에
+        직접 등록한 일정과 준비 기록을 한눈에
       </Text>
     </View>
   );
@@ -141,7 +129,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
           <View style={styles.chatRowUser}>
             <View style={styles.chatBubbleUser}>
               <Text style={styles.chatBubbleUserText}>
-                스드메 어디가 좋아?
+                받은 견적에서 무엇을 확인해야 해?
               </Text>
             </View>
           </View>
@@ -153,7 +141,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.chatBubbleAi}>
               <Text style={styles.chatBubbleAiText}>
-                {"입력한 예산을 기준으로 비교 질문을 정리했어요 ✨"}
+                {"업체 답변과 계약서에서 직접 확인할 질문을 정리해드릴게요."}
               </Text>
             </View>
           </View>
@@ -161,10 +149,10 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
           {/* 추천 필 버튼 */}
           <View style={styles.chatPillRow}>
             <View style={styles.chatPill}>
-              <Text style={styles.chatPillText}>가격 비교 보기</Text>
+              <Text style={styles.chatPillText}>확인 질문 보기</Text>
             </View>
             <View style={styles.chatPill}>
-              <Text style={styles.chatPillText}>후기 확인</Text>
+              <Text style={styles.chatPillText}>원문 다시 확인</Text>
             </View>
           </View>
         </View>
@@ -193,11 +181,7 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.communityAuthorInfo}>
               <View style={styles.communityNameRow}>
-              <Text style={styles.communityNickname}>예시 사용자</Text>
-                <View style={styles.communityRankBadge}>
-                  <Crown size={8} color={colors.gold.DEFAULT} />
-                  <Text style={styles.communityRankText}>Lv.4</Text>
-                </View>
+                <Text style={styles.communityNickname}>예시 사용자</Text>
               </View>
               <Text style={styles.communityTime}>화면 예시</Text>
             </View>
@@ -222,21 +206,6 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
           </View>
         </View>
 
-        {/* 동기방 배너 */}
-        <View style={styles.communityCohortBanner}>
-          <View style={styles.communityCohortLeft}>
-            <Users size={16} color={colors.rose[500]} />
-            <View style={styles.communityCohortTextWrap}>
-              <Text style={styles.communityCohortTitle}>
-                동기방 화면 예시
-              </Text>
-              <Text style={styles.communityCohortSub}>실제 게시글·인원 아님</Text>
-            </View>
-          </View>
-          <View style={styles.communityCohortJoin}>
-            <Text style={styles.communityCohortJoinText}>참여중</Text>
-          </View>
-        </View>
       </View>
 
       <Text style={styles.mockCaption}>
@@ -256,19 +225,14 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
         {/* 예산 미니 */}
         <View style={styles.budgetCard}>
           <Text style={styles.budgetLabel}>총 예산</Text>
-          <Text style={styles.budgetTotal}>3,000만원</Text>
-
-          {/* 예산 프로그레스 */}
-          <View style={styles.budgetProgressBg}>
-            <View style={styles.budgetProgressFill} />
-          </View>
-          <Text style={styles.budgetUsed}>1,240만원 사용 (41%)</Text>
+          <Text style={styles.budgetTotal}>미입력</Text>
+          <Text style={styles.budgetUsed}>직접 입력한 금액만 표시해요</Text>
 
           {/* 카테고리 행 */}
           <View style={styles.budgetCategoryRow}>
             <View style={styles.budgetCatDot} />
             <Text style={styles.budgetCatName}>스드메</Text>
-            <Text style={styles.budgetCatAmount}>380만원</Text>
+            <Text style={styles.budgetCatAmount}>미입력</Text>
           </View>
           <View style={styles.budgetCategoryRow}>
             <View
@@ -278,40 +242,19 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
               ]}
             />
             <Text style={styles.budgetCatName}>예식장</Text>
-            <View style={styles.budgetCatAmountRow}>
-              <Text style={styles.budgetCatAmount}>520만원</Text>
-              <View style={styles.budgetWarningBadge}>
-                <AlertTriangle size={10} color={colors.danger} />
-              </View>
-            </View>
+            <Text style={styles.budgetCatAmount}>미입력</Text>
           </View>
         </View>
 
         {/* 체크리스트 미니 */}
         <View style={styles.checklistCard}>
-          <Text style={styles.checklistTitle}>다음 할 일</Text>
-
-          {/* 완료 항목 */}
-          <View style={styles.checklistItem}>
-            <View style={styles.checkDone}>
-              <Check size={10} color="#FFFFFF" />
-            </View>
-            <Text style={styles.checklistTextDone}>예식장 계약</Text>
-          </View>
-          <View style={styles.checklistItem}>
-            <View style={styles.checkDone}>
-              <Check size={10} color="#FFFFFF" />
-            </View>
-            <Text style={styles.checklistTextDone}>청첩장 업체 선정</Text>
-          </View>
-
-          {/* 미완료 항목 */}
+          <Text style={styles.checklistTitle}>등록한 일정</Text>
           <View style={styles.checklistItem}>
             <View style={styles.checkUndone}>
               <Circle size={10} color={colors.taupe[400]} />
             </View>
             <Text style={styles.checklistTextUndone}>
-              스드메 계약금 입금
+              직접 등록한 일정이 여기에 표시돼요
             </Text>
           </View>
         </View>
@@ -671,7 +614,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   homeProgressFill: {
-    width: "35%",
+    width: "0%",
     height: "100%",
     backgroundColor: colors.rose[500],
     borderRadius: radius.full,
@@ -984,7 +927,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing[1],
   },
   budgetProgressFill: {
-    width: "41%",
+    width: "0%",
     height: "100%",
     backgroundColor: colors.rose[500],
     borderRadius: radius.full,

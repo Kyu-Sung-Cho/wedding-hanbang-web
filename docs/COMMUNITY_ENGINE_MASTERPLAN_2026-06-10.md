@@ -1,5 +1,8 @@
 # 커뮤니티 = 유입+전환 엔진 통합 청사진 (2026-06-10)
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 자동 전환, 견적·업체 리드 적재, AI 개입·자동 발화는 승인된 기능이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 전략 스냅샷입니다.** 현재 구현·실행 지침이 아닙니다. 커뮤니티 AI 댓글, proactive 자동 발화, 모델 기반 쓰기와 동의 없는 견적·업체 리드 적재는 비활성/금지이며, 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

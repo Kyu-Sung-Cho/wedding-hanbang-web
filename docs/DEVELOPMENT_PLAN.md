@@ -1,5 +1,8 @@
 # 웨딩한방 웹/앱 통합 개발 플랜
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 과거 일정·예산·Phase와 기능 목록은 실행 계획이 아니며 다시 착수하려면 별도 승인과 최신 검증이 필요하다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > 최종 업데이트: 2026-07-11 (현재 구현 경계 교정)
 > 개발자: 솔로 (Codex/ChatGPT 활용)
 > 출시 목표: 2026-06-09 (2개월)
@@ -317,7 +320,7 @@ Text Tertiary:      #7D7166
 |--------|----------|
 | 유저 500+ | Supabase Pro $25 |
 | 대역폭 초과 | Vercel Pro $20 |
-| AI 사용 증가 | OpenAI 사용량 증가 — 일일 앱 가드와 프로젝트 예산으로 제한 |
+| AI 사용 증가 | OpenAI 사용량 증가 — 테스트 단계는 횟수 차단 없이 계량하고 프로젝트 예산·알림으로 관찰 |
 | Sentry 이벤트 초과 | Sentry Team $26 |
 
 ---

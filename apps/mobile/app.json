@@ -59,11 +59,6 @@
               "scheme": "https",
               "host": "hanbang.ai",
               "pathPrefix": "/app/community/post/"
-            },
-            {
-              "scheme": "https",
-              "host": "hanbang.ai",
-              "pathPrefix": "/app/vendors/"
             }
           ],
           "category": [
@@ -96,13 +91,6 @@
           "backgroundColor": "#FBF8F2",
           "image": "./assets/splash.png",
           "resizeMode": "contain"
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#36534E"
         }
       ]
     ],

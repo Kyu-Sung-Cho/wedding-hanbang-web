@@ -103,16 +103,54 @@ describe("rate-limit subject lifecycle contract", () => {
     const authenticatedContracts: Array<[string, RegExp]> = [
       ["apps/web/src/app/api/chat/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id\);/],
       ["apps/web/src/app/api/chat/messages/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id\);/],
-      ["apps/web/src/app/api/bookings/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,[\s\S]*?\);/],
-      ["apps/web/src/app/api/bookings/[id]/outcome/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,[\s\S]*?\);/],
-      ["apps/web/src/app/api/community/ai-comment/route.ts", /checkRateLimitPersistent\([\s\S]*?userId\);/],
-      ["apps/web/src/app/api/community/ai-price-comment/route.ts", /checkRateLimitPersistent\([\s\S]*?loggingUserId\);/],
-      ["apps/web/src/app/api/amora/quote-check/route.ts", /checkRateLimitPersistent\([\s\S]*?user\?\.id\);/],
+      ["apps/web/src/app/api/chat/clear-request/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id\);/],
+      ["apps/web/src/app/api/community/posts/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/posts/[id]/vote/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/posts/[id]/bookmark/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/posts/[id]/report/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/comments/[id]/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/comments/[id]/report/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/profile/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/community/mutes/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/profile/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/couple/link/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/couple/reset/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
+      ["apps/web/src/app/api/onboarding/route.ts", /checkRateLimitPersistent\([\s\S]*?user\.id,\s*\);/],
     ];
 
     for (const [path, contract] of authenticatedContracts) {
       expect(readRepo(path), path).toMatch(contract);
     }
+
+    const viewRoute = readRepo("apps/web/src/app/api/community/posts/[id]/view/route.ts");
+    expect(viewRoute).toMatch(
+      /checkRateLimitPersistent\([\s\S]*?rateLimitKey\([^)]*?user\?\.id\)[\s\S]*?user\?\.id,\s*\);/,
+    );
+
+    const retiredPriceComment = readRepo(
+      "apps/web/src/app/api/community/ai-price-comment/route.ts",
+    );
+    expect(retiredPriceComment).toContain("status: 410");
+    expect(retiredPriceComment).not.toContain("checkRateLimitPersistent");
+
+    const retiredAiComment = readRepo(
+      "apps/web/src/app/api/community/ai-comment/route.ts",
+    );
+    expect(retiredAiComment).toContain("status: 410");
+    expect(retiredAiComment).not.toContain("checkRateLimitPersistent");
+
+    for (const path of [
+      "apps/web/src/app/api/bookings/route.ts",
+      "apps/web/src/app/api/bookings/[id]/outcome/route.ts",
+    ]) {
+      const retiredBooking = readRepo(path);
+      expect(retiredBooking, path).toContain("status: 410");
+      expect(retiredBooking, path).not.toContain("checkRateLimitPersistent");
+    }
+
+    const retiredQuoteCheck = readRepo("apps/web/src/app/api/amora/quote-check/route.ts");
+    expect(retiredQuoteCheck).toContain("status: 410");
+    expect(retiredQuoteCheck).not.toContain("checkRateLimitPersistent");
 
     for (const path of [
       "apps/web/src/app/api/auth/signup/route.ts",

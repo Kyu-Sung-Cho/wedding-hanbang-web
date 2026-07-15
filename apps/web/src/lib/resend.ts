@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 import { buildResearchEmailVerificationUrl } from "@/lib/researchEmailVerification";
+import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -14,14 +15,6 @@ function escapeHtml(value: string) {
     '"': "&quot;",
     "'": "&#39;",
   })[character]!);
-}
-
-function normalizeOutboundEmailText(value: string, maxLength: number): string {
-  return value
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength);
 }
 
 export function buildResearchCohortReceiptEmail(email: string, verificationUrl: string) {
@@ -63,10 +56,11 @@ export function buildResearchCohortReceiptEmail(email: string, verificationUrl: 
         </p>
         <p style="font-size: 12px; color: #6F6B66; line-height: 1.7; text-align: center; margin-bottom: 20px;">
           본인이 신청하지 않았다면 확인 버튼을 누르지 말고 이 메일을 무시해주세요.<br>
-          잘못 접수된 신청의 삭제를 요청하려면 support@hanbang.ai로 알려주세요.
+          현재 공개 사용자 연구 접수는 닫혀 있습니다. 이 메일은 공개 전 내부 검증에서만 발송되어야 합니다.<br>
+          이 메일을 실제로 받았다면 추가 개인정보를 입력하거나 회신하지 마세요.
         </p>
         <p style="font-size: 12px; color: #928980; line-height: 1.7; text-align: center;">
-          신청 정보는 접수일로부터 180일 보관되며, 삭제 요청은 support@hanbang.ai로 보내주세요.
+          신청 정보 보관 상한: 접수일로부터 180일
         </p>
         <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
           © 2026 웨딩한방. All rights reserved.
@@ -86,8 +80,9 @@ export function buildResearchCohortReceiptEmail(email: string, verificationUrl: 
       "선정 여부와 다음 단계는 신청 검토 후 별도 이메일로 안내드립니다.",
       "",
       "본인이 신청하지 않았다면 링크를 열지 말고 이 메일을 무시해주세요.",
-      "잘못 접수된 신청 삭제 요청: support@hanbang.ai",
-      "신청 정보 보관 기간: 접수일로부터 180일",
+      "현재 공개 사용자 연구 접수는 닫혀 있습니다. 이 메일은 공개 전 내부 검증에서만 발송되어야 합니다.",
+      "이 메일을 실제로 받았다면 추가 개인정보를 입력하거나 회신하지 마세요.",
+      "신청 정보 보관 상한: 접수일로부터 180일",
     ].join("\n"),
   };
 }
@@ -97,7 +92,7 @@ export async function sendResearchCohortReceiptEmail(
   applicationId: string,
   cohortCode: string
 ): Promise<boolean> {
-  if (!process.env.RESEND_API_KEY) return false;
+  if (!isResearchCohortApplicationsEnabled() || !process.env.RESEND_API_KEY) return false;
   try {
     const verificationUrl = buildResearchEmailVerificationUrl({ applicationId, cohortCode });
     if (!verificationUrl) return false;
@@ -108,99 +103,5 @@ export async function sendResearchCohortReceiptEmail(
     return true;
   } catch {
     return false;
-  }
-}
-
-export function buildVendorApprovalEmail(email: string, vendorName: string) {
-  const normalizedVendorName = normalizeOutboundEmailText(vendorName, 120) || "업체";
-  const safeVendorName = escapeHtml(normalizedVendorName);
-  return {
-    from: "Hanbang <noreply@hanbang.ai>",
-    to: email,
-    subject: `[웨딩한방] ${normalizedVendorName} 업체 등록이 승인되었습니다!`,
-    html: `
-        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
-          </div>
-          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
-            업체 등록이 승인되었습니다!
-          </h1>
-          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
-            <strong>${safeVendorName}</strong>의 파트너 등록이 승인 완료되었습니다.<br>
-            이제 웨딩한방 업체 탐색에 노출됩니다.<br>
-            문의사항은 partner@hanbang.ai로 연락해주세요.
-          </p>
-          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
-            © 2026 웨딩한방. All rights reserved.
-          </p>
-        </div>
-      `,
-  };
-}
-
-export async function sendVendorApprovalEmail(email: string, vendorName: string) {
-  if (!process.env.RESEND_API_KEY) return;
-  try {
-    await getResend().emails.send(buildVendorApprovalEmail(email, vendorName));
-  } catch {
-    console.error("VENDOR_APPROVAL_EMAIL_SEND_FAILED");
-  }
-}
-
-export function buildVendorRejectionEmail(
-  email: string,
-  vendorName: string,
-  reason?: string,
-) {
-  const normalizedVendorName = normalizeOutboundEmailText(vendorName, 120) || "업체";
-  const normalizedReason = reason
-    ? normalizeOutboundEmailText(reason, 1_000)
-    : "";
-  const safeVendorName = escapeHtml(normalizedVendorName);
-  const safeReason = escapeHtml(normalizedReason);
-  const reasonBlock = normalizedReason
-      ? `<div style="padding: 20px; background: #FFF5F5; border-radius: 12px; margin-bottom: 24px; border-left: 3px solid #E53E3E;">
-            <p style="font-size: 13px; color: #928980; margin: 0 0 8px;">반려 사유</p>
-            <p style="font-size: 14px; color: #1A1A1F; margin: 0; line-height: 1.6;">${safeReason}</p>
-          </div>`
-      : "";
-
-  return {
-    from: "Hanbang <noreply@hanbang.ai>",
-    to: email,
-    subject: `[웨딩한방] ${normalizedVendorName} 업체 등록 심사 결과 안내`,
-    html: `
-        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
-          </div>
-          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
-            업체 등록 심사 결과 안내
-          </h1>
-          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 24px;">
-            <strong>${safeVendorName}</strong>의 파트너 등록 심사 결과,<br>
-            아쉽게도 현재 기준으로 승인이 어렵습니다.
-          </p>
-          ${reasonBlock}
-          <p style="font-size: 14px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
-            문의사항은 partner@hanbang.ai로 연락해주세요.
-          </p>
-          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
-            © 2026 웨딩한방. All rights reserved.
-          </p>
-        </div>
-      `,
-  };
-}
-
-export async function sendVendorRejectionEmail(email: string, vendorName: string, reason?: string) {
-  if (!process.env.RESEND_API_KEY) return;
-  try {
-    await getResend().emails.send(
-      buildVendorRejectionEmail(email, vendorName, reason)
-    );
-  } catch {
-    console.error("VENDOR_REJECTION_EMAIL_SEND_FAILED");
   }
 }

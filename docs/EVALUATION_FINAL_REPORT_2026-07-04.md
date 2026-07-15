@@ -1,5 +1,7 @@
 # 웨딩한방 보수적 전체 평가 — 종합 성적표 (2026-07-04)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시 테스트 수, 등급, 원격 적용과 “출시 유지 가능” 판정은 현재 후보의 안전·배포 증거가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 감사 스냅샷입니다.** 현재 출시 판정은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`와 실제 코드를 우선합니다. 특히 가짜 업체 시드 라우트는 이제 프로덕션에서 환경변수로도 열 수 없으며, 실제 업체 등록은 별도 검증 절차를 사용해야 합니다.
 

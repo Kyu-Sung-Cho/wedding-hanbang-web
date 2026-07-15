@@ -10,6 +10,7 @@ export interface ParsedChatSse {
   content: string;
   completed: boolean;
   error?: string;
+  errorCode?: string;
   toolResults?: ChatSseToolResult[];
   suggestions?: string[];
   quotaRemaining?: number;
@@ -21,6 +22,7 @@ interface ChatSseEvent {
   content?: unknown;
   fullContent?: unknown;
   message?: unknown;
+  code?: unknown;
   result?: unknown;
   suggestions?: unknown;
   remaining?: unknown;
@@ -36,6 +38,7 @@ export function parseChatSse(raw: string): ParsedChatSse {
   let content = "";
   let completed = false;
   let error: string | undefined;
+  let errorCode: string | undefined;
   const toolResults: ChatSseToolResult[] = [];
   let suggestions: string[] | undefined;
   let quotaRemaining: number | undefined;
@@ -74,6 +77,7 @@ export function parseChatSse(raw: string): ParsedChatSse {
       completed = true;
     } else if (event.type === "error") {
       error = typeof event.message === "string" ? event.message : "AI 응답 생성에 실패했어요.";
+      errorCode = typeof event.code === "string" && event.code.trim() ? event.code : undefined;
     }
   }
 
@@ -81,6 +85,7 @@ export function parseChatSse(raw: string): ParsedChatSse {
     content,
     completed,
     ...(error ? { error } : {}),
+    ...(errorCode ? { errorCode } : {}),
     ...(toolResults.length > 0 ? { toolResults } : {}),
     ...(suggestions ? { suggestions } : {}),
     ...(quotaRemaining !== undefined ? { quotaRemaining } : {}),

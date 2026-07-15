@@ -13,7 +13,10 @@ WITH required_dependency_crons(
     ('enforce-application-survey-retention', '41 18 * * *',
       'SELECT public.enforce_application_survey_retention();', '20260711141000'),
     ('delete-expired-rate-limit-buckets', '47 18 * * *',
-      'SELECT public.delete_expired_rate_limit_buckets();', '20260711141000')
+      'SELECT public.delete_expired_rate_limit_buckets();', '20260711141000'),
+    ('enforce-raw-customer-tracking-retention', '23 18 * * *',
+      'SELECT public.enforce_raw_customer_tracking_retention();',
+      '20260713112000')
 ), dependency_cron_status AS (
   SELECT required.job_name,
          required.creator_version,

@@ -18,15 +18,8 @@ interface EmptyFeedStarterProps {
 
 const STARTERS = [
   {
-    href: weddingPath("/community/quick-review"),
-    label: "15초 후기",
-    title: "업체명, 별점, 한 줄 후기로 첫 실제 사례 남기기",
-    meta: "빠른 작성",
-    icon: MessageSquarePlus,
-  },
-  {
     href: weddingPath("/community?category=is_normal&feed=all#community-feed"),
-    label: "정상인가요 게시판",
+    label: "계약·추가금 질문 게시판",
     title: "다른 예비부부의 견적/계약 질문 먼저 보기",
     meta: "사례 보기",
     icon: HelpCircle,
@@ -41,7 +34,7 @@ const STARTERS = [
   {
     href: weddingPath("/community?category=tips_v2&feed=all#community-feed"),
     label: "꿀팁",
-    title: "계약 전 물어볼 질문과 숨은 추가금 체크리스트 모으기",
+    title: "계약 전 물어볼 질문과 추가비용 확인 질문 모으기",
     meta: "체크리스트",
     icon: Lightbulb,
   },

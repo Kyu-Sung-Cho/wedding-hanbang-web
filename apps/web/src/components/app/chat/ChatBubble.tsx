@@ -531,10 +531,8 @@ export default function ChatBubble({
           <span className="text-sm text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>
-          {/* AI 고지 footer 는 채팅 상단 헤더 배지로 통합됨 — 메시지별 반복 제거.
-              AI 기본법(2026.1.22) 표시 의무는 ChatContent 헤더 "AI 생성" 배지 +
-              /ai-policy 링크로 충족. 가독성 회복 (이전 사고: 매 메시지 footer 가
-              과잉). */}
+          {/* 생성형 AI 응답 표시는 ChatContent 상단의 "AI 생성" 배지와
+              /ai-policy 링크로 통합해 메시지마다 반복하지 않는다. */}
           {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
           {isRecentAi && (
             <AiFeedbackRow

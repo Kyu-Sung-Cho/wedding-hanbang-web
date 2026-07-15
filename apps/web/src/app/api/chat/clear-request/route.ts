@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -45,15 +45,22 @@ export async function POST(request: Request) {
     const supabase = await createClientFromRequest(request);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const limited = checkRateLimit(rateLimitKey("chat:clear-request", request, user.id), {
+    const limited = await checkRateLimitPersistent(rateLimitKey("chat:clear-request", request, user.id), {
       maxRequests: 20,
       windowMs: 10 * 60 * 1000,
-    });
+    }, user.id);
     if (limited) return limited;
 
     const body = await request.json().catch(() => null);

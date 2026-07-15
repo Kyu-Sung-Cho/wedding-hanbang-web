@@ -79,6 +79,7 @@ test("release health fails closed on stale SHA, wrong project, or weak secret", 
   const baseBody = {
     deployment: SHA,
     supabaseProjectRef: PROJECT_REF,
+    amoraUsageLimitMode: "unlimited_test",
     rateLimitKeySecretConfigured: true,
     turnstileCredentialsConfigured: true,
     turnstileCanonicalHostnameConfigured: true,
@@ -86,6 +87,7 @@ test("release health fails closed on stale SHA, wrong project, or weak secret", 
     maintenance: false,
     maintenanceStartedAt: null,
     researchCohortApplicationsEnabled: false,
+    customerSurveyIntakeEnabled: false,
     accountDeletionCronEnabled: false,
   };
 
@@ -133,6 +135,17 @@ test("release health fails closed on stale SHA, wrong project, or weak secret", 
     releaseHealthFailures(
       {
         status: 200,
+        body: { ...baseBody, amoraUsageLimitMode: "limited" },
+        cacheControl: "no-store",
+      },
+      options,
+    ).join("\n"),
+    /Amora usage-limit mode unlimited_test/,
+  );
+  assert.match(
+    releaseHealthFailures(
+      {
+        status: 200,
         body: { ...baseBody, turnstileConfigured: false },
         cacheControl: "no-store",
       },
@@ -165,6 +178,7 @@ test("release health binds maintenance and feature switches", () => {
       body: {
         deployment: SHA,
         supabaseProjectRef: PROJECT_REF,
+        amoraUsageLimitMode: "limited",
         rateLimitKeySecretConfigured: true,
         turnstileCredentialsConfigured: true,
         turnstileCanonicalHostnameConfigured: false,
@@ -172,6 +186,7 @@ test("release health binds maintenance and feature switches", () => {
         maintenance: true,
         maintenanceStartedAt: "2026-07-12T00:00:00Z",
         researchCohortApplicationsEnabled: true,
+        customerSurveyIntakeEnabled: true,
         accountDeletionCronEnabled: true,
       },
     },
@@ -179,7 +194,9 @@ test("release health binds maintenance and feature switches", () => {
   ).join("\n");
   assert.match(failures, /disable caching/);
   assert.match(failures, /Turnstile credentials/);
+  assert.match(failures, /Amora usage-limit mode unlimited_test/);
   assert.match(failures, /maintenance mode off/);
   assert.match(failures, /research intake closed/);
+  assert.match(failures, /customer survey intake closed/);
   assert.match(failures, /account-deletion cron closed/);
 });

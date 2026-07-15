@@ -1,198 +1,216 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { sanitizeHtml } from "@/utils/sanitize";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { COMMUNITY_COMMENT_PUBLIC_SELECT } from "@/lib/community/commentSelect";
+import { sanitizeText } from "@/utils/sanitize";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
 
-function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+const MAX_PATCH_BODY_BYTES = 16 * 1024;
+const MAX_COMMENT_LENGTH = 2_000;
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+async function authenticatedUser(req: NextRequest) {
+  const supabase = await createClientFromRequest(req);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: NO_STORE_HEADERS },
+      ),
+    };
+  }
+  if (!user) {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: "인증이 필요합니다." },
+        { status: 401, headers: NO_STORE_HEADERS },
+      ),
+    };
+  }
+  return { user, response: null };
 }
 
-async function isAdmin(userId: string): Promise<boolean> {
-  const { data } = await getServiceClient()
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .single();
-  return data?.is_admin === true;
+type CommentBodyResult =
+  | { ok: true; content: string }
+  | { ok: false; status: 400 | 413; error: string };
+
+async function parseCommentBody(req: NextRequest): Promise<CommentBodyResult> {
+  if (isBodyTooLarge(req, MAX_PATCH_BODY_BYTES)) {
+    return { ok: false, status: 413, error: "댓글 수정 내용이 너무 깁니다." };
+  }
+
+  const rawBody = await req.text().catch(() => null);
+  if (rawBody === null) {
+    return { ok: false, status: 400, error: "댓글 수정 형식이 올바르지 않습니다." };
+  }
+  if (new TextEncoder().encode(rawBody).byteLength > MAX_PATCH_BODY_BYTES) {
+    return { ok: false, status: 413, error: "댓글 수정 내용이 너무 깁니다." };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return { ok: false, status: 400, error: "댓글 수정 형식이 올바르지 않습니다." };
+  }
+
+  if (
+    !isRecord(body) ||
+    Object.keys(body).length !== 1 ||
+    !Object.prototype.hasOwnProperty.call(body, "content") ||
+    typeof body.content !== "string" ||
+    body.content.length > MAX_COMMENT_LENGTH
+  ) {
+    return { ok: false, status: 400, error: "댓글 수정 형식이 올바르지 않습니다." };
+  }
+
+  // Comments are rendered as plain text. Store the same representation users
+  // will see so markup is never preserved as misleading literal text.
+  const content = sanitizeText(body.content);
+  if (!content || content.length > MAX_COMMENT_LENGTH) {
+    return { ok: false, status: 400, error: "댓글 내용을 확인해주세요." };
+  }
+  return { ok: true, content };
 }
 
-// 댓글 수정 (작성자만)
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClientFromRequest(req);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!isUuid(id)) {
       return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
+        { error: "댓글 ID가 올바르지 않습니다." },
+        { status: 400, headers: NO_STORE_HEADERS },
       );
     }
 
-    // 작성자 확인
-    const { data: existingComment } = await supabase
+    const { user, response } = await authenticatedUser(req);
+    if (!user) return response!;
+
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:comment:update", req, user.id),
+      { maxRequests: 30, windowMs: 60 * 60 * 1_000 },
+      user.id,
+    );
+    if (limited) return limited;
+
+    const parsed = await parseCommentBody(req);
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: parsed.error },
+        { status: parsed.status, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    // service_role 사용 시에도 행 조건에 인증된 작성자를 포함한다. 관리자
+    // 처리는 별도 moderation API에서만 수행하고 이 공개 경로는 작성자 전용이다.
+    const { data: comment, error } = await createAdminClient()
       .from("community_comments")
-      .select("author_id, is_deleted")
+      .update({ content: parsed.content, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .single();
-
-    if (!existingComment) {
-      return NextResponse.json(
-        { error: "댓글을 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    if (existingComment.is_deleted) {
-      return NextResponse.json(
-        { error: "삭제된 댓글은 수정할 수 없습니다." },
-        { status: 400 }
-      );
-    }
-
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
-      return NextResponse.json(
-        { error: "수정 권한이 없습니다." },
-        { status: 403 }
-      );
-    }
-
-    const { content: rawContent } = (await req.json()) as { content: string };
-
-    // 댓글 내용 검증 및 정화
-    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
-
-    if (!content || content.trim().length === 0) {
-      return NextResponse.json(
-        { error: "댓글 내용을 입력해주세요." },
-        { status: 400 }
-      );
-    }
-
-    const { data: updatedComment, error } = await getServiceClient()
-      .from("community_comments")
-      .update({
-        content,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select("*")
-      .single();
+      .eq("author_id", user.id)
+      .eq("is_deleted", false)
+      .select(COMMUNITY_COMMENT_PUBLIC_SELECT)
+      .maybeSingle();
 
     if (error) {
-      console.error("Update comment error:", error);
+      console.error("Update comment failed");
       return NextResponse.json(
         { error: "댓글 수정에 실패했습니다." },
-        { status: 500 }
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
+    if (!comment) {
+      return NextResponse.json(
+        { error: "수정할 수 있는 댓글을 찾을 수 없습니다." },
+        { status: 404, headers: NO_STORE_HEADERS },
       );
     }
 
-    return NextResponse.json({ comment: updatedComment });
-  } catch (err) {
-    console.error("Update comment error:", err);
+    return NextResponse.json(
+      { comment: { ...comment, viewer_is_author: true } },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch {
+    console.error("Update comment request failed");
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }
 
-// 댓글 삭제 (소프트 삭제 - 스레드 구조 유지)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClientFromRequest(req);
-    const serviceClient = getServiceClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!isUuid(id)) {
       return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
+        { error: "댓글 ID가 올바르지 않습니다." },
+        { status: 400, headers: NO_STORE_HEADERS },
       );
     }
 
-    // 작성자 확인
-    const { data: existingComment } = await supabase
-      .from("community_comments")
-      .select("author_id, post_id, is_deleted")
-      .eq("id", id)
-      .single();
+    const { user, response } = await authenticatedUser(req);
+    if (!user) return response!;
 
-    if (!existingComment) {
-      return NextResponse.json(
-        { error: "댓글을 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:comment:delete", req, user.id),
+      { maxRequests: 10, windowMs: 60 * 60 * 1_000 },
+      user.id,
+    );
+    if (limited) return limited;
 
-    if (existingComment.is_deleted) {
-      return NextResponse.json(
-        { error: "이미 삭제된 댓글입니다." },
-        { status: 400 }
-      );
-    }
-
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
-      return NextResponse.json(
-        { error: "삭제 권한이 없습니다." },
-        { status: 403 }
-      );
-    }
-
-    // 소프트 삭제: is_deleted = true, 내용 제거
-    const { error } = await serviceClient
-      .from("community_comments")
-      .update({
-        is_deleted: true,
-        content: "삭제된 댓글입니다.",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    // RPC가 댓글 행을 잠그고 actor=author를 다시 확인한 뒤 댓글·게시글·프로필
+    // 집계를 한 트랜잭션에서 갱신한다. 재시도된 삭제는 집계를 중복 차감하지 않는다.
+    const { data, error } = await createAdminClient().rpc(
+      "community_soft_delete_comment",
+      { p_actor_id: user.id, p_comment_id: id },
+    );
 
     if (error) {
-      console.error("Delete comment error:", error);
+      if (error.code === "P0002") {
+        return NextResponse.json(
+          { error: "삭제할 수 있는 댓글을 찾을 수 없습니다." },
+          { status: 404, headers: NO_STORE_HEADERS },
+        );
+      }
+      console.error("Delete comment failed");
       return NextResponse.json(
         { error: "댓글 삭제에 실패했습니다." },
-        { status: 500 }
+        { status: 503, headers: NO_STORE_HEADERS },
       );
     }
 
-    // comment_count 감소
-    await serviceClient
-      .from("community_posts")
-      .select("comment_count")
-      .eq("id", existingComment.post_id)
-      .single()
-      .then(({ data }) => {
-        return serviceClient
-          .from("community_posts")
-          .update({
-            comment_count: Math.max(0, (data?.comment_count ?? 1) - 1),
-          })
-          .eq("id", existingComment.post_id);
-      });
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || result.comment_id !== id || result.author_id !== user.id) {
+      console.error("Delete comment verification failed");
+      return NextResponse.json(
+        { error: "댓글 삭제 결과를 확인하지 못했습니다." },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Delete comment error:", err);
+    return NextResponse.json(
+      { success: true, alreadyDeleted: result.deleted === false },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch {
+    console.error("Delete comment request failed");
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

@@ -9,7 +9,6 @@ import RoleSelection from "@/components/onboarding/RoleSelection";
 import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
-import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { isCoupleInviteCode } from "@hanbang/shared";
 import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
 
@@ -74,8 +73,6 @@ export default function OnboardingPage() {
         return true;
       case 4:
         return true; // 스타일 선호도는 선택사항 (스킵 가능)
-      case 5:
-        return true;
       default:
         return false;
     }
@@ -86,24 +83,13 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const progress: Record<string, unknown> = {};
-      store.progressChecklist.forEach((item) => {
-        // cost는 만원 단위 입력 → 원 단위로 변환 (완료 항목만)
-        const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
-        progress[item.key] = {
-          status: item.status,
-          cost: costInWon,
-          // 완료 항목에 비용 입력 시 예산도 동일하게 설정
-          budget: costInWon,
-        };
-      });
-
-      // 웨딩 스타일 선호도 저장
-      progress.__preferences = {
-        weddingStyle: store.preferences.weddingStyle,
-        priorities: store.preferences.priorities,
-        budgetTendency: store.preferences.budgetTendency,
-        guestCount: store.preferences.guestCount,
+      const progress: Record<string, unknown> = {
+        __preferences: {
+          weddingStyle: store.preferences.weddingStyle,
+          priorities: store.preferences.priorities,
+          budgetTendency: store.preferences.budgetTendency,
+          guestCount: store.preferences.guestCount,
+        },
       };
 
       const res = await fetch("/api/onboarding", {
@@ -116,7 +102,6 @@ export default function OnboardingPage() {
             store.coupleAction === "join" ? store.partnerInviteCode : undefined,
           weddingDate: store.weddingDateUndecided ? null : store.weddingDate,
           venue: store.venueUndecided ? null : store.venue,
-          sanggyeonryeDate: store.sanggyeonryeUndecided ? null : store.sanggyeonryeDate,
           totalBudget: store.approximateBudget,
           progress,
         }),
@@ -145,11 +130,6 @@ export default function OnboardingPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSkipChecklist = async () => {
-    // 체크리스트를 모두 not_started로 유지한 채 제출
-    await handleSubmit();
   };
 
   const handleCopyCode = async () => {
@@ -242,15 +222,11 @@ export default function OnboardingPage() {
                   weddingDateUndecided={store.weddingDateUndecided}
                   venue={store.venue}
                   venueUndecided={store.venueUndecided}
-                  sanggyeonryeDate={store.sanggyeonryeDate}
-                  sanggyeonryeUndecided={store.sanggyeonryeUndecided}
                   budget={store.approximateBudget}
                   onDateChange={store.setWeddingDate}
                   onDateUndecidedChange={store.setWeddingDateUndecided}
                   onVenueChange={store.setVenue}
                   onVenueUndecidedChange={store.setVenueUndecided}
-                  onSanggyeonryeDateChange={store.setSanggyeonryeDate}
-                  onSanggyeonryeUndecidedChange={store.setSanggyeonryeUndecided}
                   onBudgetChange={store.setBudget}
                 />
               )}
@@ -261,13 +237,6 @@ export default function OnboardingPage() {
                   onTogglePriority={store.togglePriority}
                   onBudgetTendencyChange={store.setBudgetTendency}
                   onGuestCountChange={store.setGuestCount}
-                />
-              )}
-              {store.currentStep === 5 && (
-                <ProgressChecklist
-                  items={store.progressChecklist}
-                  onStatusChange={store.setChecklistItemStatus}
-                  onCostChange={store.setChecklistItemCost}
                 />
               )}
             </motion.div>
@@ -288,11 +257,11 @@ export default function OnboardingPage() {
                 이전
               </button>
             )}
-            {store.currentStep < 5 ? (
+            {store.currentStep < 4 ? (
               <div className="flex-1 flex flex-col gap-2">
                 <button
                   onClick={() => {
-                    // 파트너 코드로 참여 시, step 2 다음에 바로 제출 (3,4,5 스킵)
+                    // 파트너 코드로 참여 시, step 2 다음에 바로 제출 (기존 커플 정보 사용)
                     if (store.currentStep === 2 && store.coupleAction === "join") {
                       handleSubmit();
                       return;
@@ -306,15 +275,6 @@ export default function OnboardingPage() {
                     ? loading ? "연결 중..." : "파트너와 연결하기"
                     : "다음"}
                 </button>
-                {/* 스타일 선호도 스킵 버튼 */}
-                {store.currentStep === 4 && (
-                  <button
-                    onClick={() => store.nextStep()}
-                    className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
-                  >
-                    나중에 설정할게요
-                  </button>
-                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col gap-2">
@@ -326,11 +286,11 @@ export default function OnboardingPage() {
                   {loading ? "저장 중..." : "시작하기"}
                 </button>
                 <button
-                  onClick={handleSkipChecklist}
+                  onClick={handleSubmit}
                   disabled={loading}
                   className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
                 >
-                  나중에 하기
+                  스타일은 나중에 설정할게요
                 </button>
               </div>
             )}

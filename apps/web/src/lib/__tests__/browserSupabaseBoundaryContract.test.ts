@@ -3,11 +3,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const protectedClientPages = [
-  "src/app/(app)/vendors/favorites/page.tsx",
   "src/app/(community)/community/my/bookmarks/page.tsx",
   "src/app/(community)/community/my/posts/page.tsx",
   "src/app/(community)/community/my/upvoted/page.tsx",
 ];
+
+const retiredPages = ["src/app/(app)/vendors/favorites/page.tsx"];
 
 describe("browser Supabase initialization boundary", () => {
   it.each(protectedClientPages)(
@@ -19,6 +20,16 @@ describe("browser Supabase initialization boundary", () => {
       expect(source).toContain('from "@/lib/supabase/client"');
       expect(source).toMatch(/useEffect\(\(\) => \{[\s\S]*const supabase = createClient\(\)/);
     }
+  );
+
+  it.each(retiredPages)(
+    "%s stays physically retired without initializing Supabase",
+    (relativePath) => {
+      const source = readFileSync(join(process.cwd(), relativePath), "utf8");
+
+      expect(source).toContain("PublicBetaUnavailable");
+      expect(source).not.toMatch(/supabase|createClient|useEffect/);
+    },
   );
 
   it("never exposes internal exception messages or stacks to consumers", () => {

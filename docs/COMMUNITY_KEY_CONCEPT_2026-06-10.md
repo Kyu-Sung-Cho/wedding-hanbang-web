@@ -1,5 +1,8 @@
 # 커뮤니티 킬러 컨셉: "못 무르는 돈" + 웨딩 등기부 (2026-06-10)
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 계약서 스캔, 위약금·손실 계산, 자동 등기·공개, 업체 신뢰 판정은 구현하거나 약속하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 전략 스냅샷입니다.** 계약·위약금 계산이나 법률 판단을 제공하지 않으며, 견적·업체 정보를 동의 없이 공개·등기·리드 적재하지 않습니다. 현재 구현과 실행 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

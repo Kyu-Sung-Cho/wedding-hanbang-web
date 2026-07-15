@@ -38,9 +38,7 @@
     "canonicalHostname": "hanbang.ai",
     "requiredActions": [
       "signup",
-      "forgot_password",
-      "preregister",
-      "survey"
+      "forgot_password"
     ]
   },
   "productionAdminPasswordLifecycle": {

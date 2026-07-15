@@ -7,7 +7,7 @@ import type { DailyResearchApplicationCount } from "@/lib/admin/researchApplicat
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
   Loader2, LogOut, LayoutDashboard, CalendarCheck,
-  UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick, RotateCcw,
+  UserCheck, Phone, UserPlus, BarChart3, Heart, TrendingUp, MousePointerClick,
   Flag,
 } from "lucide-react";
 
@@ -60,25 +60,6 @@ interface AdminCustomer {
   createdAt: string;
 }
 
-interface AdminBooking {
-  id: string;
-  vendorId: string;
-  vendorName: string;
-  vendorCategory: string;
-  productName: string | null;
-  coupleId: string | null;
-  brideName: string | null;
-  groomName: string | null;
-  contactPhone: string | null;
-  bookingDate: string;
-  bookingTime: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
-  amount: number | null;
-  isPaid: boolean;
-  memo: string | null;
-  createdAt: string;
-}
-
 interface AdminUser {
   id: string;
   name: string;
@@ -119,7 +100,7 @@ interface InsightsData {
   }[];
 }
 
-type TabKey = "registrations" | "vendors" | "customers" | "bookings" | "insights" | "reports" | "admins";
+type TabKey = "registrations" | "vendors" | "customers" | "insights" | "reports" | "admins";
 
 type ReportStatus = "pending" | "reviewed" | "resolved" | "dismissed";
 
@@ -195,13 +176,6 @@ const RECEIPT_STATUS_LABEL: Record<
 };
 type AuthState = "loading" | "not_authenticated" | "admin";
 
-const BOOKING_STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-  pending: { text: "대기", cls: "bg-gold/10 text-gold" },
-  confirmed: { text: "확정", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
-  completed: { text: "완료", cls: "bg-noir-800/10 text-noir-800" },
-  cancelled: { text: "취소", cls: "bg-red-500/10 text-red-500" },
-};
-
 export default function AdminPage() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [adminEmail, setAdminEmail] = useState("");
@@ -217,21 +191,12 @@ export default function AdminPage() {
   const [vendors, setVendors] = useState<AdminVendor[]>([]);
   const [vendorFilter, setVendorFilter] = useState<AdminVendor["status"] | "all">("all");
   const [selectedVendor, setSelectedVendor] = useState<AdminVendor | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
 
   // 고객
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [customerStats, setCustomerStats] = useState({ total: 0, onboarded: 0, coupled: 0, todayCount: 0 });
   const [customerLoading, setCustomerLoading] = useState(false);
-
-  // 예약
-  const [bookings, setBookings] = useState<AdminBooking[]>([]);
-  const [bookingStats, setBookingStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 });
-  const [bookingFilter, setBookingFilter] = useState<AdminBooking["status"] | "all">("all");
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
 
   // 인사이트
   const [insights, setInsights] = useState<InsightsData | null>(null);
@@ -382,19 +347,6 @@ export default function AdminPage() {
     setCustomerLoading(false);
   }, []);
 
-  const fetchBookings = useCallback(async () => {
-    setBookingLoading(true);
-    try {
-      const res = await fetch("/api/admin/bookings");
-      if (res.ok) {
-        const data = await res.json();
-        setBookings(data.bookings);
-        setBookingStats(data.stats);
-      }
-    } catch { /* ignore */ }
-    setBookingLoading(false);
-  }, []);
-
   const fetchAdminUsers = useCallback(async () => {
     setAdminListLoading(true);
     try {
@@ -465,62 +417,11 @@ export default function AdminPage() {
       fetchRegistrations();
       fetchVendors();
       fetchCustomers();
-      fetchBookings();
       fetchAdminUsers();
       fetchInsights();
       void loadReports("pending");
     }
-  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchBookings, fetchAdminUsers, fetchInsights, loadReports]);
-
-  const handleApprove = async (id: string) => {
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/vendors/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
-      });
-      if (res.ok) {
-        await fetchVendors();
-        setSelectedVendor(null);
-      } else { alert("승인 처리에 실패했습니다."); }
-    } catch { alert("서버 오류가 발생했습니다."); }
-    setActionLoading(false);
-  };
-
-  const handleReject = async (id: string) => {
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/vendors/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reject", reason: rejectReason }),
-      });
-      if (res.ok) {
-        await fetchVendors();
-        setSelectedVendor(null);
-        setRejectReason("");
-      } else { alert("반려 처리에 실패했습니다."); }
-    } catch { alert("서버 오류가 발생했습니다."); }
-    setActionLoading(false);
-  };
-
-  const handleRevoke = async (id: string) => {
-    if (!confirm("이 업체의 승인을 취소하시겠습니까? 고객에게 더 이상 노출되지 않습니다.")) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/vendors/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "revoke" }),
-      });
-      if (res.ok) {
-        await fetchVendors();
-        setSelectedVendor(null);
-      } else { alert("승인 취소에 실패했습니다."); }
-    } catch { alert("서버 오류가 발생했습니다."); }
-    setActionLoading(false);
-  };
+  }, [authState, fetchRegistrations, fetchVendors, fetchCustomers, fetchAdminUsers, fetchInsights, loadReports]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -532,8 +433,6 @@ export default function AdminPage() {
   const pendingVendors = vendors.filter((v) => v.status === "pending").length;
   const approvedVendors = vendors.filter((v) => v.status === "approved").length;
   const rejectedVendors = vendors.filter((v) => v.status === "rejected").length;
-
-  const filteredBookings = bookingFilter === "all" ? bookings : bookings.filter((b) => b.status === bookingFilter);
 
   if (authState !== "admin") {
     return (
@@ -555,9 +454,8 @@ export default function AdminPage() {
 
   const TAB_ITEMS: { key: TabKey; label: string; icon: typeof Users; badge?: number }[] = [
     { key: "registrations", label: "사용자 연구", icon: Users, badge: totalCount },
-    { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors || undefined },
+    { key: "vendors", label: "과거 업체 기록", icon: Store, badge: pendingVendors || undefined },
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
-    { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
     { key: "insights", label: "인사이트", icon: BarChart3 },
     { key: "reports", label: "신고 관리", icon: Flag, badge: reportCounts.pending || undefined },
     { key: "admins", label: "관리자 관리", icon: UserPlus, badge: adminUsers.length || undefined },
@@ -748,7 +646,7 @@ export default function AdminPage() {
                         <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">사업자번호</th>
                         <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">등록일</th>
                         <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">액션</th>
+                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상세</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -777,21 +675,6 @@ export default function AdminPage() {
                               <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors" title="상세 보기">
                                 <Eye className="w-4 h-4 text-taupe-400" />
                               </button>
-                              {v.status === "pending" && (
-                                <>
-                                  <button onClick={() => handleApprove(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50" title="승인">
-                                    <Check className="w-4 h-4 text-[#2E7D5A]" />
-                                  </button>
-                                  <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="반려">
-                                    <X className="w-4 h-4 text-red-500" />
-                                  </button>
-                                </>
-                              )}
-                              {v.status === "approved" && (
-                                <button onClick={() => handleRevoke(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50" title="승인 취소">
-                                  <RotateCcw className="w-4 h-4 text-amber-600" />
-                                </button>
-                              )}
                             </div>
                           </td>
                         </tr>
@@ -849,34 +732,9 @@ export default function AdminPage() {
                       </div>
                     )}
                   </div>
-                  {selectedVendor.status === "pending" && (
-                    <div className="mt-6 pt-6 border-t border-black/[0.04]">
-                      <div className="mb-4">
-                        <label className="block text-[13px] font-medium text-noir-800 mb-2">반려 사유 (반려 시)</label>
-                        <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="반려 사유를 입력해주세요..." rows={2}
-                          className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors resize-none" />
-                      </div>
-                      <div className="flex gap-3">
-                        <button onClick={() => handleApprove(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
-                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} 승인
-                        </button>
-                        <button onClick={() => handleReject(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
-                          {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} 반려
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {selectedVendor.status === "approved" && (
-                    <div className="mt-6 pt-6 border-t border-black/[0.04]">
-                      <button onClick={() => handleRevoke(selectedVendor.id)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
-                        {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 승인 취소
-                      </button>
-                      <p className="mt-2 text-[12px] text-taupe-400 text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
-                    </div>
-                  )}
+                  <p className="mt-6 border-t border-black/[0.04] pt-6 text-[12px] leading-5 text-taupe-500">
+                    과거 업체 기록은 확인만 가능합니다. 업체 승인·반려·승인 취소와 안내 메일 발송은 현재 운영하지 않습니다.
+                  </p>
                 </div>
               </div>
             )}
@@ -962,144 +820,6 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-          </>
-        )}
-
-        {/* ===== 예약 현황 탭 ===== */}
-        {activeTab === "bookings" && (
-          <>
-            <div className="grid grid-cols-5 gap-4 mb-8 max-md:grid-cols-2">
-              {[
-                { label: "전체", value: bookingStats.total, cls: "text-noir-800" },
-                { label: "대기", value: bookingStats.pending, cls: "text-gold" },
-                { label: "확정", value: bookingStats.confirmed, cls: "text-[#2E7D5A]" },
-                { label: "완료", value: bookingStats.completed, cls: "text-noir-800" },
-                { label: "취소", value: bookingStats.cancelled, cls: "text-red-500" },
-              ].map((s) => (
-                <div key={s.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
-                  <p className="text-sm text-taupe-500 mb-2">{s.label}</p>
-                  <p className={`font-display text-3xl font-light ${s.cls}`}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2 mb-6">
-              {([
-                { key: "all" as const, label: "전체" },
-                { key: "pending" as const, label: "대기" },
-                { key: "confirmed" as const, label: "확정" },
-                { key: "completed" as const, label: "완료" },
-                { key: "cancelled" as const, label: "취소" },
-              ]).map((f) => (
-                <button key={f.key} onClick={() => setBookingFilter(f.key)}
-                  className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
-                    bookingFilter === f.key ? "bg-noir-800 text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-noir-800"
-                  }`}>{f.label}</button>
-              ))}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
-              {bookingLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="w-6 h-6 text-taupe-400 animate-spin" />
-                  <span className="ml-2 text-[14px] text-taupe-400">로딩 중...</span>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-platinum">
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">업체</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상품</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">고객</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">연락처</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">예약일</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">시간</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">금액</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">상태</th>
-                        <th className="px-6 py-3 text-[12px] text-taupe-500 font-medium tracking-wider uppercase">신청일</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredBookings.map((b) => {
-                        const st = BOOKING_STATUS_LABEL[b.status] ?? BOOKING_STATUS_LABEL.pending;
-                        const customerName = [b.brideName, b.groomName].filter(Boolean).join(" & ") || "-";
-                        return (
-                          <tr key={b.id} className="border-b border-black/[0.02] hover:bg-ivory-warm/50 transition-colors cursor-pointer" onClick={() => setSelectedBooking(b)}>
-                            <td className="px-6 py-4 text-sm text-noir-800 font-medium">{b.vendorName}</td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{b.productName || "-"}</td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{customerName}</td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">
-                              {b.contactPhone ? (
-                                <a href={`tel:${b.contactPhone}`} className="flex items-center gap-1 text-rose-500 hover:underline">
-                                  <Phone className="w-3 h-3" />{b.contactPhone}
-                                </a>
-                              ) : "-"}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{formatDate(b.bookingDate)}</td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{b.bookingTime || "-"}</td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{b.amount ? `${b.amount.toLocaleString()}원` : "-"}</td>
-                            <td className="px-6 py-4">
-                              <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${st.cls}`}>{st.text}</span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-taupe-500">{formatDate(b.createdAt)}</td>
-                          </tr>
-                        );
-                      })}
-                      {filteredBookings.length === 0 && !bookingLoading && (
-                        <tr><td colSpan={9} className="px-6 py-12 text-center text-taupe-400 text-sm">예약 내역이 없습니다.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* 예약 상세 모달 */}
-            {selectedBooking && (
-              <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedBooking(null)}>
-                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-serif-kr text-[20px] font-normal text-noir-800">예약 상세</h3>
-                    <button onClick={() => setSelectedBooking(null)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">
-                      <X className="w-5 h-5 text-taupe-400" />
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      { label: "업체", value: selectedBooking.vendorName },
-                      { label: "업종", value: selectedBooking.vendorCategory },
-                      { label: "상품", value: selectedBooking.productName },
-                      { label: "신부", value: selectedBooking.brideName },
-                      { label: "신랑", value: selectedBooking.groomName },
-                      { label: "연락처", value: selectedBooking.contactPhone },
-                      { label: "예약일", value: formatDate(selectedBooking.bookingDate) },
-                      { label: "시간", value: selectedBooking.bookingTime },
-                      { label: "금액", value: selectedBooking.amount ? `${selectedBooking.amount.toLocaleString()}원` : null },
-                      { label: "결제", value: selectedBooking.isPaid ? "완료" : "미결제" },
-                      { label: "신청일", value: formatDate(selectedBooking.createdAt) },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-start gap-3">
-                        <span className="text-[12px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">{item.label}</span>
-                        <span className="text-[14px] text-noir-800">{item.value || "-"}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-start gap-3">
-                      <span className="text-[12px] text-taupe-400 w-[60px] flex-shrink-0 pt-0.5">상태</span>
-                      <span className={`text-[12px] px-2.5 py-1 rounded-full font-medium ${
-                        (BOOKING_STATUS_LABEL[selectedBooking.status] ?? BOOKING_STATUS_LABEL.pending).cls
-                      }`}>{(BOOKING_STATUS_LABEL[selectedBooking.status] ?? BOOKING_STATUS_LABEL.pending).text}</span>
-                    </div>
-                    {selectedBooking.memo && (
-                      <div>
-                        <span className="text-[12px] text-taupe-400 block mb-1">메모</span>
-                        <p className="text-[13px] text-charcoal font-light leading-relaxed bg-ivory-50 rounded-xl p-3">{selectedBooking.memo}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
 

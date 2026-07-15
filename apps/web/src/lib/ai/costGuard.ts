@@ -1,8 +1,9 @@
-// Amora 비용 보호는 사용자에게 보이는 상담 횟수와 provider slot을 분리한다.
+// 테스트 단계에서는 사용량 제한을 기본 비활성화한다.
+// AMORA_USAGE_LIMITS_ENABLED=true를 명시한 향후 운영에서만 provider slot 제한 장부를 사용한다.
 // 메인 채팅의 한 slot은 exact count와 이어지는 generation을 묶는다.
-// - 사용자 턴: 커플 무료 상담 한도 + provider slot 한도를 함께 예약
-// - 추가 Terra 라운드/Luna 후처리: provider slot 한도만 예약
-// 두 경로 모두 reserve_amora_usage RPC의 row lock 안에서 원자적으로 증가한다.
+// - 사용자 턴: provider slot을 예약
+// - 추가 Terra 라운드/Luna 후처리: provider slot을 추가 예약
+// 제한이 꺼져도 무제한 계량 RPC의 row lock 안에서 원자적으로 기록한다.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -18,35 +19,30 @@ function boundedPositiveInteger(
     : fallback;
 }
 
-// Deployment variables may lower these limits, but cannot silently restore the
-// old high-cost beta limits. Raising a ceiling requires a reviewed code change.
-const HARD_COUPLE_TURN_CEILING = 30;
+// DB 함수의 이전 시그니처와 호환하기 위한 값이다. p_count_user_turn=false라
+// 영구 누적 상담 제한에는 사용되지 않는다. 제거는 DB 함수 시그니처 변경과 함께 한다.
+const LEGACY_COUPLE_CAP_PARAMETER = 30;
 const HARD_DAILY_PROVIDER_CALL_CEILING = 60;
-const FREE_USER_TURNS_PER_COUPLE = boundedPositiveInteger(
-  process.env.AMORA_FREE_MESSAGES_PER_COUPLE,
-  HARD_COUPLE_TURN_CEILING,
-  HARD_COUPLE_TURN_CEILING
-);
 const GLOBAL_DAILY_PROVIDER_CALL_CAP = boundedPositiveInteger(
   process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP ??
     process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP,
   HARD_DAILY_PROVIDER_CALL_CEILING,
   HARD_DAILY_PROVIDER_CALL_CEILING
 );
-// Production cannot disable the ledger or fail open through a stale/accidental
-// environment variable. Those switches remain available only for local tests.
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
-const GUARD_ENABLED = IS_PRODUCTION || process.env.AMORA_COST_GUARD_ENABLED !== "false";
+// 현재 테스트 정책은 환경과 무관하게 명시적으로 opt-in한 경우에만 제한한다.
+// 기존 AMORA_COST_GUARD_ENABLED 값은 오래된 배포 변수가 제한을 되살리지 않도록 무시한다.
+const USAGE_LIMITS_ENABLED = process.env.AMORA_USAGE_LIMITS_ENABLED === "true";
 const FAIL_OPEN_ON_ERROR =
-  !IS_PRODUCTION && process.env.AMORA_COST_GUARD_FAIL_OPEN === "true";
+  USAGE_LIMITS_ENABLED && !IS_PRODUCTION && process.env.AMORA_COST_GUARD_FAIL_OPEN === "true";
 
 export interface CostGuardResult {
   allowed: boolean;
   reason?: "couple_quota" | "couple_provider_daily" | "global_daily" | "guard_unavailable";
   message?: string;
-  /** 사용자에게 보이는 무료 상담 잔여 횟수. provider-only 예약에는 없다. */
+  /** 이전 서버 응답과의 롤링 호환용. 새 정책은 영구 누적 잔여 횟수를 보내지 않는다. */
   remaining?: number;
-  /** 이 예약 뒤 오늘 남은 provider slot 수(커플·전역 중 더 작은 값). */
+  /** 향후 사용량 제한을 opt-in했을 때만 제공되는 오늘의 잔여 provider slot. */
   providerRemaining?: number;
   /** 동일 request_key/call ordinal 예약을 재사용했는지 여부. */
   reservationReused?: boolean;
@@ -63,11 +59,6 @@ const DENY_GLOBAL: CostGuardResult = {
   allowed: false,
   reason: "global_daily",
   message: "오늘 아모라 이용량이 안전 한도에 도달했어요. 내일 다시 이어서 도와드릴게요.",
-};
-const DENY_COUPLE: CostGuardResult = {
-  allowed: false,
-  reason: "couple_quota",
-  message: "베타 기간 무료 상담을 모두 사용하셨어요. 추가 상담이 열리면 알려드릴게요.",
 };
 const DENY_COUPLE_DAILY: CostGuardResult = {
   allowed: false,
@@ -107,19 +98,53 @@ function guardErrorResult(): CostGuardResult {
 
 async function reserveUsage(
   admin: SupabaseClient,
-  params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity },
-  countUserTurn: boolean
+  params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity }
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED) return ALLOW;
-
   try {
+    if (!USAGE_LIMITS_ENABLED) {
+      if (params.reservation) {
+        const { data, error } = await admin.rpc("reserve_amora_usage_unlimited_v1", {
+          p_couple_id: params.coupleId,
+          p_request_key: params.reservation.requestKey,
+          p_request_hash: params.reservation.requestHash,
+          p_provider_ordinal: params.reservation.providerOrdinal,
+        });
+        if (error) {
+          console.error("[costGuard] 무제한 계량 예약 실패:", safeCostGuardErrorCode(error));
+          return guardErrorResult();
+        }
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row?.allowed === true) {
+          return {
+            allowed: true,
+            ...(row.reused === true ? { reservationReused: true } : {}),
+          };
+        }
+        console.error("[costGuard] 무제한 계량 응답 형태 불명: invalid_response_shape");
+        return guardErrorResult();
+      }
+
+      const { data, error } = await admin.rpc("meter_amora_provider_usage_unlimited_v1", {
+        p_couple_id: params.coupleId,
+      });
+      if (error || data !== true) {
+        console.error(
+          "[costGuard] 무제한 보조 호출 계량 실패:",
+          error ? safeCostGuardErrorCode(error) : "invalid_response_shape"
+        );
+        return guardErrorResult();
+      }
+      return ALLOW;
+    }
+
     const rpcName = params.reservation ? "reserve_amora_usage_v2" : "reserve_amora_usage";
     const rpcParams = {
       p_couple_id: params.coupleId,
-      p_couple_cap: FREE_USER_TURNS_PER_COUPLE,
+      p_couple_cap: LEGACY_COUPLE_CAP_PARAMETER,
       p_global_provider_cap: GLOBAL_DAILY_PROVIDER_CALL_CAP,
-      // 관리자는 무료 상담 횟수만 면제된다. 실제 provider 비용의 전역 천장은 적용한다.
-      p_count_user_turn: countUserTurn && !params.isAdmin,
+      // 과거 베타의 영구 누적 상담 한도는 적용하지 않는다. 이 경로는
+      // AMORA_USAGE_LIMITS_ENABLED=true인 향후 운영에서만 실행된다.
+      p_count_user_turn: false,
       ...(params.reservation ? {
         p_request_key: params.reservation.requestKey,
         p_request_hash: params.reservation.requestHash,
@@ -145,7 +170,10 @@ async function reserveUsage(
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
     if (row?.reason === "couple_provider_daily") return DENY_COUPLE_DAILY;
-    if (row?.reason === "couple_quota") return DENY_COUPLE;
+    if (row?.reason === "couple_quota") {
+      console.error("[costGuard] 비활성화된 누적 quota 응답 (비용 보호 차단): legacy_couple_quota");
+      return guardErrorResult();
+    }
 
     console.error("[costGuard] 예약 RPC 응답 형태 불명 (비용 보호 차단): invalid_response_shape");
     return guardErrorResult();
@@ -155,12 +183,12 @@ async function reserveUsage(
   }
 }
 
-/** 실제 사용자 상담 1회를 예약한다. 첫 provider 호출 예약도 함께 포함한다. */
+/** 실제 사용자 상담의 첫 provider slot을 예약한다. */
 export function reserveAmoraUserTurn(
   admin: SupabaseClient,
   params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity }
 ): Promise<CostGuardResult> {
-  return reserveUsage(admin, params, true);
+  return reserveUsage(admin, params);
 }
 
 /** 도구 후속 라운드·요약·분류 등 숨은 provider 호출 1회만 예약한다. */
@@ -168,7 +196,7 @@ export function reserveAmoraProviderCall(
   admin: SupabaseClient,
   params: { coupleId: string; isAdmin: boolean; reservation?: AmoraUsageReservationIdentity }
 ): Promise<CostGuardResult> {
-  return reserveUsage(admin, params, false);
+  return reserveUsage(admin, params);
 }
 
 /** 기존 호출처 호환용. 새 코드는 의도를 드러내는 reserveAmoraUserTurn을 사용한다. */
@@ -179,7 +207,6 @@ export async function markAmoraProviderStarted(
   admin: SupabaseClient,
   reservation: AmoraUsageReservationIdentity
 ): Promise<void> {
-  if (!GUARD_ENABLED) return;
   const { data, error } = await admin.rpc("mark_amora_provider_started", {
     p_request_key: reservation.requestKey,
     p_request_hash: reservation.requestHash,
@@ -195,13 +222,13 @@ export async function checkAmoraCostGuard(
   admin: SupabaseClient,
   params: { coupleId: string; isAdmin: boolean }
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED) return ALLOW;
+  if (!USAGE_LIMITS_ENABLED) return ALLOW;
   try {
     const { data, error } = await admin.rpc("check_amora_usage", {
       p_couple_id: params.coupleId,
-      p_couple_cap: FREE_USER_TURNS_PER_COUPLE,
+      p_couple_cap: LEGACY_COUPLE_CAP_PARAMETER,
       p_global_provider_cap: GLOBAL_DAILY_PROVIDER_CALL_CAP,
-      p_count_user_turn: !params.isAdmin,
+      p_count_user_turn: false,
     });
     if (error) return guardErrorResult();
     const row = Array.isArray(data) ? data[0] : data;
@@ -216,7 +243,7 @@ export async function checkAmoraCostGuard(
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
     if (row?.reason === "couple_provider_daily") return DENY_COUPLE_DAILY;
-    if (row?.reason === "couple_quota") return DENY_COUPLE;
+    if (row?.reason === "couple_quota") return guardErrorResult();
     return guardErrorResult();
   } catch {
     return guardErrorResult();

@@ -2,7 +2,8 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { getCommunityActorIdForUser } from "@/lib/community/actorIdentity";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
   return createSupabaseClient(
@@ -19,20 +20,30 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Rate limit: 10 views per post per IP per minute (prevent view count inflation)
-    const rlResult = checkRateLimit(
-      rateLimitKey(`community:view:${id}`, req),
-      { maxRequests: 10, windowMs: 60 * 1000 }
-    );
-    if (rlResult) return rlResult;
-
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
+
+    // Authenticated views are lifecycle-bound to the user. Anonymous views stay IP-bound.
+    const rlResult = await checkRateLimitPersistent(
+      rateLimitKey(`community:view:${id}`, req, user?.id),
+      { maxRequests: 10, windowMs: 60 * 1000 },
+      user?.id,
+    );
+    if (rlResult) return rlResult;
+
+    const viewerActorId = await getCommunityActorIdForUser(user?.id);
     const { data: visiblePost, error: visibilityError } = await supabase
       .from("community_posts")
-      .select("id, author_id, visibility, under_review")
+      .select("id, author_id:author_public_id, visibility, under_review")
       .eq("id", id)
       .maybeSingle();
 
@@ -46,7 +57,10 @@ export async function POST(
 
     if (
       !visiblePost ||
-      !canReadCommunityPost(visiblePost, { userId: user?.id ?? null })
+      !canReadCommunityPost(visiblePost, {
+        actorId: viewerActorId,
+        isAuthenticated: Boolean(user),
+      })
     ) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },

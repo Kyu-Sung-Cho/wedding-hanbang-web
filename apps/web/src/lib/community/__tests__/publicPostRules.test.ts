@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
   canReadCommunityPost,
-  communityReadablePostOrFilter,
   isPublicCommunityPost,
   type CommunityPostAccessRow,
 } from "../publicPostRules";
@@ -35,24 +34,15 @@ describe("public community post rules", () => {
     const row = post({ under_review: true });
 
     expect(canReadCommunityPost(row)).toBe(false);
-    expect(canReadCommunityPost(row, { userId: "viewer-2" })).toBe(false);
-    expect(canReadCommunityPost(row, { userId: "author-1" })).toBe(true);
-    expect(canReadCommunityPost(row, { userId: "viewer-2", isAdmin: true })).toBe(true);
+    expect(canReadCommunityPost(row, { actorId: "viewer-2", isAuthenticated: true })).toBe(false);
+    expect(canReadCommunityPost(row, { actorId: "author-1", isAuthenticated: true })).toBe(true);
+    expect(canReadCommunityPost(row, { actorId: "viewer-2", isAuthenticated: true, isAdmin: true })).toBe(true);
   });
 
   it("keeps members and draft visibility rules in one place", () => {
     expect(canReadCommunityPost(post({ visibility: "members" }))).toBe(false);
-    expect(canReadCommunityPost(post({ visibility: "members" }), { userId: "viewer-1" })).toBe(true);
-    expect(canReadCommunityPost(post({ visibility: "draft" }), { userId: "viewer-1" })).toBe(false);
-    expect(canReadCommunityPost(post({ visibility: "draft" }), { userId: "author-1" })).toBe(true);
-  });
-
-  it("builds the authenticated readable post filter from the same rule", () => {
-    const filter = communityReadablePostOrFilter("user-1");
-
-    expect(filter).toContain("and(visibility.eq.public,under_review.eq.false)");
-    expect(filter).toContain("and(visibility.eq.members,under_review.eq.false)");
-    expect(filter).toContain("and(visibility.eq.draft,author_id.eq.user-1)");
-    expect(filter).toContain("and(under_review.eq.true,author_id.eq.user-1)");
+    expect(canReadCommunityPost(post({ visibility: "members" }), { actorId: null, isAuthenticated: true })).toBe(true);
+    expect(canReadCommunityPost(post({ visibility: "draft" }), { actorId: "viewer-1", isAuthenticated: true })).toBe(false);
+    expect(canReadCommunityPost(post({ visibility: "draft" }), { actorId: "author-1", isAuthenticated: true })).toBe(true);
   });
 });

@@ -34,6 +34,7 @@ function mockSupabase(profileResult: {
       }),
     },
     from: vi.fn(() => profileQuery),
+    rpc: vi.fn().mockResolvedValue(profileResult),
   } as unknown as ReturnType<typeof createServerClient>);
 }
 

@@ -5,9 +5,9 @@ export const BETA_TOTAL = USER_RESEARCH_COHORT_TOTAL;
 export const BETA_COUNTER_MIN = 10;
 
 export const USER_RESEARCH_COHORT_BENEFITS = [
-  "아모라 상담 · 견적 체크리스트 우선 체험",
+  "아모라 상담 · 원문 기준 확인 질문 정리",
   "예산 · 일정 · 커플 준비 흐름 함께 검증",
-  "불편 사항과 필요한 기능을 개선에 직접 반영",
+  "불편 사항과 필요한 기능을 개선 우선순위 검토에 활용",
   "사용자 연구 운영 변경 사항을 이메일로 안내",
 ] as const;
 

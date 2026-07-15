@@ -34,7 +34,8 @@ describe("research email verification result page", () => {
 
     expect(html).toContain("확인 링크가 만료됐어요");
     expect(html).toContain("2시간");
-    expect(html).toContain("support@hanbang.ai");
+    expect(html).toContain("같은 이메일로 다시 제출");
+    expect(html).not.toContain("support@hanbang.ai");
   });
 
   it("uses a safe generic failure for invalid or unknown statuses", async () => {

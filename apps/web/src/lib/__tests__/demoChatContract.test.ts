@@ -17,7 +17,15 @@ describe("demo chat truthfulness", () => {
     expect(chatContent).toContain("이 화면은 샘플 기록을 둘러보는 데모예요");
     expect(chatContent).toContain("로그인하고 상담하기");
     expect(chatContent).toContain("disabled={isDemo || isStreaming}");
-    expect(chatContent).toContain("disabled={isDemo || (!input.trim()");
+    expect(chatContent).toMatch(
+      /disabled=\{\s*isDemo\s*\|\|\s*\(!input\.trim\(\) && attachments\.length === 0\)/,
+    );
+    expect(chatContent).toMatch(
+      /const attemptSend[\s\S]*?if \(isDemo\) return;[\s\S]*?const content/,
+    );
+    expect(chatContent).toContain(
+      '<SuggestionButtons suggestions={suggestions} onSelect={attemptSend} disabled={isDemo || isStreaming} />',
+    );
     expect(chatRoute).toContain('code: "demo_chat_disabled"');
     expect(chatRoute.indexOf("if (isDemo)")).toBeLessThan(
       chatRoute.indexOf("const limited = await checkRateLimitPersistent")

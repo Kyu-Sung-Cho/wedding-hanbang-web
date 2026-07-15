@@ -15,7 +15,7 @@ const TURNSTILE_ACTION_AVAILABLE =
   TURNSTILE_ENABLED || process.env.NODE_ENV !== "production";
 const TURNSTILE_WIDGET_ERROR =
   "보안 확인을 불러오지 못했습니다. 다시 시도 버튼을 눌러주세요.";
-const COMING_SOON = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const COMING_SOON = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 
 interface BetaFormProps {
   current: number;

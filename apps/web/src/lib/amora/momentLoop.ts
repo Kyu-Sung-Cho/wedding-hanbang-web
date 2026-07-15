@@ -30,6 +30,7 @@ export interface DueMomentCell {
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
+const SAFE_WEDDING_DATE_DERIVED_MOMENTS = new Set<MomentType>(["wedding_day"]);
 
 /** "YYYY-MM-DD" 또는 Date → KST 자정 Date. 유효하지 않으면 null */
 function toKstMidnight(value: string | Date): Date | null {
@@ -133,10 +134,13 @@ export function buildDueMomentCells(input: BuildMomentCellsInput): DueMomentCell
     if (due) cells.push(due);
   }
 
-  // 2) 예식일 기준 자동 모멘트 (D-30 점검, 본식, 신혼여행, 귀국 인사)
+  // 2) 예식일에서 사실로 알 수 있는 본식 날짜만 자동 사용한다.
+  // 신혼여행·양가 방문일은 커플마다 달라 예식일에서 추정하지 않는다.
   const weddingDate = input.weddingDate ? toKstMidnight(input.weddingDate) : null;
   if (weddingDate) {
-    for (const def of WEDDING_RELATIVE_MOMENTS) {
+    for (const def of WEDDING_RELATIVE_MOMENTS.filter((item) =>
+      SAFE_WEDDING_DATE_DERIVED_MOMENTS.has(item.type)
+    )) {
       const momentDate = addDaysUtc(weddingDate, def.weddingOffsetDays ?? 0);
       const due = dueCellForDate(def, momentDate, today);
       if (due) cells.push(due);

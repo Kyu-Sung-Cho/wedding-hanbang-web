@@ -167,7 +167,6 @@ const androidUniversalLink = appConfig.android?.intentFilters?.some((filter) =>
     entry.path === "/app"
   ) && [
     "/app/community/post/",
-    "/app/vendors/",
   ].every((pathPrefix) =>
     filter.data?.some((entry) =>
       entry.scheme === "https" &&
@@ -195,7 +194,6 @@ for (const pluginName of [
   "expo-apple-authentication",
   "expo-image-picker",
   "expo-splash-screen",
-  "expo-notifications",
 ]) {
   expectIncludes(pluginNames, pluginName, `${pluginName} plugin is configured`);
 }
@@ -210,12 +208,11 @@ expect(
   "Image picker disables unused camera and microphone permissions"
 );
 
-const notificationPlugin = appConfig.plugins?.find((plugin) =>
-  Array.isArray(plugin) && plugin[0] === "expo-notifications"
-);
 expect(
-  Array.isArray(notificationPlugin) && notificationPlugin[1]?.color === "#36534E",
-  "Notification accent uses Eucalyptus Ink"
+  !pluginNames.includes("expo-notifications") &&
+    !mobilePackage.dependencies?.["expo-notifications"] &&
+    !mobilePackage.dependencies?.["expo-device"],
+  "Retired push notification plugin and permission dependencies stay out of the binary"
 );
 
 const easProjectId = appConfig.extra?.eas?.projectId;
@@ -293,21 +290,22 @@ const mobileOAuthHardDisabled =
       "access_token",
       "refresh_token",
     ].every((forbidden) => !mobileAuth.includes(forbidden));
-const mobileSocialEntryPointsDisabled =
-  /onPress=\{\(\) => handleSocialLogin\("kakao"\)\}\s+disabled(?:\s|>)/.test(mobileLogin) &&
-    /onPress=\{\(\) => handleSocialLogin\("apple"\)\}\s+disabled(?:\s|>)/.test(mobileLogin);
+const mobileSocialEntryPointsHidden =
+  !mobileLogin.includes("handleSocialLogin") &&
+  !mobileLogin.includes("signInWithOAuth") &&
+  !mobileLogin.includes("로그인 준비 중");
 
 if (storeReleaseMode) {
   expect(
     false,
-    mobileOAuthHardDisabled || mobileSocialEntryPointsDisabled
+    mobileOAuthHardDisabled || mobileSocialEntryPointsHidden
       ? "Store release requires implemented and device-verified social login entry points"
       : "Store release remains blocked until signed association endpoints, store builds, and physical-device evidence are machine-verified"
   );
 } else {
   expect(mobileOAuthHardDisabled, "Mobile OAuth implementation remains hard-disabled");
-  expect(mobileSocialEntryPointsDisabled, "Mobile social-login entry points remain disabled");
-  warn("Static mobile checks do not certify store release while social login is hard-disabled");
+  expect(mobileSocialEntryPointsHidden, "Disabled mobile social-login entry points stay out of the UI");
+  warn("Static mobile checks do not certify store release; the current app intentionally offers email login only");
 }
 expect(
   mobileSupabase.includes('flowType: "pkce"') &&

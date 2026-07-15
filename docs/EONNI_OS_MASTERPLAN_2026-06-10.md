@@ -1,5 +1,7 @@
 # 친언니 OS 마스터플랜 — "웨딩의 '웨'자도 몰라도" (2026-06-10)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 선제 발화, 갈등 중재, 추정 일정·가격, 자동 저장과 업체 관련 주장은 승인된 기능이나 계획이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > **역사 전략 문서**: 2026-07-11 현재 LLM 갈등 중재·proactive 자동 발화·모델 기반 쓰기 도구는 숨은 비용과 삭제/동시성 계약 정리 전까지 하드 비활성이다. 아래 “작동한다/완성됐다”는 당시 분석 기록이며 현재 기능 근거로 사용하지 않는다. 최신 판정은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 본다.
 
 > 파운더 비전: 견적 등기소는 보류. 커뮤니티부터 완벽하게 — 플래너 없이, 아무것도 몰라도, 예절까지, 친언니처럼 옆에서 다 챙겨주는 웨딩한방.

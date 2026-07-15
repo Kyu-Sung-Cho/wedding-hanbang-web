@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 const betaForm = readFileSync(join(process.cwd(), "src/app/beta/BetaForm.tsx"), "utf8");
 const betaPage = readFileSync(join(process.cwd(), "src/app/beta/page.tsx"), "utf8");
+const aboutPage = readFileSync(join(process.cwd(), "src/app/about/page.tsx"), "utf8");
+const aboutResearchCta = readFileSync(
+  join(process.cwd(), "src/components/landing/ForBetaCouples.tsx"),
+  "utf8"
+);
 const preregisterRoute = readFileSync(
   join(process.cwd(), "src/app/api/preregister/route.ts"),
   "utf8"
@@ -29,6 +34,10 @@ const cohortIdentityMigration = readFileSync(
   join(process.cwd(), "../../supabase/migrations/20260712100000_research_cohort_application_identity.sql"),
   "utf8"
 );
+const cohortConsentVersionMigration = readFileSync(
+  join(process.cwd(), "../../supabase/migrations/20260713120000_research_cohort_consent_version.sql"),
+  "utf8"
+);
 
 describe("beta application privacy contract", () => {
   it("keeps production intake closed until a separate server gate is approved", () => {
@@ -37,6 +46,11 @@ describe("beta application privacy contract", () => {
     expect(betaForm).toContain("if (!applicationsEnabled)");
     expect(betaForm).toContain("준비가 끝나기 전에는 개인정보를 받지 않습니다");
     expect(preregisterRoute).toContain("isResearchCohortApplicationsEnabled()");
+    expect(preregisterRoute).toContain('const PRIVACY_POLICY_VERSION = "2026-07-14"');
+    expect(aboutPage).toContain("isResearchCohortApplicationsEnabled()");
+    expect(aboutPage).toContain("applicationsEnabled ? await getBetaCount() : 0");
+    expect(aboutResearchCta).toContain("applicationsEnabled");
+    expect(aboutResearchCta).toContain("사용자 연구 신청 접수 준비 중");
   });
 
   it("keeps the optional counter from blocking the application page", () => {
@@ -54,7 +68,7 @@ describe("beta application privacy contract", () => {
   });
 
   it("records consent provenance and bounds application retention", () => {
-    expect(preregisterRoute).toContain('const PRIVACY_POLICY_VERSION = "2026-07-12"');
+    expect(preregisterRoute).toContain('const PRIVACY_POLICY_VERSION = "2026-07-14"');
     expect(preregisterRoute).toContain("const RETENTION_DAYS = 180");
     expect(retentionMigration).toContain("privacy_consent_at");
     expect(retentionMigration).toContain("expires_at");
@@ -113,6 +127,12 @@ describe("beta application privacy contract", () => {
     expect(cohortIdentityMigration).toContain("email = lower(btrim(email))");
     expect(cohortIdentityMigration).toContain("privacy_consent_at = created_at");
     expect(cohortIdentityMigration).toContain("privacy_policy_version = '2026-07-12'");
+    expect(cohortConsentVersionMigration).toContain(
+      "privacy_policy_version IN ('2026-07-12', '2026-07-14')"
+    );
+    expect(cohortConsentVersionMigration).toContain(
+      "research_cohort_applications_privacy_policy_check"
+    );
     expect(cohortIdentityMigration).toContain("wedding_date date");
     expect(cohortIdentityMigration).toContain(
       "wedding_date BETWEEN DATE '2026-07-01' AND DATE '2026-12-31'"

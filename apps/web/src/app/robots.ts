@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+  if (process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full") {
     return {
       rules: [
         {

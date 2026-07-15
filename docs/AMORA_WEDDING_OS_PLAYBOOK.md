@@ -1,5 +1,8 @@
 # 아모라 웨딩 OS 플레이북
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문은 과거 탐색 기록일 뿐이며 계약 판단, 견적 진단, 업체 매칭, 예약·계약·결제 기능을 만들거나 약속하는 승인 문서가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 최종 수정일: 2026-05-11
 
 > **전략·목표 문서**: 아래 “판단·진단·실행” 표현은 현재 베타 기능 약속이 아니다. 아모라는 제공된 문서와 공식 근거를 바탕으로 확인 질문을 정리할 뿐 법률 판단·손해액 계산을 하지 않으며, 모델 기반 쓰기 도구도 비활성이다. 현재 계약은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 우선한다.

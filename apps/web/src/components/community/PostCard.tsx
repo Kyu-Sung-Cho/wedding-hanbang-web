@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   MessageCircle,
   Share2,
@@ -12,10 +11,8 @@ import {
   Eye,
   Heart,
   Check,
-  Layers,
-  Play,
 } from "lucide-react";
-import { createMobileAppShareUrl } from "@hanbang/shared";
+import { communityHtmlToPlainText, createMobileAppShareUrl } from "@hanbang/shared";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import type { PostWithAuthor } from "@/types/community.types";
@@ -39,14 +36,6 @@ const CATEGORY_BADGE_BG: Record<string, string> = {
   free: "bg-[#dee6c4]/30 text-sage-500", // sage
 };
 
-// 비용 포맷 헬퍼
-function formatPrice(value: number): string {
-  if (value >= 10000) {
-    return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}억`;
-  }
-  return value.toLocaleString("ko-KR");
-}
-
 export default function PostCard({ post }: PostCardProps) {
   const categoryInfo = CATEGORY_MAP[post.category];
   const { votePost, toggleBookmark } = useCommunityStore();
@@ -61,38 +50,15 @@ export default function PostCard({ post }: PostCardProps) {
   const [bookmarking, setBookmarking] = useState(false);
   const [shareToast, setShareToast] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const displayVote = optimisticVote === undefined ? (post.user_vote === 1 ? 1 : null) : optimisticVote;
   const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
   const isLiked = displayVote === 1;
 
-  const contentPreview = post.content
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 180);
+  const contentPreview = communityHtmlToPlainText(post.content).slice(0, 180);
 
-  // 본문 안에 인라인으로 삽입된 첫 번째 <img>의 src를 추출 — 우측 카드 썸네일 fallback
-  const firstInlineImage = (() => {
-    const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
-    return match ? match[1] : null;
-  })();
-
-  const author = post.author ?? { nickname: "익명" };
-
-  // 이미지 처리
-  // 카드 게시물(슬라이드) > 첨부 이미지 > 본문 인라인 이미지 fallback
-  const slides = post.slides ?? [];
-  const hasSlides = slides.length > 0;
-  const firstSlide = hasSlides ? slides[0] : null;
-  const isVideoSlide = firstSlide?.type === "video";
-  const slideThumb = firstSlide
-    ? firstSlide.thumbnail_url || (isVideoSlide ? null : firstSlide.url)
-    : null;
-
-  const images = post.images ?? [];
-  const thumbUrl = slideThumb ?? images[0] ?? firstInlineImage;
-  const hasImage = !!thumbUrl;
+  const author = post.author;
 
   // 카테고리 배지 스타일
   const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
@@ -130,10 +96,16 @@ export default function PostCard({ post }: PostCardProps) {
     e.stopPropagation();
     if (!isLoggedIn) return showLoginToast();
     if (bookmarking) return;
-    setBookmarked((prev) => !prev);
+    const previous = bookmarked;
+    setBookmarked(!previous);
     setBookmarking(true);
     try {
-      await toggleBookmark(post.id);
+      const ok = await toggleBookmark(post.id, !previous);
+      if (!ok) {
+        setBookmarked(previous);
+        setActionError("북마크를 저장하지 못했어요. 다시 시도해주세요.");
+        setTimeout(() => setActionError(null), 2500);
+      }
     } finally {
       setBookmarking(false);
     }
@@ -169,19 +141,24 @@ export default function PostCard({ post }: PostCardProps) {
   return (
     <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] sm:p-5">
       {/* 인라인 토스트 */}
-      {(shareToast || loginPrompt) && (
-        <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
+      {(shareToast || loginPrompt || actionError) && (
+        <div
+          role={actionError ? "alert" : "status"}
+          className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in"
+        >
           {shareToast ? (
             <>
               <Check className="w-3.5 h-3.5" />
               링크 복사됨
             </>
+          ) : actionError ? (
+            actionError
           ) : (
             "로그인이 필요해요"
           )}
         </div>
       )}
-      <div className={`flex ${hasImage ? "flex-row" : ""} gap-4 sm:gap-5`}>
+      <div className="flex gap-4 sm:gap-5">
         {/* 텍스트 영역 */}
         <div className="flex-1 flex flex-col justify-between min-w-0">
           <div>
@@ -209,7 +186,7 @@ export default function PostCard({ post }: PostCardProps) {
                 )}
                 {post.is_weekly_best && (
                   <span className="text-[#635b51] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
-                    Best
+                    주간 인기
                   </span>
                 )}
                 {post.title}
@@ -220,15 +197,9 @@ export default function PostCard({ post }: PostCardProps) {
               <p className="ugc-text text-[#635b51] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
             )}
 
-            {/* 비용 데이터 + 폴 배지 */}
-            {(post.cost_data || post.poll) && (
+            {/* 폴 배지 */}
+            {post.poll && (
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                {post.cost_data && (
-                  <div className="bg-[#f6efe5] rounded-lg px-3 py-1.5 inline-block">
-                    <span className="text-xs text-[#635b51]">비용: </span>
-                    <span className="text-sm font-medium text-[#263832]">{formatPrice(post.cost_data.totalCost)}만원</span>
-                  </div>
-                )}
                 {post.poll && (() => {
                   const isClosed = post.poll.closes_at
                     ? new Date(post.poll.closes_at).getTime() <= Date.now()
@@ -270,7 +241,6 @@ export default function PostCard({ post }: PostCardProps) {
                 <Avatar
                   nickname={author.nickname}
                   avatarUrl={(author as { avatar_url?: string | null }).avatar_url ?? null}
-                  role={author.role ?? null}
                   size={34}
                 />
               </Link>
@@ -308,7 +278,7 @@ export default function PostCard({ post }: PostCardProps) {
                 className="flex items-center gap-1 hover:text-[#36534E] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
-                <span className="text-sm">{(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}</span>
+                <span className="text-sm">댓글 {post.comment_count ?? 0}</span>
               </Link>
 
               <span className="flex items-center gap-1 text-[#635b51]">
@@ -347,46 +317,6 @@ export default function PostCard({ post }: PostCardProps) {
           </div>
         </div>
 
-        {/* 썸네일 (오른쪽) — 카드 게시물 > 첨부 이미지 > 본문 인라인 fallback */}
-        {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
-          <Link
-            href={communityPostPath(post.id)}
-            className="relative h-24 w-28 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
-          >
-            {thumbUrl ? (
-              <Image
-                src={thumbUrl}
-                alt=""
-                width={256}
-                height={256}
-                className="w-full h-full object-cover"
-              />
-            ) : firstSlide ? (
-              <video
-                src={firstSlide.url}
-                preload="metadata"
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            ) : null}
-
-            {/* 카드 게시물 인디케이터 — 슬라이드 N장 / 영상 표시 */}
-            {hasSlides && (
-              <>
-                <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-black/65 text-white text-[10px] font-medium backdrop-blur-sm">
-                  <Layers className="w-3 h-3" />
-                  {slides.length}
-                </span>
-                {isVideoSlide && (
-                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <Play className="w-7 h-7 text-white/95 fill-white/95 drop-shadow" />
-                  </span>
-                )}
-              </>
-            )}
-          </Link>
-        )}
       </div>
     </article>
   );

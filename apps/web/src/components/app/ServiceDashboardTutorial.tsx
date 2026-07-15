@@ -7,7 +7,7 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="dashboard-hero"]',
     title: "우리 결혼 준비 라운지",
     description:
-      "결혼식까지 남은 날, 준비 진행률, 예산 현황, 오늘 먼저 볼 준비 항목을 한눈에 보는 공간이에요.",
+      "결혼식까지 남은 날과 직접 기록한 준비 진행률·예산·일정을 한눈에 보는 공간이에요.",
   },
   {
     selector: '[data-tutorial-target="service-nav-amora"]',
@@ -19,31 +19,25 @@ const STEPS: SpotlightStep[] = [
     selector: '[data-tutorial-target="service-nav-budget"]',
     title: "예산 관리는 금액 정리용",
     description:
-      "총예산, 사용 금액, 진행 중 금액을 나눠서 보는 곳이에요. 상담에서 받은 견적은 여기에 넣어두면 흐름이 덜 헷갈려요.",
+      "직접 정한 계획 금액, 서명한 계약서의 총액, 실제 납부액을 구분해 기록하는 곳이에요. 웨딩한방의 기록은 계약서나 결제 증빙을 대신하지 않아요.",
   },
   {
     selector: '[data-tutorial-target="service-nav-schedule"]',
-    title: "일정 관리는 예약과 할 일용",
+    title: "일정 관리는 날짜와 할 일용",
     description:
       "투어, 상담, 계약, 촬영처럼 날짜가 있는 준비를 모아두는 곳이에요. 놓치기 쉬운 일정은 여기서 먼저 정리하세요.",
   },
   {
     selector: '[data-tutorial-target="service-nav-market"]',
-    title: "시세 정보로 감을 먼저 잡아요",
+    title: "시세 정보는 시장 참고용이에요",
     description:
-      "웨딩홀, 스드메, 드레스, 메이크업 평균가를 먼저 보고 내 견적이 어느 정도 위치인지 가볍게 비교할 수 있어요.",
-  },
-  {
-    selector: '[data-tutorial-target="service-nav-vendors"]',
-    title: "업체 탐색은 후보를 좁힐 때",
-    description:
-      "지역, 가격대, 스타일을 보며 후보 업체를 찾아보는 공간이에요. 마음에 드는 곳은 저장하고 상담 전 아모라에게 질문을 정리해보세요.",
+      "한국소비자원 공개 자료를 조사월·지역·포함 범위와 함께 확인하세요. 내 견적의 적정성이나 계약 안전성을 판정하는 화면은 아니에요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-start-guide"]',
     title: "처음엔 이 순서가 편해요",
     description:
-      "궁금한 건 아모라에게 묻고, 받은 답은 예산·일정에 정리하고, 큰 금액은 시세와 업체 탐색으로 다시 확인하면 됩니다.",
+      "궁금한 건 아모라에게 묻고, 직접 확인한 금액과 날짜는 예산·일정에 기록하세요. 시세는 시장 참고로만 보고 최종 조건은 업체 문서로 확인하면 됩니다.",
   },
 ];
 

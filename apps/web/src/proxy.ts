@@ -11,8 +11,8 @@ const MAINTENANCE_ERROR = {
 
 const LAUNCH_CLOSED_ERROR = {
   code: "SERVICE_NOT_LAUNCHED",
-  message: "웨딩한방은 현재 정식 베타를 준비하고 있어요. 공개된 서비스 소개와 사용자 연구 신청을 이용해 주세요.",
-  error: "웨딩한방은 현재 정식 베타를 준비하고 있어요. 공개된 서비스 소개와 사용자 연구 신청을 이용해 주세요.",
+  message: "웨딩한방은 현재 정식 베타를 준비하고 있어요. 공개된 서비스 소개와 사용자 연구 안내를 확인해 주세요.",
+  error: "웨딩한방은 현재 정식 베타를 준비하고 있어요. 공개된 서비스 소개와 사용자 연구 안내를 확인해 주세요.",
   retryAfterSeconds: 3600,
 } as const;
 
@@ -45,6 +45,19 @@ function isComingSoonProtectedAdminPath(pathname: string): boolean {
     || pathname.startsWith("/admin/")
     || pathname === "/api/admin"
     || pathname.startsWith("/api/admin/");
+}
+
+function isLaunchClosed(
+  environment: Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "NEXT_PUBLIC_LAUNCH_MODE">> = process.env,
+): boolean {
+  const configuredMode = environment.NEXT_PUBLIC_LAUNCH_MODE?.trim();
+  if (configuredMode === "full") return false;
+  if (configuredMode === "coming_soon") return true;
+
+  // Unknown values are never a release authorization. Local development and
+  // tests may omit the setting, but a production runtime must explicitly opt
+  // in to the full service.
+  return Boolean(configuredMode) || environment.NODE_ENV === "production";
 }
 
 const CAMPAIGN_QUERY_KEYS = [
@@ -86,9 +99,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(url, { status: 503, headers });
   }
 
-  if (process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon") {
+  if (isLaunchClosed()) {
     if (COMING_SOON_PUBLIC_PATHS.has(pathname)) {
-      // 출시 전 공개 화면과 사전 신청에는 로그인 세션 갱신이 필요 없다.
+      // 출시 전 공개 화면과 닫힌 사용자 연구 상태 확인에는 로그인 세션 갱신이 필요 없다.
       // Supabase middleware를 건너뛰어 공개 경로가 인증 장애에 종속되지 않게 한다.
       return NextResponse.next();
     }

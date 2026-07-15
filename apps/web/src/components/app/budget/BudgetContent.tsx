@@ -1,1486 +1,724 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import {
-  TrendingDown,
-  TrendingUp,
   AlertTriangle,
-  Pencil,
-  Check,
-  X,
-  Users,
-  Camera,
-  Shirt,
-  Palette,
+  ArrowRight,
   Building2,
-  Gem,
+  CalendarClock,
+  Camera,
+  Check,
+  CircleDollarSign,
+  FileCheck2,
   Flower2,
-  Plane,
+  Gem,
+  Gift,
   Home,
   Key,
   Mail,
-  Gift,
-  Wallet,
-  Video,
-  Package,
-  Sparkles,
-  Flower,
-  Heart,
-  Mic,
-  Box,
-  ShoppingBag,
-  Loader2,
-  Tag,
+  Palette,
+  Pencil,
+  Plane,
   Plus,
-  ArrowRight,
+  ReceiptText,
+  Shirt,
+  Tag,
+  Trash2,
+  Users,
+  Video,
+  Wallet,
+  X,
+  type LucideIcon,
 } from "lucide-react";
+import { normalizeOptionalBudgetWon, storedMoneyToWon } from "@hanbang/shared";
 import { useAuthStore } from "@/stores/authStore";
-import type { ProgressItem, PayerType } from "@/types/database.types";
+import type { ProgressItem } from "@/types/database.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
-import Link from "next/link";
-import { storedMoneyToWon } from "@hanbang/shared";
+import {
+  mutateBudgetCategory,
+  type BudgetCategoryMutation,
+} from "@/lib/budget/budgetCategoryClient";
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
-  Flower2, Plane, Home, Key, Mail, Gift, Wallet,
-  Sparkles, Flower, Heart, Mic, Box, Tag,
-};
-
-// 카테고리별 예산 비율 (기본값)
-const CATEGORY_RATIOS: { key: string; label: string; icon: string; ratio: number }[] = [
-  { key: "meeting", label: "상견례", icon: "Users", ratio: 0.01 },
-  { key: "venue", label: "예식장", icon: "Building2", ratio: 0.20 },
-  { key: "studio", label: "스튜디오", icon: "Camera", ratio: 0.10 },
-  { key: "dress", label: "드레스/턱시도", icon: "Shirt", ratio: 0.07 },
-  { key: "makeup", label: "메이크업", icon: "Palette", ratio: 0.05 },
-  { key: "snap", label: "본식 스냅/영상", icon: "Video", ratio: 0.04 },
-  { key: "ring", label: "예물", icon: "Gem", ratio: 0.12 },
-  { key: "yedan", label: "예단", icon: "Package", ratio: 0.05 },
-  { key: "hanbok", label: "한복", icon: "Flower2", ratio: 0.03 },
-  { key: "shoes", label: "웨딩 구두", icon: "Sparkles", ratio: 0.01 },
-  { key: "bouquet", label: "부케/꽃장식", icon: "Flower", ratio: 0.01 },
-  { key: "honeymoon", label: "신혼여행", icon: "Plane", ratio: 0.12 },
-  { key: "houseware", label: "혼수", icon: "Home", ratio: 0.07 },
-  { key: "housing", label: "신혼집", icon: "Key", ratio: 0.00 },
-  { key: "invitation", label: "청첩장", icon: "Mail", ratio: 0.02 },
-  { key: "gift", label: "답례품", icon: "Gift", ratio: 0.02 },
-  { key: "mc", label: "사회/축가", icon: "Mic", ratio: 0.01 },
-  { key: "ham", label: "함", icon: "Box", ratio: 0.01 },
-  { key: "pyebaek", label: "폐백", icon: "Heart", ratio: 0.01 },
-  { key: "reserve", label: "예비비", icon: "Wallet", ratio: 0.05 },
-];
-
-// 스드메 키
-const SDM_KEYS = ["studio", "dress", "makeup"];
-const OTHER_KEYS = CATEGORY_RATIOS.filter((c) => !SDM_KEYS.includes(c.key)).map((c) => c.key);
-
-// 고정 카테고리 키 세트 (커스텀 카테고리 식별용)
-const KNOWN_KEYS = new Set(CATEGORY_RATIOS.map((c) => c.key));
-
-// 계약 전에 포함 범위와 별도 조건을 확인할 항목. 가격 범위나 발생 가능성은 추정하지 않는다.
-const ADDITIONAL_COST_CHECKS: Record<string, string> = {
-  studio: "원본 데이터, 앨범 페이지, 보정본 수량",
-  dress: "헬퍼, 피팅, 수선, 소품",
-  makeup: "리허설, 혼주, 출장, 시작 시간",
-  venue: "식대, 최소보증인원, 꽃장식, 진행 서비스",
-  honeymoon: "보험, 수하물, 현지 이동, 선택 활동",
-  hanbok: "수선, 소품, 세탁·반납 조건",
-  gift: "포장, 배송, 최소 주문 수량",
-  snap: "원본 데이터, 편집본, 앨범·액자",
-  ham: "장식, 운송, 주차·현장 조건",
-  bouquet: "촬영용·본식용 구성, 보존, 부토니에",
-};
-
-// 분담 옵션
-const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
-  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
-  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
-  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
-  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
-];
-
-function getPayerLabel(payer?: PayerType): { label: string; emoji: string } {
-  const found = PAYER_OPTIONS.find((p) => p.value === payer);
-  return found ? { label: found.label, emoji: found.emoji } : { label: "커플", emoji: "\uD83D\uDC6B" };
+interface FinancialProgressItem extends Omit<Partial<ProgressItem>, "payer"> {
+  category?: string;
+  label?: string;
+  budget?: number;
+  contractedTotal?: number;
+  paidToDate?: number;
+  nextPaymentAmount?: number;
+  nextPaymentDate?: string;
+  spent?: number;
+  cost?: number;
+  payer?: string;
 }
 
-function formatWon(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
-}
-
-function formatWonFull(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
-}
-
-// 추가비용 확인 배지
-function AdditionalCostCheckBadge({ catKey }: { catKey: string }) {
-  const [show, setShow] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const data = ADDITIONAL_COST_CHECKS[catKey];
-  if (!data) return null;
-
-  return (
-    <div className="relative inline-flex">
-      <button
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onClick={() => setShow(!show)}
-        className="w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
-        title="추가비용 확인 항목"
-      >
-        <AlertTriangle className="w-4 h-4" />
-      </button>
-      {show && (
-        <div
-          ref={tooltipRef}
-          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[#504444] rounded-xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] pointer-events-none"
-        >
-          <div className="text-[11px] font-medium text-[#795252] mb-1.5 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            계약 전 확인
-          </div>
-          <p className="text-[11px] text-[#504444] leading-relaxed">{data}</p>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
-            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 분담(Payer) 선택 컴포넌트
-function PayerSelector({
-  value,
-  onChange,
-}: {
-  value: PayerType;
-  onChange: (v: PayerType) => Promise<boolean>;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const current = getPayerLabel(value);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[#504444] hover:bg-[#f6f3f2] transition-colors"
-        title="분담 변경"
-      >
-        <span>{current.emoji}</span>
-        <span>{current.label}</span>
-      </button>
-      {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
-          {PAYER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={async () => {
-                if (await onChange(opt.value)) setOpen(false);
-              }}
-              className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
-                value === opt.value
-                  ? "bg-[#795252]/5 text-[#795252] font-medium"
-                  : "text-[#1b1c1c] hover:bg-[#f6f3f2]"
-              }`}
-            >
-              <span>{opt.emoji}</span>
-              <span>{opt.label}</span>
-              {value === opt.value && <Check className="w-4 h-4 ml-auto" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 인라인 금액 편집 컴포넌트
-function InlineMoneyEdit({
-  value,
-  onSave,
-  onReset,
-  label,
-  highlight,
-}: {
-  value: number;
-  onSave: (v: number) => Promise<boolean>;
-  onReset?: () => Promise<boolean>;
+interface BudgetCategoryDefinition {
+  key: string;
   label: string;
-  highlight?: "spent" | "budget";
-}) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState("");
-  const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  icon: LucideIcon;
+}
 
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editing]);
+interface CategoryEditorState {
+  key: string;
+  label: string;
+  custom: boolean;
+  budget: string;
+  contractedTotal: string;
+  paidToDate: string;
+  nextPaymentAmount: string;
+  nextPaymentDate: string;
+}
 
-  const startEdit = () => {
-    setText(String(Math.round(value / 10000)));
-    setEditing(true);
-  };
+const BUDGET_CATEGORIES: BudgetCategoryDefinition[] = [
+  { key: "meeting", label: "상견례", icon: Users },
+  { key: "venue", label: "예식장", icon: Building2 },
+  { key: "studio", label: "스튜디오", icon: Camera },
+  { key: "dress", label: "드레스/턱시도", icon: Shirt },
+  { key: "makeup", label: "메이크업", icon: Palette },
+  { key: "snap", label: "본식 스냅/영상", icon: Video },
+  { key: "ring", label: "예물", icon: Gem },
+  { key: "hanbok", label: "한복", icon: Flower2 },
+  { key: "honeymoon", label: "신혼여행", icon: Plane },
+  { key: "houseware", label: "혼수", icon: Home },
+  { key: "housing", label: "신혼집", icon: Key },
+  { key: "invitation", label: "청첩장", icon: Mail },
+  { key: "gift", label: "답례품", icon: Gift },
+  { key: "reserve", label: "예비비", icon: Wallet },
+];
 
-  const save = async () => {
-    const num = parseFloat(text);
-    if (!isNaN(num) && num >= 0) {
-      setSaving(true);
-      const saved = await onSave(Math.round(num * 10000));
-      setSaving(false);
-      if (saved) setEditing(false);
-    }
-  };
+const CONTRACT_SCOPE_QUESTIONS: Record<string, string> = {
+  venue: "식대 단위, 최소보증인원, 대관료, 꽃장식과 진행 서비스의 포함 여부",
+  studio: "원본 데이터, 보정본 수량, 앨범 페이지와 추가 촬영 조건",
+  dress: "피팅, 헬퍼, 수선, 소품, 반납 조건의 포함 여부",
+  makeup: "촬영·본식·리허설, 출장, 혼주 항목의 선택 여부와 포함 범위",
+  snap: "촬영 시간, 원본·편집본, 앨범·액자, 납품 기한",
+  honeymoon: "취소·변경, 보험, 수하물, 현지 이동과 선택 활동의 포함 여부",
+};
 
-  const cancel = () => setEditing(false);
+function formatWon(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return "미입력";
+  if (value === 0) return "0원";
+  return `${(value / 10_000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}만원`;
+}
 
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          ref={inputRef}
-          type="number"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void save();
-            if (e.key === "Escape") cancel();
-          }}
-          disabled={saving}
-          className="w-[80px] px-2 py-1 rounded-lg border border-[#795252]/40 text-[13px] text-right text-[#1b1c1c] focus:outline-none focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/10"
-        />
-        <span className="text-[11px] text-[#B5ADA3]">만원</span>
-        <button disabled={saving} onClick={() => void save()} className="w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10 disabled:opacity-50" title="저장">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-        </button>
-        <button onClick={cancel} className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]" title="취소">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    );
+function wonToManwonInput(value: number | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value / 10_000) : "";
+}
+
+function parseOptionalManwon(input: string): number | null | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const manwon = Number(trimmed.replaceAll(",", ""));
+  const won = Math.round(manwon * 10_000);
+  if (
+    !Number.isFinite(manwon) ||
+    manwon < 0 ||
+    !Number.isSafeInteger(won) ||
+    won > 10_000_000_000
+  ) {
+    return undefined;
   }
+  return won;
+}
+
+function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function hasOwn(record: FinancialProgressItem | undefined, field: keyof FinancialProgressItem): boolean {
+  return Boolean(record && Object.prototype.hasOwnProperty.call(record, field));
+}
+
+function legacyUnclassifiedAmount(record: FinancialProgressItem | undefined): number | null {
+  if (!record) return null;
+  if (typeof record.spent === "number" && Number.isFinite(record.spent) && record.spent >= 0) {
+    return record.spent;
+  }
+  const legacyCost = storedMoneyToWon(record.cost);
+  return legacyCost > 0 ? legacyCost : null;
+}
+
+function hasFinancialRecord(record: FinancialProgressItem | undefined): boolean {
+  if (!record) return false;
+  return [
+    "budget",
+    "contractedTotal",
+    "paidToDate",
+    "nextPaymentAmount",
+    "nextPaymentDate",
+    "spent",
+    "cost",
+    "payer",
+  ].some((field) => Object.prototype.hasOwnProperty.call(record, field));
+}
+
+function sumField(records: FinancialProgressItem[], field: keyof FinancialProgressItem): number {
+  return records.reduce((sum, record) => {
+    const value = record[field];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 ? sum + value : sum;
+  }, 0);
+}
+
+function SummaryCard({
+  eyebrow,
+  label,
+  value,
+  helper,
+  icon: Icon,
+}: {
+  eyebrow: string;
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#eadfc9] bg-white p-5 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">{eyebrow}</p>
+        <Icon className="h-5 w-5 text-[#36534E]/45" />
+      </div>
+      <p className="mt-4 break-words font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[32px]">
+        {value}
+      </p>
+      <p className="mt-3 text-[13px] font-medium text-[#5d6879]">{label}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-[#8c847d]">{helper}</p>
+    </div>
+  );
+}
+
+function FinancialRecordCard({
+  definition,
+  record,
+  onEdit,
+  onClearLegacy,
+}: {
+  definition: BudgetCategoryDefinition;
+  record: FinancialProgressItem;
+  onEdit: () => void;
+  onClearLegacy: () => Promise<void>;
+}) {
+  const Icon = definition.icon;
+  const legacyAmount = legacyUnclassifiedAmount(record);
+  const hasLegacy = legacyAmount !== null || hasOwn(record, "payer");
+  const hasContract = hasOwn(record, "contractedTotal");
+  const hasPaid = hasOwn(record, "paidToDate");
+  const outstanding = hasContract && hasPaid &&
+    typeof record.contractedTotal === "number" && typeof record.paidToDate === "number"
+    ? record.contractedTotal - record.paidToDate
+    : null;
+  const scopeQuestion = CONTRACT_SCOPE_QUESTIONS[definition.key];
 
   return (
-    <div className="flex items-center gap-1">
-      <button
-        onClick={startEdit}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
-          highlight === "spent"
-            ? "hover:bg-[#795252]/5"
-            : "hover:bg-[#f6f3f2]"
-        }`}
-        title={`${label} 수정`}
-      >
-        <span className={`text-base font-medium ${
-          highlight === "spent" ? "text-[#1b1c1c]" : "text-[#504444]"
-        }`}>
-          {formatWon(value)}
-        </span>
-        <Pencil className={`w-4 h-4 ${
-          highlight === "spent" ? "text-[#795252]/50" : "text-[#B5ADA3]"
-        }`} />
-      </button>
-      {onReset && value > 0 && (
+    <article className="rounded-2xl border border-[#eadfc9] bg-white p-5 shadow-[0_8px_24px_rgba(8,22,38,0.035)] sm:p-6">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3ece5]">
+          <Icon className="h-5 w-5 text-[#795252]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-serif-kr text-[19px] font-medium text-[#1b1c1c]">{definition.label}</h3>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-[#8c847d]">사용자가 직접 입력한 기록 · 계약 증빙이나 검증 결과가 아님</p>
+        </div>
         <button
-          onClick={() => void onReset()}
-          className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
-          title={`${label} 초기화`}
+          type="button"
+          onClick={onEdit}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-[#36534E] hover:bg-[#eef2ef]"
         >
-          <X className="w-4 h-4" />
+          <Pencil className="h-3.5 w-3.5" />
+          편집
         </button>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-[#fbf8f2] p-3.5">
+          <dt className="text-[11px] font-medium text-[#7a716a]">내 계획 예산</dt>
+          <dd className="mt-1.5 font-serif-kr text-[20px] font-medium text-[#1b1c1c]">{formatWon(record.budget)}</dd>
+        </div>
+        <div className="rounded-xl bg-[#f5f1ec] p-3.5">
+          <dt className="text-[11px] font-medium text-[#7a716a]">서명한 계약 총액</dt>
+          <dd className="mt-1.5 font-serif-kr text-[20px] font-medium text-[#1b1c1c]">{formatWon(record.contractedTotal)}</dd>
+        </div>
+        <div className="rounded-xl bg-[#eef2ef] p-3.5">
+          <dt className="text-[11px] font-medium text-[#5f6f67]">실제 누적 납부액</dt>
+          <dd className="mt-1.5 font-serif-kr text-[20px] font-medium text-[#243832]">{formatWon(record.paidToDate)}</dd>
+        </div>
+      </dl>
+
+      {(record.nextPaymentDate || hasOwn(record, "nextPaymentAmount") || outstanding !== null) && (
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-xl border border-[#eadfc9] bg-white px-3.5 py-3 text-xs text-[#5d6879]">
+          {outstanding !== null && <span>계약 기록상 미납액 {formatWon(outstanding)}</span>}
+          {record.nextPaymentDate && <span>다음 납부일 {record.nextPaymentDate}</span>}
+          {hasOwn(record, "nextPaymentAmount") && <span>다음 납부 예정액 {formatWon(record.nextPaymentAmount)}</span>}
+        </div>
       )}
-    </div>
-  );
-}
 
-// 카테고리 행 컴포넌트 (리스트 스타일 - 스드메용)
-function BudgetRow({
-  catKey,
-  label,
-  icon,
-  budget,
-  spent,
-  status,
-  payer,
-  totalBudget,
-  onBudgetChange,
-  onSpentChange,
-  onSpentReset,
-  onPayerChange,
-  onDelete,
-}: {
-  catKey: string;
-  label: string;
-  icon: string;
-  budget: number;
-  spent: number;
-  status: string;
-  payer: PayerType;
-  totalBudget: number;
-  onBudgetChange: (key: string, val: number) => Promise<boolean>;
-  onSpentChange: (key: string, val: number) => Promise<boolean>;
-  onSpentReset: (key: string) => Promise<boolean>;
-  onPayerChange: (key: string, payer: PayerType) => Promise<boolean>;
-  onDelete?: (key: string) => void;
-}) {
-  const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-  const isOver = spent > budget && budget > 0;
-  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
-  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
-  const Icon = ICON_MAP[icon] ?? Building2;
-
-  return (
-    <div
-      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#fcf9f8] transition-colors max-md:flex-wrap max-md:gap-2"
-    >
-      {/* 아이콘 + 이름 + 추가비용 확인 배지 */}
-      <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-md:w-full">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-          isOver
-            ? "bg-red-50"
-            : "bg-[#f6f3f2]"
-        }`}>
-          <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
+      {scopeQuestion && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl bg-[#fff9ef] px-3.5 py-3 text-[11px] leading-relaxed text-[#715e45]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span><strong>계약 원문에서 포함 여부 확인:</strong> {scopeQuestion}</span>
         </div>
-        <span className="min-w-0 font-serif-kr text-[16px] font-normal leading-snug text-[#1b1c1c] line-clamp-2">{label}</span>
-        <AdditionalCostCheckBadge catKey={catKey} />
+      )}
 
-        {/* 모바일 전용: 상태 + 삭제를 라벨 옆에 배치 */}
-        <div className="md:hidden ml-auto flex items-center gap-1.5 flex-shrink-0">
-          <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-            status === "완료" ? "bg-sage-500/10 text-sage-500" :
-            status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
-            "bg-[#f6f3f2] text-[#B5ADA3]"
-          }`}>
-            {status}
-          </div>
-          {onDelete && (
-            <button
-              onClick={() => onDelete(catKey)}
-              className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
-              title={`${label} 삭제`}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 진행 바 + 퍼센트 */}
-      <div className="flex-1 min-w-0 max-md:order-last max-md:w-full">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-[#f6f3f2] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                isOver ? "bg-red-400" : "bg-gradient-to-r from-[#795252] to-[#946a6a]"
-              }`}
-              style={{ width: `${Math.min(percent, 100)}%` }}
-            />
-          </div>
-          <span className={`text-xs font-medium w-[36px] text-right flex-shrink-0 ${
-            isOver ? "text-red-400" : percent >= 100 ? "text-sage-500" : "text-[#B5ADA3]"
-          }`}>
-            {percent}%
-          </span>
-        </div>
-      </div>
-
-      {/* 분담 선택 */}
-      <div className="flex-shrink-0 max-md:w-auto">
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
-      </div>
-
-      {/* 지출 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
-        <InlineMoneyEdit
-          value={spent}
-          onSave={(v) => onSpentChange(catKey, v)}
-          onReset={() => onSpentReset(catKey)}
-          label={`${label} 지출`}
-          highlight="spent"
-        />
-      </div>
-
-      {/* 구분선 */}
-      <span className="text-sm text-[#B5ADA3]/60 flex-shrink-0 self-end mb-1">/</span>
-
-      {/* 예산 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
-        <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
-        <InlineMoneyEdit
-          value={budget}
-          onSave={(v) => onBudgetChange(catKey, v)}
-          label={`${label} 예산`}
-          highlight="budget"
-        />
-        {totalShare > 0 && (
-          <span className="text-[10px] text-[#B5ADA3] mt-0.5">총예산의 {totalShare}%</span>
-        )}
-      </div>
-
-      {/* 상태 + 삭제 (데스크탑 전용 — 모바일은 라벨 옆에 배치) */}
-      <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-        <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          status === "완료" ? "bg-sage-500/10 text-sage-500" :
-          status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
-          "bg-[#f6f3f2] text-[#B5ADA3]"
-        }`}>
-          {status}
-        </div>
-        {onDelete && (
-          <button
-            onClick={() => onDelete(catKey)}
-            className="w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-            title={`${label} 삭제`}
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// 카테고리 카드 컴포넌트 (그리드 스타일 - 기타 카테고리용)
-function BudgetCard({
-  catKey,
-  label,
-  icon,
-  budget,
-  spent,
-  status,
-  payer,
-  totalBudget,
-  onBudgetChange,
-  onSpentChange,
-  onSpentReset,
-  onPayerChange,
-  onDelete,
-}: {
-  catKey: string;
-  label: string;
-  icon: string;
-  budget: number;
-  spent: number;
-  status: string;
-  payer: PayerType;
-  totalBudget: number;
-  onBudgetChange: (key: string, val: number) => Promise<boolean>;
-  onSpentChange: (key: string, val: number) => Promise<boolean>;
-  onSpentReset: (key: string) => Promise<boolean>;
-  onPayerChange: (key: string, payer: PayerType) => Promise<boolean>;
-  onDelete?: (key: string) => void;
-}) {
-  const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-  const isOver = spent > budget && budget > 0;
-  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
-  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
-  const Icon = ICON_MAP[icon] ?? Building2;
-
-  return (
-    <div className="group bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow">
-      {/* 상단: 아이콘 + 이름 + 상태 */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            isOver ? "bg-red-50" : "bg-[#f6f3f2]"
-          }`}>
-            <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[#795252]"}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="min-w-0 font-serif-kr text-[17px] font-normal leading-snug text-[#1b1c1c] line-clamp-2">{label}</span>
-              <AdditionalCostCheckBadge catKey={catKey} />
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                status === "완료" ? "bg-sage-500/10 text-sage-500" :
-                status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
-                "bg-[#f6f3f2] text-[#B5ADA3]"
-              }`}>
-                {status}
-              </div>
-            </div>
-          </div>
-        </div>
-        {onDelete && (
-          <button
-            onClick={() => onDelete(catKey)}
-            className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-            title={`${label} 삭제`}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-
-      {/* 진행 바 */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-[#B5ADA3]">
-            진행률{totalShare > 0 ? <span className="ml-1.5 text-[#B5ADA3]/70">· 총예산의 {totalShare}%</span> : null}
-          </span>
-          <span className={`text-xs font-medium ${
-            isOver ? "text-red-400" : percent >= 100 ? "text-sage-500" : "text-[#504444]"
-          }`}>
-            {percent}%
-          </span>
-        </div>
-        <div className="h-2 bg-[#f6f3f2] rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              isOver ? "bg-red-400" : "bg-gradient-to-r from-[#795252] to-[#946a6a]"
-            }`}
-            style={{ width: `${Math.min(percent, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* 지출/예산/분담 */}
-      <div className="flex items-end justify-between gap-2">
-        <div className="flex items-end gap-3 min-w-0">
-          <div className="flex flex-col items-start">
-            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">지출</span>
-            <InlineMoneyEdit
-              value={spent}
-              onSave={(v) => onSpentChange(catKey, v)}
-              onReset={() => onSpentReset(catKey)}
-              label={`${label} 지출`}
-              highlight="spent"
-            />
-          </div>
-          <span className="text-sm text-[#B5ADA3]/60 pb-2">/</span>
-          <div className="flex flex-col items-start">
-            <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
-            <InlineMoneyEdit
-              value={budget}
-              onSave={(v) => onBudgetChange(catKey, v)}
-              label={`${label} 예산`}
-              highlight="budget"
-            />
-          </div>
-        </div>
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
-      </div>
-    </div>
-  );
-}
-
-interface BookingSummary {
-  id: string;
-  vendorName: string;
-  productName?: string;
-  bookingDate: string;
-  bookingTime: string;
-  amount: number;
-  status: string;
-}
-
-function getBookingStatusBadge(status: string) {
-  switch (status) {
-    case "confirmed": return { label: "확정", color: "bg-sage-500/10 text-sage-500" };
-    case "completed": return { label: "완료", color: "bg-[#f6f3f2] text-[#B5ADA3]" };
-    case "cancelled": return { label: "취소", color: "bg-red-50 text-red-400" };
-    default: return { label: "대기중", color: "bg-[#795252]/10 text-[#795252]" };
-  }
-}
-
-function BookingsSection({ bookings, loading }: { bookings: BookingSummary[]; loading: boolean }) {
-  const [showCancelled, setShowCancelled] = useState(false);
-
-  const activeBookings = bookings.filter((b) => b.status !== "cancelled");
-  const cancelledBookings = bookings.filter((b) => b.status === "cancelled");
-  const displayBookings = showCancelled ? cancelledBookings : activeBookings;
-
-  return (
-    <div
-      className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5">
-        <div className="flex items-center gap-3 min-w-0">
-          <ShoppingBag className="h-5 w-5 text-[#36534E]" />
-          <div className="min-w-0">
-            <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">내 예약 내역</h3>
-            {!loading && <p className="mt-0.5 text-[13px] font-medium text-[#7a8290]">{activeBookings.length}건 진행 중</p>}
-          </div>
-        </div>
-        {cancelledBookings.length > 0 && (
-          <button
-            onClick={() => setShowCancelled(!showCancelled)}
-            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
-              showCancelled
-                ? "bg-red-50 text-red-400 font-medium"
-                : "text-[#B5ADA3] hover:bg-[#f6f3f2]"
-            }`}
-          >
-            {showCancelled ? "예약 중 보기" : `취소 내역 ${cancelledBookings.length}`}
-          </button>
-        )}
-      </div>
-      {loading ? (
-        <div className="flex justify-center py-5">
-          <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
-        </div>
-      ) : displayBookings.length === 0 ? (
-        <div className="border-t border-[#eadfc9]/70 py-5 text-center">
-          <p className="text-[14px] font-medium text-[#9a9188]">
-            {showCancelled ? "취소된 예약이 없습니다" : "예약 내역이 없습니다"}
+      {hasLegacy && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3.5">
+          <p className="text-xs font-semibold text-red-700">이전 버전의 미분류 금액·분담 기록</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-red-600">
+            {legacyAmount !== null ? `${formatWon(legacyAmount)} · ` : ""}계약 총액인지 실제 납부액인지 구분할 수 없어 모든 합계에서 제외했습니다. 필요한 값은 편집에서 직접 다시 입력하세요.
           </p>
-        </div>
-      ) : (
-        <div className="divide-y divide-[#f6f3f2]">
-          {displayBookings.map((b) => {
-            const badge = getBookingStatusBadge(b.status);
-            return (
-              <div key={b.id} className="flex items-center gap-3 sm:gap-4 px-5 sm:px-8 py-4 sm:py-5 hover:bg-[#fcf9f8] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <p className="font-serif-kr text-[17px] font-normal text-[#1b1c1c] truncate">{b.vendorName}</p>
-                  {b.productName && (
-                    <p className="text-sm text-[#B5ADA3] truncate">{b.productName}</p>
-                  )}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm text-[#504444]">{b.bookingDate} {b.bookingTime}</p>
-                  {b.amount > 0 && (
-                    <p className="text-sm font-medium text-[#36534E]">{formatWon(b.amount)}</p>
-                  )}
-                </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${badge.color}`}>
-                  {badge.label}
-                </span>
-              </div>
-            );
-          })}
+          <button
+            type="button"
+            onClick={() => void onClearLegacy()}
+            className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 underline underline-offset-2"
+          >
+            <Trash2 className="h-3 w-3" />
+            이전 기록 지우기
+          </button>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
 interface BudgetContentProps {
-  /** 패널/오버레이 안에서 렌더되는지 여부. true면 풀스크린 chrome (min-h-screen, max-w) 제거. */
   embedded?: boolean;
 }
 
 export default function BudgetContent({ embedded = false }: BudgetContentProps = {}) {
-  const { journey, updateJourney, isDemo } = useAuthStore();
-
-  const totalBudget = journey?.total_budget ?? 20000000;
+  const { journey, updateJourney, updateJourneyLocal, isDemo } = useAuthStore();
   const progress = useMemo(
-    () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
-    [journey?.progress]
+    () => (journey?.progress ?? {}) as Record<string, FinancialProgressItem>,
+    [journey?.progress],
   );
-  const hiddenKeys = new Set(((progress as Record<string, unknown>).__hidden as string[]) ?? []);
-
-  // 커스텀 카테고리 추가 폼
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newCatLabel, setNewCatLabel] = useState("");
-  const [newCatBudget, setNewCatBudget] = useState("");
-  const [newCatSpent, setNewCatSpent] = useState("");
-  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const totalBudget = journey?.total_budget ?? 0;
+  const [editor, setEditor] = useState<CategoryEditorState | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  const persistJourney = useCallback(
-    async (updates: Parameters<typeof updateJourney>[0]): Promise<boolean> => {
-      setSaveError(null);
-      const saved = await updateJourney(updates);
-      if (!saved) {
-        setSaveError("저장하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 유지됩니다.");
-      }
-      return saved;
-    },
-    [updateJourney],
-  );
-
-
-  // progress에서 커스텀 카테고리 추출
-  const customCategories = Object.entries(progress)
-    .filter(([key]) => !KNOWN_KEYS.has(key) && !key.startsWith("__"))
-    .map(([key, item]) => ({
-      key,
-      label: item.label ?? key,
-      icon: "Tag",
-    }));
-
-  // 내 예약 내역
-  const [bookings, setBookings] = useState<BookingSummary[]>([]);
-  const [bookingsLoading, setBookingsLoading] = useState(true);
-
-  useEffect(() => {
-    if (isDemo) { setBookingsLoading(false); return; }
-    (async () => {
-      try {
-        const res = await fetch("/api/bookings/mine");
-        if (res.ok) {
-          const data = await res.json();
-          setBookings(data.bookings ?? []);
-        }
-      } catch {
-        // silent
-      } finally {
-        setBookingsLoading(false);
-      }
-    })();
-  }, [isDemo]);
-
-  // 총 예산 편집
   const [editingTotal, setEditingTotal] = useState(false);
-  const [totalText, setTotalText] = useState("");
-  const totalInputRef = useRef<HTMLInputElement>(null);
+  const [totalInput, setTotalInput] = useState("");
 
-  useEffect(() => {
-    if (editingTotal && totalInputRef.current) {
-      totalInputRef.current.focus();
-      totalInputRef.current.select();
-    }
-  }, [editingTotal]);
+  const hiddenKeys = useMemo(() => {
+    const hidden = (progress as Record<string, unknown>).__hidden;
+    return new Set(Array.isArray(hidden) ? hidden.filter((key): key is string => typeof key === "string") : []);
+  }, [progress]);
 
-  // 카테고리별 예산/지출 계산
-  const getCategoryBudget = useCallback(
-    (key: string) => {
-      const item = progress[key];
-      if (item?.budget !== undefined && item.budget > 0) return item.budget;
-      const cost = storedMoneyToWon(item?.cost);
-      if (cost > 0) return cost;
-      const catRatio = CATEGORY_RATIOS.find((c) => c.key === key);
-      return catRatio ? Math.round(totalBudget * catRatio.ratio) : 0;
-    },
-    [progress, totalBudget]
-  );
-
-  const getCategorySpent = useCallback(
-    (key: string) => {
-      const item = progress[key];
-      if (item?.spent !== undefined) return item.spent;
-      const cost = storedMoneyToWon(item?.cost);
-      if (cost > 0) return cost;
-      return 0;
-    },
-    [progress]
-  );
-
-  const getStatusLabel = useCallback(
-    (key: string) => {
-      const item = progress[key];
-      const status = item?.status ?? "not_started";
-      return status === "completed" ? "완료" : status === "in_progress" ? "진행중" : "예정";
-    },
-    [progress]
-  );
-
-  const getCategoryPayer = useCallback(
-    (key: string): PayerType => {
-      return progress[key]?.payer ?? "couple";
-    },
-    [progress]
-  );
-
-  // 총합 계산
-  const allCats = CATEGORY_RATIOS;
-  const visibleFixed = allCats.filter((c) => !hiddenKeys.has(c.key));
-  const fixedSpent = visibleFixed.reduce((s, c) => s + getCategorySpent(c.key), 0);
-  const fixedAllocated = visibleFixed.reduce((s, c) => s + getCategoryBudget(c.key), 0);
-  const customSpent = customCategories.reduce((s, c) => s + getCategorySpent(c.key), 0);
-  const customAllocated = customCategories.reduce((s, c) => s + getCategoryBudget(c.key), 0);
-  const totalSpent = fixedSpent + customSpent;
-  const totalAllocated = fixedAllocated + customAllocated;
-  const remaining = totalBudget - totalSpent;
-  const spentPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
-  // 스드메 합계
-  const sdmBudget = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategoryBudget(k), 0);
-  const sdmSpent = SDM_KEYS.filter((k) => !hiddenKeys.has(k)).reduce((s, k) => s + getCategorySpent(k), 0);
-
-  // 분담별 합계
-  const allVisibleKeys = [
-    ...visibleFixed.map((c) => c.key),
-    ...customCategories.map((c) => c.key),
-  ];
-  const payerSummary = allVisibleKeys.reduce(
-    (acc, key) => {
-      const payer = getCategoryPayer(key);
-      const spent = getCategorySpent(key);
-      acc[payer] = (acc[payer] ?? 0) + spent;
-      return acc;
-    },
-    {} as Record<PayerType, number>
-  );
-
-  // 확인 질문이 있는 카테고리 중 지출이 시작된 것들
-  const additionalCostCategories = Object.keys(ADDITIONAL_COST_CHECKS).filter(
-    (k) => !hiddenKeys.has(k) && getCategorySpent(k) > 0
-  );
-
-  // 핸들러들
-  const handleBudgetChange = useCallback(
-    async (key: string, newBudget: number) => {
-      const existing = progress[key];
-      const newProgress = {
-        ...progress,
-        [key]: {
-          ...(existing ?? { category: key, status: "not_started" as const }),
-          category: key,
-          budget: newBudget,
-        },
-      };
-      return persistJourney({ progress: newProgress });
-    },
-    [persistJourney, progress]
-  );
-
-  const handleSpentChange = useCallback(
-    async (key: string, newSpent: number) => {
-      const existing = progress[key];
-      const newProgress = {
-        ...progress,
-        [key]: {
-          ...(existing ?? { category: key, status: "not_started" as const }),
-          category: key,
-          spent: newSpent,
-        },
-      };
-      return persistJourney({ progress: newProgress });
-    },
-    [persistJourney, progress]
-  );
-
-  const handleSpentReset = useCallback(
-    async (key: string) => {
-      const existing = progress[key];
-      if (!existing) return true;
-      const rest = { ...existing };
-      delete rest.spent;
-      const newProgress = {
-        ...progress,
-        [key]: { ...rest, category: key },
-      };
-      return persistJourney({ progress: newProgress });
-    },
-    [persistJourney, progress]
-  );
-
-  const handlePayerChange = useCallback(
-    async (key: string, newPayer: PayerType) => {
-      const existing = progress[key];
-      const newProgress = {
-        ...progress,
-        [key]: {
-          ...(existing ?? { category: key, status: "not_started" as const }),
-          category: key,
-          payer: newPayer,
-        },
-      };
-      return persistJourney({ progress: newProgress });
-    },
-    [persistJourney, progress]
-  );
-
-  const handleAddCategory = useCallback(
-    async () => {
-      const trimmed = newCatLabel.trim();
-      if (!trimmed) return;
-      const key = `custom_${Date.now()}`;
-      const budgetVal = newCatBudget ? Math.round(parseFloat(newCatBudget) * 10000) : 0;
-      const spentVal = newCatSpent ? Math.round(parseFloat(newCatSpent) * 10000) : 0;
-      const newProgress = {
-        ...progress,
-        [key]: {
-          category: key,
-          label: trimmed,
-          status: spentVal > 0 ? "in_progress" as const : "not_started" as const,
-          ...(budgetVal > 0 ? { budget: budgetVal } : {}),
-          ...(spentVal > 0 ? { spent: spentVal } : {}),
-        },
-      };
-      const saved = await persistJourney({ progress: newProgress });
-      if (!saved) return;
-      setNewCatLabel("");
-      setNewCatBudget("");
-      setNewCatSpent("");
-      setShowAddModal(false);
-    },
-    [newCatLabel, newCatBudget, newCatSpent, persistJourney, progress]
-  );
-
-  const handleResetCategory = useCallback(
-    async (key: string) => {
-      const rest = { ...progress };
-      delete rest[key];
-      if (await persistJourney({ progress: rest })) setDeletingKey(null);
-    },
-    [persistJourney, progress]
-  );
-
-  const handleDeleteCategory = useCallback(
-    async (key: string) => {
-      if (KNOWN_KEYS.has(key)) {
-        const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
-        const rest = { ...progress };
-        delete rest[key];
-        if (!await persistJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> })) return;
-      } else {
-        const rest = { ...progress };
-        delete rest[key];
-        if (!await persistJourney({ progress: rest })) return;
+  const persistCategory = useCallback(async (mutation: BudgetCategoryMutation): Promise<boolean> => {
+    setSaveError(null);
+    if (isDemo) {
+      const nextProgress = { ...progress } as Record<string, FinancialProgressItem> & { __hidden?: string[] };
+      const current = { ...(nextProgress[mutation.categoryKey] ?? {}) } as FinancialProgressItem & Record<string, unknown>;
+      for (const field of mutation.remove ?? []) delete current[field];
+      Object.assign(current, mutation.set ?? {}, { category: mutation.categoryKey });
+      if (mutation.set || mutation.remove) nextProgress[mutation.categoryKey] = current;
+      if (mutation.visibility) {
+        const hidden = new Set(nextProgress.__hidden ?? []);
+        if (mutation.visibility === "hidden") hidden.add(mutation.categoryKey);
+        else hidden.delete(mutation.categoryKey);
+        if (hidden.size > 0) nextProgress.__hidden = [...hidden];
+        else delete nextProgress.__hidden;
       }
-      setDeletingKey(null);
-    },
-    [persistJourney, progress]
+      const saved = await updateJourney({ progress: nextProgress as never });
+      if (!saved) setSaveError("저장하지 못했습니다. 입력값은 유지되며 합계에 반영되지 않았습니다.");
+      return saved;
+    }
+
+    try {
+      const result = await mutateBudgetCategory(mutation);
+      updateJourneyLocal({ progress: result.progress as never });
+      return true;
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "예산 기록을 저장하지 못했습니다.");
+      return false;
+    }
+  }, [isDemo, progress, updateJourney, updateJourneyLocal]);
+
+  const activeCategories = useMemo(() => {
+    const fixed = BUDGET_CATEGORIES
+      .filter((definition) => !hiddenKeys.has(definition.key) && hasFinancialRecord(progress[definition.key]))
+      .map((definition) => ({ definition, record: progress[definition.key] ?? {} }));
+    const custom = Object.entries(progress)
+      .filter(([key, record]) =>
+        key.startsWith("custom_") &&
+        !hiddenKeys.has(key) &&
+        (hasFinancialRecord(record) || typeof record?.label === "string"),
+      )
+      .map(([key, record]) => ({
+        definition: { key, label: record.label?.trim() || "직접 추가한 항목", icon: Tag },
+        record,
+      }));
+    return [...fixed, ...custom];
+  }, [hiddenKeys, progress]);
+
+  const activeRecords = activeCategories.map(({ record }) => record);
+  const totalAllocated = sumField(activeRecords, "budget");
+  const totalContracted = sumField(activeRecords, "contractedTotal");
+  const totalPaid = sumField(activeRecords, "paidToDate");
+  const legacyCount = activeRecords.filter((record) =>
+    legacyUnclassifiedAmount(record) !== null || hasOwn(record, "payer"),
+  ).length;
+  const availableCategories = BUDGET_CATEGORIES.filter((definition) =>
+    !activeCategories.some(({ definition: active }) => active.key === definition.key),
   );
 
-  const handleTotalBudgetSave = async () => {
-    const num = parseFloat(totalText);
-    if (!isNaN(num) && num > 0) {
-      if (!await persistJourney({ total_budget: Math.round(num * 10000) })) return;
+  const openEditor = useCallback((definition: BudgetCategoryDefinition, custom = false) => {
+    const record = progress[definition.key] ?? {};
+    setSaveError(null);
+    setEditor({
+      key: definition.key,
+      label: definition.label,
+      custom,
+      budget: wonToManwonInput(record.budget),
+      contractedTotal: wonToManwonInput(record.contractedTotal),
+      paidToDate: wonToManwonInput(record.paidToDate),
+      nextPaymentAmount: wonToManwonInput(record.nextPaymentAmount),
+      nextPaymentDate: record.nextPaymentDate ?? "",
+    });
+  }, [progress]);
+
+  const startCustomEditor = () => {
+    setEditor({
+      key: `custom_${crypto.randomUUID().replaceAll("-", "")}`,
+      label: "",
+      custom: true,
+      budget: "",
+      contractedTotal: "",
+      paidToDate: "",
+      nextPaymentAmount: "",
+      nextPaymentDate: "",
+    });
+  };
+
+  const saveEditor = async () => {
+    if (!editor) return;
+    const label = editor.label.trim();
+    if (editor.custom && (label.length < 1 || label.length > 60)) {
+      setSaveError("직접 추가한 항목 이름은 1~60자로 입력해 주세요.");
+      return;
+    }
+
+    const parsed = {
+      budget: parseOptionalManwon(editor.budget),
+      contractedTotal: parseOptionalManwon(editor.contractedTotal),
+      paidToDate: parseOptionalManwon(editor.paidToDate),
+      nextPaymentAmount: parseOptionalManwon(editor.nextPaymentAmount),
+    };
+    if (Object.values(parsed).some((value) => value === undefined)) {
+      setSaveError("금액은 0원 이상 100억원 이하로 만원 단위에 입력해 주세요.");
+      return;
+    }
+    const validated = parsed as Record<keyof typeof parsed, number | null>;
+    if (validated.paidToDate !== null && validated.contractedTotal === null) {
+      setSaveError("누적 납부액을 기록하려면 서명한 계약 총액을 함께 입력해 주세요.");
+      return;
+    }
+    if (
+      validated.paidToDate !== null &&
+      validated.contractedTotal !== null &&
+      validated.paidToDate > validated.contractedTotal
+    ) {
+      setSaveError("누적 납부액은 서명한 계약 총액보다 클 수 없습니다. 입력 단위와 금액을 확인해 주세요.");
+      return;
+    }
+    if (editor.nextPaymentDate && !isValidDateOnly(editor.nextPaymentDate)) {
+      setSaveError("다음 납부일을 올바른 날짜로 입력해 주세요.");
+      return;
+    }
+    if ((validated.nextPaymentAmount !== null || editor.nextPaymentDate) && validated.contractedTotal === null) {
+      setSaveError("다음 납부 기록을 추가하려면 서명한 계약 총액을 함께 입력해 주세요.");
+      return;
+    }
+
+    const existing = progress[editor.key];
+    const setFields: Record<string, number | string> = {};
+    const removeFields: string[] = [];
+    for (const field of ["budget", "contractedTotal", "paidToDate", "nextPaymentAmount"] as const) {
+      const value = validated[field];
+      if (value === null) {
+        if (hasOwn(existing, field)) removeFields.push(field);
+      } else {
+        setFields[field] = value;
+      }
+    }
+    if (editor.nextPaymentDate) setFields.nextPaymentDate = editor.nextPaymentDate;
+    else if (hasOwn(existing, "nextPaymentDate")) removeFields.push("nextPaymentDate");
+    if (editor.custom) setFields.label = label;
+
+    if (Object.keys(setFields).length === 0 && removeFields.length === 0) {
+      setSaveError("기록할 값을 하나 이상 입력해 주세요. 선택 전에는 예산 기록으로 계산하지 않습니다.");
+      return;
+    }
+
+    setSaving(true);
+    const saved = await persistCategory({
+      categoryKey: editor.key,
+      set: Object.keys(setFields).length > 0
+        ? setFields as NonNullable<BudgetCategoryMutation["set"]>
+        : undefined,
+      remove: removeFields.length > 0
+        ? removeFields as NonNullable<BudgetCategoryMutation["remove"]>
+        : undefined,
+      visibility: "visible",
+    });
+    setSaving(false);
+    if (saved) setEditor(null);
+  };
+
+  const clearLegacy = async (key: string) => {
+    await persistCategory({ categoryKey: key, remove: ["spent", "cost", "payer"] });
+  };
+
+  const clearCategory = async () => {
+    if (!editor) return;
+    setSaving(true);
+    const removeFields = [
+      "budget",
+      "contractedTotal",
+      "paidToDate",
+      "nextPaymentAmount",
+      "nextPaymentDate",
+      "spent",
+      "cost",
+      "payer",
+      ...(editor.custom ? ["label"] : []),
+    ];
+    const saved = await persistCategory({
+      categoryKey: editor.key,
+      remove: removeFields as NonNullable<BudgetCategoryMutation["remove"]>,
+      ...(editor.custom ? { visibility: "hidden" as const } : {}),
+    });
+    setSaving(false);
+    if (saved) setEditor(null);
+  };
+
+  const saveTotalBudget = async () => {
+    const parsed = parseOptionalManwon(totalInput);
+    if (parsed === undefined) {
+      setSaveError("총 계획 예산은 0원 이상 100억원 이하로 입력해 주세요.");
+      return;
+    }
+    const value = normalizeOptionalBudgetWon(parsed ?? 0);
+    const saved = await updateJourney({ total_budget: value });
+    if (!saved) {
+      setSaveError("총 계획 예산을 저장하지 못했습니다.");
+      return;
     }
     setEditingTotal(false);
   };
 
   return (
     <div className={embedded ? "bg-[#fcf9f8]" : ""}>
-      <div
-        className={
-          embedded
-            ? "max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10"
-            : "space-y-4"
-        }
-      >
+      <div className={embedded ? "mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8" : "space-y-5"}>
+        <section className="rounded-2xl border border-[#eadfc9] bg-[#fbf8f2] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" />
+            <div>
+              <h2 className="font-serif-kr text-[21px] font-medium text-[#243832]">계획·계약·납부를 섞지 않는 금액 기록</h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-[#5d6879]">
+                견적을 평가하거나 계약을 중개하지 않습니다. 업체가 준 원문을 직접 확인하고 서명한 뒤, 사용자가 확정한 금액과 실제 납부액만 구분해 기록합니다.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {saveError && (
           <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <span>{saveError}</span>
-            <button type="button" onClick={() => setSaveError(null)} className="shrink-0 rounded p-0.5 hover:bg-red-100" aria-label="저장 오류 닫기">
-              <X className="h-4 w-4" />
-            </button>
+            <button type="button" onClick={() => setSaveError(null)} aria-label="오류 닫기"><X className="h-4 w-4" /></button>
           </div>
         )}
-        {/* 상단 스탯 3개 - Editorial */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {/* Total Budget */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
-            <Sparkles className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[#36534E]/25" />
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-                TOTAL BUDGET
-              </p>
-              {!editingTotal && (
-                <button
-                  onClick={() => {
-                    setTotalText(String(Math.round(totalBudget / 10000)));
-                    setEditingTotal(true);
-                  }}
-                  className="relative z-10 text-[#9a9188] transition-colors hover:text-[#36534E]"
-                  title="총 예산 수정"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              )}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-[#eadfc9] bg-white p-5 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">TOTAL PLAN</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTotalInput(wonToManwonInput(totalBudget));
+                  setEditingTotal(true);
+                }}
+                className="rounded p-1 text-[#36534E] hover:bg-[#eef2ef]"
+                aria-label="총 계획 예산 편집"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
             </div>
             {editingTotal ? (
-              <div className="flex items-end gap-2 mb-3 flex-wrap">
+              <div className="mt-4 flex items-center gap-2">
                 <input
-                  ref={totalInputRef}
-                  type="number"
-                  value={totalText}
-                  onChange={(e) => setTotalText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleTotalBudgetSave();
-                    if (e.key === "Escape") setEditingTotal(false);
-                  }}
-                  className="w-full max-w-full rounded-xl border border-[#36534E]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[#071629] focus:border-[#36534E] focus:outline-none focus:ring-2 focus:ring-[#36534E]/10 sm:w-[170px]"
+                  value={totalInput}
+                  onChange={(event) => setTotalInput(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="미정"
+                  className="min-w-0 flex-1 rounded-xl border border-[#d8cdbd] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
                 />
-                <button onClick={handleTotalBudgetSave} className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#36534E] text-white hover:bg-[#2d4642]">
-                  <Check className="w-5 h-5" />
-                </button>
-                <button onClick={() => setEditingTotal(false)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]">
-                  <X className="w-5 h-5" />
-                </button>
+                <span className="text-xs text-[#7a716a]">만원</span>
+                <button type="button" onClick={() => void saveTotalBudget()} className="rounded-lg bg-[#36534E] p-2 text-white"><Check className="h-4 w-4" /></button>
               </div>
             ) : (
-              <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[#071629]">
-                <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalBudget / 10000).toLocaleString()}</span>
-                <span className="text-[13px] font-medium text-[#7a8290]">만원</span>
-              </p>
+              <p className="mt-4 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[32px]">{formatWon(totalBudget || undefined)}</p>
             )}
-            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">전체 예산</p>
+            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">커플이 직접 정한 전체 계획 예산</p>
+            <p className="mt-1 text-[11px] text-[#8c847d]">계약·납부 합계와 자동 비교하지 않습니다.</p>
           </div>
-
-          {/* Spent */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
-            <TrendingUp className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[#36534E]/35" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-              SPENT
-            </p>
-            <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[#071629]">
-              <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalSpent / 10000).toLocaleString()}</span>
-              <span className="text-[13px] font-medium text-[#7a8290]">만원</span>
-            </p>
-            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">사용한 금액 ({spentPercent}%)</p>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
-              <div
-                className="h-full rounded-full bg-[#36534E] transition-all duration-700"
-                style={{ width: `${Math.min(spentPercent, 100)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Remaining */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
-            <TrendingDown className={`pointer-events-none absolute right-4 top-4 h-5 w-5 ${remaining >= 0 ? "text-[#36534E]/35" : "text-red-400/60"}`} />
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${remaining >= 0 ? "text-[#36534E]" : "text-red-400"}`}>
-              REMAINING
-            </p>
-            <p className={`mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none ${remaining >= 0 ? "text-[#071629]" : "text-red-400"}`}>
-              <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString()}</span>
-              <span className="text-[13px] font-medium text-[#7a8290]">만원</span>
-            </p>
-            {remaining >= 0 ? (
-              <p className="mt-3 text-[13px] font-medium text-[#5d6879]">
-                남은 예산 (여유 {totalBudget > 0 ? Math.round((remaining / totalBudget) * 100) : 0}%)
-              </p>
-            ) : (
-              <p className="mt-3 flex items-center gap-1 text-[13px] font-medium text-red-400">
-                <AlertTriangle className="w-4 h-4" />
-                예산 초과
-              </p>
-            )}
-          </div>
+          <SummaryCard eyebrow="ITEM PLANS" label="선택한 항목의 계획 예산 합계" value={formatWon(totalAllocated)} helper="선택하지 않은 템플릿은 포함하지 않음" icon={Wallet} />
+          <SummaryCard eyebrow="SIGNED TOTAL" label="서명한 계약 총액 기록" value={formatWon(totalContracted)} helper="사용자 입력값 · 계약 검증 아님" icon={ReceiptText} />
+          <SummaryCard eyebrow="PAID TO DATE" label="실제 누적 납부액 기록" value={formatWon(totalPaid)} helper="계약 총액과 구분해 입력한 값만 합산" icon={CircleDollarSign} />
         </div>
 
-        {/* 분담 현황 (Editorial Style) */}
-        {totalSpent > 0 && (
-          <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <Users className="h-5 w-5 text-[#36534E]" />
-              <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">PAYER SUMMARY</p>
-                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">분담 현황</h3>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {PAYER_OPTIONS.map((opt) => {
-                const amount = payerSummary[opt.value] ?? 0;
-                const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-                return (
-                  <div
-                    key={opt.value}
-                    className={`rounded-[14px] border border-[#eadfc9]/70 p-3.5 transition-colors ${
-                      amount > 0 ? "bg-[#fffdf7]" : "bg-[#f7f3ec]/55"
-                    }`}
-                  >
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <span className="text-base">{opt.emoji}</span>
-                      <span className="text-[13px] font-medium text-[#5d6879]">{opt.label}</span>
-                    </div>
-                    <p className={`font-serif-kr text-[25px] font-medium leading-none break-words ${
-                      amount > 0 ? "text-[#071629]" : "text-[#9a9188]"
-                    }`}>
-                      {formatWon(amount)}
-                    </p>
-                    {amount > 0 && (
-                      <div className="mt-3">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                          <div
-                            className="h-full rounded-full bg-[#36534E] transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-[#B5ADA3] mt-1.5">{pct}%</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+        {legacyCount > 0 && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700">
+            이전 버전의 `지출·분담` 기록 {legacyCount}건은 의미를 확인할 수 없어 합계에서 제외했습니다. 각 카드에서 직접 재입력하거나 이전 기록을 지울 수 있습니다.
           </div>
         )}
 
-        {/* 시세 비교 안내 */}
-        <Link
-          {...weddingLinkProps("/market-prices")}
-          className="group flex items-center gap-4 rounded-[18px] border border-[#eadfc9] bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-shadow hover:shadow-[0_12px_32px_rgba(8,22,38,0.055)] animate-fade-in md:px-5"
-        >
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#f7f3ec]">
-            <TrendingUp className="h-5 w-5 text-[#36534E]" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">MARKET COMPARISON</p>
-            <p className="font-serif-kr text-[18px] font-medium text-[#071629]">시세 대비 내 예산 확인</p>
-            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-[#5d6879]">한국소비자원 데이터 기반 · 카테고리별 시세 배지 표시 중</p>
-          </div>
-          <span className="hidden flex-shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-[#36534E] group-hover:underline sm:flex">
-            자세히 보기 <ArrowRight className="w-4 h-4" />
-          </span>
-          <ArrowRight className="h-5 w-5 flex-shrink-0 text-[#36534E] sm:hidden" />
-        </Link>
-
-        {/* 내 예약 내역 */}
-        <BookingsSection bookings={bookings} loading={bookingsLoading} />
-
-        {/* 스드메 패키지 - Editorial */}
-        <div className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
-          <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="flex -space-x-1">
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Camera className="w-5 h-5 text-[#795252]" />
-                </div>
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Shirt className="w-5 h-5 text-[#795252]" />
-                </div>
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
-                  <Palette className="w-5 h-5 text-[#795252]" />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">SDM PACKAGE</p>
-                <h3 className="h-section">스드메 패키지</h3>
-                <p className="text-sm text-[#504444] mt-0.5">스튜디오 · 드레스 · 메이크업</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="h-section break-words">
-                {formatWonFull(sdmSpent)} <span className="text-[#B5ADA3] text-base sm:text-lg">/ {formatWonFull(sdmBudget)}</span>
-              </p>
-              <p className="text-sm text-[#504444] mt-1">
-                {sdmBudget > 0 ? Math.round((sdmSpent / sdmBudget) * 100) : 0}% 사용
-              </p>
+        <section>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">MY FINANCIAL RECORDS</p>
+              <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">내가 시작한 금액 기록</h2>
+              <p className="mt-1 text-xs text-[#7a716a]">체크리스트 진행 상태와 금융·계약 상태는 서로 연결하지 않습니다.</p>
             </div>
           </div>
-          <div className="divide-y divide-[#f6f3f2]">
-            {SDM_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
-              const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
-              return (
-                <BudgetRow
-                  key={key}
-                  catKey={key}
-                  label={cat.label}
-                  icon={cat.icon}
-                  budget={getCategoryBudget(key)}
-                  spent={getCategorySpent(key)}
-                  status={getStatusLabel(key)}
-                  payer={getCategoryPayer(key)}
-                  totalBudget={totalBudget}
-                  onBudgetChange={handleBudgetChange}
-                  onSpentChange={handleSpentChange}
-                  onSpentReset={handleSpentReset}
-                  onPayerChange={handlePayerChange}
-                  onDelete={(k) => setDeletingKey(k)}
+
+          {activeCategories.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#d8cdbd] bg-white px-5 py-10 text-center">
+              <ReceiptText className="mx-auto h-8 w-8 text-[#a69b91]" />
+              <p className="mt-3 font-serif-kr text-lg text-[#243832]">아직 시작한 금액 기록이 없습니다</p>
+              <p className="mt-1 text-xs leading-relaxed text-[#7a716a]">필요한 항목만 아래에서 선택하세요. 선택 전에는 예산 기록으로 계산하지 않습니다.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {activeCategories.map(({ definition, record }) => (
+                <FinancialRecordCard
+                  key={definition.key}
+                  definition={definition}
+                  record={record}
+                  onEdit={() => openEditor(definition, definition.key.startsWith("custom_"))}
+                  onClearLegacy={() => clearLegacy(definition.key)}
                 />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-[#eadfc9] bg-white p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <Plus className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" />
+            <div>
+              <h2 className="font-serif-kr text-[21px] font-medium text-[#243832]">필요한 항목 추가</h2>
+              <p className="mt-1 text-xs leading-relaxed text-[#7a716a]">아래 항목은 선택 라이브러리입니다. 모두 해야 하는 절차나 권장 예산이 아닙니다.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {availableCategories.map((definition) => {
+              const Icon = definition.icon;
+              return (
+                <button
+                  key={definition.key}
+                  type="button"
+                  onClick={() => openEditor(definition)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#d8cdbd] bg-[#fbf8f2] px-3 py-2 text-xs font-medium text-[#36534E] hover:border-[#36534E]"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {definition.label}
+                </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* 기타 카테고리 헤더 */}
-        <div className="flex items-center justify-between gap-3 mb-4 animate-fade-in flex-wrap">
-          <div className="min-w-0">
-            <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">OTHER CATEGORIES</p>
-            <h3 className="h-section">기타 카테고리</h3>
-          </div>
-          <div className="flex items-center gap-1.5 text-sm text-[#B5ADA3]">
-            <Pencil className="w-4 h-4 text-[#795252]/50" />
-            클릭하여 수정
-          </div>
-        </div>
-
-        {/* 기타 카테고리 - 2열 그리드 카드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
-          {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
-            const cat = CATEGORY_RATIOS.find((c) => c.key === key)!;
-            return (
-              <BudgetCard
-                key={key}
-                catKey={key}
-                label={cat.label}
-                icon={cat.icon}
-                budget={getCategoryBudget(key)}
-                spent={getCategorySpent(key)}
-                status={getStatusLabel(key)}
-                payer={getCategoryPayer(key)}
-                totalBudget={totalBudget}
-                onBudgetChange={handleBudgetChange}
-                onSpentChange={handleSpentChange}
-                onSpentReset={handleSpentReset}
-                onPayerChange={handlePayerChange}
-                onDelete={(k) => setDeletingKey(k)}
-              />
-            );
-          })}
-
-          {/* 커스텀 카테고리 */}
-          {customCategories.map((cat) => (
-            <BudgetCard
-              key={cat.key}
-              catKey={cat.key}
-              label={cat.label}
-              icon={cat.icon}
-              budget={getCategoryBudget(cat.key)}
-              spent={getCategorySpent(cat.key)}
-              status={getStatusLabel(cat.key)}
-              payer={getCategoryPayer(cat.key)}
-              totalBudget={totalBudget}
-              onBudgetChange={handleBudgetChange}
-              onSpentChange={handleSpentChange}
-              onSpentReset={handleSpentReset}
-              onPayerChange={handlePayerChange}
-              onDelete={(k) => setDeletingKey(k)}
-            />
-          ))}
-
-          {/* 카테고리 추가 카드 */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="group flex items-center justify-center gap-3 bg-white/60 rounded-2xl p-6 border-2 border-dashed border-[#B5ADA3]/40 hover:border-[#795252] hover:bg-white transition-colors min-h-[180px]"
-          >
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center border-2 border-dashed border-[#B5ADA3]/60 group-hover:border-[#795252] transition-colors">
-              <Plus className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#795252]" />
-            </div>
-            <span className="text-base text-[#B5ADA3] group-hover:text-[#795252] font-serif-kr">새 항목 추가</span>
-          </button>
-        </div>
-
-        {/* 하단: Hidden Costs + AI Spotlight */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
-          {/* 추가비용 확인 섹션 */}
-          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-[#795252]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[#795252] mb-1 font-medium">CONTRACT CHECK</p>
-                <h3 className="h-section">추가비용 확인 항목</h3>
-                <p className="text-sm text-[#504444] mt-1">
-                  {additionalCostCategories.length > 0
-                    ? `진행 중인 ${additionalCostCategories.length}개 카테고리의 계약 범위를 확인해보세요.`
-                    : "해당하는 항목의 포함 범위와 별도 조건을 확인하세요."}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2.5 max-h-[240px] overflow-y-auto">
-              {(additionalCostCategories.length > 0
-                ? additionalCostCategories
-                : Object.keys(ADDITIONAL_COST_CHECKS).slice(0, 4)
-              ).map((key) => {
-                const cat = CATEGORY_RATIOS.find((c) => c.key === key);
-                const data = ADDITIONAL_COST_CHECKS[key];
-                if (!cat || !data) return null;
-                const Icon = ICON_MAP[cat.icon] ?? Building2;
-                return (
-                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#fcf9f8]">
-                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-[#795252]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#1b1c1c]">{cat.label}</p>
-                      <p className="text-xs text-[#504444] truncate">{data}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* AI Spotlight */}
-          <div className="relative rounded-2xl overflow-hidden min-h-[240px] sm:min-h-[280px] bg-gradient-to-br from-[#1a1a1a] to-[#3a2a2a] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-[#C9A96E]/10 blur-3xl" />
-            <div className="relative">
-              <p className="text-xs tracking-widest uppercase text-[#C9A96E] mb-3 font-medium">
-                AI 예산 분석
-              </p>
-              <h3 className="font-serif-kr text-2xl sm:text-3xl text-white mb-3 font-light break-words">
-                이 예산, 적정한가요?
-              </h3>
-              <p className="text-base text-white/70 mb-6 max-w-md">
-                아모라와 함께 입력한 예산과 계약 전 확인 질문을 정리해보세요.
-              </p>
-            </div>
-            <Link
-              {...weddingLinkProps("/chat")}
-              className="relative inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 hover:border-white pb-1 transition-colors self-start"
+            <button
+              type="button"
+              onClick={startCustomEditor}
+              className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[#795252] px-3 py-2 text-xs font-medium text-[#795252] hover:bg-[#795252]/5"
             >
-              아모라에게 물어보기
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+              <Tag className="h-3.5 w-3.5" />
+              직접 추가
+            </button>
           </div>
-        </div>
+        </section>
 
-        {/* 배분 안내 */}
-        <div className="mt-4 px-2 mb-8 animate-fade-in">
-          <p className="text-[11px] text-[#B5ADA3] text-center">
-            {totalAllocated !== totalBudget && (
-              <span className="text-[#795252]">
-                배분 합계 {formatWonFull(totalAllocated)} (총 예산과 {formatWonFull(Math.abs(totalBudget - totalAllocated))} {totalAllocated > totalBudget ? "초과" : "차이"})
-              </span>
-            )}
-            {totalAllocated === totalBudget && (
-              <span>배분 합계가 총 예산과 일치합니다</span>
-            )}
-          </p>
-        </div>
-
-        {/* 새 항목 추가 모달 */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <div className="relative bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">새 항목 추가</h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">카테고리 이름 <span className="text-[#795252]">*</span></label>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={newCatLabel}
-                    onChange={(e) => setNewCatLabel(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && newCatLabel.trim()) handleAddCategory(); }}
-                    placeholder="예: 웨딩카, 답례떡"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">예산 (만원)</label>
-                    <input
-                      type="number"
-                      value={newCatBudget}
-                      onChange={(e) => setNewCatBudget(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">지출 (만원)</label>
-                    <input
-                      type="number"
-                      value={newCatSpent}
-                      onChange={(e) => setNewCatSpent(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3f2] text-[14px] text-[#1b1c1c] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={handleAddCategory}
-                  disabled={!newCatLabel.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-[#795252] text-white text-[13px] font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors"
-                >
-                  추가
-                </button>
-              </div>
-            </div>
+        <Link
+          {...weddingLinkProps("/market-prices")}
+          className="group flex items-center gap-4 rounded-2xl border border-[#eadfc9] bg-white p-5 hover:shadow-[0_8px_24px_rgba(8,22,38,0.05)]"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#eef2ef]">
+            <FileCheck2 className="h-5 w-5 text-[#36534E]" />
           </div>
-        )}
-
-        {/* 삭제 확인 모달 */}
-        {deletingKey && (() => {
-          const isFixed = KNOWN_KEYS.has(deletingKey);
-          const catLabel = (() => {
-            const cat = CATEGORY_RATIOS.find((c) => c.key === deletingKey);
-            return cat ? cat.label : (progress[deletingKey]?.label ?? deletingKey);
-          })();
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-              <div className="relative bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif-kr text-[17px] font-light text-[#1b1c1c]">
-                      {isFixed ? "항목 관리" : "항목 삭제"}
-                    </h3>
-                    <p className="text-[12px] text-[#B5ADA3] mt-0.5">
-                      <span className="font-medium text-[#504444]">{catLabel}</span>
-                      {isFixed
-                        ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
-                        : " 항목이 완전히 삭제됩니다."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
-                  {isFixed ? (
-                    <>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleResetCategory(deletingKey)}
-                          className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#795252] font-medium hover:bg-[#795252]/10 transition-colors"
-                        >
-                          데이터 초기화
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(deletingKey)}
-                          className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
-                        >
-                          항목 삭제
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => setDeletingKey(null)}
-                        className="py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                      >
-                        취소
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => setDeletingKey(null)}
-                        className="flex-1 py-2.5 rounded-xl bg-[#f6f3f2] text-[13px] text-[#504444] hover:bg-[#EFEBEA] transition-colors"
-                      >
-                        취소
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(deletingKey)}
-                        className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
-                      >
-                        삭제
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+          <div className="min-w-0 flex-1">
+            <p className="font-serif-kr text-[18px] font-medium text-[#243832]">공식 조사 자료의 범위 확인</p>
+            <p className="mt-1 text-xs leading-relaxed text-[#7a716a]">공개 통계는 개인 견적이나 계약의 적정성을 판정하지 않습니다.</p>
+          </div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-[#36534E] transition-transform group-hover:translate-x-1" />
+        </Link>
       </div>
+
+      {editor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !saving && setEditor(null)} aria-label="편집 닫기" />
+          <div className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">MANUAL RECORD</p>
+                <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">금액 기록 편집</h2>
+              </div>
+              <button type="button" onClick={() => setEditor(null)} disabled={saving} className="rounded-lg p-2 text-[#7a716a] hover:bg-[#f5f1ec]"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {editor.custom ? (
+                <label className="block">
+                  <span className="text-xs font-medium text-[#504a46]">항목 이름</span>
+                  <input value={editor.label} onChange={(event) => setEditor({ ...editor, label: event.target.value })} maxLength={60} className="mt-1.5 w-full rounded-xl border border-[#d8cdbd] px-3.5 py-3 text-sm outline-none focus:border-[#36534E]" />
+                </label>
+              ) : (
+                <div className="rounded-xl bg-[#fbf8f2] px-4 py-3 text-sm font-medium text-[#243832]">{editor.label}</div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-[#504a46]">내 계획 예산</span>
+                  <span className="mt-0.5 block text-[10px] leading-relaxed text-[#8c847d]">계약 전 스스로 정한 상한·목표</span>
+                  <div className="mt-1.5 flex items-center gap-2"><input value={editor.budget} onChange={(event) => setEditor({ ...editor, budget: event.target.value })} inputMode="decimal" placeholder="미입력" className="min-w-0 flex-1 rounded-xl border border-[#d8cdbd] px-3.5 py-3 text-sm outline-none focus:border-[#36534E]" /><span className="text-xs text-[#7a716a]">만원</span></div>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-[#504a46]">서명한 계약 총액</span>
+                  <span className="mt-0.5 block text-[10px] leading-relaxed text-[#8c847d]">업체 원문을 확인하고 직접 서명한 뒤 입력</span>
+                  <div className="mt-1.5 flex items-center gap-2"><input value={editor.contractedTotal} onChange={(event) => setEditor({ ...editor, contractedTotal: event.target.value })} inputMode="decimal" placeholder="미입력" className="min-w-0 flex-1 rounded-xl border border-[#d8cdbd] px-3.5 py-3 text-sm outline-none focus:border-[#36534E]" /><span className="text-xs text-[#7a716a]">만원</span></div>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-[#504a46]">실제 누적 납부액</span>
+                  <span className="mt-0.5 block text-[10px] leading-relaxed text-[#8c847d]">계약금·중도금·잔금 중 실제 보낸 금액의 합</span>
+                  <div className="mt-1.5 flex items-center gap-2"><input value={editor.paidToDate} onChange={(event) => setEditor({ ...editor, paidToDate: event.target.value })} inputMode="decimal" placeholder="미입력" className="min-w-0 flex-1 rounded-xl border border-[#d8cdbd] px-3.5 py-3 text-sm outline-none focus:border-[#36534E]" /><span className="text-xs text-[#7a716a]">만원</span></div>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-[#504a46]">다음 납부 예정액</span>
+                  <span className="mt-0.5 block text-[10px] leading-relaxed text-[#8c847d]">계약 원문에 적힌 다음 금액만 입력</span>
+                  <div className="mt-1.5 flex items-center gap-2"><input value={editor.nextPaymentAmount} onChange={(event) => setEditor({ ...editor, nextPaymentAmount: event.target.value })} inputMode="decimal" placeholder="미입력" className="min-w-0 flex-1 rounded-xl border border-[#d8cdbd] px-3.5 py-3 text-sm outline-none focus:border-[#36534E]" /><span className="text-xs text-[#7a716a]">만원</span></div>
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-xs font-medium text-[#504a46]">다음 납부일</span>
+                <span className="mt-0.5 block text-[10px] leading-relaxed text-[#8c847d]">서비스가 기한을 추정하지 않습니다. 계약 원문 날짜만 직접 입력하세요.</span>
+                <div className="relative mt-1.5"><CalendarClock className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#8c847d]" /><input type="date" value={editor.nextPaymentDate} onChange={(event) => setEditor({ ...editor, nextPaymentDate: event.target.value })} className="w-full rounded-xl border border-[#d8cdbd] py-3 pl-10 pr-3 text-sm outline-none focus:border-[#36534E]" /></div>
+              </label>
+
+              <div className="rounded-xl bg-[#eef2ef] px-3.5 py-3 text-[11px] leading-relaxed text-[#52635a]">
+                웨딩한방은 계약서 원본·송금 내역을 검증하지 않습니다. 입력값은 커플의 정리용 기록이며 업체 견적, 계약 효력, 납부 증빙을 대신하지 않습니다.
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {hasFinancialRecord(progress[editor.key]) && (
+                <button type="button" onClick={() => void clearCategory()} disabled={saving} className="mr-auto inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />금액 기록 비우기</button>
+              )}
+              <button type="button" onClick={() => setEditor(null)} disabled={saving} className="rounded-xl bg-[#f5f1ec] px-4 py-2.5 text-sm text-[#5d6879] disabled:opacity-50">취소</button>
+              <button type="button" onClick={() => void saveEditor()} disabled={saving} className="rounded-xl bg-[#36534E] px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving ? "저장 중…" : "직접 입력한 값 저장"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

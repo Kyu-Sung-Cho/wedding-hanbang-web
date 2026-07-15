@@ -14,7 +14,7 @@ describe("settings control accessibility regression", () => {
   );
 
   it("names every profile and journey edit action", () => {
-    for (const field of ["이름", "결혼 예정일", "예식장", "설정 예산"]) {
+    for (const field of ["계정 이름", "결혼 예정일", "예식장", "설정 예산"]) {
       expect(source).toContain(`aria-label="${field} 편집"`);
       expect(source).toContain(`aria-label="${field} 저장"`);
       expect(source).toContain(`aria-label="${field} 편집 취소"`);
@@ -22,10 +22,12 @@ describe("settings control accessibility regression", () => {
   });
 
   it("identifies editable inputs and exposes each preference toggle state", () => {
-    expect(source).toContain('aria-label="이름"');
+    expect(source).toContain('aria-label="이름 또는 서로 부를 이름"');
     expect(source).toContain('aria-label="결혼 예정일"');
     expect(source).toContain('aria-label="예식장"');
     expect(source).toContain('aria-label="설정 예산 (만원)"');
     expect(source.match(/aria-pressed=\{selected\}/g)).toHaveLength(4);
+    expect(source).toContain('role="switch"');
+    expect(source).toContain("aria-checked={notifications[item.key]}");
   });
 });

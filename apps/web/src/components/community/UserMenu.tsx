@@ -6,10 +6,8 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import {
   User,
-  CalendarCheck,
-  Bookmark,
-  Users,
   Activity,
+  EyeOff,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -25,7 +23,7 @@ interface MenuItem {
 
 /**
  * 로그인된 사용자용 드롭다운 메뉴.
- * "내 예약 / 내 활동 / 즐겨찾기 / 동기방 / 설정 / 로그아웃" 한 곳에서.
+ * "내 활동 / 설정 / 로그아웃" 한 곳에서.
  * - 외부 클릭 / Esc 키로 닫힘
  * - 모바일에서도 동일 데스크탑 UI (모바일 메뉴는 별도 처리)
  */
@@ -63,10 +61,8 @@ export default function UserMenu() {
   }, [open]);
 
   const items: MenuItem[] = [
-    { linkProps: weddingLinkProps("/bookings"), label: "내 예약", sub: "업체 예약 현황", Icon: CalendarCheck },
     { linkProps: weddingLinkProps("/community/my"), label: "내 활동", sub: "내가 쓴 글·댓글·투표", Icon: Activity },
-    { linkProps: weddingLinkProps("/favorites"), label: "즐겨찾기", sub: "찜한 업체", Icon: Bookmark },
-    { linkProps: weddingLinkProps("/community/cohort"), label: "동기방", sub: "같은 시기 예비부부", Icon: Users },
+    { linkProps: weddingLinkProps("/community/my/muted"), label: "숨긴 작성자", sub: "글·댓글 숨김 해제", Icon: EyeOff },
     { linkProps: weddingLinkProps("/settings"), label: "설정", sub: "프로필·알림·계정", Icon: Settings },
     { onClick: handleLogout, label: "로그아웃", sub: "", Icon: LogOut },
   ];

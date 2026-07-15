@@ -1,5 +1,7 @@
 # Session Handoff - 2026-07-02
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시 PR·CI·Vercel·브랜치·커밋과 resume 명령은 현재 상태나 실행 지침이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](../CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **Historical handoff snapshot.** Branch, commit, deployment, and resume instructions below are not current. Re-check Git and use `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md` before acting.
 

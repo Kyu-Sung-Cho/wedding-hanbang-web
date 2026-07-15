@@ -1,5 +1,8 @@
 # 견적 등기소 마스터플랜 — 계약 서비스 제외 확정판 (2026-06-10)
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 견적 등기, 자동 공개·유통, 업체 리드·신뢰 판정은 승인된 기능이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 전략 스냅샷입니다.** 현재 견적은 기본 비공개이며 명시적 게시·철회 전에는 공개하지 않습니다. 업체 리드·예산·커뮤니티로 자동 적재하지 않고, 모델 기반 쓰기도 비활성입니다. 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

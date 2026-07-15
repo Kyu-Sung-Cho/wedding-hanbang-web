@@ -8,19 +8,16 @@ import {
   Bookmark,
   Share2,
   Flag,
+  EyeOff,
   Lock,
   ImageIcon,
   X,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
   Heart,
   List,
   Eye,
-  Wallet,
-  ShieldCheck,
   AlertTriangle,
-  Sparkles,
   CheckCircle2,
+  Loader2,
   Pin,
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -28,27 +25,17 @@ import { useCommunityStore } from "@/stores/communityStore";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { timeAgo } from "@/utils/timeAgo";
 import { sanitizeHtml } from "@/utils/sanitize";
-import AiCommentBox from "@/components/community/AiCommentBox";
-import CostShareDisplay from "@/components/community/CostShareDisplay";
 import CommentSection from "@/components/community/CommentSection";
 import ServiceCTA from "@/components/community/ServiceCTA";
 import Avatar from "@/components/community/Avatar";
 import AdDisclosureBadge from "@/components/community/AdDisclosureBadge";
 import PollDisplay from "@/components/community/PollDisplay";
-import SlideCarousel from "@/components/community/SlideCarousel";
-import { useCommentsRealtime } from "@/hooks/useCommentsRealtime";
+import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import { communityCategoryFeedPath, communityPostPath } from "@/lib/community/routes";
 import { pathWithAuthReturn } from "@/lib/authReturnPath";
 import { weddingPath } from "@/lib/weddingPaths";
 import type { PollWithOptions, PostWithAuthor } from "@/types/community.types";
-
-// 비용 포맷 헬퍼 (PostCard와 동일)
-function formatPrice(value: number): string {
-  if (value >= 10000) {
-    return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}억`;
-  }
-  return value.toLocaleString("ko-KR");
-}
+import { communityHtmlToPlainText } from "@hanbang/shared";
 
 // 신고 사유 옵션
 const REPORT_REASONS = [
@@ -60,21 +47,12 @@ const REPORT_REASONS = [
 ] as const;
 
 function stripHtmlPreview(value: string, maxLength = 72) {
-  return value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength);
+  return communityHtmlToPlainText(value).slice(0, maxLength);
 }
 
-function getPostThumbnail(post: PostWithAuthor) {
-  const firstSlide = post.slides?.[0];
-  if (firstSlide) {
-    return firstSlide.thumbnail_url || (firstSlide.type === "image" ? firstSlide.url : null);
-  }
-  if (post.images?.[0]) return post.images[0];
-  const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
-  return match ? match[1] : null;
+function getPostThumbnail(_post: PostWithAuthor) {
+  void _post;
+  return null;
 }
 
 export default function PostDetailPage() {
@@ -83,21 +61,22 @@ export default function PostDetailPage() {
   const postId = params.id as string;
 
   const {
-    currentPost: post,
+    currentPost,
     postLoading,
+    postLoadPostId,
+    postLoadStatus,
+    postLoadError,
     fetchPostDetail,
     incrementView,
     votePost,
     toggleBookmark,
     deletePost,
+    hideAuthorLocally,
   } = useCommunityStore();
-
-  // 댓글 리얼타임 구독
-  useCommentsRealtime(postId);
+  const post = currentPost?.id === postId ? currentPost : null;
 
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [shareToast, setShareToast] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // 신고 모달 상태
   const [showReportModal, setShowReportModal] = useState(false);
@@ -107,12 +86,23 @@ export default function PostDetailPage() {
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [reportError, setReportError] = useState("");
 
+  // 작성자 숨김 상태
+  const [showMuteModal, setShowMuteModal] = useState(false);
+  const [muteSubmitting, setMuteSubmitting] = useState(false);
+  const [muteSucceeded, setMuteSucceeded] = useState(false);
+  const [muteError, setMuteError] = useState("");
+  const { dialogRef: muteDialogRef } = useAccessibleDialog({
+    isOpen: showMuteModal,
+    onClose: closeMuteModal,
+  });
+
   // 삭제 확인 모달
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // 로그인 필요 알림
   const [loginToast, setLoginToast] = useState(false);
+  const [mutationToast, setMutationToast] = useState("");
 
   // 낙관적 투표 UI (PostCard 패턴)
   const [optimisticVote, setOptimisticVote] = useState<1 | null | undefined>(undefined);
@@ -267,25 +257,6 @@ export default function PostDetailPage() {
     }
   }
 
-  // 라이트박스 네비게이션
-  function handleLightboxPrev(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (lightboxIndex !== null && post?.images) {
-      setLightboxIndex(
-        lightboxIndex === 0 ? post.images.length - 1 : lightboxIndex - 1
-      );
-    }
-  }
-
-  function handleLightboxNext(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (lightboxIndex !== null && post?.images) {
-      setLightboxIndex(
-        lightboxIndex === post.images.length - 1 ? 0 : lightboxIndex + 1
-      );
-    }
-  }
-
   // 좋아요 핸들러
   const handleVote = useCallback(
     async () => {
@@ -316,8 +287,22 @@ export default function PostDetailPage() {
     [user, isVoting, post, votePost]
   );
 
+  const handleBookmark = useCallback(async () => {
+    if (!user) {
+      setLoginToast(true);
+      setTimeout(() => setLoginToast(false), 2000);
+      return;
+    }
+    if (!post) return;
+    const ok = await toggleBookmark(post.id, post.user_bookmarked !== true);
+    if (!ok) {
+      setMutationToast("북마크를 저장하지 못했어요. 다시 시도해주세요.");
+      setTimeout(() => setMutationToast(""), 2500);
+    }
+  }, [post, toggleBookmark, user]);
+
   // 로딩
-  if (postLoading) {
+  if (postLoadPostId !== postId || postLoading || postLoadStatus === "idle" || postLoadStatus === "loading") {
     return (
       <div className="min-h-screen bg-[#FAFAF8]">
         <div className="mx-auto max-w-4xl xl:max-w-5xl px-4 sm:px-6 lg:px-8 py-5">
@@ -334,6 +319,92 @@ export default function PostDetailPage() {
                 <div className="h-4 w-full bg-[#F0EFED] rounded-lg" />
                 <div className="h-4 w-2/3 bg-[#F0EFED] rounded-lg" />
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function handleMuteClick() {
+    if (!user || !post || post.viewer_is_author) return;
+    setMuteError("");
+    setMuteSucceeded(false);
+    setShowMuteModal(true);
+  }
+
+  function closeMuteModal() {
+    if (muteSubmitting) return;
+    if (muteSucceeded) {
+      setShowMuteModal(false);
+      router.push(weddingPath());
+      return;
+    }
+    setShowMuteModal(false);
+    setMuteError("");
+    setMuteSucceeded(false);
+  }
+
+  async function handleMuteAuthor() {
+    if (!user || !post || post.viewer_is_author || muteSubmitting) return;
+    setMuteSubmitting(true);
+    setMuteError("");
+
+    try {
+      const response = await fetch("/api/community/mutes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: post.author_id }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: unknown;
+        muted?: unknown;
+      } | null;
+      if (!response.ok) {
+        setMuteError(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "작성자의 글을 숨기지 못했습니다. 다시 시도해 주세요.",
+        );
+        return;
+      }
+      if (payload?.muted !== true) {
+        setMuteError("작성자 숨김 결과를 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      hideAuthorLocally(post.author_id);
+      setMuteSucceeded(true);
+    } catch {
+      setMuteError("네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
+    } finally {
+      setMuteSubmitting(false);
+    }
+  }
+
+  if (postLoadStatus === "error") {
+    return (
+      <div className="min-h-screen bg-[#FAFAF8]">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-red-200 bg-white p-8 shadow-sm" role="alert">
+            <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+            <p className="font-medium text-[#1A1A1F]">게시글을 불러오지 못했습니다</p>
+            <p className="mt-1 text-sm text-[#878680]">
+              {postLoadError ?? "잠시 후 다시 시도해주세요."}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => void fetchPostDetail(postId)}
+                className="rounded-lg bg-[#36534E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2B423E]"
+              >
+                다시 시도
+              </button>
+              <Link
+                href={weddingPath()}
+                className="rounded-lg border border-[#F0EFED] bg-white px-4 py-2 text-sm font-medium text-[#635b51]"
+              >
+                커뮤니티로 돌아가기
+              </Link>
             </div>
           </div>
         </div>
@@ -369,7 +440,7 @@ export default function PostDetailPage() {
   // 멤버전용 & 비로그인
   const isMembersOnly = post.visibility === "members" && !user;
   const categoryInfo = CATEGORY_MAP[post.category];
-  const isAuthor = user && user.id === post.author_id;
+  const isAuthor = post.viewer_is_author;
 
   // 좋아요 표시값 (낙관적 UI)
   const displayVote = optimisticVote !== undefined ? optimisticVote : (post.user_vote === 1 ? 1 : null);
@@ -377,7 +448,7 @@ export default function PostDetailPage() {
   const isLiked = displayVote === 1;
 
   // 작성자 정보 (PostCard 패턴)
-  const author = post.author ?? { nickname: "익명", avatar_url: null, wedding_year: null, wedding_month: null };
+  const author = post.author;
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
@@ -423,7 +494,6 @@ export default function PostDetailPage() {
                   <Avatar
                     nickname={author.nickname}
                     avatarUrl={author.avatar_url}
-                    role={author.role ?? null}
                     size={36}
                     className="ring-2 ring-white shadow-sm"
                   />
@@ -436,16 +506,6 @@ export default function PostDetailPage() {
                 >
                   {author.nickname}
                 </Link>
-
-                {/* 결혼 동기 */}
-                {author.wedding_year && author.wedding_month && (
-                  <>
-                    <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
-                    <span className="text-[13px] text-[#878680] whitespace-nowrap">
-                      {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
-                    </span>
-                  </>
-                )}
 
                 {/* 시간 */}
                 <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
@@ -470,12 +530,6 @@ export default function PostDetailPage() {
                     <AdDisclosureBadge adDisclosure={post.ad_disclosure} size="sm" />
                   </span>
                 )}
-                {post.is_verified_review && (
-                  <span className="ml-1 inline-flex items-center gap-1 text-[#B89785] text-xs font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    인증후기
-                  </span>
-                )}
                 {post.under_review && (
                   <span className="ml-1 inline-flex items-center gap-1 text-[#B91C1C] text-xs font-medium">
                     <AlertTriangle className="w-3.5 h-3.5" />
@@ -494,7 +548,7 @@ export default function PostDetailPage() {
                 )}
                 {post.is_weekly_best && (
                   <span className="text-[#B89785] text-sm font-medium mr-2 align-middle">
-                    BEST
+                    주간 인기
                   </span>
                 )}
                 {post.is_resolved && (
@@ -503,25 +557,8 @@ export default function PostDetailPage() {
                     해결됨
                   </span>
                 )}
-                {post.ai_comment && (
-                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
-                    <Sparkles className="w-4 h-4" />
-                    AI 분석
-                  </span>
-                )}
                 {post.title}
               </h1>
-
-              {/* 카드 게시물 슬라이드 — 본문 위에 인스타 캐러셀로 렌더 */}
-              {!isMembersOnly && Array.isArray(post.slides) && post.slides.length > 0 && (
-                <div className="mb-4">
-                  <SlideCarousel
-                    slides={post.slides}
-                    aspect="4/5"
-                    className="mx-auto w-full max-w-[420px] sm:max-w-[500px] lg:max-w-[560px]"
-                  />
-                </div>
-              )}
 
               {/* 본문 */}
               <div className="relative">
@@ -561,138 +598,6 @@ export default function PostDetailPage() {
                 )}
               </div>
 
-              {/* 이미지 갤러리 — 카드 게시물(슬라이드)이면 위 캐러셀이 담당하므로 숨김 */}
-              {!isMembersOnly && (!post.slides || post.slides.length === 0) && post.images && post.images.length > 0 && (
-                <div className="mx-auto mt-4 max-w-[560px]">
-                  <div
-                    className={`grid gap-2 ${
-                      post.images.length === 1
-                        ? "grid-cols-1"
-                        : post.images.length === 2
-                        ? "grid-cols-2"
-                        : post.images.length === 3
-                        ? "grid-cols-2 sm:grid-cols-3"
-                        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
-                    }`}
-                  >
-                    {post.images.map((src, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => !(/\.(mp4|mov|webm)(\?|$)/i.test(src)) && setLightboxIndex(idx)}
-                        className={`relative overflow-hidden rounded-xl bg-[#FAFAF8] hover:opacity-90 transition-all duration-200 ${
-                          post.images!.length === 1
-                            ? "h-[200px] sm:h-[260px]"
-                            : "h-[108px] sm:h-[136px]"
-                        }`}
-                      >
-                        {/\.(mp4|mov|webm)(\?|$)/i.test(src) ? (
-                          <video
-                            src={src}
-                            controls
-                            playsInline
-                            preload="metadata"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Image
-                            src={src}
-                            alt={`이미지 ${idx + 1}`}
-                            fill
-                            className={post.images!.length === 1 ? "object-contain" : "object-cover"}
-                          />
-                        )}
-                        {/* 4장 이상이고 마지막 보이는 셀일 때 오버레이 */}
-                        {post.images!.length > 6 && idx === 5 && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <span className="text-white text-lg font-bold">
-                              +{post.images!.length - 6}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 아모라 AI 가격 코멘트 (출처 기반 시세 비교, AI 표기) */}
-              {!isMembersOnly && post.ai_comment && (
-                <div className="mt-5">
-                  <AiCommentBox aiComment={post.ai_comment} />
-                </div>
-              )}
-
-              {/* 라이트박스 */}
-              {lightboxIndex !== null && post.images && (
-                <div
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-                  onClick={() => setLightboxIndex(null)}
-                >
-                  {/* 닫기 버튼 */}
-                  <button
-                    type="button"
-                    onClick={() => setLightboxIndex(null)}
-                    className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-
-                  {/* 이전 버튼 */}
-                  {post.images.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={handleLightboxPrev}
-                      className="absolute left-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                  )}
-
-                  {/* 이미지 */}
-                  <Image
-                    src={post.images[lightboxIndex]}
-                    alt=""
-                    width={1200}
-                    height={900}
-                    className="max-w-full max-h-[90vh] object-contain rounded-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-
-                  {/* 다음 버튼 */}
-                  {post.images.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={handleLightboxNext}
-                      className="absolute right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors"
-                    >
-                      <ChevronRightIcon className="w-5 h-5" />
-                    </button>
-                  )}
-
-                  {/* 인디케이터 */}
-                  {post.images.length > 1 && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
-                      {post.images.map((_, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLightboxIndex(idx);
-                          }}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            idx === lightboxIndex
-                              ? "bg-white"
-                              : "bg-white/40"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* 폴(투표/설문) */}
               {!isMembersOnly && post.poll && (
                 <PollDisplay
@@ -702,42 +607,7 @@ export default function PostDetailPage() {
                       user_voted_option_ids: post.poll.user_voted_option_ids ?? [],
                     } as PollWithOptions
                   }
-                  isAuthenticated={!!user}
-                  onLoginRequired={() => {
-                    setLoginToast(true);
-                    setTimeout(() => setLoginToast(false), 2000);
-                  }}
                 />
-              )}
-
-              {/* 비용 요약 바 + 상세 비용 데이터 */}
-              {!isMembersOnly && post.cost_data && (
-                <div className="mt-4 space-y-3">
-                  {/* 인라인 가격 요약 바 (PostCard 패턴) */}
-                  <div className="bg-[#FDFCFA] rounded-xl px-4 py-3 border border-[#F5F2ED] flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                      <Wallet className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">총 비용</p>
-                      <p className="text-base font-semibold text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</p>
-                    </div>
-                    {post.cost_data.region && (
-                      <div className="ml-4">
-                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">지역</p>
-                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.region}</p>
-                      </div>
-                    )}
-                    {post.cost_data.guestCount && (
-                      <div className="ml-4">
-                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">하객</p>
-                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.guestCount}명</p>
-                      </div>
-                    )}
-                  </div>
-                  {/* 상세 비용 표시 */}
-                  <CostShareDisplay data={post.cost_data} />
-                </div>
               )}
 
               {/* 태그 */}
@@ -754,37 +624,6 @@ export default function PostDetailPage() {
                   ))}
                 </div>
               )}
-
-              {/* 벤더 태그 */}
-              {!isMembersOnly &&
-                post.vendor_details &&
-                post.vendor_details.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {post.vendor_details.map((vendor) => (
-                      <Link
-                        key={vendor.id}
-                        href={weddingPath(`/vendors/${vendor.id}`)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-lg hover:border-[#B5ADA3] transition-all duration-200"
-                      >
-                        {vendor.thumbnail_url && (
-                          <Image
-                            src={vendor.thumbnail_url}
-                            alt=""
-                            width={16}
-                            height={16}
-                            className="w-4 h-4 rounded-full object-cover"
-                          />
-                        )}
-                        {vendor.business_name}
-                        {vendor.rating != null && (
-                          <span className="text-[#878680]">
-                            {vendor.rating.toFixed(1)}
-                          </span>
-                        )}
-                      </Link>
-                    ))}
-                  </div>
-                )}
 
               {/* 액션바 — 모바일: wrap 허용 / 데스크탑: 한 줄 */}
               <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[#B5ADA3]">
@@ -825,14 +664,7 @@ export default function PostDetailPage() {
                 {/* 북마크 */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!user) {
-                      setLoginToast(true);
-                      setTimeout(() => setLoginToast(false), 2000);
-                      return;
-                    }
-                    toggleBookmark(post.id);
-                  }}
+                  onClick={() => void handleBookmark()}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
                     post.user_bookmarked ? "text-[#36534E]" : ""
                   }`}
@@ -854,6 +686,18 @@ export default function PostDetailPage() {
                   <Flag className="w-4 h-4" />
                   신고
                 </button>
+
+                {/* 작성자 숨김 — 본인 글이 아닌 로그인 사용자에게만 제공 */}
+                {user && !isAuthor && (
+                  <button
+                    type="button"
+                    onClick={handleMuteClick}
+                    className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] hover:text-[#635B51] transition-all duration-200 whitespace-nowrap"
+                  >
+                    <EyeOff className="w-4 h-4" />
+                    작성자 글 숨기기
+                  </button>
+                )}
 
                 {/* 수정/삭제 (작성자만) */}
                 {isAuthor && (
@@ -883,10 +727,6 @@ export default function PostDetailPage() {
           <div className="mt-3">
             <ServiceCTA
               category={post.category}
-              postId={post.id}
-              postTitle={post.title}
-              postContent={isMembersOnly ? undefined : post.content}
-              priceData={isMembersOnly ? undefined : post.price_data}
             />
           </div>
         )}
@@ -913,6 +753,116 @@ export default function PostDetailPage() {
         {loginToast && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded-lg shadow-lg animate-fade-in">
             로그인이 필요합니다
+          </div>
+        )}
+
+        {mutationToast && (
+          <div
+            role="alert"
+            className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#1A1A1F] px-4 py-2 text-sm text-white shadow-lg animate-fade-in"
+          >
+            {mutationToast}
+          </div>
+        )}
+
+        {/* 작성자 숨김 확인 및 결과 */}
+        {showMuteModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={closeMuteModal}
+          >
+            <div
+              ref={muteDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mute-author-title"
+              aria-describedby="mute-author-description"
+              tabIndex={-1}
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[#F0EFED] px-5 py-4">
+                <h2 id="mute-author-title" className="text-base font-semibold text-[#1A1A1F]">
+                  {muteSucceeded ? "작성자를 숨겼습니다" : "이 작성자의 글을 숨길까요?"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeMuteModal}
+                  disabled={muteSubmitting}
+                  aria-label={muteSucceeded ? "창을 닫고 커뮤니티로 이동" : "작성자 숨김 창 닫기"}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#878680] transition-colors hover:bg-[#FAFAF8] disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {muteSucceeded ? (
+                <div className="px-5 py-6">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F2F6F0] text-[#36534E]">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
+                  <p id="mute-author-description" className="mt-4 text-sm leading-6 text-[#635B51]">
+                    이제 <strong className="font-semibold text-[#263832]">{author.nickname}</strong>님의 공개 글과 과거 댓글은 내 커뮤니티에서 보이지 않습니다. 언제든 숨긴 작성자 관리에서 해제할 수 있습니다.
+                  </p>
+                  <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                    <Link
+                      href={weddingPath()}
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E]"
+                    >
+                      커뮤니티로 이동
+                    </Link>
+                    <Link
+                      href={weddingPath("/community/my/muted")}
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#F2F6F0]"
+                    >
+                      숨긴 작성자 관리
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="px-5 py-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F7F1E8] text-[#6D806E]">
+                        <EyeOff className="h-5 w-5" />
+                      </div>
+                      <p id="mute-author-description" className="text-sm leading-6 text-[#635B51]">
+                        <strong className="font-semibold text-[#263832]">{author.nickname}</strong>님의 공개 글과 과거 댓글이 피드·검색·게시글에서 보이지 않게 됩니다. 숨긴 작성자 관리에서 언제든 되돌릴 수 있습니다.
+                      </p>
+                    </div>
+
+                    {muteError && (
+                      <div
+                        role="alert"
+                        className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+                      >
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{muteError} 숨김 설정은 변경되지 않았습니다.</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-2 border-t border-[#F0EFED] bg-[#FAFAF8] px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={closeMuteModal}
+                      disabled={muteSubmitting}
+                      className="min-h-11 rounded-xl px-4 text-sm font-semibold text-[#635B51] transition-colors hover:bg-[#F0EFED] disabled:opacity-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleMuteAuthor()}
+                      disabled={muteSubmitting}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#36534E] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#2B423E] disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {muteSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {muteSubmitting ? "숨기는 중..." : "숨기기"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -964,9 +914,16 @@ export default function PostDetailPage() {
                     >
                       <X className="w-4 h-4" />
                     </button>
-                  </div>
+              </div>
 
-                  {/* 본문 */}
+              {post.ad_disclosure === "sponsored" && post.sponsorship_detail && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                  <strong className="mr-2 font-semibold">작성자가 밝힌 협찬 혜택</strong>
+                  {post.sponsorship_detail}
+                </div>
+              )}
+
+              {/* 본문 */}
                   <div className="px-5 py-4">
                     <p className="text-sm text-[#878680] mb-4">
                       신고 사유를 선택해 주세요.

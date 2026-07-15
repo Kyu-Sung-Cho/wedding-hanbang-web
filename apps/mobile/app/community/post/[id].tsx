@@ -1,78 +1,68 @@
 // 게시글 상세 + 댓글 + 투표/북마크
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated,
+  View, Text, ScrollView, StyleSheet, Pressable,
+  ActivityIndicator, Alert, Animated, Linking,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { ChevronUp, MessageCircle, Send, Bookmark, FileText } from "lucide-react-native";
+import { ChevronUp, MessageCircle, Bookmark, FileText, EyeOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { communityHtmlToPlainText } from "@hanbang/shared";
 import { apiFetch, apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
+  clearCommunityCaches,
   getCachedCommunityComments,
   getCachedCommunityPost,
   putCachedCommunityComments,
   putCachedCommunityPost,
-  type CachedCommunityComment,
   type CachedCommunityPost,
 } from "@/lib/communityPostCache";
+import { muteCommunityAuthor } from "@/lib/communityMutes";
+import { CommunityAvatar } from "@/components/community/CommunityAvatar";
 import {
-  CommunityAvatar,
-  type CommunityAvatarRole,
-} from "@/components/community/CommunityAvatar";
+  hasTrustedCommunityActor,
+  type MobileCommunityAuthor,
+} from "@/lib/communityPublicPayload";
 import { AppHeader, EmptyState, LoadingState } from "@/components/ui/AppUI";
+import ErrorRetry from "@/components/ErrorRetry";
 
 interface PostDetail {
   id: string;
+  author_id: string;
+  viewer_is_author: boolean;
   title: string;
   content: string;
   category: string;
   ad_disclosure: string;
+  sponsorship_detail: string | null;
   upvote_count: number;
   downvote_count: number;
   comment_count: number;
   view_count: number;
+  visibility: "public" | "members" | "draft";
+  under_review: boolean;
   created_at: string;
-  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
+  author: MobileCommunityAuthor;
 }
 
 interface Comment {
   id: string;
+  author_id: string;
+  viewer_is_author: boolean;
   content: string;
   created_at: string;
-  author: { nickname: string; rank: string; role?: CommunityAvatarRole | null } | null;
+  upvote_count?: number;
+  author: MobileCommunityAuthor;
 }
 
-type CommunityPostRow = {
-  id: string;
-  author_id: string | null;
-  category: string;
-  title: string;
-  content: string;
-  ad_disclosure: string | null;
-  visibility: string | null;
-  under_review: boolean | null;
-  upvote_count: number | null;
-  downvote_count: number | null;
-  comment_count: number | null;
-  view_count: number | null;
-  created_at: string;
-};
-
-type CommunityCommentRow = {
-  id: string;
-  author_id: string | null;
-  content: string;
-  created_at: string;
-};
-
-type CommunityAuthorRow = {
-  user_id: string;
-  nickname: string | null;
-  rank: string | null;
-};
+class CommunityPostUnavailableError extends Error {
+  constructor() {
+    super("community_post_unavailable");
+    this.name = "CommunityPostUnavailableError";
+  }
+}
 
 type SocialState = {
   userVote: number;
@@ -85,15 +75,16 @@ const AD_LABELS: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  is_normal: "이거 정상이야?",
+  is_normal: "계약·추가금 질문",
   tour_review: "투어/후기",
   tips_v2: "꿀팁",
   ama: "AMA",
   free: "자유",
 };
 
-const MOBILE_POST_DETAIL_SELECT =
-  "id, author_id, category, title, content, ad_disclosure, visibility, under_review, upvote_count, downvote_count, comment_count, view_count, created_at" as const;
+const MOBILE_COMMUNITY_WEB_BASE = (
+  process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai"
+).replace(/\/$/, "");
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -105,118 +96,58 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}일 전`;
 }
 
-function readablePostOrFilter(viewerId: string): string {
-  return [
-    "and(visibility.eq.public,under_review.eq.false)",
-    "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
-  ].join(",");
-}
-
-function canReadPost(row: CommunityPostRow, userId: string | null) {
-  const isAuthor = Boolean(userId && row.author_id === userId);
-  if (row.under_review === true) return isAuthor;
-  if (row.visibility === "public") return true;
-  if (row.visibility === "members") return Boolean(userId);
-  if (row.visibility === "draft") return isAuthor;
-  return false;
-}
-
-function fallbackAuthor(): PostDetail["author"] {
-  return { nickname: "익명", rank: "sprout", role: null };
-}
-
 function fromCachedPost(post: CachedCommunityPost): PostDetail {
   return {
     ...post,
+    author_id: post.author_id,
     ad_disclosure: post.ad_disclosure ?? "general",
+    sponsorship_detail: post.sponsorship_detail ?? null,
   };
 }
 
 function toCachedPost(post: PostDetail): CachedCommunityPost {
   return {
     id: post.id,
+    author_id: post.author_id,
+    viewer_is_author: post.viewer_is_author,
     title: post.title,
     content: post.content,
     category: post.category,
     ad_disclosure: post.ad_disclosure,
+    sponsorship_detail: post.sponsorship_detail,
     upvote_count: post.upvote_count,
     downvote_count: post.downvote_count,
     comment_count: post.comment_count,
     view_count: post.view_count,
+    visibility: post.visibility,
+    under_review: post.under_review,
     created_at: post.created_at,
     author: post.author,
   };
 }
 
-async function fetchAuthorMap(authorIds: string[]) {
-  if (authorIds.length === 0) return {};
-
-  const { data } = await supabase
-    .from("community_profiles")
-    .select("user_id, nickname, rank")
-    .in("user_id", authorIds);
-
-  return Object.fromEntries(
-    ((data ?? []) as CommunityAuthorRow[]).map((author) => [
-      author.user_id,
-      {
-        nickname: author.nickname ?? "익명",
-        rank: author.rank ?? "sprout",
-        role: null,
-      },
-    ])
-  ) as Record<string, PostDetail["author"]>;
-}
-
 async function fetchPostFromApi(postId: string): Promise<PostDetail> {
-  const data = await apiJson<PostDetail & { user_vote?: number | null; user_bookmarked?: boolean }>(
-    `/api/community/posts/${postId}`
-  );
-  return {
-    ...data,
-    ad_disclosure: data.ad_disclosure ?? "general",
-  };
-}
-
-async function fetchPostFromSupabase(postId: string): Promise<PostDetail> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id ?? null;
-
-  let query = supabase
-    .from("community_posts")
-    .select(MOBILE_POST_DETAIL_SELECT)
-    .eq("id", postId);
-
-  query = userId
-    ? query.or(readablePostOrFilter(userId))
-    : query.eq("visibility", "public").eq("under_review", false);
-
-  const { data, error } = await query.maybeSingle();
-  if (error || !data) {
-    throw error ?? new Error("post not found");
+  const response = await apiFetch(`/api/community/posts/${postId}`);
+  const body = await response.json().catch(() => null) as (
+    PostDetail & {
+      error?: string;
+      user_vote?: number | null;
+      user_bookmarked?: boolean;
+    }
+  ) | null;
+  if (response.status === 404) {
+    throw new CommunityPostUnavailableError();
   }
-
-  const row = data as CommunityPostRow;
-  if (!canReadPost(row, userId)) {
-    throw new Error("post not readable");
+  if (!response.ok || !body) {
+    throw new Error(body?.error ?? "게시글을 불러오지 못했습니다.");
   }
-
-  const authorMap = await fetchAuthorMap(row.author_id ? [row.author_id] : []);
-
+  if (!hasTrustedCommunityActor(body)) {
+    throw new Error("게시글 작성자 정보를 확인하지 못했습니다.");
+  }
   return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    category: row.category,
-    ad_disclosure: row.ad_disclosure ?? "general",
-    upvote_count: row.upvote_count ?? 0,
-    downvote_count: row.downvote_count ?? 0,
-    comment_count: row.comment_count ?? 0,
-    view_count: row.view_count ?? 0,
-    created_at: row.created_at,
-    author: row.author_id ? (authorMap[row.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
+    ...body,
+    ad_disclosure: body.ad_disclosure ?? "general",
+    sponsorship_detail: body.sponsorship_detail ?? null,
   };
 }
 
@@ -224,36 +155,16 @@ async function fetchCommentsFromApi(postId: string): Promise<Comment[]> {
   const commentsData = await apiJson<{ comments: Comment[] }>(
     `/api/community/comments?postId=${postId}`
   );
-  return commentsData.comments ?? [];
-}
-
-async function fetchCommentsFromSupabase(postId: string): Promise<Comment[]> {
-  const { data, error } = await supabase
-    .from("community_comments")
-    .select("id, author_id, content, created_at")
-    .eq("post_id", postId)
-    .eq("is_deleted", false)
-    .is("parent_id", null)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-
-  const rows = (data ?? []) as CommunityCommentRow[];
-  const authorIds = [
-    ...new Set(rows.map((comment) => comment.author_id).filter((id): id is string => Boolean(id))),
-  ];
-  const authorMap = await fetchAuthorMap(authorIds);
-
-  return rows.map((comment) => ({
-    id: comment.id,
-    content: comment.content,
-    created_at: comment.created_at,
-    author: comment.author_id ? (authorMap[comment.author_id] ?? fallbackAuthor()) : fallbackAuthor(),
-  }));
+  const comments = commentsData.comments ?? [];
+  if (!Array.isArray(comments) || !comments.every(hasTrustedCommunityActor)) {
+    throw new Error("댓글 작성자 정보를 확인하지 못했습니다.");
+  }
+  return comments;
 }
 
 async function fetchSocialState(postId: string): Promise<SocialState> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
   if (!user) return { userVote: 0, bookmarked: false };
 
   const [voteResult, bookmarkResult] = await Promise.all([
@@ -271,6 +182,10 @@ async function fetchSocialState(postId: string): Promise<SocialState> {
       .maybeSingle(),
   ]);
 
+  if (voteResult.error || bookmarkResult.error) {
+    throw voteResult.error ?? bookmarkResult.error;
+  }
+
   return {
     userVote: voteResult.data?.vote_type ?? 0,
     bookmarked: Boolean(bookmarkResult.data),
@@ -279,26 +194,19 @@ async function fetchSocialState(postId: string): Promise<SocialState> {
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const insets = useSafeAreaInsets();
   const postId = typeof id === "string" ? id : "";
-  const initialPostRef = useRef<CachedCommunityPost | null>(
-    postId ? getCachedCommunityPost(postId) : null
-  );
-  const initialCommentsRef = useRef<CachedCommunityComment[] | null>(
-    postId ? getCachedCommunityComments(postId) : null
-  );
-
-  const [post, setPost] = useState<PostDetail | null>(() =>
-    initialPostRef.current ? fromCachedPost(initialPostRef.current) : null
-  );
-  const [comments, setComments] = useState<Comment[]>(() => initialCommentsRef.current ?? []);
-  const [loading, setLoading] = useState(() => !initialPostRef.current);
+  const [cacheOwnerId, setCacheOwnerId] = useState<string | null>(null);
+  const [post, setPost] = useState<PostDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [postLoadError, setPostLoadError] = useState(false);
+  const [ownerRetryNonce, setOwnerRetryNonce] = useState(0);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [commentFocused, setCommentFocused] = useState(false);
+  const [commentsLoadError, setCommentsLoadError] = useState(false);
   const [voteSyncing, setVoteSyncing] = useState(false);
   const [bookmarkSyncing, setBookmarkSyncing] = useState(false);
+  const [muteSubmitting, setMuteSubmitting] = useState(false);
+  const [socialStateLoaded, setSocialStateLoaded] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   // 투표 상태: 1 = upvote, -1 = downvote, 0 = none
@@ -317,6 +225,31 @@ export default function PostDetailScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getUser()
+      .then(({ data: { user }, error: authError }) => {
+        if (authError || !user) {
+          throw authError ?? new Error("authenticated user not found");
+        }
+        if (!active) return;
+
+        setCacheOwnerId(user.id);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPost(null);
+        setComments([]);
+        setPostLoadError(true);
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [ownerRetryNonce]);
+
   function showActionNotice(message: string) {
     setActionNotice(message);
     if (actionNoticeTimerRef.current) {
@@ -329,76 +262,85 @@ export default function PostDetailScreen() {
   }
 
   const loadComments = useCallback(async (options?: { silent?: boolean }) => {
-    if (!postId) return;
+    if (!cacheOwnerId || !postId) return;
+    setCommentsLoadError(false);
     if (!options?.silent) setCommentsLoading(true);
 
     try {
-      let nextComments: Comment[];
-      try {
-        nextComments = await fetchCommentsFromSupabase(postId);
-      } catch {
-        nextComments = await fetchCommentsFromApi(postId);
-      }
+      const nextComments = await fetchCommentsFromApi(postId);
 
       setComments(nextComments);
-      putCachedCommunityComments(postId, nextComments);
+      putCachedCommunityComments(cacheOwnerId, postId, nextComments);
+      setCommentsLoadError(false);
     } catch {
-      // 댓글 로드 실패는 본문 표시를 막지 않는다.
+      setCommentsLoadError(true);
     } finally {
       setCommentsLoading(false);
     }
-  }, [postId]);
+  }, [cacheOwnerId, postId]);
 
   const refreshAuxiliaryState = useCallback((options?: { silentComments?: boolean }) => {
     if (!postId) return;
 
     loadComments({ silent: options?.silentComments });
+    setSocialStateLoaded(false);
     fetchSocialState(postId)
       .then((state) => {
         setUserVote(state.userVote);
         setBookmarked(state.bookmarked);
+        setSocialStateLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        setSocialStateLoaded(false);
+      });
     apiFetch(`/api/community/posts/${postId}/view`, { method: "POST" }).catch(() => {});
   }, [loadComments, postId]);
 
   const loadPost = useCallback(async () => {
+    setPostLoadError(false);
     if (!postId) {
       setLoading(false);
       return;
     }
+    if (!cacheOwnerId) return;
 
-    const cachedPost = getCachedCommunityPost(postId);
+    const cachedPost = getCachedCommunityPost(cacheOwnerId, postId);
+    const cachedComments = getCachedCommunityComments(cacheOwnerId, postId);
     const hadCachedPost = Boolean(cachedPost);
     if (cachedPost) {
       setPost(fromCachedPost(cachedPost));
+      if (cachedComments) setComments(cachedComments);
       setLoading(false);
-      refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
+      refreshAuxiliaryState({ silentComments: Boolean(cachedComments) });
     } else {
       setLoading(true);
     }
 
     try {
-      let nextPost: PostDetail;
-      try {
-        nextPost = await fetchPostFromSupabase(postId);
-      } catch {
-        nextPost = await fetchPostFromApi(postId);
-      }
+      const nextPost = await fetchPostFromApi(postId);
 
       setPost(nextPost);
-      putCachedCommunityPost(toCachedPost(nextPost));
+      putCachedCommunityPost(cacheOwnerId, toCachedPost(nextPost));
+      setPostLoadError(false);
       setLoading(false);
 
       if (!hadCachedPost) {
-        refreshAuxiliaryState({ silentComments: Boolean(initialCommentsRef.current) });
+        refreshAuxiliaryState({ silentComments: Boolean(cachedComments) });
       }
-    } catch {
-      if (!cachedPost) setPost(null);
+    } catch (error) {
+      if (error instanceof CommunityPostUnavailableError) {
+        clearCommunityCaches();
+        setPost(null);
+        setComments([]);
+        setPostLoadError(false);
+      } else {
+        if (!cachedPost) setPost(null);
+        setPostLoadError(true);
+      }
     } finally {
       setLoading(false);
     }
-  }, [postId, refreshAuxiliaryState]);
+  }, [cacheOwnerId, postId, refreshAuxiliaryState]);
 
   useFocusEffect(
     useCallback(() => {
@@ -416,6 +358,11 @@ export default function PostDetailScreen() {
   // 투표 처리
   async function handleVote() {
     if (!post || voteSyncing) return;
+    if (!socialStateLoaded) {
+      showActionNotice("좋아요 상태를 확인하지 못했어요. 다시 불러온 뒤 시도해주세요.");
+      refreshAuxiliaryState({ silentComments: true });
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("로그인 필요", "투표하려면 로그인이 필요합니다.");
@@ -445,14 +392,22 @@ export default function PostDetailScreen() {
         body: JSON.stringify({ voteType: newVote }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "좋아요 저장에 실패했습니다.");
-      if (typeof body.upvote_count === "number") {
-        setPost((current) => current ? {
-          ...current,
-          upvote_count: Math.max(0, body.upvote_count),
-          downvote_count: Math.max(0, body.downvote_count ?? 0),
-        } : current);
+      if (
+        !response.ok ||
+        typeof body.upvote_count !== "number" ||
+        !Number.isSafeInteger(body.upvote_count) ||
+        body.upvote_count < 0 ||
+        typeof body.downvote_count !== "number" ||
+        !Number.isSafeInteger(body.downvote_count) ||
+        body.downvote_count < 0
+      ) {
+        throw new Error(body.error ?? "좋아요 저장 결과를 확인하지 못했습니다.");
       }
+      setPost((current) => current ? {
+        ...current,
+        upvote_count: body.upvote_count,
+        downvote_count: body.downvote_count,
+      } : current);
     } catch {
       setUserVote(prevVote);
       setPost(prevPost);
@@ -466,6 +421,11 @@ export default function PostDetailScreen() {
   // 북마크 처리
   async function handleBookmark() {
     if (bookmarkSyncing) return;
+    if (!socialStateLoaded) {
+      showActionNotice("북마크 상태를 확인하지 못했어요. 다시 불러온 뒤 시도해주세요.");
+      refreshAuxiliaryState({ silentComments: true });
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("로그인 필요", "북마크하려면 로그인이 필요합니다.");
@@ -481,9 +441,10 @@ export default function PostDetailScreen() {
     try {
       const response = await apiFetch(`/api/community/posts/${postId}/bookmark`, {
         method: "POST",
+        body: JSON.stringify({ bookmarked: !wasBookmarked }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok || typeof body.bookmarked !== "boolean") {
+      if (!response.ok || body.bookmarked !== !wasBookmarked) {
         throw new Error(body.error ?? "북마크 저장에 실패했습니다.");
       }
       setBookmarked(body.bookmarked);
@@ -495,34 +456,89 @@ export default function PostDetailScreen() {
     }
   }
 
-  async function handleComment() {
-    if (!commentText.trim() || submitting) return;
-    setSubmitting(true);
+  async function openFullPostInWeb() {
     try {
-      const res = await apiFetch("/api/community/comments", {
-        method: "POST",
-        body: JSON.stringify({ post_id: postId, content: commentText.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "댓글 작성에 실패했어요.");
-      }
-      setCommentText("");
-      setPost((prev) =>
-        prev ? { ...prev, comment_count: prev.comment_count + 1 } : prev
-      );
-      loadComments();
+      await Linking.openURL(`${MOBILE_COMMUNITY_WEB_BASE}/community/post/${encodeURIComponent(postId)}`);
     } catch {
-      showActionNotice("댓글 작성에 실패했어요. 입력한 내용은 유지했으니 다시 시도해주세요.");
-    } finally {
-      setSubmitting(false);
+      Alert.alert(
+        "웹 페이지를 열 수 없어요",
+        "브라우저에서 hanbang.ai에 접속해 게시글 전체 내용과 관리 기능을 확인해주세요."
+      );
     }
+  }
+
+  async function handleMuteAuthor() {
+    if (
+      !post?.author_id ||
+      !cacheOwnerId ||
+      post.viewer_is_author ||
+      muteSubmitting
+    ) return;
+
+    setMuteSubmitting(true);
+    try {
+      await muteCommunityAuthor(post.author_id, apiFetch);
+      clearCommunityCaches();
+      Alert.alert(
+        "작성자를 숨겼어요",
+        "이 작성자의 게시글과 댓글은 내 커뮤니티에서 보이지 않아요. 프로필 > 숨긴 작성자에서 언제든 해제할 수 있어요.",
+        [{
+          text: "확인",
+          onPress: () => router.replace("/(tabs)/community"),
+        }],
+      );
+    } catch (error) {
+      Alert.alert(
+        "작성자를 숨기지 못했어요",
+        error instanceof Error
+          ? error.message
+          : "연결을 확인하고 다시 시도해주세요.",
+      );
+    } finally {
+      setMuteSubmitting(false);
+    }
+  }
+
+  function confirmMuteAuthor() {
+    if (!post?.author_id || post.viewer_is_author || muteSubmitting) return;
+    Alert.alert(
+      "이 작성자의 글을 숨길까요?",
+      "이 작성자의 게시글과 댓글이 내 커뮤니티에서 보이지 않아요. 작성자에게 알림은 가지 않아요. 프로필 > 숨긴 작성자에서 언제든 해제할 수 있어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "숨기기",
+          style: "destructive",
+          onPress: () => void handleMuteAuthor(),
+        },
+      ],
+    );
   }
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <LoadingState label="게시글을 불러오고 있어요" />
+      </SafeAreaView>
+    );
+  }
+
+  if (postLoadError && !post) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <AppHeader title="게시글" onBack={() => router.back()} />
+        <ErrorRetry
+          message="게시글을 불러오지 못했어요. 연결 오류일 수 있어 삭제된 것으로 판단하지 않았어요."
+          onRetry={() => {
+            setLoading(true);
+            setPostLoadError(false);
+            if (cacheOwnerId) {
+              loadPost();
+            } else {
+              setOwnerRetryNonce((value) => value + 1);
+            }
+          }}
+        />
       </SafeAreaView>
     );
   }
@@ -534,7 +550,7 @@ export default function PostDetailScreen() {
         <EmptyState
           icon={<FileText size={48} color={colors.textTertiary} />}
           title="게시글을 찾을 수 없어요"
-          description="삭제됐거나 접근 권한이 없는 글일 수 있어요."
+          description="올바른 게시글 주소인지 확인해주세요."
         />
       </SafeAreaView>
     );
@@ -543,7 +559,7 @@ export default function PostDetailScreen() {
   const votes = post.upvote_count;
   const adBadge = AD_LABELS[post.ad_disclosure];
   const catLabel = CATEGORY_LABELS[post.category] ?? post.category;
-  const authorName = post.author?.nickname ?? "익명";
+  const authorName = post.author.nickname;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -570,11 +586,42 @@ export default function PostDetailScreen() {
         }
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={{ flex: 1 }}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+          {postLoadError && (
+            <View style={styles.actionNotice}>
+              <Text style={styles.actionNoticeText}>
+                최신 글을 불러오지 못해 저장된 미리보기를 표시하고 있어요.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.readOnlyNotice}>
+            <Text style={styles.readOnlyNoticeTitle}>
+              모바일 커뮤니티는 현재 읽기 중심으로 제공해요
+            </Text>
+            <Text style={styles.readOnlyNoticeBody}>
+              게시글 신고·수정·삭제와 기존 투표 결과 확인은 웹에서 이용해주세요.
+            </Text>
+            <Text style={styles.readOnlyNoticeBoundary}>
+              새 댓글과 답글 작성은 현재 받지 않아요. 기존 댓글은 계속 읽을 수 있어요. 작성자는 기존 댓글을 웹에서 수정·삭제할 수 있어요.
+            </Text>
+            <Text style={styles.readOnlyNoticeBoundary}>
+              댓글 단위 신고는 현재 제공하지 않아요. 작성자 글 숨기기는 이 화면에서 이용할 수 있어요. 불편한 내용은 웹의 게시글 신고로 접수해주세요.
+            </Text>
+            <Pressable
+              onPress={openFullPostInWeb}
+              accessibilityRole="link"
+              accessibilityLabel="웹에서 게시글 전체 내용과 관리 기능 열기"
+              style={({ pressed }) => [
+                styles.readOnlyNoticeLink,
+                pressed && { opacity: 0.72 },
+              ]}
+            >
+              <Text style={styles.readOnlyNoticeLinkText}>웹에서 전체 글 보기</Text>
+            </Pressable>
+          </View>
+
           {/* 광고 배지 */}
           {adBadge && (
             <View style={[styles.adBadge, { backgroundColor: adBadge.bg, borderColor: adBadge.color + "40" }]}>
@@ -582,6 +629,13 @@ export default function PostDetailScreen() {
               <Text style={[styles.adText, { color: adBadge.color }]}>{adBadge.label}</Text>
             </View>
           )}
+
+          {post.ad_disclosure === "sponsored" && post.sponsorship_detail ? (
+            <View style={styles.sponsorshipNotice}>
+              <Text style={styles.sponsorshipNoticeTitle}>작성자가 밝힌 협찬 혜택</Text>
+              <Text style={styles.sponsorshipNoticeBody}>{post.sponsorship_detail}</Text>
+            </View>
+          ) : null}
 
           {/* 카테고리 */}
           <View style={styles.catBadge}>
@@ -593,7 +647,11 @@ export default function PostDetailScreen() {
 
           {/* 작성자 섹션 — 아바타 포함 */}
           <View style={styles.authorSection}>
-            <CommunityAvatar nickname={authorName} role={post.author?.role} size={40} />
+            <CommunityAvatar
+              nickname={authorName}
+              avatarUrl={post.author.avatar_url}
+              size={40}
+            />
             <View style={{ flex: 1 }}>
               <Text style={styles.authorName}>{authorName}</Text>
               <View style={styles.meta}>
@@ -602,10 +660,35 @@ export default function PostDetailScreen() {
                 <Text style={styles.time}>조회 {post.view_count}</Text>
               </View>
             </View>
+            {post.author_id && cacheOwnerId && !post.viewer_is_author ? (
+              <Pressable
+                onPress={confirmMuteAuthor}
+                disabled={muteSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel={`${authorName} 작성자 글 숨기기`}
+                accessibilityHint="이 작성자의 게시글과 댓글을 내 커뮤니티에서 숨깁니다"
+                accessibilityState={{ disabled: muteSubmitting, busy: muteSubmitting }}
+                style={({ pressed }) => [
+                  styles.muteAuthorButton,
+                  (pressed || muteSubmitting) && styles.muteAuthorButtonPressed,
+                ]}
+              >
+                {muteSubmitting ? (
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                ) : (
+                  <EyeOff size={15} color={colors.textSecondary} />
+                )}
+                <Text style={styles.muteAuthorButtonText}>
+                  {muteSubmitting ? "숨기는 중" : "작성자 글 숨기기"}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {/* 본문 */}
-          <Text style={styles.body}>{post.content.replace(/<[^>]*>/g, "")}</Text>
+          <Text style={styles.body}>
+            {communityHtmlToPlainText(post.content, { preserveParagraphs: true })}
+          </Text>
 
           {/* 액션 바 */}
           <View style={styles.actions}>
@@ -653,62 +736,54 @@ export default function PostDetailScreen() {
                 <Text style={styles.commentsLoadingText}>댓글을 불러오는 중이에요</Text>
               </View>
             )}
+            {commentsLoadError && (
+              <View style={styles.actionNotice}>
+                <Text style={styles.actionNoticeText}>
+                  {comments.length > 0
+                    ? "최신 댓글을 불러오지 못해 저장된 댓글을 표시하고 있어요."
+                    : "댓글을 불러오지 못했어요. 댓글이 없는 것으로 판단하지 않았어요."}
+                </Text>
+                <Pressable
+                  onPress={() => loadComments()}
+                  accessibilityRole="button"
+                  accessibilityLabel="댓글 다시 불러오기"
+                >
+                  <Text style={styles.commentsRetryText}>다시 시도</Text>
+                </Pressable>
+              </View>
+            )}
             {comments.map((c) => {
-              const cName = c.author?.nickname ?? "익명";
+              const cName = c.author.nickname;
               return (
                 <View key={c.id} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
-                    <CommunityAvatar nickname={cName} role={c.author?.role} size={30} />
+                    <CommunityAvatar
+                      nickname={cName}
+                      avatarUrl={c.author.avatar_url}
+                      size={30}
+                    />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.commentAuthor}>{cName}</Text>
                       <Text style={styles.commentTime}>{timeAgo(c.created_at)}</Text>
                     </View>
                   </View>
                   <Text style={styles.commentBody}>{c.content}</Text>
+                  <Text style={styles.commentVoteCount}>
+                    좋아요 {typeof c.upvote_count === "number" ? c.upvote_count : 0}
+                  </Text>
                 </View>
               );
             })}
-            {!commentsLoading && comments.length === 0 && (
+            {!commentsLoading && !commentsLoadError && comments.length === 0 && (
               <View style={styles.noCommentsWrap}>
                 <MessageCircle size={28} color={colors.textTertiary} />
-                <Text style={styles.noComments}>아직 댓글이 없어요. 첫 댓글을 남겨보세요!</Text>
+                <Text style={styles.noComments}>아직 등록된 댓글이 없어요.</Text>
               </View>
             )}
           </View>
         </ScrollView>
 
-        {/* 댓글 입력 */}
-        <View style={[styles.commentBar, { paddingBottom: Math.max(12, insets.bottom + 8) }]}>
-          <TextInput
-            style={[
-              styles.commentInput,
-              commentFocused && styles.commentInputFocused,
-            ]}
-            value={commentText}
-            onChangeText={setCommentText}
-            placeholder="댓글을 입력하세요..."
-            placeholderTextColor={colors.taupe[400]}
-            maxLength={1000}
-            onFocus={() => setCommentFocused(true)}
-            onBlur={() => setCommentFocused(false)}
-          />
-          <Pressable
-            style={({ pressed }) => [
-              styles.sendBtn,
-              (!commentText.trim() || submitting) && { opacity: 0.4 },
-              pressed && { transform: [{ scale: 0.92 }] },
-            ]}
-            onPress={handleComment}
-            disabled={!commentText.trim() || submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Send size={18} color="#FFF" />
-            )}
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -716,6 +791,45 @@ export default function PostDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 20, paddingBottom: 40 },
+
+  readOnlyNotice: {
+    padding: 14,
+    marginBottom: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory[100],
+  },
+  readOnlyNoticeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.noir[800],
+    marginBottom: 6,
+  },
+  readOnlyNoticeBody: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  readOnlyNoticeBoundary: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textTertiary,
+  },
+  readOnlyNoticeLink: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: colors.noir[800],
+  },
+  readOnlyNoticeLinkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
   adBadge: {
     flexDirection: "row",
@@ -730,6 +844,26 @@ const styles = StyleSheet.create({
   },
   adDot: { width: 7, height: 7, borderRadius: 4 },
   adText: { fontSize: 13, fontWeight: "700" },
+  sponsorshipNotice: {
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 12,
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sponsorshipNoticeTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  sponsorshipNoticeBody: {
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#78350F",
+  },
 
   catBadge: {
     alignSelf: "flex-start",
@@ -760,6 +894,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   authorName: { fontSize: 15, fontWeight: "600", color: colors.noir[800] },
+  muteAuthorButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  muteAuthorButtonPressed: { opacity: 0.58 },
+  muteAuthorButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
   meta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   dot: { fontSize: 12, color: colors.taupe[400] },
   time: { fontSize: 13, color: colors.taupe[400] },
@@ -833,6 +985,12 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
   commentTime: { fontSize: 11, color: colors.taupe[400], marginTop: 1 },
   commentBody: { fontSize: 14, color: colors.noir[800], lineHeight: 22, marginLeft: 40 },
+  commentVoteCount: {
+    marginTop: 6,
+    marginLeft: 40,
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
   noCommentsWrap: {
     alignItems: "center",
     paddingVertical: 32,
@@ -845,38 +1003,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   commentsLoadingText: { fontSize: 13, color: colors.textTertiary },
+  commentsRetryText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.rose[500],
+  },
 
-  commentBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  commentInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.noir[800],
-    backgroundColor: colors.bg,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  commentInputFocused: {
-    borderColor: colors.rose[500],
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.rose[500],
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

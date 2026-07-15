@@ -1,15 +1,4 @@
-import { NextResponse } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const adminAuthMocks = vi.hoisted(() => ({
-  verifyAdmin: vi.fn(),
-  seedGate: vi.fn(),
-  getServiceClient: vi.fn(() => {
-    throw new Error("service client must not be created before request gates pass");
-  }),
-}));
-
-vi.mock("@/lib/utils/adminAuth", () => adminAuthMocks);
+import { describe, expect, it } from "vitest";
 
 const routes = [
   ["makeup POST", () => import("../seed-makeup/route"), "POST"],
@@ -19,7 +8,7 @@ const routes = [
   ["vendors PUT", () => import("../seed-vendors/route"), "PUT"],
 ] as const;
 
-type SeedRouteHandler = (request: Request) => Promise<Response>;
+type SeedRouteHandler = (request: Request) => Response | Promise<Response>;
 
 function getHandler(route: object, method: "POST" | "PUT"): SeedRouteHandler {
   const handler = (route as Partial<Record<"POST" | "PUT", SeedRouteHandler>>)[method];
@@ -27,38 +16,28 @@ function getHandler(route: object, method: "POST" | "PUT"): SeedRouteHandler {
   return handler;
 }
 
-describe("admin seed route service-client lifecycle", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    adminAuthMocks.seedGate.mockReturnValue(null);
-  });
-
-  it.each(routes)("imports %s without constructing a service client", async (_name, loadRoute) => {
-    await expect(loadRoute()).resolves.toBeDefined();
-    expect(adminAuthMocks.getServiceClient).not.toHaveBeenCalled();
-  });
-
-  it.each(routes)("keeps %s service client behind authentication", async (_name, loadRoute, method) => {
-    adminAuthMocks.verifyAdmin.mockResolvedValue({ authorized: false });
+describe("retired synthetic vendor seed routes", () => {
+  it.each(routes)("keeps %s permanently unavailable before request processing", async (
+    _name,
+    loadRoute,
+    method,
+  ) => {
     const route = await loadRoute();
-
-    const response = await getHandler(route, method)(new Request("https://hanbang.ai/api/admin/seed"));
-
-    expect(response.status).toBe(401);
-    expect(adminAuthMocks.seedGate).not.toHaveBeenCalled();
-    expect(adminAuthMocks.getServiceClient).not.toHaveBeenCalled();
-  });
-
-  it.each(routes)("keeps %s service client behind the production seed gate", async (_name, loadRoute, method) => {
-    adminAuthMocks.verifyAdmin.mockResolvedValue({ authorized: true });
-    adminAuthMocks.seedGate.mockReturnValue(
-      NextResponse.json({ error: "seed disabled" }, { status: 403 })
+    const response = await getHandler(route, method)(
+      new Request("https://hanbang.ai/api/admin/seed", {
+        method,
+        headers: {
+          authorization: "Bearer must-not-be-read",
+          "content-type": "application/json",
+        },
+        body: "not-json",
+      }),
     );
-    const route = await loadRoute();
 
-    const response = await getHandler(route, method)(new Request("https://hanbang.ai/api/admin/seed"));
-
-    expect(response.status).toBe(403);
-    expect(adminAuthMocks.getServiceClient).not.toHaveBeenCalled();
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toEqual({
+      error: "합성 업체 시드 경로는 종료되었습니다.",
+      code: "synthetic_vendor_seed_retired",
+    });
   });
 });

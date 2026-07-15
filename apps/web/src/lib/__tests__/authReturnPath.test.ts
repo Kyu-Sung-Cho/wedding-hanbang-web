@@ -24,12 +24,9 @@ describe("auth return path", () => {
     expect(sanitizeAuthReturnPath("/login")).toBeNull();
   });
 
-  it("preserves every safe quote-to-post prefill field through login and onboarding", () => {
+  it("preserves a non-sensitive post category through login and onboarding", () => {
     const query = new URLSearchParams({
       category: "is_normal",
-      prefill: "quote_check",
-      title: "스드메 320만원 견적, 어떤가요?",
-      body: "포함: 드레스 3벌 & 메이크업\n미포함: 헬퍼비",
     }).toString();
     const returnPath = authReturnPathFromLocation({
       pathname: "/wedding/community/post/write",

@@ -1,4 +1,4 @@
-// 설정 화면 — 프로필/결혼정보 직접 편집 + 알림, 계정관리, 앱 정보
+// 설정 화면 — 프로필/결혼정보 직접 편집 + 계정관리, 앱 정보
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Linking,
   Animated,
-  Switch,
   Modal,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
@@ -24,11 +23,9 @@ import {
   User,
   Heart,
   Smartphone,
-  Bell,
   Shield,
   Lock,
   LogOut,
-  Trash2,
   X,
   Eye,
   EyeOff,
@@ -37,22 +34,18 @@ import {
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
-import { isStrongPassword, manwonInputToWon, wonToManwonInput } from "@hanbang/shared";
+import { isStrongPassword, manwonInputToWon, normalizeOptionalBudgetWon, wonToManwonInput } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 import { apiFetch } from "@/lib/api";
 import { clearCommunityCaches } from "@/lib/communityPostCache";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
-
-// AsyncStorage 키
-const NOTIF_PUSH_KEY = "@hanbang/notif_push";
-const NOTIF_COMMUNITY_KEY = "@hanbang/notif_community";
-const NOTIF_PARTNER_KEY = "@hanbang/notif_partner";
+import ErrorRetry from "@/components/ErrorRetry";
 
 interface SettingsData {
   userId: string;
   coupleId: string | null;
-  nickname: string;          // 실명 (profiles.name)
+  nickname: string;          // 계정 안에서 사용할 이름 (profiles.name)
   communityNickname: string; // 커뮤니티 별명 (community_profiles.nickname)
   role: string | null;
   weddingDate: string;
@@ -62,7 +55,6 @@ interface SettingsData {
 
 type ProfileUpdateResponse = {
   profile?: { name?: string | null };
-  communityProfileSynced?: boolean;
   error?: string;
 };
 
@@ -81,6 +73,38 @@ type SettingsLoadResult = {
   settings: SettingsData;
   inviteState: CoupleInviteState | null;
 };
+
+type SettingsLoadSource =
+  | "auth"
+  | "profile"
+  | "journey"
+  | "partner"
+  | "invite";
+
+class SettingsLoadError extends Error {
+  constructor(
+    readonly source: SettingsLoadSource,
+    message: string,
+  ) {
+    super(message);
+    this.name = "SettingsLoadError";
+  }
+}
+
+function settingsLoadMessage(source: SettingsLoadSource): string {
+  switch (source) {
+    case "auth":
+      return "로그인 상태를 확인하지 못했어요.";
+    case "profile":
+      return "프로필 정보를 불러오지 못했어요.";
+    case "journey":
+      return "결혼 준비 정보를 불러오지 못했어요.";
+    case "partner":
+      return "파트너 연결 상태를 불러오지 못했어요.";
+    case "invite":
+      return "커플 초대 코드 상태를 불러오지 못했어요.";
+  }
+}
 
 type ApiErrorBody = {
   error?: unknown;
@@ -125,15 +149,11 @@ export default function SettingsScreen() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [initialData, setInitialData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadIssue, setLoadIssue] = useState<SettingsLoadSource | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const checkScale = useRef(new Animated.Value(0)).current;
-
-  // 알림 설정 상태
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [communityNotifEnabled, setCommunityNotifEnabled] = useState(true);
-  const [partnerNotifEnabled, setPartnerNotifEnabled] = useState(true);
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -152,62 +172,34 @@ export default function SettingsScreen() {
   const [relinkRecoveryRequired, setRelinkRecoveryRequired] = useState(false);
   const [relinkRecoveryPreviousCoupleId, setRelinkRecoveryPreviousCoupleId] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
-
-  // 알림 설정 로드
-  useEffect(() => {
-    (async () => {
-      try {
-        const [push, community, partner] = await Promise.all([
-          AsyncStorage.getItem(NOTIF_PUSH_KEY),
-          AsyncStorage.getItem(NOTIF_COMMUNITY_KEY),
-          AsyncStorage.getItem(NOTIF_PARTNER_KEY),
-        ]);
-        // 기본값: 켜짐 (null이면 true)
-        if (push !== null) setPushEnabled(push === "true");
-        if (community !== null) setCommunityNotifEnabled(community === "true");
-        if (partner !== null) setPartnerNotifEnabled(partner === "true");
-      } catch (err) {
-        console.error("알림 설정 로드 오류:", err);
-      }
-    })();
-  }, []);
-
-  // 알림 토글 핸들러
-  const togglePush = useCallback(async (value: boolean) => {
-    setPushEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PUSH_KEY, String(value));
-  }, []);
-
-  const toggleCommunity = useCallback(async (value: boolean) => {
-    setCommunityNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_COMMUNITY_KEY, String(value));
-  }, []);
-
-  const togglePartner = useCallback(async (value: boolean) => {
-    setPartnerNotifEnabled(value);
-    await AsyncStorage.setItem(NOTIF_PARTNER_KEY, String(value));
-  }, []);
+  const settingsReadOnly = Boolean(loadIssue) || loading;
 
   // 현재 데이터 로드. 새 커플 공간을 만든 직후에도 이 함수 전체를 다시
   // 실행해 이전 couple/journey를 화면에 남기지 않는다.
   const loadSettings = useCallback(async (
     options: { requireInviteState?: boolean } = {}
   ): Promise<SettingsLoadResult | null> => {
+    const inviteFailureCode = options.requireInviteState
+      ? "required_invite_state_lookup_failed"
+      : "invite_state_lookup_failed";
     setLoading(true);
     try {
         const {
           data: { user },
           error: userError,
         } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        if (!user) return null;
+        if (userError) {
+          throw new SettingsLoadError("auth", "authenticated_user_lookup_failed");
+        }
+        if (!user) {
+          router.replace("/(auth)/login");
+          return null;
+        }
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("name, role, couple_id")
-          .eq("id", user.id)
-          .single();
-        if (profileError) throw profileError;
+        const { data: profile, error: profileError } = await readMySafeProfile();
+        if (profileError || !profile) {
+          throw new SettingsLoadError("profile", "profile_lookup_failed");
+        }
 
         let weddingDate = "";
         let venue = "";
@@ -219,7 +211,9 @@ export default function SettingsScreen() {
             .select("wedding_date, venue, total_budget")
             .eq("couple_id", profile.couple_id)
             .single();
-          if (journeyError) throw journeyError;
+          if (journeyError || !journey) {
+            throw new SettingsLoadError("journey", "journey_lookup_failed");
+          }
 
           if (journey) {
             weddingDate = journey.wedding_date ?? "";
@@ -231,44 +225,35 @@ export default function SettingsScreen() {
         let communityNickname = "";
         try {
           const communityRes = await apiFetch("/api/community/profile");
-          if (communityRes.ok) {
-            const communityData =
-              (await communityRes.json().catch(() => ({}))) as CommunityProfileResponse;
-            communityNickname = communityData.profile?.nickname ?? "";
+          if (!communityRes.ok) {
+            throw new Error("community_profile_lookup_failed");
           }
+          const communityData =
+            (await communityRes.json().catch(() => ({}))) as CommunityProfileResponse;
+          communityNickname = communityData.profile?.nickname ?? "";
         } catch {
-          communityNickname = profile?.name ?? "";
+          throw new SettingsLoadError("profile", "community_profile_lookup_failed");
         }
 
-        // 이전 커플 화면 상태를 먼저 비운 뒤 새 멤버십을 조회한다.
-        setPartnerName(null);
-        setInviteCode(null);
-        setIsFullyLinked(false);
-        setRequiresRelinkConfirmation(false);
-
-        let currentInviteState: CoupleInviteState | null = null;
+        let nextPartnerName: string | null = null;
+        let nextInviteState: CoupleInviteState | null = null;
 
         // 파트너 정보 로드
         if (profile?.couple_id) {
-          try {
-            // 파트너 이름 조회
-            const { data: partners } = await supabase.rpc("get_my_partner_public");
+          // 파트너 이름 조회
+          const { data: partners, error: partnerError } = await supabase.rpc(
+            "get_my_partner_public"
+          );
+          if (partnerError) throw new SettingsLoadError("partner", "partner_lookup_failed");
 
-            if (partners && partners.length > 0) {
-              setPartnerName(partners[0]?.name ?? null);
-            }
-          } catch (err) {
-            console.error("파트너 정보 로드 오류:", err);
+          if (partners && partners.length > 0) {
+            nextPartnerName = partners[0]?.name ?? null;
           }
 
           try {
-            currentInviteState = await readCoupleInviteState();
-            setInviteCode(currentInviteState.inviteCode);
-            setIsFullyLinked(currentInviteState.isFullyLinked);
-            setRequiresRelinkConfirmation(currentInviteState.requiresRelinkConfirmation);
-          } catch (err) {
-            console.error("커플 코드 상태 로드 오류:", err);
-            if (options.requireInviteState) throw err;
+            nextInviteState = await readCoupleInviteState();
+          } catch {
+            throw new SettingsLoadError("invite", inviteFailureCode);
           }
         }
 
@@ -285,23 +270,28 @@ export default function SettingsScreen() {
 
         setData(loadedData);
         setInitialData(loadedData);
-        return { settings: loadedData, inviteState: currentInviteState };
+        setPartnerName(nextPartnerName);
+        setInviteCode(nextInviteState?.inviteCode ?? null);
+        setIsFullyLinked(nextInviteState?.isFullyLinked ?? false);
+        setRequiresRelinkConfirmation(
+          nextInviteState?.requiresRelinkConfirmation ?? false
+        );
+        setLoadIssue(null);
+        return { settings: loadedData, inviteState: nextInviteState };
       } catch (err) {
-        console.error("설정 로드 오류:", err);
-        throw err;
+        setLoadIssue(err instanceof SettingsLoadError ? err.source : "profile");
+        return null;
       } finally {
         setLoading(false);
       }
   }, []);
 
   useEffect(() => {
-    void loadSettings().catch(() => {
-      // The screen keeps its existing values and exposes the normal retry path
-      // through a remount; mutation flows show a dedicated recovery alert.
-    });
+    void loadSettings();
   }, [loadSettings]);
 
   function updateField(field: keyof SettingsData, value: string) {
+    if (settingsReadOnly) return;
     setData((prev) => (prev ? { ...prev, [field]: value } : prev));
     setSaved(false);
   }
@@ -316,7 +306,7 @@ export default function SettingsScreen() {
   );
 
   async function handleSave() {
-    if (!data) return;
+    if (!data || settingsReadOnly) return;
     setSaving(true);
 
     try {
@@ -333,10 +323,7 @@ export default function SettingsScreen() {
       if (nameChanged) {
         const profileRes = await apiFetch("/api/profile", {
           method: "PATCH",
-          body: JSON.stringify({
-            name: nextData.nickname,
-            sync_community_nickname: !communityNicknameChanged,
-          }),
+          body: JSON.stringify({ name: nextData.nickname }),
         });
         const profileBody =
           (await profileRes.json().catch(() => ({}))) as ProfileUpdateResponse;
@@ -346,9 +333,6 @@ export default function SettingsScreen() {
         }
 
         nextData.nickname = profileBody.profile?.name ?? nextData.nickname;
-        if (!communityNicknameChanged && profileBody.communityProfileSynced) {
-          nextData.communityNickname = nextData.nickname;
-        }
       }
 
       if (communityNicknameChanged) {
@@ -369,9 +353,9 @@ export default function SettingsScreen() {
 
       // 결혼 정보 업데이트
       if (nextData.coupleId) {
-        const budgetNum = nextData.totalBudget
-          ? manwonInputToWon(nextData.totalBudget)
-          : null;
+        const budgetNum = normalizeOptionalBudgetWon(
+          nextData.totalBudget ? manwonInputToWon(nextData.totalBudget) : 0,
+        );
         if (nextData.totalBudget && !budgetNum) {
           throw new Error("총 예산을 만원 단위 숫자로 입력해주세요.");
         }
@@ -381,8 +365,7 @@ export default function SettingsScreen() {
           .update({
             wedding_date: nextData.weddingDate || null,
             venue: nextData.venue || null,
-            total_budget:
-              budgetNum && !isNaN(budgetNum) ? budgetNum : null,
+            total_budget: budgetNum,
           })
           .eq("couple_id", nextData.coupleId);
 
@@ -606,59 +589,6 @@ export default function SettingsScreen() {
     ]);
   }
 
-  // 회원 탈퇴
-  function handleDeleteAccount() {
-    Alert.alert(
-      "회원 탈퇴",
-      "본인 비공개 상담과 직접 작성한 내용은 삭제됩니다. 파트너의 공동 계획과 법정 보존 대상 거래기록은 정해진 기간 남을 수 있어요.",
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "탈퇴하기",
-          style: "destructive",
-          onPress: () => {
-            // 2차 확인
-            Alert.alert(
-              "최종 확인",
-              "계정은 복구할 수 없습니다. 파트너에게 남는 공동 기록과 법정 보존 항목을 확인했나요?",
-              [
-                { text: "취소", style: "cancel" },
-                {
-                  text: "탈퇴 확인",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      const res = await apiFetch("/api/auth/delete", {
-                        method: "DELETE",
-                        body: JSON.stringify({ reason: "other" }),
-                      });
-
-                      if (res.status !== 202) {
-                        const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
-                        throw new Error(apiErrorMessage(body, "탈퇴 처리 중 오류가 발생했어요"));
-                      }
-
-                      // 서버의 영속 큐가 접수했으므로 앱이 닫혀도 삭제는 계속된다.
-                      // 네트워크 로그아웃 실패가 로컬 데이터 정리를 막지 않게 한다.
-                      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
-                      clearCommunityCaches();
-                      await AsyncStorage.clear();
-                      router.replace("/(auth)/login");
-                    } catch (err) {
-                      const message =
-                        err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
-                      Alert.alert("오류", message);
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  }
-
   const roleLabel =
     data?.role === "bride"
       ? "신부"
@@ -666,7 +596,7 @@ export default function SettingsScreen() {
         ? "신랑"
         : data?.role ?? "-";
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <AppHeader title="설정" onBack={() => router.back()} />
@@ -700,9 +630,55 @@ export default function SettingsScreen() {
     );
   }
 
+  if (loadIssue && !data) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="설정" onBack={() => router.back()} />
+        <ErrorRetry
+          message={settingsLoadMessage(loadIssue)}
+          onRetry={() => void loadSettings()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (!data) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <AppHeader title="설정" onBack={() => router.back()} />
+        <LoadingState label="로그인 상태를 확인하고 있어요" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AppHeader title="설정" onBack={() => router.back()} />
+
+      {loadIssue && data ? (
+        <View style={styles.loadWarning} accessibilityRole="alert">
+          <View style={styles.loadWarningCopy}>
+            <Text style={styles.loadWarningTitle}>
+              마지막으로 확인한 설정을 표시하고 있어요
+            </Text>
+            <Text style={styles.loadWarningBody}>
+              {settingsLoadMessage(loadIssue)} 기존 값은 유지하지만, 수정과 저장은 최신 상태를 확인한 뒤 다시 사용할 수 있어요.
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.loadRetryButton,
+              pressed && !loading && { opacity: 0.65 },
+            ]}
+            onPress={() => void loadSettings()}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="설정 정보 다시 불러오기"
+          >
+            <Text style={styles.loadRetryText}>{loading ? "확인 중" : "다시 불러오기"}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <DismissKeyboard>
       <ScrollView contentContainerStyle={styles.content}>
@@ -713,7 +689,7 @@ export default function SettingsScreen() {
         </View>
         <Surface style={styles.card}>
           <View style={styles.field}>
-            <Text style={styles.label}>이름 (실명)</Text>
+            <Text style={styles.label}>이름 또는 서로 부를 이름</Text>
             <TextInput
               style={[
                 styles.textInput,
@@ -721,13 +697,16 @@ export default function SettingsScreen() {
               ]}
               value={data?.nickname ?? ""}
               onChangeText={(v) => updateField("nickname", v)}
-              placeholder="실명을 입력하세요"
+              editable={!settingsReadOnly}
+              placeholder="계정에서 사용할 이름"
               placeholderTextColor={colors.taupe[400]}
               maxLength={20}
               onFocus={() => setFocusedField("nickname")}
               onBlur={() => setFocusedField(null)}
             />
-            <Text style={styles.fieldHint}>아모라, 파트너 채팅에서 사용돼요</Text>
+            <Text style={styles.fieldHint}>
+              아모라와 파트너에게 표시돼요. 커뮤니티 별명과는 별개예요.
+            </Text>
           </View>
 
           <View style={styles.divider} />
@@ -741,13 +720,14 @@ export default function SettingsScreen() {
               ]}
               value={data?.communityNickname ?? ""}
               onChangeText={(v) => updateField("communityNickname", v)}
+              editable={!settingsReadOnly}
               placeholder="커뮤니티에서 사용할 별명"
               placeholderTextColor={colors.taupe[400]}
-              maxLength={15}
+              maxLength={20}
               onFocus={() => setFocusedField("communityNickname")}
               onBlur={() => setFocusedField(null)}
             />
-            <Text style={styles.fieldHint}>게시글, 댓글, 동기방에서 표시돼요</Text>
+            <Text style={styles.fieldHint}>게시글과 댓글에서 표시돼요</Text>
           </View>
 
           <View style={styles.divider} />
@@ -775,6 +755,7 @@ export default function SettingsScreen() {
               ]}
               value={data?.weddingDate ?? ""}
               onChangeText={(v) => updateField("weddingDate", v)}
+              editable={!settingsReadOnly}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={colors.taupe[400]}
               maxLength={10}
@@ -795,6 +776,7 @@ export default function SettingsScreen() {
               ]}
               value={data?.venue ?? ""}
               onChangeText={(v) => updateField("venue", v)}
+              editable={!settingsReadOnly}
               placeholder="예식장 이름"
               placeholderTextColor={colors.taupe[400]}
               maxLength={50}
@@ -814,6 +796,7 @@ export default function SettingsScreen() {
               ]}
               value={data?.totalBudget ?? ""}
               onChangeText={(v) => updateField("totalBudget", v)}
+              editable={!settingsReadOnly}
               placeholder="예: 3000"
               placeholderTextColor={colors.taupe[400]}
               keyboardType="numeric"
@@ -829,7 +812,7 @@ export default function SettingsScreen() {
           tone="rose"
           style={styles.saveButton}
           onPress={handleSave}
-          disabled={saving || (!hasChanges && !saved)}
+          disabled={saving || settingsReadOnly || (!hasChanges && !saved)}
           icon={
             saving ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -844,66 +827,6 @@ export default function SettingsScreen() {
         >
           {saving ? "저장 중" : saved ? "저장 완료" : "저장하기"}
         </PrimaryButton>
-
-        {/* 섹션 3: 알림 설정 */}
-        <View style={styles.sectionHeader}>
-          <Bell size={16} color={colors.rose[500]} />
-          <Text style={styles.sectionTitle}>알림 설정</Text>
-        </View>
-        <Surface style={styles.card}>
-          <Text style={styles.toggleNotice} accessibilityRole="text">
-            알림 종류별 제어는 아직 준비 중이에요. 현재 알림 전체 허용·차단은 휴대폰의 앱 설정에서 변경해 주세요.
-          </Text>
-          <View style={styles.divider} />
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>푸시 알림</Text>
-              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
-            </View>
-            <Switch
-              accessibilityLabel="푸시 알림 설정, 준비 중"
-              value={pushEnabled}
-              onValueChange={togglePush}
-              disabled
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={pushEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>커뮤니티 알림</Text>
-              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
-            </View>
-            <Switch
-              accessibilityLabel="커뮤니티 알림 설정, 준비 중"
-              value={communityNotifEnabled}
-              onValueChange={toggleCommunity}
-              disabled
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={communityNotifEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>파트너 메시지 알림</Text>
-              <Text style={styles.toggleHint}>종류별 설정은 준비 중이에요</Text>
-            </View>
-            <Switch
-              accessibilityLabel="파트너 메시지 알림 설정, 준비 중"
-              value={partnerNotifEnabled}
-              onValueChange={togglePartner}
-              disabled
-              trackColor={{ false: colors.ivory[200], true: colors.rose.pale }}
-              thumbColor={partnerNotifEnabled ? colors.rose[500] : colors.taupe[400]}
-            />
-          </View>
-        </Surface>
 
         {/* 섹션 4: 파트너 관리 */}
         {data?.coupleId && (
@@ -934,7 +857,7 @@ export default function SettingsScreen() {
                     </Text>
                     <Pressable
                       onPress={confirmLegacyRelink}
-                      disabled={relinking}
+                      disabled={relinking || settingsReadOnly}
                       style={({ pressed }) => [
                         styles.relinkButton,
                         (pressed || relinking) && { opacity: 0.65 },
@@ -958,7 +881,7 @@ export default function SettingsScreen() {
                       pressed && { opacity: 0.6 },
                     ]}
                     onPress={copyInviteCode}
-                    disabled={!inviteCode}
+                    disabled={!inviteCode || settingsReadOnly}
                   >
                     {codeCopied ? (
                       <Check size={16} color={colors.rose[500]} />
@@ -1035,13 +958,12 @@ export default function SettingsScreen() {
 
         {/* 회원 탈퇴 (위험 영역) */}
         <View style={styles.dangerZone}>
-          <Pressable
-            style={({ pressed }) => [styles.dangerBtn, pressed && { opacity: 0.7 }]}
-            onPress={handleDeleteAccount}
-          >
-            <Trash2 size={16} color={colors.danger} />
-            <Text style={styles.dangerBtnText}>회원 탈퇴</Text>
-          </Pressable>
+          <View style={styles.deletionUnavailable}>
+            <Text style={styles.deletionUnavailableTitle}>계정 삭제 기능 점검 중</Text>
+            <Text style={styles.deletionUnavailableBody}>
+              삭제 작업자와 실패 복구가 확인되지 않아 현재 요청을 받지 않아요. 검증 전에는 공개 운영하지 않습니다.
+            </Text>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -1159,6 +1081,44 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   content: { padding: 20, paddingBottom: 40 },
+  loadWarning: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#E8B4AB",
+    borderRadius: 16,
+    backgroundColor: "#FFF4F2",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadWarningCopy: {
+    flex: 1,
+  },
+  loadWarningTitle: {
+    color: colors.danger,
+    fontFamily: "NotoSansKR_600SemiBold",
+    fontSize: 14,
+  },
+  loadWarningBody: {
+    marginTop: 3,
+    color: colors.textSecondary,
+    fontFamily: "NotoSansKR_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  loadRetryButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  loadRetryText: {
+    color: colors.danger,
+    fontFamily: "NotoSansKR_600SemiBold",
+    fontSize: 13,
+  },
 
   // 섹션
   sectionHeader: {
@@ -1218,33 +1178,6 @@ const styles = StyleSheet.create({
 
   saveButton: {
     marginBottom: 24,
-  },
-
-  // 알림 토글 행
-  toggleNotice: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 19,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 2,
-  },
-  toggleInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: colors.noir[800],
-  },
-  toggleHint: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: 2,
   },
 
   // 커플 코드
@@ -1343,6 +1276,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: colors.danger,
+  },
+  deletionUnavailable: {
+    borderWidth: 1,
+    borderColor: "#F5D08A",
+    borderRadius: 12,
+    backgroundColor: "#FFF8E8",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  deletionUnavailableTitle: {
+    color: "#6B4A10",
+    fontFamily: "NotoSansKR_600SemiBold",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  deletionUnavailableBody: {
+    color: "#7A5B23",
+    fontFamily: "NotoSansKR_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+    textAlign: "center",
   },
 
   // 비밀번호 모달

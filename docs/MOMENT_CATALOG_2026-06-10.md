@@ -1,5 +1,7 @@
 # 동반자 모멘트 카탈로그 v1 (2026-06-10)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 추정 날짜, 가격 범위, 계약 조언, 선제 발화와 자동 기억 저장은 현재 기능·콘텐츠 기준이나 개인 일정이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 제품 설계 스냅샷입니다.** 현재 proactive 자동 발화와 모델 기반 일정·기억 쓰기는 하드 비활성입니다. 아래 트리거·배선 요구사항은 실행 지침이 아니며, 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

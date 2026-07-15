@@ -345,6 +345,11 @@ export function releaseHealthFailures(
   if (body.rateLimitKeySecretConfigured !== true) {
     failures.push("Expected a strong configured rate-limit key secret");
   }
+  if (body.amoraUsageLimitMode !== "unlimited_test") {
+    failures.push(
+      `Expected Amora usage-limit mode unlimited_test, got ${String(body.amoraUsageLimitMode)}`
+    );
+  }
   if (body.turnstileCredentialsConfigured !== true) {
     failures.push("Expected a plausible complete Turnstile credential pair");
   }
@@ -365,6 +370,11 @@ export function releaseHealthFailures(
   if (body.researchCohortApplicationsEnabled !== expectedResearchIntake) {
     failures.push(
       `Expected research intake ${options.researchIntake}, got ${String(body.researchCohortApplicationsEnabled)}`
+    );
+  }
+  if (body.customerSurveyIntakeEnabled !== false) {
+    failures.push(
+      `Expected customer survey intake closed, got ${String(body.customerSurveyIntakeEnabled)}`
     );
   }
   const expectedAccountDeletionCron = options.accountDeletionCron === "open";
@@ -601,7 +611,7 @@ async function assertSignedAppAssociations(page, result, options) {
       const details = body?.applinks?.details;
       const matchingApp = Array.isArray(details) && details.some((entry) =>
         entry?.appID === `${options.appleTeamId}.ai.hanbang.wedding`
-        && ["/app", "/app/community/post/*", "/app/vendors/*"].every(
+        && ["/app", "/app/community/post/*"].every(
           (path) => entry?.paths?.includes(path)
         )
       );

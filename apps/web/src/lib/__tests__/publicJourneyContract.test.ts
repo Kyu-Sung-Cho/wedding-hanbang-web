@@ -74,7 +74,7 @@ describe("public journey contract", () => {
     expect(community).toContain("initialFeedAvailable &&");
     expect(community).toContain("setInitialFeedAvailable(false)");
     expect(community.indexOf("setInitialFeedAvailable(false)")).toBeLessThan(
-      community.indexOf("hydrateInitialFeed(initialFeed)"),
+      community.indexOf("hydrateInitialFeed(readyInitialFeed)"),
     );
   });
 
@@ -134,7 +134,7 @@ describe("public journey contract", () => {
     expect(chatPanel).toContain('aria-label="파일 첨부"');
     expect(aiNotice).toContain("inline-flex min-h-11 items-center px-2");
     expect(community).toContain(
-      'className="inline-flex h-11 shrink-0 items-center rounded-full'
+      'className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[#36534E]'
     );
   });
 
@@ -190,7 +190,7 @@ describe("public journey contract", () => {
     expect(landing).toContain("한국소비자원 조사에서는 조사 업체 중 가격을 공개한 비율이 36.1%");
     expect(guide).toContain("현재 별도 이용료 없음");
     expect(guide).toContain("AI 답변 확인 필요");
-    expect(guide).toContain("업체 연결 준비 중");
+    expect(guide).toContain("업체 연결 미제공");
     expect(guide).not.toContain('label: "무료"');
     expect(guide).not.toContain('label: "광고 없음"');
     expect(guide).not.toContain('label: "데이터 보호"');
@@ -201,26 +201,20 @@ describe("public journey contract", () => {
     const vendorCommunityPage = readSource("src/app/(community)/community/vendor/[name]/page.tsx");
 
     expect(communityGuide).toContain("화면 예시 · 실제 후기나 가격이 아닙니다");
-    expect(communityGuide).toContain("화면 예시 · 실제 대화나 참여 인원이 아닙니다");
     expect(communityGuide).not.toContain("가을의신부");
     expect(communityGuide).not.toContain("248명 활동 중");
     expect(communityGuide).not.toContain("광고는 표시하고, 추천에서 제외");
 
-    expect(vendorCommunityPage).toContain("<NoBookingFallback name={decodedName} />");
-    expect(vendorCommunityPage).not.toContain("BookingSection");
-    expect(vendorCommunityPage).toContain("현재 웨딩한방에서는 상담 요청이나 예약을 업체에 전송하지 않습니다");
-    expect(vendorCommunityPage).not.toContain("실시간 슬롯은 곧 오픈됩니다");
-    expect(vendorCommunityPage).not.toContain("이 화면에서 바로 예약합니다");
-    expect(vendorCommunityPage).not.toContain("슬롯을 누르면 업체 상세 페이지에서 예약을 확정합니다");
-    expect(vendorCommunityPage).not.toContain("잔여 2");
+    expect(vendorCommunityPage).toContain('<PublicBetaUnavailable feature="vendor" />');
+    expect(vendorCommunityPage).not.toMatch(/NoBookingFallback|BookingSection|fetch\(|supabase|vendor_products|실시간 슬롯|잔여 2/);
   });
 
-  it("keeps vendor discovery informational while vendor connection is disabled", () => {
-    const vendorLists = [
+  it("physically retires unverified vendor discovery and synthetic seeds", () => {
+    const vendorListFiles = [
       "src/app/(app)/vendors/page.tsx",
       "src/app/(app)/vendors/favorites/page.tsx",
-    ].map(readSource).join("\n");
-    const chatCards = readSource("src/components/app/chat/VendorToolCard.tsx");
+    ];
+    const vendorLists = vendorListFiles.map(readSource).join("\n");
     const seedSources = [
       "src/app/api/admin/seed-vendors/route.ts",
       "src/app/api/admin/seed-venues/route.ts",
@@ -228,15 +222,15 @@ describe("public journey contract", () => {
       "src/app/api/admin/seed-studios/route.ts",
     ].map(readSource).join("\n");
 
-    expect(vendorLists).toContain("운영시간 참고");
-    expect(vendorLists).not.toContain("예약 가능");
-    expect(chatCards).toContain("const VENDOR_CONNECTION_ENABLED = false");
-    expect(chatCards).toContain("등록된 운영시간은 참고 정보이며 현재 예약 가능 여부가 아닙니다");
-    expect(chatCards).toContain("업체의 수신·예약·취소 완료를 증명하지 않습니다");
-    expect(chatCards).not.toContain("잔여{slot.remaining}");
-    expect(chatCards).not.toContain("예약이 접수되었습니다");
-    expect(seedSources).toContain("[운영 테스트용 합성 데이터]");
-    expect(seedSources).not.toMatch(/최고|최저가|평점 1위|인기 1위|추천 1위|단독홀 보장|시술 보장/);
+    for (const vendorListFile of vendorListFiles) {
+      expect(readSource(vendorListFile), vendorListFile).toContain('<PublicBetaUnavailable feature="vendor" />');
+    }
+    expect(vendorLists).not.toMatch(/fetch\(|supabase|운영시간|예약 가능|rating|price_min/);
+    expect(seedSources.match(/synthetic_vendor_seed_retired/g)).toHaveLength(4);
+    expect(seedSources.match(/"Cache-Control": "private, no-store, max-age=0"/g)).toHaveLength(4);
+    expect(seedSources).not.toMatch(
+      /verifyAdmin|getServiceClient|seedGate|vendor_products|vendor_timeslots|priceMin|priceMax|최고|최저가|평점 1위|인기 1위|추천 1위|단독홀 보장|시술 보장/,
+    );
   });
 
   it("keeps proactive moment advice free of unsupported prices and universal customs", () => {
@@ -249,33 +243,47 @@ describe("public journey contract", () => {
 
   it("keeps planning guidance source-honest when prices vary", () => {
     const checklists = readSource("src/constants/checklists.ts");
-    const notifications = readSource("src/constants/notifications.ts");
     const onboarding = readSource(
       "src/components/onboarding/WeddingStylePreferences.tsx",
     );
-    const aiComment = readSource("src/components/community/AiCommentBox.tsx");
+    const communityDetail = readSource("src/app/(community)/community/post/[id]/page.tsx");
+    const communityProjection = readSource("src/lib/community/postSelect.ts");
+    const serviceGuide = readSource("src/components/app/ServiceGuide.tsx");
+    const serviceCta = readSource("src/components/community/ServiceCTA.tsx");
 
-    expect(checklists).toContain("노선·시기·수요와 변경 조건에 따라 달라집니다");
+    expect(checklists).toContain("여러 날짜의 총액과 취소·변경 조건, 여권·비자·보험의 최신 공식 안내를 직접 확인하세요");
     expect(checklists).toContain("총액·설치비·보증·반품 조건을 함께 비교하세요");
     expect(checklists).not.toContain("항공권은 빨리 예약할수록 저렴합니다");
     expect(checklists).not.toContain("수백만원을 아낄 수 있습니다");
-    expect(notifications).toContain("날짜별 총액과 취소·변경 조건을 함께 비교해 보세요");
     expect(onboarding).toContain("예산을 어떻게 운영하고 싶나요?");
-    expect(aiComment).toContain("AI 참고 의견");
-    expect(aiComment).not.toMatch(/평균 이하|평균 이상|comparisonMeta/);
+    expect(communityDetail).not.toMatch(/AiCommentBox|post\.ai_comment|가격 판정/);
+    expect(communityProjection).not.toMatch(/ai_comment|price_data|cost_data/);
+    expect(serviceGuide).toContain("공식 조사 자료의 지역·시점·포함 항목 확인");
+    expect(serviceGuide).not.toContain("내 견적이 평균과 얼마나 다른지 확인");
+    expect(serviceCta).toContain("계획 금액·서명한 계약 총액·실제 납부액을 구분해 기록합니다");
+    expect(serviceCta).not.toContain("견적가와 예상 추가금을 한 곳에서 관리합니다");
   });
 
-  it("does not present failed lounge requests as genuine empty states", () => {
+  it("keeps lounge plan, signed-contract, and payment records separate", () => {
+    const lounge = readSource("src/app/(app)/lounge/page.tsx");
+
+    expect(lounge).toContain("getFinancialRecords(progress)");
+    expect(lounge).toContain("계획 예산");
+    expect(lounge).toContain("서명한 계약 총액");
+    expect(lounge).toContain("누적 납부액");
+    expect(lounge).toContain("예산 기록");
+    expect(lounge).not.toMatch(/spentBudget|budgetPercent|budgetWidth|getSpent\(|남은 예산|초과 금액|만원\} 사용/);
+    expect(lounge).not.toContain("item.spent ?? item.cost");
+  });
+
+  it("does not present failed active lounge requests as genuine empty states", () => {
     const lounge = readSource("src/app/(app)/lounge/page.tsx");
 
     expect(lounge).toContain("setSavedError(true)");
     expect(lounge).toContain("저장한 글을 불러오지 못했어요.");
-    expect(lounge).toContain("동기방 소식을 불러오지 못했어요.");
-    expect(lounge).toContain("이번 주 요약 일부를 불러오지 못했어요.");
     expect(lounge).toContain("다시 불러오기");
-    expect(lounge).toContain("setActionsLoadError(true)");
-    expect(lounge).toContain("할 일 다시 불러오기");
-    expect(lounge).toContain('role={actionsLoadError ? "alert" : "status"}');
+    expect(lounge).not.toMatch(/ActionsLoadError|actionsLoadError|\/api\/amora\/actions|할 일 다시 불러오기/);
+    expect(lounge).not.toMatch(/CohortState|cohortState|\/api\/community\/cohort|동기방 소식|이번 주 요약 일부/);
   });
 
   it("keeps current principles and design documentation on the actual service boundary", () => {
@@ -297,7 +305,6 @@ describe("public journey contract", () => {
     const repoDocument = (relativePath: string) =>
       readFileSync(join(process.cwd(), "../..", relativePath), "utf8");
     const historicalDocuments = [
-      "docs/COMMUNITY_TO_SERVICE_USER_JOURNEY.md",
       "docs/DEMO_SCRIPT_90s.md",
       "docs/HANBANG_POSITIONING_2026.md",
       "docs/MOBILE_APP_MASTERPLAN_2026-06-30.md",
@@ -386,9 +393,9 @@ describe("public journey contract", () => {
     ].map(readSource).join("\n");
 
     expect(howItWorks).toContain('isComingSoon ? "/beta" : "/demo/login"');
-    expect(howItWorks).toContain("정식 베타에서 제공할 4단계 준비 흐름");
-    expect(features).toContain("정식 베타에서 준비 중인 주요 기능");
-    expect(scenarios).toContain("정식 베타에서 준비 중인 도구");
+    expect(howItWorks).toContain("현재 계정·앱 기능은 열려 있지 않습니다. 아래는 구현된 4단계 흐름입니다.");
+    expect(features).toContain("현재 계정·앱 기능은 열려 있지 않으며, 아래는 구현 범위 설명입니다.");
+    expect(scenarios).toContain("현재 계정·앱 기능은 열려 있지 않습니다. 아래는 구현된 활용 예시입니다.");
     expect(comingSoonCtas).toContain("사용자 연구");
     expect(comingSoonCtas).toContain('/beta#cta');
     expect(comingSoonCtas).toContain("6주 사용자 연구");

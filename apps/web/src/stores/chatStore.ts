@@ -3,8 +3,10 @@
 import { create } from "zustand";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { readMyChatViewState } from "@/lib/profile/safeProfile";
 import { captureEvent } from "@/lib/analytics";
 import { dedupeChatAttachments } from "@/lib/chat/attachments";
+import { attachmentProviderConsentVersion } from "@hanbang/shared";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -20,13 +22,12 @@ import type {
   ChatMessageTarget,
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
-import type { AmoraActionItem } from "@/lib/amora/actions";
 import { useAuthStore } from "./authStore";
 
 type ClearScope = "shared" | "private";
 
 interface ChatAiRequestPayload {
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  currentUserMessageId: string;
   coupleId: string;
   senderName: string;
   senderRole: MessageSenderRole;
@@ -36,6 +37,7 @@ interface ChatAiRequestPayload {
   visibility: "shared" | "bride_private" | "groom_private";
   clientCapabilities: { toolCards: true; incrementalSse: true };
   attachments?: Array<{ base64: string; mediaType: string; fileName: string }>;
+  attachmentProviderConsentVersion?: typeof attachmentProviderConsentVersion;
 }
 
 interface PendingAiRequest {
@@ -159,7 +161,7 @@ interface ChatStoreState {
   pendingAiRequest: PendingAiRequest | null;
   initialLoadDone: boolean;
 
-  /** 베타 무료 상담 잔여 횟수 — 임계 이하일 때만 서버가 알려줌(소진 예고 배너용). */
+  /** 구버전 또는 향후 opt-in 제한 서버의 잔여량 이벤트 호환용. 현재 UI는 표시하지 않는다. */
   quotaRemaining: number | null;
 
   // 본인의 view-reset timestamp — "새 채팅(내 화면만)" 누른 시점.
@@ -182,6 +184,7 @@ interface ChatStoreState {
     senderName: string;
     weddingContext: WeddingContext;
     images?: Array<{ base64: string; mediaType: string; previewUrl: string }>;
+    attachmentProviderConsentVersion?: typeof attachmentProviderConsentVersion;
     target?: ChatMessageTarget;
     visibility?: "shared" | "bride_private" | "groom_private";
   }) => Promise<boolean>;
@@ -216,28 +219,6 @@ interface ChatStoreState {
   reset: () => void;
 }
 
-// 일정/예산/예약 등 journey.progress 를 변경하는 tool 들 — 처리 후 백엔드와
-// sync 가 누락된 케이스 대비 refreshJourney 트리거.
-const PROGRESS_AFFECTING_TOOLS = new Set([
-  "add_schedule_event",
-  "update_schedule_event",
-  "delete_schedule_event",
-  "update_task_status",
-  "toggle_checklist_item",
-  "update_budget",
-  "update_category_budget",
-  "apply_budget_plan",
-  "add_custom_category",
-  "delete_category",
-  "reset_category",
-  "add_amora_action",
-  "update_amora_action",
-  "create_booking",
-  "cancel_booking",
-  "update_wedding_date",
-  "update_venue",
-]);
-
 let activeAiAbortController: AbortController | null = null;
 // Every logout/account switch advances this generation. Async work that began
 // in an older user scope must never repopulate the shared Zustand store after
@@ -260,313 +241,6 @@ function abortActiveAiRequestByUser(): void {
 }
 
 // 도구 결과를 authStore에 반영
-function syncToolResult(result: ToolExecutionResult) {
-  if (!result.success) return;
-  const authStore = useAuthStore.getState();
-
-  switch (result.toolName) {
-    case "update_budget":
-      authStore.updateJourneyLocal({
-        total_budget: result.toolOutput.total_budget as number,
-      });
-      break;
-    case "update_wedding_date":
-      authStore.updateJourneyLocal({
-        wedding_date: result.toolOutput.wedding_date as string,
-      });
-      break;
-    case "update_task_status": {
-      const category = result.toolInput.category as string;
-      const status = result.toolInput.status as string;
-      const currentProgress = authStore.journey?.progress ?? {};
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentProgress,
-          [category]: { category, status } as { category: string; status: "not_started" | "in_progress" | "completed" },
-        },
-      });
-      break;
-    }
-    case "update_venue":
-      authStore.updateJourneyLocal({
-        venue: result.toolOutput.venue as string,
-      });
-      break;
-    case "update_category_budget": {
-      const catBudget = result.toolInput.category as string;
-      const curProgressBudget = authStore.journey?.progress ?? {};
-      const existingCatBudget = curProgressBudget[catBudget];
-      const budgetUpdates: Record<string, unknown> = {};
-      if (result.toolInput.budget !== undefined) budgetUpdates.budget = result.toolInput.budget;
-      if (result.toolInput.spent !== undefined) budgetUpdates.spent = result.toolInput.spent;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...curProgressBudget,
-          [catBudget]: {
-            ...(existingCatBudget ?? { category: catBudget, status: "not_started" }),
-            category: catBudget,
-            ...budgetUpdates,
-          },
-        },
-      });
-      break;
-    }
-    case "apply_budget_plan": {
-      // 예산 인터뷰 결과 일괄 반영 — total_budget + 모든 allocations 의 budget 필드 갱신.
-      // 서버 executor 는 잔여분을 reserve 로 자동 보강하므로 input.allocations 외에 reserve 도
-      // 별도로 검사. toolOutput.remainder_to_reserve 가 있으면 reserve 카테고리에 추가 가산.
-      const totalBudget = result.toolOutput.total_budget as number | undefined;
-      const allocations = (result.toolInput.allocations ?? []) as Array<{
-        category: string;
-        budget: number;
-      }>;
-      const remainder = (result.toolOutput.remainder_to_reserve as number | undefined) ?? 0;
-      const curProgress = authStore.journey?.progress ?? {};
-      const nextProgress: Record<string, unknown> = { ...curProgress };
-      for (const alloc of allocations) {
-        const existing = (nextProgress[alloc.category] ?? {
-          category: alloc.category,
-          status: "not_started",
-        }) as Record<string, unknown>;
-        nextProgress[alloc.category] = {
-          ...existing,
-          category: alloc.category,
-          budget: alloc.budget,
-        };
-      }
-      // 잔여분이 reserve 로 자동 추가됐다면 그것도 반영
-      if (remainder > 0) {
-        const reserveExisting = (nextProgress.reserve ?? {
-          category: "reserve",
-          status: "not_started",
-        }) as Record<string, unknown>;
-        const reserveAllocated = allocations.find((a) => a.category === "reserve")?.budget ?? 0;
-        nextProgress.reserve = {
-          ...reserveExisting,
-          category: "reserve",
-          budget: reserveAllocated + remainder,
-        };
-      }
-      authStore.updateJourneyLocal({
-        ...(totalBudget !== undefined ? { total_budget: totalBudget } : {}),
-        progress: nextProgress as typeof curProgress,
-      });
-      break;
-    }
-    case "add_custom_category": {
-      const customKey = result.toolOutput.key as string;
-      const customLabel = result.toolInput.label as string;
-      const curProgressCustom = authStore.journey?.progress ?? {};
-      const customCatItem: { category: string; label: string; status: "in_progress"; budget?: number; spent?: number } = {
-        category: customKey,
-        label: customLabel,
-        status: "in_progress",
-      };
-      if (result.toolInput.budget !== undefined) customCatItem.budget = result.toolInput.budget as number;
-      if (result.toolInput.spent !== undefined) customCatItem.spent = result.toolInput.spent as number;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...curProgressCustom,
-          [customKey]: customCatItem,
-        },
-      });
-      break;
-    }
-    case "delete_category": {
-      if (!result.success) break;
-      const delKey = result.toolOutput.key as string;
-      const curProgressDel = authStore.journey?.progress ?? {};
-      const isKnownDel = delKey in (curProgressDel as Record<string, unknown>) || ["meeting","venue","studio","dress","makeup","ring","hanbok","yedan","honeymoon","houseware","housing","invitation","snap","shoes","bouquet","gift","mc","ham","pyebaek","reserve"].includes(delKey);
-      if (isKnownDel) {
-        const hiddenDel: string[] = ((curProgressDel as Record<string, unknown>).__hidden as string[]) ?? [];
-        const restDel = { ...(curProgressDel as Record<string, unknown>) };
-        delete restDel[delKey];
-        authStore.updateJourneyLocal({
-          progress: { ...restDel, __hidden: [...hiddenDel, delKey] } as unknown as typeof curProgressDel,
-        });
-      } else {
-        const restDel = { ...(curProgressDel as Record<string, unknown>) };
-        delete restDel[delKey];
-        authStore.updateJourneyLocal({ progress: restDel as typeof curProgressDel });
-      }
-      break;
-    }
-    case "reset_category": {
-      if (!result.success) break;
-      const resetKey = result.toolOutput.key as string;
-      const curProgressReset = authStore.journey?.progress ?? {};
-      const restReset = { ...(curProgressReset as Record<string, unknown>) };
-      delete restReset[resetKey];
-      authStore.updateJourneyLocal({ progress: restReset as typeof curProgressReset });
-      break;
-    }
-    case "add_schedule_event": {
-      const currentP1 = authStore.journey?.progress ?? {};
-      const curEvents1 = ((currentP1 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const newEvt = result.toolOutput.event as { id: string };
-      const hasEvent = curEvents1.some((event) => event.id === newEvt.id);
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP1,
-          __events: hasEvent
-            ? curEvents1.map((event) => event.id === newEvt.id ? newEvt : event)
-            : [...curEvents1, newEvt],
-        } as unknown as typeof currentP1,
-      });
-      break;
-    }
-    case "update_schedule_event": {
-      const currentP2 = authStore.journey?.progress ?? {};
-      const curEvents2 = ((currentP2 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const evtId2 = result.toolInput.event_id as string;
-      const evtUpdates = result.toolOutput.updates as Record<string, unknown>;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP2,
-          __events: curEvents2.map((e) => e.id === evtId2 ? { ...e, ...evtUpdates, updatedAt: new Date().toISOString() } : e),
-        } as unknown as typeof currentP2,
-      });
-      break;
-    }
-    case "delete_schedule_event": {
-      const currentP3 = authStore.journey?.progress ?? {};
-      const curEvents3 = ((currentP3 as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-      const evtId3 = result.toolInput.event_id as string;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP3,
-          __events: curEvents3.filter((e) => e.id !== evtId3),
-        } as unknown as typeof currentP3,
-      });
-      break;
-    }
-    case "toggle_checklist_item": {
-      const currentP4 = authStore.journey?.progress ?? {};
-      const cat = result.toolInput.category as string;
-      const iId = result.toolInput.item_id as string;
-      const doneVal = result.toolInput.done as boolean;
-      const newStat = result.toolOutput.new_status as string;
-      const existingCat = currentP4[cat];
-      const cl = (existingCat?.checklist ?? []).map((c: { id: string; label: string; done: boolean }) =>
-        c.id === iId ? { ...c, done: doneVal } : c
-      );
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentP4,
-          [cat]: { ...(existingCat ?? { category: cat }), category: cat, status: newStat as "not_started" | "in_progress" | "completed", checklist: cl },
-        },
-      });
-      break;
-    }
-    case "add_amora_action": {
-      const currentProgress = authStore.journey?.progress ?? {};
-      const currentActions = ((currentProgress as Record<string, unknown>).__amora_actions ?? []) as AmoraActionItem[];
-      const action = result.toolOutput.action as AmoraActionItem | undefined;
-      if (!action) break;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentProgress,
-          __amora_actions: [action, ...currentActions.filter((item) => item.id !== action.id)],
-        } as unknown as typeof currentProgress,
-      });
-      break;
-    }
-    case "update_amora_action": {
-      const currentProgress = authStore.journey?.progress ?? {};
-      const currentActions = ((currentProgress as Record<string, unknown>).__amora_actions ?? []) as AmoraActionItem[];
-      const action = result.toolOutput.action as AmoraActionItem | undefined;
-      if (!action) break;
-      authStore.updateJourneyLocal({
-        progress: {
-          ...currentProgress,
-          __amora_actions: currentActions.map((item) => item.id === action.id ? action : item),
-        } as unknown as typeof currentProgress,
-      });
-      break;
-    }
-    case "create_booking": {
-      // 예약 성공 시 server 가 wedding_journeys.progress 에 event 추가 + spent 누적.
-      // client authStore 도 같이 갱신 안 하면 /schedule, /budget 페이지가 새로고침
-      // 전까지 stale. toolOutput 에 syncedEvent / syncedCategoryKey / syncedNewSpent
-      // 가 server commit 성공 시 채워져 옴 — 그대로 merge.
-      if (!result.success) break;
-      const syncedEvent = result.toolOutput.syncedEvent as
-        | { id: string; date: string; title: string; memo?: string; categoryKey?: string; createdAt: string; updatedAt: string }
-        | null
-        | undefined;
-      const syncedCategoryKey = result.toolOutput.syncedCategoryKey as string | null | undefined;
-      const syncedNewSpent = result.toolOutput.syncedNewSpent as number | null | undefined;
-      if (!syncedEvent && !syncedCategoryKey) break;
-
-      const currentProgress = authStore.journey?.progress ?? {};
-      const nextProgress: Record<string, unknown> = { ...currentProgress };
-
-      // 1) __events 에 새 event 추가 (id 로 중복 방지 — 같은 booking 두 번 들어가지 않게)
-      if (syncedEvent) {
-        const events = ((nextProgress as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-        if (!events.some((e) => e.id === syncedEvent.id)) {
-          (nextProgress as Record<string, unknown>).__events = [...events, syncedEvent];
-        }
-      }
-
-      // 2) 카테고리 spent 갱신 (server 가 누적한 최종값 그대로 덮어쓰기)
-      if (syncedCategoryKey && typeof syncedNewSpent === "number") {
-        const existingCat = (nextProgress[syncedCategoryKey] ?? {
-          category: syncedCategoryKey,
-          status: "not_started",
-        }) as Record<string, unknown>;
-        nextProgress[syncedCategoryKey] = {
-          ...existingCat,
-          category: syncedCategoryKey,
-          spent: syncedNewSpent,
-        };
-      }
-
-      authStore.updateJourneyLocal({
-        progress: nextProgress as typeof currentProgress,
-      });
-      break;
-    }
-    case "cancel_booking": {
-      // create_booking 의 역연산 — server 가 progress 에서 event 제거 + spent 차감.
-      // toolOutput 에 syncedEventIdRemoved / syncedCategoryKey / syncedNewSpent 가
-      // server commit 성공 시 채워져 옴.
-      if (!result.success) break;
-      const eventIdRemoved = result.toolOutput.syncedEventIdRemoved as string | null | undefined;
-      const cancelCategoryKey = result.toolOutput.syncedCategoryKey as string | null | undefined;
-      const cancelNewSpent = result.toolOutput.syncedNewSpent as number | null | undefined;
-      if (!eventIdRemoved && !cancelCategoryKey) break;
-
-      const cancelCurrent = authStore.journey?.progress ?? {};
-      const cancelNext: Record<string, unknown> = { ...cancelCurrent };
-
-      // 1) __events 에서 해당 booking event 제거
-      if (eventIdRemoved) {
-        const events = ((cancelNext as Record<string, unknown>).__events ?? []) as Array<{ id: string }>;
-        (cancelNext as Record<string, unknown>).__events = events.filter((e) => e.id !== eventIdRemoved);
-      }
-
-      // 2) 카테고리 spent 를 server 가 차감한 최종값으로 덮어쓰기
-      if (cancelCategoryKey && typeof cancelNewSpent === "number") {
-        const existingCat = (cancelNext[cancelCategoryKey] ?? {
-          category: cancelCategoryKey,
-          status: "not_started",
-        }) as Record<string, unknown>;
-        cancelNext[cancelCategoryKey] = {
-          ...existingCat,
-          category: cancelCategoryKey,
-          spent: cancelNewSpent,
-        };
-      }
-
-      authStore.updateJourneyLocal({
-        progress: cancelNext as typeof cancelCurrent,
-      });
-      break;
-    }
-  }
-}
-
 // SSE 스트림 파싱 공통 함수
 async function parseSSEStream(
   res: Response,
@@ -577,7 +251,7 @@ async function parseSSEStream(
     onSuggestions: (suggestions: string[]) => void;
     onQuota?: (remaining: number) => void;
     onDone: (fullContent: string, metadata: ChatMessageMetadata) => void;
-    onError: (message: string) => void;
+    onError: (message: string, code?: string) => void;
   }
 ) {
   const reader = res.body!.getReader();
@@ -618,7 +292,7 @@ async function parseSSEStream(
             callbacks.onDone(event.fullContent, event.metadata);
             break;
           case "error":
-            callbacks.onError(event.message);
+            callbacks.onError(event.message, event.code);
             break;
         }
       } catch (e) {
@@ -758,9 +432,14 @@ async function parseChatApiError(response: Response): Promise<ChatApiError> {
 
 function isRetryableAiError(error: unknown): boolean {
   if (!(error instanceof ChatApiError)) return true;
+  if (["couple_provider_daily", "global_daily"].includes(error.code ?? "")) {
+    return false;
+  }
   if (["request_failed", "request_in_progress", "claim_unavailable"].includes(error.code ?? "")) {
     return true;
   }
+  // 스트림 내부 오류는 HTTP 200 응답 안에서 도착한다. 명시적인 일일 한도 코드가 아니면 재시도 가능하다.
+  if (error.status === 200) return true;
   return error.status === 408 || error.status >= 500;
 }
 
@@ -820,8 +499,7 @@ async function executeAiRequest(
         let fullContent = "";
         let finalMetadata: ChatMessageMetadata | null = null;
         let gotDone = false;
-        let streamError: string | null = null;
-        let progressTouched = false;
+        let streamError: { message: string; code: string | null } | null = null;
 
         await parseSSEStream(response, {
           onTextDelta: (content) => scopedSet((state) => ({
@@ -830,10 +508,6 @@ async function executeAiRequest(
           onTextClear: () => scopedSet({ streamingContent: "" }),
           onToolResult: (result) => {
             if (!scopeIsCurrent()) return;
-            syncToolResult(result);
-            if (PROGRESS_AFFECTING_TOOLS.has(result.toolName) && result.success) {
-              progressTouched = true;
-            }
             scopedSet((state) => ({
               streamingToolResults: [...state.streamingToolResults, result],
             }));
@@ -845,13 +519,14 @@ async function executeAiRequest(
             finalMetadata = metadata;
             gotDone = true;
           },
-          onError: (message) => {
-            streamError = message;
+          onError: (message, code) => {
+            streamError = { message, code: code ?? null };
           },
         });
 
         if (streamError) {
-          throw new Error(streamError);
+          const error = streamError as { message: string; code: string | null };
+          throw new ChatApiError(error.message, 200, error.code);
         }
         if (!gotDone || !fullContent) {
           throw new Error("AI 응답 스트림이 완료되기 전에 중단되었습니다.");
@@ -866,9 +541,6 @@ async function executeAiRequest(
           visibility: currentRequest.visibility,
         });
 
-        if (progressTouched && scopeIsCurrent()) {
-          useAuthStore.getState().refreshJourney();
-        }
 
         scopedSet({ pendingAiRequest: null, error: null });
         return;
@@ -952,14 +624,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const supabase = createClient();
 
       // 본인 프로필의 view-reset timestamp 조회 (병렬)
-      const [{ data: profileData }, { data: messagesData, error: messagesErr }] = await Promise.all([
+      const [chatViewResult, { data: messagesData, error: messagesErr }] = await Promise.all([
         supabase.auth.getUser().then(async ({ data: { user } }) => {
-          if (!user) return { data: null };
-          return supabase
-            .from("profiles")
-            .select("shared_chat_cleared_at, private_chat_cleared_at")
-            .eq("id", user.id)
-            .single();
+          if (!user) return { data: null, error: null };
+          return readMyChatViewState(supabase);
         }),
         supabase
           .from("chat_messages")
@@ -970,17 +638,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       ]);
 
       if (messagesErr) throw messagesErr;
+      if (chatViewResult.error || !chatViewResult.data) {
+        throw chatViewResult.error ?? new Error("chat view state unavailable");
+      }
       if (!scopeIsCurrent()) return;
       if (get().isStreaming) return;
 
       const currentState = get();
       const sharedClearedAt = latestIso(
-        (profileData as { shared_chat_cleared_at?: string | null })?.shared_chat_cleared_at,
+        chatViewResult.data.shared_chat_cleared_at,
         currentState.sharedClearedAt,
         readLocalClearedAt(coupleId, "shared")
       );
       const privateClearedAt = latestIso(
-        (profileData as { private_chat_cleared_at?: string | null })?.private_chat_cleared_at,
+        chatViewResult.data.private_chat_cleared_at,
         currentState.privateClearedAt,
         readLocalClearedAt(coupleId, "private")
       );
@@ -1065,7 +736,16 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   },
 
   sendMessage: async ({
-    content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
+    content,
+    senderId,
+    senderRole,
+    coupleId,
+    senderName,
+    weddingContext,
+    images,
+    attachmentProviderConsentVersion: consentVersion,
+    target = "ai",
+    visibility,
   }) => {
     // 중복 발사 가드 (모바일 더블탭, 짧은 시간 내 재시도 방지)
     if (get().isStreaming) {
@@ -1076,10 +756,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
     const scopeGeneration = chatUserScopeGeneration;
     const scopeIsCurrent = () => scopeGeneration === chatUserScopeGeneration;
-    captureEvent("chat_message_sent", { target });
-
     const isDemo = document.cookie.includes("demo_mode=true");
     const uniqueImages = dedupeChatAttachments(images);
+    if (
+      uniqueImages.length > 0 &&
+      consentVersion !== attachmentProviderConsentVersion
+    ) {
+      set({
+        error: "첨부파일의 OpenAI 전송 동의를 다시 확인해 주세요.",
+        pendingAiRequest: null,
+      });
+      return false;
+    }
+    captureEvent("chat_message_sent", { target });
 
     // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
     const msgMetadata = target === "partner" ? { target: "partner" as const } : null;
@@ -1096,6 +785,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     // visibility 결정: 명시 없으면 senderRole 기반 추론 (private mode면 자기 role의 private)
     // 기본은 'shared' — 사용자가 명시적으로 private 모드 선택 시에만 다른 값
     const finalVisibility = visibility ?? "shared";
+    let currentUserMessageId: string | null = null;
 
     if (!isDemo) {
       try {
@@ -1112,7 +802,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         const insertPayload = await insertResponse.json().catch(() => ({}));
         if (!scopeIsCurrent()) return false;
         const inserted = insertPayload?.message;
-        if (!insertResponse.ok || !inserted || typeof inserted !== "object") {
+        if (!insertResponse.ok || !inserted || typeof inserted !== "object"
+          || typeof (inserted as Record<string, unknown>).id !== "string") {
           console.error("메시지 저장 에러:", insertPayload?.error);
           set({
             error: "메시지를 저장하지 못했어요. 입력 내용과 첨부는 그대로 두었으니 다시 보내주세요.",
@@ -1120,6 +811,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           });
           return false;
         }
+        currentUserMessageId = (inserted as Record<string, unknown>).id as string;
 
         set((state) => ({
           messages: [...state.messages, dbRowToMessage(inserted as Record<string, unknown>)],
@@ -1145,6 +837,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         created_at: new Date().toISOString(),
       };
       set((s) => ({ messages: [...s.messages, demoMsg] }));
+      set({ error: "예시 앱에서는 저장·전송 없는 샘플 상담만 볼 수 있어요." });
+      return false;
     }
 
     // 상대방에게 보내는 메시지는 저장만 한다. 자동 갈등 판정·중재는 민감한
@@ -1153,27 +847,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       return true;
     }
 
-    // 프라이버시 critical: shared 응답은 shared 메시지만, private 응답은
-    // 본인의 private + shared 메시지만 보낸다. 이 본문을 그대로 보관해야
-    // 동일 clientRequestId 재생 시 서버의 payload hash도 바뀌지 않는다.
-    const allMessages = get().messages;
-    const scopedMessages =
-      finalVisibility === "shared"
-        ? allMessages.filter((message) => message.visibility === "shared")
-        : allMessages.filter(
-            (message) =>
-              message.visibility === "shared" || message.visibility === finalVisibility
-          );
-    const recentMessages = scopedMessages.slice(-20).map((message) => {
-      if (message.sender_role === "ai") {
-        return { role: "assistant" as const, content: message.content };
-      }
-      const roleLabel = message.sender_role === "bride" ? "신부" : "신랑";
-      const prefix = message.metadata?.target === "partner"
-        ? `[${roleLabel}→상대방]`
-        : `[${roleLabel}]`;
-      return { role: "user" as const, content: `${prefix} ${message.content}` };
-    });
+    // 과거 transcript는 브라우저가 보내지 않는다. 서버에 방금 저장된 메시지
+    // ID만 넘기고, API가 공개범위·소유권·삭제 경계에 맞춰 정본을 재구성한다.
+    if (!currentUserMessageId) {
+      set({ error: "저장된 질문을 안전하게 확인하지 못했어요. 다시 보내주세요." });
+      return false;
+    }
 
     const MAX_PAYLOAD_SIZE = 3 * 1024 * 1024;
     let totalSize = 0;
@@ -1196,7 +875,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       isDemo,
       visibility: finalVisibility,
       payload: {
-        messages: recentMessages,
+        currentUserMessageId,
         coupleId,
         senderName,
         senderRole,
@@ -1205,7 +884,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         clientRequestId,
         visibility: finalVisibility,
         clientCapabilities: { toolCards: true, incrementalSse: true },
-        ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
+        ...(attachmentPayload.length > 0
+          ? {
+              attachments: attachmentPayload,
+              attachmentProviderConsentVersion: consentVersion,
+            }
+          : {}),
       },
     };
 
@@ -1235,106 +919,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   dismissAiError: () => set({ error: null, pendingAiRequest: null }),
 
-  // 갈등 중재: 커플 대화 중 아모라가 자동 개입
-  requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
-    if (get().isStreaming) return;
-    const scopeGeneration = chatUserScopeGeneration;
-    const scopeIsCurrent = () => scopeGeneration === chatUserScopeGeneration;
-    const scopedSet: ChatStoreSet = (next) => {
-      if (scopeIsCurrent()) set(next);
-    };
-
-    scopedSet({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
-
-    const abortController = new AbortController();
-    activeAiAbortController = abortController;
-    const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
-
-    try {
-      // mediation은 항상 shared 컨텍스트 — private 메시지 절대 포함 금지
-      const sharedMessages = get().messages.filter((m) => m.visibility === "shared");
-      const recentMessages = sharedMessages.slice(-20).map((m) => {
-        if (m.sender_role === "ai") {
-          return { role: "assistant" as const, content: m.content };
-        }
-        const roleLabel = m.sender_role === "bride" ? "신부" : "신랑";
-        const isPartner = m.metadata?.target === "partner";
-        const prefix = isPartner ? `[${roleLabel}→상대방]` : `[${roleLabel}]`;
-        return { role: "user" as const, content: `${prefix} ${m.content}` };
-      });
-
-      // 중재 요청 메시지 추가
-      const roleLabel = senderRole === "bride" ? "신부" : "신랑";
-      recentMessages.push({
-        role: "user" as const,
-        content: `[${roleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등/의견 차이가 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${conflictContext}`,
-      });
-
-      const isDemo = document.cookie.includes("demo_mode=true");
-      const clientRequestId = createChatRequestId("mediation");
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: recentMessages,
-          coupleId, senderName, senderRole, weddingContext, isDemo, clientRequestId,
-        }),
-        signal: abortController.signal,
-      });
-
-      clearTimeout(fetchTimeout);
-
-      if (!res.ok) throw new Error("AI 중재 요청 실패");
-
-      let fullContent = "";
-      let finalMetadata: ChatMessageMetadata | null = null;
-      let gotDone = false;
-
-      await parseSSEStream(res, {
-        onTextDelta: (content) => scopedSet((s) => ({ streamingContent: s.streamingContent + content })),
-        onTextClear: () => scopedSet({ streamingContent: "" }),
-        onToolResult: (result) => {
-          if (!scopeIsCurrent()) return;
-          syncToolResult(result);
-          scopedSet((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
-        },
-        onSuggestions: (sug) => scopedSet({ suggestions: sug }),
-        onQuota: (remaining) => scopedSet({ quotaRemaining: remaining }),
-        onDone: (fc, meta) => { fullContent = fc; finalMetadata = meta; gotDone = true; },
-        onError: (msg) => scopedSet({ error: msg }),
-      });
-
-      if (!scopeIsCurrent()) return;
-
-      if (!gotDone && !fullContent && !get().error) {
-        scopedSet({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
-      }
-
-      if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
-        const isDemo = document.cookie.includes("demo_mode=true");
-        await saveAiMessage(scopedSet, { coupleId, fullContent, aiMetadata, isDemo });
-      }
-    } catch (err) {
-      if (!scopeIsCurrent()) return;
-      if (!abortWasRequestedByUser(abortController)) {
-        console.error("중재 요청 에러:", err);
-      }
-      const isAbort = err instanceof DOMException && err.name === "AbortError";
-      scopedSet({
-        error: abortWasRequestedByUser(abortController)
-          ? "답변 생성을 멈췄어요."
-          : isAbort
-          ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
-      });
-    } finally {
-      clearTimeout(fetchTimeout);
-      if (activeAiAbortController === abortController) {
-        activeAiAbortController = null;
-      }
-      scopedSet({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
-    }
+  // 브라우저가 조립한 커플 대화를 AI에 전달하던 중재 경로는 정본 메시지 ID와
+  // 양쪽의 명시적 동의 흐름이 생길 때까지 닫는다.
+  requestMediation: async () => {
+    set({ error: "자동 갈등 중재는 현재 제공하지 않아요. 필요한 내용은 아모라에게 직접 질문해 주세요." });
   },
 
   // 대화 초기화

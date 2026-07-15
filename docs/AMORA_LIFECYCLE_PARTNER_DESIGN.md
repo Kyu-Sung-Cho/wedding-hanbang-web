@@ -1,5 +1,8 @@
 # 아모라 전 여정 파트너 설계
 
+> [!CAUTION]
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문은 과거 목표안일 뿐이며 계약서 진단, 위험 라벨, 자동 발화·쓰기, 업체 추천·예약·결제의 승인 문서가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 최종 수정일: 2026-05-11
 
 > **목표 설계 문서**: 아래 내용은 완성형 제품 방향이지 현재 제공 기능 목록이 아니다. 2026-07-11 현재 proactive 자동 발화와 모델 기반 일정·예산·예약 변경은 비활성이다. 현재 계약과 출시 게이트는 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 우선한다.

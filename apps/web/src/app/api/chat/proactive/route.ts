@@ -172,7 +172,6 @@ export async function GET(req: NextRequest) {
           lifecycle: {
             stage: plan.stage,
             riskLevel: plan.riskLevel,
-            riskScore: plan.riskScore,
             primaryActionId: plan.primaryAction.id,
             href: plan.primaryAction.href,
           },

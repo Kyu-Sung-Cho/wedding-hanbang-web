@@ -15,14 +15,14 @@ export interface CommunityCategoryInfo {
 export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
   {
     key: "is_normal",
-    label: "이거 정상인가요?",
-    shortLabel: "정상인가요?",
-    description: "가격, 협상, 업체 응대가 적절한지 묻는 공간입니다. 아모라가 평균과 비교해 참고할 맥락을 더해줘요.",
+    label: "계약·추가금 질문",
+    shortLabel: "조건 질문",
+    description: "계약서의 포함 범위, 별도 비용, 변경·취소 조건을 이용자 경험과 함께 확인하는 공간입니다. 가격 적정성이나 계약 안전성을 판정하지 않습니다.",
     icon: "HelpCircle",
     color: "text-[#C4967E]",
     bgColor: "bg-[#FAF8F5]",
     allowVendorTags: true,
-    allowPriceForm: true,
+    allowPriceForm: false,
   },
   {
     key: "tour_review",

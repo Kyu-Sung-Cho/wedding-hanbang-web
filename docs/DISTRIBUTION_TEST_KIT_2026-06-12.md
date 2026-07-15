@@ -1,5 +1,7 @@
 # 유통 테스트 키트 — 지식iN·카페 7일 (2026-06-12 시작)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 과거 채널 실험의 게시 일정, UTM 링크, 견적 문구와 라이브 검증 주장은 재실행 지침이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **2026-06 유통 실험 스냅샷입니다. 그대로 게시하거나 재실행하지 마세요.** 링크, 시세, 분석 이벤트와 무료·기능 문구는 현재 코드·공식 자료·채널 규정을 다시 확인해야 합니다. 현재 서비스 범위와 공개 문구는 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
 

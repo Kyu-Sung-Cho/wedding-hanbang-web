@@ -1,19 +1,16 @@
 // 커뮤니티 TypeScript 타입 정의
 
-import type { UserRole } from "@/types/database.types";
-
 export type CommunityCategory =
-  | "is_normal"      // 이거 정상이야?
+  | "is_normal"      // 레거시 키: 계약·추가금 질문
   | "tour_review"    // 투어/이용 후기
   | "tips_v2"        // 꿀팁
   | "ama"            // 결혼 끝났다 AMA
   | "free";          // 자유게시판
 
 export type PostVisibility = "public" | "members" | "draft";
-export type PostSort = "hot" | "new" | "top" | "my_cohort" | "my_posts";
+export type PostSort = "hot" | "new" | "top" | "my_posts";
 export type TimePeriod = "week" | "month" | "all";
 export type AdDisclosure = "general" | "sponsored" | "ad";
-export type CommunityRank = "sprout" | "preparing" | "expert" | "master" | "senior";
 export type ReportReason = "spam" | "abuse" | "ad" | "inappropriate" | "other";
 export type CohortThreadTopic = "price" | "review" | "concern" | "chat";
 export type CohortContractCategory = "venue" | "studio" | "dress" | "makeup" | "snap" | "ring" | "honeymoon" | "other";
@@ -28,10 +25,6 @@ export interface CommunityProfile {
   user_id: string;
   nickname: string;
   avatar_url: string | null;
-  role?: UserRole | null;
-  rank: CommunityRank;
-  /** @deprecated 레거시 호환용 alias of rank */
-  badge?: CommunityRank | string | null;
   wedding_year: number | null;
   wedding_month: number | null;
   wedding_completed: boolean;
@@ -46,56 +39,27 @@ export interface CommunityProfile {
 }
 
 // ────────────────────────────────────────
-// 게시글
+// 공개 커뮤니티 API 계약
 // ────────────────────────────────────────
-export interface PriceData {
-  vendor_category: CohortContractCategory;
-  base_price: number;        // 만원
-  extra_price?: number;      // 만원
-  vendor_name?: string;
-  region?: string;
-  details?: string;
+export interface PublicCommunityAuthor {
+  /** Opaque community actor ID. This is never an auth.users UUID. */
+  user_id: string;
+  nickname: string;
+  avatar_url: string | null;
 }
 
-export interface AiComment {
-  text: string;
-  comparison: "below" | "average" | "above" | "unknown";
-  percentage: number;        // 평균 대비 %
-  reference: string;         // 비교 기준, 출처, 또는 "공식 비교 기준 부족"
-  generated_at: string;
-}
-
-// 카드 게시물 (인스타 캐러셀 형식)의 슬라이드 한 장.
-// type=image 면 url에 정적 이미지/GIF, type=video 면 mp4/webm/mov URL.
-export interface SlideMedia {
-  type: "image" | "video";
-  url: string;
-  width?: number;
-  height?: number;
-  /** 영상일 때 미리보기 썸네일 (선택). 비워두면 첫 프레임 자동 사용. */
-  thumbnail_url?: string;
-}
-
-export interface CommunityPost {
+/** 브라우저가 받을 수 있는 텍스트 전용 게시글 필드와 정확히 일치한다. */
+export interface PublicCommunityPost {
   id: string;
+  /** Opaque community actor ID. This is never an auth.users UUID. */
   author_id: string;
   category: CommunityCategory;
   title: string;
   content: string;
-  images: string[];
-  /** 카드 게시물(인스타 캐러셀 형식)일 때 슬라이드 배열. 일반 글이면 null. */
-  slides: SlideMedia[] | null;
   visibility: PostVisibility;
   ad_disclosure: AdDisclosure;
   sponsorship_detail: string | null;
-  ai_comment: AiComment | null;
   is_resolved: boolean;
-  is_verified_review: boolean;
-  verification_doc_url: string | null;
-  price_data: PriceData | null;
-  is_quick_review: boolean;
-  rating: number | null;
-  cohort_room_id: string | null;
   under_review: boolean;
   upvote_count: number;
   downvote_count: number;
@@ -104,16 +68,14 @@ export interface CommunityPost {
   bookmark_count: number;
   is_pinned: boolean;
   is_weekly_best: boolean;
-  vendor_tags: string[];
   tags: string[];
-  /** @deprecated 레거시 호환 */
-  cost_data?: CostShareData | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface PostWithAuthor extends CommunityPost {
-  author: CommunityProfile;
+export interface PostWithAuthor extends PublicCommunityPost {
+  author: PublicCommunityAuthor;
+  viewer_is_author: boolean;
   user_vote?: 1 | -1 | null;
   user_bookmarked?: boolean;
   poll?: PollSummary | null;
@@ -126,6 +88,10 @@ export interface InitialCommunityFeed {
   fetchedAt: string;
 }
 
+export type InitialCommunityFeedResult =
+  | { status: "ready"; feed: InitialCommunityFeed }
+  | { status: "unavailable"; message: string };
+
 export interface CommunityFeedQuery {
   search?: string;
   category?: string;
@@ -137,7 +103,6 @@ export interface CommunityFeedQuery {
 }
 
 export interface PostDetail extends PostWithAuthor {
-  vendor_details: VendorTagInfo[];
   poll?: PollWithOptions | null;
 }
 
@@ -189,24 +154,6 @@ export interface CreatePollInput {
   closes_at?: string | null;
 }
 
-export interface VendorTagInfo {
-  id: string;
-  vendor_name: string;
-  /** @deprecated 레거시 alias */
-  business_name?: string;
-  category: string | null;
-  region: string | null;
-  mention_count: number;
-  avg_rating: number | null;
-  avg_base_price: number | null;
-  avg_extra_price: number | null;
-  extra_rate: number | null;
-  /** @deprecated 레거시 alias */
-  rating?: number | null;
-  /** @deprecated 레거시 alias */
-  thumbnail_url?: string | null;
-}
-
 // ────────────────────────────────────────
 // 댓글
 // ────────────────────────────────────────
@@ -214,6 +161,7 @@ export interface CommunityComment {
   id: string;
   post_id: string;
   parent_id: string | null;
+  /** Opaque community actor ID. This is never an auth.users UUID. */
   author_id: string;
   content: string;
   upvote_count: number;
@@ -223,8 +171,8 @@ export interface CommunityComment {
 }
 
 export interface CommentWithAuthor extends CommunityComment {
-  author: CommunityProfile;
-  user_vote?: 1 | -1 | null;
+  author: PublicCommunityAuthor;
+  viewer_is_author: boolean;
   replies?: CommentWithAuthor[];
 }
 
@@ -255,7 +203,7 @@ export interface CohortMember {
 
 export type CohortProfileSummary = Pick<
   CommunityProfile,
-  "user_id" | "nickname" | "avatar_url" | "rank"
+  "user_id" | "nickname" | "avatar_url"
 >;
 
 export interface CohortMessage {
@@ -309,31 +257,20 @@ export interface CreatePostInput {
   category: CommunityCategory;
   title: string;
   content: string;
-  images?: string[];
-  /** 카드 게시물(인스타 캐러셀 형식)일 때 슬라이드 배열. 비우면 일반 글. */
-  slides?: SlideMedia[] | null;
   visibility?: PostVisibility;
-  vendor_tags?: string[];
   tags?: string[];
   ad_disclosure: AdDisclosure;
   sponsorship_detail?: string;
-  price_data?: PriceData;
-  is_quick_review?: boolean;
-  rating?: number;
-  poll?: CreatePollInput | null;
 }
 
 export interface UpdatePostInput {
   title?: string;
   content?: string;
-  images?: string[];
-  slides?: SlideMedia[] | null;
+  category?: CommunityCategory;
   visibility?: PostVisibility;
-  vendor_tags?: string[];
   tags?: string[];
-  is_resolved?: boolean;
-  /** @deprecated 레거시 호환 */
-  cost_data?: CostShareData | null;
+  ad_disclosure?: AdDisclosure;
+  sponsorship_detail?: string;
 }
 
 export interface PostListParams {
@@ -358,27 +295,4 @@ export interface CreateCommentInput {
   post_id: string;
   parent_id?: string;
   content: string;
-}
-
-// 레거시 호환용 (기존 코드가 import 깨지지 않도록)
-export type BadgeType = CommunityRank;
-export interface CostShareData {
-  totalCost: number;
-  region: string;
-  guestCount: number;
-  weddingDate: string;
-  categories: CostShareCategory[];
-  regretPoints?: string;
-  goodPoints?: string;
-  advice?: string;
-}
-export interface CostShareCategory {
-  key: string;
-  label: string;
-  cost: number;
-  vendor?: string;
-  vendorId?: string;
-  contractCost?: number;
-  extraCost?: number;
-  notes?: string;
 }

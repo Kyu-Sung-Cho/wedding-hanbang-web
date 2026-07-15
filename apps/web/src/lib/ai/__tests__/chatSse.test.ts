@@ -30,6 +30,19 @@ describe("parseChatSse", () => {
     expect(parsed).toEqual({ content: "", completed: false, error: "실패" });
   });
 
+  it("preserves a structured error code from a successful HTTP SSE response", () => {
+    const parsed = parseChatSse(
+      'data: {"type":"error","message":"오늘 한도","code":"couple_provider_daily"}\n\n'
+    );
+
+    expect(parsed).toEqual({
+      content: "",
+      completed: false,
+      error: "오늘 한도",
+      errorCode: "couple_provider_daily",
+    });
+  });
+
   it("preserves tool results, suggestions, quota, and completion metadata", () => {
     const parsed = parseChatSse([
       'data: {"type":"tool_result","result":{"toolName":"get_budget_summary","success":true,"displayMessage":"예산을 확인했어요."}}',

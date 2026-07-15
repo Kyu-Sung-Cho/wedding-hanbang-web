@@ -1,134 +1,164 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import { sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import type { ReportReason } from "@/types/community.types";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import type { ReportReason } from "@/types/community.types";
 
 const MAX_REPORT_BODY_BYTES = 8 * 1024;
+const MAX_REPORT_DETAILS_LENGTH = 1_000;
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const VALID_REASONS = ["spam", "abuse", "ad", "inappropriate", "other"] as const;
 
-function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+type ReportBodyResult =
+  | { ok: true; reason: ReportReason; details: string | null }
+  | { ok: false; status: 400 | 413; error: string };
+
+async function parseReportBody(req: NextRequest): Promise<ReportBodyResult> {
+  if (isBodyTooLarge(req, MAX_REPORT_BODY_BYTES)) {
+    return { ok: false, status: 413, error: "신고 내용이 너무 깁니다." };
+  }
+
+  const rawBody = await req.text().catch(() => null);
+  if (rawBody === null) {
+    return { ok: false, status: 400, error: "신고 형식이 올바르지 않습니다." };
+  }
+  if (new TextEncoder().encode(rawBody).byteLength > MAX_REPORT_BODY_BYTES) {
+    return { ok: false, status: 413, error: "신고 내용이 너무 깁니다." };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return { ok: false, status: 400, error: "신고 형식이 올바르지 않습니다." };
+  }
+
+  if (!isRecord(body)) {
+    return { ok: false, status: 400, error: "신고 형식이 올바르지 않습니다." };
+  }
+  const keys = Object.keys(body);
+  if (
+    keys.some((key) => key !== "reason" && key !== "details") ||
+    !Object.prototype.hasOwnProperty.call(body, "reason") ||
+    typeof body.reason !== "string" ||
+    !(VALID_REASONS as readonly string[]).includes(body.reason) ||
+    (Object.prototype.hasOwnProperty.call(body, "details") && typeof body.details !== "string") ||
+    (typeof body.details === "string" && body.details.length > MAX_REPORT_DETAILS_LENGTH)
+  ) {
+    return { ok: false, status: 400, error: "신고 형식이 올바르지 않습니다." };
+  }
+
+  const details = typeof body.details === "string"
+    ? sanitizeText(body.details).slice(0, MAX_REPORT_DETAILS_LENGTH) || null
+    : null;
+  return { ok: true, reason: body.reason as ReportReason, details };
 }
 
-// 게시글 신고
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     if (!isUuid(id)) {
-      return NextResponse.json({ error: "게시글 ID가 올바르지 않습니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "게시글 ID가 올바르지 않습니다." },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
     }
+
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
-
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
     if (!user) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
-        { status: 401 }
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
 
-    // Rate limit: 5 reports per hour per user
-    const rlResult = checkRateLimit(
-      rateLimitKey("community:report", req, user.id),
-      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("community:post:report", req, user.id),
+      { maxRequests: 5, windowMs: 60 * 60 * 1_000 },
+      user.id,
     );
-    if (rlResult) return rlResult;
+    if (limited) return limited;
 
-    if (isBodyTooLarge(req, MAX_REPORT_BODY_BYTES)) {
-      return NextResponse.json({ error: "신고 내용이 너무 깁니다." }, { status: 413 });
-    }
-    const body = await req.json().catch(() => null);
-    if (!isRecord(body)) {
-      return NextResponse.json({ error: "신고 형식이 올바르지 않습니다." }, { status: 400 });
-    }
-    const reason = typeof body.reason === "string" ? body.reason as ReportReason : null;
-    const rawDetails = typeof body.details === "string" ? body.details : undefined;
-
-    // details 정화
-    const details = rawDetails
-      ? sanitizeText(rawDetails).slice(0, 1000)
-      : undefined;
-
-    if (!reason) {
+    const parsed = await parseReportBody(req);
+    if (!parsed.ok) {
       return NextResponse.json(
-        { error: "신고 사유를 선택해주세요." },
-        { status: 400 }
+        { error: parsed.error },
+        { status: parsed.status, headers: NO_STORE_HEADERS },
       );
     }
 
-    const validReasons: ReportReason[] = [
-      "spam",
-      "abuse",
-      "ad",
-      "inappropriate",
-      "other",
-    ];
-    if (!validReasons.includes(reason)) {
-      return NextResponse.json(
-        { error: "잘못된 신고 사유입니다." },
-        { status: 400 }
-      );
-    }
-
-    const serviceClient = getServiceClient();
-
-    // 중복 신고 확인 — community_reports 스키마: post_id 또는 comment_id (XOR)
-    const { data: existingReport } = await serviceClient
-      .from("community_reports")
+    // The caller must be able to read the exact post through normal RLS. This
+    // rejects missing, hidden, review-held, and muted-author targets without a
+    // service-role visibility bypass.
+    const { data: post, error: postError } = await supabase
+      .from("community_posts")
       .select("id")
-      .eq("reporter_id", user.id)
-      .eq("post_id", id)
+      .eq("id", id)
       .maybeSingle();
-
-    if (existingReport) {
+    if (postError) {
+      console.error("Report post visibility check failed");
       return NextResponse.json(
-        { error: "이미 신고한 게시글입니다." },
-        { status: 409 }
+        { error: "게시글 상태를 확인하지 못했습니다." },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
+    if (!post) {
+      return NextResponse.json(
+        { error: "신고할 게시글을 찾을 수 없습니다." },
+        { status: 404, headers: NO_STORE_HEADERS },
       );
     }
 
-    // 스키마 컬럼: reporter_id, post_id, reason, description, status
-    // (이전 코드가 존재하지 않는 target_type/target_id, 잘못된 details 컬럼 INSERT 시도해서 500)
-    const { error } = await serviceClient
+    const { error } = await createAdminClient()
       .from("community_reports")
       .insert({
         reporter_id: user.id,
         post_id: id,
-        reason,
-        description: details ?? null,
+        reason: parsed.reason,
+        description: parsed.details,
         status: "pending",
       });
-
     if (error) {
       if (error.code === "23505") {
         return NextResponse.json(
           { error: "이미 신고한 게시글입니다." },
-          { status: 409 }
+          { status: 409, headers: NO_STORE_HEADERS },
         );
       }
-      console.error("Report post error:", error);
+      if (error.code === "23503") {
+        return NextResponse.json(
+          { error: "신고할 게시글을 찾을 수 없습니다." },
+          { status: 404, headers: NO_STORE_HEADERS },
+        );
+      }
+      console.error("Report post failed");
       return NextResponse.json(
         { error: "신고 접수에 실패했습니다." },
-        { status: 500 }
+        { status: 503, headers: NO_STORE_HEADERS },
       );
     }
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Report post error:", err);
+    return NextResponse.json({ success: true }, { headers: NO_STORE_HEADERS });
+  } catch {
+    console.error("Report post request failed");
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

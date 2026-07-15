@@ -1,5 +1,7 @@
 # Session Handoff - 2026-07-01 Mobile Expo QA
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시 Expo 실행, 브랜치·커밋·검증 결과와 이어서 할 작업은 현재 모바일 출시 근거나 실행 지침이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](../CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 인수인계 스냅샷입니다.** 아래 브랜치·커밋·실행 지침은 현재 상태가 아닙니다. Git을 다시 확인하고 `docs/CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 기준으로 진행하세요.
 

@@ -1,4 +1,4 @@
-// 로그인 — 이메일/비밀번호 + 카카오/Apple 소셜 로그인
+// 로그인 — 검증된 이메일/비밀번호 흐름만 공개
 import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
@@ -11,7 +11,6 @@ import { router } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { signInWithOAuth } from "@/lib/auth";
 
 const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 
@@ -34,7 +33,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState<null | "email" | "kakao" | "apple">(null);
+  const [loading, setLoading] = useState<null | "email">(null);
   const [emailTouched, setEmailTouched] = useState(false);
 
   // 로고 페이드인 애니메이션
@@ -80,25 +79,6 @@ export default function LoginScreen() {
       router.replace("/");
     } catch {
       Alert.alert("오류", "로그인에 실패했어요. 다시 시도해주세요.");
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  // 소셜 로그인
-  async function handleSocialLogin(provider: "kakao" | "apple") {
-    if (loading) return;
-    setLoading(provider);
-    try {
-      const result = await signInWithOAuth(provider);
-      if (result.cancelled) {
-        setLoading(null);
-        return;
-      }
-      router.replace("/");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "로그인에 실패했어요";
-      Alert.alert("로그인 오류", message);
     } finally {
       setLoading(null);
     }
@@ -224,52 +204,6 @@ export default function LoginScreen() {
                 <Text style={[styles.link, { color: colors.rose[600] }]}>회원가입</Text>
               </Pressable>
             </View>
-          </View>
-
-          {/* 구분선 */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>또는</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* 소셜 로그인 */}
-          <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
-            <Pressable
-              style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
-              onPress={() => handleSocialLogin("kakao")}
-              disabled
-              accessibilityLabel="카카오로 로그인"
-              accessibilityRole="button"
-            >
-              {loading === "kakao" ? (
-                <ActivityIndicator color="#191919" />
-              ) : (
-                <View style={styles.socialInner}>
-                  <View style={styles.kakaoIcon}>
-                    <Text style={styles.kakaoIconText}>K</Text>
-                  </View>
-                  <Text style={styles.kakaoText}>카카오 로그인 준비 중</Text>
-                </View>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
-              onPress={() => handleSocialLogin("apple")}
-              disabled
-              accessibilityLabel="Apple로 로그인"
-              accessibilityRole="button"
-            >
-              {loading === "apple" ? (
-                <ActivityIndicator color={colors.textPrimary} />
-              ) : (
-                <View style={styles.socialInner}>
-                  <Text style={styles.appleIcon}>{"\uF8FF"}</Text>
-                  <Text style={styles.appleText}>Apple 로그인 준비 중</Text>
-                </View>
-              )}
-            </Pressable>
           </View>
 
           <Text style={styles.disclaimer}>

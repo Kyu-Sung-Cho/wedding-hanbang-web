@@ -249,7 +249,6 @@ export async function POST(req: NextRequest) {
       brideName,
       groomName,
       senderName,
-      bookings: [],
       scheduleEvents: [],
       chatSummaries,
       preferences: undefined,

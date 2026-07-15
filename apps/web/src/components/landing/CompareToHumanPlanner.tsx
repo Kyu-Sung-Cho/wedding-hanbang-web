@@ -11,11 +11,11 @@ interface Row {
 
 const ROWS: Row[] = [
   { label: "상담", human: "사람의 경험과 맥락 판단", amora: "필요할 때 질문하고 답변 참고" },
-  { label: "이용 비용", human: "플래너별 계약 조건 확인", amora: "현재 베타 계정 별도 이용료 없음" },
+  { label: "이용 비용", human: "플래너별 계약 조건 확인", amora: "공개 운영 전 · 계정·이용료 정책 미확정" },
   { label: "선호 정리", human: "대화와 경험을 바탕으로 제안", amora: "입력한 선호를 기준표로 정리" },
   { label: "커플 소통", human: "상담 내용을 커플이 다시 공유", amora: "같은 일정·예산 화면을 함께 확인" },
   { label: "기록", human: "상담 메모와 계약서를 직접 보관", amora: "사용자가 저장한 일정·예산을 한곳에서 확인" },
-  { label: "업체 정보", human: "네트워크와 현장 경험", amora: "공개 정보와 검토 후보를 참고" },
+  { label: "시세 참고", human: "현장 경험과 개별 조건 확인", amora: "출처·조사월·범위가 표시된 시장 자료 참고" },
 ];
 
 export default function CompareToHumanPlanner() {

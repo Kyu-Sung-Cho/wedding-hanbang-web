@@ -1,5 +1,7 @@
 # 보안 감사 2.5 — Supabase RLS 정책 점검 (2026-07-03)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 당시 migration 정적 대조의 “견고·라이브 홀 0” 판정은 현재 원격 권한, 최신 migration 적용이나 출시 안전을 증명하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > 대상: `supabase/migrations`의 RLS 정책 ↔ 코드 실제 테이블 접근 패턴 대조.
 > 방법: **인라인(Fable, subagent 없음)** — 전 마이그레이션 RLS 지형 수집(70개 테이블 RLS enable) →
 > 핵심 하드닝 마이그레이션(`lock_sensitive_anon_access`) + 민감 테이블(chat/ai_log/visibility) 정책 전문 Read →

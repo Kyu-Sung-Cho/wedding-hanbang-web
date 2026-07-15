@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aggregateFindings, scanText } from "./scan-tracked-secrets.mjs";
+import {
+  aggregateFindings,
+  createStreamingScanner,
+  scanText,
+} from "./scan-tracked-secrets.mjs";
 
 function fixture(...parts) {
   return parts.join("");
@@ -75,4 +79,17 @@ test("aggregates repeated redacted locations without retaining a candidate", () 
     ...finding,
     occurrences: 2,
   }]);
+});
+
+test("streaming scan detects a credential split across process chunks", () => {
+  const secret = fixture("re_", "S".repeat(32));
+  const scanner = createStreamingScanner("git:fixture");
+
+  scanner.push(`safe line\n${secret.slice(0, 11)}`);
+  scanner.push(`${secret.slice(11)}\nanother safe line`);
+
+  const findings = scanner.finish();
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].category, "Resend API key");
+  assert.equal(JSON.stringify(findings).includes(secret), false);
 });

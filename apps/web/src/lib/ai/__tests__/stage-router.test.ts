@@ -62,4 +62,19 @@ describe("routeSpecialist contract intent", () => {
     expect(addon).not.toContain("조항을 숙지");
     expect(addon).not.toContain("구체 수치로 안내");
   });
+
+  it.each([
+    "sangkyeonrye_advisor",
+    "ceremony_coordinator",
+    "settlement_companion",
+    "general",
+  ] as const)("keeps optional customs optional for %s", (specialist) => {
+    const addon = getSpecialistPromptAddon(specialist);
+
+    expect(addon).toContain("선택 사항");
+    expect(addon).toContain("적용 여부");
+    expect(addon).toContain("성별 역할");
+    expect(addon).not.toContain("리허설 필수");
+    expect(addon).not.toContain("시가댁·친정 예절");
+  });
 });

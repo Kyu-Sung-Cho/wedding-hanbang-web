@@ -30,7 +30,7 @@ In `coming_soon` mode it instead verifies the public allowlist, signed-app assoc
 
 Both modes first check the common release-health contract: exact SHA, exact Supabase project ref, strong rate-limit secret, a complete Turnstile site/secret pair with a canonical HTTPS hostname, maintenance state, research-intake state, and account-deletion cron state.
 
-The health boolean does not redeem a real challenge. Production evidence must separately complete the `signup`, `forgot_password`, `preregister`, and `survey` widgets on `hanbang.ai` and show that Siteverify accepts only the matching hostname/action. A staged `*.vercel.app` health PASS is not evidence that the production widget hostname is configured correctly.
+The health boolean does not redeem a real challenge. Production evidence must separately complete the two active `signup` and `forgot_password` widgets on `hanbang.ai` and show that Siteverify accepts only the matching hostname/action. Production `preregister` is not a canary because research intake returns `503` before body parsing or verification; the hard-retired survey likewise returns `410` first. A staged `*.vercel.app` health PASS is not evidence that the production widget hostname is configured correctly.
 
 It writes a report under:
 

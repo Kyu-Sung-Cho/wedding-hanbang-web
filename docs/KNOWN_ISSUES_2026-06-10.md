@@ -1,5 +1,7 @@
 # 알려진 마이너 이슈 (2026-06-10 적대적 리뷰 잔여분)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 문제·해법·검증 통과 목록은 과거 백로그이며 현재 미해결 이슈나 작업 지시로 사용하지 않는다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > **역사 백로그**: 아래 상태와 “검증 통과” 주장은 2026-06-10 스냅샷이다. 현재 남은 출시 이슈와 해결 상태는 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 우선한다.
 
 > 4관점 리뷰(유저매트릭스/버그헌트/회귀/보안)에서 나온 minor/info 15건 중 미수정분.

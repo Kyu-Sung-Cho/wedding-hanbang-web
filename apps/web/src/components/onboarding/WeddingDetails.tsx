@@ -7,27 +7,24 @@ interface WeddingDetailsProps {
   weddingDateUndecided: boolean;
   venue: string | null;
   venueUndecided: boolean;
-  sanggyeonryeDate: string | null;
-  sanggyeonryeUndecided: boolean;
   budget: number;
   onDateChange: (date: string | null) => void;
   onDateUndecidedChange: (value: boolean) => void;
   onVenueChange: (venue: string | null) => void;
   onVenueUndecidedChange: (value: boolean) => void;
-  onSanggyeonryeDateChange: (date: string | null) => void;
-  onSanggyeonryeUndecidedChange: (value: boolean) => void;
   onBudgetChange: (budget: number) => void;
   isPartnerData?: boolean;
 }
 
 const BUDGET_OPTIONS = [
+  { value: 0, label: "아직 미정" },
   { value: 10000000, label: "1,000만원" },
   { value: 15000000, label: "1,500만원" },
   { value: 20000000, label: "2,000만원" },
   { value: 25000000, label: "2,500만원" },
   { value: 30000000, label: "3,000만원" },
   { value: 40000000, label: "4,000만원" },
-  { value: 50000000, label: "5,000만원 이상" },
+  { value: 50000000, label: "직접 입력" },
 ];
 
 export default function WeddingDetails({
@@ -35,15 +32,11 @@ export default function WeddingDetails({
   weddingDateUndecided,
   venue,
   venueUndecided,
-  sanggyeonryeDate,
-  sanggyeonryeUndecided,
   budget,
   onDateChange,
   onDateUndecidedChange,
   onVenueChange,
   onVenueUndecidedChange,
-  onSanggyeonryeDateChange,
-  onSanggyeonryeUndecidedChange,
   onBudgetChange,
   isPartnerData,
 }: WeddingDetailsProps) {
@@ -95,36 +88,6 @@ export default function WeddingDetails({
         </div>
       </div>
 
-      {/* 상견례 날짜 — 모멘트 루프 연료(친언니가 먼저 챙기는 첫 순간) */}
-      <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">상견례 날짜</label>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            value={sanggyeonryeDate ?? ""}
-            onChange={(e) => onSanggyeonryeDateChange(e.target.value || null)}
-            disabled={sanggyeonryeUndecided}
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
-          />
-          <button
-            onClick={() => {
-              onSanggyeonryeUndecidedChange(!sanggyeonryeUndecided);
-              if (!sanggyeonryeUndecided) onSanggyeonryeDateChange(null);
-            }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
-              sanggyeonryeUndecided
-                ? "bg-[#795252] text-white"
-                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
-            }`}
-          >
-            미정
-          </button>
-        </div>
-        <p className="text-[12px] text-taupe-400 leading-relaxed">
-          날짜를 입력하면 이번 주 카드와 일정 화면에서 준비 항목을 확인할 수 있어요. 이메일·문자 선제 알림은 아직 제공하지 않습니다.
-        </p>
-      </div>
-
       {/* 예식장 */}
       <div className="space-y-2">
         <label className="text-[14px] font-medium text-noir-800">예식장</label>
@@ -165,7 +128,7 @@ export default function WeddingDetails({
               onClick={() => {
                 if (opt.value === 50000000) {
                   setShowCustomBudget(true);
-                  onBudgetChange(opt.value);
+                  onBudgetChange(0);
                 } else {
                   setShowCustomBudget(false);
                   setCustomBudgetText("");
@@ -195,9 +158,7 @@ export default function WeddingDetails({
               onChange={(e) => {
                 const num = e.target.value.replace(/[^\d]/g, "");
                 setCustomBudgetText(num);
-                if (num) {
-                  onBudgetChange(Number(num) * 10000);
-                }
+                onBudgetChange(num ? Number(num) * 10000 : 0);
               }}
               placeholder="예: 7000"
               className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
@@ -205,6 +166,9 @@ export default function WeddingDetails({
             <span className="text-[13px] text-taupe-500 whitespace-nowrap">만원</span>
           </div>
         )}
+        <p className="text-[12px] leading-relaxed text-taupe-400">
+          예산은 정한 뒤 입력해도 돼요. 선택하지 않으면 임의 금액을 저장하지 않습니다.
+        </p>
       </div>
     </div>
   );

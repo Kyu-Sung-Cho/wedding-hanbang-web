@@ -27,7 +27,23 @@ describe("community nickname validation", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toContain("공식 계정");
+      expect(result.message).toContain("공식·전문 계정");
+    }
+  });
+
+  it.each([
+    "한국소비자원 상담센터",
+    "웨딩 전문 변호사",
+    "공인 웨딩플래너",
+    "플래너 김한방",
+    "OpenAI Wedding",
+    "웨딩 마스터",
+  ])("rejects unverified authority-looking nickname %s", (nickname) => {
+    const result = validateCommunityNickname(nickname);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toContain("공식·전문 계정");
     }
   });
 
@@ -40,14 +56,18 @@ describe("community nickname validation", () => {
     }
   });
 
-  it("never copies an account name into the default public nickname", () => {
+  it("uses a fresh unlinkable pseudonym and never copies an account name", () => {
     const userId = "12345678-aaaa-bbbb-cccc-123456789012";
-    const nickname = getSafeDefaultCommunityNickname("김웨딩", userId);
+    const first = getSafeDefaultCommunityNickname("김웨딩", userId);
+    const second = getSafeDefaultCommunityNickname("김웨딩", userId);
+    const direct = getCommunityNicknameFallback(userId);
 
-    expect(nickname).toBe(getCommunityNicknameFallback(userId));
-    expect(nickname).not.toContain("김웨딩");
-    expect(nickname).not.toContain("12345678");
-    expect(getSafeDefaultCommunityNickname("다른 이름", userId)).toBe(nickname);
-    expect(validateCommunityNickname(nickname).ok).toBe(true);
+    for (const nickname of [first, second, direct]) {
+      expect(nickname).toMatch(/^웨딩친구-[a-f0-9]{15}$/);
+      expect(nickname).not.toContain("김웨딩");
+      expect(nickname).not.toContain("12345678");
+      expect(validateCommunityNickname(nickname).ok).toBe(true);
+    }
+    expect(new Set([first, second, direct]).size).toBe(3);
   });
 });

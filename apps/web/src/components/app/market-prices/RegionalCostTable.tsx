@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import { getRegionalCosts, REGION_LABELS, type RegionKey } from "@/constants/marketPrices";
+import {
+  compareAvailableMarketPrices,
+  formatMarketPrice,
+} from "@/lib/marketPrices/display";
 
 interface RegionalCostTableProps {
   periodId: string;
 }
 
-type SortKey = "venueAverage" | "meal" | "sdm" | "rental" | "decoration";
-
-function formatMan(value: number) {
-  return `${value.toLocaleString()}만원`;
-}
+type SortKey = "meal" | "sdm" | "rental" | "decoration";
 
 function SortHeader({
   label,
@@ -42,17 +42,23 @@ function SortHeader({
 }
 
 export default function RegionalCostTable({ periodId }: RegionalCostTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("venueAverage");
+  const [sortKey, setSortKey] = useState<SortKey>("sdm");
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionKey | null>(null);
 
-  const costs = getRegionalCosts(periodId).map(cost => ({
-    ...cost,
-    venueAverage: Math.round((cost.meal + cost.rental + cost.decoration) * 10) / 10,
-  }));
+  const costs = getRegionalCosts(periodId);
+  if (costs.length === 0) {
+    return (
+      <div
+        className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-4 text-[13px] font-medium text-[#7a8290]"
+        role="status"
+      >
+        선택한 조사월의 지역별 자료가 없습니다.
+      </div>
+    );
+  }
   const sorted = [...costs].sort((a, b) => {
-    const diff = a[sortKey] - b[sortKey];
-    return sortAsc ? diff : -diff;
+    return compareAvailableMarketPrices(a[sortKey], b[sortKey], sortAsc);
   });
 
   function handleSort(key: SortKey) {
@@ -91,44 +97,34 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
           <h4 className="mb-2 font-serif-kr text-[20px] font-medium text-[#071629]">
             {REGION_LABELS[selectedCost.region]}
           </h4>
-          <div className="mb-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3">
-              <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">예식장 평균 계약금액</p>
-              <p className="font-serif-kr text-[24px] font-medium text-[#071629]">{formatMan(selectedCost.venueAverage)}</p>
-            </div>
-            <div className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3">
-              <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">스드메 평균 계약금액</p>
-              <p className="font-serif-kr text-[24px] font-medium text-[#071629]">{formatMan(selectedCost.sdm)}</p>
-            </div>
-          </div>
-          <p className="mb-2 text-[11px] font-semibold text-[#7a8290]">예식장 평균 구성</p>
-          <div className="grid grid-cols-3 gap-3">
+          <p className="mb-2 text-[11px] font-semibold text-[#7a8290]">원문이 제공하는 개별 조사값</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: "식대", value: selectedCost.meal },
               { label: "대관료", value: selectedCost.rental },
               { label: "기본 장식", value: selectedCost.decoration },
+              { label: "스드메", value: selectedCost.sdm },
             ].map(item => (
-              <div key={item.label} className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3 text-center max-sm:col-span-3">
+              <div key={item.label} className="rounded-[12px] border border-[#eadfc9]/70 bg-white p-3 text-center">
                 <p className="mb-1 text-[11px] font-semibold text-[#7a8290]">{item.label}</p>
                 <p className="text-[13px] font-semibold text-[#071629]">
-                  {formatMan(item.value)}
+                  {formatMarketPrice(item.value)}
                 </p>
               </div>
             ))}
           </div>
           <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
-            예식장과 스드메는 별도 조사 항목입니다. 두 금액을 합산하지 않고 각각 확인하세요.
+            각 값은 별도 조사 항목입니다. 하나의 예식장 금액이나 결혼 총액으로 합산하지 마세요.
           </p>
         </div>
       )}
 
       {/* 테이블 */}
       <div className="overflow-x-auto rounded-[16px] border border-[#eadfc9] bg-white">
-        <table className="w-full min-w-[660px] text-[12px]">
+        <table className="w-full min-w-[560px] text-[12px]">
           <thead>
             <tr className="border-b border-[#eadfc9]/70 bg-[#fffdf7]">
               <th className="px-3 py-3 text-left text-[11px] font-semibold text-[#7a8290]">지역</th>
-              <th className="text-right py-3 px-2"><SortHeader label="예식장 평균" field="venueAverage" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="스드메 평균" field="sdm" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="식대" field="meal" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
               <th className="text-right py-3 px-2"><SortHeader label="대관료" field="rental" sortKey={sortKey} sortAsc={sortAsc} onSort={handleSort} /></th>
@@ -149,20 +145,17 @@ export default function RegionalCostTable({ periodId }: RegionalCostTableProps) 
                 <td className="px-3 py-3 font-semibold text-[#071629]">
                   {REGION_LABELS[c.region]}
                 </td>
-                <td className="px-2 py-3 text-right font-semibold text-[#071629]">
-                  {formatMan(c.venueAverage)}
+                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
+                  {formatMarketPrice(c.sdm)}
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
-                  {formatMan(c.sdm)}
+                  {formatMarketPrice(c.meal)}
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
-                  {formatMan(c.meal)}
-                </td>
-                <td className="px-2 py-3 text-right font-medium text-[#5d6879]">
-                  {formatMan(c.rental)}
+                  {formatMarketPrice(c.rental)}
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-[#7a8290] max-md:hidden">
-                  {formatMan(c.decoration)}
+                  {formatMarketPrice(c.decoration)}
                 </td>
               </tr>
             ))}

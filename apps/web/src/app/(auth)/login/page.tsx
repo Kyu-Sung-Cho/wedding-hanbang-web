@@ -1,10 +1,16 @@
 ﻿"use client";
 
+import { PUBLIC_BETA_RELATIONSHIP_SCOPE } from "@hanbang/shared";
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import {
+  SIGNUP_PRIVACY_VERSION,
+  SIGNUP_TERMS_VERSION,
+} from "@/lib/auth/signupConsent";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import { readMySafeProfile } from "@/lib/profile/safeProfile";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import { pathWithAuthReturn, sanitizeAuthReturnPath } from "@/lib/authReturnPath";
@@ -108,12 +114,12 @@ export default function LoginPage() {
         },
       });
       if (oauthError) {
-        console.error("OAuth error:", oauthError);
+        console.error("AUTH_OAUTH_START_FAILED", { provider });
         setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
         setLoading(null);
       }
-    } catch (err) {
-      console.error("OAuth catch error:", err);
+    } catch {
+      console.error("AUTH_OAUTH_START_UNHANDLED", { provider });
       setLoading(null);
       setError("소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
@@ -135,7 +141,7 @@ export default function LoginPage() {
 
     if (mode === "signup") {
       if (!name.trim()) {
-        setError("이름을 입력해주세요.");
+        setError("이름 또는 서로 부를 이름을 입력해주세요.");
         return;
       }
       if (!isPasswordValid(passwordChecks)) {
@@ -167,7 +173,15 @@ export default function LoginPage() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, turnstileToken, next: currentReturnPath() }),
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            turnstileToken,
+            next: currentReturnPath(),
+            termsVersion: SIGNUP_TERMS_VERSION,
+            privacyVersion: SIGNUP_PRIVACY_VERSION,
+          }),
         });
         const result = await res.json();
         if (!res.ok) {
@@ -210,11 +224,7 @@ export default function LoginPage() {
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
           if (loggedInUser) {
-            const { data: profile, error: profileError } = await supabase
-              .from("profiles")
-              .select("onboarding_completed")
-              .eq("id", loggedInUser.id)
-              .maybeSingle();
+            const { data: profile, error: profileError } = await readMySafeProfile(supabase);
 
             if (profileError) {
               console.error("로그인 후 프로필 조회 실패:", profileError.message);
@@ -285,26 +295,44 @@ export default function LoginPage() {
                     : "가입한 이메일을 입력해주세요"}
               </p>
 
+              {mode === "signup" && (
+                <aside
+                  role="note"
+                  aria-label="현재 베타 관계 역할 지원 범위"
+                  className="mb-5 rounded-2xl border border-[#B89785]/35 bg-[#FBF8F2] px-4 py-3"
+                >
+                  <p className="text-[13px] font-semibold leading-5 text-[#36534E]">
+                    가입 전 지원 범위를 확인해 주세요
+                  </p>
+                  <p className="mt-1 text-[12px] leading-5 text-[#635B51]">
+                    {PUBLIC_BETA_RELATIONSHIP_SCOPE.notice}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-5 text-[#635B51]">
+                    {PUBLIC_BETA_RELATIONSHIP_SCOPE.guidance}
+                  </p>
+                </aside>
+              )}
+
               {/* 이메일 폼 */}
               <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
                 {mode === "signup" && (
                   <div>
-                    <label htmlFor="auth-name" className="sr-only">이름</label>
+                    <label htmlFor="auth-name" className="sr-only">이름 또는 서로 부를 이름</label>
                     <input
                       id="auth-name"
                       name="name"
                       type="text"
-                      autoComplete="name"
+                      autoComplete="nickname"
                       value={name}
                       onChange={(e) => { setName(e.target.value); setError(""); }}
                       onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-                      placeholder="이름 *"
+                      placeholder="이름 또는 서로 부를 이름 *"
                       className={`w-full px-5 py-3.5 rounded-2xl border bg-white text-[14px] text-[#263832] outline-none transition-colors placeholder:text-[#928980] ${
                         touched.name && !name.trim() ? "border-[#9A6B62]" : "border-black/[0.06] focus:border-[#36534E]"
                       }`}
                     />
                     {touched.name && !name.trim() && (
-                      <p className="text-[11px] text-[#9A6B62] mt-1 px-2">이름을 입력해주세요</p>
+                      <p className="text-[11px] text-[#9A6B62] mt-1 px-2">이름 또는 서로 부를 이름을 입력해주세요</p>
                     )}
                   </div>
                 )}

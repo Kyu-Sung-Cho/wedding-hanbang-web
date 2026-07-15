@@ -20,42 +20,33 @@ import {
   Sparkles,
   Wallet,
   ClipboardList,
-  Store,
   Heart,
-  AlertTriangle,
   Users,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@hanbang/design-tokens";
-import { formatLocalDateOnly } from "@hanbang/shared";
+import {
+  calculateJourneyProgressPercent,
+  formatLocalDateOnly,
+  getJourneyProgressCounts,
+} from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import ErrorRetry from "@/components/ErrorRetry";
 import AppGuide from "@/components/AppGuide";
 import { AppText, SectionHeader, StatusPill, Surface } from "@/components/ui/AppUI";
 
 const APP_GUIDE_KEY = "@hanbang/app_guide_seen";
-const BOOKING_OUTCOMES_ENABLED = false as const;
-
-interface UrgentTask {
+interface StartedTask {
   categoryKey: string;
   categoryLabel: string;
-  ddayDeadline: number; // 결혼 며칠 전까지 해야 하는지
-  remainingDays: number; // 현재 기준 마감까지 남은 일수
-  urgency: "overdue" | "soon" | "ontrack";
+  remainingChecklistItems: number | null;
 }
 
 interface PartnerActivity {
   partnerName: string;
   recentCategories: string[]; // 최근 변경된 카테고리 라벨 목록
-}
-
-interface BookingOutcomeTask {
-  id: string;
-  vendorName: string;
-  categoryLabel: string;
-  bookingDate: string;
-  isPast: boolean;
 }
 
 interface DashboardData {
@@ -64,10 +55,10 @@ interface DashboardData {
   totalBudget: number;
   progress: Record<string, unknown>;
   progressPercent: number;
+  progressItemTotal: number;
   todayTasks: { title: string; categoryKey: string }[];
   dday: number | null;
-  urgentTasks: UrgentTask[];
-  bookingOutcomeTasks: BookingOutcomeTask[];
+  startedTasks: StartedTask[];
   partnerActivity: PartnerActivity | null;
 }
 
@@ -81,63 +72,6 @@ const DAILY_QUOTES = [
   "두 사람의 이야기가 시작돼요",
   "소중한 순간을 함께 만들어요",
 ];
-
-const CATEGORY_LABEL_BY_KEY = Object.fromEntries(
-  CATEGORY_CHECKLISTS.map((category) => [category.key, category.label])
-) as Record<string, string>;
-
-function readAmount(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
-    const amount = Number(value);
-    return Number.isFinite(amount) ? amount : null;
-  }
-  return null;
-}
-
-function parseBookingDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  if (year && month && day) {
-    return new Date(year, month - 1, day);
-  }
-  return new Date(dateStr);
-}
-
-function getTodayStart(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-}
-
-function formatBookingOutcomeDate(dateStr: string): string {
-  const date = parseBookingDate(dateStr);
-  if (Number.isNaN(date.getTime())) return "날짜 확인 필요";
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-}
-
-function getCategoryLabel(category: unknown): string {
-  if (typeof category !== "string" || category.length === 0) {
-    return "업체";
-  }
-  return CATEGORY_LABEL_BY_KEY[category] ?? category;
-}
-
-function toSingleRelation<T>(value: T | T[] | null | undefined): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-function isOutcomeNeededBooking(row: Record<string, unknown>, today: Date): boolean {
-  const status = String(row.status ?? "");
-  if (status === "cancelled") return false;
-
-  const actualAmount = readAmount(row.actual_amount);
-  if (actualAmount !== null && actualAmount > 0) return false;
-
-  const bookingDate = parseBookingDate(String(row.booking_date ?? ""));
-  const isPast = !Number.isNaN(bookingDate.getTime()) && bookingDate < today;
-  return status === "completed" || isPast;
-}
 
 function getGreetingByTime(): string {
   const hour = new Date().getHours();
@@ -165,23 +99,6 @@ function calcDday(dateStr: string | null): number | null {
   );
 }
 
-function calcProgress(progress: Record<string, unknown>): number {
-  // progress 객체에서 완료된 항목 비율 계산
-  let total = 0;
-  let done = 0;
-  for (const [key, val] of Object.entries(progress)) {
-    if (key.startsWith("__")) continue; // __events 등 메타 키 스킵
-    if (typeof val === "object" && val !== null) {
-      const items = val as Record<string, boolean>;
-      for (const v of Object.values(items)) {
-        total++;
-        if (v === true) done++;
-      }
-    }
-  }
-  return total > 0 ? Math.round((done / total) * 100) : 0;
-}
-
 function formatDday(d: number | null): string {
   if (d === null) return "D-—";
   if (d === 0) return "D-Day";
@@ -189,72 +106,41 @@ function formatDday(d: number | null): string {
   return `D+${Math.abs(d)}`;
 }
 
-// 긴급 할 일 계산: 결혼일 기준 마감이 지났거나 임박한 미완료 카테고리 TOP 3
-function calcUrgentTasks(
-  dday: number | null,
-  progress: Record<string, unknown>
-): UrgentTask[] {
-  if (dday === null || dday <= 0) return [];
-
-  const tasks: UrgentTask[] = [];
+// 사용자가 직접 시작했거나 체크한 준비만 보여준다. 템플릿 시기는 개인 마감으로 쓰지 않는다.
+function getStartedTasks(progress: Record<string, unknown>): StartedTask[] {
+  const tasks: StartedTask[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
-    // 해당 카테고리의 완료 여부 확인
     const catData = progress[cat.key] as {
       status?: string;
       checklist?: Array<{ id: string; done: boolean }>;
       [key: string]: unknown;
     } | undefined;
 
-    // "completed" 상태이면 건너뛰기
-    if (catData?.status === "completed") continue;
+    if (!catData || catData.status === "not_applicable" || catData.status === "completed") continue;
 
-    // 체크리스트 전체 완료 여부 (레거시 플랫 구조 호환)
-    let allDone = false;
-    if (catData?.checklist && Array.isArray(catData.checklist)) {
-      allDone = catData.checklist.length > 0 && catData.checklist.every((i) => i.done);
-    } else if (catData && typeof catData === "object") {
-      const boolValues = Object.entries(catData).filter(([, v]) => typeof v === "boolean");
-      if (boolValues.length > 0) {
-        allDone = boolValues.every(([, v]) => v === true);
+    let remainingChecklistItems: number | null = null;
+    let hasDirectActivity = catData.status === "in_progress";
+    if (Array.isArray(catData.checklist) && catData.checklist.length > 0) {
+      hasDirectActivity ||= catData.checklist.some((item) => item.done);
+      remainingChecklistItems = catData.checklist.filter((item) => !item.done).length;
+    } else {
+      const booleanValues = Object.entries(catData)
+        .filter(([, value]) => typeof value === "boolean")
+        .map(([, value]) => value as boolean);
+      if (booleanValues.length > 0) {
+        hasDirectActivity ||= booleanValues.some(Boolean);
+        remainingChecklistItems = booleanValues.filter((value) => !value).length;
       }
     }
-    if (allDone) continue;
-
-    // 마감까지 남은 일수 = 현재 D-day - 카테고리 마감 D-day
-    // 예: D-day=120, ddayDeadline=150이면 → 이미 30일 지남 (overdue)
-    // 예: D-day=120, ddayDeadline=90이면 → 30일 남음
-    const remainingDays = dday - cat.ddayDeadline;
-
-    let urgency: UrgentTask["urgency"];
-    if (remainingDays < 0) {
-      urgency = "overdue";
-    } else if (remainingDays <= 14) {
-      urgency = "soon";
-    } else {
-      urgency = "ontrack";
-    }
-
-    // ddayStart 기준으로 아직 시작할 시기가 아닌 것은 제외
-    // 예: D-day=200, ddayStart=180 → 아직 시작 안 해도 됨
-    if (dday > cat.ddayStart) continue;
+    if (!hasDirectActivity || remainingChecklistItems === 0) continue;
 
     tasks.push({
       categoryKey: cat.key,
       categoryLabel: cat.label,
-      ddayDeadline: cat.ddayDeadline,
-      remainingDays,
-      urgency,
+      remainingChecklistItems,
     });
   }
-
-  // 긴급도 순 정렬: overdue → soon → ontrack, 같은 레벨이면 남은 일수 적은 순
-  const urgencyOrder = { overdue: 0, soon: 1, ontrack: 2 };
-  tasks.sort((a, b) => {
-    const orderDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-    if (orderDiff !== 0) return orderDiff;
-    return a.remainingDays - b.remainingDays;
-  });
 
   return tasks.slice(0, 3);
 }
@@ -304,14 +190,13 @@ export default function DashboardScreen() {
       setError(false);
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (authError) throw authError;
+      if (!user) throw new Error("authenticated user unavailable");
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name, couple_id")
-        .eq("id", user.id)
-        .single();
+      const { data: profile, error: profileError } = await readMySafeProfile();
+      if (profileError) throw profileError;
 
       coupleIdRef.current = profile?.couple_id ?? null;
 
@@ -322,24 +207,26 @@ export default function DashboardScreen() {
           totalBudget: 0,
           progress: {},
           progressPercent: 0,
+          progressItemTotal: 0,
           todayTasks: [],
           dday: null,
-          urgentTasks: [],
-          bookingOutcomeTasks: [],
+          startedTasks: [],
           partnerActivity: null,
         });
         return;
       }
 
-      const { data: journey } = await supabase
+      const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
         .select("wedding_date, total_budget, progress")
         .eq("couple_id", profile.couple_id)
         .single();
+      if (journeyError) throw journeyError;
 
       const progress =
         (journey?.progress as Record<string, unknown>) ?? {};
-      const progressPercent = calcProgress(progress);
+      const progressPercent = calculateJourneyProgressPercent(progress);
+      const progressCounts = getJourneyProgressCounts(progress);
 
       // 오늘 할 일: 이벤트 중 오늘 날짜인 것
       const today = formatLocalDateOnly(new Date());
@@ -355,54 +242,7 @@ export default function DashboardScreen() {
 
       const dday = calcDday(journey?.wedding_date ?? null);
 
-      // 긴급 할 일 계산
-      const urgentTasks = calcUrgentTasks(dday, progress);
-
-      let bookingOutcomeTasks: BookingOutcomeTask[] = [];
-      if (BOOKING_OUTCOMES_ENABLED) {
-        const todayStart = getTodayStart();
-        const todayIso = formatLocalDateOnly(todayStart);
-        try {
-          const { data: bookingRows, error: bookingError } = await supabase
-            .from("vendor_bookings")
-            .select("id, booking_date, status, actual_amount, vendor:vendors(name, category)")
-            .eq("couple_id", profile.couple_id)
-            .neq("status", "cancelled")
-            .or(`status.eq.completed,booking_date.lt.${todayIso}`)
-            .or("actual_amount.is.null,actual_amount.eq.0")
-            .order("booking_date", { ascending: false })
-            .limit(3);
-
-          if (bookingError) throw bookingError;
-
-          const rows = (bookingRows ?? []) as Array<Record<string, unknown>>;
-          bookingOutcomeTasks = rows
-            .filter((row) => isOutcomeNeededBooking(row, todayStart))
-            .map((row) => {
-              const vendor = toSingleRelation(
-                row.vendor as { name?: unknown; category?: unknown } | { name?: unknown; category?: unknown }[] | null
-              );
-              const bookingDate = String(row.booking_date ?? "");
-              const parsedDate = parseBookingDate(bookingDate);
-              const isPast = !Number.isNaN(parsedDate.getTime()) && parsedDate < todayStart;
-
-              return {
-                id: String(row.id ?? ""),
-                vendorName:
-                  typeof vendor?.name === "string" && vendor.name.length > 0
-                    ? vendor.name
-                    : "업체 미정",
-                categoryLabel: getCategoryLabel(vendor?.category),
-                bookingDate,
-                isPast,
-              };
-            })
-            .filter((task) => task.id.length > 0)
-            .slice(0, 3);
-        } catch {
-          // 예약 결과 조회 실패는 홈 진입을 막지 않음
-        }
-      }
+      const startedTasks = getStartedTasks(progress);
 
       // 파트너 활동 감지
       let partnerActivity: PartnerActivity | null = null;
@@ -455,10 +295,10 @@ export default function DashboardScreen() {
         totalBudget: journey?.total_budget ?? 0,
         progress,
         progressPercent: pct,
+        progressItemTotal: progressCounts.total,
         todayTasks,
         dday,
-        urgentTasks,
-        bookingOutcomeTasks,
+        startedTasks,
         partnerActivity,
       });
 
@@ -492,16 +332,9 @@ export default function DashboardScreen() {
           filter: `couple_id=eq.${cid}`,
         }, () => {
           loadData();
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'vendor_bookings',
-          filter: `couple_id=eq.${cid}`,
-        }, () => {
-          loadData();
-        })
-        .subscribe();
+        });
+
+      channel.subscribe();
 
       channelRef.current = channel;
     });
@@ -551,8 +384,6 @@ export default function DashboardScreen() {
     ? `${data.name}님, ${timeGreeting}`
     : timeGreeting;
 
-  const isUrgent = data?.dday != null && data.dday > 0 && data.dday <= 30;
-
   // 진행률 바 width interpolation
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 100],
@@ -585,12 +416,12 @@ export default function DashboardScreen() {
       route: "/budget" as const,
     },
     {
-      title: "업체 탐색",
-      desc: "업체 찾기",
-      icon: Store,
+      title: "커뮤니티",
+      desc: "경험과 질문",
+      icon: Users,
       iconColor: colors.rose[500],
       iconBg: colors.ivory[200],
-      route: "/vendors" as const,
+      route: "/(tabs)/community" as const,
     },
   ];
 
@@ -626,6 +457,24 @@ export default function DashboardScreen() {
           </AppText>
         </View>
 
+        {error && data && (
+          <View style={styles.staleBanner} accessibilityRole="alert">
+            <Text style={styles.staleBannerText}>
+              최신 정보를 불러오지 못했어요. 아래 내용은 마지막으로 확인한 정보예요.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setRefreshing(true);
+                void loadData();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="대시보드 다시 불러오기"
+            >
+              <Text style={styles.staleBannerAction}>다시 불러오기</Text>
+            </Pressable>
+          </View>
+        )}
+
         <Surface tone="noir" style={styles.commandCard}>
           <View style={styles.commandTop}>
             <View>
@@ -637,8 +486,8 @@ export default function DashboardScreen() {
               </Text>
             </View>
             <StatusPill
-              label={isUrgent ? "집중 관리" : "진행 중"}
-              tone={isUrgent ? "danger" : "rose"}
+              label={data?.weddingDate ? "예식일 기록" : "예식일 미정"}
+              tone="neutral"
             />
           </View>
 
@@ -652,16 +501,16 @@ export default function DashboardScreen() {
             </AppText>
           ) : (
             <AppText variant="body" style={styles.commandDate}>
-              결혼 예정일을 설정하면 시기별 할 일을 정리하기 쉬워져요
+              직접 정한 일정과 체크리스트를 한곳에서 확인할 수 있어요
             </AppText>
           )}
 
           <View style={styles.commandProgressRow}>
             <AppText variant="caption" style={styles.commandProgressLabel}>
-              전체 진행률
+              시작한 항목 완료율
             </AppText>
             <Text style={styles.commandProgressValue}>
-              {data?.progressPercent ?? 0}%
+              {(data?.progressItemTotal ?? 0) > 0 ? `${data?.progressPercent ?? 0}%` : "기록 없음"}
             </Text>
           </View>
           <View style={styles.commandProgressTrack}>
@@ -671,82 +520,14 @@ export default function DashboardScreen() {
           </View>
         </Surface>
 
-        {/* 예약 결과 기록 */}
-        {BOOKING_OUTCOMES_ENABLED && (data?.bookingOutcomeTasks?.length ?? 0) > 0 && (
-          <View style={styles.outcomeSection}>
-            <View style={styles.urgentHeader}>
-              <CalendarCheck size={18} color={colors.rose[500]} />
-              <Text style={styles.urgentTitle}>예약 결과 기록</Text>
-              <View style={styles.outcomeCountPill}>
-                <Text style={styles.outcomeCountText}>
-                  {data?.bookingOutcomeTasks.length ?? 0}건
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.outcomeIntro}>
-              결제금액과 만족도 기록 기능은 업체 연결을 다시 열고 검증한 뒤 제공할 예정이에요.
-            </Text>
-            {data?.bookingOutcomeTasks.map((task) => (
-              <Pressable
-                key={task.id}
-                style={({ pressed }) => [
-                  styles.outcomeRow,
-                  pressed && { transform: [{ scale: 0.98 }] },
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/bookings",
-                    params: { bookingId: task.id },
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={`${task.vendorName} 실제 결제금액 기록하기`}
-              >
-                <View style={styles.outcomeIcon}>
-                  <Wallet size={17} color={colors.rose[500]} />
-                </View>
-                <View style={styles.urgentContent}>
-                  <View style={styles.urgentTopRow}>
-                    <Text style={styles.urgentCategoryLabel} numberOfLines={1}>
-                      {task.vendorName}
-                    </Text>
-                    <View style={styles.outcomeBadge}>
-                      <Text style={styles.outcomeBadgeText}>
-                        {task.isPast ? "방문 후" : "완료"}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.urgentDeadline}>
-                    {formatBookingOutcomeDate(task.bookingDate)} · {task.categoryLabel} · 실결제 입력 필요
-                  </Text>
-                </View>
-                <ChevronRight size={16} color={colors.textTertiary} />
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {/* 지금 해야 할 것 */}
-        {(data?.urgentTasks?.length ?? 0) > 0 && (
+        {/* 사용자가 직접 시작한 준비만 사실 기반으로 표시 */}
+        {(data?.startedTasks?.length ?? 0) > 0 && (
           <View style={styles.urgentSection}>
             <View style={styles.urgentHeader}>
-              <AlertTriangle size={18} color={colors.warning} />
-              <Text style={styles.urgentTitle}>지금 해야 할 것</Text>
+              <CalendarCheck size={18} color={colors.rose[500]} />
+              <Text style={styles.urgentTitle}>직접 시작한 준비</Text>
             </View>
-            {data?.urgentTasks.map((task) => {
-              const urgencyColor =
-                task.urgency === "overdue"
-                  ? "#EF4444"
-                  : task.urgency === "soon"
-                    ? "#F59E0B"
-                    : "#22C55E";
-              const urgencyLabel =
-                task.urgency === "overdue"
-                  ? "마감 지남"
-                  : task.urgency === "soon"
-                    ? "곧 마감"
-                    : "진행 중";
-              return (
+            {data?.startedTasks.map((task) => (
                 <Pressable
                   key={task.categoryKey}
                   style={({ pressed }) => [
@@ -758,7 +539,7 @@ export default function DashboardScreen() {
                   <View
                     style={[
                       styles.urgentIndicator,
-                      { backgroundColor: urgencyColor },
+                      { backgroundColor: colors.rose[500] },
                     ]}
                   />
                   <View style={styles.urgentContent}>
@@ -769,25 +550,23 @@ export default function DashboardScreen() {
                       <View
                         style={[
                           styles.urgentBadge,
-                          { backgroundColor: urgencyColor + "1A" },
+                          { backgroundColor: colors.ivory[200] },
                         ]}
                       >
                         <Text
                           style={[
                             styles.urgentBadgeText,
-                            { color: urgencyColor },
+                            { color: colors.textSecondary },
                           ]}
                         >
-                          {urgencyLabel}
+                          직접 시작
                         </Text>
                       </View>
                     </View>
                     <Text style={styles.urgentDeadline}>
-                      {task.remainingDays < 0
-                        ? `${Math.abs(task.remainingDays)}일 전까지 완료 권장`
-                        : task.remainingDays === 0
-                          ? "오늘까지 완료 권장"
-                          : `D-${task.ddayDeadline}일 전까지 권장`}
+                      {task.remainingChecklistItems === null
+                        ? "일정과 체크리스트에서 현재 상태를 확인하세요"
+                        : `체크리스트 ${task.remainingChecklistItems}개 남음`}
                     </Text>
                   </View>
                   <ChevronRight
@@ -795,8 +574,7 @@ export default function DashboardScreen() {
                     color={colors.textTertiary}
                   />
                 </Pressable>
-              );
-            })}
+              ))}
           </View>
         )}
 
@@ -973,6 +751,31 @@ const styles = StyleSheet.create({
     maxWidth: 330,
     fontSize: 27,
     lineHeight: 35,
+  },
+  staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory[100],
+  },
+  staleBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+  },
+  staleBannerAction: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.rose[500],
   },
   commandCard: {
     marginBottom: 14,
@@ -1262,64 +1065,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-  },
-
-  // 예약 결과 기록
-  outcomeSection: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.rose.glow,
-    ...CARD_SHADOW,
-  },
-  outcomeIntro: {
-    fontSize: 13,
-    lineHeight: 20,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  outcomeCountPill: {
-    marginLeft: "auto",
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: colors.rose.glow,
-  },
-  outcomeCountText: {
-    fontSize: 11,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.rose[600],
-  },
-  outcomeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 14,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  outcomeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    backgroundColor: colors.rose.glow,
-  },
-  outcomeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: colors.ivory[200],
-  },
-  outcomeBadgeText: {
-    fontSize: 11,
-    fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textSecondary,
   },
 

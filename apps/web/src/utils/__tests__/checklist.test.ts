@@ -24,16 +24,15 @@ describe("mergeChecklist", () => {
       expect(result.every((i) => i.done)).toBe(true);
     });
 
-    it("marks first half done when status is in_progress", () => {
+    it("does not invent completed items when legacy status is in_progress", () => {
       const result = mergeChecklist(template, undefined, "in_progress");
-      const doneCount = result.filter((i) => i.done).length;
-      expect(doneCount).toBe(Math.ceil(template.length / 2));
+      expect(result.every((i) => !i.done)).toBe(true);
     });
 
-    it("in_progress with odd-length template marks ceil(n/2) done", () => {
+    it("keeps odd-length templates untouched when legacy status is in_progress", () => {
       const odd = makeItems(["a", "b", "c"], [false, false, false]);
       const result = mergeChecklist(odd, undefined, "in_progress");
-      expect(result.filter((i) => i.done).length).toBe(2); // ceil(3/2)=2
+      expect(result.every((i) => !i.done)).toBe(true);
     });
 
     it("returns all false when no status provided", () => {

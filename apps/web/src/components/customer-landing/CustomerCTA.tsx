@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 
 export default function CustomerCTA() {
   const isComingSoon = isComingSoonEnv;
@@ -75,7 +75,7 @@ export default function CustomerCTA() {
               <>
                 <span>✦ 6주 사용자 연구</span>
                 <span>✦ 접수 상태는 안내 페이지에서</span>
-                <span>✦ 신청 정보 180일 보관</span>
+                <span>✦ 운영 검증 전 실제 개인정보 접수 닫힘</span>
               </>
             ) : (
               <>

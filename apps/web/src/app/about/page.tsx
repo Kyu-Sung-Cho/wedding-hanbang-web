@@ -1,11 +1,12 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import ProblemReframe from "@/components/landing/ProblemReframe";
 import FiveRoles from "@/components/landing/FiveRoles";
-import NumbersAnchor from "@/components/landing/NumbersAnchor";
+import OfficialPriceResearch from "@/components/landing/OfficialPriceResearch";
 import CompareToHumanPlanner from "@/components/landing/CompareToHumanPlanner";
 import ForBetaCouples from "@/components/landing/ForBetaCouples";
 import Footer from "@/components/landing/Footer";
 import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import { isResearchCohortApplicationsEnabled } from "@/lib/researchCohortAvailability";
 
 // ISR: 60초마다 사용자 연구 코호트 신청 카운트 새로고침
 export const revalidate = 60;
@@ -13,11 +14,12 @@ export const revalidate = 60;
 export const metadata = {
   title: "이 브랜드의 이야기 — 웨딩한방",
   description:
-    "결혼 준비가 진짜 힘든 이유, 견적·예산·일정으로 이어지는 아모라의 준비 도구, 정부 공식 데이터로 보는 시세.",
+    "결혼 준비가 힘든 이유, 업체 원문에서 질문을 정리하고 예산·일정 기록으로 이어가는 방법, 출처가 표시된 시세.",
 };
 
 export default async function AboutPage() {
-  const current = await getBetaCount();
+  const applicationsEnabled = isResearchCohortApplicationsEnabled();
+  const current = applicationsEnabled ? await getBetaCount() : 0;
   return (
     <main className="min-h-screen bg-ivory-50">
       <CustomerNav />
@@ -38,9 +40,13 @@ export default async function AboutPage() {
 
       <ProblemReframe />
       <FiveRoles />
-      <NumbersAnchor />
+      <OfficialPriceResearch />
       <CompareToHumanPlanner />
-      <ForBetaCouples current={current} total={BETA_TOTAL} />
+      <ForBetaCouples
+        current={current}
+        total={BETA_TOTAL}
+        applicationsEnabled={applicationsEnabled}
+      />
       <Footer />
     </main>
   );

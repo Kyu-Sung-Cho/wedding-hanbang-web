@@ -20,16 +20,16 @@ const painPoints = [
   {
     emoji: "💸",
     title: "예산을 어떻게 짜야 할지 모르겠어요",
-    desc: "어떤 항목에 얼마를 써야 하는지 감이 안 와요. 정부 실태조사에서는 스드메 기본금 346만원에 평균 174만원의 추가비용이 더해졌습니다. 무엇을 먼저 확인해야 할지 막막합니다.",
-    stat: "+174만원",
-    statLabel: "스드메 평균 추가비용²",
+    desc: "같은 상품명이어도 포함 항목과 추가 조건이 달라 총액이 달라질 수 있어요. 평균값으로 적정성을 단정하기보다, 업체 원문과 계약서에서 빠진 항목을 하나씩 확인해야 합니다.",
+    stat: "범위 확인",
+    statLabel: "포함 항목·추가 조건을 계약 전에 확인",
   },
   {
     emoji: "🕐",
     title: "시간은 없는데, 방문할 곳은 많고, 의견 조율은 어렵고",
     desc: "맞벌이 커플이 주말마다 상담 다니는 건 현실적으로 힘들어요. 각자 알아본 정보는 제각각이고, 카톡으로 공유하다 보면 뭘 결정한 건지 헷갈립니다.",
-    stat: "1,505건",
-    statLabel: "결혼 준비 관련 소비자 불만 접수 (2023)³",
+    stat: "한곳에",
+    statLabel: "일정·계약 질문·금액 기록 정리",
   },
 ];
 
@@ -37,14 +37,6 @@ const sources = [
   {
     label: "¹ 한국소비자원, 결혼서비스 가격 동향 조사 (515개 업체), 2025",
     href: "https://www.kca.go.kr/kca/sub.do?menukey=5084&mode=view&no=1003902297",
-  },
-  {
-    label: "² 정부 「결혼서비스 발전 지원방안」 실태조사, 2024",
-    href: "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156660308",
-  },
-  {
-    label: "³ 정부 「결혼서비스 발전 지원방안」의 1372 상담 집계, 2021~2023",
-    href: "https://www.korea.kr/briefing/pressReleaseView.do?newsId=156660308",
   },
 ];
 
@@ -114,6 +106,9 @@ export default function CustomerPainPoints() {
 
       {/* 출처 */}
       <div className="max-w-[1100px] mx-auto mt-10 relative z-10">
+        <p className="mb-3 text-center text-[11px] leading-relaxed text-white/80">
+          표시된 비율은 조사 시점의 시장 현황이며, 개인 견적의 적정 가격을 판정하는 값이 아닙니다.
+        </p>
         <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
           {sources.map((source) => (
             <a

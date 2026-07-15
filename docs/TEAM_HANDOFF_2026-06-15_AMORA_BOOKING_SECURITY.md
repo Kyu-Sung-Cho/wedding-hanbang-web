@@ -1,5 +1,7 @@
 # 2026-06-15 Team Handoff: Amora, Booking, Supabase Security
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 브랜치, 예약 동기화, migration·배포 명령과 “ready” 판정은 현재 실행 절차나 출시 승인서가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **2026-06-15 브랜치 인수인계 스냅샷입니다.** 아래 빌드 수치, migration 목록, 예약 생성과 배포 절차는 현재 상태가 아닙니다. 현재 새 예약·상담 요청과 결과 저장은 비활성입니다. 최신 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)와 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)를 우선합니다.
 

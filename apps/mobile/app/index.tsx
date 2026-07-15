@@ -6,6 +6,7 @@ import { colors } from "@hanbang/design-tokens";
 import ErrorRetry from "@/components/ErrorRetry";
 import { consumePendingMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 
 type LoadStatus = "loading" | "ready" | "error";
 
@@ -30,11 +31,7 @@ export default function Index() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("name, couple_id, onboarding_completed")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      const { data: profile, error: profileError } = await readMySafeProfile();
 
       if (profileError) throw profileError;
       if (requestId !== requestIdRef.current) return;

@@ -1,5 +1,7 @@
 # 웨딩한방 90초 데모 스크립트
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 합성 사용자, 자동 예산·갈등 중재, 업체·예약 장면은 현재 촬영·시연·홍보에 사용할 수 없다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **폐기 전 보존한 역사적 데모 대본입니다. 현재 촬영·홍보에 사용하지 마세요.** 자동 예산 변경, 자동 갈등 중재, 가상 업체·별점·잔여 슬롯과 예약 확정은 현재 제공하지 않습니다. 현재 데모는 계정 없는 예시 앱에서 실제 제공 범위만 보여주며, 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따릅니다.
 

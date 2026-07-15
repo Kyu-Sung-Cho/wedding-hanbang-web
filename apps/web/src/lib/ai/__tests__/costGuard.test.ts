@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.hoisted(() => {
+  process.env.AMORA_USAGE_LIMITS_ENABLED = "true";
+});
+
 import {
   markAmoraProviderStarted,
   reserveAmoraProviderCall,
@@ -39,6 +44,7 @@ describe("split Amora usage reservations", () => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
     delete process.env.AMORA_COST_GUARD_FAIL_OPEN;
+    process.env.AMORA_USAGE_LIMITS_ENABLED = "true";
     delete process.env.AMORA_FREE_MESSAGES_PER_COUPLE;
     delete process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP;
     delete process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP;
@@ -48,15 +54,15 @@ describe("split Amora usage reservations", () => {
     process.env = ENV;
   });
 
-  it("user turn reserves both the couple quota and one provider call", async () => {
-    const { admin, rpc } = makeAdmin({ allowed: true, remaining: 29 });
+  it("user turn reserves a provider slot without enforcing a lifetime couple quota", async () => {
+    const { admin, rpc } = makeAdmin({ allowed: true, providerRemaining: 19 });
     const result = await reserveAmoraUserTurn(admin, BASE);
-    expect(result).toEqual({ allowed: true, remaining: 29 });
+    expect(result).toEqual({ allowed: true, providerRemaining: 19 });
     expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", {
       p_couple_id: "c1",
       p_couple_cap: 30,
       p_global_provider_cap: 60,
-      p_count_user_turn: true,
+      p_count_user_turn: false,
     });
   });
 
@@ -99,7 +105,7 @@ describe("split Amora usage reservations", () => {
     }));
   });
 
-  it("admins skip the couple quota but not the global provider breaker", async () => {
+  it("admins use the same provider breaker without a lifetime quota", async () => {
     const { admin, rpc } = makeAdmin({ allowed: true });
     await reserveAmoraUserTurn(admin, { ...BASE, isAdmin: true });
     expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", expect.objectContaining({
@@ -110,7 +116,6 @@ describe("split Amora usage reservations", () => {
   it.each([
     ["global_daily", "global_daily"],
     ["couple_provider_daily", "couple_provider_daily"],
-    ["couple_quota", "couple_quota"],
   ])("maps %s denial", async (rpcReason, expectedReason) => {
     const { admin } = makeAdmin({ allowed: false, reason: rpcReason });
     const result = await reserveAmoraUserTurn(admin, BASE);
@@ -131,6 +136,14 @@ describe("split Amora usage reservations", () => {
       p_request_key: "a".repeat(64),
       p_request_hash: "b".repeat(64),
       p_provider_ordinal: 1,
+    });
+  });
+
+  it("treats an impossible legacy lifetime-quota response as a ledger failure", async () => {
+    const { admin } = makeAdmin({ allowed: false, reason: "couple_quota" });
+    await expect(reserveAmoraUserTurn(admin, BASE)).resolves.toMatchObject({
+      allowed: false,
+      reason: "guard_unavailable",
     });
   });
 
@@ -158,7 +171,7 @@ describe("split Amora usage reservations", () => {
     await expect(costGuardModule.reserveAmoraProviderCall(admin, BASE)).resolves.toEqual({ allowed: true });
   });
 
-  it("code-enforces the reduced ceilings even when stale deployment variables are higher", async () => {
+  it("ignores the retired lifetime env and enforces the global ceiling", async () => {
     process.env.AMORA_FREE_MESSAGES_PER_COUPLE = "100";
     process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP = "300";
     vi.resetModules();
@@ -171,11 +184,11 @@ describe("split Amora usage reservations", () => {
       p_couple_id: "c1",
       p_couple_cap: 30,
       p_global_provider_cap: 60,
-      p_count_user_turn: true,
+      p_count_user_turn: false,
     });
   });
 
-  it("still permits deployment variables to lower the reviewed ceilings", async () => {
+  it("still permits deployment variables to lower the global provider ceiling", async () => {
     process.env.AMORA_FREE_MESSAGES_PER_COUPLE = "10";
     process.env.AMORA_GLOBAL_DAILY_PROVIDER_CALL_CAP = "20";
     vi.resetModules();
@@ -186,14 +199,15 @@ describe("split Amora usage reservations", () => {
 
     expect(rpc).toHaveBeenCalledWith("reserve_amora_usage", {
       p_couple_id: "c1",
-      p_couple_cap: 10,
+      p_couple_cap: 30,
       p_global_provider_cap: 20,
-      p_count_user_turn: true,
+      p_count_user_turn: false,
     });
   });
 
-  it("cannot disable or fail open the cost ledger in production", async () => {
+  it("does not let legacy switches disable or fail open an explicitly enabled production ledger", async () => {
     vi.stubEnv("NODE_ENV", "production");
+    process.env.AMORA_USAGE_LIMITS_ENABLED = "true";
     process.env.AMORA_COST_GUARD_ENABLED = "false";
     process.env.AMORA_COST_GUARD_FAIL_OPEN = "true";
     vi.resetModules();

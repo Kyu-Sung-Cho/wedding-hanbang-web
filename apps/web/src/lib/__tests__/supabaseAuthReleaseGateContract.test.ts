@@ -123,7 +123,9 @@ describe("Supabase hosted Auth release gate", () => {
     expect(preregisterRoute).toMatch(
       /getClientIp\(request\),\r?\n\s+"preregister"/
     );
-    expect(surveyRoute).toMatch(/getClientIp\(request\),\r?\n\s+"survey"/);
+    expect(surveyRoute).toContain('code: "CUSTOMER_SURVEY_INTAKE_CLOSED"');
+    expect(surveyRoute).toContain("status: 410");
+    expect(surveyRoute).not.toMatch(/getClientIp|verifyTurnstile|request\.json/);
     expect(adminAuthRoute).toContain("value.length >= 12");
     expect(adminAuthRoute.match(/isStrongAdminPassword\(/g)?.length).toBeGreaterThanOrEqual(3);
     expect(resetPage).toContain("supabase.auth.updateUser");
@@ -166,8 +168,6 @@ describe("Supabase hosted Auth release gate", () => {
       requiredActions: [
         "signup",
         "forgot_password",
-        "preregister",
-        "survey",
       ],
     });
     expect(releaseTargets.productionAdminPasswordLifecycle).toEqual({
@@ -185,7 +185,7 @@ describe("Supabase hosted Auth release gate", () => {
       "every visible OAuth provider and redirect round-trip is independently attested"
     );
     expect(ship).toContain(
-      "all four hostname/action-bound Siteverify flows are independently attested"
+      "all two active public hostname/action-bound Siteverify flows are independently attested"
     );
   });
 
@@ -226,8 +226,8 @@ describe("Supabase hosted Auth release gate", () => {
     expect(turnstile).toContain("token.length > 2048");
     expect(betaForm).toContain("setTurnstileAttempt((attempt) => attempt + 1)");
     expect(betaForm).toContain('key={`preregister-${turnstileAttempt}`}');
-    expect(surveyPage).toContain("setTurnstileAttempt((attempt) => attempt + 1)");
-    expect(surveyPage).toContain('key={`survey-${turnstileAttempt}`}');
+    expect(surveyPage).toContain("현재 설문 응답을 받지 않습니다");
+    expect(surveyPage).not.toMatch(/TurnstileWidget|turnstileAttempt|fetch\(['"]\/api\/survey/);
     expect(ship).toContain("$status.turnstileCredentialsConfigured -ne $true");
     expect(ship).toContain(
       "$status.turnstileCanonicalHostnameConfigured -ne $true"

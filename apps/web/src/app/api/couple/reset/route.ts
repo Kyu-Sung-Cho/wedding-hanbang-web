@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 4 * 1024;
@@ -36,10 +36,14 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!existingLifecycle?.amora_membership_resetting_at) {
-      const limited = checkRateLimit(rateLimitKey("couple:reset", request, user.id), {
-        maxRequests: 5,
-        windowMs: 10 * 60 * 1000,
-      });
+      const limited = await checkRateLimitPersistent(
+        rateLimitKey("couple:reset", request, user.id),
+        {
+          maxRequests: 5,
+          windowMs: 10 * 60 * 1000,
+        },
+        user.id,
+      );
       if (limited) return limited;
     }
 

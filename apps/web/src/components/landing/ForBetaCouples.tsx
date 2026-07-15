@@ -14,12 +14,17 @@ interface ForBetaCouplesProps {
   /** 실시간 신청자 수 (server fetch). 미전달 시 0. */
   current?: number;
   total?: number;
+  applicationsEnabled?: boolean;
 }
 
-export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCouplesProps) {
+export default function ForBetaCouples({
+  current = 0,
+  total = 50,
+  applicationsEnabled = false,
+}: ForBetaCouplesProps) {
   const BETA_CURRENT = current;
   const BETA_TOTAL = total;
-  const showCounter = shouldShowBetaCounter(BETA_CURRENT);
+  const showCounter = applicationsEnabled && shouldShowBetaCounter(BETA_CURRENT);
 
   return (
     <section
@@ -47,9 +52,19 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
         >
           <SectionLabel label="사용자 연구 코호트" tone="light" />
           <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
-            6주간 함께해 주실
-            <br />
-            <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
+            {applicationsEnabled ? (
+              <>
+                6주간 함께해 주실
+                <br />
+                <em className="not-italic text-rose-light">최대 50명</em>을 찾습니다.
+              </>
+            ) : (
+              <>
+                6주 사용자 연구를
+                <br />
+                <em className="not-italic text-rose-light">안전하게 준비 중</em>입니다.
+              </>
+            )}
           </h2>
           <p className="mt-6 max-w-2xl text-[14px] font-light leading-[1.8] text-white/65 md:text-[15px]">
             일반 베타 계정 이용과 별도로, 선정 후 안내되는 시작일부터 6주간 심층 피드백에 참여하는 연구입니다.
@@ -134,7 +149,9 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 </>
               ) : (
                 <p className="mb-12 text-[13px] font-medium tracking-[0.16em] text-white/55">
-                  사용자 연구 신청 접수 중 · 최대 {BETA_TOTAL}명 선정
+                  {applicationsEnabled
+                    ? `사용자 연구 신청 접수 중 · 최대 ${BETA_TOTAL}명 선정`
+                    : "사용자 연구 신청 접수 준비 중"}
                 </p>
               )}
 
@@ -143,7 +160,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 href="/beta"
                 className="group inline-flex items-center gap-2 text-[14px] md:text-[15px] text-white font-medium border-b border-white pb-2 tracking-[0.02em] hover:text-rose-light hover:border-rose-light transition-colors"
               >
-                사용자 연구 신청하기
+                {applicationsEnabled ? "사용자 연구 신청하기" : "사용자 연구 안내 확인하기"}
                 <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
             </div>

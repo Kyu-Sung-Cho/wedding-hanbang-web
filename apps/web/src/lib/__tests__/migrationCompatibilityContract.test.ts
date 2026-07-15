@@ -62,6 +62,13 @@ const amoraReservationMigration = readFileSync(
   resolve(migrationsDir, "20260711139000_idempotent_amora_usage_reservations.sql"),
   "utf8"
 );
+const unlimitedAmoraMeteringMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260713101000_unlimited_amora_test_stage_metering.sql"
+  ),
+  "utf8"
+);
 const marketplaceCommunityGuardMigration = readFileSync(
   resolve(migrationsDir, "20260711140000_expand_only_marketplace_community_guards.sql"),
   "utf8"
@@ -166,6 +173,13 @@ const accountDeletionStorageAuthRaceMigration = readFileSync(
   resolve(
     migrationsDir,
     "20260712105000_close_account_deletion_storage_auth_race.sql"
+  ),
+  "utf8"
+);
+const browserWriteLockdownMigration = readFileSync(
+  resolve(
+    migrationsDir,
+    "20260713105000_close_disabled_browser_write_surfaces.sql"
   ),
   "utf8"
 );
@@ -749,19 +763,18 @@ describe("expand-only mobile migration contract", () => {
     );
   });
 
-  it("keeps the published direct chat insert and linked-partner read paths", () => {
+  it("retires the published direct chat insert while keeping linked-partner reads", () => {
     expect(amoraMigration).toContain(
       'CREATE POLICY "chat_insert_couple" ON public.chat_messages'
     );
     expect(amoraMigration).toContain(
       "GRANT INSERT ON TABLE public.chat_messages TO authenticated;"
     );
-    expect(amoraMigration).not.toContain(
-      "REVOKE INSERT ON TABLE public.chat_messages FROM authenticated;"
+    expect(browserWriteLockdownMigration).toContain(
+      "REVOKE INSERT ON TABLE public.chat_messages FROM PUBLIC, anon, authenticated;"
     );
-
-    expect(activePendingSql).not.toContain(
-      "REVOKE INSERT ON TABLE public.chat_messages FROM authenticated;"
+    expect(browserWriteLockdownMigration).toContain(
+      "policy_row.tablename = 'chat_messages'"
     );
 
     const functionStart = activePendingSql.lastIndexOf(
@@ -902,23 +915,7 @@ describe("expand-only mobile migration contract", () => {
     expect(firstAlter).toBeGreaterThan(statementTimeout);
   });
 
-  it("keeps legacy community vote and bookmark contracts during expand", () => {
-    expect(activePendingSql).not.toMatch(
-      /REVOKE[^;]*ON TABLE public\.community_votes[^;]*FROM[^;]*\b(?:anon|authenticated)\b[^;]*;/i
-    );
-    expect(activePendingSql).not.toMatch(
-      /REVOKE[^;]*ON TABLE public\.community_bookmarks[^;]*FROM[^;]*\b(?:anon|authenticated)\b[^;]*;/i
-    );
-    expect(activePendingSql).not.toContain(
-      'DROP POLICY IF EXISTS "cb_all" ON public.community_bookmarks;'
-    );
-    expect(activePendingSql).not.toMatch(
-      /REVOKE ALL ON FUNCTION public\.community_vote_post\([\s\S]{0,80}FROM anon, authenticated/
-    );
-    expect(activePendingSql).not.toMatch(
-      /REVOKE[^;]*public\.community_vote_post\([^;]*FROM authenticated;/
-    );
-
+  it("retires legacy community vote and bookmark mutations behind server routes", () => {
     expect(legacyCommunityRpcMigration).toContain(
       "AND (auth.uid() IS NULL OR auth.uid() <> p_user_id)"
     );
@@ -928,14 +925,32 @@ describe("expand-only mobile migration contract", () => {
     expect(legacyCommunityBaseMigration).toContain(
       'CREATE POLICY "cb_all" ON community_bookmarks FOR ALL USING (user_id = auth.uid());'
     );
+    expect(browserWriteLockdownMigration).toContain(
+      "('public', 'community_votes')"
+    );
+    expect(browserWriteLockdownMigration).toContain(
+      "('public', 'community_bookmarks')"
+    );
+    expect(browserWriteLockdownMigration).toContain(
+      "REVOKE ALL ON FUNCTION public.community_vote_post(uuid, uuid, smallint) FROM PUBLIC, anon, authenticated;"
+    );
+    expect(browserWriteLockdownMigration).toContain(
+      "CREATE POLICY community_bookmarks_select_own"
+    );
   });
 
-  it("keeps direct authenticated community uploads while reserving new API uploads", () => {
+  it("retires direct community uploads while keeping the reserved server upload path", () => {
     expect(legacyCommunityStorageMigration).toMatch(
       /CREATE POLICY "community-images own folder write"[\s\S]*?FOR INSERT TO authenticated[\s\S]*?bucket_id = 'community-images'[\s\S]*?auth\.uid\(\)::text/
     );
-    expect(activePendingSql).not.toMatch(
-      /DROP POLICY IF EXISTS "community-images (?:authenticated|own folder) (?:write|update)"/
+    expect(browserWriteLockdownMigration).toContain(
+      "COALESCE(policy_row.qual, '') LIKE '%community-images%'"
+    );
+    expect(browserWriteLockdownMigration).toContain(
+      "COALESCE(policy_row.with_check, '') LIKE '%community-videos%'"
+    );
+    expect(browserWriteLockdownMigration).toContain(
+      "'DROP POLICY %I ON storage.objects'"
     );
 
     const compatibilityBypass = uploadMigration.indexOf(
@@ -1298,6 +1313,51 @@ describe("expand-only mobile migration contract", () => {
     expect(reserveSql).toContain("WHERE key = v_couple_provider_key");
     expect(checkSql).toContain(
       "IF v_couple_provider_count >= v_effective_couple_provider_cap THEN"
+    );
+  });
+
+  it("supersedes those dormant caps with service-only unlimited test-stage metering", () => {
+    expect(unlimitedAmoraMeteringMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.reserve_amora_usage_unlimited_v1"
+    );
+    expect(unlimitedAmoraMeteringMigration).toContain(
+      "CREATE OR REPLACE FUNCTION public.meter_amora_provider_usage_unlimited_v1"
+    );
+    for (const legacyName of [
+      "reserve_amora_turn",
+      "reserve_amora_usage",
+      "reserve_amora_usage_v2",
+      "check_amora_usage",
+    ]) {
+      expect(unlimitedAmoraMeteringMigration).toContain(
+        `CREATE OR REPLACE FUNCTION public.${legacyName}`
+      );
+    }
+    expect(unlimitedAmoraMeteringMigration).toContain(
+      "FROM public.amora_request_claims"
+    );
+    expect(unlimitedAmoraMeteringMigration).toContain(
+      "INSERT INTO public.amora_usage_reservations"
+    );
+    expect(unlimitedAmoraMeteringMigration).toContain(
+      "SET count = count + 1"
+    );
+    expect(unlimitedAmoraMeteringMigration).not.toContain("v_global_count >=");
+    expect(unlimitedAmoraMeteringMigration).not.toContain(
+      "v_couple_provider_count >="
+    );
+    expect(unlimitedAmoraMeteringMigration).not.toContain("'global_daily'::text");
+    expect(unlimitedAmoraMeteringMigration).not.toContain(
+      "'couple_provider_daily'::text"
+    );
+    expect(unlimitedAmoraMeteringMigration).toMatch(
+      /REVOKE ALL ON FUNCTION public\.reserve_amora_usage_unlimited_v1\([\s\S]*?FROM PUBLIC, anon, authenticated;/
+    );
+    expect(unlimitedAmoraMeteringMigration).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.meter_amora_provider_usage_unlimited_v1\(uuid\)\s+TO service_role;/
+    );
+    expect(unlimitedAmoraMeteringMigration).toMatch(
+      /REVOKE ALL ON FUNCTION public\.reserve_amora_turn\(uuid, integer, integer\)\s+FROM PUBLIC, anon, authenticated;\s+GRANT EXECUTE ON FUNCTION public\.reserve_amora_turn\(uuid, integer, integer\)\s+TO service_role;/
     );
   });
 

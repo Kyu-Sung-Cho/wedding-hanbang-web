@@ -12,7 +12,6 @@ import { supabase } from "@/lib/supabase";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ErrorRetry from "@/components/ErrorRetry";
-import OfflineBanner from "@/components/OfflineBanner";
 
 const paperlogyFonts = {
   Paperlogy_300Light: require("../assets/fonts/paperlogy/Paperlogy-3Light.ttf"),
@@ -130,17 +129,6 @@ export default function RootLayout() {
     };
   }, [authRetryToken]);
 
-  // 알림 종류별 동의·토큰 폐기 계약이 연결되기 전에는 시작 시 권한을 묻지 않는다.
-  // 운영자가 명시적으로 플래그를 켠 빌드에서만 등록한다.
-  useEffect(() => {
-    const pushEnabled = process.env.EXPO_PUBLIC_PUSH_NOTIFICATIONS_ENABLED === "true";
-    if (fontsLoaded && !__DEV__ && signedIn && pushEnabled) {
-      import("@/lib/notifications").then(({ registerForPushNotifications }) => {
-        registerForPushNotifications().catch(() => {});
-      });
-    }
-  }, [fontsLoaded, signedIn]);
-
   if ((!fontsLoaded && !fontError) || authStatus === "loading") {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
@@ -164,7 +152,6 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <SafeAreaProvider>
-          <OfflineBanner />
           <StatusBar style="dark" />
           <Stack
             screenOptions={{

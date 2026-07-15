@@ -1,5 +1,7 @@
 # Wedding Hanbang Mobile App Masterplan
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 예약·업체 추천, 동기방, 알림, AI 자동 쓰기와 출시 기준은 현재 모바일 기능이나 승인된 설계가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **목표 모바일 설계와 2026-07-02 구현 스냅샷입니다.** 아래 예약·업체 추천·AI 도구·알림·출시 체크는 현재 제공 또는 검증 완료를 뜻하지 않습니다. 현재 새 업체 연결과 결과 저장은 비활성입니다. 최신 기준은 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 우선합니다.
 

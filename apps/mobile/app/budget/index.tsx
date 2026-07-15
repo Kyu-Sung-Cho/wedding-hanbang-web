@@ -1,98 +1,190 @@
-// 예산 관리 — 웹과 동일한 wedding_journeys.progress 기반
-// budget/spent/cost 필드를 progress 객체에서 읽고 씀 (별도 테이블 없음)
-import { useEffect, useState, useCallback, useRef } from "react";
+// 사용자가 직접 시작한 계획·계약·납부 기록만 보여 주는 수동 금액 장부다.
+// spent/cost/payer는 의미가 섞인 과거 값이므로 합산하거나 새로 저장하지 않고 삭제만 지원한다.
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
-  RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
-import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
+import {
+  AlertTriangle,
+  CalendarClock,
+  Check,
+  Edit3,
+  FileText,
+  Plus,
+  Trash2,
+  Wallet,
+  X,
+} from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { storedMoneyToWon } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 import { apiFetch } from "@/lib/api";
+import {
+  mutateBudgetCategory,
+  parseOptionalManwonToWon,
+  type MobileBudgetCategoryMutation,
+  type MobileBudgetRemoveField,
+} from "@/lib/budgetCategories";
 import ErrorRetry from "@/components/ErrorRetry";
-import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
-
-// 분담 타입 (웹과 동일)
-type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
-
-const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
-  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
-  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
-  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
-  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
-];
-
-// 숨겨진 추가 비용 경고 데이터 (웹과 동일)
-const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
-  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "견적서에서 금액 확인" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "견적서에서 금액 확인" },
-  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "견적서에서 금액 확인" },
-  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "견적서에서 금액 확인" },
-  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "예약 조건에서 금액 확인" },
-  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "견적서에서 금액 확인" },
-  gift: { warning: "포장, 배송비, 추가 세트", extra: "견적서에서 금액 확인" },
-  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "견적서에서 금액 확인" },
-  ham: { warning: "함진아비 비용, 이바지 포장", extra: "견적서에서 금액 확인" },
-  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "견적서에서 금액 확인" },
-};
-
-// 웹과 동일한 카테고리 비율 상수
-const CATEGORY_RATIOS = [
-  { key: "meeting", label: "상견례", ratio: 0.01 },
-  { key: "venue", label: "예식장", ratio: 0.20 },
-  { key: "studio", label: "스튜디오", ratio: 0.10 },
-  { key: "dress", label: "드레스/턱시도", ratio: 0.07 },
-  { key: "makeup", label: "메이크업", ratio: 0.05 },
-  { key: "snap", label: "본식 스냅/영상", ratio: 0.04 },
-  { key: "ring", label: "예물", ratio: 0.12 },
-  { key: "yedan", label: "예단", ratio: 0.05 },
-  { key: "hanbok", label: "한복", ratio: 0.03 },
-  { key: "shoes", label: "웨딩 구두", ratio: 0.01 },
-  { key: "bouquet", label: "부케/꽃장식", ratio: 0.01 },
-  { key: "honeymoon", label: "신혼여행", ratio: 0.12 },
-  { key: "houseware", label: "혼수", ratio: 0.07 },
-  { key: "housing", label: "신혼집", ratio: 0.00 },
-  { key: "invitation", label: "청첩장", ratio: 0.02 },
-  { key: "gift", label: "답례품", ratio: 0.02 },
-  { key: "mc", label: "사회/축가", ratio: 0.01 },
-  { key: "ham", label: "함", ratio: 0.01 },
-  { key: "pyebaek", label: "폐백", ratio: 0.01 },
-  { key: "reserve", label: "예비비", ratio: 0.05 },
-];
+import { AppHeader, LoadingState, Surface } from "@/components/ui/AppUI";
 
 interface ProgressItem {
-  status?: string;
+  category?: string;
+  label?: string;
   budget?: number;
-  spent?: number;
-  cost?: number;
-  payer?: PayerType;
+  contractedTotal?: number;
+  paidToDate?: number;
+  nextPaymentAmount?: number;
+  nextPaymentDate?: string;
+  /** @deprecated 과거 값은 조회 후 삭제만 지원한다. */
+  spent?: unknown;
+  /** @deprecated 과거 값은 조회 후 삭제만 지원한다. */
+  cost?: unknown;
+  /** @deprecated 과거 값은 조회 후 삭제만 지원한다. */
+  payer?: unknown;
   [key: string]: unknown;
 }
 
-type RiskTone = "neutral" | "rose" | "warning" | "danger";
-
-interface BudgetRisk {
-  id: string;
-  title: string;
-  detail: string;
-  tone: RiskTone;
-  categoryKey?: string;
+interface BudgetRecord {
+  key: string;
+  label: string;
+  custom: boolean;
+  record: ProgressItem;
 }
 
-function formatWon(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만원`;
-  if (n > 0) return `${n.toLocaleString()}원`;
-  return "—";
+interface LegacyRecord {
+  key: string;
+  label: string;
+  legacyFields: MobileBudgetRemoveField[];
+}
+
+const BUDGET_CATEGORIES = [
+  { key: "meeting", label: "상견례" },
+  { key: "venue", label: "예식장" },
+  { key: "studio", label: "스튜디오" },
+  { key: "dress", label: "드레스/턱시도" },
+  { key: "makeup", label: "메이크업" },
+  { key: "snap", label: "본식 스냅/영상" },
+  { key: "ring", label: "예물" },
+  { key: "yedan", label: "예단" },
+  { key: "hanbok", label: "한복" },
+  { key: "shoes", label: "웨딩 구두" },
+  { key: "bouquet", label: "부케/꽃장식" },
+  { key: "honeymoon", label: "신혼여행" },
+  { key: "houseware", label: "혼수" },
+  { key: "housing", label: "신혼집" },
+  { key: "invitation", label: "청첩장" },
+  { key: "gift", label: "답례품" },
+  { key: "mc", label: "사회/축가" },
+  { key: "ham", label: "함" },
+  { key: "pyebaek", label: "폐백" },
+  { key: "reserve", label: "예비비" },
+] as const;
+
+const CATEGORY_BY_KEY: ReadonlyMap<string, { readonly key: string; readonly label: string }> =
+  new Map(BUDGET_CATEGORIES.map((category) => [category.key, category]));
+const MANUAL_FIELDS = [
+  "budget",
+  "contractedTotal",
+  "paidToDate",
+  "nextPaymentAmount",
+  "nextPaymentDate",
+] as const;
+const LEGACY_FIELDS = ["spent", "cost", "payer"] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asProgressItem(value: unknown): ProgressItem | undefined {
+  return isRecord(value) ? value as ProgressItem : undefined;
+}
+
+function hasOwn(record: ProgressItem | undefined, field: string): boolean {
+  return Boolean(record && Object.prototype.hasOwnProperty.call(record, field));
+}
+
+function hasManualMoneyRecord(record: ProgressItem | undefined): boolean {
+  return MANUAL_FIELDS.some((field) => hasOwn(record, field));
+}
+
+function safeAmount(record: ProgressItem, field: "budget" | "contractedTotal" | "paidToDate" | "nextPaymentAmount"): number | undefined {
+  const value = record[field];
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function formatWon(value: number | undefined): string {
+  if (value === undefined) return "미입력";
+  if (value === 0) return "0원";
+  if (value >= 100_000_000) {
+    return `${(value / 100_000_000).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}억원`;
+  }
+  if (value >= 10_000) {
+    return `${(value / 10_000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}만원`;
+  }
+  return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function wonToManwonInput(value: number | undefined): string {
+  return value === undefined ? "" : String(value / 10_000);
+}
+
+function isValidDateOnly(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1];
+}
+
+function displayLabel(key: string, record: ProgressItem): string {
+  const known = CATEGORY_BY_KEY.get(key);
+  if (known) return known.label;
+  if (typeof record.label === "string" && record.label.trim()) {
+    return record.label.trim().slice(0, 40);
+  }
+  return "직접 추가한 항목";
+}
+
+function sumEnteredField(
+  records: BudgetRecord[],
+  field: "budget" | "contractedTotal" | "paidToDate",
+): number {
+  return records.reduce((sum, item) => sum + (safeAmount(item.record, field) ?? 0), 0);
+}
+
+function SummaryMetric({ label, value, helper }: { label: string; value: number; helper: string }) {
+  return (
+    <View style={s.summaryCard}>
+      <Text style={s.summaryLabel}>{label}</Text>
+      <Text style={s.summaryValue}>{formatWon(value)}</Text>
+      <Text style={s.summaryHelper}>{helper}</Text>
+    </View>
+  );
 }
 
 export default function BudgetScreen() {
   const [totalBudget, setTotalBudget] = useState(0);
-  const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
+  const [progress, setProgress] = useState<Record<string, unknown>>({});
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,27 +192,32 @@ export default function BudgetScreen() {
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalInput, setTotalInput] = useState("");
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [newItemLabel, setNewItemLabel] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [spentInput, setSpentInput] = useState("");
+  const [editingLabel, setEditingLabel] = useState("");
+  const [editingCustom, setEditingCustom] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
-  const [payerInput, setPayerInput] = useState<PayerType>("couple");
+  const [contractedTotalInput, setContractedTotalInput] = useState("");
+  const [paidToDateInput, setPaidToDateInput] = useState("");
+  const [nextPaymentAmountInput, setNextPaymentAmountInput] = useState("");
+  const [nextPaymentDateInput, setNextPaymentDateInput] = useState("");
   const [saving, setSaving] = useState(false);
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  const [savingTotal, setSavingTotal] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const saveInFlightRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
       setLoadError(false);
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw authError ?? new Error("authenticated user not found");
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("couple_id")
-        .eq("id", user.id)
-        .single();
+
+      const { data: profile, error: profileError } = await readMySafeProfile();
       if (profileError || !profile?.couple_id) {
         throw profileError ?? new Error("couple profile not found");
       }
+
       setCoupleId(profile.couple_id);
       const { data: journey, error: journeyError } = await supabase
         .from("wedding_journeys")
@@ -130,234 +227,354 @@ export default function BudgetScreen() {
       if (journeyError || !journey) {
         throw journeyError ?? new Error("wedding journey not found");
       }
-      setTotalBudget(journey?.total_budget ?? 0);
-      setProgress((journey?.progress as Record<string, ProgressItem>) ?? {});
+
+      setTotalBudget(
+        typeof journey.total_budget === "number" && Number.isSafeInteger(journey.total_budget)
+          ? journey.total_budget
+          : 0,
+      );
+      setProgress(isRecord(journey.progress) ? journey.progress : {});
       setHasLoadedData(true);
-    } catch (err) {
-      console.error("Budget load:", err);
+    } catch (error) {
+      console.error("Budget load:", error);
       setLoadError(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      void loadData();
+    }, [loadData]),
   );
 
   useEffect(() => {
     if (!coupleId) return;
 
-    const channel = supabase.channel(`budget:${coupleId}`)
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "wedding_journeys",
-        filter: `couple_id=eq.${coupleId}`,
-      }, () => {
-        loadData();
-      })
+    const channel = supabase
+      .channel(`budget:${coupleId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "wedding_journeys",
+          filter: `couple_id=eq.${coupleId}`,
+        },
+        () => {
+          void loadData();
+        },
+      )
       .subscribe();
 
     channelRef.current = channel;
-
     return () => {
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
   }, [coupleId, loadData]);
 
-  function getCatBudget(key: string): number {
-    const item = progress[key];
-    if (item?.budget && item.budget > 0) return item.budget;
-    const cost = storedMoneyToWon(item?.cost);
-    if (cost > 0) return cost;
-    const r = CATEGORY_RATIOS.find((c) => c.key === key);
-    return r ? Math.round(totalBudget * r.ratio) : 0;
-  }
-  function getCatSpent(key: string): number {
-    const item = progress[key];
-    if (item?.spent !== undefined) return item.spent;
-    return storedMoneyToWon(item?.cost);
-  }
-  function getCatStatus(key: string): string {
-    const s = progress[key]?.status ?? "not_started";
-    return s === "completed" ? "완료" : s === "in_progress" ? "진행중" : "예정";
-  }
-  function getCatPayer(key: string): PayerType {
-    return progress[key]?.payer ?? "couple";
-  }
-
-  // 분담별 지출 합계
-  const payerSummary = CATEGORY_RATIOS.reduce(
-    (acc, c) => {
-      const payer = getCatPayer(c.key);
-      const spent = getCatSpent(c.key);
-      acc[payer] = (acc[payer] ?? 0) + spent;
-      return acc;
-    },
-    {} as Record<PayerType, number>,
+  const hiddenRaw = progress.__hidden;
+  const hiddenKeys = new Set(
+    Array.isArray(hiddenRaw) ? hiddenRaw.filter((key): key is string => typeof key === "string") : [],
   );
 
-  const totalSpent = CATEGORY_RATIOS.reduce((s, c) => s + getCatSpent(c.key), 0);
-  const remaining = totalBudget - totalSpent;
-  const spentPct = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
-  const allocatedBudget = CATEGORY_RATIOS.reduce((a, c) => a + getCatBudget(c.key), 0);
-  const payerBreakdown = PAYER_OPTIONS.map((opt) => {
-    const amount = payerSummary[opt.value] ?? 0;
-    const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-    return { ...opt, amount, pct };
-  }).sort((a, b) => b.amount - a.amount);
-  const leadPayer = payerBreakdown[0];
-
-  const categoryOverruns = CATEGORY_RATIOS
-    .map((cat) => {
-      const budget = getCatBudget(cat.key);
-      const spent = getCatSpent(cat.key);
-      return {
-        ...cat,
-        budget,
-        spent,
-        overrun: budget > 0 ? spent - budget : 0,
-      };
+  const activeRecords: BudgetRecord[] = Object.entries(progress)
+    .flatMap(([key, raw]) => {
+      if (key === "__hidden" || hiddenKeys.has(key)) return [];
+      const record = asProgressItem(raw);
+      if (!record || !hasManualMoneyRecord(record)) return [];
+      return [{
+        key,
+        label: displayLabel(key, record),
+        custom: !CATEGORY_BY_KEY.has(key),
+        record,
+      }];
     })
-    .filter((cat) => cat.overrun > 0)
-    .sort((a, b) => b.overrun - a.overrun);
+    .sort((a, b) => {
+      const aIndex = BUDGET_CATEGORIES.findIndex((category) => category.key === a.key);
+      const bIndex = BUDGET_CATEGORIES.findIndex((category) => category.key === b.key);
+      if (aIndex === -1 && bIndex === -1) return a.label.localeCompare(b.label, "ko-KR");
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
 
-  const hiddenCostWatch = CATEGORY_RATIOS
-    .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "완료")
-    .map((cat) => {
-      const budget = getCatBudget(cat.key);
-      const spent = getCatSpent(cat.key);
-      const useRate = budget > 0 ? spent / budget : 0;
-      return { ...cat, budget, spent, useRate };
+  const legacyRecords: LegacyRecord[] = Object.entries(progress)
+    .flatMap(([key, raw]) => {
+      if (key === "__hidden") return [];
+      const record = asProgressItem(raw);
+      if (!record) return [];
+      const legacyFields: MobileBudgetRemoveField[] = LEGACY_FIELDS
+        .filter((field) => hasOwn(record, field));
+      if (legacyFields.length === 0) return [];
+      return [{ key, label: displayLabel(key, record), legacyFields }];
     })
-    .filter((cat) => cat.spent > 0 || cat.useRate >= 0.7)
-    .sort((a, b) => b.useRate - a.useRate);
+    .sort((a, b) => a.label.localeCompare(b.label, "ko-KR"));
 
-  const budgetRisks: BudgetRisk[] = [
-    ...(totalBudget <= 0
-      ? [{
-          id: "missing-total",
-          title: "총 예산을 먼저 정해야 해요",
-          detail: "카테고리별 기준 예산과 초과 위험을 계산하려면 총 예산이 필요해요.",
-          tone: "warning" as const,
-        }]
-      : []),
-    ...(remaining < 0
-      ? [{
-          id: "total-overrun",
-          title: `총 예산 ${formatWon(Math.abs(remaining))} 초과`,
-          detail: "지출 확정 전 카테고리별 초과 항목을 먼저 조정하세요.",
-          tone: "danger" as const,
-        }]
-      : []),
-    ...categoryOverruns.map((cat) => ({
-      id: `overrun-${cat.key}`,
-      title: `${cat.label} 예산 초과`,
-      detail: `${formatWon(cat.overrun)} 초과 · 배정 ${formatWon(cat.budget)} / 지출 ${formatWon(cat.spent)}`,
-      tone: "danger" as const,
-      categoryKey: cat.key,
-    })),
-    ...(leadPayer && leadPayer.amount > 0 && leadPayer.pct >= 70
-      ? [{
-          id: "payer-imbalance",
-          title: `${leadPayer.label} 분담 비중이 커요`,
-          detail: `${formatWon(leadPayer.amount)} · 전체 지출의 ${leadPayer.pct}%예요.`,
-          tone: "warning" as const,
-        }]
-      : []),
-    ...hiddenCostWatch.map((cat) => {
-      const hidden = HIDDEN_COSTS[cat.key]!;
-      return {
-        id: `hidden-${cat.key}`,
-        title: `${cat.label} 숨은 비용 체크`,
-        detail: `${hidden.warning} · 예상 ${hidden.extra}`,
-        tone: "warning" as const,
-        categoryKey: cat.key,
-      };
-    }),
-  ].slice(0, 3);
-
-  const budgetStatus =
-    totalBudget <= 0
-      ? { label: "설정 필요", tone: "warning" as const }
-      : remaining < 0
-        ? { label: "초과", tone: "danger" as const }
-        : budgetRisks.length > 0
-          ? { label: "주의", tone: "warning" as const }
-          : { label: "안정", tone: "success" as const };
-
-  useEffect(() => {
-    Animated.timing(progressAnim, { toValue: spentPct, duration: 800, useNativeDriver: false }).start();
-  }, [spentPct, progressAnim]);
+  const activeKeys = new Set(activeRecords.map((item) => item.key));
+  const availableCategories = BUDGET_CATEGORIES.filter((category) => !activeKeys.has(category.key));
+  const plannedTotal = sumEnteredField(activeRecords, "budget");
+  const contractedTotal = sumEnteredField(activeRecords, "contractedTotal");
+  const paidTotal = sumEnteredField(activeRecords, "paidToDate");
 
   async function saveTotalBudget() {
-    if (!coupleId) return;
-    const num = parseInt(totalInput, 10);
-    if (isNaN(num) || num < 0) { Alert.alert("알림", "올바른 금액을 입력해주세요 (만원)"); return; }
-    const res = await apiFetch("/api/journey", {
-      method: "PATCH",
-      body: JSON.stringify({ total_budget: num * 10000 }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("오류", err.error || "총 예산 저장에 실패했어요");
+    if (!coupleId || saveInFlightRef.current) return;
+    const totalBudgetWon = parseOptionalManwonToWon(totalInput);
+    if (totalBudgetWon === null) {
+      Alert.alert("입력 확인", "전체 계획 금액은 0원 이상 100억원 이하로 입력해 주세요 (만원 단위).");
       return;
     }
-    setEditingTotal(false);
-    loadData();
+
+    saveInFlightRef.current = true;
+    setSavingTotal(true);
+    try {
+      const response = await apiFetch("/api/journey", {
+        method: "PATCH",
+        body: JSON.stringify({ total_budget: totalBudgetWon }),
+      });
+      const body = await response.json().catch(() => null) as unknown;
+      if (!response.ok) {
+        const message = isRecord(body) && typeof body.error === "string"
+          ? body.error
+          : "전체 계획 금액을 저장하지 못했어요.";
+        throw new Error(message);
+      }
+      if (
+        !isRecord(body) || !isRecord(body.journey) ||
+        body.journey.total_budget !== totalBudgetWon
+      ) {
+        throw new Error("저장된 전체 계획 금액을 확인하지 못했습니다. 화면을 새로고침해 주세요.");
+      }
+      setTotalBudget(totalBudgetWon);
+      setEditingTotal(false);
+    } catch (error) {
+      Alert.alert("저장 실패", error instanceof Error ? error.message : "전체 계획 금액을 저장하지 못했어요.");
+    } finally {
+      saveInFlightRef.current = false;
+      setSavingTotal(false);
+    }
+  }
+
+  function openEdit(key: string, label: string, custom: boolean) {
+    const record = asProgressItem(progress[key]);
+    setEditingKey(key);
+    setEditingLabel(label);
+    setEditingCustom(custom);
+    setBudgetInput(wonToManwonInput(record ? safeAmount(record, "budget") : undefined));
+    setContractedTotalInput(wonToManwonInput(record ? safeAmount(record, "contractedTotal") : undefined));
+    setPaidToDateInput(wonToManwonInput(record ? safeAmount(record, "paidToDate") : undefined));
+    setNextPaymentAmountInput(wonToManwonInput(record ? safeAmount(record, "nextPaymentAmount") : undefined));
+    setNextPaymentDateInput(
+      record && typeof record.nextPaymentDate === "string" ? record.nextPaymentDate : "",
+    );
+  }
+
+  function closeEditor() {
+    if (saving) return;
+    setEditingKey(null);
+  }
+
+  function startKnownCategory(key: string, label: string) {
+    setShowAddPicker(false);
+    openEdit(key, label, false);
+  }
+
+  function startCustomCategory() {
+    const label = newItemLabel.trim();
+    if (!label) {
+      Alert.alert("이름 확인", "직접 추가할 항목 이름을 입력해 주세요.");
+      return;
+    }
+    if (label.length > 40) {
+      Alert.alert("이름 확인", "항목 이름은 40자 이하로 입력해 주세요.");
+      return;
+    }
+    const key = `custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    setNewItemLabel("");
+    setShowAddPicker(false);
+    openEdit(key, label, true);
+  }
+
+  function parseEditorAmount(input: string): number | null | undefined {
+    if (!input.trim()) return undefined;
+    return parseOptionalManwonToWon(input);
   }
 
   async function saveCategoryEdit() {
-    if (!coupleId || !editingKey) return;
+    if (!coupleId || !editingKey || saveInFlightRef.current) return;
+
+    const budgetWon = parseEditorAmount(budgetInput);
+    const signedTotalWon = parseEditorAmount(contractedTotalInput);
+    const paidWon = parseEditorAmount(paidToDateInput);
+    const nextAmountWon = parseEditorAmount(nextPaymentAmountInput);
+    const nextDate = nextPaymentDateInput.trim();
+
+    if (
+      budgetWon === null || signedTotalWon === null ||
+      paidWon === null || nextAmountWon === null
+    ) {
+      Alert.alert("입력 확인", "금액은 0원 이상 100억원 이하로 입력해 주세요 (만원 단위).");
+      return;
+    }
+    if (paidWon !== undefined && signedTotalWon === undefined) {
+      Alert.alert("입력 확인", "납부액을 기록하려면 서명한 계약 총액도 입력해 주세요.");
+      return;
+    }
+    if (
+      paidWon !== undefined && signedTotalWon !== undefined &&
+      paidWon > signedTotalWon
+    ) {
+      Alert.alert("입력 확인", "누적 납부액은 서명한 계약 총액보다 클 수 없어요.");
+      return;
+    }
+    if ((nextAmountWon !== undefined || nextDate) && signedTotalWon === undefined) {
+      Alert.alert("입력 확인", "다음 납부 일정을 기록하려면 서명한 계약 총액도 입력해 주세요.");
+      return;
+    }
+    if (nextDate && !isValidDateOnly(nextDate)) {
+      Alert.alert("입력 확인", "다음 납부일은 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요.");
+      return;
+    }
+    if (
+      budgetWon === undefined && signedTotalWon === undefined && paidWon === undefined &&
+      nextAmountWon === undefined && !nextDate
+    ) {
+      Alert.alert("입력 확인", "금액이나 다음 납부 일정 중 하나 이상을 입력해 주세요.");
+      return;
+    }
+
+    const existing = asProgressItem(progress[editingKey]);
+    const setFields: NonNullable<MobileBudgetCategoryMutation["set"]> = {};
+    const removeFields: MobileBudgetRemoveField[] = [];
+    const values = [
+      ["budget", budgetWon],
+      ["contractedTotal", signedTotalWon],
+      ["paidToDate", paidWon],
+      ["nextPaymentAmount", nextAmountWon],
+    ] as const;
+
+    for (const [field, value] of values) {
+      if (value === undefined) {
+        if (hasOwn(existing, field)) removeFields.push(field);
+      } else {
+        setFields[field] = value;
+      }
+    }
+    if (nextDate) {
+      setFields.nextPaymentDate = nextDate;
+    } else if (hasOwn(existing, "nextPaymentDate")) {
+      removeFields.push("nextPaymentDate");
+    }
+    if (editingCustom) setFields.label = editingLabel;
+
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
-      const { data: journey } = await supabase.from("wedding_journeys").select("progress").eq("couple_id", coupleId).single();
-      const cur = { ...(journey?.progress as Record<string, ProgressItem>) ?? {} };
-      const ex = cur[editingKey] ?? {};
-      const sv = spentInput ? parseInt(spentInput, 10) * 10000 : undefined;
-      const bv = budgetInput ? parseInt(budgetInput, 10) * 10000 : undefined;
-      cur[editingKey] = { ...ex, category: editingKey, ...(sv !== undefined ? { spent: sv } : {}), ...(bv !== undefined ? { budget: bv } : {}), payer: payerInput };
-      const res = await apiFetch("/api/journey", {
-        method: "PATCH",
-        body: JSON.stringify({ progress_patch: { [editingKey]: cur[editingKey] } }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "저장에 실패했어요");
-      }
+      const result = await mutateBudgetCategory({
+        categoryKey: editingKey,
+        set: setFields,
+        ...(removeFields.length > 0 ? { remove: removeFields } : {}),
+        visibility: "visible",
+      }, apiFetch);
+      setProgress(result.progress);
       setEditingKey(null);
-      loadData();
-    } catch { Alert.alert("오류", "저장에 실패했어요"); }
-    finally { setSaving(false); }
+    } catch (error) {
+      Alert.alert(
+        "저장 실패",
+        error instanceof Error ? error.message : "금액 기록을 저장하지 못했습니다.",
+      );
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
   }
 
-  function openEdit(key: string) {
-    setBudgetInput(getCatBudget(key) > 0 ? String(Math.round(getCatBudget(key) / 10000)) : "");
-    setSpentInput(getCatSpent(key) > 0 ? String(Math.round(getCatSpent(key) / 10000)) : "");
-    setPayerInput(getCatPayer(key));
-    setEditingKey(key);
+  async function deleteRecord(item: BudgetRecord) {
+    if (saveInFlightRef.current) return;
+    const fields: MobileBudgetRemoveField[] = [
+      ...MANUAL_FIELDS.filter((field) => hasOwn(item.record, field)),
+      ...LEGACY_FIELDS.filter((field) => hasOwn(item.record, field)),
+      ...(item.custom && hasOwn(item.record, "label") ? ["label" as const] : []),
+    ];
+    if (fields.length === 0) return;
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+    try {
+      const result = await mutateBudgetCategory({
+        categoryKey: item.key,
+        remove: fields,
+        visibility: "hidden",
+      }, apiFetch);
+      setProgress(result.progress);
+    } catch (error) {
+      Alert.alert(
+        "삭제 실패",
+        error instanceof Error ? error.message : "금액 기록을 삭제하지 못했습니다.",
+      );
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
   }
 
-  function showHiddenCostAlert(key: string) {
-    const data = HIDDEN_COSTS[key];
-    if (!data) return;
-    const label = CATEGORY_RATIOS.find((c) => c.key === key)?.label ?? key;
+  function confirmDelete(item: BudgetRecord) {
     Alert.alert(
-      `⚠️ ${label} 추가 비용 주의`,
-      `${data.warning}\n\n예상 추가금: ${data.extra}`,
-      [{ text: "확인" }],
+      `${item.label} 기록 삭제`,
+      "직접 입력한 계획·계약·납부 기록이 모두 삭제됩니다. 이 작업은 되돌릴 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: () => { void deleteRecord(item); } },
+      ],
+    );
+  }
+
+  async function clearLegacyRecord(item: LegacyRecord) {
+    if (saveInFlightRef.current) return;
+    const current = asProgressItem(progress[item.key]);
+    const legacyFields: MobileBudgetRemoveField[] = LEGACY_FIELDS
+      .filter((field) => hasOwn(current, field));
+    if (legacyFields.length === 0) return;
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+    try {
+      const result = await mutateBudgetCategory({
+        categoryKey: item.key,
+        remove: legacyFields,
+      }, apiFetch);
+      setProgress(result.progress);
+    } catch (error) {
+      Alert.alert(
+        "삭제 실패",
+        error instanceof Error ? error.message : "이전 형식 값을 삭제하지 못했습니다.",
+      );
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function confirmLegacyClear(item: LegacyRecord) {
+    Alert.alert(
+      `${item.label} 이전 값 삭제`,
+      "이전 형식의 지출·비용·분담 값을 삭제합니다. 현재 수동 금액 기록은 유지돼요.",
+      [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: () => { void clearLegacyRecord(item); } },
+      ],
     );
   }
 
   if (loading) {
     return (
       <SafeAreaView style={s.container}>
-        <LoadingState label="예산 현황을 불러오고 있어요" />
+        <LoadingState label="금액 기록을 불러오고 있어요" />
       </SafeAreaView>
     );
   }
@@ -365,10 +582,13 @@ export default function BudgetScreen() {
   if (loadError && !hasLoadedData) {
     return (
       <SafeAreaView style={s.container} edges={["top"]}>
-        <AppHeader title="예산 관리" onBack={() => router.back()} />
+        <AppHeader title="금액 기록" onBack={() => router.back()} />
         <ErrorRetry
-          message="예산 정보를 불러오지 못했어요"
-          onRetry={() => { setLoading(true); loadData(); }}
+          message="금액 기록을 불러오지 못했어요"
+          onRetry={() => {
+            setLoading(true);
+            void loadData();
+          }}
         />
       </SafeAreaView>
     );
@@ -377,220 +597,405 @@ export default function BudgetScreen() {
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
-        title="예산 관리"
-        subtitle="지출, 분담, 숨은 비용을 함께 봐요"
+        title="금액 기록"
+        subtitle="직접 입력한 계획·계약·납부 기록"
         onBack={() => router.back()}
       />
 
       {loadError && hasLoadedData ? (
         <Pressable
-          style={({ pressed }) => [s.loadWarning, pressed && s.loadWarningPressed]}
-          onPress={loadData}
+          style={({ pressed }) => [s.loadWarning, pressed && s.pressed]}
+          onPress={() => { void loadData(); }}
           accessibilityRole="button"
-          accessibilityLabel="예산 최신 정보 다시 불러오기"
+          accessibilityLabel="금액 기록 최신 정보 다시 불러오기"
         >
           <AlertTriangle size={16} color={colors.danger} />
-          <Text style={s.loadWarningText}>최신 예산을 불러오지 못했어요</Text>
+          <Text style={s.loadWarningText}>최신 기록을 불러오지 못했어요</Text>
           <Text style={s.loadWarningAction}>다시 시도</Text>
         </Pressable>
       ) : null}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.rose[500]} />}>
-
-        {/* 총 예산 */}
-        <View style={s.totalCard}>
-          <View style={s.totalTop}>
-            <Text style={s.totalLabel}>예산 운영 상태</Text>
-            <StatusPill label={budgetStatus.label} tone={budgetStatus.tone} />
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void loadData();
+            }}
+            tintColor={colors.rose[500]}
+          />
+        )}
+      >
+        <Surface tone="ivory" style={s.trustNotice}>
+          <FileText size={19} color={colors.noir[800]} />
+          <View style={s.trustNoticeCopy}>
+            <Text style={s.trustNoticeTitle}>원본 확인이 기준이에요</Text>
+            <Text style={s.trustNoticeText}>
+              계약·납부 금액은 사용자가 직접 입력한 미검증 기록입니다. 실제 의무와 납부 상태는 서명한 계약서·영수증·계좌내역 원본을 확인하세요.
+            </Text>
           </View>
-          {editingTotal ? (
-            <View style={s.editRow}>
-              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus placeholder="0" placeholderTextColor={colors.taupe[400]} />
-              <Text style={s.totalUnit}>만원</Text>
-              <Pressable onPress={saveTotalBudget}><Check size={22} color={colors.rose[500]} /></Pressable>
-              <Pressable onPress={() => setEditingTotal(false)}><X size={22} color={colors.taupe[400]} /></Pressable>
-            </View>
-          ) : (
-            <Pressable style={s.totalRow} onPress={() => { setTotalInput(totalBudget > 0 ? String(Math.round(totalBudget / 10000)) : ""); setEditingTotal(true); }}>
-              <Text style={s.totalValue}>{totalBudget > 0 ? formatWon(totalBudget) : "설정해주세요"}</Text>
-              <Edit3 size={16} color={colors.taupe[400]} />
-            </Pressable>
-          )}
-          {totalBudget > 0 && (
-            <View style={s.progSection}>
-              <View style={s.progBar}>
-                <Animated.View style={[s.progFill, { width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }), backgroundColor: remaining >= 0 ? colors.rose[500] : "#EF4444" }]} />
-              </View>
-              <View style={s.progLabels}>
-                <Text style={s.progLabel}>지출 {formatWon(totalSpent)}</Text>
-                <Text style={[s.progLabel, remaining < 0 && { color: "#EF4444" }]}>잔여 {formatWon(Math.abs(remaining))}{remaining < 0 ? " 초과" : ""}</Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <Surface style={s.riskPanel}>
-          <View style={s.riskHeader}>
-            <View>
-              <Text style={s.riskEyebrow}>BUDGET RISK</Text>
-              <Text style={s.riskTitle}>지금 먼저 볼 돈 문제</Text>
-            </View>
-            <AlertTriangle
-              size={18}
-              color={budgetStatus.tone === "danger" ? colors.danger : colors.gold.DEFAULT}
-            />
-          </View>
-
-          {budgetRisks.length > 0 ? (
-            budgetRisks.map((risk) => (
-              <Pressable
-                key={risk.id}
-                style={({ pressed }) => [
-                  s.riskRow,
-                  pressed && risk.categoryKey && { transform: [{ scale: 0.98 }] },
-                ]}
-                onPress={() => {
-                  if (risk.categoryKey) openEdit(risk.categoryKey);
-                }}
-                disabled={!risk.categoryKey}
-              >
-                <View style={[s.riskDot, s[`riskDot_${risk.tone}`]]} />
-                <View style={s.riskCopy}>
-                  <Text style={s.riskRowTitle}>{risk.title}</Text>
-                  <Text style={s.riskRowDetail}>{risk.detail}</Text>
-                </View>
-                <StatusPill
-                  label={risk.tone === "danger" ? "위험" : "점검"}
-                  tone={risk.tone}
-                />
-              </Pressable>
-            ))
-          ) : (
-            <View style={s.safeBudgetBox}>
-              <Check size={18} color={colors.rose[500]} />
-              <Text style={s.safeBudgetTitle}>현재 큰 예산 위험은 없어요</Text>
-              <Text style={s.safeBudgetText}>
-                계약 전에는 카테고리별 숨은 비용과 시장가를 한 번 더 확인해두세요.
-              </Text>
-            </View>
-          )}
-
-          <Pressable
-            style={({ pressed }) => [s.marketLink, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push("/market-prices")}
-          >
-            <Text style={s.marketLinkText}>시장가 기준 확인하기</Text>
-            <TrendingUp size={14} color={colors.rose[500]} />
-          </Pressable>
         </Surface>
 
-        {/* 요약 */}
-        <View style={s.sumRow}>
-          <View style={s.sumCard}><Wallet size={16} color={colors.textTertiary} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(allocatedBudget)}</Text></View>
-          <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
-          <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
+        <View style={s.totalCard}>
+          <View style={s.totalHeader}>
+            <View style={s.totalHeadingCopy}>
+              <Text style={s.totalEyebrow}>MY PLAN</Text>
+              <Text style={s.totalLabel}>내가 입력한 전체 계획</Text>
+            </View>
+            {!editingTotal ? (
+              <Pressable
+                style={({ pressed }) => [s.iconButtonDark, pressed && s.pressed]}
+                onPress={() => {
+                  setTotalInput(totalBudget > 0 ? String(totalBudget / 10_000) : "");
+                  setEditingTotal(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="전체 계획 금액 수정"
+              >
+                <Edit3 size={16} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
+          </View>
+          {editingTotal ? (
+            <View style={s.totalEditRow}>
+              <TextInput
+                style={s.totalEditInput}
+                value={totalInput}
+                onChangeText={setTotalInput}
+                keyboardType="decimal-pad"
+                editable={!savingTotal}
+                autoFocus
+                placeholder="만원 단위"
+                placeholderTextColor={colors.taupe[400]}
+              />
+              <Text style={s.totalUnit}>만원</Text>
+              <Pressable onPress={() => { void saveTotalBudget(); }} disabled={savingTotal} hitSlop={8}>
+                {savingTotal
+                  ? <ActivityIndicator size="small" color={colors.rose[500]} />
+                  : <Check size={22} color={colors.rose[500]} />}
+              </Pressable>
+              <Pressable onPress={() => setEditingTotal(false)} disabled={savingTotal} hitSlop={8}>
+                <X size={22} color={colors.taupe[400]} />
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={s.totalValue}>{totalBudget > 0 ? formatWon(totalBudget) : "미입력"}</Text>
+          )}
+          <Text style={s.totalHelper}>
+            직접 정한 계획 금액을 보관합니다. 서비스가 권장하거나 적정성을 판정한 값이 아니에요.
+          </Text>
         </View>
 
-        {/* 분담 현황 */}
-        {totalSpent > 0 && (
-          <View style={s.payerSection}>
-            <Text style={s.payerTitle}>분담 현황</Text>
-            <View style={s.payerGrid}>
-              {PAYER_OPTIONS.map((opt) => {
-                const amount = payerSummary[opt.value] ?? 0;
-                const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-                return (
-                  <View key={opt.value} style={s.payerCard}>
-                    <Text style={s.payerEmoji}>{opt.emoji}</Text>
-                    <Text style={s.payerLabel}>{opt.label}</Text>
-                    <Text style={s.payerAmount}>{formatWon(amount)}</Text>
-                    {pct > 0 && <Text style={s.payerPct}>{pct}%</Text>}
-                  </View>
-                );
-              })}
-            </View>
+        <View style={s.summaryGrid}>
+          <SummaryMetric label="항목 계획 합계" value={plannedTotal} helper="직접 입력한 계획만" />
+          <SummaryMetric label="서명 계약 합계" value={contractedTotal} helper="직접 옮겨 적은 계약 총액" />
+          <SummaryMetric label="누적 납부 합계" value={paidTotal} helper="직접 확인해 입력한 납부액" />
+        </View>
+
+        <View style={s.sectionHeader}>
+          <View style={s.sectionHeadingCopy}>
+            <Text style={s.sectionEyebrow}>MANUAL RECORDS</Text>
+            <Text style={s.sectionTitle}>내 금액 기록</Text>
+            <Text style={s.sectionDescription}>
+              필요한 항목만 골라 기록하세요. 모두 추가할 필요 없어요.
+            </Text>
           </View>
+          <Pressable
+            style={({ pressed }) => [s.addButton, pressed && s.pressed]}
+            onPress={() => setShowAddPicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel="금액 기록 항목 추가"
+          >
+            <Plus size={16} color="#FFFFFF" />
+            <Text style={s.addButtonText}>항목 추가</Text>
+          </Pressable>
+        </View>
+
+        {activeRecords.length === 0 ? (
+          <Surface style={s.emptyCard}>
+            <Wallet size={24} color={colors.textTertiary} />
+            <Text style={s.emptyTitle}>아직 시작한 금액 기록이 없어요</Text>
+            <Text style={s.emptyText}>
+              계약하거나 실제로 관리할 필요가 생긴 항목만 추가하면 됩니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [s.emptyAction, pressed && s.pressed]}
+              onPress={() => setShowAddPicker(true)}
+            >
+              <Text style={s.emptyActionText}>첫 항목 추가</Text>
+            </Pressable>
+          </Surface>
+        ) : (
+          activeRecords.map((item) => {
+            const budget = safeAmount(item.record, "budget");
+            const signed = safeAmount(item.record, "contractedTotal");
+            const paid = safeAmount(item.record, "paidToDate");
+            const nextAmount = safeAmount(item.record, "nextPaymentAmount");
+            const nextDate = typeof item.record.nextPaymentDate === "string"
+              ? item.record.nextPaymentDate
+              : undefined;
+            return (
+              <Surface key={item.key} style={s.recordCard}>
+                <View style={s.recordHeader}>
+                  <View style={s.recordHeadingCopy}>
+                    <Text style={s.recordTitle}>{item.label}</Text>
+                    <Text style={s.recordSource}>직접 입력 · 미검증 기록</Text>
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [s.editButton, pressed && s.pressed]}
+                    onPress={() => openEdit(item.key, item.label, item.custom)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.label} 금액 기록 수정`}
+                  >
+                    <Edit3 size={15} color={colors.noir[800]} />
+                    <Text style={s.editButtonText}>편집</Text>
+                  </Pressable>
+                </View>
+
+                <View style={s.recordMetrics}>
+                  <View style={s.recordMetric}>
+                    <Text style={s.recordMetricLabel}>내 계획 금액</Text>
+                    <Text style={s.recordMetricValue}>{formatWon(budget)}</Text>
+                  </View>
+                  <View style={s.recordMetric}>
+                    <Text style={s.recordMetricLabel}>서명한 계약 총액</Text>
+                    <Text style={s.recordMetricValue}>{formatWon(signed)}</Text>
+                  </View>
+                  <View style={[s.recordMetric, s.recordMetricPaid]}>
+                    <Text style={s.recordMetricLabel}>실제 누적 납부액</Text>
+                    <Text style={s.recordMetricValue}>{formatWon(paid)}</Text>
+                  </View>
+                </View>
+
+                {(nextAmount !== undefined || nextDate) ? (
+                  <View style={s.nextPaymentBox}>
+                    <CalendarClock size={16} color={colors.textSecondary} />
+                    <View style={s.nextPaymentCopy}>
+                      <Text style={s.nextPaymentTitle}>다음 납부 예정</Text>
+                      <Text style={s.nextPaymentText}>
+                        {nextDate ? `${nextDate}` : "날짜 미입력"}
+                        {nextAmount !== undefined ? ` · ${formatWon(nextAmount)}` : " · 금액 미입력"}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <Text style={s.recordFootnote}>
+                  계약 금액·납부일·납부 완료 여부는 이 화면이 확인하지 않습니다. 반드시 원본과 대조하세요.
+                </Text>
+                <Pressable
+                  style={({ pressed }) => [s.deleteButton, pressed && s.pressed]}
+                  onPress={() => confirmDelete(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label} 금액 기록 삭제`}
+                >
+                  <Trash2 size={14} color={colors.danger} />
+                  <Text style={s.deleteButtonText}>이 기록 삭제</Text>
+                </Pressable>
+              </Surface>
+            );
+          })
         )}
 
-        {/* 카테고리 목록 */}
-        {CATEGORY_RATIOS.map((cat) => {
-          const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
-          const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
-          const hasHidden = !!HIDDEN_COSTS[cat.key];
-          const payerInfo = PAYER_OPTIONS.find((p) => p.value === getCatPayer(cat.key));
-          return (
-            <Pressable key={cat.key} style={({ pressed }) => [s.catCard, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => openEdit(cat.key)}>
-              <View style={s.catHead}>
-                <View style={s.catLabelRow}>
-                  <Text style={s.catLabel}>{cat.label}</Text>
-                  {hasHidden && (
-                    <Pressable
-                      onPress={(e) => { e.stopPropagation?.(); showHiddenCostAlert(cat.key); }}
-                      hitSlop={8}
-                      style={s.hiddenCostBtn}
-                    >
-                      <AlertTriangle size={12} color="#D97706" />
-                    </Pressable>
-                  )}
-                </View>
-                <View style={s.catHeadRight}>
-                  {payerInfo && payerInfo.value !== "couple" && (
-                    <View style={s.payerBadge}>
-                      <Text style={s.payerBadgeText}>{payerInfo.emoji} {payerInfo.label}</Text>
-                    </View>
-                  )}
-                  <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
-                    <Text style={[s.badgeText, st === "완료" && s.badgeTextDone, st === "진행중" && s.badgeTextProg]}>{st}</Text>
-                  </View>
-                </View>
+        {legacyRecords.length > 0 ? (
+          <Surface style={s.legacyPanel}>
+            <View style={s.legacyHeader}>
+              <AlertTriangle size={18} color={colors.danger} />
+              <View style={s.legacyHeaderCopy}>
+                <Text style={s.legacyTitle}>이전 형식 값 정리 필요</Text>
+                <Text style={s.legacyDescription}>
+                  의미가 섞인 이전 지출·비용·분담 값은 합계에 포함하지 않으며 삭제만 할 수 있어요.
+                </Text>
               </View>
-              <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b && b > 0 ? "#EF4444" : colors.rose[500] }]} /></View>
-              <View style={s.catFoot}>
-                <Text style={s.catSpent}>지출 {formatWon(sp)}</Text>
-                <Text style={s.catBudget}>/ {formatWon(b)}</Text>
-                <Text style={s.catPct}>{pct}%</Text>
+            </View>
+            {legacyRecords.map((item) => (
+              <View key={item.key} style={s.legacyRow}>
+                <View style={s.legacyRowCopy}>
+                  <Text style={s.legacyRowTitle}>{item.label}</Text>
+                  <Text style={s.legacyRowMeta}>이전 필드 {item.legacyFields.length}개 · 금액 의미 미분류</Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [s.legacyDeleteButton, pressed && s.pressed]}
+                  onPress={() => confirmLegacyClear(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label} 이전 형식 값 삭제`}
+                >
+                  <Text style={s.legacyDeleteText}>삭제</Text>
+                </Pressable>
               </View>
-            </Pressable>
-          );
-        })}
-        <Text style={s.hint}>카테고리를 탭하면 예산/지출을 수정할 수 있어요</Text>
+            ))}
+          </Surface>
+        ) : null}
+
+        <Text style={s.pageFootnote}>
+          웨딩한방은 계약 당사자, 결제 대행사 또는 회계 장부가 아닙니다. 이 기록만으로 계약 이행이나 납부 완료를 판단하지 마세요.
+        </Text>
       </ScrollView>
 
-      {/* 편집 모달 */}
-      <Modal visible={!!editingKey} animationType="slide" transparent onRequestClose={() => setEditingKey(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOv}>
-          <View style={s.modalCon}>
+      <Modal
+        visible={showAddPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddPicker(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={[s.modalContainer, s.pickerModal]}>
             <View style={s.modalHandle} />
-            <View style={s.modalHead}><Text style={s.modalTitle}>{CATEGORY_RATIOS.find((c) => c.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={() => setEditingKey(null)}><X size={24} color={colors.textTertiary} /></Pressable></View>
-            <Text style={s.fLabel}>예산 (만원)</Text>
-            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
-            <Text style={s.fLabel}>지출 (만원)</Text>
-            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
-            <Text style={s.fLabel}>분담</Text>
-            <View style={s.payerRow}>
-              {PAYER_OPTIONS.map((opt) => (
+            <View style={s.modalHeader}>
+              <View style={s.modalHeadingCopy}>
+                <Text style={s.modalTitle}>기록할 항목 선택</Text>
+                <Text style={s.modalDescription}>필요한 항목만 선택하세요. 선택 자체로 저장되지는 않아요.</Text>
+              </View>
+              <Pressable onPress={() => setShowAddPicker(false)} hitSlop={10}>
+                <X size={23} color={colors.textTertiary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={s.pickerList} contentContainerStyle={s.pickerListContent}>
+              {availableCategories.map((category) => (
                 <Pressable
-                  key={opt.value}
-                  style={[s.payerOption, payerInput === opt.value && s.payerOptionActive]}
-                  onPress={() => setPayerInput(opt.value)}
+                  key={category.key}
+                  style={({ pressed }) => [s.pickerRow, pressed && s.pressed]}
+                  onPress={() => startKnownCategory(category.key, category.label)}
                 >
-                  <Text style={s.payerOptionEmoji}>{opt.emoji}</Text>
-                  <Text style={[s.payerOptionLabel, payerInput === opt.value && s.payerOptionLabelActive]}>{opt.label}</Text>
+                  <Text style={s.pickerRowText}>{category.label}</Text>
+                  <Plus size={17} color={colors.rose[500]} />
                 </Pressable>
               ))}
-            </View>
-            {editingKey && HIDDEN_COSTS[editingKey] && (
-              <View style={s.hiddenCostBanner}>
-                <AlertTriangle size={14} color="#D97706" />
-                <View style={s.hiddenCostBannerText}>
-                  <Text style={s.hiddenCostTitle}>추가 비용 주의</Text>
-                  <Text style={s.hiddenCostDesc}>{HIDDEN_COSTS[editingKey].warning}</Text>
-                  <Text style={s.hiddenCostExtra}>{HIDDEN_COSTS[editingKey].extra}</Text>
-                </View>
+              {availableCategories.length === 0 ? (
+                <Text style={s.noCategoriesText}>기본 항목은 모두 기록 중이에요.</Text>
+              ) : null}
+            </ScrollView>
+
+            <View style={s.customAddBox}>
+              <Text style={s.customAddLabel}>목록에 없는 항목</Text>
+              <View style={s.customAddRow}>
+                <TextInput
+                  style={s.customAddInput}
+                  value={newItemLabel}
+                  onChangeText={setNewItemLabel}
+                  maxLength={40}
+                  placeholder="예: 반려동물 돌봄"
+                  placeholderTextColor={colors.taupe[400]}
+                />
+                <Pressable
+                  style={({ pressed }) => [s.customAddButton, pressed && s.pressed]}
+                  onPress={startCustomCategory}
+                >
+                  <Text style={s.customAddButtonText}>직접 추가</Text>
+                </Pressable>
               </View>
-            )}
-            <Pressable style={s.saveBtn} onPress={saveCategoryEdit} disabled={saving}>{saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveTxt}>저장</Text>}</Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editingKey !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={closeEditor}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={s.modalOverlay}
+        >
+          <View style={s.modalContainer}>
+            <View style={s.modalHandle} />
+            <View style={s.modalHeader}>
+              <View style={s.modalHeadingCopy}>
+                <Text style={s.modalTitle}>{editingLabel} 기록</Text>
+                <Text style={s.modalDescription}>원본에서 직접 확인한 값만 입력해 주세요.</Text>
+              </View>
+              <Pressable onPress={closeEditor} disabled={saving} hitSlop={10}>
+                <X size={23} color={colors.textTertiary} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={s.editorScroll}
+              contentContainerStyle={s.editorContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={s.fieldLabel}>내 계획 금액 (만원)</Text>
+              <Text style={s.fieldHelper}>내가 세운 계획을 적습니다. 추천 금액이 아니에요.</Text>
+              <TextInput
+                style={s.fieldInput}
+                value={budgetInput}
+                onChangeText={setBudgetInput}
+                keyboardType="decimal-pad"
+                editable={!saving}
+                placeholder="비워 두기"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <Text style={s.fieldLabel}>서명한 계약 총액 (만원)</Text>
+              <Text style={s.fieldHelper}>서명한 계약서 원본의 최종 총액을 그대로 적습니다.</Text>
+              <TextInput
+                style={s.fieldInput}
+                value={contractedTotalInput}
+                onChangeText={setContractedTotalInput}
+                keyboardType="decimal-pad"
+                editable={!saving}
+                placeholder="비워 두기"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <Text style={s.fieldLabel}>실제 누적 납부액 (만원)</Text>
+              <Text style={s.fieldHelper}>영수증·계좌내역에서 확인한 실제 송금 합계만 적습니다.</Text>
+              <TextInput
+                style={s.fieldInput}
+                value={paidToDateInput}
+                onChangeText={setPaidToDateInput}
+                keyboardType="decimal-pad"
+                editable={!saving}
+                placeholder="비워 두기"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <Text style={s.fieldLabel}>다음 납부 예정액 (만원)</Text>
+              <Text style={s.fieldHelper}>계약서나 업체 안내 원본에 적힌 예정액만 입력합니다.</Text>
+              <TextInput
+                style={s.fieldInput}
+                value={nextPaymentAmountInput}
+                onChangeText={setNextPaymentAmountInput}
+                keyboardType="decimal-pad"
+                editable={!saving}
+                placeholder="비워 두기"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <Text style={s.fieldLabel}>다음 납부일</Text>
+              <Text style={s.fieldHelper}>YYYY-MM-DD 형식 · 서비스가 날짜를 추정하지 않아요.</Text>
+              <TextInput
+                style={s.fieldInput}
+                value={nextPaymentDateInput}
+                onChangeText={setNextPaymentDateInput}
+                editable={!saving}
+                autoCapitalize="none"
+                maxLength={10}
+                placeholder="예: 2026-08-20"
+                placeholderTextColor={colors.taupe[400]}
+              />
+
+              <View style={s.editorTrustBox}>
+                <AlertTriangle size={15} color={colors.textSecondary} />
+                <Text style={s.editorTrustText}>
+                  저장된 값은 증빙 검증 결과가 아닙니다. 변경·취소·추가 결제 조건은 계약서 원본과 업체 확인이 우선입니다.
+                </Text>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [s.saveButton, pressed && !saving && s.pressed]}
+                onPress={() => { void saveCategoryEdit(); }}
+                disabled={saving}
+              >
+                {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.saveButtonText}>기록 저장</Text>}
+              </Pressable>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -600,99 +1005,121 @@ export default function BudgetScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  loadWarning: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "rgba(239, 68, 68, 0.08)" },
-  loadWarningPressed: { opacity: 0.78 },
-  loadWarningText: { flex: 1, fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary },
+  scroll: { flex: 1 },
+  content: { padding: 20, paddingBottom: 44 },
+  pressed: { opacity: 0.72 },
+  loadWarning: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(185, 28, 28, 0.08)",
+  },
+  loadWarningText: { flex: 1, fontSize: 12, color: colors.textSecondary },
   loadWarningAction: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.danger },
-  content: { padding: 20, paddingBottom: 40 },
-  totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
-  totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
-  totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400] },
-  totalRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  totalValue: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
-  editRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  totalEditInput: { flex: 1, fontSize: 24, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: colors.rose[500], paddingVertical: 4 },
-  totalUnit: { fontSize: 14, color: colors.taupe[400] },
-  progSection: { marginTop: 16 },
-  progBar: { height: 6, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 3, overflow: "hidden" },
-  progFill: { height: "100%", borderRadius: 3 },
-  progLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  progLabel: { fontSize: 12, color: colors.taupe[400] },
-  riskPanel: { paddingVertical: 18, marginBottom: 16 },
-  riskHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 },
-  riskEyebrow: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textTertiary, marginBottom: 2 },
-  riskTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  riskRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  riskDot: { width: 4, height: 36, borderRadius: 2 },
-  riskDot_neutral: { backgroundColor: colors.taupe[400] },
-  riskDot_rose: { backgroundColor: colors.rose[500] },
-  riskDot_warning: { backgroundColor: colors.gold.DEFAULT },
-  riskDot_danger: { backgroundColor: colors.danger },
-  riskCopy: { flex: 1, gap: 2 },
-  riskRowTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  riskRowDetail: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, lineHeight: 18 },
-  safeBudgetBox: { alignItems: "center", paddingVertical: 18, gap: 6, borderTopWidth: 1, borderTopColor: colors.border },
-  safeBudgetTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  safeBudgetText: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 18 },
-  marketLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  marketLinkText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[500] },
-  sumRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  sumCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6 },
-  sumLabel: { fontSize: 11, color: colors.textTertiary },
-  sumVal: { fontSize: 15, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
-  catCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10 },
-  catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  catLabel: { fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.ivory[200] },
-  badgeDone: { backgroundColor: "rgba(196,150,126,0.15)" },
-  badgeProg: { backgroundColor: "rgba(201,169,110,0.15)" },
-  badgeText: { fontSize: 11, color: colors.textTertiary },
-  badgeTextDone: { color: colors.rose[500] },
-  badgeTextProg: { color: colors.gold.DEFAULT },
-  catBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, overflow: "hidden", marginBottom: 8 },
-  catFill: { height: "100%", borderRadius: 2 },
-  catFoot: { flexDirection: "row", alignItems: "center", gap: 4 },
-  catSpent: { fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
-  catBudget: { fontSize: 12, color: colors.textTertiary, flex: 1 },
-  catPct: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.rose[500] },
-  hint: { fontSize: 12, color: colors.textTertiary, textAlign: "center", marginTop: 12 },
-  modalOv: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalCon: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 36 },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 },
-  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
-  fLabel: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.textSecondary, marginBottom: 8, marginTop: 16 },
-  fInput: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontFamily: "CormorantGaramond_400Regular", color: colors.noir[800] },
-  saveBtn: { backgroundColor: colors.noir[800], borderRadius: 16, paddingVertical: 16, alignItems: "center", marginTop: 24 },
-  saveTxt: { fontSize: 16, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
-
-  // 숨겨진 비용 경고
-  catLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  catHeadRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  hiddenCostBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(217,119,6,0.1)", alignItems: "center", justifyContent: "center" },
-  hiddenCostBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "rgba(217,119,6,0.08)", borderRadius: 12, padding: 12, marginTop: 16 },
-  hiddenCostBannerText: { flex: 1 },
-  hiddenCostTitle: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginBottom: 2 },
-  hiddenCostDesc: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, lineHeight: 18 },
-  hiddenCostExtra: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: "#D97706", marginTop: 4 },
-
-  // 분담(Payer) 선택
-  payerRow: { flexDirection: "row", gap: 8 },
-  payerOption: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: colors.ivory[200], borderWidth: 1, borderColor: "transparent" },
-  payerOptionActive: { backgroundColor: "rgba(196,150,126,0.12)", borderColor: colors.rose[500] },
-  payerOptionEmoji: { fontSize: 16, marginBottom: 2 },
-  payerOptionLabel: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
-  payerOptionLabelActive: { color: colors.rose[500], fontFamily: "NotoSansKR_600SemiBold" },
-  payerBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(196,150,126,0.1)" },
-  payerBadgeText: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
-
-  // 분담 현황 섹션
-  payerSection: { marginBottom: 20 },
-  payerTitle: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800], marginBottom: 10 },
-  payerGrid: { flexDirection: "row", gap: 8 },
-  payerCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
-  payerEmoji: { fontSize: 16 },
-  payerLabel: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
-  payerAmount: { fontSize: 13, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
-  payerPct: { fontSize: 10, fontFamily: "NotoSansKR_400Regular", color: colors.rose[500] },
+  trustNotice: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  trustNoticeCopy: { flex: 1 },
+  trustNoticeTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800], marginBottom: 4 },
+  trustNoticeText: { fontSize: 12, color: colors.textSecondary, lineHeight: 19 },
+  totalCard: {
+    backgroundColor: colors.noir[800],
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 14,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  totalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  totalHeadingCopy: { flex: 1 },
+  totalEyebrow: { fontSize: 10, color: colors.taupe[400], marginBottom: 3 },
+  totalLabel: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: "#FFFFFF" },
+  iconButtonDark: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)" },
+  totalValue: { marginTop: 18, fontSize: 31, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
+  totalHelper: { marginTop: 10, fontSize: 11, lineHeight: 17, color: colors.taupe[400] },
+  totalEditRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 },
+  totalEditInput: { flex: 1, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.rose[500], fontSize: 23, color: "#FFFFFF" },
+  totalUnit: { fontSize: 13, color: colors.taupe[400] },
+  summaryGrid: { flexDirection: "row", gap: 8, marginBottom: 24 },
+  summaryCard: { flex: 1, minHeight: 116, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  summaryLabel: { fontSize: 10, color: colors.textTertiary, lineHeight: 15 },
+  summaryValue: { marginTop: 7, fontSize: 16, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  summaryHelper: { marginTop: 5, fontSize: 9, lineHeight: 14, color: colors.textTertiary },
+  sectionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  sectionHeadingCopy: { flex: 1 },
+  sectionEyebrow: { fontSize: 10, color: colors.textTertiary, marginBottom: 3 },
+  sectionTitle: { fontSize: 20, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
+  sectionDescription: { marginTop: 4, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
+  addButton: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.noir[800] },
+  addButtonText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#FFFFFF" },
+  emptyCard: { alignItems: "center", paddingVertical: 30, marginBottom: 14 },
+  emptyTitle: { marginTop: 10, fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  emptyText: { marginTop: 5, paddingHorizontal: 14, fontSize: 12, lineHeight: 19, textAlign: "center", color: colors.textSecondary },
+  emptyAction: { marginTop: 16, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.ivory[200] },
+  emptyActionText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  recordCard: { marginBottom: 12 },
+  recordHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
+  recordHeadingCopy: { flex: 1 },
+  recordTitle: { fontSize: 18, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
+  recordSource: { marginTop: 3, fontSize: 10, color: colors.textTertiary },
+  editButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.ivory[200] },
+  editButtonText: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  recordMetrics: { gap: 7, marginTop: 16 },
+  recordMetric: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 11, backgroundColor: colors.ivory[100] },
+  recordMetricPaid: { backgroundColor: "rgba(54, 83, 78, 0.08)" },
+  recordMetricLabel: { flex: 1, fontSize: 11, color: colors.textSecondary },
+  recordMetricValue: { fontSize: 16, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  nextPaymentBox: { flexDirection: "row", alignItems: "flex-start", gap: 9, marginTop: 9, padding: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.border },
+  nextPaymentCopy: { flex: 1 },
+  nextPaymentTitle: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textSecondary },
+  nextPaymentText: { marginTop: 2, fontSize: 12, color: colors.noir[800] },
+  recordFootnote: { marginTop: 11, fontSize: 10, lineHeight: 16, color: colors.textTertiary },
+  deleteButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10, paddingVertical: 5 },
+  deleteButtonText: { fontSize: 11, color: colors.danger },
+  legacyPanel: { marginTop: 10, marginBottom: 14, borderColor: "rgba(185, 28, 28, 0.22)" },
+  legacyHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  legacyHeaderCopy: { flex: 1 },
+  legacyTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  legacyDescription: { marginTop: 4, fontSize: 11, lineHeight: 18, color: colors.textSecondary },
+  legacyRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  legacyRowCopy: { flex: 1 },
+  legacyRowTitle: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  legacyRowMeta: { marginTop: 2, fontSize: 10, color: colors.textTertiary },
+  legacyDeleteButton: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: "rgba(185, 28, 28, 0.08)" },
+  legacyDeleteText: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.danger },
+  pageFootnote: { marginTop: 8, paddingHorizontal: 8, fontSize: 10, lineHeight: 17, textAlign: "center", color: colors.textTertiary },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(7, 22, 41, 0.42)" },
+  modalContainer: { maxHeight: "91%", paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.bg },
+  pickerModal: { maxHeight: "84%" },
+  modalHandle: { width: 36, height: 4, alignSelf: "center", marginBottom: 16, borderRadius: 2, backgroundColor: colors.border },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 15 },
+  modalHeadingCopy: { flex: 1 },
+  modalTitle: { fontSize: 19, fontFamily: "NotoSerifKR_500Medium", color: colors.noir[800] },
+  modalDescription: { marginTop: 4, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
+  pickerList: { flexGrow: 0 },
+  pickerListContent: { paddingBottom: 8 },
+  pickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 46, paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
+  pickerRowText: { fontSize: 14, color: colors.noir[800] },
+  noCategoriesText: { paddingVertical: 20, textAlign: "center", fontSize: 12, color: colors.textTertiary },
+  customAddBox: { marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.border },
+  customAddLabel: { marginBottom: 8, fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: colors.textSecondary },
+  customAddRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  customAddInput: { flex: 1, minHeight: 45, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.surface, fontSize: 13, color: colors.noir[800] },
+  customAddButton: { minHeight: 45, justifyContent: "center", paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.noir[800] },
+  customAddButtonText: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: "#FFFFFF" },
+  editorScroll: { flexGrow: 0 },
+  editorContent: { paddingBottom: 4 },
+  fieldLabel: { marginTop: 14, marginBottom: 3, fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  fieldHelper: { marginBottom: 7, fontSize: 10, lineHeight: 15, color: colors.textTertiary },
+  fieldInput: { minHeight: 48, paddingHorizontal: 13, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, fontSize: 16, color: colors.noir[800] },
+  editorTrustBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 18, padding: 12, borderRadius: 11, backgroundColor: colors.ivory[200] },
+  editorTrustText: { flex: 1, fontSize: 10, lineHeight: 16, color: colors.textSecondary },
+  saveButton: { minHeight: 52, alignItems: "center", justifyContent: "center", marginTop: 16, borderRadius: 14, backgroundColor: colors.noir[800] },
+  saveButtonText: { fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: "#FFFFFF" },
 });

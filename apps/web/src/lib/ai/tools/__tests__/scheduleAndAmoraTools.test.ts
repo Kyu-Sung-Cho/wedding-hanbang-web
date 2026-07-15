@@ -1,85 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { describe, expect, it } from "vitest";
 import type { ToolExecutionContext } from "../toolTypes";
 import {
-  executeAddScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
-  executeLogWeddingEvent,
 } from "../scheduleTools";
-import {
-  executeGetAmoraActions,
-  executeUpdateAmoraAction,
-} from "../amoraActionTools";
-
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(),
-}));
-
-type QueryResult = {
-  data?: unknown;
-  error?: unknown;
-};
-
-type TableHandler = {
-  awaitResult?: QueryResult;
-  maybeSingleResult?: QueryResult;
-  updateResult?: QueryResult;
-  onUpdate?: (payload: unknown) => void;
-};
-
-class FakeQuery {
-  private operation: "read" | "update" = "read";
-
-  constructor(private readonly handler: TableHandler) {}
-
-  select() { return this; }
-  eq() { return this; }
-  order() { return this; }
-  limit() { return this; }
-
-  update(payload: unknown) {
-    this.operation = "update";
-    this.handler.onUpdate?.(payload);
-    return this;
-  }
-
-  maybeSingle(): Promise<QueryResult> {
-    return Promise.resolve(
-      this.handler.maybeSingleResult ??
-      (this.operation === "update" ? this.handler.updateResult : this.handler.awaitResult) ??
-      { data: null, error: null }
-    );
-  }
-
-  then<TResult1 = QueryResult, TResult2 = never>(
-    onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-  ): Promise<TResult1 | TResult2> {
-    const result = this.operation === "update"
-      ? this.handler.updateResult
-      : this.handler.awaitResult;
-    return Promise.resolve(result ?? { data: [], error: null }).then(onfulfilled, onrejected);
-  }
-}
-
-function mockAdminClient(
-  tableHandlers: Record<string, TableHandler[]>,
-  rpcHandler?: (name: string, args: Record<string, unknown>) => QueryResult
-) {
-  const admin = {
-    from: vi.fn((table: string) => {
-      const handler = tableHandlers[table]?.shift() ?? {};
-      return new FakeQuery(handler);
-    }),
-    rpc: vi.fn((name: string, args: Record<string, unknown>) =>
-      Promise.resolve(rpcHandler?.(name, args) ?? { data: {}, error: null })
-    ),
-  };
-  vi.mocked(createAdminClient).mockReturnValue(
-    admin as unknown as ReturnType<typeof createAdminClient>
-  );
-}
 
 function createContext(progress: Record<string, unknown>): ToolExecutionContext {
   return {
@@ -88,166 +12,65 @@ function createContext(progress: Record<string, unknown>): ToolExecutionContext 
       weddingDate: "2026-10-10",
       budget: 50_000_000,
       venue: null,
-      progress: progress as unknown as ToolExecutionContext["weddingContext"]["progress"],
+      progress:
+        progress as unknown as ToolExecutionContext["weddingContext"]["progress"],
     },
   };
 }
 
-describe("scheduleTools", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("keeps schedule summary counts derived from category progress", () => {
+describe("read-only schedule tools", () => {
+  it("derives the schedule summary only from user-recorded progress", () => {
     const result = executeGetScheduleSummary(
       createContext({
         venue: { category: "venue", status: "completed" },
         studio: { category: "studio", status: "in_progress" },
-      })
+      }),
     );
 
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
-      total: 19,
-      progress_percent: 5,
+      total: 2,
+      progress_percent: 50,
     });
-    expect(result.toolOutput.completed).toEqual(expect.arrayContaining(["예식장"]));
-    expect(result.toolOutput.in_progress).toEqual(expect.arrayContaining(["스튜디오"]));
+    expect(result.toolOutput.completed).toEqual(
+      expect.arrayContaining(["예식장"]),
+    );
+    expect(result.toolOutput.in_progress).toEqual(
+      expect.arrayContaining(["스튜디오"]),
+    );
   });
 
-  it("adds schedule events through the shared progress patch path", async () => {
-    let updatedProgress: Record<string, unknown> | null = null;
-    mockAdminClient({
-      wedding_journeys: [{
-        onUpdate: (payload) => {
-          updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-        },
-        updateResult: { error: null },
-      }],
-    }, (_name, args) => {
-      updatedProgress = args.p_patch as Record<string, unknown>;
-      return { data: updatedProgress, error: null };
-    });
+  it("does not turn untouched templates into unfinished work", () => {
+    const result = executeGetScheduleSummary(createContext({}));
 
-    const ctx = createContext({});
-    const result = await executeAddScheduleEvent(
-      {
-        date: "2026-07-06",
-        title: "Studio consult",
-        category_key: "studio",
-      },
-      ctx
-    );
-
-    expect(result.success).toBe(true);
-    expect(updatedProgress).toMatchObject({
-      __events: [expect.objectContaining({
-        date: "2026-07-06",
-        title: "Studio consult",
-        categoryKey: "studio",
-        sourceKey: "category:studio",
-      })],
+    expect(result.toolOutput).toMatchObject({
+      total: 0,
+      completed: [],
+      in_progress: [],
+      not_started: [],
+      progress_percent: 0,
     });
-    expect(executeGetScheduleEvents({ from_date: "2026-07-01", to_date: "2026-07-31" }, ctx).toolOutput)
-      .toMatchObject({ count: 1 });
+    expect(result.displayMessage).toContain("사용자가 직접 시작한 준비 기록이 없습니다");
   });
 
-  it("rejects rollover calendar dates before touching storage", async () => {
-    mockAdminClient({});
-    const ctx = createContext({});
+  it("reads a date range without changing the stored event collection", () => {
+    const events = [
+      { id: "one", date: "2026-07-10", title: "상견례" },
+      { id: "two", date: "2026-08-10", title: "드레스 투어" },
+    ];
+    const context = createContext({ __events: events });
 
-    const scheduleResult = await executeAddScheduleEvent(
-      { date: "2026-02-30", title: "Impossible" },
-      ctx
-    );
-    const momentResult = await executeLogWeddingEvent(
-      { date: "2026-02-30", moment_type: "sanggyeonrye" },
-      ctx
-    );
-
-    expect(scheduleResult.success).toBe(false);
-    expect(momentResult.success).toBe(false);
-    expect(createAdminClient).not.toHaveBeenCalled();
-  });
-});
-
-describe("amoraActionTools", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("reads legacy mirrored actions when action storage has no rows", async () => {
-    mockAdminClient({
-      amora_actions: [{ awaitResult: { data: [], error: null } }],
-    });
-
-    const result = await executeGetAmoraActions(
-      { status: "open" },
-      createContext({
-        __amora_actions: [{
-          id: "act_1",
-          title: "Check quote",
-          priority: "high",
-          status: "open",
-          source: "quote",
-          href: "/wedding/community/quote-check",
-          createdAt: "2026-06-30T00:00:00.000Z",
-          updatedAt: "2026-06-30T00:00:00.000Z",
-        }],
-      })
+    const result = executeGetScheduleEvents(
+      { from_date: "2026-07-01", to_date: "2026-07-31" },
+      context,
     );
 
-    expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
       count: 1,
-      open_count: 1,
-      actions: [expect.objectContaining({ id: "act_1", title: "Check quote" })],
+      events: [{ id: "one", date: "2026-07-10", title: "상견례" }],
     });
-  });
-
-  it("updates legacy actions when storage is unavailable", async () => {
-    let updatedProgress: Record<string, unknown> | null = null;
-    mockAdminClient({
-      amora_actions: [
-        { awaitResult: { data: [], error: null } },
-        { updateResult: { error: { code: "42P01", message: "relation missing" } } },
-      ],
-      wedding_journeys: [{
-        onUpdate: (payload) => {
-          updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-        },
-        updateResult: { error: null },
-      }],
-    }, (_name, args) => {
-      updatedProgress = args.p_patch as Record<string, unknown>;
-      return { data: updatedProgress, error: null };
-    });
-
-    const ctx = createContext({
-      __amora_actions: [{
-        id: "act_1",
-        title: "Check quote",
-        priority: "high",
-        status: "open",
-        source: "quote",
-        href: "/wedding/community/quote-check",
-        createdAt: "2026-06-30T00:00:00.000Z",
-        updatedAt: "2026-06-30T00:00:00.000Z",
-      }],
-    });
-
-    const result = await executeUpdateAmoraAction(
-      { action_id: "act_1", status: "done" },
-      ctx
-    );
-
-    expect(result.success).toBe(true);
-    expect(result.toolOutput.action).toMatchObject({
-      id: "act_1",
-      status: "done",
-    });
-    expect(updatedProgress).toMatchObject({
-      __amora_actions: [expect.objectContaining({ id: "act_1", status: "done" })],
-    });
+    expect(
+      (context.weddingContext.progress as Record<string, unknown>).__events,
+    ).toBe(events);
   });
 });

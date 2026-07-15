@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
-  Building2,
   CalendarCheck,
   Sparkles,
   Users,
@@ -90,18 +89,18 @@ function SlideDashboard() {
           <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-sm text-[#7a8290] mb-0.5">우리의 결혼식</p>
-              <p className="text-sm font-semibold text-[#263832]">2026. 09. 12 (토)</p>
+              <p className="text-sm font-semibold text-[#263832]">예식일 미정</p>
             </div>
             <div className="text-right">
               <span className="font-display text-[40px] font-light leading-none text-[#36534E]">
-                D-149
+                미정
               </span>
             </div>
           </div>
           {/* 어노테이션 */}
           <div className="absolute -right-1 -top-2 flex items-center gap-1">
             <span className="text-sm text-[#36534E] font-medium bg-white/95 rounded-full px-2.5 py-0.5 shadow-sm border border-[#36534E]/20">
-              결혼까지 남은 날짜
+              예식일을 입력하면 표시
             </span>
           </div>
         </div>
@@ -109,13 +108,13 @@ function SlideDashboard() {
         {/* 진행률 카드 */}
         <div className="relative rounded-2xl bg-white border border-[#f6f3f2] p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-base font-medium text-[#1b1c1c]">전체 진행률</span>
-            <span className="text-base font-medium text-[#36534E]">35%</span>
+            <span className="text-base font-medium text-[#1b1c1c]">시작한 항목 완료율</span>
+            <span className="text-base font-medium text-[#36534E]">기록 없음</span>
           </div>
           <div className="w-full h-2 rounded-full bg-[#f6f3f2] overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
-              style={{ width: "35%" }}
+              style={{ width: "0%" }}
             />
           </div>
           {/* 어노테이션 */}
@@ -131,11 +130,11 @@ function SlideDashboard() {
           <p className="text-sm text-[#504444] mb-3">카테고리 현황</p>
           <div className="flex flex-wrap gap-2">
             {[
-              { name: "예식장", status: "done", emoji: "check" },
-              { name: "스드메", status: "progress", emoji: "refresh" },
+              { name: "예식장", status: "todo", emoji: "empty" },
+              { name: "스드메", status: "todo", emoji: "empty" },
               { name: "예물", status: "todo", emoji: "empty" },
               { name: "신혼여행", status: "todo", emoji: "empty" },
-              { name: "혼수", status: "progress", emoji: "refresh" },
+              { name: "혼수", status: "todo", emoji: "empty" },
             ].map((cat, i) => (
               <span
                 key={i}
@@ -154,7 +153,11 @@ function SlideDashboard() {
               </span>
             ))}
           </div>
+          <p className="mt-2 text-xs leading-relaxed text-[#928980]">
+            선택해서 시작한 체크 항목만 계산하며, 모든 준비 관습을 해야 한다는 뜻이 아니에요.
+          </p>
         </div>
+        <p className="text-center text-sm text-[#928980]">화면 예시 · 실제 내 데이터가 아닙니다</p>
       </div>
     </div>
   );
@@ -197,7 +200,7 @@ function SlideChat() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">예산 관리</span>에서 상담 금액 정리</span>
+                  <span className="text-sm text-[#504444]"><span className="text-[#1b1c1c] font-medium">예산 관리</span>에서 계획·계약·납부액 구분</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
@@ -256,17 +259,14 @@ function SlideBudget() {
         <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-[#7a8290]">총 예산</span>
-            <span className="text-base font-semibold text-[#263832]">3,000만원</span>
+            <span className="text-base font-semibold text-[#263832]">미입력</span>
           </div>
           <div className="w-full h-2.5 rounded-full bg-[#f1eadf] overflow-hidden">
-            <div className="flex h-full">
-              <div className="h-full bg-gradient-to-r from-[#36534E] to-[#78a096]" style={{ width: "36%" }} />
-              <div className="h-full bg-[#C9A96E]/75" style={{ width: "18%" }} />
-            </div>
+            <div className="h-full bg-gradient-to-r from-[#36534E] to-[#78a096]" style={{ width: "0%" }} />
           </div>
           <div className="flex items-center justify-between mt-2">
-            <span className="text-sm text-[#635b51]">1,080만원 사용</span>
-            <span className="text-sm font-medium text-[#36534E]">540만원 진행중</span>
+            <span className="text-sm text-[#635b51]">사용 금액 미입력</span>
+            <span className="text-sm font-medium text-[#36534E]">직접 입력한 값만 표시</span>
           </div>
         </div>
 
@@ -275,22 +275,16 @@ function SlideBudget() {
           {[
             {
               name: "예식장",
-              spent: 600,
-              total: 800,
               tag: "커플",
               tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
             {
               name: "스드메",
-              spent: 280,
-              total: 350,
               tag: "신부측",
               tagColor: "bg-purple-50 text-purple-600",
             },
             {
               name: "신혼여행",
-              spent: 200,
-              total: 300,
               tag: "커플",
               tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
@@ -303,15 +297,10 @@ function SlideBudget() {
                     {row.tag === "커플" ? "👫 " : "👰 "}{row.tag}
                   </span>
                 </div>
-                <span className="text-sm text-[#504444]">
-                  <span className="text-[#1b1c1c] font-medium">{row.spent}</span>/{row.total}만원
-                </span>
+                <span className="text-sm font-medium text-[#504444]">미입력</span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-[#f6f3f2] overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
-                  style={{ width: `${(row.spent / row.total) * 100}%` }}
-                />
+                <div className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]" style={{ width: "0%" }} />
               </div>
             </div>
           ))}
@@ -320,9 +309,10 @@ function SlideBudget() {
         {/* 어노테이션 */}
         <div className="flex justify-center">
           <span className="text-sm text-[#36534E] font-medium bg-white/95 rounded-full px-3 py-1 shadow-sm border border-[#36534E]/20">
-            사용 금액과 카테고리별 예산 확인
+            직접 입력한 금액과 카테고리별 기록 확인
           </span>
         </div>
+        <p className="text-center text-sm text-[#928980]">화면 예시 · 실제 내 데이터가 아닙니다</p>
       </div>
     </div>
   );
@@ -344,12 +334,7 @@ function SlideFeaturePages() {
     {
       icon: BarChart3,
       title: "시세 정보",
-      desc: "내 견적이 평균과 얼마나 다른지 확인",
-    },
-    {
-      icon: Building2,
-      title: "업체 탐색",
-      desc: "지역, 가격대, 스타일로 후보 좁히기",
+      desc: "공식 조사 자료의 지역·시점·포함 항목 확인",
     },
   ];
 
@@ -364,9 +349,9 @@ function SlideFeaturePages() {
 
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
-          <p className="text-sm font-medium text-[#36534E] mb-2">추천 흐름</p>
+          <p className="text-sm font-medium text-[#36534E] mb-2">이용 흐름</p>
           <p className="text-base leading-relaxed text-[#1b1c1c]">
-            아모라에게 먼저 물어보고, 답변에서 나온 금액은 예산에, 날짜는 일정에, 비교가 필요한 항목은 시세와 업체 탐색에서 확인하세요.
+            아모라에게 먼저 물어보고, 직접 확인한 금액은 예산에, 날짜는 일정에, 시장 참고가 필요한 항목은 출처가 표시된 시세에서 확인하세요.
           </p>
         </div>
 
@@ -387,7 +372,7 @@ function SlideFeaturePages() {
 
         <div className="rounded-2xl border border-[#f6f3f2] bg-[#fcf9f8] px-4 py-3">
           <p className="text-sm leading-relaxed text-[#635b51]">
-            모든 기능을 처음부터 다 쓸 필요는 없어요. 막히면 아모라, 확정되면 일정·예산, 비교가 필요하면 시세·업체 탐색 순서로만 기억하세요.
+            모든 기능을 처음부터 다 쓸 필요는 없어요. 막히면 아모라, 확정되면 일정·예산, 시장 자료가 필요하면 시세 순서로만 기억하세요.
           </p>
         </div>
       </div>
@@ -444,7 +429,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         {[
           { icon: <Sparkles className="w-4 h-4" />, label: "현재 별도 이용료 없음" },
           { icon: <Shield className="w-4 h-4" />, label: "AI 답변 확인 필요" },
-          { icon: <Check className="w-4 h-4" />, label: "업체 연결 준비 중" },
+          { icon: <Check className="w-4 h-4" />, label: "업체 연결 미제공" },
         ].map((badge, i) => (
           <div key={i} className="flex items-center gap-1 text-[#B5ADA3]">
             {badge.icon}

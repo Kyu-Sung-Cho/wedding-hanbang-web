@@ -27,6 +27,9 @@ export const QUOTE_CHECK_SURVEY_REFERENCE = {
   url: "https://www.kca.go.kr/kca/sub.do?menukey=5084&mode=view&no=1003902297",
 } as const;
 
+export const QUOTE_CHECK_SCOPE_NOTE =
+  "이 항목 목록은 웨딩한방이 편집한 확인 질문이며 공식 조사 항목을 그대로 옮긴 것이 아닙니다. 공식 조사의 총괄 평균은 개별 견적의 가격 기준이 아닙니다.";
+
 export const QUOTE_CHECK_ITEMS: readonly QuoteCheckItem[] = [
   { id: "studio_original_data", category: "studio", name: "원본 데이터 제공", checkQuestion: "원본 데이터(전체 촬영 사진)가 포함되나요? 별도라면 가격과 전달 방식은 어떻게 되나요?" },
   { id: "studio_album_extra", category: "studio", name: "앨범 페이지", checkQuestion: "기본 앨범 페이지 수와 페이지 추가 단가는 얼마인가요?" },

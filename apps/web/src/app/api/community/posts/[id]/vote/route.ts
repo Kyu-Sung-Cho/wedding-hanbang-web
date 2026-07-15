@@ -1,7 +1,10 @@
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
+import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+
+const MAX_BODY_BYTES = 1024;
 
 type PostVoteType = 0 | 1;
 
@@ -16,10 +19,24 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "게시글을 확인할 수 없습니다." }, { status: 400 });
+    }
+    if (isBodyTooLarge(req, MAX_BODY_BYTES)) {
+      return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
+    }
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -28,26 +45,39 @@ export async function POST(
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:post:vote", req, user.id),
-      { maxRequests: 60, windowMs: 60 * 1000 }
+      { maxRequests: 60, windowMs: 60 * 1000 },
+      user.id,
     );
     if (rlResult) return rlResult;
 
-    const { voteType } = (await req.json()) as { voteType?: unknown };
+    const body = await req.json().catch(() => null);
+    const voteType = isRecord(body) ? body.voteType : undefined;
 
-    if (!isPostVoteType(voteType)) {
+    if (
+      !isPostVoteType(voteType) ||
+      !isRecord(body) ||
+      Object.keys(body).some((key) => key !== "voteType")
+    ) {
       return NextResponse.json(
         { error: "게시물 좋아요는 좋아요 또는 취소만 가능합니다." },
         { status: 400 }
       );
     }
 
-    const { data: visiblePost } = await supabase
+    const { data: visiblePost, error: visiblePostError } = await supabase
       .from("community_posts")
       .select("id")
       .eq("id", id)
       .maybeSingle();
+
+    if (visiblePostError) {
+      return NextResponse.json(
+        { error: "게시글 접근 상태를 확인하지 못했습니다." },
+        { status: 503 },
+      );
+    }
 
     if (!visiblePost) {
       return NextResponse.json(
@@ -71,15 +101,33 @@ export async function POST(
       );
     }
 
-    const { data: counts } = await admin
+    const { data: counts, error: countsError } = await admin
       .from("community_posts")
       .select("upvote_count, downvote_count")
       .eq("id", id)
       .single();
 
+    if (
+      countsError ||
+      typeof counts?.upvote_count !== "number" ||
+      !Number.isSafeInteger(counts.upvote_count) ||
+      counts.upvote_count < 0 ||
+      typeof counts.downvote_count !== "number" ||
+      !Number.isSafeInteger(counts.downvote_count) ||
+      counts.downvote_count < 0
+    ) {
+      return NextResponse.json(
+        {
+          error: "좋아요 저장 결과를 확인하지 못했습니다. 같은 상태로 다시 시도해주세요.",
+          retrySafe: true,
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json({
-      upvote_count: Math.max(0, counts?.upvote_count ?? 0),
-      downvote_count: Math.max(0, counts?.downvote_count ?? 0),
+      upvote_count: counts.upvote_count,
+      downvote_count: counts.downvote_count,
     });
   } catch (err) {
     console.error("Vote post error:", err);

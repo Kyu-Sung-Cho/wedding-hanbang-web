@@ -43,8 +43,9 @@ describe("research cohort receipt email", () => {
     expect(message.html).toContain("선정 또는 정식 베타 초대를 의미하지 않습니다");
     expect(message.html).toContain("2시간");
     expect(message.html).toContain("본인이 신청하지 않았다면");
-    expect(message.html).toContain("삭제를 요청");
     expect(message.html).toContain("180일");
+    expect(message.html).toContain("현재 공개 사용자 연구 접수는 닫혀 있습니다");
+    expect(message.html).not.toContain("support@hanbang.ai");
     expect(message.html).not.toContain("특별 할인");
     expect(message.html).not.toContain("우선 초대");
   });
@@ -74,6 +75,18 @@ describe("research cohort receipt email", () => {
 
   it("does not send an unverifiable link when its dedicated secret is unavailable", async () => {
     vi.stubEnv("RESEARCH_EMAIL_VERIFICATION_SECRET", "");
+
+    await expect(sendResearchCohortReceiptEmail(
+      "couple@example.com",
+      APPLICATION_ID,
+      COHORT_CODE
+    )).resolves.toBe(false);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("cannot send a research receipt in production while public intake is hard-closed", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEARCH_COHORT_APPLICATIONS_ENABLED", "true");
 
     await expect(sendResearchCohortReceiptEmail(
       "couple@example.com",

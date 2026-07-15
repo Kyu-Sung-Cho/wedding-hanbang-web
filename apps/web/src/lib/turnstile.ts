@@ -24,8 +24,7 @@ function requiresTurnstileSecret(): boolean {
 export type TurnstileAction =
   | "signup"
   | "forgot_password"
-  | "preregister"
-  | "survey";
+  | "preregister";
 
 function isPlausibleTurnstileKey(value: string | undefined): boolean {
   if (!value || value !== value.trim()) return false;

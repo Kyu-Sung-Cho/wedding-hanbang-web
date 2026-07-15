@@ -9,7 +9,7 @@ interface CustomerNavProps {
   darkAtTop?: boolean;
 }
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 const ACCOUNT_HREF = isComingSoon ? "/beta" : "/login?mode=signup";
 const ACCOUNT_LABEL = isComingSoon ? "사용자 연구 안내" : "베타 계정 만들기";
 const EXAMPLE_APP_HREF = isComingSoon ? "/support" : "/demo/login";

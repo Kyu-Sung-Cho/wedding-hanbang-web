@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 
 const scenarios = [
   {
@@ -13,32 +13,32 @@ const scenarios = [
     feature: "AI 상담",
   },
   {
-    text: "공개 시세와 견적 체크 결과를 참고해 예상 항목을 정리하고, 확정 금액은 직접 예산에 기록해요.",
+    text: "공개 시세는 조사 범위와 함께 참고하고, 업체가 서면으로 확정한 금액은 직접 예산에 기록해요.",
     avatar: "💰",
     label: "예산 관리",
     situation: "예산 고민, 확인 항목을 함께 정리해요",
     feature: "예산 관리",
   },
   {
-    text: "커플이 함께 사용하면 따로 카톡으로 공유할 필요 없이 예산 관리가 한눈에 됩니다. 의견 조율도 쉬워져요.",
+    text: "커플이 같은 화면에서 직접 입력한 계획 금액·계약 총액·낸 금액을 구분해 확인할 수 있어요. 기록이 실제 계약서나 결제 증빙을 대신하지는 않아요.",
     avatar: "💑",
-    label: "함께 예산 관리",
-    situation: "커플이 함께 보는 예산 현황",
+    label: "함께 금액 기록",
+    situation: "커플이 함께 확인하는 금액 기록",
     feature: "예산 관리",
   },
   {
-    text: "D-day 기준 체크리스트에서 지금 확인할 항목을 보고, 실제 일정은 직접 등록해 커플과 공유해요.",
+    text: "일반적인 준비 순서는 참고하고, 실제로 확정한 일정과 완료 상태는 직접 등록해 커플과 공유해요.",
     avatar: "📋",
     label: "일정 관리",
-    situation: "D-120, 지금 확인할 체크리스트",
+    situation: "확정한 일정을 함께 기록할 때",
     feature: "일정 관리",
   },
   {
-    text: "공개 시세와 견적의 포함 항목을 비교해 업체에 다시 물어볼 질문을 준비할 수 있어요.",
+    text: "받은 견적서·계약서 원문을 바탕으로 업체에 다시 물어볼 질문을 아모라와 정리할 수 있어요.",
     avatar: "💰",
-    label: "비용 비교",
-    situation: "웨딩 박람회 전, 냉정한 비교",
-    feature: "비용 비교",
+    label: "계약 질문 정리",
+    situation: "상담 전, 원문 확인 질문 정리",
+    feature: "계약 원문 확인",
   },
   {
     text: "초대 코드 한 번이면 예비 신랑도 함께 참여할 수 있어요. 같은 정보를 보면서 함께 결정하는 결혼 준비를 경험하세요.",
@@ -69,9 +69,18 @@ export default function CustomerTestimonials() {
           이렇게 활용할 수 있어요
         </h2>
         <p className="text-[clamp(14px,1.8vw,16px)] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          {isComingSoon ? "정식 베타에서 준비 중인 도구를" : "현재 제공 중인 도구를 준비 상황에 맞게"}
-          <br className="hidden md:block" />
-          {isComingSoon ? "활용할 수 있는 상황을 미리 살펴보세요." : "필요한 순서로 활용해보세요."}
+          {isComingSoon ? (
+            "현재 계정·앱 기능은 열려 있지 않습니다. 아래는 구현된 활용 예시입니다."
+          ) : (
+            <>
+              현재 제공 중인 도구를 준비 상황에 맞게
+              <br className="hidden md:block" />
+              필요한 순서로 활용해보세요.
+            </>
+          )}
+        </p>
+        <p className="mt-4 text-[12px] text-taupe-500">
+          활용 예시이며 실제 고객 후기나 효과 보장이 아닙니다
         </p>
       </motion.div>
 

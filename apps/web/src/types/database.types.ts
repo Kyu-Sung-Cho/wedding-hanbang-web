@@ -7,22 +7,15 @@ export type MessageSenderRole = MessageSenderType;
 export interface Profile {
   id: string;
   name: string;
-  email?: string;
   role: UserRole | null;
   couple_id: string | null;
-  avatar_url: string | null;
   onboarding_completed: boolean;
   onboarding_step: number;
-  is_admin: boolean;
-  /** 아모라 케어 아웃바운드(모멘트 이메일 등) 수신 여부 — 기본 true */
-  care_notifications_enabled?: boolean;
-  /** 휴대폰 번호(숫자만) — 알림톡/문자 케어 채널용 */
-  phone?: string | null;
-  /** 카톡·문자 케어 수신 동의 시각 — null=미동의 */
-  phone_care_consented_at?: string | null;
-  created_at: string;
-  updated_at: string;
+  /** 원문 전화번호를 노출하지 않고 기존 값의 존재만 알려준다. */
+  has_phone: boolean;
 }
+
+export type PublicPartnerProfile = Pick<Profile, "id" | "name" | "role">;
 
 export interface Couple {
   id: string;
@@ -80,19 +73,32 @@ export interface ProgressItem {
   category?: string;
   label?: string;
   status: "not_started" | "in_progress" | "completed";
+  /** 사용자가 계획한 항목별 예산. */
   budget?: number;
+  /** 사용자가 계약서에서 확인해 직접 기록한 계약 총액. */
+  contractedTotal?: number;
+  /** 사용자가 직접 기록한 현재까지의 누적 납부액. */
+  paidToDate?: number;
+  /** 사용자가 직접 기록한 다음 납부 예정액. */
+  nextPaymentAmount?: number;
+  /** 사용자가 직접 기록한 다음 납부 예정일(YYYY-MM-DD). */
+  nextPaymentDate?: string;
+  /** @deprecated 과거 사용자 기록 조회·삭제 호환용. 신규 저장 금지. */
   spent?: number;
+  /** @deprecated 과거 사용자 기록 조회·삭제 호환용. 신규 저장 금지. */
   cost?: number;
   vendor?: string;
   notes?: string;
   checklist?: ChecklistItem[];
-  payer?: PayerType;
+  /** @deprecated 과거 사용자 기록 조회·삭제 호환용. 신규 저장 금지. */
+  payer?: string;
 }
 
 export interface ScheduleEvent {
   id: string;
   date: string;
   title: string;
+  time?: string;
   memo?: string;
   categoryKey?: string;
   sourceKey?: string;

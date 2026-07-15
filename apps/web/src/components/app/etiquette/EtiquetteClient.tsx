@@ -22,6 +22,16 @@ import { useAuthStore } from "@/stores/authStore";
 import { useAccessibleDialog } from "@/hooks/useAccessibleDialog";
 import { addEvent, getEvents, updateEvent } from "@/utils/scheduleEvents";
 import type { ScheduleEvent } from "@/types/database.types";
+import {
+  etiquetteChecksStorageKey,
+  etiquetteMemosStorageKey,
+  readEtiquetteDeviceSnapshot,
+} from "@/lib/userScopedBrowserStorage";
+import { persistEtiquetteSchedule } from "./etiquetteScheduleSave";
+import {
+  mutateScheduleEvent,
+  ScheduleEventConflictError,
+} from "@/lib/schedule/scheduleEventClient";
 
 // 아이콘 맵
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -247,11 +257,13 @@ function formatInlineText(text: string) {
 }
 
 // 블록 렌더러
-function BlockRenderer({ block, blockId, checkedItems, itemMemos, onToggleCheck, onOpenSchedule, onOpenMemo }: {
+function BlockRenderer({ block, blockId, checkedItems, itemMemos, deviceStorageAvailable, canSaveToSharedSchedule, onToggleCheck, onOpenSchedule, onOpenMemo }: {
   block: ParsedBlock;
   blockId: string;
   checkedItems: Set<string>;
   itemMemos: Record<string, string>;
+  deviceStorageAvailable: boolean;
+  canSaveToSharedSchedule: boolean;
   onToggleCheck: (itemId: string) => void;
   onOpenSchedule: (itemId: string, text: string) => void;
   onOpenMemo: (itemId: string, text: string) => void;
@@ -290,6 +302,8 @@ function BlockRenderer({ block, blockId, checkedItems, itemMemos, onToggleCheck,
               itemId={itemId}
               isChecked={checkedItems.has(itemId)}
               memo={itemMemos[itemId]}
+              deviceStorageAvailable={deviceStorageAvailable}
+              canSaveToSharedSchedule={canSaveToSharedSchedule}
               onToggleCheck={onToggleCheck}
               onOpenSchedule={onOpenSchedule}
               onOpenMemo={onOpenMemo}
@@ -301,12 +315,14 @@ function BlockRenderer({ block, blockId, checkedItems, itemMemos, onToggleCheck,
   );
 }
 
-function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck, onOpenSchedule, onOpenMemo }: {
+export function ItemRenderer({ item, blockType, itemId, isChecked, memo, deviceStorageAvailable = true, canSaveToSharedSchedule, onToggleCheck, onOpenSchedule, onOpenMemo }: {
   item: ParsedItem;
   blockType: string;
   itemId: string;
   isChecked: boolean;
   memo?: string;
+  deviceStorageAvailable?: boolean;
+  canSaveToSharedSchedule: boolean;
   onToggleCheck: (itemId: string) => void;
   onOpenSchedule: (itemId: string, text: string) => void;
   onOpenMemo: (itemId: string, text: string) => void;
@@ -337,8 +353,11 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
       }
       return (
         <div
-          onClick={() => onToggleCheck(itemId)}
-          className="flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-xl cursor-pointer hover:bg-[#FDFCFA] transition-colors group/item"
+          onClick={() => deviceStorageAvailable && onToggleCheck(itemId)}
+          aria-disabled={!deviceStorageAvailable}
+          className={`flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-xl transition-colors group/item ${
+            deviceStorageAvailable ? "cursor-pointer hover:bg-[#FDFCFA]" : "cursor-not-allowed opacity-70"
+          }`}
         >
           <div className="flex-shrink-0 mt-0.5">
             {isChecked ? (
@@ -365,21 +384,24 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onOpenMemo(itemId, item.text); }}
+                disabled={!deviceStorageAvailable}
                 className="p-1.5 rounded-lg hover:bg-white transition-colors"
-                title={memo ? "메모 수정" : "메모 추가"}
-                aria-label={memo ? "메모 수정" : "메모 추가"}
+                title={memo ? "이 기기에 저장된 메모 수정" : "이 기기에 메모 추가"}
+                aria-label={memo ? "이 기기에 저장된 메모 수정" : "이 기기에 메모 추가"}
               >
                 <StickyNote className={`w-4 h-4 transition-colors ${memo ? "text-[#795252]" : "text-taupe-400 hover:text-[#795252]"}`} />
               </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onOpenSchedule(itemId, item.text); }}
-                className="p-1.5 rounded-lg hover:bg-white transition-colors"
-                title="일정에 추가"
-                aria-label="일정에 추가"
-              >
-                <CalendarPlus className="w-4 h-4 text-taupe-400 hover:text-[#795252] transition-colors" />
-              </button>
+              {canSaveToSharedSchedule && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenSchedule(itemId, item.text); }}
+                  className="p-1.5 rounded-lg hover:bg-white transition-colors"
+                  title="공동 일정에 추가"
+                  aria-label="공동 일정에 추가"
+                >
+                  <CalendarPlus className="w-4 h-4 text-taupe-400 hover:text-[#795252] transition-colors" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -446,6 +468,36 @@ function ItemRenderer({ item, blockType, itemId, isChecked, memo, onToggleCheck,
   }
 }
 
+export function canSaveEtiquetteToSharedSchedule({
+  isAuthenticated,
+  hasJourney,
+  isDemo,
+}: {
+  isAuthenticated: boolean;
+  hasJourney: boolean;
+  isDemo: boolean;
+}) {
+  return isAuthenticated && hasJourney && !isDemo;
+}
+
+export function EtiquetteStorageNotice({ canSaveToSharedSchedule }: {
+  canSaveToSharedSchedule: boolean;
+}) {
+  return (
+    <aside
+      aria-label="예절 체크와 메모 저장 위치"
+      className="mt-3 rounded-xl border border-[#dce5df] bg-[#f6faf7] px-4 py-3 text-[12px] leading-[1.65] text-[#53645f]"
+    >
+      <p>체크와 메모는 이 기기에만 저장돼요.</p>
+      <p className="mt-1">
+        {canSaveToSharedSchedule
+          ? "‘공동 일정에 추가’한 항목만 커플 공동 일정에 저장돼요."
+          : "공동 일정 저장은 커플 준비 공간이 확인된 계정에서만 사용할 수 있어요."}
+      </p>
+    </aside>
+  );
+}
+
 // 일정 추가 팝오버
 function SchedulePopover({ itemText, initialDate = "", initialMemo, isExisting = false, onClose, onSave }: {
   itemText: string;
@@ -474,10 +526,10 @@ function SchedulePopover({ itemText, initialDate = "", initialMemo, isExisting =
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <p className="text-[18px] font-semibold text-noir-800">
-            {isExisting ? "일정 수정" : "일정에 추가"}
+            {isExisting ? "공동 일정 수정" : "공동 일정에 추가"}
           </p>
           <p className="mt-1 text-sm leading-relaxed text-taupe-500">
-            {isExisting ? "이미 추가된 일정입니다. 날짜와 메모를 수정할 수 있어요." : "예절 체크리스트 항목을 일정으로 옮겨둘게요."}
+            {isExisting ? "커플 공동 일정에 저장된 항목입니다. 날짜와 메모를 수정할 수 있어요." : "예절 체크리스트 항목을 커플 공동 일정에 저장해요."}
           </p>
         </div>
         <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-ivory-200" aria-label="닫기">
@@ -518,7 +570,7 @@ function SchedulePopover({ itemText, initialDate = "", initialMemo, isExisting =
           disabled={!date}
           className="w-full rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] py-3.5 text-base font-semibold text-white transition-colors hover:bg-[#946a6a] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {isExisting ? "일정 수정" : "일정에 추가"}
+          {isExisting ? "공동 일정 수정" : "공동 일정에 추가"}
         </button>
       </div>
     </div>
@@ -619,7 +671,7 @@ export default function EtiquetteClient() {
 function EtiquettePageInner() {
   const { isDemo, user } = useAuthStore();
   // 로그인 유저 또는 데모 → 잠금 해제, 비로그인 방문자(coming_soon) → 잠금
-  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon" && !isDemo && !user;
+  const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full" && !isDemo && !user;
 
   const searchParams = useSearchParams();
   const [selectedPart, setSelectedPart] = useState(() => {
@@ -635,9 +687,12 @@ function EtiquettePageInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [itemMemos, setItemMemos] = useState<Record<string, string>>({});
+  const [loadedDeviceStorageScope, setLoadedDeviceStorageScope] = useState<string | null>(null);
+  const [deviceStorageStatus, setDeviceStorageStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [deviceStorageReload, setDeviceStorageReload] = useState(0);
   const [schedulePopover, setSchedulePopover] = useState<SchedulePopoverState | null>(null);
   const [memoPopover, setMemoPopover] = useState<{ itemId: string; text: string } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pillsRef = useRef<HTMLDivElement>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
@@ -647,55 +702,77 @@ function EtiquettePageInner() {
     returnFocusRef: sidebarTriggerRef,
   });
 
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, updateJourney, updateJourneyLocal } = useAuthStore();
+  const canSaveToSharedSchedule = canSaveEtiquetteToSharedSchedule({
+    isAuthenticated: Boolean(user),
+    hasJourney: Boolean(journey?.progress),
+    isDemo,
+  });
   const part = ETIQUETTE_PARTS[selectedPart];
   const PartIcon = ICON_MAP[part.icon] || BookOpen;
+  const requestedDeviceStorageScope = user ? `${user.id}:${part.number}` : null;
+  const hasCurrentDeviceSnapshot =
+    requestedDeviceStorageScope !== null && loadedDeviceStorageScope === requestedDeviceStorageScope;
+  const visibleCheckedItems = useMemo(
+    () => (hasCurrentDeviceSnapshot ? checkedItems : new Set<string>()),
+    [checkedItems, hasCurrentDeviceSnapshot],
+  );
+  const visibleItemMemos = useMemo(
+    () => (hasCurrentDeviceSnapshot ? itemMemos : {}),
+    [hasCurrentDeviceSnapshot, itemMemos],
+  );
+  const deviceStorageAvailable =
+    !user || (deviceStorageStatus === "ready" && hasCurrentDeviceSnapshot);
 
-  // localStorage에서 체크 상태 로드
+  // 체크와 메모를 한 번에 읽는다. 한쪽이라도 실패하면 기존 스냅샷을
+  // 보존하고 읽기 전용으로 전환해, 저장된 기록이 빈 상태처럼 보이지 않게 한다.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      try {
-        const saved = localStorage.getItem(`etiquette_checks_${part.number}`);
-        if (saved) {
-          setCheckedItems(new Set(JSON.parse(saved)));
-        } else {
-          setCheckedItems(new Set());
-        }
-      } catch {
+      if (!user) {
         setCheckedItems(new Set());
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [part.number]);
-
-  // localStorage에서 항목 메모 로드
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const saved = localStorage.getItem(`etiquette_memos_${part.number}`);
-        setItemMemos(saved ? JSON.parse(saved) : {});
-      } catch {
         setItemMemos({});
+        setLoadedDeviceStorageScope(null);
+        setDeviceStorageStatus("ready");
+        return;
+      }
+      setDeviceStorageStatus("loading");
+      try {
+        const snapshot = readEtiquetteDeviceSnapshot(localStorage, user.id, part.number);
+        setCheckedItems(new Set(snapshot.checkedItemIds));
+        setItemMemos(snapshot.itemMemos);
+        setLoadedDeviceStorageScope(`${user.id}:${part.number}`);
+        setDeviceStorageStatus("ready");
+      } catch {
+        setDeviceStorageStatus("error");
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [part.number]);
+  }, [deviceStorageReload, part.number, user]);
 
   // 체크 상태 토글
   const handleToggleCheck = useCallback((itemId: string) => {
-    setCheckedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      try {
-        localStorage.setItem(`etiquette_checks_${part.number}`, JSON.stringify([...next]));
-      } catch { /* ignore */ }
-      return next;
-    });
-  }, [part.number]);
+    if (!user) {
+      setToast({ message: "로그인한 계정에서만 체크를 저장할 수 있습니다.", tone: "error" });
+      return;
+    }
+    if (!deviceStorageAvailable || !hasCurrentDeviceSnapshot) {
+      setToast({ message: "기기 저장 기록을 먼저 다시 불러와 주세요.", tone: "error" });
+      return;
+    }
+    const next = new Set(visibleCheckedItems);
+    if (next.has(itemId)) next.delete(itemId);
+    else next.add(itemId);
+
+    try {
+      localStorage.setItem(
+        etiquetteChecksStorageKey(user.id, part.number),
+        JSON.stringify([...next])
+      );
+      setCheckedItems(next);
+    } catch {
+      setToast({ message: "체크 상태를 저장하지 못했습니다. 다시 시도해주세요.", tone: "error" });
+    }
+  }, [deviceStorageAvailable, hasCurrentDeviceSnapshot, part.number, user, visibleCheckedItems]);
 
   const findExistingScheduleEvent = useCallback((itemId: string, text: string) => {
     if (!journey?.progress) return undefined;
@@ -703,7 +780,7 @@ function EtiquettePageInner() {
     const events = getEvents(progress);
     const sourceKey = getEtiquetteScheduleSourceKey(part.number, itemId);
     const legacyMemo = getLegacyEtiquetteEventMemo(part.number, part.title);
-    const savedMemo = itemMemos[itemId]?.trim();
+    const savedMemo = visibleItemMemos[itemId]?.trim();
 
     return events.find((event) => event.sourceKey === sourceKey)
       ?? events.find((event) =>
@@ -711,7 +788,7 @@ function EtiquettePageInner() {
         && event.memo === legacyMemo
         && (event.title === text || (!!savedMemo && event.title === savedMemo))
       );
-  }, [journey, itemMemos, part.number, part.title]);
+  }, [journey, part.number, part.title, visibleItemMemos]);
 
   // 일정 추가 팝오버 열기
   const handleOpenSchedule = useCallback((itemId: string, text: string) => {
@@ -722,36 +799,53 @@ function EtiquettePageInner() {
       text,
       eventId: existingEvent?.id,
       initialDate: existingEvent?.date ?? "",
-      initialMemo: getSchedulePopoverMemo(existingEvent, text, itemMemos[itemId]),
+      initialMemo: getSchedulePopoverMemo(existingEvent, text, visibleItemMemos[itemId]),
       isExisting: Boolean(existingEvent),
     });
-  }, [findExistingScheduleEvent, itemMemos]);
+  }, [findExistingScheduleEvent, visibleItemMemos]);
 
   // 메모 팝오버 열기
   const handleOpenMemo = useCallback((itemId: string, text: string) => {
+    if (user && (!deviceStorageAvailable || !hasCurrentDeviceSnapshot)) {
+      setToast({ message: "기기 저장 기록을 먼저 다시 불러와 주세요.", tone: "error" });
+      return;
+    }
     setSchedulePopover(null);
     setMemoPopover({ itemId, text });
-  }, []);
+  }, [deviceStorageAvailable, hasCurrentDeviceSnapshot, user]);
 
   // 항목 메모 저장
   const handleSaveMemo = useCallback((memo: string) => {
     if (!memoPopover) return;
+    if (!user) {
+      setToast({ message: "로그인한 계정에서만 메모를 저장할 수 있습니다.", tone: "error" });
+      return;
+    }
+    if (!deviceStorageAvailable || !hasCurrentDeviceSnapshot) {
+      setToast({ message: "기기 저장 기록을 먼저 다시 불러와 주세요.", tone: "error" });
+      return;
+    }
     const trimmed = memo.trim();
-    setItemMemos((prev) => {
-      const next = { ...prev };
-      if (trimmed) {
-        next[memoPopover.itemId] = trimmed;
-      } else {
-        delete next[memoPopover.itemId];
-      }
-      try {
-        localStorage.setItem(`etiquette_memos_${part.number}`, JSON.stringify(next));
-      } catch { /* ignore */ }
-      return next;
-    });
+    const next = { ...visibleItemMemos };
+    if (trimmed) next[memoPopover.itemId] = trimmed;
+    else delete next[memoPopover.itemId];
+
+    try {
+      localStorage.setItem(
+        etiquetteMemosStorageKey(user.id, part.number),
+        JSON.stringify(next)
+      );
+    } catch {
+      setToast({ message: "메모를 저장하지 못했습니다. 브라우저 저장 공간을 확인해주세요.", tone: "error" });
+      return;
+    }
+    setItemMemos(next);
     setMemoPopover(null);
-    setToast(trimmed ? "메모를 저장했습니다" : "메모를 삭제했습니다");
-  }, [memoPopover, part.number]);
+    setToast({
+      message: trimmed ? "이 기기에 메모를 저장했습니다" : "이 기기에서 메모를 삭제했습니다",
+      tone: "success",
+    });
+  }, [deviceStorageAvailable, hasCurrentDeviceSnapshot, memoPopover, part.number, user, visibleItemMemos]);
 
   // 일정 저장
   const handleSaveSchedule = useCallback(async (date: string, memo: string) => {
@@ -777,10 +871,64 @@ function EtiquettePageInner() {
         sourceKey,
       }).newProgress;
 
-    await updateJourney({ progress: newProgress as typeof journey.progress });
-    setSchedulePopover(null);
-    setToast(schedulePopover.eventId ? "일정을 수정했습니다" : "일정에 추가되었습니다");
-  }, [journey, updateJourney, schedulePopover, part.number]);
+    const mode = schedulePopover.eventId ? "update" : "add";
+    if (isDemo) {
+      const result = await persistEtiquetteSchedule({
+        nextProgress: newProgress as typeof journey.progress,
+        mode,
+        updateJourney,
+      });
+      if (!result.ok) {
+        setToast({ message: result.message, tone: "error" });
+        return;
+      }
+      setSchedulePopover(null);
+      setToast({ message: result.message, tone: "success" });
+      return;
+    }
+
+    const previousEvent = schedulePopover.eventId
+      ? getEvents(progress).find((event) => event.id === schedulePopover.eventId)
+      : undefined;
+    const nextEvent = getEvents(newProgress).find((event) =>
+      schedulePopover.eventId
+        ? event.id === schedulePopover.eventId
+        : event.sourceKey === sourceKey
+    );
+    if (!nextEvent || (schedulePopover.eventId && !previousEvent)) {
+      setToast({ message: "공동 일정의 최신 상태를 확인하지 못했습니다.", tone: "error" });
+      return;
+    }
+
+    try {
+      const result = await mutateScheduleEvent(
+        previousEvent
+          ? {
+              operation: "update",
+              eventId: previousEvent.id,
+              event: nextEvent,
+              expectedUpdatedAt: previousEvent.updatedAt,
+            }
+          : { operation: "add", event: nextEvent },
+      );
+      updateJourneyLocal({ progress: result.progress as typeof journey.progress });
+      setSchedulePopover(null);
+      setToast({
+        message: mode === "update" ? "공동 일정을 수정했습니다." : "공동 일정에 추가했습니다.",
+        tone: "success",
+      });
+    } catch (error) {
+      if (error instanceof ScheduleEventConflictError) {
+        updateJourneyLocal({ progress: error.progress as typeof journey.progress });
+      }
+      setToast({
+        message: error instanceof Error
+          ? error.message
+          : "공동 일정을 저장하지 못했습니다. 입력한 내용은 그대로 두었으니 다시 시도해주세요.",
+        tone: "error",
+      });
+    }
+  }, [journey, isDemo, updateJourney, updateJourneyLocal, schedulePopover, part.number]);
 
   // 토스트 자동 닫기
   useEffect(() => {
@@ -1080,6 +1228,35 @@ function EtiquettePageInner() {
                 ))}
               </div>
             </aside>
+            <EtiquetteStorageNotice canSaveToSharedSchedule={canSaveToSharedSchedule} />
+            {user && deviceStorageStatus === "loading" && (
+              <p
+                role="status"
+                className="mt-3 rounded-xl border border-[#dce5df] bg-white px-4 py-3 text-[12px] text-[#53645f]"
+              >
+                이 기기의 체크와 메모를 불러오고 있어요. 확인이 끝날 때까지 변경하지 않습니다.
+              </p>
+            )}
+            {user && deviceStorageStatus === "error" && (
+              <aside
+                role="alert"
+                className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] leading-[1.65] text-red-800"
+              >
+                <p className="font-semibold">기기 저장 기록을 불러오지 못했습니다.</p>
+                <p className="mt-1">
+                  {hasCurrentDeviceSnapshot
+                    ? "마지막으로 불러온 기록을 그대로 보여주며, 다시 확인될 때까지 변경하지 않습니다."
+                    : "불러오기 실패가 빈 기록을 뜻하지 않아 체크와 메모 변경을 잠갔습니다."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDeviceStorageReload((value) => value + 1)}
+                  className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-800"
+                >
+                  다시 불러오기
+                </button>
+              </aside>
+            )}
           </div>
 
           {/* 섹션 네비게이션 or 콘텐츠 */}
@@ -1196,8 +1373,10 @@ function EtiquettePageInner() {
                         <BlockRenderer
                           block={block}
                           blockId={`${sIdx}_${bIdx}`}
-                          checkedItems={checkedItems}
-                          itemMemos={itemMemos}
+                          checkedItems={visibleCheckedItems}
+                          itemMemos={visibleItemMemos}
+                          deviceStorageAvailable={deviceStorageAvailable}
+                          canSaveToSharedSchedule={canSaveToSharedSchedule}
                           onToggleCheck={handleToggleCheck}
                           onOpenSchedule={handleOpenSchedule}
                           onOpenMemo={handleOpenMemo}
@@ -1336,7 +1515,7 @@ function EtiquettePageInner() {
           <div onClick={(e) => e.stopPropagation()}>
             <MemoPopover
               itemText={memoPopover.text}
-              initialMemo={itemMemos[memoPopover.itemId] || ""}
+              initialMemo={visibleItemMemos[memoPopover.itemId] || ""}
               onClose={() => setMemoPopover(null)}
               onSave={handleSaveMemo}
             />
@@ -1347,9 +1526,18 @@ function EtiquettePageInner() {
       {/* 토스트 알림 */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-            <Check className="w-5 h-5 text-[#795252]" />
-            <p className="text-base font-medium text-[#1A1A1F]">{toast}</p>
+          <div
+            role={toast.tone === "error" ? "alert" : "status"}
+            className={`flex items-center gap-2 rounded-xl border px-4 py-3 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)] ${
+              toast.tone === "error" ? "border-red-200" : "border-black/[0.04]"
+            }`}
+          >
+            {toast.tone === "error" ? (
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+            ) : (
+              <Check className="w-5 h-5 text-[#795252]" />
+            )}
+            <p className="text-base font-medium text-[#1A1A1F]">{toast.message}</p>
           </div>
         </div>
       )}

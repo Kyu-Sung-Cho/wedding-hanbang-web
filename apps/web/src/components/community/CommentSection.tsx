@@ -2,13 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { MessageCircle } from "lucide-react";
-import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import CommentItem from "@/components/community/CommentItem";
-import { pathWithAuthReturn } from "@/lib/authReturnPath";
-import { communityPostPath } from "@/lib/community/routes";
-import type { CommentWithAuthor } from "@/types/community.types";
 
 interface CommentSectionProps {
   postId: string;
@@ -18,18 +14,15 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   const {
     comments,
     commentsPostId,
-    commentsLoading,
+    commentsLoadStatus,
+    commentsLoadError,
     fetchComments,
-    createComment,
     updateComment,
     deleteComment,
-    voteComment,
     currentPost,
   } = useCommunityStore();
 
   const [user, setUser] = useState<{ id: string } | null>(null);
-  const [newComment, setNewComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   // 유저 상태 확인
   useEffect(() => {
@@ -45,57 +38,22 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   // 댓글 불러오기
   useEffect(() => {
     if (postId) {
-      fetchComments(postId);
+      void fetchComments(postId);
     }
   }, [postId, fetchComments]);
-
-  // 댓글 작성
-  async function handleSubmit() {
-    if (!newComment.trim() || submitting) return;
-    setSubmitting(true);
-    const ok = await createComment({
-      post_id: postId,
-      content: newComment.trim(),
-    });
-    if (ok) {
-      setNewComment("");
-    }
-    setSubmitting(false);
-  }
-
-  // 엔터키 제출 (Ctrl+Enter 또는 Cmd+Enter)
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }
 
   // 댓글 트리 빌드 (1-depth only)
   const visibleComments = useMemo(
     () => (commentsPostId === postId ? comments : []),
     [comments, commentsPostId, postId]
   );
-  const isLoadingCurrentComments = commentsPostId === postId && commentsLoading;
-
-  const treeComments = useMemo(() => {
-    const topLevel: CommentWithAuthor[] = [];
-    const repliesMap: Record<string, CommentWithAuthor[]> = {};
-
-    visibleComments.forEach((c) => {
-      if (!c.parent_id) {
-        topLevel.push(c);
-      } else {
-        if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
-        repliesMap[c.parent_id].push(c);
-      }
-    });
-
-    return topLevel.map((c) => ({
-      ...c,
-      replies: repliesMap[c.id] ?? [],
-    }));
-  }, [visibleComments]);
+  const isLoadingCurrentComments =
+    commentsPostId !== postId ||
+    commentsLoadStatus === "idle" ||
+    commentsLoadStatus === "loading";
+  const commentsFailed = commentsPostId === postId && commentsLoadStatus === "error";
+  // API와 store가 이미 1-depth 트리를 반환하므로 replies를 다시 만들며 지우지 않는다.
+  const treeComments = visibleComments;
 
   const commentCount = currentPost?.id === postId
     ? currentPost.comment_count
@@ -114,50 +72,34 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       </div>
 
       {/* 댓글 입력 */}
-      {user ? (
-        <div className="mb-4">
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="댓글을 작성해 주세요..."
-            rows={3}
-            maxLength={2000}
-            className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
-          />
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-[#B5ADA3]">
-              {newComment.length}/2000
-            </span>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-base font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {submitting ? "등록 중..." : "등록"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-4 relative">
-          <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-xl">
-            <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#B5ADA3]" />
-            <p className="text-base text-[#878680]">
-              <Link
-                href={pathWithAuthReturn("/login", communityPostPath(postId, "comments"))}
-                className="text-[#36534E] font-semibold hover:underline"
-              >
-                로그인
-              </Link>
-              하고 댓글을 작성해 보세요
-            </p>
-          </div>
-        </div>
-      )}
+      <div className="mb-4 rounded-xl border border-[#E2D3C8] bg-[#FBF8F2] px-4 py-4">
+        <p className="text-sm font-semibold text-[#36534E]">
+          새 댓글과 답글 작성은 제공하지 않아요.
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-[#635b51]">
+          기존 댓글은 계속 읽을 수 있고, 작성자는 수정·삭제할 수 있어요.
+          문제가 있는 기존 댓글은 해당 댓글 아래의 신고 버튼으로 알려주세요.
+        </p>
+      </div>
 
       {/* 댓글 목록 */}
-      {isLoadingCurrentComments ? (
+      {commentsFailed && (
+        <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm font-medium text-red-700">댓글을 불러오지 못했어요.</p>
+          <p className="mt-1 text-xs text-red-600">
+            {commentsLoadError ?? "기존 댓글은 그대로 두었습니다. 잠시 후 다시 시도해주세요."}
+          </p>
+          <button
+            type="button"
+            onClick={() => void fetchComments(postId)}
+            disabled={isLoadingCurrentComments}
+            className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 disabled:opacity-50"
+          >
+            댓글 다시 불러오기
+          </button>
+        </div>
+      )}
+      {isLoadingCurrentComments && treeComments.length === 0 ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="animate-pulse flex gap-2">
@@ -170,30 +112,23 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           ))}
         </div>
       ) : treeComments.length === 0 ? (
+        commentsFailed ? null : (
         <div className="text-center py-8">
           <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#B5ADA3]" />
           <p className="text-base text-[#878680]">
-            아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
+            아직 등록된 댓글이 없습니다.
           </p>
         </div>
+        )
       ) : (
         <div className="divide-y divide-[#F0EFED]">
           {treeComments.map((comment) => (
             <CommentItem
               key={comment.id}
               comment={comment}
-              postId={postId}
               currentUserId={user?.id ?? null}
               onDelete={deleteComment}
               onEdit={updateComment}
-              onVote={voteComment}
-              onReply={async (parentId, content) => {
-                await createComment({
-                  post_id: postId,
-                  parent_id: parentId,
-                  content,
-                });
-              }}
             />
           ))}
         </div>

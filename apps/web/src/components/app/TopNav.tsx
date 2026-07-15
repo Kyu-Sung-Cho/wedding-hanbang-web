@@ -4,8 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { Bell, Menu, Search } from "lucide-react";
-import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import { Bell, Menu } from "lucide-react";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
@@ -21,23 +20,15 @@ const pageTitles: Record<string, string> = {
   "/favorites": "즐겨찾기",
   "/etiquette": "예절 가이드",
   "/settings": "설정",
-  "/money": "축의금 관리",
 };
-
-const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
-  { prefix: "/vendors/favorites", title: "찜한 업체" },
-  { prefix: "/vendors", title: "업체 탐색" },
-  { prefix: "/bookings", title: "예약 관리" },
-];
 
 const quickLinks = [
   { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
-  { linkProps: weddingLinkProps("/community/cohort"), legacyPath: "/community/cohort", label: "동기방" },
   { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
 ];
 
 function getPageTitle(pathname: string) {
-  return pageTitles[pathname] ?? pageTitlePrefixes.find((item) => pathname.startsWith(item.prefix))?.title ?? "웨딩한방";
+  return pageTitles[pathname] ?? "웨딩한방";
 }
 
 interface TopNavProps {
@@ -48,23 +39,22 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const title = getPageTitle(stripWeddingBasePath(pathname));
-  const { journey } = useAuthStore();
-  const { prefs } = useNotificationPrefs();
+  const { journey, profile } = useAuthStore();
+  const { prefs } = useNotificationPrefs(profile?.id ?? null);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
 
   const dday = ddayInKst(journey?.wedding_date, today);
   const progress = journey?.progress ?? {};
   const { notifications, newCount, dismiss, dismissAll } = useNotifications(
-    journey?.wedding_date ?? null,
     progress,
-    prefs
+    prefs,
+    profile?.id ?? null
   );
 
-  function handleCategoryClick(categoryKey: string) {
+  function handleScheduleClick() {
     setShowNotifications(false);
-    setSelectedCategory(categoryKey);
+    router.push(weddingPath("/schedule"));
   }
 
   return (
@@ -80,9 +70,9 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             <Menu className="h-5 w-5" />
           </button>
           <Link
-            {...weddingLinkProps()}
+            {...weddingLinkProps("/lounge")}
             className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
-            aria-label="웨딩한방 홈으로 이동"
+            aria-label="웨딩 라운지 홈으로 이동"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
             <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
@@ -119,16 +109,6 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => router.push(weddingPath("/vendors"))}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
-            aria-label="업체 검색"
-            title="업체 검색"
-          >
-            <Search className="h-5 w-5" />
-          </button>
-
           <div className="relative">
             <button
               type="button"
@@ -150,7 +130,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
                   notifications={notifications}
                   onDismiss={dismiss}
                   onDismissAll={dismissAll}
-                  onCategoryClick={handleCategoryClick}
+                  onScheduleClick={handleScheduleClick}
                   onClose={() => setShowNotifications(false)}
                 />
               )}
@@ -158,12 +138,6 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           </div>
         </div>
       </header>
-
-      <CategoryChecklistModal
-        categoryKey={selectedCategory ?? ""}
-        isOpen={!!selectedCategory}
-        onClose={() => setSelectedCategory(null)}
-      />
     </>
   );
 }

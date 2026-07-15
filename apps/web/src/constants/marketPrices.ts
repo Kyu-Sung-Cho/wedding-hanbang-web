@@ -107,6 +107,13 @@ export interface SeasonalComparison {
   savings: number;  // 두 예식장 중위 계약금액의 차이 (만원, 절약 보장액 아님)
 }
 
+export interface NationalAveragePrice {
+  meal: number | null;
+  sdm: number | null;
+  rental: number | null;
+  decoration: number | null;
+}
+
 // ===== 상수 데이터 (자동 생성분 바인딩) =====
 
 export const REGION_LABELS: Record<RegionKey, string> = {
@@ -215,130 +222,9 @@ export function getLatestPeriodId(): string {
   return PRICE_PERIODS[PRICE_PERIODS.length - 1].id;
 }
 
-export function getNationalAverages(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number } {
+export function getNationalAverages(periodId?: string): NationalAveragePrice {
   const pid = periodId ?? getLatestPeriodId();
   const d = NATIONAL_AVERAGES[pid];
-  if (!d) return { meal: 0, sdm: 0, rental: 0, decoration: 0 };
+  if (!d) return { meal: null, sdm: null, rental: null, decoration: null };
   return { ...d };
-}
-
-export function getSeoulAverages(periodId?: string): { meal: number; sdm: number; rental: number; decoration: number } {
-  const pid = periodId ?? getLatestPeriodId();
-  const costs = getRegionalCosts(pid);
-  const gangnam = costs.find(c => c.region === "seoulGangnam");
-  const other = costs.find(c => c.region === "seoulOther");
-  if (!gangnam || !other) return { meal: 0, sdm: 0, rental: 0, decoration: 0 };
-  // 서울 평균 = (강남 + 강남외) / 2
-  const meal = Math.round(((gangnam.meal + other.meal) / 2) * 10) / 10;
-  const sdm = Math.round(((gangnam.sdm + other.sdm) / 2) * 10) / 10;
-  const rental = Math.round(((gangnam.rental + other.rental) / 2) * 10) / 10;
-  const decoration = Math.round(((gangnam.decoration + other.decoration) / 2) * 10) / 10;
-  return { meal, sdm, rental, decoration };
-}
-
-// 예산 카테고리 키 → 시세 매핑 (만원 반환)
-export function getCategoryMarketPrice(catKey: string, scope: "national" | "seoul" = "national"): number | null {
-  const pid = getLatestPeriodId();
-  const venueNec = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === scope);
-  const sdm = SDM_PACKAGES.find(s => s.periodId === pid && s.region === (scope === "seoul" ? "서울" : "전체"));
-  const dress = DRESS_PRICES.find(d => d.periodId === pid && d.scope === scope);
-  const makeup = MAKEUP_PRICES.find(m => m.periodId === pid && m.scope === scope);
-  const optItems = getVenueOptionalItems(pid, scope);
-
-  switch (catKey) {
-    case "venue":
-      return venueNec ? venueNec.rental + venueNec.totalFood : null;
-    case "studio":
-      return sdm ? sdm.studioBasic : null;
-    case "dress":
-      return dress ? dress.ceremony : null;
-    case "makeup":
-      return makeup ? makeup.photoShoot : null;
-    case "snap":
-      return optItems.items["본식 촬영"] ?? null;
-    case "bouquet":
-      return optItems.items["부케"] ?? null;
-    case "mc":
-      return optItems.items["본식 사회자"] ?? null;
-    case "pyebaek":
-      return (optItems.items["폐백 음식"] ?? 0) + (optItems.items["폐백 수모비"] ?? 0) || null;
-    case "hanbok":
-      return optItems.items["한복대여"] ?? null;
-    default:
-      return null;
-  }
-}
-
-// AI 프롬프트용 시세 요약 텍스트
-export function getMarketPriceContext(): string {
-  const pid = getLatestPeriodId();
-  const period = PRICE_PERIODS.find(p => p.id === pid)!;
-  const nat = getNationalAverages(pid);
-  const seoul = getSeoulAverages(pid);
-  const nationalVenueAverage = Math.round((nat.meal + nat.rental + nat.decoration) * 10) / 10;
-  const seoulVenueAverage = Math.round((seoul.meal + seoul.rental + seoul.decoration) * 10) / 10;
-  const sdmNat = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "전체")!;
-  const sdmSeoul = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "서울")!;
-  const venueNat = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === "national")!;
-  const venueSeoul = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === "seoul")!;
-  const dressNat = DRESS_PRICES.find(d => d.periodId === pid && d.scope === "national")!;
-  const dressSeoul = DRESS_PRICES.find(d => d.periodId === pid && d.scope === "seoul")!;
-  const makeupNat = MAKEUP_PRICES.find(m => m.periodId === pid && m.scope === "national")!;
-  const makeupSeoul = MAKEUP_PRICES.find(m => m.periodId === pid && m.scope === "seoul")!;
-  const seasonal = SEASONAL_DATA.find(s => s.periodId === pid)!;
-  const optNat = getVenueOptionalItems(pid, "national");
-  const optSeoul = getVenueOptionalItems(pid, "seoul");
-
-  return `## 한국소비자원 웨딩 시세 (${period.label} 기준, price.go.kr)
-
-### 계약금액 비교 (참가격 분류를 분리해 표시)
-- 전국 예식장 평균 계약금액: ${nationalVenueAverage}만원 (식대 ${nat.meal} + 대관료 ${nat.rental} + 기본 장식 ${nat.decoration})
-- 전국 스드메 평균 계약금액: ${nat.sdm}만원
-- 서울 예식장 평균 계약금액: ${seoulVenueAverage}만원 (식대 ${seoul.meal} + 대관료 ${seoul.rental} + 기본 장식 ${seoul.decoration})
-- 서울 스드메 평균 계약금액: ${seoul.sdm}만원
-- 답변 규칙: 예식장 평균과 스드메 평균은 조사 분류가 다르므로 하나의 총액으로 합산하지 말고 각각 제시할 것. 어느 값도 개인의 실제 결혼 총지출이나 중위값으로 표현하지 말 것
-
-### 예식장 필수
-- 대관료: 전국 ${venueNat.rental}만원 / 서울 ${venueSeoul.rental}만원
-- 1인당 식대: 전국 ${venueNat.perPersonMeal}만원 / 서울 ${venueSeoul.perPersonMeal}만원
-- 최소보증인원: 전국 ${venueNat.minGuests}명 / 서울 ${venueSeoul.minGuests}명
-
-### 예식장 선택항목 (전국/서울)
-- 생화꽃장식: ${optNat.items["생화꽃장식"]}만원 / ${optSeoul.items["생화꽃장식"]}만원
-- 축가: ${optNat.items["축가/축하공연"]}만원 / ${optSeoul.items["축가/축하공연"]}만원
-- 사회자: ${optNat.items["본식 사회자"]}만원 / ${optSeoul.items["본식 사회자"]}만원
-- 주례비: ${optNat.items["주례비"]}만원 / ${optSeoul.items["주례비"]}만원
-- 폐백음식: ${optNat.items["폐백 음식"]}만원 / ${optSeoul.items["폐백 음식"]}만원
-- 수모비: ${optNat.items["폐백 수모비"]}만원 / ${optSeoul.items["폐백 수모비"]}만원
-- 부케: ${optNat.items["부케"]}만원 / ${optSeoul.items["부케"]}만원
-- 본식촬영: ${optNat.items["본식 촬영"]}만원 / ${optSeoul.items["본식 촬영"]}만원
-- 웨딩케이크: ${optNat.items["웨딩케이크"]}만원 / ${optSeoul.items["웨딩케이크"]}만원
-- 한복대여: ${optNat.items["한복대여"]}만원 / ${optSeoul.items["한복대여"]}만원
-
-### 스드메 패키지 (지역별 중위가)
-- 전체: 패키지 ${sdmNat.packageMedian}만원, 스튜디오 ${sdmNat.studioBasic}만원
-- 서울: 패키지 ${sdmSeoul.packageMedian}만원, 스튜디오 ${sdmSeoul.studioBasic}만원
-- 경기/인천: 패키지 ${SDM_PACKAGES.find(s => s.periodId === pid && s.region === "경기/인천")?.packageMedian}만원
-- 5대광역시: 패키지 ${SDM_PACKAGES.find(s => s.periodId === pid && s.region === "5대광역시")?.packageMedian}만원
-
-### 드레스
-- 촬영용: 전국 ${dressNat.photoShoot}만원 / 서울 ${dressSeoul.photoShoot}만원
-- 본식용: 전국 ${dressNat.ceremony}만원 / 서울 ${dressSeoul.ceremony}만원
-
-### 메이크업
-- 촬영: 전국 ${makeupNat.photoShoot}만원 / 서울 ${makeupSeoul.photoShoot}만원
-- 본식: 전국 ${makeupNat.ceremony}만원 / 서울 ${makeupSeoul.ceremony}만원
-
-### 예식장 성수기 vs 비수기 중위 계약금액 (스드메 제외)
-- 성수기(4~6월,9~11월): ${seasonal.peak}만원
-- 비수기(1~3월,7~8월,12월): ${seasonal.offPeak}만원
-- 두 예식장 중위 계약금액 차이: ${seasonal.savings}만원 (실제 절약 보장액 아님)
-
-### 시세 활용 규칙
-1. 고객이 예산 적정성을 물으면 좋고 나쁨을 판정하지 말고 같은 조사월·지역·구성의 참고값을 제공
-2. 지역(서울/경기·인천/광역시)에 따라 기준 중위가가 크게 다르므로 반드시 지역 기준으로 안내
-3. 시즌 차이는 예식장 중위 계약금액만 비교하며 스드메 제외와 절약 비보장을 명시
-4. 출처를 "한국소비자원 ${period.label} 기준"으로 명시
-5. 스드메 패키지와 개별 계약 차이 안내
-6. 예식장 선택항목은 필수가 아니므로 절약 포인트로 안내`;
 }

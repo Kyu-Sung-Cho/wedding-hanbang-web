@@ -1,235 +1,73 @@
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+export { RETIRED_VENDOR_BOOKING_TOOL_NAMES } from "@/lib/ai/retiredVendorBookingTools";
 
+/**
+ * Names are retained only so stored or stale calls can be rejected before any
+ * database, network, or wedding-context access. They are never model schemas.
+ */
+export const RETIRED_AMORA_MUTATION_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "update_wedding_date",
+  "update_task_status",
+  "update_venue",
+  "add_schedule_event",
+  "update_schedule_event",
+  "delete_schedule_event",
+  "toggle_checklist_item",
+  "log_wedding_event",
+]);
+
+/** External place lookup is retired and retained only as a stale-call denylist. */
+export const RETIRED_EXTERNAL_PLACE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "search_nearby_places",
+]);
+
+/** Historical names removed because their output could not support the claimed decision. */
+export const RETIRED_UNTRUSTED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "apply_budget_plan",
+  "update_budget",
+  "update_category_budget",
+  "add_custom_category",
+  "delete_category",
+  "reset_category",
+  "analyze_contract_readiness",
+  "simulate_guest_guarantee",
+]);
+
+/** Product capability removed from every model and executor schema. */
+export const RETIRED_PRODUCT_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "analyze_quote",
+]);
+
+/** Historical Amora action subsystem retained only as a stale-call denylist. */
+export const RETIRED_AMORA_ACTION_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "add_amora_action",
+  "get_amora_actions",
+  "update_amora_action",
+]);
+
+/**
+ * The complete model-visible Amora tool surface.
+ *
+ * Every tool is read-only. Mutation and external place-search schemas are
+ * intentionally absent rather than hidden behind a runtime flag.
+ */
 export const WEDDING_TOOLS: AiToolDefinition[] = [
-  {
-    name: "update_budget",
-    description:
-      "커플의 총 결혼 예산을 변경합니다. 사용자가 '예산을 3000만원으로 해줘' 같은 요청을 할 때 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        total_budget: {
-          type: "number",
-          description: "새로운 총 예산 금액 (원 단위). 예: 30000000 = 3000만원",
-        },
-      },
-      required: ["total_budget"],
-    },
-  },
-  {
-    name: "update_wedding_date",
-    description:
-      "결혼 예정일을 변경합니다. 사용자가 '결혼식 날짜를 11월 15일로 변경해줘' 같은 요청을 할 때 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        wedding_date: {
-          type: "string",
-          description: "새로운 결혼 날짜 (YYYY-MM-DD 형식). 예: 2026-11-15",
-        },
-      },
-      required: ["wedding_date"],
-    },
-  },
-  {
-    name: "update_task_status",
-    description:
-      "웨딩 준비 항목의 진행 상태를 변경합니다. 사용자가 '예식장 계약 완료했어', '드레스 진행중으로 바꿔줘' 같은 요청을 할 때 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description:
-            "변경할 카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
-        },
-        status: {
-          type: "string",
-          enum: ["not_started", "in_progress", "completed"],
-          description:
-            "새로운 상태. not_started=시작전, in_progress=진행중, completed=완료",
-        },
-      },
-      required: ["category", "status"],
-    },
-  },
-  {
-    name: "update_venue",
-    description: "예식장 이름을 설정하거나 변경합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        venue: {
-          type: "string",
-          description: "예식장 이름. 예: '더 리버사이드 호텔'",
-        },
-      },
-      required: ["venue"],
-    },
-  },
   {
     name: "get_budget_summary",
     description:
-      "현재 예산 배분 현황을 조회합니다. 사용자가 '예산 현황 보여줘', '얼마나 썼어?' 같은 질문을 할 때 사용합니다.",
+      "사용자가 직접 기록한 계획 예산, 계약 합계, 실제 지급액을 구분해 조회합니다. 추정하거나 새 금액을 저장하지 않습니다.",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {},
       required: [],
     },
   },
   {
-    name: "update_category_budget",
-    description:
-      "특정 카테고리의 예산 또는 지출 금액을 변경합니다. '스튜디오 예산 400만원으로 해줘', '드레스에 250만원 썼어' 같은 요청에 사용합니다. 기존 20개 카테고리에 없는 새 항목은 add_custom_category를 사용하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "reserve",
-          ],
-          description:
-            "카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백, reserve=예비비",
-        },
-        budget: {
-          type: "number",
-          description: "새 예산 금액 (원 단위). 예: 4000000 = 400만원. 예산 변경 불필요 시 생략",
-        },
-        spent: {
-          type: "number",
-          description: "새 지출 금액 (원 단위). 예: 2500000 = 250만원. 지출 변경 불필요 시 생략",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  {
-    name: "apply_budget_plan",
-    description:
-      "예산 인터뷰 완료 후 카테고리별 배분을 한 번에 적용합니다. 사용자가 '이대로 적용', '좋아 그렇게 해줘'처럼 명시적으로 확정한 경우에만 호출하세요. 총 예산도 함께 갱신되며, allocations 합계는 total_budget과 같거나 작아야 합니다 (남으면 reserve로 자동 처리). rationale 필드는 customer_insights에 저장되어 다음 추천에 활용됩니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        total_budget: {
-          type: "number",
-          description: "총 결혼 예산 (원 단위). 신혼여행·예물·신혼집 포함 통합 예산.",
-        },
-        allocations: {
-          type: "array",
-          description:
-            "카테고리별 배분 리스트. 인터뷰에서 1순위로 드러난 카테고리는 평균 +20~30%, 양보 카테고리는 평균 -20~30%로 가중치 조정. 합계가 total_budget보다 작으면 잔여분은 자동으로 reserve(예비비)로 할당됩니다.",
-          items: {
-            type: "object",
-            properties: {
-              category: {
-                type: "string",
-                enum: [
-                  "meeting", "venue", "studio", "dress", "makeup", "ring",
-                  "hanbok", "yedan", "honeymoon", "houseware", "housing",
-                  "invitation", "snap", "shoes", "bouquet", "gift", "mc",
-                  "ham", "pyebaek", "reserve",
-                ],
-                description: "카테고리 키",
-              },
-              budget: {
-                type: "number",
-                description: "이 카테고리 배분 금액 (원 단위)",
-              },
-              rationale: {
-                type: "string",
-                description:
-                  "왜 이 비율로 잡았는지 한 줄 (예: '신혼여행 우선순위 1순위라 평균 +25%', '예단은 양보 카테고리라 평균 -30%'). 인터뷰에서 사용자가 표명한 가치관과 연결.",
-              },
-            },
-            required: ["category", "budget"],
-          },
-        },
-        intake_summary: {
-          type: "string",
-          description:
-            "인터뷰에서 드러난 사용자 우선순위·가치관·제약 1~3줄 요약. 나중에 vendor 추천 시 이 요약이 자동 참조되므로 구체적으로 작성. 예: '신혼여행을 가장 중요하게 봄(앨범보다 경험 중시), 예단은 양보 가능, 양가 도움 1500만원 있음, 평일 결혼식 선호'.",
-        },
-      },
-      required: ["total_budget", "allocations", "intake_summary"],
-    },
-  },
-  {
-    name: "add_custom_category",
-    description:
-      "기존 20개 카테고리에 없는 새로운 예산 항목을 추가합니다. '웨딩카 50만원 썼어', '포토부스 예산 30만원으로 해줘' 등 기존 카테고리에 없는 항목에 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        label: {
-          type: "string",
-          description: "카테고리 이름 (예: '웨딩카', '포토부스', '축의금')",
-        },
-        budget: {
-          type: "number",
-          description: "예산 금액 (원 단위). 예: 500000 = 50만원. 예산 불필요 시 생략",
-        },
-        spent: {
-          type: "number",
-          description: "지출 금액 (원 단위). 예: 300000 = 30만원. 지출 불필요 시 생략",
-        },
-      },
-      required: ["label"],
-    },
-  },
-  {
-    name: "delete_category",
-    description:
-      "예산 카테고리를 삭제합니다. 기존 20개 카테고리(예식장, 스튜디오 등)와 커스텀 카테고리 모두 삭제 가능합니다. ⚠️ 중요: 반드시 삭제 전에 사용자에게 '정말 삭제하시겠어요?' 라고 확인을 받은 후에만 이 도구를 호출하세요. 사용자가 확인하기 전에는 절대 호출하지 마세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          description:
-            "삭제할 카테고리 키. 기존 카테고리: meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve. 커스텀 카테고리: custom_로 시작하는 키. 먼저 get_budget_summary로 현재 카테고리 목록을 확인하세요.",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "사용자가 삭제를 명시적으로 확인한 뒤에만 true로 설정합니다.",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  {
-    name: "reset_category",
-    description:
-      "특정 카테고리의 예산/지출 데이터만 초기화합니다(카테고리 자체는 유지). '예식장 데이터 리셋해줘', '스튜디오 금액 초기화' 같은 요청에 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          description:
-            "초기화할 카테고리 키. meeting, venue, studio, dress, makeup, ring, hanbok, yedan, honeymoon, houseware, housing, invitation, snap, shoes, bouquet, gift, mc, ham, pyebaek, reserve 또는 custom_으로 시작하는 커스텀 키",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "사용자가 초기화를 명시적으로 확인한 뒤에만 true로 설정합니다.",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  {
     name: "get_schedule_summary",
     description:
-      "현재 웨딩 준비 진행 상황을 조회합니다. 사용자가 '지금 뭐가 완료됐어?', '진행 현황 알려줘' 같은 질문을 할 때 사용합니다.",
+      "사용자가 직접 시작한 항목 기준 완료율을 조회합니다. 시작하지 않은 선택형 템플릿은 진행률에 포함하지 않습니다.",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {},
       required: [],
     },
@@ -237,780 +75,60 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_wedding_info",
     description:
-      "결혼 날짜, D-day, 전체 진행률 등 기본 웨딩 정보를 조회합니다.",
+      "사용자가 직접 기록한 예식일, 장소, D-day와 준비 진행 정보를 조회합니다.",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {},
       required: [],
     },
   },
   {
-    name: "add_schedule_event",
-    description:
-      "캘린더에 일정을 추가합니다. category_key가 있는 대표 카테고리 일정(예: 상견례, 예식장, 스튜디오)은 이미 같은 카테고리 일정이 있으면 새로 만들지 않고 기존 일정 날짜/메모를 업데이트합니다. '3월 15일에 드레스 피팅 잡아줘', '상견례는 6월 5일이야' 같은 요청에 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        date: {
-          type: "string",
-          description: "일정 날짜 (YYYY-MM-DD 형식). 예: 2026-03-15",
-        },
-        title: {
-          type: "string",
-          description: "일정 제목. 예: '드레스 피팅 예약'",
-        },
-        memo: {
-          type: "string",
-          description: "일정 메모 (선택). 예: '강남 드레스샵 2시'",
-        },
-        category_key: {
-          type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description: "관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
-        },
-      },
-      required: ["date", "title"],
-    },
-  },
-  {
-    name: "update_schedule_event",
-    description:
-      "기존 캘린더 일정을 수정합니다. '피팅 날짜를 3월 20일로 변경해줘' 같은 요청에 사용합니다. 먼저 get_schedule_events로 event_id를 확인하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        event_id: {
-          type: "string",
-          description: "수정할 일정의 ID",
-        },
-        date: {
-          type: "string",
-          description: "변경할 날짜 (YYYY-MM-DD). 날짜 변경 불필요 시 생략",
-        },
-        title: {
-          type: "string",
-          description: "변경할 제목. 제목 변경 불필요 시 생략",
-        },
-        memo: {
-          type: "string",
-          description: "변경할 메모. 메모 변경 불필요 시 생략",
-        },
-      },
-      required: ["event_id"],
-    },
-  },
-  {
-    name: "delete_schedule_event",
-    description:
-      "캘린더에서 일정을 삭제합니다. '피팅 일정 취소해줘' 같은 요청에 사용합니다. 먼저 get_schedule_events로 event_id를 확인하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        event_id: {
-          type: "string",
-          description: "삭제할 일정의 ID",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "사용자가 일정 삭제를 명시적으로 확인한 뒤에만 true로 설정합니다.",
-        },
-      },
-      required: ["event_id"],
-    },
-  },
-  {
-    name: "toggle_checklist_item",
-    description:
-      "특정 카테고리의 체크리스트 항목을 완료/미완료로 변경합니다. '예식장 투어 완료했어' 같은 요청에 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description:
-            "카테고리. meeting=상견례, venue=예식장, studio=스튜디오, dress=드레스/턱시도, makeup=메이크업, ring=예물, hanbok=한복, yedan=예단, honeymoon=신혼여행, houseware=혼수, housing=신혼집, invitation=청첩장, snap=본식스냅/영상, shoes=웨딩구두, bouquet=부케, gift=답례품, mc=사회/축가, ham=함, pyebaek=폐백",
-        },
-        item_id: {
-          type: "string",
-          description: "체크리스트 항목 ID. 예: venue_03",
-        },
-        done: {
-          type: "boolean",
-          description: "완료 여부. true=완료, false=미완료",
-        },
-      },
-      required: ["category", "item_id", "done"],
-    },
-  },
-  {
     name: "get_schedule_events",
     description:
-      "캘린더에 등록된 일정을 조회합니다. '다음 주 일정 뭐 있어?', '등록된 일정 보여줘' 같은 요청에 사용합니다.",
+      "사용자가 직접 등록한 일정 기록을 지정한 기간 범위에서 조회합니다.",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         from_date: {
           type: "string",
-          description: "조회 시작일 (YYYY-MM-DD). 생략하면 오늘부터",
+          description: "조회 시작일(YYYY-MM-DD). 생략하면 오늘입니다.",
         },
         to_date: {
           type: "string",
-          description: "조회 종료일 (YYYY-MM-DD). 생략하면 시작일+30일",
+          description: "조회 종료일(YYYY-MM-DD). 생략하면 시작일로부터 30일입니다.",
         },
       },
       required: [],
-    },
-  },
-  {
-    name: "add_amora_action",
-    description:
-      "아모라가 사용자의 다음 행동을 저장합니다. 사용자가 '이거 기억해줘', '다음 할 일로 추가해줘', '챙겨줘'라고 하거나, 견적/일정/예산 상담 후 실제로 해야 할 구체적인 행동이 생겼을 때 사용합니다. 막연한 조언에는 사용하지 말고, 사용자가 실행할 수 있는 한 가지 행동으로 저장하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        title: {
-          type: "string",
-          description: "행동 카드 제목. 30자 이내 권장. 예: '스튜디오 원본 USB 포함 여부 확인'",
-        },
-        description: {
-          type: "string",
-          description: "왜 해야 하는지, 확인할 내용을 한 문장으로 정리",
-        },
-        due_date: {
-          type: "string",
-          description: "마감일 YYYY-MM-DD. 정확한 날짜가 있을 때만 입력",
-        },
-        category_key: {
-          type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
-          description: "관련 카테고리. 불명확하면 general",
-        },
-        priority: {
-          type: "string",
-          enum: ["high", "medium", "low"],
-          description: "중요도. 계약/마감/추가금 위험은 high, 일반 확인은 medium, 참고는 low",
-        },
-        source: {
-          type: "string",
-          enum: ["chat", "quote", "schedule", "budget", "guardrail", "manual"],
-          description: "행동이 생긴 맥락. 견적 분석이면 quote, 일정이면 schedule, 예산이면 budget, 일반 대화면 chat",
-        },
-        href: {
-          type: "string",
-          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget, /wedding/etiquette",
-        },
-      },
-      required: ["title"],
-    },
-  },
-  {
-    name: "log_wedding_event",
-    description:
-      "사용자가 대화 중 결혼 준비 일정의 날짜를 말하면 즉시 저장합니다. 예: '토요일에 상견례야', '다음 주 금요일에 드레스 투어 잡았어', '청첩장 모임 25일이야'. 저장하면 아모라가 그 일정의 3일 전 챙김 → 전날 체크리스트 → 다음날 안부까지 먼저 챙깁니다. 상대 날짜('토요일', '다음 주')는 오늘 날짜 기준으로 정확한 YYYY-MM-DD로 변환해 저장하고, 애매하면 사용자에게 날짜를 먼저 확인하세요. 같은 종류 일정이 여러 번 있을 수 있습니다(청첩장 모임 그룹별 등).",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        moment_type: {
-          type: "string",
-          enum: [
-            "family_greeting",
-            "sanggyeonrye",
-            "venue_tour",
-            "dress_tour",
-            "studio_shoot",
-            "dress_fitting",
-            "invitation_meeting",
-            "first_holiday",
-          ],
-          description:
-            "일정 종류: family_greeting(양가 첫인사), sanggyeonrye(상견례), venue_tour(예식장 투어), dress_tour(드레스 투어), studio_shoot(스튜디오 촬영), dress_fitting(가봉·최종피팅), invitation_meeting(청첩장 모임), first_holiday(결혼 후 첫 명절)",
-        },
-        date: {
-          type: "string",
-          description: "일정 날짜 YYYY-MM-DD",
-        },
-        title: {
-          type: "string",
-          description: "일정 제목. 생략하면 종류 기본 라벨. 청첩장 모임은 그룹을 담아 '대학친구 청첩장 모임'처럼",
-        },
-        memo: {
-          type: "string",
-          description: "장소·인원 등 참고 메모 (선택)",
-        },
-      },
-      required: ["moment_type", "date"],
-    },
-  },
-  {
-    name: "get_amora_actions",
-    description:
-      "아모라가 저장한 다음 행동 목록을 조회합니다. 사용자가 '내가 해야 할 일 뭐야?', '아모라가 기억한 것 보여줘', '남은 액션 보여줘'라고 할 때 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        status: {
-          type: "string",
-          enum: ["open", "done", "dismissed", "all"],
-          description: "조회할 상태. 기본 open",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "update_amora_action",
-    description:
-      "저장된 아모라 행동 카드의 상태나 내용을 변경합니다. 사용자가 '이거 완료했어', '이 할 일 지워줘', '마감일 바꿔줘'라고 할 때 사용합니다. 먼저 get_amora_actions로 action_id를 확인하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        action_id: {
-          type: "string",
-          description: "수정할 행동 카드 ID",
-        },
-        status: {
-          type: "string",
-          enum: ["open", "done", "dismissed"],
-          description: "새 상태. 완료했으면 done, 숨기면 dismissed",
-        },
-        title: {
-          type: "string",
-          description: "새 제목. 변경할 때만 입력",
-        },
-        description: {
-          type: "string",
-          description: "새 설명. 변경할 때만 입력",
-        },
-        due_date: {
-          type: "string",
-          description: "새 마감일 YYYY-MM-DD. 변경할 때만 입력",
-        },
-        priority: {
-          type: "string",
-          enum: ["high", "medium", "low"],
-          description: "새 중요도. 변경할 때만 입력",
-        },
-        href: {
-          type: "string",
-          description: "새 관련 페이지 경로. 변경할 때만 입력",
-        },
-      },
-      required: ["action_id"],
-    },
-  },
-  // ── 업체 검색 & 추천 도구 ──
-  {
-    name: "search_vendors",
-    description:
-      "업체를 검색합니다. 고객이 '강남 스튜디오 찾아줘', '메이크업 업체 보여줘', '300만원 이하 드레스샵' 같은 요청을 할 때 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: [
-            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
-            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
-          ],
-          description: "업체 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물', '신혼여행'",
-        },
-        location: {
-          type: "string",
-          description: "지역. 예: '강남', '서울', '경기'",
-        },
-        price_min: {
-          type: "number",
-          minimum: 0,
-          description: "최소 가격 (원 단위)",
-        },
-        price_max: {
-          type: "number",
-          minimum: 0,
-          description: "최대 가격 (원 단위)",
-        },
-        search: {
-          type: "string",
-          description: "검색어 (업체명, 태그, 스타일 등)",
-        },
-        limit: {
-          type: "number",
-          minimum: 1,
-          maximum: 10,
-          description: "최대 결과 수 (기본 5, 최대 10)",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "check_vendor_availability",
-    description:
-      "특정 업체의 예약 가능 시간을 조회합니다. 고객이 '이 업체 언제 예약 가능해?', '○○ 스튜디오 토요일 가능해?' 같은 요청에 사용합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        vendor_id: {
-          type: "string",
-          description: "업체 ID",
-        },
-        product_id: {
-          type: "string",
-          description: "상품 ID (선택). 지정하면 해당 상품의 타임슬롯만 확인",
-        },
-        day: {
-          type: "number",
-          minimum: 0,
-          maximum: 6,
-          description: "특정 요일만 확인 (0=월 ~ 6=일). 생략하면 전체 요일",
-        },
-      },
-      required: ["vendor_id"],
-    },
-  },
-  {
-    name: "recommend_vendors",
-    description:
-      "등록된 업체 정보에서 고객이 명시한 카테고리, 분위기 키워드, 지역, 가격 상한과 일치하는 검토 후보를 찾습니다. 품질 순위, 최신 가격, 예약 가능 여부를 보증하지 않으며 일정 가능 여부를 묻는 요청에는 사용하지 않습니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: [
-            "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행", "기타",
-            "studio", "dress", "makeup", "venue", "hanbok", "jewelry", "honeymoon", "other",
-          ],
-          description: "검토할 카테고리 (한글). 예: '스튜디오', '드레스', '메이크업', '예식장', '한복', '예물'",
-        },
-        mood: {
-          type: "string",
-          description: "고객이 원하는 분위기/스타일. 예: '모던', '클래식', '내추럴', '로맨틱', '빈티지', '럭셔리', '심플', '화려한', '따뜻한', '감성적인'",
-        },
-        price_max: {
-          type: "number",
-          minimum: 0,
-          description: "사용자가 직접 말한 가격 상한 (원 단위). 등록 최저가 필드에 적용하며 실제 총액을 뜻하지 않고, 총예산에서 임의 추정하지 않음",
-        },
-        location: {
-          type: "string",
-          description: "선호 지역. 예: '강남', '서울', '경기', '홍대'",
-        },
-        limit: {
-          type: "number",
-          minimum: 1,
-          maximum: 10,
-          description: "검토 후보 수 (기본 3, 최대 10)",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  // ── 업체 상세 & 예약 도구 ──
-  {
-    name: "get_vendor_detail",
-    description:
-      "특정 업체의 등록 상품(패키지)과 스태프 목록을 조회합니다. 고객이 검토 후보 중 특정 업체의 상세 정보를 요청할 때 사용합니다. 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        vendor_id: {
-          type: "string",
-          description: "업체 ID. 고객 메시지의 [vendor:ID] 태그에서 추출",
-        },
-      },
-      required: ["vendor_id"],
-    },
-  },
-  {
-    name: "get_available_slots",
-    description:
-      "업체의 예약 가능한 시간대를 조회합니다. 고객이 상품과 스태프를 선택한 후 예약 가능 시간을 확인할 때 사용합니다. 메시지에 [vendor:ID][product:ID][staff:ID] 태그가 있으면 해당 ID를 사용하세요. 사용자가 특정 월/주/날짜를 지정하면 target_month 또는 target_date 를 함께 넘기세요. 특정 날짜 요청이면 target_date 를 반드시 사용하고, 결과의 fallbackSlots 는 '다른 날짜 참고 후보'일 뿐 예약 확정 날짜로 취급하지 마세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        vendor_id: {
-          type: "string",
-          description: "업체 ID",
-        },
-        product_id: {
-          type: "string",
-          description: "상품 ID (선택). 상품별 타임슬롯 확인",
-        },
-        staff_id: {
-          type: "string",
-          description: "스태프 ID (선택). 스태프별 타임슬롯 확인",
-        },
-        target_month: {
-          type: "string",
-          description:
-            "특정 월 필터 (YYYY-MM 형식, 예: '2026-08'). 사용자가 '8월', '다음 달', '8월쯤' 같이 월 단위로 묻는 경우 사용. 결과가 0이면 시스템이 자동으로 인접 월(전월/다음월) 슬롯도 함께 반환.",
-        },
-        target_date: {
-          type: "string",
-          description:
-            "특정 일자 필터 (YYYY-MM-DD 형식). 사용자가 '6월 3일', '이번 주 토요일' 같이 구체 날짜를 말했을 때 반드시 사용. target_month 보다 우선.",
-        },
-      },
-      required: ["vendor_id"],
-    },
-  },
-  {
-    name: "create_booking",
-    description:
-      "업체에 상담 예약 요청을 접수합니다. 업체 확인 전에는 예약이 확정되지 않습니다. 고객이 날짜와 시간을 최종 선택한 후 사용합니다. 사용자가 특정 날짜를 말했거나 메시지에 [date:YYYY-MM-DD] 태그가 있으면 date 는 반드시 그 날짜와 정확히 같아야 합니다. 해당 날짜 슬롯이 없으면 create_booking 을 호출하지 말고 get_available_slots 결과를 바탕으로 불가 안내와 대체 후보만 제안하세요. 메시지에 [vendor:ID][product:ID][staff:ID][date:YYYY-MM-DD][time:HH:00] 태그가 있으면 해당 값을 사용하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        vendor_id: {
-          type: "string",
-          description: "업체 ID",
-        },
-        product_id: {
-          type: "string",
-          description: "상품 ID (선택)",
-        },
-        staff_id: {
-          type: "string",
-          description: "스태프 ID (선택)",
-        },
-        date: {
-          type: "string",
-          description: "상담 요청 날짜 (YYYY-MM-DD 형식)",
-        },
-        time: {
-          type: "string",
-          description: "상담 요청 시간 (HH:00 형식)",
-        },
-        memo: {
-          type: "string",
-          description: "상담 요청 메모 (선택)",
-        },
-      },
-      required: ["vendor_id", "date", "time"],
-    },
-  },
-  {
-    name: "get_my_bookings",
-    description:
-      "현재 커플의 예약 목록을 조회합니다. 예약 취소, 예약 현황 확인 시 먼저 호출하여 booking_id를 확인하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        status: {
-          type: "string",
-          enum: [
-            "pending", "confirmed", "contract_sent", "contract_signed", "deposit_paid",
-            "in_service", "service_completed", "settled", "completed", "cancelled",
-          ],
-          description: "필터할 예약 상태 (선택). pending, confirmed, cancelled 등. 미지정 시 취소 제외 전체.",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "cancel_booking",
-    description:
-      "예약을 취소합니다. 고객이 예약 취소를 요청하면 사용합니다. 메시지에 [booking:ID] 태그가 있으면 해당 값을 사용하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        booking_id: {
-          type: "string",
-          description: "예약 ID",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "사용자가 예약 취소를 명시적으로 확인한 뒤에만 true로 설정합니다.",
-        },
-      },
-      required: ["booking_id"],
     },
   },
   {
     name: "get_market_price",
     description:
-      "한국소비자원 웨딩 시세 데이터를 조회합니다. 고객이 '스드메 시세가 어떻게 돼?', '서울 예식장 평균 비용', '드레스 얼마가 적정해?' 같은 질문을 할 때 사용합니다.",
+      "공개 조사자료의 전국·서울 웨딩 가격 범위를 조회합니다. 개인 견적이나 적정 가격을 판정하지 않습니다.",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         category: {
           type: "string",
-          enum: ["total", "venue", "sdm", "studio", "dress", "makeup", "options", "seasonal"],
-          description: "조회할 카테고리. total=전체비용, venue=예식장, sdm=스드메패키지, studio=스튜디오, dress=드레스, makeup=메이크업, options=옵션별상세, seasonal=성수기/비수기",
+          enum: [
+            "total",
+            "venue",
+            "sdm",
+            "studio",
+            "dress",
+            "makeup",
+            "options",
+            "seasonal",
+          ],
+          description: "조회할 공개 가격 카테고리입니다.",
         },
         scope: {
           type: "string",
           enum: ["national", "seoul"],
-          description: "전국/서울 구분 (기본: national)",
+          description: "전국 또는 서울 범위입니다. 기본값은 national입니다.",
         },
       },
       required: ["category"],
-    },
-  },
-  {
-    name: "analyze_contract_readiness",
-    description:
-      "계약 전 확인 도우미입니다. 사용자가 계약서/견적서/카톡 조건/환불/위약금/추가금/구두 약속/예식장 계약을 확인해달라고 할 때 사용합니다. 법률 판단을 확정하지 말고, 계약 전 문서화가 필요한 항목과 업체에 보낼 질문을 정리합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        category: {
-          type: "string",
-          enum: ["venue", "sdm_package", "studio", "dress", "makeup", "snap", "other"],
-          description: "계약 카테고리. venue=예식장, sdm_package=스드메 패키지, snap=본식 스냅/영상",
-        },
-        vendor_name: {
-          type: "string",
-          description: "업체명 (선택)",
-        },
-        contract_amount: {
-          type: "number",
-          description: "계약 총액 (만원 단위). 사용자가 원 단위로 말했어도 만원으로 환산해서 넣으세요.",
-        },
-        deposit_amount: {
-          type: "number",
-          description: "계약금/예약금 (만원 단위)",
-        },
-        has_written_contract: {
-          type: "boolean",
-          description: "계약서 또는 확정 견적서가 문서로 있는지",
-        },
-        uses_standard_contract: {
-          type: "boolean",
-          description: "표준계약서 또는 표준 약관 기반인지. 모르면 생략.",
-        },
-        included_items: {
-          type: "array",
-          items: { type: "string" },
-          description: "사용자가 문서/캡처에서 확인한 포함 항목. 추측 금지.",
-        },
-        checked_clauses: {
-          type: "array",
-          items: { type: "string" },
-          description: "이미 문서로 확인된 조항 id 또는 자연어 항목. 예: cancellation_refund, 보증 인원, 원본 제공",
-        },
-        missing_clauses: {
-          type: "array",
-          items: { type: "string" },
-          description: "사용자가 없다고 말한 조항 id 또는 자연어 항목",
-        },
-        evidence_types: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["quote", "contract", "deposit", "message_capture", "receipt", "schedule", "vendor_policy"],
-          },
-          description: "사용자가 갖고 있는 증빙 종류",
-        },
-        oral_promises: {
-          type: "array",
-          items: { type: "string" },
-          description: "상담 중 말로 들은 무료 제공/할인/서비스 약속. 문서화 여부 확인 대상.",
-        },
-        cancellation_policy: {
-          type: "string",
-          description: "취소/환불/위약금 관련 문구",
-        },
-        change_policy: {
-          type: "string",
-          description: "날짜/시간/인원/담당자 변경 관련 문구",
-        },
-        payment_schedule: {
-          type: "string",
-          description: "계약금/잔금/결제일 관련 문구",
-        },
-        extra_fee_policy: {
-          type: "string",
-          description: "추가금/별도 비용/옵션 관련 문구",
-        },
-        memo: {
-          type: "string",
-          description: "문서나 캡처에서 읽힌 주요 내용 요약. 첨부 파일을 본 경우 핵심 문구를 여기에 넣으세요.",
-        },
-      },
-      required: ["category"],
-    },
-  },
-  {
-    name: "simulate_guest_guarantee",
-    description:
-      "예식장 하객 수, 식대, 보증 인원 시뮬레이터입니다. 사용자가 하객 수/식대/보증인원/최종 인원 통보/식대 손실을 묻거나 예식장 계약을 검토할 때 사용합니다. 업체 연동 없이 사용자 입력 기준으로 손실 후보와 확인 질문을 계산합니다.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        estimated_guests: {
-          type: "number",
-          description: "예상 하객 수",
-        },
-        guaranteed_guests: {
-          type: "number",
-          description: "계약서상 보증 인원 또는 최소 보증 인원",
-        },
-        meal_price: {
-          type: "number",
-          description: "1인 식대 (만원 단위). 예: 7.5 = 7만5천원. 원 단위로 입력된 경우 실행기가 보정합니다.",
-        },
-        confirmed_rsvp_guests: {
-          type: "number",
-          description: "이미 참석 확정된 하객 수 (선택)",
-        },
-        no_show_rate_percent: {
-          type: "number",
-          description: "노쇼/불참 가정 비율. 모르면 생략하면 기본 8%로 계산.",
-        },
-        notice_deadline: {
-          type: "string",
-          description: "최종 인원 통보 마감일 (YYYY-MM-DD, 선택)",
-        },
-        venue_name: {
-          type: "string",
-          description: "예식장명 (선택)",
-        },
-        memo: {
-          type: "string",
-          description: "계약서나 상담 내용에서 확인된 특이사항",
-        },
-      },
-      required: [],
-    },
-  },
-  // 네이버 지역 검색 API 장소 검색
-  {
-    name: "search_nearby_places",
-    description:
-      "네이버 지역 검색을 사용해 특정 위치 근처의 레스토랑/카페/장소를 검색합니다. 고객이 '강남역 근처 상견례 레스토랑', '홍대 카페 추천', '식사동 한식 맛집' 등 외부 장소를 찾을 때 사용합니다. 웨딩 업체(스튜디오/드레스/메이크업)가 아닌 일반 장소 검색에만 사용하세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        query: {
-          type: "string",
-          description: "검색어. 위치+종류를 포함하세요. 예: '강남역 근처 한식 레스토랑', '식사동 상견례 맛집', '서울 강남구 고급 한정식'",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  // 견적 포함 범위 확인
-  {
-    name: "analyze_quote",
-    description:
-      "스드메 견적의 포함 범위를 사용자가 직접 확인하도록 질문을 정리합니다. 가격 적정성, 항목별 평균, 발생 가능성, 필수성은 판정하지 않습니다. **중요: 2단계 플로우!** 1단계: 사용자가 견적 금액을 말하면 included_items를 반드시 빈 배열([])로 호출 → 체크리스트 카드가 표시됨. 2단계: 사용자가 [quote_analysis] 태그로 체크 결과를 보내면 그때 included_items에 항목을 넣어 재호출. 절대 included_items를 추측해서 넣지 마세요.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        quote_price: {
-          type: "number",
-          description: "견적 금액 (만원 단위). 예: 290 = 290만원",
-        },
-        category: {
-          type: "string",
-          enum: ["sdm_package", "studio", "dress", "makeup"],
-          description: "견적 카테고리. sdm_package=스드메 패키지, studio=스튜디오만, dress=드레스만, makeup=메이크업만",
-        },
-        region: {
-          type: "string",
-          enum: ["seoul", "gyeonggi", "busan", "daegu", "other"],
-          description: "지역. 기본값: seoul",
-        },
-        included_items: {
-          type: "array",
-          items: { type: "string" },
-          description: "견적 포함 항목. **1단계에서는 반드시 빈 배열 []로 호출하세요.** 2단계([quote_analysis] 태그 메시지)에서만 사용자가 체크한 항목을 넣으세요. 추측 금지.",
-        },
-        vendor_name: {
-          type: "string",
-          description: "업체명 (선택). 결과 라벨에만 사용.",
-        },
-      },
-      required: ["quote_price", "category"],
     },
   },
 ];
-
-// =============================================
-// 업체 조회 도구와 비활성 상담 요청 도구 정의
-// =============================================
-// 조회 도구는 vendor onboarding 데이터에 연결된다. 상담 요청·취소 정의는
-// 서버 확인 토큰 도입 전까지 아래 BETA_DISABLED_TOOL_NAMES에서 모델 노출을 막는다.
-// 시드 데이터가 부족할 경우 search_vendors 는
-// 빈 결과를 반환하므로 AI 는 솔직하게 "현재 등록된 곳 없어요" 안내하도록 prompts 에서 가이드.
-// 환각 방지: prompts.ts 의 "업체 추천 가이드" 섹션이 DB 결과 외 추천 금지 룰을 강제.
-/**
- * 모델이 보낸 `confirmed: true`는 사용자의 신뢰 가능한 확인 증거가 아니다.
- * 별도의 서버 발급 확인 토큰/nonce가 도입되기 전까지 파괴적 도구는 모델에 노출하지 않는다.
- */
-export const MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "delete_category",
-  "reset_category",
-  "delete_schedule_event",
-  "create_booking",
-  "cancel_booking",
-]);
-
-/** 모델 자유문자열이 제3자 API로 전송되는 외부 도구는 서버 조립 쿼리 전까지 차단. */
-export const MODEL_DISABLED_EXTERNAL_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "search_nearby_places",
-]);
-
-/** 업체 연결·수신 왕복이 없는 동안 등록 슬롯을 실제 예약 가능 정보로 모델이 해석하지 못하게 한다. */
-export const MODEL_DISABLED_AVAILABILITY_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "check_vendor_availability",
-  "get_available_slots",
-]);
-
-/** 공유 상태나 외부 예약을 변경하는 도구. private/첨부 턴에서는 전부 차단한다. */
-export const MODEL_MUTATING_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "update_budget",
-  "update_wedding_date",
-  "update_task_status",
-  "update_venue",
-  "update_category_budget",
-  "apply_budget_plan",
-  "add_custom_category",
-  "delete_category",
-  "reset_category",
-  "add_schedule_event",
-  "update_schedule_event",
-  "delete_schedule_event",
-  "toggle_checklist_item",
-  "add_amora_action",
-  "log_wedding_event",
-  "update_amora_action",
-  "create_booking",
-  "cancel_booking",
-]);
-
-export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  ...MODEL_DISABLED_DESTRUCTIVE_TOOL_NAMES,
-  ...MODEL_DISABLED_EXTERNAL_TOOL_NAMES,
-  ...MODEL_DISABLED_AVAILABILITY_TOOL_NAMES,
-  // 계정 삭제/동시성/확인 토큰을 mutation RPC 안에서 검증하기 전까지
-  // 모델 기반 shared 상태 변경은 전부 비활성화한다.
-  ...MODEL_MUTATING_TOOL_NAMES,
-]);
-
-/** 베타용: 비활성 도구를 제외한 안전한 도구 목록 */
-export const BETA_SAFE_TOOLS: AiToolDefinition[] = WEDDING_TOOLS.filter(
-  (t) => !BETA_DISABLED_TOOL_NAMES.has(t.name)
-);
-
-/** 프롬프트 주입이나 비공개 대화가 공유 상태를 바꾸지 못하게 하는 읽기 전용 목록. */
-export const READ_ONLY_SAFE_TOOLS: AiToolDefinition[] = BETA_SAFE_TOOLS.filter(
-  (tool) =>
-    !MODEL_MUTATING_TOOL_NAMES.has(tool.name) &&
-    !MODEL_DISABLED_EXTERNAL_TOOL_NAMES.has(tool.name)
-);

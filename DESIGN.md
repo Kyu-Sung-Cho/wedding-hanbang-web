@@ -3,7 +3,7 @@
 ## Product Context
 
 - **What this is:** Wedding Hanbang is an AI-assisted planning workspace for Korean couples preparing a wedding together.
-- **Who it is for:** Couples preparing for a wedding, including couples whose date is not fixed yet, who need one place for decisions, budget, schedule, vendor research, and partner coordination.
+- **Who it is for:** The long-term product is for couples preparing for a wedding, including couples whose date is not fixed yet, who need one place for decisions, budget, schedule, vendor research, and partner coordination. The current beta's linked-couple and private-chat permission model safely supports only one bride and one groom; do not imply broader relationship support until the member-identity migration in `docs/RELATIONSHIP_SCOPE_BETA_LIMIT_2026-07-13.md` is complete.
 - **Product type:** Consumer mobile app plus web app, community, vendor-information exploration, and marketing site. Vendor connection, reservation, and payment are currently disabled; the current boundary is documented in [`WEDDINGHANBANG_SERVICE_DOC.md`](./WEDDINGHANBANG_SERVICE_DOC.md).
 - **Core memory:** The first impression should be "this app tells us what to do next, without making wedding planning feel cheap or chaotic."
 

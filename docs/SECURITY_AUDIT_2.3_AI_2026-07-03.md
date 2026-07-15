@@ -1,5 +1,7 @@
 # 보안 감사 2.3 — AI 계열 API 감사 (2026-07-03)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** Anthropic 비용, 상한, 호출 경로와 보안 판정은 제거된 런타임의 감사 기록이며 현재 아모라 안전성·비용 근거가 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > **역사 문서**: 아래 공급자·가격·콘솔 상한 설명은 감사 당시 Anthropic 구성 기준입니다. 2026-07-10 OpenAI GPT-5.6 전환 후의 보안 상태를 설명하지 않습니다.
 
 > 대상: Claude(LLM)를 호출해 **Anthropic 토큰 비용이 나가는** 모든 표면.

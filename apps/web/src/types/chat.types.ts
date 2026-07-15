@@ -59,6 +59,6 @@ export type SSEEvent =
   | { type: "suggestions"; suggestions: string[] }
   | { type: "quota"; remaining: number }
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; code?: string };
 
 export type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget, ChatMessageVisibility };

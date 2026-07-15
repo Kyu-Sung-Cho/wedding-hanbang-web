@@ -1,5 +1,7 @@
 # 지식iN 답변 뱅크 — 유형별 실전 초안 8종 (2026-06-12)
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 아래 복사·게시 지시와 가격·환급·위약금 계산 문구는 폐기됐으며 소비자 답변이나 마케팅에 사용할 수 없다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](../PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > [!WARNING]
 > **역사 배포 문안 스냅샷입니다.** 현재 게시 지침이 아니며, 위약금·환급액 등 법률 계산 문구는 최신 근거와 전문가 검토 없이 사용하지 않습니다. 최신 기준은 `CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`를 따릅니다.
 

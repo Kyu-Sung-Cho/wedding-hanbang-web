@@ -8,7 +8,9 @@ import {
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { sanitizeText } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
+import { COMMUNITY_PROFILE_OWNER_SELECT } from "@/lib/community/profileSelect";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,10 +30,8 @@ async function createCommunityProfile(
   initialNickname: string,
   postCount: number
 ) {
-  const fallbackNickname = getCommunityNicknameFallback(`${userId}:collision`);
   const createPayload = {
     user_id: userId,
-    nickname: initialNickname,
     badge: "member",
     post_count: postCount,
     comment_count: 0,
@@ -40,19 +40,16 @@ async function createCommunityProfile(
 
   let result = await serviceClient
     .from("community_profiles")
-    .insert(createPayload)
-    .select("*")
+    .insert({ ...createPayload, nickname: initialNickname })
+    .select(COMMUNITY_PROFILE_OWNER_SELECT)
     .single();
 
-  if (
-    result.error &&
-    isCommunityNicknameUniqueViolation(result.error) &&
-    initialNickname !== fallbackNickname
-  ) {
+  for (let attempt = 1; attempt < 5; attempt += 1) {
+    if (!result.error || !isCommunityNicknameUniqueViolation(result.error)) break;
     result = await serviceClient
       .from("community_profiles")
-      .insert({ ...createPayload, nickname: fallbackNickname })
-      .select("*")
+      .insert({ ...createPayload, nickname: getCommunityNicknameFallback() })
+      .select(COMMUNITY_PROFILE_OWNER_SELECT)
       .single();
   }
 
@@ -64,7 +61,15 @@ export async function GET(req: NextRequest) {
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -77,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     const { data: profile, error } = await serviceClient
       .from("community_profiles")
-      .select("*")
+      .select(COMMUNITY_PROFILE_OWNER_SELECT)
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -136,7 +141,15 @@ export async function PATCH(req: NextRequest) {
     const supabase = await createClientFromRequest(req);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -145,9 +158,10 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const rlResult = checkRateLimit(
+    const rlResult = await checkRateLimitPersistent(
       rateLimitKey("community:profile:update", req, user.id),
-      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+      user.id,
     );
     if (rlResult) return rlResult;
 
@@ -168,15 +182,14 @@ export async function PATCH(req: NextRequest) {
     let avatarUrl: string | null | undefined;
     if (rawAvatarUrl !== undefined) {
       const normalizedAvatar = sanitizeText(rawAvatarUrl ?? "").slice(0, 160);
-      const isEmojiAvatar = /\p{Emoji}/u.test(normalizedAvatar) && normalizedAvatar.length <= 4;
-      const isImageUrl = /^https?:\/\//i.test(normalizedAvatar) || normalizedAvatar.startsWith("/");
-      if (normalizedAvatar && !isEmojiAvatar && !isImageUrl) {
+      const safeAvatar = normalizeCommunityAvatar(normalizedAvatar);
+      if (normalizedAvatar && !safeAvatar) {
         return NextResponse.json(
-          { error: "프로필 이미지는 이모지 또는 안전한 이미지 URL만 사용할 수 있습니다." },
+          { error: "공개 아바타는 이모지만 사용할 수 있습니다." },
           { status: 400 }
         );
       }
-      avatarUrl = normalizedAvatar || null;
+      avatarUrl = safeAvatar;
     }
 
     const serviceClient = getServiceClient();
@@ -202,7 +215,7 @@ export async function PATCH(req: NextRequest) {
       .from("community_profiles")
       .update(updatePayload)
       .eq("user_id", user.id)
-      .select("*")
+      .select(COMMUNITY_PROFILE_OWNER_SELECT)
       .single();
 
     if (error) {

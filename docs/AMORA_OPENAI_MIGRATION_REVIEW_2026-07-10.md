@@ -18,7 +18,7 @@
 
 ---
 
-> **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 비용 예약, 실패 무료 턴 환불, 비소모 preflight, 의도별 도구 축소와 결정적 위기 응답이 추가됐다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 신규 DB migration은 운영 적용이 확인되지 않았으므로 이 문서의 과거 테스트 수치나 완료 표현을 운영 증거로 사용하지 않는다.
+> **역사 스냅샷:** 이 문서는 2026-07-10 당시의 검토 기록이며 현재 출시 판정이 아니다. 이후 요청별 멱등 provider 계량, 시작 전 실패 정산, 의도별 도구 축소와 결정적 위기 응답이 추가됐고 2026-07-13 테스트 단계에는 상담 횟수 차단을 제거했다. 최신 기준은 [`CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md`](./CONSUMER_JOURNEY_AND_RELEASE_AUDIT_2026-07-11.md)와 [`../WEDDINGHANBANG_SERVICE_DOC.md`](../WEDDINGHANBANG_SERVICE_DOC.md)를 따른다. 신규 DB migration은 운영 적용이 확인되지 않았으므로 이 문서의 과거 테스트 수치나 완료 표현을 운영 증거로 사용하지 않는다.
 
 ## 결론
 
@@ -46,10 +46,9 @@
 - 모델 ID는 코드에서 정확히 `gpt-5.6-luna`/`gpt-5.6-terra`만 허용하고 reasoning은
   `none`만 허용한다. 환경변수 suffix·고추론 설정으로 비용 정책이 바뀌면 호출 전에 실패한다.
 - 선택된 Terra/Luna 입력은 공식 input-token count를 실제 생성 전에 실행하고 48K를 넘으면 차단한다.
-- 사용자 무료 상담 턴(커플 30)과 실제 provider 생성(커플당 일일 20, 전역 일일 60)을 분리했다. 이 값은
-  production 코드의 하드 상한이라 과거 환경변수가 100/300으로 남아도 올라가지 않고 더 낮추는 것만 가능하다.
-- production에서는 비용 장부를 환경변수로 끄거나 장부 장애를 fail-open으로 바꿀 수 없다.
-- 도구 후속 생성은 무료 상담 횟수를 추가 차감하지 않지만 전역 provider 천장은 소모한다.
+- 2026-07-13 테스트 정책으로 평생·커플별 일일·전역 일일 상담 횟수 차단을 제거했다.
+  `AMORA_USAGE_LIMITS_ENABLED=false`가 기본이며 실제 provider 생성과 도구 후속 생성은 차단 대신
+  무제한 계량 장부에 기록한다. 장부 장애는 provider 호출 전에 fail-closed한다.
 - 프롬프트 캐시는 Terra/Luna 모두 explicit/no-breakpoint로 두어 애플리케이션이 사용자 원문
   cache write를 요청하지 않는다. 계약상 보존 조건을 확정하기 전의 보수 기본값이다.
 - 비용 장부는 요청별 usage를 따로 계산해 여러 라운드 합산 때문에 장문 요율을 오적용하지 않는다.

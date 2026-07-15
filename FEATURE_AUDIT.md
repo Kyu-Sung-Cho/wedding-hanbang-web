@@ -1,5 +1,7 @@
 # Feature Audit Report
 
+> **폐기된 역사 문서 — 현재 구현·로드맵·마케팅·세일즈 근거로 사용 금지.** 본문의 작동 등급, 업체·예약·결제 기능과 개선 목록은 과거 정적 감사 기록이며 현재 기능이 아니다. 현재 제공 범위는 [`WEDDINGHANBANG_SERVICE_DOC.md`](./WEDDINGHANBANG_SERVICE_DOC.md), 현재 상태는 [`PROJECT_STATUS.md`](./PROJECT_STATUS.md), 제품 판단 원칙은 [`CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md`](./docs/CONSUMER_NEEDS_PRODUCT_DESIGN_2026.md)만 따른다.
+
 > ⚠️ **경고 (2026-07-03 감사)**: 이 감사는 2026-06-11 "Week 1 수술" **이전** 코드 기준입니다.
 > 현재 상태는 `CLAUDE.md`, 최신 대조 결과는 `docs/DOC_VS_CODE_AUDIT_2026-07-03.md` 참고.
 > **AI 공급자 주의 (2026-07-10)**: 아래 Claude/Anthropic 항목은 당시 스냅샷이며, 현재 아모라 런타임은 OpenAI GPT-5.6 Terra/Luna입니다.

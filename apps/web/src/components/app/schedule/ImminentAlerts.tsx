@@ -33,39 +33,20 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Sparkles, Flower, Heart, Mic, Box,
 };
 
-// Atelier 스타일: 왼쪽 스트립 + 로즈 그라데이션 (긴급도에 따른 농도 차이)
-const URGENCY_STYLES: Record<string, {
+const REFERENCE_STYLE: {
   stripBg: string;
   iconBox: string;
   iconColor: string;
   bar: string;
   badgeBg: string;
   badgeText: string;
-}> = {
-  overdue: {
-    stripBg: "bg-[#795252]",
-    iconBox: "bg-[#795252]/10",
-    iconColor: "text-[#795252]",
-    bar: "bg-gradient-to-r from-[#795252] to-[#946a6a]",
-    badgeBg: "bg-[#795252]",
-    badgeText: "text-white",
-  },
-  urgent: {
-    stripBg: "bg-[#946a6a]",
-    iconBox: "bg-[#946a6a]/10",
-    iconColor: "text-[#946a6a]",
-    bar: "bg-gradient-to-r from-[#946a6a] to-[#b48585]",
-    badgeBg: "bg-[#946a6a]",
-    badgeText: "text-white",
-  },
-  soon: {
-    stripBg: "bg-[#C9A96E]",
-    iconBox: "bg-[#C9A96E]/10",
-    iconColor: "text-[#C9A96E]",
-    bar: "bg-[#C9A96E]",
-    badgeBg: "bg-[#C9A96E]",
-    badgeText: "text-white",
-  },
+} = {
+  stripBg: "bg-[#C9A96E]",
+  iconBox: "bg-[#C9A96E]/10",
+  iconColor: "text-[#9d6f36]",
+  bar: "bg-[#C9A96E]",
+  badgeBg: "bg-[#fff8ec]",
+  badgeText: "text-[#9d6f36]",
 };
 
 interface Props {
@@ -78,8 +59,6 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
 
   if (items.length === 0) return null;
 
-  const overdueCount = items.filter((i) => i.urgency === "overdue").length;
-  const urgentCount = items.filter((i) => i.urgency === "urgent").length;
   const needsScheduleCount = items.filter((i) => !i.hasScheduledEvent).length;
 
   return (
@@ -95,17 +74,18 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
           <div className="flex min-w-0 items-center gap-2.5">
             <Clock className="h-4 w-4 shrink-0 text-[#36534E]" />
             <h3 className="min-w-0 truncate text-[14px] font-semibold text-[#071629]">
-              임박 체크리스트
+              시작한 항목 중 일정 미등록
             </h3>
             <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">{items.length}건</span>
           </div>
-          {(overdueCount > 0 || urgentCount > 0) && (
+          <p className="mt-1 pl-6 text-[11px] leading-relaxed text-[#7a8290]">
+            직접 시작한 준비 중 날짜가 필요한 항목만 확인하세요. 업체 마감으로 계산한 값은 아닙니다.
+          </p>
+          {needsScheduleCount > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
-              {needsScheduleCount > 0 && (
-                <span className="rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {needsScheduleCount} 일정 필요
-                </span>
-              )}
+              <span className="rounded-full bg-[#fff8ec] px-2 py-0.5 text-[11px] font-semibold text-[#9d6f36]">
+                {needsScheduleCount}개 일정 미설정
+              </span>
             </div>
           )}
         </div>
@@ -123,7 +103,7 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
         >
           <div className="divide-y divide-[#F6F3F2]">
             {items.map((item) => {
-              const styles = URGENCY_STYLES[item.urgency];
+              const styles = REFERENCE_STYLE;
               const IconComp = ICON_MAP[item.icon] ?? Clock;
               const pct = item.totalCount > 0
                 ? Math.round((item.doneCount / item.totalCount) * 100)
@@ -163,9 +143,9 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                       </div>
                     </div>
 
-                    {/* 실제 날짜를 정해야 하는 항목 */}
+                    {/* 사용자가 원할 때 직접 날짜를 정하는 참고 항목 */}
                     <span className={`col-start-2 w-fit rounded-full px-2.5 py-1 text-[12px] font-semibold sm:col-start-auto ${styles.badgeBg} ${styles.badgeText}`}>
-                      일정 필요
+                      직접 일정 정하기
                     </span>
                   </div>
                 </button>

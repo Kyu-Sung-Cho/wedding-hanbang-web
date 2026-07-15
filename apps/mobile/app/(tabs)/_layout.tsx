@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { Home, MessageCircle, Users, User } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import {
   getCachedCommunityFeed,
   putCachedCommunityFeed,
@@ -12,33 +13,28 @@ import {
 
 const COMMUNITY_WARM_LIMIT = 12;
 
-type WarmedCommunityPost = CachedCommunityPost & {
-  images?: string[] | null;
-};
-
-function normalizeWarmPost(post: WarmedCommunityPost): CachedCommunityPost {
-  return {
-    ...post,
-    image_urls: post.image_urls ?? post.images ?? [],
-  };
-}
+type WarmedCommunityPost = CachedCommunityPost;
 
 export default function TabsLayout() {
   useEffect(() => {
     let cancelled = false;
 
     async function warmCommunityFeed() {
-      if (getCachedCommunityFeed("all")) return;
-
       try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user || cancelled) return;
+
+        const ownerId = user.id;
+        if (getCachedCommunityFeed(ownerId, "all")) return;
+
         const data = await apiJson<{ posts: WarmedCommunityPost[] }>(
           `/api/community/posts?sort=new&limit=${COMMUNITY_WARM_LIMIT}`
         );
         if (cancelled) return;
 
-        const posts = (data.posts ?? []).map(normalizeWarmPost);
-        putCachedCommunityFeed("all", posts);
-        putCachedCommunityPosts(posts);
+        const posts = data.posts ?? [];
+        putCachedCommunityFeed(ownerId, "all", posts);
+        putCachedCommunityPosts(ownerId, posts);
       } catch {
         // Best-effort warmup. The community screen still performs its own load.
       }

@@ -18,33 +18,11 @@ export const CATEGORY_LABELS: Record<string, string> = {
   mc: "사회/축가",
   ham: "함",
   pyebaek: "폐백",
+  reserve: "예비비",
 };
 
 export const STATUS_LABELS: Record<string, string> = {
   not_started: "시작전",
   in_progress: "진행중",
   completed: "완료",
-};
-
-export const CATEGORY_RATIOS: Record<string, number> = {
-  meeting: 0.01,
-  venue: 0.20,
-  studio: 0.09,
-  dress: 0.07,
-  makeup: 0.04,
-  ring: 0.10,
-  hanbok: 0.03,
-  yedan: 0.04,
-  honeymoon: 0.10,
-  houseware: 0.06,
-  housing: 0.10,
-  invitation: 0.02,
-  snap: 0.04,
-  shoes: 0.01,
-  bouquet: 0.01,
-  gift: 0.02,
-  mc: 0.01,
-  ham: 0.01,
-  pyebaek: 0.01,
-  reserve: 0.03,
 };

@@ -12,6 +12,7 @@ import { colors } from "@hanbang/design-tokens";
 import {
   COUPLE_INVITE_CODE_EXAMPLE,
   COUPLE_INVITE_CODE_LENGTH,
+  PUBLIC_BETA_RELATIONSHIP_SCOPE,
   isCoupleInviteCode,
   manwonInputToWon,
   normalizeCoupleInviteCode,
@@ -20,6 +21,7 @@ import { apiFetch } from "@/lib/api";
 import ErrorRetry from "@/components/ErrorRetry";
 import { consumePendingMobileAuthReturnPath } from "@/lib/mobileAuthIntent";
 import { supabase } from "@/lib/supabase";
+import { readMySafeProfile } from "@/lib/safeProfile";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
@@ -45,9 +47,9 @@ const PRIORITY_OPTIONS: { value: PriorityItem; emoji: string; label: string }[] 
 ];
 
 const BUDGET_OPTIONS: { value: BudgetTendency; emoji: string; label: string; desc: string }[] = [
-  { value: "saving", emoji: "\u{1F4B0}", label: "\uC808\uC57D\uD615", desc: "\uCD5C\uC18C\uD55C\uC73C\uB85C \uD569\uB9AC\uC801\uC73C\uB85C" },
-  { value: "balanced", emoji: "\u2696\uFE0F", label: "\uAC00\uC131\uBE44", desc: "\uAF2D \uD544\uC694\uD55C \uACF3\uC5D0 \uD22C\uC790" },
-  { value: "premium", emoji: "\u{1F48E}", label: "\uD504\uB9AC\uBBF8\uC5C4", desc: "\uCD5C\uACE0\uC758 \uD000\uB9AC\uD2F0\uB97C \uC6D0\uD574\uC694" },
+  { value: "saving", emoji: "\u{1F4B0}", label: "비용 우선", desc: "계획 예산과 필수 조건을 먼저 봐요" },
+  { value: "balanced", emoji: "\u2696\uFE0F", label: "균형", desc: "비용과 원하는 경험을 함께 봐요" },
+  { value: "premium", emoji: "\u{1F48E}", label: "경험 우선", desc: "중요한 경험과 품질 조건을 먼저 봐요" },
 ];
 
 const GUEST_OPTIONS: { value: GuestCount; label: string }[] = [
@@ -57,6 +59,33 @@ const GUEST_OPTIONS: { value: GuestCount; label: string }[] = [
   { value: "200to300", label: "200~300\uBA85" },
   { value: "over300", label: "300\uBA85 \uC774\uC0C1" },
 ];
+
+function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+}
+
+function validateWeddingDetails(
+  weddingDate: string,
+  weddingDateUndecided: boolean,
+  budget: string,
+): string | null {
+  if (!weddingDateUndecided && !isValidDateOnly(weddingDate.trim())) {
+    return "날짜를 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요.";
+  }
+  const budgetInput = budget.trim();
+  if (
+    budgetInput &&
+    (!/^\d+(?:,\d{3})*$/.test(budgetInput) || manwonInputToWon(budgetInput) === 0)
+  ) {
+    return "예산은 만원 단위의 숫자로 입력해 주세요.";
+  }
+  return null;
+}
 
 // 축하 파티클 컴포넌트
 function CelebrationDots() {
@@ -154,6 +183,7 @@ export default function OnboardingScreen() {
   const [venue, setVenue] = useState("");
   const [budget, setBudget] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [resultCode, setResultCode] = useState("");
 
   // Step 4: 웨딩 스타일 선호도
@@ -179,11 +209,7 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("onboarding_completed")
-        .eq("id", sessionData.session.user.id)
-        .maybeSingle();
+      const { data: profile, error: profileError } = await readMySafeProfile();
       if (requestId !== guardRequestIdRef.current) return;
       if (profileError) throw profileError;
 
@@ -261,6 +287,13 @@ export default function OnboardingScreen() {
   }
 
   async function handleSubmit() {
+    if (submitting || submittingRef.current) return;
+    const validationError = validateWeddingDetails(weddingDate, weddingDateUndecided, budget);
+    if (validationError) {
+      Alert.alert("입력 확인", validationError);
+      return;
+    }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       // 선호도 데이터를 progress.__preferences에 저장
@@ -301,13 +334,21 @@ export default function OnboardingScreen() {
     } catch (err) {
       Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
 
   function handleNext() {
-    if (step === 4) {
-      handleSubmit();
+    if (step === 3) {
+      const validationError = validateWeddingDetails(weddingDate, weddingDateUndecided, budget);
+      if (validationError) {
+        Alert.alert("입력 확인", validationError);
+        return;
+      }
+      animateStepTransition(step + 1);
+    } else if (step === 4) {
+      void handleSubmit();
     } else if (step === 5) {
       void navigateAfterOnboarding();
     } else {
@@ -371,7 +412,20 @@ export default function OnboardingScreen() {
           {step === 1 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>반가워요!</Text>
-              <Text style={styles.stepDesc}>결혼 준비에서의 역할을 알려주세요</Text>
+              <Text style={[styles.stepDesc, styles.roleStepDesc]}>결혼 준비에서의 역할을 알려주세요</Text>
+
+              <View
+                style={styles.relationshipScopeNotice}
+                accessibilityLabel={`현재 베타 지원 범위. ${PUBLIC_BETA_RELATIONSHIP_SCOPE.notice} ${PUBLIC_BETA_RELATIONSHIP_SCOPE.guidance}`}
+              >
+                <Text style={styles.relationshipScopeTitle}>현재 베타 지원 범위</Text>
+                <Text style={styles.relationshipScopeText}>
+                  {PUBLIC_BETA_RELATIONSHIP_SCOPE.notice}
+                </Text>
+                <Text style={styles.relationshipScopeText}>
+                  {PUBLIC_BETA_RELATIONSHIP_SCOPE.guidance}
+                </Text>
+              </View>
 
               <View style={styles.roleRow}>
                 <Animated.View style={[{ flex: 1 }, { transform: [{ scale: brideScale }] }]}>
@@ -496,6 +550,9 @@ export default function OnboardingScreen() {
                   <Text style={styles.budgetUnitText}>만원</Text>
                 </View>
               </View>
+              <Text style={styles.fieldHint}>
+                아직 정하지 않았다면 비워두세요. 임의 금액은 저장하지 않아요.
+              </Text>
             </View>
           )}
 
@@ -503,7 +560,7 @@ export default function OnboardingScreen() {
           {step === 4 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>웨딩 스타일</Text>
-              <Text style={styles.stepDesc}>취향에 맞는 추천을 위해 알려주세요</Text>
+              <Text style={styles.stepDesc}>아모라가 대화를 맞춰 설명할 때 참고할 선택 정보예요</Text>
 
               {/* Q1: 웨딩 스타일 */}
               <Text style={styles.prefQuestion}>원하는 웨딩 스타일은?</Text>
@@ -633,7 +690,11 @@ export default function OnboardingScreen() {
         </Pressable>
 
         {step === 4 && (
-          <Pressable onPress={handleSubmit} style={styles.skipBtn}>
+          <Pressable
+            onPress={() => void handleSubmit()}
+            style={styles.skipBtn}
+            disabled={submitting}
+          >
             <Text style={styles.skipText}>건너뛰기</Text>
           </Pressable>
         )}
@@ -692,6 +753,29 @@ const styles = StyleSheet.create({
   },
 
   // Step 1: 역할
+  roleStepDesc: { marginBottom: 16 },
+  relationshipScopeNotice: {
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.ivory[100],
+    borderWidth: 1,
+    borderColor: colors.gold.light,
+    marginBottom: 20,
+  },
+  relationshipScopeTitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+    marginBottom: 4,
+  },
+  relationshipScopeText: {
+    fontSize: 12,
+    lineHeight: 19,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   roleRow: { flexDirection: "row", gap: 16 },
   roleCard: {
     alignItems: "center",

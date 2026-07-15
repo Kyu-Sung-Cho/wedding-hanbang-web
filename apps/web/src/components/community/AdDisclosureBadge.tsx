@@ -4,7 +4,6 @@ import type { AdDisclosure } from "@/types/community.types";
 
 interface AdDisclosureBadgeProps {
   adDisclosure: AdDisclosure;
-  sponsorshipDetail?: string | null;
   size?: "sm" | "md";
 }
 
@@ -17,7 +16,6 @@ const ICON_MAP = {
 
 export default function AdDisclosureBadge({
   adDisclosure,
-  sponsorshipDetail,
   size = "sm",
 }: AdDisclosureBadgeProps) {
   const opt = AD_DISCLOSURE_OPTIONS.find((o) => o.key === adDisclosure);
@@ -32,7 +30,7 @@ export default function AdDisclosureBadge({
   const iconSize = size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5";
 
   return (
-    <div className="relative inline-block group">
+    <div className="relative inline-block">
       <span
         className={`inline-flex items-center rounded-full font-medium border ${sizeClass}`}
         style={{
@@ -45,11 +43,6 @@ export default function AdDisclosureBadge({
         <Icon className={iconSize} strokeWidth={2.5} aria-hidden />
         {opt.label}
       </span>
-      {adDisclosure === "sponsored" && sponsorshipDetail && (
-        <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-10 min-w-[200px] max-w-[280px] bg-[#1A1A1F] text-white text-xs rounded-lg p-2.5 shadow-lg">
-          {sponsorshipDetail}
-        </div>
-      )}
     </div>
   );
 }

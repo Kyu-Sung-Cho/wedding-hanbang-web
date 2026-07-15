@@ -4,13 +4,14 @@ import type {
   PostDetail,
   CommentWithAuthor,
   CommunityProfile,
+  PublicCommunityAuthor,
   CommunityCategory,
   PostSort,
   TimePeriod,
   InitialCommunityFeed,
   CreatePostInput,
-  CreateCommentInput,
 } from "@/types/community.types";
+import { normalizeCommunityAvatar } from "@/lib/community/avatar";
 
 interface CommunityState {
   // 피드
@@ -32,7 +33,12 @@ interface CommunityState {
   comments: CommentWithAuthor[];
   commentsPostId: string | null;
   postLoading: boolean;
+  postLoadPostId: string | null;
+  postLoadStatus: "idle" | "loading" | "ready" | "not_found" | "error";
+  postLoadError: string | null;
   commentsLoading: boolean;
+  commentsLoadStatus: "idle" | "loading" | "ready" | "error";
+  commentsLoadError: string | null;
 
   // 유저
   communityProfile: CommunityProfile | null;
@@ -42,19 +48,18 @@ interface CommunityState {
   fetchPosts: (reset?: boolean) => Promise<void>;
   fetchMorePosts: () => Promise<void>;
   fetchPostDetail: (id: string) => Promise<void>;
-  fetchComments: (postId: string) => Promise<void>;
+  fetchComments: (postId: string) => Promise<boolean>;
   createPost: (input: CreatePostInput) => Promise<string | null>;
   updatePost: (id: string, input: Partial<CreatePostInput>) => Promise<boolean>;
   deletePost: (id: string) => Promise<boolean>;
   votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
-  voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
-  toggleBookmark: (postId: string) => Promise<void>;
-  createComment: (input: CreateCommentInput) => Promise<boolean>;
+  toggleBookmark: (postId: string, bookmarked: boolean) => Promise<boolean>;
   updateComment: (commentId: string, content: string) => Promise<boolean>;
   deleteComment: (commentId: string) => Promise<boolean>;
   incrementView: (postId: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
-  applyOwnNickname: (userId: string, nickname: string) => void;
+  applyConfirmedOwnCommunityNickname: (nickname: string) => void;
+  hideAuthorLocally: (authorId: string) => void;
   setCategory: (category: CommunityCategory | null) => void;
   setSort: (sort: PostSort) => void;
   setPeriod: (period: TimePeriod) => void;
@@ -68,6 +73,8 @@ interface CommunityState {
 const LIMIT = 20;
 const COMMUNITY_FEED_TIMEOUT_MS = 5_000;
 let feedRequestSequence = 0;
+let postRequestSequence = 0;
+let commentsRequestSequence = 0;
 
 // SWR 캐시 — sessionStorage 기반.
 // fresh window 안엔 네트워크 skip, 그 후엔 stale-while-revalidate.
@@ -82,9 +89,71 @@ interface CachedFeed {
 }
 
 interface CommunityFeedPayload {
-  posts?: PostWithAuthor[];
-  total?: number;
-  hasMore?: boolean;
+  posts: PostWithAuthor[];
+  total: number;
+  hasMore: boolean;
+}
+
+function isPublicCommunityAuthor(value: unknown): value is PublicCommunityAuthor {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const author = value as Record<string, unknown>;
+  return (
+    typeof author.user_id === "string" &&
+    author.user_id.length > 0 &&
+    typeof author.nickname === "string" &&
+    author.nickname.trim().length > 0 &&
+    (author.avatar_url === null || normalizeCommunityAvatar(author.avatar_url) === author.avatar_url)
+  );
+}
+
+function hasTrustedPublicActor(value: unknown): value is {
+  author_id: string;
+  author: PublicCommunityAuthor;
+  viewer_is_author: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.author_id === "string" &&
+    item.author_id.length > 0 &&
+    isPublicCommunityAuthor(item.author) &&
+    item.author.user_id === item.author_id &&
+    typeof item.viewer_is_author === "boolean"
+  );
+}
+
+function isTrustedComment(value: unknown): value is CommentWithAuthor {
+  if (!hasTrustedPublicActor(value)) return false;
+  const comment = value as unknown as CommentWithAuthor;
+  return (
+    typeof comment.id === "string" &&
+    (!comment.replies || comment.replies.every(isTrustedComment))
+  );
+}
+
+function parseCommunityFeedPayload(value: unknown): CommunityFeedPayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("community_feed_invalid_payload");
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    !Array.isArray(candidate.posts) ||
+    !candidate.posts.every(
+      (post) =>
+        Boolean(post) &&
+        typeof post === "object" &&
+        !Array.isArray(post) &&
+        typeof (post as Record<string, unknown>).id === "string" &&
+        hasTrustedPublicActor(post)
+    ) ||
+    typeof candidate.total !== "number" ||
+    !Number.isSafeInteger(candidate.total) ||
+    candidate.total < 0 ||
+    typeof candidate.hasMore !== "boolean"
+  ) {
+    throw new Error("community_feed_invalid_payload");
+  }
+  return candidate as unknown as CommunityFeedPayload;
 }
 
 function feedCacheKey(
@@ -103,7 +172,12 @@ function readFeedCache(key: string): CachedFeed | null {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CachedFeed;
-    if (!parsed.ts || Date.now() - parsed.ts > CACHE_MAX_AGE_MS) {
+    if (
+      !parsed.ts ||
+      !Array.isArray(parsed.posts) ||
+      !parsed.posts.every(hasTrustedPublicActor) ||
+      Date.now() - parsed.ts > CACHE_MAX_AGE_MS
+    ) {
       sessionStorage.removeItem(key);
       return null;
     }
@@ -150,7 +224,7 @@ async function fetchCommunityFeed(url: string): Promise<CommunityFeedPayload> {
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error("community_feed_request_failed");
-    return (await response.json()) as CommunityFeedPayload;
+    return parseCommunityFeedPayload(await response.json());
   } finally {
     clearTimeout(timeoutId);
   }
@@ -173,7 +247,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   comments: [],
   commentsPostId: null,
   postLoading: false,
+  postLoadPostId: null,
+  postLoadStatus: "idle",
+  postLoadError: null,
   commentsLoading: false,
+  commentsLoadStatus: "idle",
+  commentsLoadError: null,
   communityProfile: null,
 
   hydrateInitialFeed: (feed) => {
@@ -233,9 +312,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     try {
       const data = await fetchCommunityFeed(`/api/community/posts?${params}`);
       if (requestSequence !== feedRequestSequence) return;
-      const posts = data.posts ?? [];
-      const total = data.total ?? 0;
-      const hasMore = data.hasMore ?? false;
+      const { posts, total, hasMore } = data;
       set({ posts, total, hasMore, currentPage: 1, isLoading: false, errorMessage: null, lastSyncedAt: new Date().toISOString() });
       writeFeedCache(cacheKey, { posts, total, hasMore, ts: Date.now() });
     } catch {
@@ -264,8 +341,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const data = await fetchCommunityFeed(`/api/community/posts?${params}`);
       if (requestSequence !== feedRequestSequence) return;
       set((s) => ({
-        posts: [...s.posts, ...(data.posts ?? [])],
-        hasMore: data.hasMore ?? false,
+        posts: [...s.posts, ...data.posts],
+        hasMore: data.hasMore,
         currentPage: nextPage,
         isLoading: false,
         errorMessage: null,
@@ -278,43 +355,118 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   fetchPostDetail: async (id) => {
+    const requestSequence = ++postRequestSequence;
+    if (get().commentsPostId !== id) commentsRequestSequence += 1;
     set((state) => ({
       postLoading: true,
+      postLoadPostId: id,
+      postLoadStatus: "loading",
+      postLoadError: null,
+      errorMessage: null,
       currentPost: null,
       ...(state.commentsPostId !== id
-        ? { comments: [], commentsPostId: null, commentsLoading: false }
+        ? {
+            comments: [],
+            commentsPostId: null,
+            commentsLoading: false,
+            commentsLoadStatus: "idle" as const,
+            commentsLoadError: null,
+          }
         : {}),
     }));
     try {
       const res = await fetch(`/api/community/posts/${id}`);
-      if (!res.ok) throw new Error();
-      const post = await res.json();
-      set({ currentPost: post, postLoading: false });
-    } catch {
-      set({ postLoading: false, errorMessage: "게시글 상세를 불러오지 못했습니다." });
+      if (requestSequence !== postRequestSequence) return;
+      if (res.status === 404) {
+        set({
+          currentPost: null,
+          postLoading: false,
+          postLoadStatus: "not_found",
+          postLoadError: null,
+        });
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
+      const postPayload: unknown = await res.json();
+      if (!hasTrustedPublicActor(postPayload)) {
+        throw new Error("게시글 작성자 정보를 확인하지 못했습니다.");
+      }
+      const post = postPayload as PostDetail;
+      if (requestSequence !== postRequestSequence) return;
+      set({
+        currentPost: post,
+        postLoading: false,
+        postLoadStatus: "ready",
+        postLoadError: null,
+        errorMessage: null,
+      });
+    } catch (error) {
+      if (requestSequence !== postRequestSequence) return;
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
+      set({
+        currentPost: null,
+        postLoading: false,
+        postLoadStatus: "error",
+        postLoadError: message,
+        errorMessage: message,
+      });
     }
   },
 
   fetchComments: async (postId) => {
+    const requestSequence = ++commentsRequestSequence;
     set((state) => ({
       commentsLoading: true,
-      errorMessage: null,
+      commentsLoadStatus: "loading",
+      commentsLoadError: null,
       ...(state.commentsPostId !== postId
         ? { comments: [], commentsPostId: postId }
         : {}),
     }));
     try {
       const res = await fetch(`/api/community/comments?postId=${postId}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorData?.error ?? "댓글을 불러오지 못했습니다.");
+      }
       const data = await res.json();
+      const nextComments = Array.isArray(data?.comments)
+        ? data.comments
+        : Array.isArray(data)
+          ? data
+          : null;
+      if (!nextComments || !nextComments.every(isTrustedComment)) {
+        throw new Error("댓글 작성자 정보를 확인하지 못했습니다.");
+      }
+      if (requestSequence !== commentsRequestSequence) return false;
       set((state) =>
         state.commentsPostId === postId
-          ? { comments: data.comments ?? data, commentsLoading: false }
+          ? {
+              comments: nextComments,
+              commentsLoading: false,
+              commentsLoadStatus: "ready",
+              commentsLoadError: null,
+            }
           : state
       );
-    } catch {
-      if (get().commentsPostId !== postId) return;
-      set({ commentsLoading: false, errorMessage: "댓글을 불러오지 못했습니다." });
+      return true;
+    } catch (error) {
+      if (requestSequence !== commentsRequestSequence || get().commentsPostId !== postId) return false;
+      set({
+        commentsLoading: false,
+        commentsLoadStatus: "error",
+        commentsLoadError:
+          error instanceof Error && error.message
+            ? error.message
+            : "댓글을 불러오지 못했습니다.",
+      });
+      return false;
     }
   },
 
@@ -345,16 +497,20 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       };
       const newPost = data.post;
       const id = newPost?.id ?? data.id ?? null;
+      if (typeof id !== "string" || id.length === 0) {
+        set({ errorMessage: "게시글 저장 결과를 확인하지 못했습니다." });
+        return null;
+      }
 
-      // 옵티미스틱 prepend — 작성자가 곧바로 커뮤니티 리스트로 돌아왔을 때 즉시 보이게.
-      // 응답에 author가 없으면 store에 캐싱된 communityProfile로 채움.
+      // 옵티미스틱 prepend — 서버가 검증한 공개 작성자 카드만 허용한다.
       if (newPost && id) {
-        const { communityProfile, posts } = get();
+        if (!hasTrustedPublicActor(newPost)) {
+          set({ errorMessage: "게시글 작성자 정보를 확인하지 못했습니다." });
+          return null;
+        }
+        const { posts } = get();
         const enriched: PostWithAuthor = {
           ...newPost,
-          author: (newPost.author ??
-            communityProfile ??
-            ({ nickname: "나", rank: "sprout", wedding_year: null, wedding_month: null } as PostWithAuthor["author"])) as PostWithAuthor["author"],
           user_vote: null,
           user_bookmarked: false,
         } as PostWithAuthor;
@@ -378,8 +534,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (res.ok) invalidateFeedCache();
-      return res.ok;
+      if (!res.ok) return false;
+      const data = (await res.json().catch(() => null)) as {
+        post?: { id?: unknown };
+      } | null;
+      if (data?.post?.id !== id) return false;
+      invalidateFeedCache();
+      return true;
     } catch {
       return false;
     }
@@ -388,11 +549,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   deletePost: async (id) => {
     try {
       const res = await fetch(`/api/community/posts/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        set((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
-        invalidateFeedCache();
-      }
-      return res.ok;
+      if (!res.ok) return false;
+      const data = (await res.json().catch(() => null)) as { success?: unknown } | null;
+      if (data?.success !== true) return false;
+      set((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
+      invalidateFeedCache();
+      return true;
     } catch {
       return false;
     }
@@ -409,9 +571,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(errorData?.error ?? "좋아요 처리에 실패했습니다.");
       }
-      const data = await res.json();
-      const upvoteCount = Math.max(0, data.upvote_count ?? 0);
-      const downvoteCount = Math.max(0, data.downvote_count ?? 0);
+      const data = (await res.json().catch(() => null)) as {
+        upvote_count?: unknown;
+        downvote_count?: unknown;
+      } | null;
+      if (
+        typeof data?.upvote_count !== "number" ||
+        !Number.isSafeInteger(data.upvote_count) ||
+        data.upvote_count < 0 ||
+        typeof data.downvote_count !== "number" ||
+        !Number.isSafeInteger(data.downvote_count) ||
+        data.downvote_count < 0
+      ) {
+        throw new Error("좋아요 저장 결과를 확인하지 못했습니다.");
+      }
+      const upvoteCount = data.upvote_count;
+      const downvoteCount = data.downvote_count;
       const userVote: 1 | null = voteType === 1 ? 1 : null;
 
       // 피드 목록 업데이트
@@ -430,65 +605,41 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
-  voteComment: async (commentId, voteType) => {
+  toggleBookmark: async (postId, bookmarked) => {
     try {
-      const res = await fetch(`/api/community/comments/${commentId}/vote`, {
+      const res = await fetch(`/api/community/posts/${postId}/bookmark`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voteType }),
+        body: JSON.stringify({ bookmarked }),
       });
-      if (!res.ok) return;
-      const data = await res.json();
-
-      const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
-        if (c.id === commentId) return { ...c, upvote_count: data.upvote_count, user_vote: voteType === 0 ? null : voteType };
-        if (c.replies) return { ...c, replies: c.replies.map(updateComment) };
-        return c;
-      };
-      set((s) => ({ comments: s.comments.map(updateComment) }));
-    } catch { /* ignore */ }
-  },
-
-  toggleBookmark: async (postId) => {
-    try {
-      const res = await fetch(`/api/community/posts/${postId}/bookmark`, { method: "POST" });
-      if (!res.ok) return;
-      const data = await res.json();
+      if (!res.ok) return false;
+      const data = (await res.json().catch(() => null)) as {
+        bookmarked?: unknown;
+        bookmark_count?: unknown;
+      } | null;
+      if (data?.bookmarked !== bookmarked) return false;
+      const verifiedCount =
+        typeof data.bookmark_count === "number" &&
+        Number.isSafeInteger(data.bookmark_count) &&
+        data.bookmark_count >= 0
+          ? data.bookmark_count
+          : null;
       set((s) => ({
         posts: s.posts.map((p) =>
           p.id === postId
             ? {
                 ...p,
-                user_bookmarked: data.bookmarked,
-                bookmark_count: Math.max(0, data.bookmark_count ?? p.bookmark_count + (data.bookmarked ? 1 : -1)),
+                user_bookmarked: bookmarked,
+                bookmark_count: verifiedCount ?? p.bookmark_count,
               }
             : p
         ),
         currentPost: s.currentPost?.id === postId
           ? {
               ...s.currentPost,
-              user_bookmarked: data.bookmarked,
-              bookmark_count: Math.max(0, data.bookmark_count ?? s.currentPost.bookmark_count + (data.bookmarked ? 1 : -1)),
+              user_bookmarked: bookmarked,
+              bookmark_count: verifiedCount ?? s.currentPost.bookmark_count,
             }
-          : s.currentPost,
-      }));
-    } catch { /* ignore */ }
-  },
-
-  createComment: async (input) => {
-    try {
-      const res = await fetch("/api/community/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      if (!res.ok) return false;
-      // 댓글 다시 불러오기
-      await get().fetchComments(input.post_id);
-      // 글 댓글 수 업데이트
-      set((s) => ({
-        currentPost: s.currentPost?.id === input.post_id
-          ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 }
           : s.currentPost,
       }));
       return true;
@@ -557,17 +708,20 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     try {
       const res = await fetch("/api/community/profile");
       if (!res.ok) return;
-      const data = await res.json();
-      set({ communityProfile: data });
+      const data = (await res.json()) as { profile?: CommunityProfile };
+      if (data.profile) set({ communityProfile: data.profile });
     } catch { /* ignore */ }
   },
 
-  applyOwnNickname: (userId, nickname) => {
+  applyConfirmedOwnCommunityNickname: (nickname) => {
     const trimmedNickname = nickname.trim();
-    if (!userId || !trimmedNickname) return;
+    if (!trimmedNickname) return;
 
-    const updateAuthor = <T extends { author_id: string; author: CommunityProfile }>(item: T): T => {
-      if (item.author_id !== userId && item.author.user_id !== userId) return item;
+    const updateAuthor = <T extends {
+      author: PublicCommunityAuthor;
+      viewer_is_author: boolean;
+    }>(item: T): T => {
+      if (!item.viewer_is_author) return item;
       return { ...item, author: { ...item.author, nickname: trimmedNickname } };
     };
 
@@ -580,15 +734,49 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     invalidateFeedCache();
     set((state) => ({
-      communityProfile:
-        state.communityProfile?.user_id === userId
-          ? { ...state.communityProfile, nickname: trimmedNickname }
-          : state.communityProfile,
+      communityProfile: state.communityProfile
+        ? { ...state.communityProfile, nickname: trimmedNickname }
+        : null,
       posts: state.posts.map(updateAuthor),
       currentPost: state.currentPost ? updateAuthor(state.currentPost) : state.currentPost,
       comments: state.comments.map(updateComment),
       lastSyncedAt: new Date().toISOString(),
     }));
+  },
+
+  hideAuthorLocally: (authorId) => {
+    if (!authorId) return;
+
+    // A successful mute changes every feed's visibility boundary. Cancel an
+    // in-flight feed response and remove all account-scoped cache entries so a
+    // back navigation cannot briefly resurrect the hidden author.
+    feedRequestSequence += 1;
+    invalidateFeedCache();
+
+    const filterComments = (comments: CommentWithAuthor[]): CommentWithAuthor[] =>
+      comments
+        .filter((comment) => comment.author_id !== authorId && comment.author.user_id !== authorId)
+        .map((comment) => ({
+          ...comment,
+          replies: comment.replies ? filterComments(comment.replies) : comment.replies,
+        }));
+
+    set((state) => {
+      const posts = state.posts.filter(
+        (post) => post.author_id !== authorId && post.author.user_id !== authorId,
+      );
+      const removedLoadedPosts = state.posts.length - posts.length;
+      const currentPostIsMuted =
+        state.currentPost?.author_id === authorId || state.currentPost?.author.user_id === authorId;
+
+      return {
+        posts,
+        total: Math.max(posts.length, state.total - removedLoadedPosts),
+        comments: currentPostIsMuted ? [] : filterComments(state.comments),
+        commentsPostId: currentPostIsMuted ? null : state.commentsPostId,
+        lastSyncedAt: null,
+      };
+    });
   },
 
   setCategory: (category) => {
@@ -634,6 +822,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     // in-memory request generation and session cache while keeping the route's
     // active feed selection stable across login/logout reconciliation.
     feedRequestSequence += 1;
+    postRequestSequence += 1;
+    commentsRequestSequence += 1;
     invalidateFeedCache();
     set({
       posts: [],
@@ -652,7 +842,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       comments: [],
       commentsPostId: null,
       postLoading: false,
+      postLoadPostId: null,
+      postLoadStatus: "idle",
+      postLoadError: null,
       commentsLoading: false,
+      commentsLoadStatus: "idle",
+      commentsLoadError: null,
       communityProfile: null,
     });
     await get().fetchPosts(true);
@@ -660,11 +855,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   reset: () => {
     feedRequestSequence += 1;
+    postRequestSequence += 1;
+    commentsRequestSequence += 1;
     set({
       posts: [], currentCategory: null, currentSort: "new", currentPeriod: "week",
       currentTag: null, currentAuthorId: null, currentPage: 1, hasMore: true, isLoading: true, total: 0,
       errorMessage: null, lastSyncedAt: null,
-      currentPost: null, comments: [], commentsPostId: null, postLoading: false, commentsLoading: false,
+      currentPost: null, comments: [], commentsPostId: null, postLoading: false,
+      postLoadPostId: null, postLoadStatus: "idle", postLoadError: null, commentsLoading: false,
+      commentsLoadStatus: "idle", commentsLoadError: null,
       communityProfile: null,
     });
   },

@@ -1,10 +1,10 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 // 인기 태그 조회
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const supabase = await createClientFromRequest(req);
+    const supabase = createPublicClient();
 
     // 최근 30일간 게시글의 태그 집계
     const thirtyDaysAgo = new Date();
@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
       .from("community_posts")
       .select("tags")
       .eq("visibility", "public")
+      .eq("under_review", false)
       .gte("created_at", thirtyDaysAgo.toISOString())
       .not("tags", "eq", "{}");
 
@@ -29,7 +30,10 @@ export async function GET(req: NextRequest) {
     const tagCounts: Record<string, number> = {};
     for (const post of posts ?? []) {
       if (post.tags && Array.isArray(post.tags)) {
-        for (const tag of post.tags) {
+        for (const rawTag of post.tags) {
+          if (typeof rawTag !== "string") continue;
+          const tag = rawTag.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 30);
+          if (!tag) continue;
           tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
         }
       }

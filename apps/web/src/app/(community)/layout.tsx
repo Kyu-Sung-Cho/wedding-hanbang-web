@@ -1,12 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Instagram, Mail, ShieldCheck } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
-import { CONTACT } from "@/lib/constants/contact";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 export default function CommunityLayout({
@@ -48,21 +47,13 @@ function CommunityFooter() {
             AI와 함께 차근차근 정리하는 결혼 준비
           </p>
           <div className="mt-5 flex gap-3">
-            {[
-              { icon: Instagram, label: "Instagram", href: CONTACT.instagramHref },
-              { icon: Mail, label: "이메일", href: `mailto:${CONTACT.email}` },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                target={item.href.startsWith("http") ? "_blank" : undefined}
-                rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                aria-label={item.label}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
-              >
-                <item.icon className="h-4 w-4" />
-              </a>
-            ))}
+            <Link
+              href="/support"
+              aria-label="문의 접수 상태"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
+            >
+              <Mail className="h-4 w-4" />
+            </Link>
           </div>
         </div>
 
@@ -71,7 +62,6 @@ function CommunityFooter() {
           items={[
             { label: "후기·질문", href: weddingPath("/community#community-feed") },
             { label: "가격·후기", href: weddingPath("/community?category=tour_review&search=견적&feed=all#community-feed") },
-            { label: "동기방", href: weddingPath("/community/cohort") },
             { label: "글쓰기", href: weddingPath("/community/post/write") },
             { label: "북마크", href: weddingPath("/community/my/bookmarks") },
           ]}
@@ -97,8 +87,10 @@ function CommunityFooter() {
         <div>
           <h3 className="mb-3 text-[14px] font-semibold text-white">연락</h3>
           <div className="space-y-1 text-[13px] font-medium text-white/70">
-            <p>{CONTACT.email}</p>
-            <p>답변 시간은 문의 내용과 운영 여건에 따라 달라질 수 있습니다.</p>
+            <p>공개 문의 접수 점검 중</p>
+            <Link href="/support" className="inline-flex min-h-11 items-center underline hover:text-white md:min-h-0">
+              현재 상태 확인
+            </Link>
           </div>
         </div>
 

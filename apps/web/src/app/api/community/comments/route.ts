@@ -1,337 +1,129 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { createClientFromRequest } from "@/lib/supabase/server";
 import {
-  getCommunityNicknameFallback,
-  getSafeDefaultCommunityNickname,
-  isCommunityNicknameUniqueViolation,
-} from "@/lib/community/nickname";
-import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
+  CommunityAuthorProfileUnavailableError,
+  getCommunityAuthorMap,
+  requireCommunityAuthor,
+} from "@/lib/community/authorProfiles";
+import { getCommunityActorIdForUser } from "@/lib/community/actorIdentity";
+import { COMMUNITY_COMMENT_PUBLIC_SELECT } from "@/lib/community/commentSelect";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
-import { sanitizeHtml } from "@/utils/sanitize";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import type { CommentWithAuthor, CreateCommentInput } from "@/types/community.types";
+import { getMutedActorIds, mutedActorFilterValue } from "@/lib/community/mutes";
+import { sanitizeText } from "@/utils/sanitize";
+import type { CommentWithAuthor } from "@/types/community.types";
 
-function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
-// 댓글 목록 조회 (트리 구조)
+// Existing comments remain readable under the parent post's visibility rules.
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClientFromRequest(req);
-    const { searchParams } = new URL(req.url);
-    const postId = searchParams.get("postId");
+    const postId = new URL(req.url).searchParams.get("postId");
 
     if (!postId) {
-      return NextResponse.json(
-        { error: "postId가 필요합니다." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "postId가 필요합니다." }, { status: 400 });
     }
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { error: "로그인 상태를 확인하지 못했습니다." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
+
+    const viewerActorId = await getCommunityActorIdForUser(user?.id);
+    const mutedActorIds = await getMutedActorIds(user?.id);
+    const mutedActors = mutedActorFilterValue(mutedActorIds);
 
     const { data: targetPost, error: postFetchError } = await supabase
       .from("community_posts")
-      .select("id, author_id, visibility, under_review")
+      .select("id, author_id:author_public_id, visibility, under_review")
       .eq("id", postId)
       .maybeSingle();
 
     if (postFetchError) {
-      console.error("Comment parent post access check error:", postFetchError);
-      return NextResponse.json(
-        { error: "게시글 접근 확인에 실패했습니다." },
-        { status: 500 }
-      );
+      console.error("Comment parent post access check failed");
+      return NextResponse.json({ error: "게시글 접근 확인에 실패했습니다." }, { status: 500 });
     }
 
-    if (!targetPost || !canReadCommunityPost(targetPost, { userId: user?.id ?? null })) {
+    if (
+      !targetPost ||
+      mutedActorIds.includes(targetPost.author_id) ||
+      !canReadCommunityPost(targetPost, {
+        actorId: viewerActorId,
+        isAuthenticated: Boolean(user),
+      })
+    ) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // 댓글 조회
-    const { data: comments, error } = await supabase
+    let commentsQuery = supabase
       .from("community_comments")
-      .select("*")
+      .select(COMMUNITY_COMMENT_PUBLIC_SELECT)
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
+    if (mutedActors) {
+      commentsQuery = commentsQuery.not("author_public_id", "in", mutedActors);
+    }
+
+    const { data: comments, error } = await commentsQuery;
+
     if (error) {
-      console.error("List comments error:", error);
-      return NextResponse.json(
-        { error: "댓글을 불러올 수 없습니다." },
-        { status: 500 }
-      );
+      console.error("List comments failed");
+      return NextResponse.json({ error: "댓글을 불러올 수 없습니다." }, { status: 500 });
     }
 
-    // 작성자 프로필 별도 조회
-    const commentAuthorIds = [...new Set((comments ?? []).map((c) => c.author_id))];
-    const commentAuthorMap = await getCommunityAuthorMap(supabase, commentAuthorIds);
-
-    // 인증 사용자의 투표 상태 조회
-    let userVotesMap: Record<string, number> = {};
-    if (user && comments && comments.length > 0) {
-      const commentIds = comments.map((c) => c.id);
-      const { data: votes } = await supabase
-        .from("community_votes")
-        .select("comment_id, vote_type")
-        .eq("user_id", user.id)
-        .in("comment_id", commentIds);
-
-      if (votes) {
-        userVotesMap = Object.fromEntries(
-          votes.map((v) => [v.comment_id, v.vote_type])
-        );
-      }
-    }
-
-    // 트리 구조로 변환
-    const commentsWithVotes = (comments ?? []).map((c) => ({
-      ...c,
-      author: commentAuthorMap[c.author_id] ?? fallbackCommunityAuthor(c.author_id),
-      user_vote: userVotesMap[c.id] ?? null,
-    }));
+    const authorIds = [...new Set((comments ?? []).map((comment) => comment.author_id))];
+    const authorMap = await getCommunityAuthorMap(supabase, authorIds);
 
     const topLevel: CommentWithAuthor[] = [];
     const repliesMap: Record<string, CommentWithAuthor[]> = {};
-
-    for (const comment of commentsWithVotes) {
+    for (const row of comments ?? []) {
+      const comment = {
+        ...row,
+        content: sanitizeText(row.content),
+        author: requireCommunityAuthor(authorMap, row.author_id),
+        viewer_is_author: Boolean(viewerActorId && row.author_id === viewerActorId),
+      } as CommentWithAuthor;
       if (comment.parent_id) {
-        if (!repliesMap[comment.parent_id]) {
-          repliesMap[comment.parent_id] = [];
-        }
-        repliesMap[comment.parent_id].push(comment as CommentWithAuthor);
+        (repliesMap[comment.parent_id] ??= []).push(comment);
       } else {
-        topLevel.push(comment as CommentWithAuthor);
+        topLevel.push(comment);
       }
     }
 
-    // 대댓글을 부모에 연결
-    const tree = topLevel.map((comment) => ({
-      ...comment,
-      replies: repliesMap[comment.id] ?? [],
-    }));
-
-    return NextResponse.json({ comments: tree });
-  } catch (err) {
-    console.error("List comments error:", err);
-    return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      comments: topLevel.map((comment) => ({
+        ...comment,
+        replies: repliesMap[comment.id] ?? [],
+      })),
+    });
+  } catch (error) {
+    console.error("List comments request failed");
+    if (error instanceof CommunityAuthorProfileUnavailableError) {
+      return NextResponse.json(
+        { error: "댓글 작성자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
-// 댓글 작성
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClientFromRequest(req);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "인증이 필요합니다." },
-        { status: 401 }
-      );
-    }
-
-    // Rate limit: 30 comments per 10 minutes per user
-    const rlResult = checkRateLimit(
-      rateLimitKey("community:comment:create", req, user.id),
-      { maxRequests: 30, windowMs: 10 * 60 * 1000 }
-    );
-    if (rlResult) return rlResult;
-
-    const { post_id, parent_id, content: rawContent } =
-      (await req.json()) as CreateCommentInput;
-
-    // 댓글 내용 검증 및 정화
-    const content = sanitizeHtml(rawContent ?? "").slice(0, 5000);
-
-    if (!post_id || !content || content.trim().length === 0) {
-      return NextResponse.json(
-        { error: "필수 항목을 입력해주세요." },
-        { status: 400 }
-      );
-    }
-
-    // 대댓글 깊이 제한 (1단계만 허용)
-    if (parent_id) {
-      const { data: parentComment } = await supabase
-        .from("community_comments")
-        .select("parent_id, post_id")
-        .eq("id", parent_id)
-        .single();
-
-      if (!parentComment) {
-        return NextResponse.json(
-          { error: "부모 댓글을 찾을 수 없습니다." },
-          { status: 404 }
-        );
-      }
-
-      if (parentComment.post_id !== post_id) {
-        return NextResponse.json(
-          { error: "부모 댓글과 게시글이 일치하지 않습니다." },
-          { status: 400 }
-        );
-      }
-
-      if (parentComment.parent_id) {
-        return NextResponse.json(
-          { error: "대댓글에는 답글을 달 수 없습니다." },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 대상 글 접근 권한 검증 — user-scoped client 로 SELECT 시 RLS 가 visibility
-    // (public/members/draft) + 소유자 규칙을 자동 적용. 이전엔 이 검사 없이 바로
-    // service-role 로 insert 해서 비공개·삭제된·존재하지 않는 글에도 댓글 작성
-    // 가능했음 (보안 + 정합성 이슈).
-    const { data: targetPost, error: postFetchError } = await supabase
-      .from("community_posts")
-      .select("id, author_id, visibility, under_review")
-      .eq("id", post_id)
-      .maybeSingle();
-
-    if (postFetchError) {
-      console.error("Post access check error:", postFetchError);
-      return NextResponse.json(
-        { error: "게시글 접근 확인에 실패했습니다." },
-        { status: 500 }
-      );
-    }
-
-    if (!targetPost || !canReadCommunityPost(targetPost, { userId: user.id })) {
-      return NextResponse.json(
-        { error: "게시글을 찾을 수 없거나 접근 권한이 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    const serviceClient = getServiceClient();
-
-    // 커뮤니티 프로필 자동 생성
-    const { data: existingProfile } = await serviceClient
-      .from("community_profiles")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!existingProfile) {
-      const nickname = getSafeDefaultCommunityNickname(null, user.id);
-      const fallbackNickname = getCommunityNicknameFallback(`${user.id}:collision`);
-      const createProfilePayload = {
-        user_id: user.id,
-        nickname,
-        badge: "member",
-        post_count: 0,
-        comment_count: 0,
-        total_upvotes_received: 0,
-      };
-
-      const { error: profileInsertError } = await serviceClient
-        .from("community_profiles")
-        .insert(createProfilePayload);
-
-      if (
-        profileInsertError &&
-        isCommunityNicknameUniqueViolation(profileInsertError) &&
-        nickname !== fallbackNickname
-      ) {
-        await serviceClient
-          .from("community_profiles")
-          .insert({ ...createProfilePayload, nickname: fallbackNickname });
-      }
-    }
-
-    // 댓글 생성
-    const { data: comment, error } = await serviceClient
-      .from("community_comments")
-      .insert({
-        post_id,
-        parent_id: parent_id ?? null,
-        author_id: user.id,
-        content,
-        upvote_count: 0,
-        is_deleted: false,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Create comment error:", error);
-      return NextResponse.json(
-        { error: "댓글 작성에 실패했습니다." },
-        { status: 500 }
-      );
-    }
-
-    // community_posts.comment_count 증가
-    await serviceClient
-      .from("community_posts")
-      .select("comment_count")
-      .eq("id", post_id)
-      .single()
-      .then(({ data }) => {
-        return serviceClient
-          .from("community_posts")
-          .update({ comment_count: (data?.comment_count ?? 0) + 1 })
-          .eq("id", post_id);
-      });
-
-    // community_profiles.comment_count 증가
-    await serviceClient.rpc("community_increment_profile_count", {
-      p_user_id: user.id,
-      p_field: "comment_count",
-    }).then(({ error: rpcError }) => {
-      if (rpcError) {
-        return serviceClient
-          .from("community_profiles")
-          .select("comment_count")
-          .eq("user_id", user.id)
-          .single()
-          .then(({ data }) => {
-            return serviceClient
-              .from("community_profiles")
-              .update({
-                comment_count: (data?.comment_count ?? 0) + 1,
-              })
-              .eq("user_id", user.id);
-          });
-      }
-    });
-
-    // 작성자 프로필 추가
-    const { data: creatorProfile } = await serviceClient
-      .from("community_profiles")
-      .select("user_id, nickname, avatar_url, rank, wedding_year, wedding_month")
-      .eq("user_id", user.id)
-      .single();
-
-    const commentWithAuthor = {
-      ...comment,
-      author: creatorProfile ?? { nickname: "익명", avatar_url: null, rank: "sprout", wedding_year: null, wedding_month: null },
-    };
-
-    return NextResponse.json({ comment: commentWithAuthor }, { status: 201 });
-  } catch (err) {
-    console.error("Create comment error:", err);
-    return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
-    );
-  }
+// New comments and replies are retired until report/block/moderation is complete.
+export async function POST() {
+  return NextResponse.json(
+    {
+      code: "community_comment_writes_retired",
+      error:
+        "새 댓글과 답글 작성은 현재 제공하지 않습니다. 기존 댓글은 읽을 수 있고 작성자는 수정·삭제할 수 있습니다.",
+    },
+    { status: 410, headers: { "Cache-Control": "no-store" } },
+  );
 }

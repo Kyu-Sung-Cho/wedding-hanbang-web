@@ -1,31 +1,26 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
+import { assertApprovedPreviewTarget } from "./lib/preview-smoke-guard.mjs";
+
 const releaseTargets = JSON.parse(
   readFileSync(new URL("./release-targets.json", import.meta.url), "utf8")
 );
-const baseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
+const configuredSupabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const expectedProjectRef = process.env.SUPABASE_EXPECTED_PROJECT_REF;
 
-if (!baseUrl || !serviceKey || !expectedProjectRef) {
+if (!configuredSupabaseUrl || !serviceKey || !expectedProjectRef) {
   throw new Error(
     "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_EXPECTED_PROJECT_REF are required."
   );
 }
-
-const parsedUrl = new URL(baseUrl);
-const actualProjectRef = parsedUrl.hostname.split(".")[0];
-if (
-  parsedUrl.protocol !== "https:" ||
-  parsedUrl.hostname !== `${expectedProjectRef}.supabase.co` ||
-  actualProjectRef !== expectedProjectRef
-) {
-  throw new Error("Supabase URL does not match the explicitly expected preview project.");
-}
-if (releaseTargets.productionSupabaseProjectRefs.includes(actualProjectRef)) {
-  throw new Error("Lifecycle smoke tests are forbidden on protected production projects.");
-}
+const { supabaseUrl: baseUrl, projectRef: actualProjectRef } =
+  assertApprovedPreviewTarget({
+    supabaseUrl: configuredSupabaseUrl,
+    expectedProjectRef,
+    releaseTargets,
+  });
 
 const headers = {
   apikey: serviceKey,
@@ -34,21 +29,20 @@ const headers = {
 };
 const testRun = `${Date.now()}-${randomBytes(4).toString("hex")}`;
 const userIds = [];
-const coupleIds = new Set();
 let primaryError;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function api(path, { method = "GET", body, prefer, allowError = false } = {}) {
+async function api(path, { method = "GET", body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: prefer ? { ...headers, Prefer: prefer } : headers,
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok && !allowError) {
+  if (!response.ok) {
     const code = payload && typeof payload.code === "string" ? ` (${payload.code})` : "";
     throw new Error(`Supabase request failed at ${path}: HTTP ${response.status}${code}`);
   }
@@ -61,10 +55,11 @@ async function rpc(name, body) {
 }
 
 async function createUser(label) {
+  const email = `hanbang-smoke-${testRun}-${label}@example.invalid`;
   const { payload } = await api("/auth/v1/admin/users", {
     method: "POST",
     body: {
-      email: `codex-${testRun}-${label}@example.invalid`,
+      email,
       password: `${randomUUID()}Aa!9`,
       email_confirm: true,
       user_metadata: { name: `Lifecycle ${label}` },
@@ -75,19 +70,7 @@ async function createUser(label) {
   userIds.push(id);
 
   const profilePath = `/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=id`;
-  let profile = (await api(profilePath)).payload;
-  if (!Array.isArray(profile) || profile.length !== 1) {
-    await api("/rest/v1/profiles", {
-      method: "POST",
-      prefer: "return=minimal",
-      body: {
-        id,
-        name: `Lifecycle ${label}`,
-        email: `codex-${testRun}-${label}@example.invalid`,
-      },
-    });
-    profile = (await api(profilePath)).payload;
-  }
+  const profile = (await api(profilePath)).payload;
   assert(Array.isArray(profile) && profile.length === 1, `Profile missing for ${label}.`);
   return id;
 }
@@ -122,7 +105,6 @@ async function createCouple(userId, role = "bride") {
   assert(result?.success === true, "Couple creation RPC failed.");
   assert(typeof result.couple_id === "string", "Couple creation returned no couple id.");
   assert(/^WH-[A-F0-9]{12}$/.test(result.invite_code), "New invite format is invalid.");
-  coupleIds.add(result.couple_id);
   return result;
 }
 
@@ -139,29 +121,27 @@ async function joinCouple(userId, inviteCode, role = "groom") {
   });
 }
 
-async function deleteWhere(table, filter) {
-  await api(`/rest/v1/${table}?${filter}`, {
-    method: "DELETE",
-    prefer: "return=minimal",
-  });
-}
-
 async function cleanup() {
   const failures = [];
-  for (const id of [...userIds].reverse()) {
+  let fixtureCleanupSucceeded = false;
+  if (userIds.length > 0) {
     try {
-      await api(`/auth/v1/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await rpc("cleanup_preview_smoke_fixture", {
+        p_project_ref: actualProjectRef,
+        p_user_ids: userIds,
+      });
+      fixtureCleanupSucceeded = true;
     } catch {
-      failures.push("auth-user");
+      failures.push("fixture-data");
     }
   }
-  if (coupleIds.size > 0) {
-    const ids = [...coupleIds].join(",");
-    try {
-      await deleteWhere("wedding_journeys", `couple_id=in.(${ids})`);
-      await deleteWhere("couples", `id=in.(${ids})`);
-    } catch {
-      failures.push("couple-data");
+  if (fixtureCleanupSucceeded) {
+    for (const id of [...userIds].reverse()) {
+      try {
+        await api(`/auth/v1/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch {
+        failures.push("auth-user");
+      }
     }
   }
   if (failures.length > 0) {
@@ -170,6 +150,11 @@ async function cleanup() {
 }
 
 try {
+  const preflight = await rpc("assert_preview_smoke_ready", {
+    p_project_ref: actualProjectRef,
+  });
+  assert(preflight?.ready === true, "Preview smoke database harness is not ready.");
+
   const owner = await createUser("reset-owner");
   const departing = await createUser("reset-departing");
   const replacement = await createUser("reset-replacement");
@@ -190,17 +175,14 @@ try {
   assert(blocked.invite_code === null, "Reset failed to revoke the old invite.");
   assert(blocked.amora_replacement_blocked_at !== null, "Reset did not block legacy relinking.");
 
-  const constraintAttempt = await api(
-    `/rest/v1/couples?id=eq.${encodeURIComponent(original.couple_id)}`,
-    {
-      method: "PATCH",
-      body: { invite_code: original.invite_code },
-      prefer: "return=minimal",
-      allowError: true,
-    }
-  );
-  assert(!constraintAttempt.response.ok, "Blocked couple accepted a replacement invite.");
-  assert(constraintAttempt.payload?.code === "23514", "Blocked invite failed for the wrong reason.");
+  const constraintAttempt = await rpc("prepare_preview_lifecycle_smoke_fixture", {
+    p_project_ref: actualProjectRef,
+    p_operation: "assert_blocked_invite",
+    p_user_id: owner,
+    p_couple_id: original.couple_id,
+  });
+  assert(constraintAttempt?.accepted === false, "Blocked couple accepted a replacement invite.");
+  assert(constraintAttempt?.sqlstate === "23514", "Blocked invite failed for the wrong reason.");
 
   const oldJoin = await joinCouple(replacement, original.invite_code);
   assert(oldJoin?.error === "Invite unavailable.", "Revoked invite remained joinable.");
@@ -218,7 +200,6 @@ try {
   assert(/^WH-[A-F0-9]{12}$/.test(restarted?.invite_code), "Restart did not issue a strong code.");
   const restartedProfile = await getProfile(owner);
   assert(restartedProfile.couple_id !== original.couple_id, "Restart reused the old couple.");
-  coupleIds.add(restartedProfile.couple_id);
   const retired = await getCouple(original.couple_id);
   assert(
     retired.bride_id === null && retired.groom_id === null && retired.invite_code === null,
@@ -229,11 +210,13 @@ try {
 
   const legacyOwner = await createUser("legacy-owner");
   const legacy = await createCouple(legacyOwner);
-  await api(`/rest/v1/couples?id=eq.${encodeURIComponent(legacy.couple_id)}`, {
-    method: "PATCH",
-    body: { invite_code: "ABC123" },
-    prefer: "return=minimal",
+  const legacyFixture = await rpc("prepare_preview_lifecycle_smoke_fixture", {
+    p_project_ref: actualProjectRef,
+    p_operation: "set_legacy_invite",
+    p_user_id: legacyOwner,
+    p_couple_id: legacy.couple_id,
   });
+  assert(legacyFixture?.invite_code === "ABC123", "Legacy invite fixture was not installed.");
   const repaired = await rpc("get_or_rotate_invite_code_safely", {
     p_user_id: legacyOwner,
     p_rotate: false,
@@ -242,15 +225,18 @@ try {
   assert(repaired.invite_code !== "ABC123", "Legacy invite was returned unchanged.");
 
   const zeroJoiner = await createUser("zero-member-joiner");
-  const zeroCode = `WH-${randomBytes(6).toString("hex").toUpperCase()}`;
-  const { payload: zeroRows } = await api("/rest/v1/couples", {
-    method: "POST",
-    body: { invite_code: zeroCode },
-    prefer: "return=representation",
+  const zeroFixture = await rpc("prepare_preview_lifecycle_smoke_fixture", {
+    p_project_ref: actualProjectRef,
+    p_operation: "create_zero_member",
+    p_user_id: zeroJoiner,
+    p_couple_id: null,
   });
-  assert(Array.isArray(zeroRows) && zeroRows.length === 1, "Zero-member fixture creation failed.");
-  coupleIds.add(zeroRows[0].id);
-  const zeroJoin = await joinCouple(zeroJoiner, zeroCode);
+  assert(
+    typeof zeroFixture?.couple_id === "string" &&
+      /^WH-[A-F0-9]{12}$/.test(zeroFixture?.invite_code),
+    "Zero-member fixture creation failed.",
+  );
+  const zeroJoin = await joinCouple(zeroJoiner, zeroFixture.invite_code);
   assert(zeroJoin?.error === "Invite unavailable.", "Zero-member couple became joinable.");
 
   const accountOwner = await createUser("account-owner");

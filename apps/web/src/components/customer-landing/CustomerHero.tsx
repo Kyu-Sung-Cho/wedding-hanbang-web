@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE !== "full";
 
 export default function CustomerHero() {
   const isComingSoon = isComingSoonEnv;
@@ -112,7 +112,7 @@ export default function CustomerHero() {
           {[
             { num: "아모라", label: "필요할 때 상담" },
             { num: "커플 연동", label: "일정·예산 공유" },
-            { num: "견적 체크", label: "비교 기준 정리" },
+            { num: "원문 확인", label: "업체 질문 정리" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="font-display text-[clamp(20px,3vw,28px)] font-medium bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">

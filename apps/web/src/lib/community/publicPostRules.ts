@@ -14,7 +14,8 @@ export type CommunityPostAccessRow = {
 };
 
 export type CommunityPostViewer = {
-  userId?: string | null;
+  actorId?: string | null;
+  isAuthenticated?: boolean;
   isAdmin?: boolean;
 };
 
@@ -31,21 +32,12 @@ export function canReadCommunityPost(
 ): boolean {
   if (viewer.isAdmin) return true;
 
-  const isAuthor = Boolean(viewer.userId && post.author_id === viewer.userId);
+  const isAuthor = Boolean(viewer.actorId && post.author_id === viewer.actorId);
   if (post.under_review === true) return isAuthor;
 
   if (post.visibility === "public") return true;
-  if (post.visibility === "members") return Boolean(viewer.userId);
+  if (post.visibility === "members") return viewer.isAuthenticated === true;
   if (post.visibility === "draft") return isAuthor;
 
   return false;
-}
-
-export function communityReadablePostOrFilter(viewerId: string): string {
-  return [
-    "and(visibility.eq.public,under_review.eq.false)",
-    "and(visibility.eq.members,under_review.eq.false)",
-    `and(visibility.eq.draft,author_id.eq.${viewerId})`,
-    `and(under_review.eq.true,author_id.eq.${viewerId})`,
-  ].join(",");
 }
