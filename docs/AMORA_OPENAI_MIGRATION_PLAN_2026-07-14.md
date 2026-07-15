@@ -2,23 +2,27 @@
 
 기준일: 2026-07-14 (Asia/Seoul)
 
-기준 브랜치: `fix/amora-openai-hardening-20260714`
+기준 브랜치: 역사적 계획은 `fix/amora-openai-hardening-20260714`, 현재 운영
+기준은 `main` (`bd879a74668d24695b101307224f4d44b08abc7a`)
 
 기준 베이스: `origin/main` (`d2eab99304c0d79fbbe6f20354074b229c9035cf`)
 
 ## 2026-07-15 현행 상태 보정
 
 - 아래 A단계 변경 경계는 최초 계획의 역사적 기준이다. 현재 작업 브랜치 `feat/amora-openai-runtime-20260714`에서는 메인 채팅과 보조 AI 호출이 OpenAI Responses API로 전환됐고, 구 Anthropic 래퍼와 SDK 의존성도 제거됐다.
-- 운영 배포는 아직 이 전환을 반영하지 않았다. `AMORA_OPENAI_ENABLED=false`가 기본이며, OpenAI 키·플래그·사용자 고지는 같은 운영 전환에서 함께 검증해야 한다.
+- OpenAI 전용 런타임 코드는 운영에 배포됐다. 다만 `AMORA_OPENAI_ENABLED`는
+  운영에서 absent/false라 provider 호출은 계속 fail-closed다. 코드 배포와
+  실제 OpenAI 활성화는 서로 다른 완료 조건이다.
 - 전환 브랜치의 개인정보·AI 정책 문구는 배포 초안이다. OpenAI 계약 법인, 국외 이전 항목, DPA, 처리 지역, abuse-monitoring 보존, ZDR/MAM 자격은 운영 계약과 법률 검토 전에는 확정 사실로 보지 않는다.
 - 아래 단계별 체크리스트는 완료 증거가 있는 항목만 닫는다. 특히 실제 운영 활성화, 데이터 보관 자동화, 카나리와 배포 후 모니터링 전에는 전환 완료로 선언하지 않는다.
 
 ## 현재 사실
 
-- 현재 운영 배포본의 아모라 런타임은 아직 기존 Anthropic 경로다. 이는
-  작업 브랜치의 상태가 아니라 운영에 배포된 이전 커밋의 상태다.
-- 현재 작업 브랜치는 OpenAI Responses API 전용 런타임까지 전환했지만 아직 운영에 배포하지 않았다.
-- `AMORA_OPENAI_ENABLED=false`가 기본이며 이 상태에서는 provider 호출이 차단된다. 구 Anthropic fallback은 없으므로 운영 활성화·키 검증·합성 smoke 없이 이 브랜치만 배포하면 안 된다.
+- 현재 운영 코드에는 OpenAI Responses API 전용 런타임이 포함돼 있고 구
+  Anthropic 경로와 의존성은 없다.
+- `AMORA_OPENAI_ENABLED=false`가 기본이며 현재 운영에서도 이 상태라
+  provider 호출이 차단된다. 활성화·키 검증·합성 smoke 전에는 기능을
+  실제 OpenAI 전환 완료로 표시하지 않는다.
 - OpenAI API 키는 Git에 넣지 않는다. 운영 환경변수 등록과 런타임 활성화는 별도 안전 게이트다.
 - PR #38은 보관용이며 통째로 병합하거나 파일 단위로 복사하지 않는다. 필요한 설계만 현재 `main` 위에서 다시 구현한다.
 
@@ -60,15 +64,16 @@
 - [x] targeted typecheck/unit tests
 - [x] 전체 로컬 release gate (웹 577 테스트, 모바일 테스트, 타입 검사,
   린트, 웹 production build, Expo 전 플랫폼 export, prod audit)
-- [ ] 독립 코드 리뷰와 새 PR CI
-- [ ] PR 병합 및 동작 불변 배포 확인
+- [x] 독립 코드 리뷰와 새 PR CI
+- [x] PR #43 병합, current-main CI와 fail-closed Vercel 배포 확인
 
 ### B. 운영 DB 확장
 
-> Stage B is **not complete**. Fresh HBAM2 verification, a current physical
-> backup, a provider-created production-data clone, and hosted RLS/RPC/Auth/
-> concurrency contracts have passed. Independent HBAM2 logical replay and the
-> production write transaction remain open.
+> Production expand is complete. Fresh HBAM2 verification, a current physical
+> backup, a provider-created production-data clone, hosted RLS/RPC/Auth/
+> concurrency contracts and the production write transaction passed.
+> Independent HBAM2 logical replay into a blank isolated target is still open
+> and must not be implied by the provider physical-restore result.
 
 - [x] 운영 스키마와 migration history 읽기 전용 inventory
 - [x] timestamped HBAM2 논리 백업, checksum, 검증 명령 확보
@@ -77,7 +82,7 @@
 - [x] 격리된 provider clone에서 실제 Auth/RLS/RPC/동시성 contract 검증
 - [ ] HBAM2 논리 산출물을 빈 격리 대상에 독립 복원
 - [x] 운영 dry-run pending set을 15개 manifest 파일로 정확히 고정
-- [ ] 운영 migration ledger 조정, write fence, expand migration 적용
+- [x] 운영 migration ledger 조정, write fence, expand migration 적용
 
 DB 변경은 기존 대형 migration을 복사하지 않는다. 현재 운영 스키마에서 필요한 lifecycle, request claim, provider lease, usage reservation 구조만 새 migration으로 만든다.
 
@@ -109,6 +114,7 @@ DB 변경은 기존 대형 migration을 복사하지 않는다. 현재 운영 �
 - [ ] DPA, 처리 지역, ZDR/MAM 여부, 실제 수신 가능한 support 채널 확인
 - [x] 보수적 초기 비용 제한과 즉시 끌 수 있는 운영 kill switch
 - [ ] Vercel preview에서 실제 OpenAI 키로 비식별 synthetic smoke
+- [x] OpenAI 비활성 상태의 Vercel 운영 배포와 6경로 웹 카나리
 - [ ] 백업·롤백 확인 후 production env 등록 및 제한된 canary
 - [ ] 오류율, interrupted/unknown usage, latency, 모델 비율, provider HTTP 호출 수, 비용 하한 모니터링
 - [ ] 카나리 통과 후에만 OpenAI 전환 완료로 선언
