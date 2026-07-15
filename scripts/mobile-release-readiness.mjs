@@ -132,6 +132,13 @@ expect(easConfig.build?.production?.environment === "production", "EAS productio
 expect(easConfig.build?.production?.autoIncrement === true, "EAS production profile auto-increments");
 expect(easConfig.build?.production?.android?.buildType === "app-bundle", "EAS production Android build type is app-bundle");
 
+for (const profileName of ["development", "preview", "production"]) {
+  const profile = easConfig.build?.[profileName];
+  expect(profile?.node === "22.13.0", `EAS ${profileName} profile pins Node 22.13.0`);
+  expect(profile?.corepack === true, `EAS ${profileName} profile enables Corepack`);
+  expect(profile?.pnpm === "11.7.0", `EAS ${profileName} profile pins pnpm 11.7.0`);
+}
+
 for (const scriptName of [
   "eas:init",
   "eas:build:ios",
