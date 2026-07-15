@@ -480,9 +480,13 @@ video[height], iframe[height] {
 }
 
 /* flex/grid 안의 child 가 긴 텍스트로 부모 폭 강제 확장 못 하게.
- * (특히 긴 한글 URL, 영문 hash, 코드 블록이 flex item 일 때 자주 발생) */
-.flex > *, .grid > * {
-  min-width: 0;
+ * (특히 긴 한글 URL, 영문 hash, 코드 블록이 flex item 일 때 자주 발생)
+ * base layer에 두어 명시적인 min-width utility가 필요한
+ * 가로 스크롤·touch target을 덮어쓰지 않게 한다. */
+@layer base {
+  :where(.flex, .grid) > * {
+    min-width: 0;
+  }
 }
 
 /* 표 — 모바일에서 가로 스크롤 가능. 부모에 overflow-x: auto wrap 필요. */
@@ -525,7 +529,8 @@ pre {
   button:not(.no-min-tap),
   a[role="button"],
   [role="button"] {
-    min-height: 40px;
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 
