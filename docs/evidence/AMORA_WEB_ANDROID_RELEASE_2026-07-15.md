@@ -9,9 +9,9 @@ identifiers or provider prompts.
 - Amora release merge: PR #43, merge `56b7fee1`.
 - EAS toolchain repair: PR #47, head `2825ed55`, merge `77288c6a`.
 - A separate, already-reviewed `/sai` route PR #48 followed immediately.
-- Exact current main and Vercel production source:
+- Exact verified runtime baseline and pre-receipt Vercel production source:
   `bd879a74668d24695b101307224f4d44b08abc7a`.
-- Current-main GitHub CI run `29387007474`: success. The local quality gate and
+- Runtime-baseline GitHub CI run `29387007474`: success. The local quality gate and
   Supabase release-manifest fence both passed.
 
 ## Vercel production and canary
@@ -35,7 +35,7 @@ Screenshots and the machine-readable report are kept in the local ignored
 
 ## Android production build
 
-Final current-main build:
+Final runtime-baseline build:
 
 - EAS build ID: `e6cc6b8f-a377-4aba-8e83-5a9c509cd229`;
 - platform/profile/channel: Android / production / production;
