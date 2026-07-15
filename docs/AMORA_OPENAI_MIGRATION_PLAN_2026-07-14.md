@@ -2,8 +2,9 @@
 
 기준일: 2026-07-14 (Asia/Seoul)
 
-기준 브랜치: 역사적 계획은 `fix/amora-openai-hardening-20260714`, 현재 운영
-기준은 `main` (`bd879a74668d24695b101307224f4d44b08abc7a`)
+기준 브랜치: 역사적 계획은 `fix/amora-openai-hardening-20260714`, 검증된
+런타임 기준은 `bd879a74668d24695b101307224f4d44b08abc7a`다. 이후 문서 전용
+병합은 런타임 기준을 바꾸지 않는다.
 
 기준 베이스: `origin/main` (`d2eab99304c0d79fbbe6f20354074b229c9035cf`)
 
@@ -65,7 +66,7 @@
 - [x] 전체 로컬 release gate (웹 577 테스트, 모바일 테스트, 타입 검사,
   린트, 웹 production build, Expo 전 플랫폼 export, prod audit)
 - [x] 독립 코드 리뷰와 새 PR CI
-- [x] PR #43 병합, current-main CI와 fail-closed Vercel 배포 확인
+- [x] PR #43 병합, 런타임 기준 CI와 fail-closed Vercel 배포 확인
 
 ### B. 운영 DB 확장
 

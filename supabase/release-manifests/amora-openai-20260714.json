@@ -39,7 +39,7 @@
   "requiredDocuments": [
     {
       "file": "docs/operations/AMORA_PRODUCTION_RELEASE.md",
-      "sha256": "40c8a92a69a9eec14001043cba3237041dd1db1da0c3a10c6a4b674018b89a1a"
+      "sha256": "110586f9014e15f5ab456fd13c093e5ae9bf7b33750b0130742a92dcd5d0ba9d"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",

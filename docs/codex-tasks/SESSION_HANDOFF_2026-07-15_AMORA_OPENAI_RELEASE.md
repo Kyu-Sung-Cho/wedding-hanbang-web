@@ -3,7 +3,7 @@
 ## Where to continue
 
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`;
-- verified production/main commit: `bd879a74668d24695b101307224f4d44b08abc7a`;
+- verified runtime baseline: `bd879a74668d24695b101307224f4d44b08abc7a`;
 - Amora release merge: PR #43 / `56b7fee1ad3688cc44370dd9c45244c6da461c42`;
 - native-build repair merge: PR #47 / `77288c6ab739a6e88975dee490ee9842b727a209`;
 - PR #48 (`/sai`) followed immediately and is included in the verified main
@@ -76,14 +76,14 @@ backup artifacts or keys through Git.
 - production `chat-image` was already private and now has the strict immutable
   uploader INSERT policy. Five legacy policies remain for the mixed-client
   window until post-deploy contract;
-- PR #43 and the EAS follow-up PRs #44, #45 and #47 were merged. Current main
+- PR #43 and the EAS follow-up PRs #44, #45 and #47 were merged. Runtime-baseline
   GitHub CI run `29387007474` passed, including the local quality gate and
   Supabase release-manifest fence;
 - Vercel production deployment `5V5iydv5vij5ceK9YwJetbhX5B2d` serves current
   main with OpenAI still fail-closed. Two mobile-width canary passes across six
   routes produced zero console errors; all three WeddingCode APIs remained 410;
 - Android EAS production build
-  `e6cc6b8f-a377-4aba-8e83-5a9c509cd229` finished from exact current main with
+  `e6cc6b8f-a377-4aba-8e83-5a9c509cd229` finished from the exact runtime baseline with
   `versionCode 2`. The 65,249,946-byte AAB passed ZIP structure checks and has
   SHA-256 `FF3D924578C2FB94BA090042CAA30C4F60E1C504522F3082CB0018687DF84687`.
 

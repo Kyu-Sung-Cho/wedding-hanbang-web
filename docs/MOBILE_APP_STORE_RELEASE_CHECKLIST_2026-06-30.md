@@ -40,7 +40,7 @@ Current result:
 - Web production build: pass.
 - Mobile release readiness: 70/70 pass, no warnings or failures.
 - Expo Doctor: 18/18 pass.
-- Android production EAS build from current main: pass. Build
+- Android production EAS build from the verified runtime baseline: pass. Build
   `e6cc6b8f-a377-4aba-8e83-5a9c509cd229`, `versionCode 2`.
 
 Before every mobile release candidate, also run:
@@ -197,7 +197,7 @@ Before web production deployment:
 ## 12. Next Practical Sequence
 
 1. Finish interactive Apple distribution credential setup.
-2. Build the iOS production candidate from current main.
+2. Build the iOS production candidate from clean, up-to-date `main`.
 3. Install it on a physical iPhone through TestFlight or internal distribution.
 4. QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, notifications.
 5. Prepare App Store Connect metadata and privacy answers.
