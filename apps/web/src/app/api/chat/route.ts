@@ -63,6 +63,9 @@ const SSE_HEADERS = {
   Connection: "keep-alive",
   "X-Accel-Buffering": "no",
 };
+const DEMO_COUPLE_ID = "demo-couple";
+const DEMO_ACTOR_ID = "amora-signed-demo";
+const DEMO_COST_GUARD_COUPLE_ID = "00000000-0000-4000-8000-000000000000";
 
 function getStoredSuggestions(message: PersistedAiMessage): string[] {
   const value = message.metadata?.suggestions;
@@ -268,21 +271,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "요청 데이터가 너무 큽니다." }, { status: 413 });
   }
   // 인증 체크 (웹: 쿠키, 앱: Bearer 토큰)
-  const supabase = await createClientFromRequest(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-  }
-
-  const limited = await checkRateLimitPersistent(rateLimitKey("chat", request, user.id), {
-    maxRequests: 60,
-    windowMs: 60 * 60 * 1000,
-  });
-  if (limited) return limited;
-
   let body: Record<string, unknown>;
   try {
     const rawBody = await request.text();
@@ -309,7 +297,38 @@ export async function POST(request: Request) {
     requestKind: bodyRequestKind,
     visibility: bodyVisibility,
   } = body;
-  if (!isValidChatMessages(messages) || !isUuid(coupleId)) {
+  const isDemo =
+    bodyIsDemo === true &&
+    hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
+
+  // Real users authenticate with Supabase. The public demo is authorized by a
+  // separate signed, HttpOnly session cookie and never receives database write access.
+  const supabase = await createClientFromRequest(request);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !isDemo) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+
+  const actorId = user?.id ?? DEMO_ACTOR_ID;
+  const limited = await checkRateLimitPersistent(
+    isDemo
+      ? rateLimitKey("chat-demo", request)
+      : rateLimitKey("chat", request, actorId),
+    {
+      maxRequests: 60,
+      windowMs: 60 * 60 * 1000,
+    },
+  );
+  if (limited) return limited;
+
+  if (
+    !isValidChatMessages(messages) ||
+    typeof coupleId !== "string" ||
+    (isDemo ? coupleId !== DEMO_COUPLE_ID : !isUuid(coupleId))
+  ) {
     return NextResponse.json(
       { error: "메시지 또는 커플 ID 형식이 올바르지 않습니다." },
       { status: 400 },
@@ -346,9 +365,6 @@ export async function POST(request: Request) {
   if (!Array.isArray(attachmentInput) || attachmentInput.length > MAX_ATTACHMENTS) {
     return NextResponse.json({ error: "첨부파일 형식이 올바르지 않습니다." }, { status: 400 });
   }
-  const isDemo =
-    bodyIsDemo === true &&
-    hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
   if (bodyClientRequestId !== undefined &&
       (typeof bodyClientRequestId !== "string" || !CLIENT_REQUEST_ID_RE.test(bodyClientRequestId))) {
     return NextResponse.json(
@@ -375,19 +391,33 @@ export async function POST(request: Request) {
   let visibility: "shared" | "bride_private" | "groom_private" = requestedVisibility;
 
   // coupleId 소유 검증: 해당 커플에 속하는 사용자인지 확인
-  const { data: userProfile } = await getServiceClient()
-    .from("profiles")
-    .select("couple_id, role, is_admin, name")
-    .eq("id", user.id)
-    .single();
+  const userProfile = isDemo
+    ? {
+        couple_id: DEMO_COUPLE_ID,
+        role: "bride" as const,
+        is_admin: false,
+        name: "체험 사용자",
+      }
+    : (
+        await getServiceClient()
+          .from("profiles")
+          .select("couple_id, role, is_admin, name")
+          .eq("id", actorId)
+          .single()
+      ).data;
 
   if (userProfile?.couple_id !== coupleId) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
+  const dataCoupleId = isDemo ? DEMO_COST_GUARD_COUPLE_ID : coupleId;
   const safeSenderName =
     typeof userProfile.name === "string" && userProfile.name.trim()
       ? userProfile.name.trim().slice(0, 100)
       : "고객";
+
+  if (isDemo && requestedVisibility !== "shared") {
+    return NextResponse.json({ error: "체험 상담은 공유 모드만 사용할 수 있습니다." }, { status: 400 });
+  }
 
   if (requestedVisibility !== "shared") {
     const role = userProfile?.role;
@@ -402,14 +432,14 @@ export async function POST(request: Request) {
     visibility = allowedPrivateVisibility;
   }
 
-  const visibleClientRequestKey = `chat:${user.id}:${rawClientRequestId}`;
+  const visibleClientRequestKey = `chat:${actorId}:${rawClientRequestId}`;
   const durableClientRequestUuid =
     requestKind === "chat" && typeof bodyUserMessageId === "string"
       ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
       : rawClientRequestId;
   const clientRequestId = requestKind === "initial_greeting"
-    ? `greeting:${user.id}`
-    : `chat:${user.id}:${durableClientRequestUuid}`;
+    ? `greeting:${actorId}`
+    : `chat:${actorId}:${durableClientRequestUuid}`;
 
   // A completed retry must not reserve cost, rerun the model, or replay tools.
   if (!isDemo) {
@@ -428,7 +458,7 @@ export async function POST(request: Request) {
   const claimParams = {
     coupleId,
     requestKey: clientRequestId,
-    userId: user.id,
+    userId: actorId,
     visibility,
   } as const;
   let requestClaimAcquired = false;
@@ -503,16 +533,16 @@ export async function POST(request: Request) {
     amoraProfiles,
   ] = await Promise.all([
     // 1. 웨딩 저니
-    supabase.from("wedding_journeys").select("*").eq("couple_id", coupleId).single(),
+    supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
     // 2. 커플 프로필 (신부/신랑 이름, 역할)
     supabase
       .from("couple_profile_directory")
       .select("name, role")
-      .eq("couple_id", coupleId),
+      .eq("couple_id", dataCoupleId),
     // 3. 예약 내역 (취소 제외)
     supabase.from("vendor_bookings")
       .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo, vendors(name, category)")
-      .eq("couple_id", coupleId)
+      .eq("couple_id", dataCoupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
     // 4. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
@@ -520,7 +550,7 @@ export async function POST(request: Request) {
     (() => {
       const q = supabase.from("chat_summaries")
         .select("summary, created_at, message_count, to_message_id")
-        .eq("couple_id", coupleId)
+        .eq("couple_id", dataCoupleId)
         .order("created_at", { ascending: false })
         .limit(3);
       return (
@@ -534,13 +564,13 @@ export async function POST(request: Request) {
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
     supabase.from("decision_nodes")
       .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at")
-      .eq("couple_id", coupleId)
+      .eq("couple_id", dataCoupleId)
       .order("created_at", { ascending: false })
       .limit(50),
     // 6. Mediation 강화: 갈등→합의 히스토리 (최근 5개) — visibility 격리용으로 컬럼도 select
     supabase.from("decision_nodes")
       .select("title, chosen_value, reasoning, stage_tag, visibility, created_at")
-      .eq("couple_id", coupleId)
+      .eq("couple_id", dataCoupleId)
       .eq("category", "conflict_resolution")
       .order("created_at", { ascending: false })
       .limit(5),
@@ -550,7 +580,7 @@ export async function POST(request: Request) {
       const q = supabase
         .from("chat_messages")
         .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
-        .eq("couple_id", coupleId)
+        .eq("couple_id", dataCoupleId)
         // 상대에게 직접 보낸 메시지는 커플이 공유해서 보는 데이터여도
         // Amora/OpenAI 입력은 아니다. DB에서 먼저 제외하고 아래에서 한 번 더
         // 걸러 PostgREST 필터 회귀가 생겨도 provider 경계를 넘지 않게 한다.
@@ -562,11 +592,11 @@ export async function POST(request: Request) {
         : q.in("visibility", ["shared", visibility]);
     })(),
     // 8. 아모라 장기 개인화 프로필 (shared + 본인 private만)
-    loadAmoraProfiles(coupleId, visibility),
+    loadAmoraProfiles(dataCoupleId, visibility),
   ]);
 
   const journey = journeyResult.data;
-  if (journeyResult.error) {
+  if (!isDemo && journeyResult.error) {
     console.error("Journey 조회 에러:", journeyResult.error.message);
   }
 
@@ -719,7 +749,7 @@ export async function POST(request: Request) {
     const requestedRow = requestedIndex >= 0 ? canonicalRows[requestedIndex] : null;
     if (
       !requestedRow ||
-      requestedRow.sender_id !== user.id ||
+      requestedRow.sender_id !== actorId ||
       requestedRow.sender_type === "ai" ||
       requestedRow.role !== "user" ||
       requestedRow.visibility !== visibility
@@ -792,7 +822,7 @@ export async function POST(request: Request) {
     const latestUserRow = [...canonicalRows]
       .reverse()
       .find((row) => row.role === "user" && row.sender_type !== "ai");
-    if (!latestUserRow || latestUserRow.sender_id !== user.id) {
+    if (!latestUserRow || latestUserRow.sender_id !== actorId) {
       await releaseClaimBeforeStream("USER_MESSAGE_NOT_PERSISTED");
       return NextResponse.json(
         {
@@ -820,7 +850,7 @@ export async function POST(request: Request) {
 
   // Reserve cost only after canonical history/authz/idempotent replay checks.
   const costGuard = await reserveAmoraTurn(getServiceClient(), {
-    coupleId,
+    coupleId: dataCoupleId,
     isAdmin: userProfile?.is_admin === true,
   });
   if (!costGuard.allowed) {
@@ -851,9 +881,9 @@ export async function POST(request: Request) {
   }
 
   // 불만족 감지 시 자동 피드백 저장 (비동기, 비블로킹)
-  if (dissatisfaction?.detected) {
+  if (!isDemo && dissatisfaction?.detected) {
     autoSaveDissatisfaction({
-      userId: user.id,
+      userId: actorId,
       coupleId,
       signal: dissatisfaction.signal,
       visibility,
@@ -1014,7 +1044,7 @@ export async function POST(request: Request) {
               send({ type: "text_delta", content: token });
             },
             modelRole,
-            safetyIdentifierScope: user.id,
+            safetyIdentifierScope: actorId,
             signal: toolExecutionCompleted ? undefined : turnAbortController.signal,
           });
 
@@ -1091,8 +1121,8 @@ export async function POST(request: Request) {
             }
 
             // D1: 성공 turn 로깅 (fire-and-forget)
-            void logAIInteraction({
-              userId: user.id,
+            if (!isDemo) void logAIInteraction({
+              userId: actorId,
               coupleId,
               interactionType: "chat_turn",
               specialistType,
@@ -1122,9 +1152,9 @@ export async function POST(request: Request) {
               ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
               { role: "assistant" as const, content: cleanText },
             ];
-            if (AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
+            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
               coupleId,
-              userId: user.id,
+              userId: actorId,
               messages: messagesWithLatest,
               lastCoveredCount,
               lastToMessageId,
@@ -1132,9 +1162,9 @@ export async function POST(request: Request) {
             });
 
             // Memory Step B: 이번 턴 decision/preference 추출 (fire-and-forget)
-            if (AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
+            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
               coupleId,
-              userId: user.id,
+              userId: actorId,
               messages: messagesWithLatest,
               stageTag,
               lastUserText,
@@ -1142,18 +1172,18 @@ export async function POST(request: Request) {
             });
 
             // Excavation 기법 사용 분류 (fire-and-forget)
-            if (AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
+            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
               coupleId,
-              userId: user.id,
+              userId: actorId,
               lastUserText,
               aiResponseText: cleanText,
               stageTag,
             });
 
             // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-            if (AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
+            if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
               coupleId,
-              userId: user.id,
+              userId: actorId,
               visibility,
               messages: messagesWithLatest,
               lastUserText,
@@ -1254,7 +1284,7 @@ export async function POST(request: Request) {
             send({ type: "text_delta", content: token });
           },
           modelRole,
-          safetyIdentifierScope: user.id,
+          safetyIdentifierScope: actorId,
           signal: toolExecutionCompleted ? undefined : turnAbortController.signal,
         });
 
@@ -1332,34 +1362,34 @@ export async function POST(request: Request) {
           ...typedMessages.map((m) => ({ role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant", content: m.content, id: m.id })),
           { role: "assistant" as const, content: cleanText },
         ];
-        if (AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
+        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeSummarize({
           coupleId,
-          userId: user.id,
+          userId: actorId,
           messages: messagesWithLatest,
           lastCoveredCount,
           lastToMessageId,
           visibility,
         });
-        if (AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
+        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeExtractDecision({
           coupleId,
-          userId: user.id,
+          userId: actorId,
           messages: messagesWithLatest,
           stageTag,
           lastUserText,
           visibility,
         });
-        if (AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
+        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeClassifyExcavation({
           coupleId,
-          userId: user.id,
+          userId: actorId,
           lastUserText,
           aiResponseText: cleanText,
           stageTag,
         });
 
         // 아모라 장기 개인화 프로필 갱신 (fire-and-forget)
-        if (AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
+        if (!isDemo && AUXILIARY_MEMORY_ENABLED) void maybeUpdateAmoraProfile({
           coupleId,
-          userId: user.id,
+          userId: actorId,
           visibility,
           messages: messagesWithLatest,
           lastUserText,
@@ -1370,8 +1400,8 @@ export async function POST(request: Request) {
         });
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
-        void logAIInteraction({
-          userId: user.id,
+        if (!isDemo) void logAIInteraction({
+          userId: actorId,
           coupleId,
           interactionType: "chat_turn",
           specialistType,
@@ -1429,8 +1459,8 @@ export async function POST(request: Request) {
         });
 
         // D1: 실패 turn 로깅 (fire-and-forget)
-        void logAIInteraction({
-          userId: user.id,
+        if (!isDemo) void logAIInteraction({
+          userId: actorId,
           coupleId,
           interactionType: "chat_turn",
           specialistType,
