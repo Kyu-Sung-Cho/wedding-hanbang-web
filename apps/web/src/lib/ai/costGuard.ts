@@ -22,6 +22,7 @@
 // 면제하면 안 됨 — 인증 유저가 그 값을 조작해 가드를 우회할 수 있다.
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
+//   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
 //   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
@@ -31,6 +32,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const FREE_PER_COUPLE = Number(process.env.AMORA_FREE_MESSAGES_PER_COUPLE ?? 100);
 const GLOBAL_DAILY_CAP = Number(process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP ?? 300);
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
+const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
+// Keep the atomic global reservation when the per-couple quota is disabled.
+// The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
+const DISABLED_COUPLE_CAP = 2_147_483_647;
+const EFFECTIVE_COUPLE_CAP = COUPLE_QUOTA_ENABLED
+  ? FREE_PER_COUPLE
+  : DISABLED_COUPLE_CAP;
 
 export interface CostGuardResult {
   allowed: boolean;
@@ -77,7 +85,7 @@ export async function reserveAmoraTurn(
   try {
     const { data, error } = await admin.rpc("reserve_amora_turn", {
       p_couple_id: params.coupleId,
-      p_couple_cap: FREE_PER_COUPLE,
+      p_couple_cap: EFFECTIVE_COUPLE_CAP,
       p_global_cap: GLOBAL_DAILY_CAP,
     });
     if (error) {
@@ -89,10 +97,15 @@ export async function reserveAmoraTurn(
     if (row?.allowed === true) {
       // 소진 예고용 잔여 횟수 — 예약 직후 카운터 PK 조회(비원자여도 배너 용도라 충분).
       // 조회 실패는 remaining만 비울 뿐 통과 여부에 영향 없음.
-      return { allowed: true, remaining: await readCoupleRemaining(admin, params.coupleId) };
+      return {
+        allowed: true,
+        remaining: COUPLE_QUOTA_ENABLED
+          ? await readCoupleRemaining(admin, params.coupleId)
+          : undefined,
+      };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
-    if (row?.reason === "couple_quota") return DENY_COUPLE;
+    if (row?.reason === "couple_quota" && COUPLE_QUOTA_ENABLED) return DENY_COUPLE;
 
     // Unknown reservation state must never create an unmetered provider call.
     console.error("[costGuard] 예약 RPC 응답 형태 불명 (차단):", JSON.stringify(row ?? null));
@@ -144,6 +157,10 @@ export async function checkAmoraCostGuard(
   }
   if ((globalToday ?? 0) >= GLOBAL_DAILY_CAP) {
     return DENY_GLOBAL;
+  }
+
+  if (!COUPLE_QUOTA_ENABLED) {
+    return ALLOW;
   }
 
   // 2) 커플 누적 무료 상한 — 이 커플이 발생시킨 LLM 턴 수

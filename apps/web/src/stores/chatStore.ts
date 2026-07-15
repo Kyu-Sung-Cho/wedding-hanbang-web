@@ -881,7 +881,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
 
     // AI 응답
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingToolResults: [],
+      suggestions: [],
+      error: null,
+      quotaRemaining: null,
+    });
 
     try {
       // 프라이버시 critical: visibility별로 컨텍스트 격리
@@ -1015,7 +1022,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   requestInitialGreeting: async ({ coupleId, senderRole, senderName, weddingContext }) => {
     if (get().isStreaming) return;
 
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingToolResults: [],
+      suggestions: [],
+      error: null,
+      quotaRemaining: null,
+    });
 
     // 180초 타임아웃
     const abortController = new AbortController();
@@ -1088,7 +1102,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
     if (get().isStreaming) return;
 
-    set({ isStreaming: true, streamingContent: "", streamingToolResults: [], suggestions: [], error: null });
+    set({
+      isStreaming: true,
+      streamingContent: "",
+      streamingToolResults: [],
+      suggestions: [],
+      error: null,
+      quotaRemaining: null,
+    });
 
     const abortController = new AbortController();
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
