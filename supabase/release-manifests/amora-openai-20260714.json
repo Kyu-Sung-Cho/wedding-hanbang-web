@@ -28,17 +28,17 @@
   "manualPlatformOperations": [
     {
       "file": "supabase/platform-operations/storage/20260714162000_chat_attachment_expand.sql",
-      "sha256": "f796c6ffbf5ee7fcb7a54cdebc595a537ec5d94e3baba908e621806022daf754"
+      "sha256": "9ae9170fb7d76e4436baef924db5f3b45a0ad9312b8e2105ec7c2c9d00ffa4fc"
     },
     {
       "file": "supabase/platform-operations/storage/20260714167000_chat_attachment_contract.sql",
-      "sha256": "2d46aeb3af4f7ca31ae5adb15757f70298311c0a651b87060b2e9db0aca717f6"
+      "sha256": "085910dde7a9ef1ae5da483227f45ca37fdb31a1d8fc083fc43adc07b121f564"
     }
   ],
   "requiredDocuments": [
     {
       "file": "docs/operations/AMORA_PRODUCTION_RELEASE.md",
-      "sha256": "2eca23e8a9322ed75e6a2b9be89ad6c5c93d183a3fe0134e0da2182e330a75bc"
+      "sha256": "4213c2be0707f36d55b9d80e692dd8eea1c1eb0a7ca3d7d64aa1d9a3bcf9afb2"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",

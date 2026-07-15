@@ -77,16 +77,11 @@ async function createDatabase() {
       ON public.profiles FOR SELECT TO authenticated
       USING (id = auth.uid());
 
-    -- Test-only read policy lets SQL locate rows so UPDATE/DELETE policy behavior
-    -- can be asserted independently from the private bucket's signed-read path.
-    CREATE POLICY storage_test_visible
-      ON storage.objects FOR SELECT TO authenticated
-      USING (bucket_id = 'chat-image');
-
     GRANT USAGE ON SCHEMA public, auth, storage TO authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.uid(), storage.foldername(text) TO authenticated;
     GRANT SELECT ON public.profiles TO authenticated;
     GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
+    GRANT SELECT ON storage.objects TO service_role;
 
     INSERT INTO public.profiles (id, couple_id)
     VALUES
@@ -144,7 +139,7 @@ describe("chat attachment storage migration", () => {
     }
   });
 
-  it("prevents authenticated updates and deletes of partner and legacy objects", async () => {
+  it("keeps reads server-signed and makes every attachment immutable to authenticated clients", async () => {
     const ownPath = `${COUPLE_ID}/${USER_ID}/own.png`;
     const partnerPath = `${COUPLE_ID}/${PARTNER_ID}/partner.png`;
     const legacyPath = `${COUPLE_ID}/legacy.png`;
@@ -160,21 +155,28 @@ describe("chat attachment storage migration", () => {
       SET "request.jwt.claim.sub" = '${USER_ID}';
     `);
 
-    const ownUpdate = await db.query<{ name: string }>(`
-      UPDATE storage.objects SET metadata = '{"updated":true}'
-      WHERE name = '${ownPath}' RETURNING name;
+    const directRead = await db.query<{ name: string }>(`
+      SELECT name FROM storage.objects
+      WHERE name IN ('${ownPath}', '${partnerPath}', '${legacyPath}') ORDER BY name;
     `);
     const forbiddenUpdate = await db.query<{ name: string }>(`
       UPDATE storage.objects SET metadata = '{"updated":true}'
-      WHERE name IN ('${partnerPath}', '${legacyPath}') RETURNING name;
+      WHERE name IN ('${ownPath}', '${partnerPath}', '${legacyPath}') RETURNING name;
     `);
     const forbiddenDelete = await db.query<{ name: string }>(`
       DELETE FROM storage.objects
-      WHERE name IN ('${partnerPath}', '${legacyPath}') RETURNING name;
+      WHERE name IN ('${ownPath}', '${partnerPath}', '${legacyPath}') RETURNING name;
     `);
 
-    expect(ownUpdate.rows).toEqual([{ name: ownPath }]);
+    expect(directRead.rows).toEqual([]);
     expect(forbiddenUpdate.rows).toEqual([]);
     expect(forbiddenDelete.rows).toEqual([]);
+
+    await db.exec("RESET ROLE; SET ROLE service_role;");
+    const signedReadAuthority = await db.query<{ name: string }>(`
+      SELECT name FROM storage.objects
+      WHERE name IN ('${ownPath}', '${partnerPath}', '${legacyPath}') ORDER BY name;
+    `);
+    expect(signedReadAuthority.rows).toHaveLength(3);
   });
 });

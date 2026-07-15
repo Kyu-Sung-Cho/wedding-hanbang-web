@@ -16,13 +16,9 @@ BEGIN
     FROM pg_policies
     WHERE schemaname = 'storage'
       AND tablename = 'objects'
-      AND policyname IN (
-        'chat-image own uploader folder write',
-        'chat-image own uploader folder update',
-        'chat-image own uploader folder delete'
-      )
-  ) <> 3 THEN
-    RAISE EXCEPTION 'CHAT_ATTACHMENT_EXPAND_POLICY_MISSING';
+      AND policyname = 'chat-image own uploader folder write'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'CHAT_ATTACHMENT_EXPAND_UPLOAD_POLICY_MISSING';
   END IF;
 END;
 $$;
@@ -39,6 +35,8 @@ DROP POLICY IF EXISTS "chat-image couple folder update" ON storage.objects;
 DROP POLICY IF EXISTS "chat-image couple folder delete" ON storage.objects;
 DROP POLICY IF EXISTS "Anyone can view chat image" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload chat image" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image own uploader folder update" ON storage.objects;
+DROP POLICY IF EXISTS "chat-image own uploader folder delete" ON storage.objects;
 
 DO $$
 BEGIN
@@ -59,7 +57,9 @@ BEGIN
         'chat-image couple folder update',
         'chat-image couple folder delete',
         'Anyone can view chat image',
-        'Authenticated users can upload chat image'
+        'Authenticated users can upload chat image',
+        'chat-image own uploader folder update',
+        'chat-image own uploader folder delete'
       )
   ) THEN
     RAISE EXCEPTION 'CHAT_ATTACHMENT_CONTRACT_POSTCONDITION_FAILED';
@@ -68,4 +68,4 @@ END;
 $$;
 
 COMMENT ON POLICY "chat-image own uploader folder write" ON storage.objects IS
-  'Private chat attachments must use couple_id/auth.uid()/file; legacy objects are read only through authorized signed URLs.';
+  'Private immutable chat attachments must use couple_id/auth.uid()/file; all reads use authorized signed URLs.';

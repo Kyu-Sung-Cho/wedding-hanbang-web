@@ -52,8 +52,9 @@ Still open; therefore production deployment is **not yet authorized**:
 2. decide the later of two duplicate pending/unpaid production bookings for the
    same couple/vendor/slot; migration `20260714164000` cannot create its unique
    index until the duplicate is resolved;
-3. create the three strict hosted Storage policies in preview, test them, and
-   repeat the approved expand operation in production;
+3. repeat the verified strict immutable-upload Storage operation in production;
+   the isolated clone passed the final hosted contract on 2026-07-15, but
+   production Storage is unchanged;
 4. obtain a traceable EAS iOS and Android production cloud build;
 5. supply a controlled OpenAI key to a non-production smoke environment without
    exposing it, then pass the real provider smoke and cost fence;
@@ -153,13 +154,21 @@ those accounts after the receipts are captured.
 ### 5. Hosted Storage expand
 
 Inventory and save the current `chat-image` bucket/policy names. Through the
-Supabase Storage policy UI, create only the three policies defined by
+Supabase Storage policy UI, create only the immutable `INSERT` policy defined by
 `supabase/platform-operations/storage/20260714162000_chat_attachment_expand.sql`.
+Record the Dashboard-generated suffix. Do not select `UPDATE` or `DELETE`, because
+Dashboard auto-adds `SELECT` and would widen access beyond signed URLs.
 Do not remove legacy policies or make the bucket private in this phase. This is
 a cloud access-permission change and requires action-time operator confirmation.
 
 Pass own upload/signed read, partner overwrite denial, traversal denial and
 anonymous direct-read characterization before proceeding.
+
+The isolated restore clone completed both expand and final-contract validation
+on 2026-07-15. Its receipt is
+`docs/evidence/AMORA_STORAGE_POLICY_2026-07-15.md`. Repeat the inventory and
+operation against production; never treat the clone result as a production
+mutation receipt.
 
 ### 6. Deploy compatible code with OpenAI disabled
 
@@ -198,8 +207,8 @@ record the final deployment IDs, commit, database state and metrics.
    stop. AI fails closed—there is intentionally no Anthropic fallback.
 2. **Web:** promote the previously verified Vercel deployment or revert the
    release commit, then repeat the zero-provider and core-route smoke.
-3. **Storage expand:** while legacy policies still exist, remove only the three
-   new strict policies if they caused breakage. After contract, restore the
+3. **Storage expand:** while legacy policies still exist, remove only the new
+   immutable-upload policy if it caused breakage. After contract, restore the
    saved policy/bucket inventory only as a separately confirmed access change.
 4. **Database:** prefer a forward repair. Do not drop new columns/tables or run
    destructive down SQL during the incident. If data integrity is compromised,

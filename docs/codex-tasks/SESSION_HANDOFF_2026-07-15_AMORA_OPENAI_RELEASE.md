@@ -2,7 +2,7 @@
 
 ## Where to continue
 
-- repository: `Kyu-Sung-Cho/wedding-hanbang`;
+- repository: `Kyu-Sung-Cho/wedding-hanbang-web`;
 - branch: `feat/amora-openai-runtime-20260714`;
 - upstream before this release commit: `1bb5a216`;
 - archived PR #38 is evidence only, not a merge target;
@@ -52,6 +52,9 @@ backup artifacts or keys through Git.
 - hash-pinned historical-effect audit passed in read-only transactions on both
   the isolated clone and production; the nine ledger versions are not yet
   marked applied.
+- isolated-clone hosted Storage final contract passed: strict immutable upload,
+  signed read and all partner/traversal/direct-read/overwrite denials; synthetic
+  accounts and object were cleaned up.
 
 The DPAPI backup is intentionally tied to the Windows user profile that created
 it and is not portable through Git. A new operator/computer must take its own
@@ -60,7 +63,8 @@ fresh clean-tree backup before production writes.
 ## Deliberately not done
 
 - no production database migration or ledger write;
-- no production/preview Storage policy mutation;
+- no production Storage policy mutation; the isolated clone was contracted to
+  the verified private immutable-upload policy for hosted validation;
 - no production OpenAI activation or real-key smoke;
 - no Vercel production deployment;
 - no EAS native cloud build;
@@ -71,12 +75,12 @@ fresh clean-tree backup before production writes.
 ## Hard gates and decisions
 
 1. Production has two pending/unpaid bookings for the same couple/vendor/slot.
-   The later candidate was cancelled only in the isolated clone. A business
-   owner must approve cancelling the later production row before the unique
-   index migration can apply.
+   The later candidate was cancelled only in the isolated clone. The owner gave
+   approval in the release task to cancel the later production row; re-identify
+   it by the exact duplicate tuple immediately before the write.
 2. Creating/removing hosted Storage policies changes cloud access permissions.
-   Obtain action-time confirmation for preview expand, and a separate action-
-   time confirmation for production expand/contract.
+   The owner approved the in-scope release operations in the task. Preserve a
+   fresh production inventory and rollback receipt at action time.
 3. Real OpenAI smoke needs a controlled non-production key. Production has a
    key configured, but pulled values are redacted and the enable flag is absent.
 4. Web server Sentry and mobile Sentry/PostHog destinations are not configured.
@@ -96,6 +100,6 @@ pnpm supabase:release:fence
 node scripts/supabase-release-fence.mjs --remote --expect=before-reconcile
 ```
 
-Then review/stage the exact release diff, push the immutable candidate and open
-a new PR. After green CI, follow the production runbook in strict order. Never
-skip from a green local build directly to OpenAI enablement.
+Continue from PR #43. Re-run only gates affected by newer commits, then follow
+the production runbook in strict order. Never skip from a green build directly
+to OpenAI enablement.
