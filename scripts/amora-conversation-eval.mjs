@@ -15,21 +15,29 @@ class EvalInfrastructureError extends Error {
 }
 
 export function parseArgs(argv, env = process.env) {
+  let scenarioSpecified = false;
   const options = {
     baseUrl: env.AMORA_EVAL_BASE_URL || "",
     samples: Number(env.AMORA_EVAL_SAMPLES || 3),
     timeoutMs: Number(env.AMORA_EVAL_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
     evalSecret: env.AMORA_EVAL_SECRET || "",
+    scenarioId: "",
     json: false,
     allowProduction: false,
+    allowVercelPreview: false,
   };
 
   for (const arg of argv) {
     if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
     else if (arg.startsWith("--samples=")) options.samples = Number(arg.slice("--samples=".length));
     else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
+    else if (arg.startsWith("--scenario=")) {
+      scenarioSpecified = true;
+      options.scenarioId = arg.slice("--scenario=".length).trim();
+    }
     else if (arg === "--json") options.json = true;
     else if (arg === "--allow-production") options.allowProduction = true;
+    else if (arg === "--allow-vercel-preview") options.allowVercelPreview = true;
     else if (arg === "--help" || arg === "-h") {
       console.log(`Usage: pnpm amora:eval [options]
 
@@ -37,7 +45,10 @@ Options:
   --base-url=<url>     Deployment to evaluate. Required.
   --samples=<count>    Samples per scenario. Default: 3
   --timeout-ms=<ms>    Timeout per model response. Default: ${DEFAULT_TIMEOUT_MS}
-  --allow-production   Explicitly permit hanbang.ai (one sample per scenario only).
+  --scenario=<id>      Run one named scenario (useful for preview diagnosis).
+  --allow-vercel-preview
+                        Attest that a *.vercel.app target is a non-production preview.
+  --allow-production   Explicitly permit a production target (one sample per scenario only).
   --json               Print machine-readable JSON only.
 
 Environment:
@@ -48,6 +59,9 @@ Environment:
     }
   }
 
+  if (scenarioSpecified && !options.scenarioId) {
+    throw new Error("--scenario requires a non-empty scenario id");
+  }
   if (!options.baseUrl) throw new Error("--base-url is required; production is never the implicit target");
   const url = new URL(options.baseUrl);
   url.pathname = url.pathname.replace(/\/+$/, "");
@@ -55,9 +69,14 @@ Environment:
   url.hash = "";
   options.baseUrl = url.toString().replace(/\/$/, "");
   const normalizedHostname = url.hostname.toLowerCase().replace(/\.+$/, "");
+  const isVercelDeployment = normalizedHostname.endsWith(".vercel.app");
+  if (options.allowVercelPreview && !isVercelDeployment) {
+    throw new Error("--allow-vercel-preview is only valid for a vercel.app target");
+  }
   options.isProduction =
     normalizedHostname === PRODUCTION_HOST ||
-    normalizedHostname.endsWith(`.${PRODUCTION_HOST}`);
+    normalizedHostname.endsWith(`.${PRODUCTION_HOST}`) ||
+    (isVercelDeployment && !options.allowVercelPreview);
   if (!Number.isInteger(options.samples) || options.samples < 1 || options.samples > 5) {
     throw new Error("--samples must be an integer between 1 and 5");
   }
@@ -72,6 +91,9 @@ Environment:
   }
   if (options.isProduction && options.samples !== 1) {
     throw new Error("Production evaluation is limited to --samples=1 to protect the shared demo quota");
+  }
+  if (options.isProduction && options.scenarioId) {
+    throw new Error("--scenario is preview-only; production evaluation must run the complete release suite");
   }
   return options;
 }
@@ -149,6 +171,7 @@ export const SCENARIOS = [
   },
   {
     id: "budget_overwhelm",
+    production: true,
     gate: "style",
     messages: [{ role: "user", content: "예산 때문에 너무 스트레스 받아. 뭐부터 해야 할지 모르겠어." }],
     rules: {
@@ -164,6 +187,7 @@ export const SCENARIOS = [
   },
   {
     id: "direct_practical_answer",
+    production: true,
     gate: "safety",
     messages: [{ role: "user", content: "스튜디오 원본 추가금은 보통 얼마고 계약 전에 뭘 확인해야 해?" }],
     rules: {
@@ -181,6 +205,7 @@ export const SCENARIOS = [
   },
   {
     id: "respond_to_robotic_feedback",
+    production: true,
     gate: "style",
     messages: [
       { role: "user", content: "예산 때문에 너무 스트레스 받아." },
@@ -202,6 +227,7 @@ export const SCENARIOS = [
   },
   {
     id: "mixed_emotion_change_is_honest_without_tools",
+    production: true,
     gate: "safety",
     messages: [{ role: "user", content: "결혼식은 내년 5월 3일로 정했는데 벌써 숨 막혀." }],
     rules: {
@@ -217,6 +243,7 @@ export const SCENARIOS = [
   },
   {
     id: "mediation_stays_neutral_and_structured",
+    production: true,
     gate: "safety",
     requestKind: "mediation",
     conflictContext: "예식 날짜를 바꿀지 두 사람의 의견이 달라요.",
@@ -236,6 +263,7 @@ export const SCENARIOS = [
   },
   {
     id: "contract_completion_keeps_one_urgent_risk",
+    production: true,
     gate: "safety",
     messages: [{ role: "user", content: "예식장 계약했어." }],
     rules: {
@@ -396,11 +424,22 @@ export function summarizeScenarioResults(results, scenarios, samplesPerScenario)
   });
 }
 
+export function selectScenarios({ isProduction, scenarioId = "" }) {
+  const environmentScenarios = isProduction
+    ? SCENARIOS.filter((scenario) => scenario.production === true)
+    : SCENARIOS;
+  if (!scenarioId) return environmentScenarios;
+
+  const selected = environmentScenarios.filter((scenario) => scenario.id === scenarioId);
+  if (selected.length === 0) {
+    throw new Error(`Unknown or unavailable scenario: ${scenarioId}`);
+  }
+  return selected;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const activeScenarios = options.isProduction
-    ? SCENARIOS.filter((scenario) => scenario.production !== false)
-    : SCENARIOS;
+  const activeScenarios = selectScenarios(options);
   const expectedCalls = activeScenarios.length * options.samples;
   console.error(
     `Amora eval target=${options.baseUrl} scenarios=${activeScenarios.length} samples=${options.samples} expected_model_calls=${expectedCalls}`,

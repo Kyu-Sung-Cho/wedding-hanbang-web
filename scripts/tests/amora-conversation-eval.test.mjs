@@ -7,6 +7,7 @@ import {
   evaluateText,
   parseArgs,
   parseSse,
+  selectScenarios,
   summarizeScenarioResults,
 } from "../amora-conversation-eval.mjs";
 
@@ -54,6 +55,83 @@ test("requires an explicit target and explicit production permission", () => {
   assert.throws(
     () => parseArgs(["--base-url=http://localhost:3000"], {}),
     /AMORA_EVAL_SECRET/,
+  );
+  assert.equal(
+    parseArgs([
+      "--base-url=http://localhost:3000",
+      "--scenario=mixed_emotion_change_is_honest_without_tools",
+    ], env).scenarioId,
+    "mixed_emotion_change_is_honest_without_tools",
+  );
+  assert.throws(
+    () => parseArgs([
+      "--base-url=https://hanbang.ai",
+      "--samples=1",
+      "--allow-production",
+      "--scenario=mixed_emotion_change_is_honest_without_tools",
+    ], env),
+    /preview-only/,
+  );
+  assert.equal(
+    parseArgs([
+      "--base-url=https://wedding-hanbang-production-hanbang.vercel.app",
+      "--samples=1",
+      "--allow-production",
+    ], env).isProduction,
+    true,
+  );
+  assert.equal(
+    parseArgs([
+      "--base-url=https://wedding-hanbang-pr-60-hanbang.vercel.app",
+      "--allow-vercel-preview",
+      "--scenario=mixed_emotion_change_is_honest_without_tools",
+    ], env).isProduction,
+    false,
+  );
+  assert.throws(
+    () => parseArgs([
+      "--base-url=http://localhost:3000",
+      "--allow-vercel-preview",
+    ], env),
+    /only valid for a vercel\.app target/,
+  );
+  assert.throws(
+    () => parseArgs([
+      "--base-url=http://localhost:3000",
+      "--scenario=",
+    ], env),
+    /non-empty scenario id/,
+  );
+});
+
+test("locks the production suite to six explicitly opted-in scenarios", () => {
+  const expectedIds = [
+    "budget_overwhelm",
+    "direct_practical_answer",
+    "respond_to_robotic_feedback",
+    "mixed_emotion_change_is_honest_without_tools",
+    "mediation_stays_neutral_and_structured",
+    "contract_completion_keeps_one_urgent_risk",
+  ];
+
+  assert.deepEqual(
+    selectScenarios({ isProduction: true }).map((scenario) => scenario.id),
+    expectedIds,
+  );
+  assert.deepEqual(
+    selectScenarios({
+      isProduction: false,
+      scenarioId: "mixed_emotion_change_is_honest_without_tools",
+    }).map((scenario) => scenario.id),
+    ["mixed_emotion_change_is_honest_without_tools"],
+  );
+  assert.throws(
+    () => selectScenarios({ isProduction: true, scenarioId: "listen_without_solving" }),
+    /Unknown or unavailable scenario/,
+  );
+  assert.throws(
+    () => selectScenarios({ isProduction: false, scenarioId: "not-a-scenario" }),
+    /Unknown or unavailable scenario/,
   );
 });
 

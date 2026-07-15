@@ -54,12 +54,31 @@ samples per scenario:
 
 ```powershell
 $env:AMORA_EVAL_SECRET = "<target environment secret>"
-corepack pnpm amora:eval -- --base-url=https://<preview-host> --json
+corepack pnpm amora:eval -- --base-url=https://<staging-host> --json
 ```
+
+For an explicitly verified Vercel Preview target, add the preview attestation:
+
+```powershell
+corepack pnpm amora:eval -- --base-url=https://<preview-host>.vercel.app --allow-vercel-preview --json
+```
+
+A `*.vercel.app` URL is treated as production unless the operator explicitly
+adds `--allow-vercel-preview`. That flag is an environment attestation, not a
+way to weaken production gates. The server independently uses `VERCEL_ENV` and
+shares one 12-request bucket across every production alias.
+
+Do not evaluate an ordinary safe Preview where
+`NEXT_PUBLIC_PREVIEW_STUB_MODE=true`; its proxy correctly returns 503 for API
+routes. A targeted hosted evaluation requires a dedicated non-production
+Preview/Stage deployment with the stub disabled, non-production Supabase and
+OpenAI credentials, and its own evaluation secret. Otherwise use a local
+production build wired only to non-production services. Never disable the
+Preview fence while pointing at the production database.
 
 ## Verification before publication
 
-- root test: 8 evaluator tests, 611 web tests and 7 mobile tests passed;
+- root test: 9 evaluator tests, 614 web tests and 7 mobile tests passed;
 - TypeScript: passed;
 - ESLint: 0 errors; one pre-existing unused test-variable warning outside this
   change;
@@ -68,6 +87,30 @@ corepack pnpm amora:eval -- --base-url=https://<preview-host> --json
   text leaked into browser chunks;
 - independent testing, maintainability and adversarial review findings were
   fixed and re-reviewed.
+
+## First production evaluation and follow-up
+
+PR #59 was squash-merged as `ac7fc9a056892a404bd172b56da6aa597a705cf9`
+and deployed successfully. The first signed production evaluation made exactly
+six model calls with no retries. Infrastructure passed 6/6 and quality passed
+5/6. The failed scenario was
+`mixed_emotion_change_is_honest_without_tools`: Amora responded naturally to a
+new wedding date, but did not explicitly disclose that the public demo had not
+saved the date.
+
+The follow-up keeps ordinary authenticated chat unchanged and adds a demo-only
+final prompt guard. When a user first provides or changes a confirmed date,
+budget, schedule or booking in the public demo, the same response must state
+that it was not saved to the real product. It must not make a false save,
+remember or future-save claim. Greetings, mediation quotes and unrelated chat
+are excluded so this disclosure does not become another mechanical refrain.
+
+The evaluator now accepts `--scenario=<id>` so this single failed scenario can
+be verified against a preview deployment before spending the remaining six-call
+production allowance. This option is rejected for every production hostname,
+including an un-attested `*.vercel.app` deployment. Do not run the full
+production evaluation again until the targeted non-production evaluation, CI
+and production deployment have all passed.
 
 ## Continuation on another computer
 

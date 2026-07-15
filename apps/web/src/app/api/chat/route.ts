@@ -72,9 +72,14 @@ const EVAL_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000001";
 
 function getEvalRequestLimit(request: Request): { key: string; maxRequests: number } {
   const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.+$/, "");
-  const isProduction = hostname === "hanbang.ai" || hostname.endsWith(".hanbang.ai");
+  const isProduction =
+    process.env.VERCEL_ENV === "production" ||
+    hostname === "hanbang.ai" ||
+    hostname.endsWith(".hanbang.ai");
   return {
-    key: `chat-eval:${hostname || "unknown"}`,
+    // All aliases for the same production deployment share one bucket. This
+    // prevents the immutable *.vercel.app URL from creating a second allowance.
+    key: isProduction ? "chat-eval:production" : `chat-eval:${hostname || "unknown"}`,
     // The production CLI makes exactly six provider requests per run and never
     // retries. One extra run is allowed for a failed release/rollback check.
     maxRequests: isProduction ? 12 : 36,
@@ -960,7 +965,8 @@ export async function POST(request: Request) {
     pastConflicts,
   }, {
     specialist: specialistType,
-    mode: requestKind === "mediation" ? "mediation" : "chat",
+    requestKind,
+    persistenceMode: isDemo ? "demo" : "durable",
   });
 
   // 메시지 포맷팅

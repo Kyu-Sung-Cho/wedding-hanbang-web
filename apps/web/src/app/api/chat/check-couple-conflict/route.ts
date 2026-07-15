@@ -310,7 +310,8 @@ export async function POST(req: NextRequest) {
       pastConflicts: pastConflictsForPrompt,
     }, {
       specialist: "general",
-      mode: "mediation",
+      requestKind: "mediation",
+      persistenceMode: "durable",
       maxChars: MAX_MEDIATION_SYSTEM_CHARS,
     });
 
