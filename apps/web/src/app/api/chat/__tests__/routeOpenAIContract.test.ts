@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => {
     safeTools: [{ name: "update_budget", description: "Update budget", input_schema: {} }],
     canonicalRows: [] as Array<Record<string, unknown>>,
     chatHistoryOr: vi.fn(),
+    authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
+    signedDemo: false,
+    adminFrom: vi.fn(),
     PersistenceError,
     ClaimError,
   };
@@ -49,7 +52,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+        data: { user: mocks.authenticatedUser },
       })),
     },
     from: vi.fn((table: string) => {
@@ -66,7 +69,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
-    from: vi.fn((table: string) => {
+    from: mocks.adminFrom.mockImplementation((table: string) => {
       if (table === "profiles") {
         return queryResult({
           couple_id: "10000000-0000-4000-8000-000000000001",
@@ -86,7 +89,7 @@ vi.mock("@/utils/rateLimit", () => ({
 }));
 
 vi.mock("@/lib/demoSession", () => ({
-  hasSignedDemoSessionFromCookieHeader: vi.fn(() => false),
+  hasSignedDemoSessionFromCookieHeader: vi.fn(() => mocks.signedDemo),
 }));
 
 vi.mock("@/lib/ai/costGuard", () => ({
@@ -206,6 +209,8 @@ function persisted(content: string) {
 describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.authenticatedUser = { id: "00000000-0000-4000-8000-000000000001" };
+    mocks.signedDemo = false;
     mocks.persist.mockImplementation(async ({ cleanText }: { cleanText: string }) => persisted(cleanText));
     mocks.completeClaim.mockResolvedValue(undefined);
     mocks.executeTool.mockResolvedValue({
@@ -417,5 +422,63 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).toHaveBeenCalledTimes(1);
     expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
     expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("lets a signed demo session reach OpenAI without a Supabase user or durable writes", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "체험 상담 응답",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+      weddingContext: {
+        weddingDate: "2026-10-15",
+        budget: 25_000_000,
+        venue: null,
+        progress: {},
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("체험 상담 응답");
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
+      isDemo: true,
+      coupleId: "demo-couple",
+    }));
+    expect(mocks.completeClaim).not.toHaveBeenCalled();
+    expect(mocks.adminFrom).not.toHaveBeenCalledWith("profiles");
+    expect(mocks.log).not.toHaveBeenCalled();
+  });
+
+  it("still rejects an unsigned demo claim without a Supabase user", async () => {
+    mocks.authenticatedUser = null;
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+    }));
+
+    expect(response.status).toBe(401);
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("does not let a signed demo session select a real couple id", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+
+    const response = await POST(request({
+      isDemo: true,
+      userMessageId: undefined,
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 });
