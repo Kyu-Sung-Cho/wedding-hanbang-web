@@ -2,6 +2,12 @@ import type { ToolExecutionResult } from "@/types/database.types";
 
 export interface ToolExecutionContext {
   coupleId: string;
+  /**
+   * Canonical durable chat claim key (`chat:<user uuid>:<request uuid>`).
+   * executeTool fails closed for mutating tools when this is absent so a
+   * model retry cannot bypass the database operation ledger.
+   */
+  requestKey?: string;
   currentUserText?: string;
   weddingContext: {
     weddingDate: string | null;

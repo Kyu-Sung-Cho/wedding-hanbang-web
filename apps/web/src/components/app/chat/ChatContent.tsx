@@ -1372,7 +1372,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       <div className="sr-only">
         <div
           className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] leading-tight text-[#928980]"
-          title="아모라 답변은 Anthropic Claude 가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
+          title="아모라 답변은 OpenAI GPT-5.6 Luna·Terra가 생성합니다. 출처와 정책은 'AI 정책' 페이지에서 확인하세요."
         >
           <span className="inline-flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#795252]/50" />

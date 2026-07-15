@@ -28,6 +28,15 @@ export function initAuthListener() {
     if (event === "SIGNED_OUT") {
       router.replace("/(auth)/login");
     }
+    if (!__DEV__ && (event === "INITIAL_SESSION" || event === "SIGNED_IN")) {
+      // Run outside the auth callback so token persistence never blocks the
+      // Supabase session lock. Repeated calls are safe and refresh stale tokens.
+      setTimeout(() => {
+        void import("./notifications")
+          .then(({ registerForPushNotifications }) => registerForPushNotifications())
+          .catch((error: unknown) => console.warn("[Push] 등록 실패:", error));
+      }, 0);
+    }
   });
   authStateSubscription = data.subscription;
 }

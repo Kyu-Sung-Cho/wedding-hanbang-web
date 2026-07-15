@@ -64,7 +64,7 @@ export default function Solutions() {
               새벽 2시에 갑자기 든 고민도 바로 해결하세요.
             </p>
             <div className="inline-flex items-center gap-[5px] mt-5 px-3.5 py-1.5 bg-[var(--rose-glow)] rounded-full text-[12px] text-rose-500 font-medium w-fit">
-              ✦ Claude AI 기반 맞춤 상담
+              ✦ OpenAI GPT-5.6 기반 맞춤 상담
             </div>
           </div>
         </motion.div>

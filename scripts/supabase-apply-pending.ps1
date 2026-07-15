@@ -5,6 +5,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+throw "Disabled: unscoped pending migration apply is unsafe. Follow docs/operations/AMORA_PRODUCTION_RELEASE.md."
+
 function Show-Help {
   Write-Host ""
   Write-Host "Supabase apply pending migrations"

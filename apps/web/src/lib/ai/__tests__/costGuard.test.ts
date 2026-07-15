@@ -65,9 +65,10 @@ describe("checkAmoraCostGuard", () => {
     expect(r.reason).toBe("couple_quota");
   });
 
-  it("카운트 에러 시 fail-open (통과)", async () => {
+  it("카운트 에러 시 미계측 호출을 막기 위해 fail-closed", async () => {
     const r = await checkAmoraCostGuard(makeAdmin({ error: true }), BASE);
-    expect(r.allowed).toBe(true);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("guard_unavailable");
   });
 });
 
@@ -149,10 +150,11 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.allowed).toBe(true);
   });
 
-  it("알 수 없는 reason은 fail-open (가드 오류가 사용을 막지 않도록)", async () => {
+  it("알 수 없는 reason은 미계측 호출을 막기 위해 fail-closed", async () => {
     const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "invalid_args" } });
     const r = await reserveAmoraTurn(admin, BASE);
-    expect(r.allowed).toBe(true);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("guard_unavailable");
   });
 
   it("가드 비활성 시 통과 + RPC 미호출", async () => {

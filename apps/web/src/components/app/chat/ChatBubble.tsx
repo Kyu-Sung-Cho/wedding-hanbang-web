@@ -55,68 +55,57 @@ async function submitFeedback(messageId: string, rating: "good" | "bad", correct
   }
 }
 
-function extractChatImagePathFromPublicUrl(url: string) {
-  try {
-    const marker = "/storage/v1/object/public/chat-image/";
-    const markerIndex = url.indexOf(marker);
-    if (markerIndex === -1) return null;
-    const pathWithQuery = url.slice(markerIndex + marker.length);
-    const path = pathWithQuery.split("?")[0] ?? "";
-    return decodeURIComponent(path);
-  } catch {
-    return null;
-  }
-}
-
 function isPdfUrl(url: string) {
   return url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
 }
 
-function ChatImageAttachments({ metadata }: { metadata: ChatMessage["metadata"] }) {
+function ChatImageAttachments({
+  messageId,
+  metadata,
+}: {
+  messageId: string;
+  metadata: ChatMessage["metadata"];
+}) {
   const storedImageUrls = metadata?.imageUrls ?? [];
   const storedImagePaths = metadata?.imagePaths ?? [];
-  const legacyImagePaths = storedImageUrls
-    .map(extractChatImagePathFromPublicUrl)
-    .filter((path): path is string => Boolean(path));
-  const privateImagePaths = [...new Set([...storedImagePaths, ...legacyImagePaths])];
-  const privateImagePathKey = privateImagePaths.join("|");
+  const attachmentKey = `${messageId}|${[...storedImagePaths, ...storedImageUrls].join("|")}`;
+  const hasAttachments = storedImagePaths.length > 0 || storedImageUrls.length > 0;
   const [signedImageState, setSignedImageState] = useState<{ key: string; urls: string[] }>({
     key: "",
     urls: [],
   });
 
   useEffect(() => {
-    if (!privateImagePathKey) return;
+    if (!hasAttachments) return;
 
     let cancelled = false;
-    const paths = privateImagePathKey.split("|");
 
     fetch("/api/chat/image-urls", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths }),
+      body: JSON.stringify({ messageId }),
     })
       .then((res) => (res.ok ? res.json() : { urls: [] }))
       .then((payload: { urls?: { signedUrl?: string | null }[] }) => {
         if (cancelled) return;
         setSignedImageState({
-          key: privateImagePathKey,
+          key: attachmentKey,
           urls: (payload.urls ?? [])
             .map((item) => item.signedUrl)
             .filter((url): url is string => Boolean(url)),
         });
       })
       .catch(() => {
-        if (!cancelled) setSignedImageState({ key: privateImagePathKey, urls: [] });
+        if (!cancelled) setSignedImageState({ key: attachmentKey, urls: [] });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [privateImagePathKey]);
+  }, [attachmentKey, hasAttachments, messageId]);
 
   const signedImageUrls =
-    signedImageState.key === privateImagePathKey ? signedImageState.urls : [];
+    signedImageState.key === attachmentKey ? signedImageState.urls : [];
   const imageUrls = signedImageUrls;
   if (imageUrls.length === 0) return null;
 
@@ -599,7 +588,7 @@ export default function ChatBubble({
             </div>
           )}
           {/* 첨부 파일 (이미지 + PDF) */}
-          <ChatImageAttachments metadata={message.metadata} />
+          <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
           <div
             className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-5 py-4 shadow-sm`}
           >
@@ -642,6 +631,7 @@ export default function ChatBubble({
             {isPartnerMsg ? `${roleLabel} → 나에게` : roleLabel}
           </span>
         </div>
+        <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
         <div
           className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm`}
         >

@@ -149,6 +149,8 @@ export interface ChatMessageMetadata {
     status: "pending" | "accepted" | "declined";
     respondedBy?: string;
     respondedAt?: string;
+    /** 승인 RPC가 양쪽 프로필에 실제로 적용한 단조 증가 clear cursor */
+    clearedAt?: string;
   };
 }
 

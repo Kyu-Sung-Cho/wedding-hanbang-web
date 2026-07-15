@@ -19,7 +19,7 @@
 - **모멘트 lifecycle 통합 = 이미 완료 확인 (2026-06-12)**: proactive 라우트가 `__events`의 momentType 이벤트(상견례 등)+예식일 기반 모멘트를 D-3/D-1/D+1 셀로 계산·발화, dedupe는 유니크 인덱스로 레이스까지 차단 — 추가 작업 불필요. KST 날짜 연산 회귀 테스트 10개 신규(momentLoop.test.ts, 총 165개). 남은 선택지: D+1 답변의 memoryKeys 전용 수집 파이프(현재는 일반 채팅 AI가 처리 — 공백 아님).
 - **유통 테스트 준비 완료 (2026-06-12)**: `docs/DISTRIBUTION_TEST_KIT_2026-06-12.md`(UTM 링크·운영 수칙·PostHog 퍼널 설정법·기록표) + `docs/KIN_ANSWER_BANK_2026-06-12.md`(유형별 답변 초안 8종) + `docs/DISTRIBUTION_POSTS_READY_2026-06-12.md`(카페 글 2종 복붙용 + 지식iN 8종 완성본, 2026-04 실측 수치·UTM 사전기입). 프로덕션 사전점검: `/check` UTM 보존 리다이렉트 ✅, 예절·시세 비로그인 200 ✅. SEO 입구 3페이지에 개별 메타데이터(title/OG/canonical).
 - **다음 단계 (Week 1 마지막 + D8~30)**: ⑤지식iN·카페 정직글 7일 유통 테스트 — **유일하게 남은 Week 1 항목, 사용자 실행 필요** (완성본으로 즉시 시작 가능) → (선택) JSONB 후속: 일정/액션 테이블 분리. 30일차 G1 판정(채널 전환 ≥3%).
-- **아모라 비용 가드레일 (2026-06-12)**: 유통 테스트 전 지갑 보호. `lib/ai/costGuard.ts` — ai_interactions_log(chat_turn) DB 카운트 기준 ①커플당 누적 무료 100 ②전역 일일 300(서킷). is_admin만 면제(클라 값 불신), fail-open. 환경변수 조정/긴급 비활성. + Anthropic 콘솔 월 한도 $30 설정(최후 보험). check-couple-conflict의 mediation LLM 호출도 같은 장부에 편입(2차 감사).
+- **아모라 비용 가드레일 (2026-06-12 당시 기록)**: 유통 테스트 전 지갑 보호. `lib/ai/costGuard.ts` — ai_interactions_log(chat_turn) DB 카운트 기준 ①커플당 누적 무료 100 ②전역 일일 300(서킷). is_admin만 면제(클라 값 불신), fail-open. 당시 Anthropic 콘솔 월 한도 $30도 최후 보험으로 설정. 현재 전환 브랜치는 OpenAI 전용이며 실제 운영 한도는 배포 전 OpenAI 프로젝트 설정에서 별도 확인한다. check-couple-conflict의 mediation LLM 호출도 같은 장부에 편입(2차 감사).
 - **SEO 공백 해소 = SSR 전환 완료 (2026-06-12)**: 예절·시세 페이지가 클라이언트 렌더라 서버 HTML 본문 0이던 문제 해결. 기존 페이지→`components/app/{etiquette,market-prices}/XxxClient.tsx`로 이동(회귀 0), 서버 page.tsx가 SEO 콘텐츠(`XxxSeoContent.tsx`)+클라이언트 UI 함께 렌더. 둘 다 정적 프리렌더(○), HTML 본문 색인 확인. **남은 SEO 후속(선택)**: 시세 페이지 양산(지역별 랜딩), 구조화 데이터(JSON-LD).
 - **출시 전 보안 감사 2라운드 완료·적용 (2026-06-12)**: 채팅·SSR/SEO·가입퍼널·어드민·커플연동·동기방·금전 표면 전수 리뷰. 마이그레이션 2개 **SQL Editor 실행·원격 검증 완료**: `20260612120000`(is_admin 자기승격 트리거 잠금 — 부정승격 피해 0 확인), `20260612130000`(profiles.couple_id/role + couples 슬롯 자가변경 잠금=커플 탈취 차단 / join_couple 기존소속 검사=고아화 차단 / 초대코드 2^48 / community_assign_cohort REVOKE=강제배정 IDOR 차단 — cohort RPC permission denied·초대코드 2^48 원격 확인). 코드: check-couple-conflict 가드 편입, SEO og:image·sitemap, onboarding/money 입력검증, 채팅 에러 마스킹, **Cloudflare Turnstile 봇차단 배선**(signup+forgot-password, 키 미설정 no-op). **안전 확인(미변경)**: auth/delete·money IDOR·bookings·cohort 계약 익명성·upload·search·댓글 소유권·투표 멱등성. **별도(제품 결정)**: under_review 자동숨김(역 grief), comment-vote race, select(*) 과다노출.
 - **남은 사용자 작업**: ①**Cloudflare Turnstile 사이트키/시크릿 발급 + Vercel 입력**(코드 배선 완료, 키만 넣으면 활성) ②유통 테스트 게시. **여전히 미검토(출시 비차단)**: AI 코어(toolExecutor 125KB·prompts 86KB·tools 40KB — 인증 채팅 뒤 가드 안), 모바일 앱(apps/mobile 전체).
@@ -35,7 +35,7 @@
 
 ## 개요·스택
 - **무엇**: 한국 AI 웨딩 플래너 "아모라". 모바일 앱(별도 레포, React Native)과 **같은 Supabase 프로젝트** 공유.
-- **스택**: Next.js 16 App Router · TypeScript · Tailwind · Zustand · Supabase(PostgreSQL/Auth/Realtime/Storage) · Claude API · Resend. 배포 Vercel.
+- **스택(전환 브랜치)**: Next.js 16 App Router · TypeScript · Tailwind · Zustand · Supabase(PostgreSQL/Auth/Realtime/Storage) · OpenAI Responses API(GPT-5.6 Luna·Terra) · Resend. 배포 Vercel. 운영 활성화는 별도 안전 게이트를 따른다.
 - **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `wedding/`.
 
 ## 진짜 출처 (여기를 본다)

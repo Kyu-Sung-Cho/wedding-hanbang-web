@@ -155,7 +155,7 @@ function isTransientAuthFetchError(err: unknown) {
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
-  partner: Profile | null;
+  partner: Pick<Profile, "id" | "name" | "role" | "couple_id"> | null;
   couple: Couple | null;
   journey: WeddingJourney | null;
   isLoading: boolean;

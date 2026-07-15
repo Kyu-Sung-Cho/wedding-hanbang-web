@@ -25,7 +25,7 @@
 | Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
 | State | Zustand | 앱과 동일한 패턴 |
 | Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | Anthropic(현재 운영) + OpenAI Responses API(단계적 전환 중) | 웨딩 AI 플래너 채팅 |
+| AI | OpenAI Responses API (GPT-5.6 Luna·Terra) | 전환 브랜치 기준. 운영 활성화는 별도 안전 게이트 |
 | Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
 | 배포 | Vercel | 자동 배포, Edge Functions |
 | 이메일 | Resend | 사전등록 확인 메일 |
@@ -184,10 +184,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
-# Amora AI — 현재 운영 런타임(전환 완료 전까지 유지)
-ANTHROPIC_API_KEY=sk-ant-xxx...
-
-# Amora OpenAI — 기반만 준비된 상태이며 명시적 활성화 전에는 사용하지 않음
+# Amora AI — OpenAI 전용 런타임. 안전 게이트 통과 후 명시적으로 활성화
 AMORA_OPENAI_ENABLED=false
 OPENAI_API_KEY=sk-xxx...
 OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra

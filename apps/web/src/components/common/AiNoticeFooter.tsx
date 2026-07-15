@@ -7,7 +7,7 @@ interface AiNoticeFooterProps {
   variant?: Variant;
 }
 
-// AI 기본법 (2026.1.22 시행) compliance 고지 블록
+// AI 제공 방식과 한계를 알리는 공통 고지 블록
 // 모든 사이트 footer에 동일 문구로 노출 (변형: light/dark)
 export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProps) {
   const isDark = variant === "dark";
@@ -32,11 +32,11 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
         <div className="space-y-1 leading-relaxed">
           <p className={`font-medium ${labelCls}`}>AI 기반 서비스 고지</p>
           <p>
-            웨딩한방의 AI 플래너 &#39;아모라&#39;는 Anthropic Claude를 활용합니다.
+            웨딩한방의 AI 플래너 &#39;아모라&#39;는 OpenAI GPT-5.6 Luna·Terra를 활용합니다.
             AI 생성 답변은 참고용이며, 중요한 의사결정은 반드시 본인이 확인하시기 바랍니다.
           </p>
           <p>
-            본 서비스는 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」(2026.1.22 시행)을 준수합니다.
+            AI 제공 방식, 한계와 사용자 안내는 AI 정책에서 확인할 수 있습니다.
             <Link href="/ai-policy" className={`underline ml-1 ${linkHoverCls} transition-colors`}>
               자세히
             </Link>

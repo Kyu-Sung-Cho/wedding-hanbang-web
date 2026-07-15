@@ -3,6 +3,12 @@ import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  claimChatRequest,
+  completeChatRequest,
+  failChatRequest,
+} from "@/lib/ai/chatRequestClaim";
+import { createHash } from "node:crypto";
 
 export async function GET(req: NextRequest) {
   try {
@@ -100,7 +106,10 @@ export async function GET(req: NextRequest) {
           return NextResponse.json({ triggered: false });
         }
         console.error("모멘트 발화 insert 실패:", insertError);
-        return NextResponse.json({ triggered: false });
+        return NextResponse.json(
+          { triggered: false, reason: "persistence_failed" },
+          { status: 503 },
+        );
       }
 
       return NextResponse.json({
@@ -149,8 +158,30 @@ export async function GET(req: NextRequest) {
       `지금은 '${plan.stageLabel}' 단계예요. ${plan.stageSummary}`,
     ].join("\n");
 
+    const lifecycleBucket = Math.floor(Date.now() / (6 * 60 * 60 * 1000));
+    const lifecycleDigest = createHash("sha256")
+      .update(profile.couple_id)
+      .update("\0")
+      .update(plan.primaryAction.id)
+      .update("\0")
+      .update(String(lifecycleBucket))
+      .digest("hex");
+    const claimParams = {
+      coupleId: profile.couple_id,
+      requestKey: `lifecycle:${lifecycleDigest}`,
+      userId: user.id,
+      visibility: "shared" as const,
+    };
+    const claim = await claimChatRequest(claimParams, admin);
+    if (claim.action !== "acquired") {
+      return NextResponse.json({
+        triggered: false,
+        reason: claim.action === "completed" ? "already_completed" : claim.action,
+      });
+    }
+
     // 프로액티브 메시지 저장 — shared 채널로만 발송 (양쪽 모두 봄)
-    const { data: inserted } = await admin
+    const { data: inserted, error: insertError } = await admin
       .from("chat_messages")
       .insert({
         couple_id: profile.couple_id,
@@ -160,6 +191,7 @@ export async function GET(req: NextRequest) {
         content: proactiveMessage,
         visibility: "shared",
         metadata: {
+          client_request_id: claimParams.requestKey,
           suggestions: plan.guardrails.slice(0, 3).map((item) => item.cta),
           lifecycle: {
             stage: plan.stage,
@@ -173,13 +205,38 @@ export async function GET(req: NextRequest) {
       .select()
       .single();
 
+    if (insertError || !inserted?.id) {
+      console.error("[chat/proactive] lifecycle persistence failed", insertError);
+      await failChatRequest({ ...claimParams, failureCode: "PERSISTENCE_FAILED" }, admin)
+        .catch((error) => console.error("[chat/proactive] claim failure marker failed", error));
+      return NextResponse.json(
+        { triggered: false, reason: "persistence_failed" },
+        { status: 503 },
+      );
+    }
+
+    try {
+      await completeChatRequest({ ...claimParams, messageId: inserted.id }, admin);
+    } catch (error) {
+      console.error("[chat/proactive] lifecycle claim completion failed", error);
+      await failChatRequest({ ...claimParams, failureCode: "CLAIM_COMPLETION_FAILED" }, admin)
+        .catch((claimError) => console.error("[chat/proactive] claim failure marker failed", claimError));
+      return NextResponse.json(
+        { triggered: false, reason: "persistence_failed" },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json({
       triggered: true,
       kind: "lifecycle",
-      messageId: inserted?.id,
+      messageId: inserted.id,
     });
   } catch (err) {
     console.error("프로액티브 체크 에러:", err);
-    return NextResponse.json({ triggered: false });
+    return NextResponse.json(
+      { triggered: false, reason: "internal_error" },
+      { status: 500 },
+    );
   }
 }

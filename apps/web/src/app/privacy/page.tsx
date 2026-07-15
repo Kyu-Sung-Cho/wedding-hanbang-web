@@ -17,7 +17,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 4월 29일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 15일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
                   <li>대금결제 및 재화 등의 공급에 관한 기록: <strong>5년</strong> (전자상거래법)</li>
                   <li>소비자의 불만 또는 분쟁처리에 관한 기록: <strong>3년</strong> (전자상거래법)</li>
                   <li>웹사이트 방문 기록: <strong>3개월</strong> (통신비밀보호법)</li>
-                  <li>AI 상호작용 기록: <strong>5년</strong> (AI 기본법 제8조)</li>
+                  <li>AI 상호작용 기록: 데이터 유형별 보관기간은 운영 적용 전 법률 검토와 실제 삭제 자동화 확인 후 확정·고지합니다.</li>
                 </ul>
               </li>
             </ol>
@@ -119,7 +119,7 @@ export default function PrivacyPage() {
                     <td className="py-2">웹 호스팅 및 배포</td>
                   </tr>
                   <tr className="border-b border-black/[0.04]">
-                    <td className="py-2">Anthropic PBC</td>
+                    <td className="py-2">OpenAI</td>
                     <td className="py-2">AI 추론 처리(아모라)</td>
                   </tr>
                   <tr className="border-b border-black/[0.04]">

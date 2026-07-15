@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "AI 정책 | 웨딩한방",
   description:
-    "웨딩한방 AI 서비스 원칙, 안전성, 사용자 권리, 법적 준수 사항을 안내합니다. 인공지능 기본법(2026.1.22 시행) 준수.",
+    "웨딩한방 AI 서비스의 제공 방식, 안전 원칙, 사용자 권리와 한계를 안내합니다.",
 };
 
 export default function AIPolicyPage() {
@@ -23,7 +23,7 @@ export default function AIPolicyPage() {
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[#504444]">
-            최종 수정: 2026년 4월 · AI 기본법 시행(2026.1.22) 준수
+            최종 수정: 2026년 7월 · OpenAI GPT-5.6 제공 방식 반영
           </p>
         </div>
 
@@ -41,7 +41,7 @@ export default function AIPolicyPage() {
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">1. 투명성</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
                 <li>AI가 생성한 답변임을 명확히 표시합니다.</li>
-                <li>사용 AI 모델을 공개합니다 (Anthropic Claude).</li>
+                <li>사용 AI 모델을 공개합니다 (OpenAI GPT-5.6 Luna·Terra).</li>
                 <li>AI의 한계를 숨기지 않습니다.</li>
               </ul>
             </div>
@@ -50,25 +50,25 @@ export default function AIPolicyPage() {
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">2. 안전성</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
                 <li>위험관리방안을 마련하고 내부 문서로 보관합니다.</li>
-                <li>AI 생성 답변에 대한 사람의 감독 체계를 운영합니다.</li>
-                <li>문제 발생 시 관리·감독 책임자가 즉시 대응합니다.</li>
+                <li>사용자가 AI 답변의 문제를 신고할 수 있는 창구를 제공합니다.</li>
+                <li>신고된 문제는 정해진 내부 절차에 따라 검토합니다.</li>
               </ul>
             </div>
 
             <div>
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">3. 사용자 권리</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
-                <li>AI와의 대화 기록은 언제든 사용자가 확인·삭제할 수 있습니다.</li>
+                <li>AI 대화 기록을 확인하고, 제공되는 기능으로 대화 목록을 비울 수 있습니다.</li>
                 <li>Couple Memory 데이터는 회사의 자산이 아니라 커플의 자산입니다.</li>
                 <li>제3자에게 판매하지 않습니다.</li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">4. 법적 준수</h3>
+              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">4. 법령·정책 반영</h3>
               <p className="text-sm text-[#504444] leading-relaxed">
-                「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」(2026.1.22 시행) 및
-                「개인정보보호법」을 준수합니다. 대화 기록은 설정에서 언제든 삭제할 수 있습니다. 다만 AI 기본법 등 법령상 보관이 의무화된 로그는 해당 기간 보관 후 파기됩니다.
+                관련 법령과 서비스 정책을 검토해 운영에 반영합니다. 대화 기록을 비우는 기능과
+                실제 보관 범위는 서비스 내 설정 및 개인정보 처리방침에서 확인할 수 있습니다.
               </p>
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function AIPolicyPage() {
             AI의 한계
           </h2>
           <p className="text-sm text-[#504444] mb-4 leading-relaxed">
-            아모라는 Anthropic Claude를 기반으로 하며, 한국 결혼 시장 데이터를 결합해 답변하는 AI입니다. 다음 사항을 인지하시기 바랍니다:
+            아모라는 OpenAI GPT-5.6 Luna·Terra를 기반으로 하며, 웨딩한방이 제공하는 결혼 준비 정보와 사용자가 입력한 맥락을 바탕으로 답변합니다. 다음 사항을 인지하시기 바랍니다:
           </p>
           <ul className="list-disc pl-5 text-sm text-[#504444] space-y-2 leading-relaxed">
             <li>법률 자문을 대체하지 않습니다. 계약 관련 중요 결정은 변호사와 상의하세요.</li>
@@ -120,7 +120,7 @@ export default function AIPolicyPage() {
             <a href="mailto:ceo@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
               ceo@hanbang.ai
             </a>
-            로 신고해주세요. 24시간 내 확인 후 48시간 내 답변드립니다.
+            로 신고해주세요. 접수된 신고는 내부 운영 절차에 따라 확인합니다.
           </p>
         </section>
 
@@ -128,8 +128,7 @@ export default function AIPolicyPage() {
         {/* 하단 */}
         <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[#504444]/70">
           <p>
-            본 문서는 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」에 따라 사전 고지되며,
-            변경 시 본 페이지에 업데이트됩니다.
+            AI 제공 방식이나 정책이 변경되면 본 페이지를 업데이트합니다.
           </p>
         </div>
       </main>

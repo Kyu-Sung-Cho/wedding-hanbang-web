@@ -1,5 +1,7 @@
 # 웨딩한방 (hanbang.ai) — 전체 서비스 종합 문서
 
+> ⚠️ **2026-04-28 코드 스냅샷(레거시)**: 아래 AI 제공자·모델·기능·의존성 정보는 당시 상태를 보존한 기록입니다. 현재 전환 브랜치는 OpenAI Responses API(GPT-5.6 Luna·Terra) 전용이며, 운영 활성화 여부는 배포 기록과 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`를 우선합니다.
+
 > **작성일**: 2026-04-28
 > **도메인**: hanbang.ai / www.hanbang.ai
 > **저장소**: github.com/Kyu-Sung-Cho/wedding-hanbang-web

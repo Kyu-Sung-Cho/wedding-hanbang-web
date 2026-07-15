@@ -238,7 +238,7 @@ describe("bookingTools", () => {
     });
   });
 
-  it("syncs successful booking creation into schedule events and category spent", async () => {
+  it("uses the persisted booking amount and status when an exact create retry reuses a row", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
 
@@ -266,6 +266,18 @@ describe("bookingTools", () => {
         vendor_products: [{
           maybeSingleResult: {
             data: { name: "Basic", price: 700_000, discount_price: 500_000, is_active: true },
+            error: null,
+          },
+        }],
+        vendor_bookings: [{
+          singleResult: {
+            data: {
+              id: bookingId,
+              amount: 450_000,
+              status: "confirmed",
+              product_id: "product-1",
+              staff_id: null,
+            },
             error: null,
           },
         }],
@@ -303,11 +315,12 @@ describe("bookingTools", () => {
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
       bookingId,
-      amount: 500_000,
+      amount: 450_000,
+      status: "confirmed",
       scheduleAdded: true,
       budgetUpdated: true,
       syncedCategoryKey: "studio",
-      syncedNewSpent: 700_000,
+      syncedNewSpent: 650_000,
     });
     expect(result.toolOutput.syncedEvent).toMatchObject({
       id: `evt_booking_${bookingId}`,
@@ -316,7 +329,7 @@ describe("bookingTools", () => {
       sourceKey: `booking:${bookingId}`,
     });
     expect(progressPatch).toMatchObject({
-      studio: { spent: 700_000 },
+      studio: { spent: 650_000 },
     });
     const createdProgress = ctx.weddingContext.progress as unknown as Record<string, unknown>;
     const events = createdProgress.__events as ScheduleEvent[] | undefined;
@@ -345,28 +358,24 @@ describe("bookingTools", () => {
 
     mockAdminClient(
       {
-        vendor_bookings: [
-          {
-            singleResult: {
-              data: {
-                id: bookingId,
-                vendor_id: "vendor-1",
-                product_id: "product-1",
-                booking_date: "2026-07-06",
-                booking_time: "10:00",
-                status: "pending",
-                amount: 500_000,
-              },
-              error: null,
-            },
-          },
-          { updateResult: { error: null } },
-        ],
         vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
         vendor_products: [{ singleResult: { data: { name: "Basic" }, error: null } }],
         wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
       },
       {
+        cancel_booking_atomic: () => ({
+          data: {
+            id: bookingId,
+            vendor_id: "12345678-1234-4234-9234-123456789abd",
+            product_id: "product-1",
+            booking_date: "2026-07-06",
+            booking_time: "10:00",
+            status: "cancelled",
+            amount: 500_000,
+            idempotent: false,
+          },
+          error: null,
+        }),
         apply_journey_progress_patch: (args) => {
           progressPatch = args.p_patch as Record<string, unknown>;
           return { data: null, error: null };
@@ -410,7 +419,7 @@ describe("bookingTools", () => {
     });
   });
 
-  it("reverts legacy short-id booking events when a booking is cancelled", async () => {
+  it("repairs legacy progress on an exact retry of an already-cancelled booking", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
 
@@ -430,28 +439,24 @@ describe("bookingTools", () => {
 
     mockAdminClient(
       {
-        vendor_bookings: [
-          {
-            singleResult: {
-              data: {
-                id: bookingId,
-                vendor_id: "vendor-1",
-                product_id: "product-1",
-                booking_date: "2026-07-06",
-                booking_time: "10:00",
-                status: "pending",
-                amount: 500_000,
-              },
-              error: null,
-            },
-          },
-          { updateResult: { error: null } },
-        ],
         vendors: [{ singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } }],
         vendor_products: [{ singleResult: { data: { name: "Basic" }, error: null } }],
         wedding_journeys: [{ singleResult: { data: { progress: initialProgress }, error: null } }],
       },
       {
+        cancel_booking_atomic: () => ({
+          data: {
+            id: bookingId,
+            vendor_id: "12345678-1234-4234-9234-123456789abd",
+            product_id: "product-1",
+            booking_date: "2026-07-06",
+            booking_time: "10:00",
+            status: "cancelled",
+            amount: 500_000,
+            idempotent: true,
+          },
+          error: null,
+        }),
         apply_journey_progress_patch: (args) => {
           progressPatch = args.p_patch as Record<string, unknown>;
           return { data: null, error: null };
@@ -475,6 +480,7 @@ describe("bookingTools", () => {
     expect(result.toolOutput).toMatchObject({
       bookingId,
       status: "cancelled",
+      idempotent: true,
       scheduleRemoved: true,
       budgetReverted: true,
       syncedEventIdRemoved: "evt_booking_12345678",

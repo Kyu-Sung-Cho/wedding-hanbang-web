@@ -670,6 +670,28 @@ export async function executeCreateBooking(
 
   if (rpcError) {
     const msg = rpcError.message || "";
+    if (msg.includes("invalid_booking_input")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "invalid_booking_input" }, success: false,
+        displayMessage: "예약 정보가 올바르지 않아 예약을 진행하지 않았습니다.",
+      };
+    }
+    if (msg.includes("past_booking_datetime")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "past_booking_datetime", attemptedDate: date, attemptedTime: time },
+        success: false,
+        displayMessage: "이미 지난 예약 시간이라 예약을 진행하지 않았습니다. 미래 시간을 다시 선택해 주세요.",
+      };
+    }
+    if (msg.includes("vendor_unavailable")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "vendor_unavailable" }, success: false,
+        displayMessage: "현재 예약 가능한 업체가 아니라 예약을 진행하지 않았습니다.",
+      };
+    }
     if (msg.includes("invalid_product_vendor")) {
       return {
         toolName: "create_booking", toolInput: input,
@@ -698,10 +720,49 @@ export async function executeCreateBooking(
         displayMessage: `해당 날짜/시간(${date} ${time})의 예약이 마감되었습니다. 다른 시간을 선택해 주세요.`,
       };
     }
+    if (msg.includes("duplicate_couple_slot") || msg.includes("vendor_bookings_one_active_couple_vendor_slot")) {
+      return {
+        toolName: "create_booking", toolInput: input,
+        toolOutput: { error: "duplicate_couple_slot" }, success: false,
+        displayMessage: `같은 업체의 ${date} ${time}에 이미 다른 활성 예약이 있어 중복 예약을 만들지 않았습니다. 기존 예약을 먼저 확인해 주세요.`,
+      };
+    }
     throw rpcError;
   }
 
-  const booking = { id: bookingIdResult as unknown as string };
+  const bookingId = bookingIdResult as unknown as string;
+  if (!UUID_RE.test(bookingId)) {
+    throw new Error("create_booking_atomic returned an invalid booking id");
+  }
+  const { data: persistedBooking, error: persistedBookingError } = await admin
+    .from("vendor_bookings")
+    .select("id, amount, status, product_id, staff_id")
+    .eq("id", bookingId)
+    .eq("couple_id", ctx.coupleId)
+    .single();
+  if (persistedBookingError || !persistedBooking || persistedBooking.id !== bookingId) {
+    throw persistedBookingError ?? new Error("Created booking could not be verified");
+  }
+  if (
+    persistedBooking.product_id !== productId ||
+    persistedBooking.staff_id !== staffId ||
+    typeof persistedBooking.status !== "string"
+  ) {
+    throw new Error("Created booking verification mismatch");
+  }
+  const persistedAmount = typeof persistedBooking.amount === "number"
+    ? persistedBooking.amount
+    : typeof persistedBooking.amount === "string" && /^\d+(?:\.\d+)?$/.test(persistedBooking.amount)
+      ? Number(persistedBooking.amount)
+      : 0;
+  if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
+    throw new Error("Created booking returned an invalid amount");
+  }
+  const booking = {
+    id: bookingId,
+    amount: persistedAmount,
+    status: persistedBooking.status,
+  };
 
   let scheduleAdded = false;
   let budgetUpdated = false;
@@ -718,7 +779,7 @@ export async function executeCreateBooking(
         id: booking.id,
         date,
         time,
-        amount,
+        amount: booking.amount,
       },
       vendorId,
       productId,
@@ -764,8 +825,8 @@ export async function executeCreateBooking(
       staffName,
       date,
       time,
-      amount,
-      status: "pending",
+      amount: booking.amount,
+      status: booking.status,
       scheduleAdded,
       budgetUpdated,
       budgetExceededBy,
@@ -867,45 +928,78 @@ export async function executeCancelBooking(
   }
 
   const admin = getAdminClient(); // 확인 게이트·ID 검증 통과 후에만 생성
-  const { data: booking, error: fetchError } = await admin
-    .from("vendor_bookings")
-    .select("id, vendor_id, product_id, booking_date, booking_time, status, amount")
-    .eq("id", bookingId)
-    .eq("couple_id", ctx.coupleId)
-    .single();
+  const { data: rawBooking, error: cancelError } = await admin.rpc(
+    "cancel_booking_atomic",
+    {
+      p_booking_id: bookingId,
+      p_couple_id: ctx.coupleId,
+    }
+  );
 
-  if (fetchError || !booking) {
-    return {
-      toolName: "cancel_booking", toolInput: input,
-      toolOutput: { hidden: true, reason: "not_found_or_unauthorized" },
-      success: true,
-      displayMessage: "",
-    };
+  if (cancelError) {
+    const message = cancelError.message ?? "";
+    if (message.includes("booking_not_found")) {
+      return {
+        toolName: "cancel_booking", toolInput: input,
+        toolOutput: { hidden: true, reason: "not_found_or_unauthorized" },
+        success: true,
+        displayMessage: "",
+      };
+    }
+    if (message.includes("booking_not_cancellable")) {
+      return {
+        toolName: "cancel_booking", toolInput: input,
+        toolOutput: { error: "booking_not_cancellable" }, success: false,
+        displayMessage: "진행 중이거나 완료된 예약은 취소할 수 없습니다. 업체에 직접 문의해주세요.",
+      };
+    }
+    throw cancelError;
   }
 
-  if (booking.status === "cancelled") {
-    return {
-      toolName: "cancel_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "이미 취소된 예약입니다.",
-    };
+  if (!rawBooking || typeof rawBooking !== "object" || Array.isArray(rawBooking)) {
+    throw new Error("cancel_booking_atomic returned an invalid result");
+  }
+  const booking = rawBooking as {
+    id?: unknown;
+    vendor_id?: unknown;
+    product_id?: unknown;
+    booking_date?: unknown;
+    booking_time?: unknown;
+    status?: unknown;
+    amount?: unknown;
+    idempotent?: unknown;
+  };
+  if (
+    booking.id !== bookingId ||
+    typeof booking.vendor_id !== "string" ||
+    typeof booking.booking_date !== "string" ||
+    typeof booking.booking_time !== "string" ||
+    booking.status !== "cancelled" ||
+    typeof booking.idempotent !== "boolean"
+  ) {
+    throw new Error("cancel_booking_atomic returned a mismatched result");
   }
 
-  const nonCancellable = ["in_service", "service_completed", "settled", "completed"];
-  if (nonCancellable.includes(booking.status)) {
-    return {
-      toolName: "cancel_booking", toolInput: input,
-      toolOutput: {}, success: false,
-      displayMessage: "진행 중이거나 완료된 예약은 취소할 수 없습니다. 업체에 직접 문의해주세요.",
-    };
+  if (booking.product_id !== null && typeof booking.product_id !== "string") {
+    throw new Error("cancel_booking_atomic returned an invalid product id");
+  }
+  const amount = typeof booking.amount === "number"
+    ? booking.amount
+    : typeof booking.amount === "string" && /^\d+(?:\.\d+)?$/.test(booking.amount)
+      ? Number(booking.amount)
+      : null;
+  if (amount !== null && !Number.isFinite(amount)) {
+    throw new Error("cancel_booking_atomic returned an invalid amount");
   }
 
-  const { error: updateError } = await admin
-    .from("vendor_bookings")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", bookingId);
-
-  if (updateError) throw updateError;
+  if (!UUID_RE.test(booking.vendor_id)) {
+    return {
+      toolName: "cancel_booking", toolInput: input,
+      toolOutput: { error: "invalid_booking_result" },
+      success: false,
+      displayMessage: "예약 취소 결과를 안전하게 확인하지 못했습니다.",
+    };
+  }
 
   const { data: vendor } = await admin
     .from("vendors")
@@ -929,7 +1023,7 @@ export async function executeCancelBooking(
       coupleId: ctx.coupleId,
       booking: {
         id: booking.id,
-        amount: booking.amount as number | null,
+        amount,
       },
       vendor: {
         id: booking.vendor_id,
@@ -968,6 +1062,7 @@ export async function executeCancelBooking(
       date: booking.booking_date,
       time: booking.booking_time,
       status: "cancelled",
+      idempotent: booking.idempotent,
       scheduleRemoved,
       budgetReverted,
       syncedEventIdRemoved,

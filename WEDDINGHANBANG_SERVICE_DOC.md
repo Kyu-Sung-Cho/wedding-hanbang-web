@@ -287,7 +287,7 @@
 | Styling | Tailwind CSS |
 | State | Zustand |
 | Backend/DB | Supabase (PostgreSQL, Auth, Realtime, Storage) |
-| AI | Claude API (Anthropic) |
+| AI | OpenAI Responses API (GPT-5.6 Luna·Terra, 전환 브랜치 기준) |
 | Auth | Supabase Auth (카카오, 구글 OAuth) |
 | 배포 | Vercel |
 | 이메일 | Resend |

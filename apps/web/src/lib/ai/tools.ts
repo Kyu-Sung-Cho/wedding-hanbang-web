@@ -1,6 +1,6 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages";
+import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 
-export const WEDDING_TOOLS: Tool[] = [
+export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "update_budget",
     description:
@@ -114,7 +114,7 @@ export const WEDDING_TOOLS: Tool[] = [
   {
     name: "apply_budget_plan",
     description:
-      "예산 인터뷰 완료 후 카테고리별 배분을 한 번에 적용합니다. 사용자가 '이대로 적용', '좋아 그렇게 해줘'처럼 명시적으로 확정한 경우에만 호출하세요. 총 예산도 함께 갱신되며, allocations 합계는 total_budget과 같거나 작아야 합니다 (남으면 reserve로 자동 처리). rationale 필드는 customer_insights에 저장되어 다음 추천에 활용됩니다.",
+      "예산 인터뷰 완료 후 카테고리별 배분을 한 번에 적용합니다. 사용자가 '이대로 적용', '좋아 그렇게 해줘'처럼 명시적으로 확정한 경우에만 호출하세요. 총 예산도 함께 갱신되며, allocations 합계는 total_budget과 같거나 작아야 합니다 (남으면 reserve로 자동 처리).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -155,7 +155,7 @@ export const WEDDING_TOOLS: Tool[] = [
         intake_summary: {
           type: "string",
           description:
-            "인터뷰에서 드러난 사용자 우선순위·가치관·제약 1~3줄 요약. 나중에 vendor 추천 시 이 요약이 자동 참조되므로 구체적으로 작성. 예: '신혼여행을 가장 중요하게 봄(앨범보다 경험 중시), 예단은 양보 가능, 양가 도움 1500만원 있음, 평일 결혼식 선호'.",
+            "이번 배분의 근거가 된 사용자 우선순위·가치관·제약 1~3줄 요약. 이 도구는 총액과 배분만 저장하며, 요약 원문 자체는 저장하지 않습니다.",
         },
       },
       required: ["total_budget", "allocations", "intake_summary"],
@@ -934,9 +934,17 @@ export const WEDDING_TOOLS: Tool[] = [
 // vendor onboarding 진행되어 활성화. 시드 데이터 부족할 경우 search_vendors 는
 // 빈 결과를 반환하므로 AI 는 솔직하게 "현재 등록된 곳 없어요" 안내하도록 prompts 에서 가이드.
 // 환각 방지: prompts.ts 의 "업체 추천 가이드" 섹션이 DB 결과 외 추천 금지 룰을 강제.
-export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([]);
+export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  // These operations require a server-issued, single-use user confirmation
+  // contract. A model-generated `confirmed: true` is not authorization.
+  "create_booking",
+  "cancel_booking",
+  "delete_category",
+  "reset_category",
+  "delete_schedule_event",
+]);
 
 /** 베타용: 비활성 도구를 제외한 안전한 도구 목록 */
-export const BETA_SAFE_TOOLS: Tool[] = WEDDING_TOOLS.filter(
+export const BETA_SAFE_TOOLS: AiToolDefinition[] = WEDDING_TOOLS.filter(
   (t) => !BETA_DISABLED_TOOL_NAMES.has(t.name)
 );

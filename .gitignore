@@ -84,3 +84,4 @@ Thumbs.db
 apps/web/*.png
 apps/web/.screenshots/
 apps/web/.screenshots-test/
+.env*

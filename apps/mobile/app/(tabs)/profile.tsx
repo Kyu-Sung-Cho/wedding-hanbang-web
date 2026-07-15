@@ -105,7 +105,7 @@ export default function ProfileScreen() {
 
       // 파트너 이름
       const { data: partners } = await supabase
-        .from("profiles")
+        .from("couple_profile_directory")
         .select("name")
         .eq("couple_id", data.couple_id)
         .neq("id", user.id);

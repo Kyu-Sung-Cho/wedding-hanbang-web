@@ -5,6 +5,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import { dedupeChatAttachments } from "@/lib/chat/attachments";
+import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -25,6 +26,20 @@ import type { AmoraActionItem } from "@/lib/amora/actions";
 import { useAuthStore } from "./authStore";
 
 type ClearScope = "shared" | "private";
+
+function createClientRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new Error("안전한 요청 식별자를 만들 수 없습니다.");
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function latestIso(...values: Array<string | null | undefined>): string | null {
   const valid = values.filter((v): v is string => typeof v === "string" && v.length > 0);
@@ -613,7 +628,7 @@ async function saveAiMessage(
     return;
   }
 
-  // 2) 서버 INSERT 실패 또는 demo 모드 — fallback: 클라이언트에서 처리
+  // 2) 서버 저장 실패 또는 demo 모드 — 로컬 메시지만 유지
   const tempId = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const localMsg: ChatMessage = {
     id: tempId,
@@ -627,39 +642,9 @@ async function saveAiMessage(
   };
   set((s) => ({ messages: [...s.messages, localMsg] }));
 
-  if (!isDemo) {
-    try {
-      const supabase = createClient();
-      const aiStageTag = aiMetadata?.stageTag ?? null;
-      const aiSpecialistType = aiMetadata?.specialistType ?? null;
-
-      const { data: aiInserted } = await supabase
-        .from("chat_messages")
-        .insert({
-          couple_id: coupleId,
-          sender_id: null,
-          sender_type: "ai",
-          role: "assistant",
-          content: fullContent,
-          metadata: aiMetadata,
-          stage_tag: aiStageTag,
-          specialist_type: aiSpecialistType,
-          visibility,
-        })
-        .select()
-        .single();
-
-      if (aiInserted) {
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === tempId ? dbRowToMessage(aiInserted as Record<string, unknown>) : m
-          ),
-        }));
-      }
-    } catch (err) {
-      console.error("AI 메시지 DB 저장 실패 (로컬에는 표시됨):", err);
-    }
-  }
+  // serverMessageId가 없으면 서버 저장이 실패한 것입니다. 인증 클라이언트가
+  // AI/assistant DB 행을 만들 수 없도록 재시도 INSERT는 하지 않습니다.
+  void isDemo;
 }
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
@@ -689,7 +674,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         supabase.auth.getUser().then(async ({ data: { user } }) => {
           if (!user) return { data: null };
           return supabase
-            .from("profiles")
+            .from("my_profile_chat_state")
             .select("shared_chat_cleared_at, private_chat_cleared_at")
             .eq("id", user.id)
             .single();
@@ -807,10 +792,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     // Idempotency용 UUID — 같은 sendMessage 호출의 모든 fetch (browser retry 포함)는
     // 동일한 ID를 사용. 서버는 이걸로 chat_messages dedup.
-    const clientRequestId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const clientRequestId = createClientRequestId();
+    let persistedUserMessageId: string | null = null;
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
     const imagePaths: string[] = [];
@@ -818,7 +801,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       for (const img of uniqueImages) {
         try {
           const ext = img.mediaType.split("/")[1] || "jpg";
-          const fileName = `${coupleId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+          const fileName = `${coupleId}/${senderId}/${createClientRequestId()}.${ext}`;
           const byteChars = atob(img.base64);
           const byteArray = new Uint8Array(byteChars.length);
           for (let i = 0; i < byteChars.length; i++) {
@@ -862,7 +845,6 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           content,
           metadata: finalMetadata,
           stage_tag: userStageTag,
-          specialist_type: null, // 유저 메시지는 specialist 없음
           visibility: finalVisibility,
         })
         .select()
@@ -873,6 +855,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         set({ error: "메시지 전송에 실패했습니다." });
         return;
       }
+      persistedUserMessageId = inserted.id as string;
 
       set((s) => ({
         messages: [...s.messages, dbRowToMessage(inserted as Record<string, unknown>)],
@@ -891,18 +874,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       set((s) => ({ messages: [...s.messages, demoMsg] }));
     }
 
-    // 상대방에게 보내는 메시지 — AI 호출은 안 하지만 서버 측 갈등 감지기는 트리거.
-    // 서버가 cooldown·휴리스틱·LLM 검증 후 필요 시 자동으로 mediation 메시지를 INSERT 함.
-    // Realtime 이 양쪽 클라이언트에 결과 전달.
+    // 상대방에게 보내는 메시지는 명시적 커플 동의 없이 AI 제공자에게
+    // 전달하지 않는다. 자동 중재는 별도 동의 계약/UI가 준비될 때까지 중단한다.
     if (target === "partner") {
-      // fire-and-forget — 응답 안 기다림 (UI 블로킹 방지)
-      void fetch("/api/chat/check-couple-conflict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupleId }),
-      }).catch(() => {
-        /* 감지 실패는 silent — 메시지 전송 자체에는 영향 X */
-      });
       return;
     }
 
@@ -959,6 +933,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           weddingContext,
           isDemo,
           clientRequestId,
+          ...(persistedUserMessageId ? { userMessageId: persistedUserMessageId } : {}),
           visibility: finalVisibility,
           ...(attachmentPayload && attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
         }),
@@ -1054,7 +1029,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: "user", content: `[${roleLabel}] [INITIAL_GREETING]` }],
-          coupleId, senderName, senderRole, weddingContext, isDemo,
+          coupleId,
+          senderName,
+          senderRole,
+          weddingContext,
+          isDemo,
+          requestKind: "initial_greeting",
         }),
         signal: abortController.signal,
       });
@@ -1134,12 +1114,20 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       });
 
       const isDemo = document.cookie.includes("demo_mode=true");
+      const clientRequestId = createClientRequestId();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: recentMessages,
-          coupleId, senderName, senderRole, weddingContext, isDemo,
+          coupleId,
+          senderName,
+          senderRole,
+          weddingContext,
+          isDemo,
+          clientRequestId,
+          requestKind: "mediation",
+          conflictContext,
         }),
         signal: abortController.signal,
       });
@@ -1390,7 +1378,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               // 이미 본인 store 에서 갱신했음. 여기서는 요청자 측만 처리.
               const cr = updated.metadata?.clearRequest;
               if (cr?.status === "accepted") {
-                const clearedAt = updated.created_at;
+                const clearedAt = resolveMonotonicSharedClearCursor({
+                  currentClearedAt: s.sharedClearedAt,
+                  rpcClearedAt: cr.clearedAt,
+                  requestCreatedAt: updated.created_at,
+                });
                 writeLocalClearedAt(coupleId, "shared", clearedAt);
                 const filtered = nextMessages.filter((m) => {
                   if (m.visibility !== "shared") return true;
