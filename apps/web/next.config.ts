@@ -22,6 +22,20 @@ const contentSecurityPolicy = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+const saiContentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+  "connect-src 'self' https://*.supabase.co https://*.supabase.in",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const weddingAppRoutes = [
   "lounge",
   "chat",
@@ -145,6 +159,14 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/sai",
+        destination: "https://sai-mu-nine.vercel.app",
+      },
+      {
+        source: "/sai/:path*",
+        destination: "https://sai-mu-nine.vercel.app/:path*",
+      },
+      {
         source: "/wedding",
         destination: "/community",
       },
@@ -173,6 +195,18 @@ const nextConfig: NextConfig = {
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           { key: "Content-Security-Policy", value: contentSecurityPolicy },
+        ],
+      },
+      {
+        source: "/sai",
+        headers: [
+          { key: "Content-Security-Policy", value: saiContentSecurityPolicy },
+        ],
+      },
+      {
+        source: "/sai/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: saiContentSecurityPolicy },
         ],
       },
       // 정적 에셋 장기 캐시
