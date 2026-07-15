@@ -6,6 +6,8 @@
 
 - 작업 브랜치: `agent/production-integration`
 - 작업 시작 기준: `ed499ffc8f96` (`fix: harden privacy, trust, and release safety`)
+- 전체 코드 체크포인트: `8357197f270592b25164234d3816ef80b0ce71f4`
+- GitHub Draft PR: [#46 — INTEGRATION WIP / DO NOT MERGE](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/46)
 - 감사 시점 최신 원격 기준: `origin/main` `56b7fee1ad3688cc44370dd9c45244c6da461c42`
 - 게시 위치: 이 문서를 포함한 최종 commit과 Draft PR의 head SHA가 최종 인수인계 identity다.
 - 브랜치 성격: **유실 방지·선택 이식 검토용 WIP 체크포인트. `main` 병합 후보가 아니다.**
