@@ -19,7 +19,8 @@
     { "file": "20260714164000_harden_amora_tool_idempotency.sql", "sha256": "a0a707024c40427a9e93e9d116de260ef7e1e6c9ffe4e5458a795e2c7b4b369e" },
     { "file": "20260714164500_expand_atomic_couple_reset.sql", "sha256": "9805ea68c06cfe95d8cbb1e2e50e9cf4c52bc65233f652cc6c69838e18be179f" },
     { "file": "20260714164600_expand_push_token_persistence.sql", "sha256": "7b8c9dd304e19bfa7e51173ab29fb6fa485f41f39601683af39cfa920d50cebb" },
-    { "file": "20260714164700_expand_account_deletion_integrity.sql", "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691" }
+    { "file": "20260714164700_expand_account_deletion_integrity.sql", "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691" },
+    { "file": "20260714164800_expand_signup_profile_integrity.sql", "sha256": "41cdc88ab8550022e14ae1cc5bca12826d1f1360b69324b28767518b3479feef" }
   ],
   "historicalEffectAudit": {
     "file": "supabase/contract-migrations/20260714165500_audit_historical_release_effects.sql",
@@ -38,11 +39,11 @@
   "requiredDocuments": [
     {
       "file": "docs/operations/AMORA_PRODUCTION_RELEASE.md",
-      "sha256": "4213c2be0707f36d55b9d80e692dd8eea1c1eb0a7ca3d7d64aa1d9a3bcf9afb2"
+      "sha256": "40c8a92a69a9eec14001043cba3237041dd1db1da0c3a10c6a4b674018b89a1a"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",
-      "sha256": "4c7e251c68cdcb4d9529abfedeecf35027848df8fd422c97fe45367a04db2d2d"
+      "sha256": "231614aeb67cebb45ad5b4446c10eb23b6db8b2a434901c8ecd168d3fce5b9a2"
     }
   ]
 }

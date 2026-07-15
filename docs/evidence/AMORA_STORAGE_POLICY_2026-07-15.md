@@ -42,5 +42,10 @@ and Storage APIs, then deleted in cleanup. The result was
 - service-authorized signed URL creation and signed read succeeded.
 
 This proves the hosted final policy boundary on the isolated clone. Production
-still requires a fresh inventory and rollback receipt immediately before its
-separately gated expand/contract operation.
+received the separately gated expand operation on 2026-07-15 after a fresh
+inventory. Its bucket public toggle was already off. Dashboard created the same
+generated strict policy name, `chat-image own uploader folder write pf46ue_0`,
+as `INSERT` for `authenticated`; no `SELECT`, `UPDATE` or `DELETE` policy was
+added. The five legacy policies remain intentionally for the mixed-client
+window. Production final-contract denials are not claimed until those policies
+are removed after compatible web/minimum-mobile canary.

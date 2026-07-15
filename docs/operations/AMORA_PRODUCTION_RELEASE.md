@@ -31,7 +31,7 @@ Passed evidence:
   `COMPLETED`, with a Restore action;
 - provider restore-to-new-project clone completed at
   `2026-07-14 23:04:45 UTC`;
-- all six expand migrations and both contract checks executed on the isolated
+- all seven expand migrations and both contract checks executed on the isolated
   clone;
 - real hosted Auth deletion/anonymization, signup trigger, atomic couple reset,
   partner retention, RLS/RPC ACLs and concurrent request/tool/cost fences passed
@@ -39,30 +39,44 @@ Passed evidence:
 - local web tests (577), mobile tests, type checks, lint, production web build,
   iOS/Android/Web Expo export, production dependency audit and local live smoke
   passed;
-- the production remote dry-run exactly matches the 15 hash-pinned manifest
-  migrations in `before-reconcile` state.
+- the production duplicate pending/unpaid booking was re-identified immediately
+  before write; the later 70-second duplicate was conditionally changed to
+  `cancelled`, leaving zero active duplicate groups;
+- all nine historical ledger versions were reconciled only after the read-only
+  historical-effect audit passed, all seven expand migrations were applied, and
+  the production remote migration fence is clean with zero pending files;
+- the production anonymous probe exposed no rows from all 10 sensitive tables;
+- the legacy Auth signup trigger defect discovered by the production synthetic
+  gate was reproduced in Postgres logs (`relation "profiles" does not exist`),
+  fixed with a schema-qualified fail-closed function on the clone first, then
+  applied to production; the complete hosted Auth/RPC/deletion/concurrency gate
+  passed and zero synthetic release users remained;
+- production `chat-image` was already private. The strict immutable uploader
+  `INSERT` policy was added as
+  `chat-image own uploader folder write pf46ue_0`; five legacy compatibility
+  policies remain until the compatible-client contract gate.
 - the hash-pinned historical-effect audit returned
   `HISTORICAL_RELEASE_EFFECTS_VERIFIED` on both the isolated clone and
   production in a read-only transaction.
 
-Still open; therefore production deployment is **not yet authorized**:
+Still open; therefore the runtime remains fail-closed and the release is **not
+yet complete**:
 
-1. reconcile exactly nine already-represented ledger versions now that the
-   production read-only historical-effect audit has passed;
-2. decide the later of two duplicate pending/unpaid production bookings for the
-   same couple/vendor/slot; migration `20260714164000` cannot create its unique
-   index until the duplicate is resolved;
-3. repeat the verified strict immutable-upload Storage operation in production;
-   the isolated clone passed the final hosted contract on 2026-07-15, but
-   production Storage is unchanged;
-4. obtain a traceable EAS iOS and Android production cloud build;
-5. supply a controlled OpenAI key to a non-production smoke environment without
+1. commit the newly discovered signup-integrity fix and updated receipts, pass
+   the replacement PR checks, merge, and verify the immutable Vercel production
+   deployment with OpenAI still disabled;
+2. obtain traceable EAS iOS and Android production cloud builds from the merged
+   commit;
+3. supply a controlled OpenAI key to a non-production smoke environment without
    exposing it, then pass the real provider smoke and cost fence;
-6. configure missing server/mobile observability destinations or explicitly
+4. configure missing server/mobile observability destinations or explicitly
    accept the reduced telemetry before launch;
-7. obtain the contract/legal decisions for OpenAI DPA, processing region,
+5. obtain the contract/legal decisions for OpenAI DPA, processing region,
    abuse-monitoring retention, ZDR/MAM eligibility and a monitored support
-   channel.
+   channel;
+6. after compatible web and minimum mobile clients are proven, execute the two
+   DB contract files, remove the five legacy Storage policies, rerun the final
+   hosted attachment matrix, and monitor the post-enable canary.
 
 WeddingCode remains contained, `noindex`, and write-fenced. Its candidate
 questions are not psychometrically validated. This release must not re-enable
@@ -114,7 +128,7 @@ the test or its collection APIs.
    node scripts/supabase-release-fence.mjs --remote --expect=expand-only
    ```
 
-5. If the pending set is not exactly six files, stop. Do not make the ledger
+5. If the pending set is not exactly seven files, stop. Do not make the ledger
    look clean by guessing.
 
 ### 3. Resolve the booking invariant before the expand transaction
@@ -138,6 +152,7 @@ schema work:
 4. `20260714164500_expand_atomic_couple_reset.sql`
 5. `20260714164600_expand_push_token_persistence.sql`
 6. `20260714164700_expand_account_deletion_integrity.sql`
+7. `20260714164800_expand_signup_profile_integrity.sql`
 
 After each apply, record success and do not retry an uncertain transaction
 blindly. Inspect postconditions first. Then require:
@@ -147,9 +162,12 @@ node scripts/supabase-release-fence.mjs --remote --expect=clean
 pnpm supabase:security:probe
 ```
 
-Run both contract files under `supabase/contract-migrations` and the hosted API
-integration against production using synthetic release accounts only. Delete
-those accounts after the receipts are captured.
+Run the hosted API integration against production using synthetic release
+accounts only and the exact production confirmation fence. Delete those
+accounts after the receipts are captured and verify the synthetic-user count is
+zero. The two files under `supabase/contract-migrations` are contract-phase
+changes and must not run here; execute them only in step 8 after compatible
+web/mobile canary.
 
 ### 5. Hosted Storage expand
 
@@ -158,11 +176,14 @@ Supabase Storage policy UI, create only the immutable `INSERT` policy defined by
 `supabase/platform-operations/storage/20260714162000_chat_attachment_expand.sql`.
 Record the Dashboard-generated suffix. Do not select `UPDATE` or `DELETE`, because
 Dashboard auto-adds `SELECT` and would widen access beyond signed URLs.
-Do not remove legacy policies or make the bucket private in this phase. This is
-a cloud access-permission change and requires action-time operator confirmation.
+Do not remove legacy policies or change the bucket public toggle in this phase.
+This is a cloud access-permission change and requires action-time operator
+confirmation.
 
-Pass own upload/signed read, partner overwrite denial, traversal denial and
-anonymous direct-read characterization before proceeding.
+Record the compatibility-state behavior and the exact generated policy name.
+The final partner overwrite, traversal, direct-read and signed-read matrix is a
+step 8 contract gate; legacy compatibility policies can intentionally prevent
+those denials from passing before then.
 
 The isolated restore clone completed both expand and final-contract validation
 on 2026-07-15. Its receipt is
@@ -194,8 +215,11 @@ mutation receipt.
 
 ### 8. Storage contract and post-deploy canary
 
-Only after compatible web/mobile clients pass canary, execute the separately
-confirmed contract checklist in
+Only after compatible web/minimum-mobile clients pass canary, execute both
+`supabase/contract-migrations/20260714165000_contract_amora_privacy_boundaries.sql`
+and
+`supabase/contract-migrations/20260714166000_contract_profile_couple_boundaries.sql`,
+then execute the separately confirmed Storage contract checklist in
 `supabase/platform-operations/storage/20260714167000_chat_attachment_contract.sql`:
 make the bucket private and remove all named legacy policies. Re-run the full
 attachment matrix. Watch production for at least the agreed canary interval and

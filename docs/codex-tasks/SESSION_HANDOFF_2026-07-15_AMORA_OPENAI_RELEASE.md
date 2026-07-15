@@ -48,46 +48,54 @@ backup artifacts or keys through Git.
 - latest provider backup visible with Restore and provider clone completed;
 - all expand/contract migrations plus hosted Auth/RLS/RPC/concurrency tests pass
   on the clone;
-- production remote fence: exactly 15 pending files in `before-reconcile` mode.
+- production migration fence: zero pending after the audited nine-version
+  reconciliation and seven expand migrations;
 - hash-pinned historical-effect audit passed in read-only transactions on both
   the isolated clone and production; the nine ledger versions are not yet
   marked applied.
 - isolated-clone hosted Storage final contract passed: strict immutable upload,
   signed read and all partner/traversal/direct-read/overwrite denials; synthetic
   accounts and object were cleaned up.
+- the later 70-second duplicate pending/unpaid booking was conditionally changed
+  to `cancelled`; a fresh postcondition found zero active duplicate groups;
+- production anonymous access exposed no rows across all 10 sensitive tables;
+- the production hosted integration discovered an old Auth trigger failure caused
+  by an unqualified `profiles` reference under the Auth search path. Postgres
+  logs proved the root cause. Migration `20260714164800` was applied to the
+  clone first, then production; hosted signup, deletion/anonymization, couple
+  reset/retention and request/tool/cost concurrency all passed, and zero
+  synthetic users remained;
+- production `chat-image` was already private and now has the strict immutable
+  uploader INSERT policy. Five legacy policies remain for the mixed-client
+  window until post-deploy contract.
 
 The DPAPI backup is intentionally tied to the Windows user profile that created
 it and is not portable through Git. A new operator/computer must take its own
 fresh clean-tree backup before production writes.
 
-## Deliberately not done
+## Still deliberately not done
 
-- no production database migration or ledger write;
-- no production Storage policy mutation; the isolated clone was contracted to
-  the verified private immutable-upload policy for hosted validation;
 - no production OpenAI activation or real-key smoke;
 - no Vercel production deployment;
 - no EAS native cloud build;
 - no PR merge;
+- no DB contract-phase ACL/policy removal and no removal of the five production
+  legacy Storage policies before compatible web/minimum-mobile canary;
 - no database password reset;
 - no WeddingCode collection re-enable or claim of psychometric validity.
 
 ## Hard gates and decisions
 
-1. Production has two pending/unpaid bookings for the same couple/vendor/slot.
-   The later candidate was cancelled only in the isolated clone. The owner gave
-   approval in the release task to cancel the later production row; re-identify
-   it by the exact duplicate tuple immediately before the write.
-2. Creating/removing hosted Storage policies changes cloud access permissions.
-   The owner approved the in-scope release operations in the task. Preserve a
-   fresh production inventory and rollback receipt at action time.
-3. Real OpenAI smoke needs a controlled non-production key. Production has a
+1. Real OpenAI smoke needs a controlled non-production key. Production has a
    key configured, but pulled values are redacted and the enable flag is absent.
-4. Web server Sentry and mobile Sentry/PostHog destinations are not configured.
-5. OpenAI DPA/region/retention/ZDR/support-channel decisions are human legal and
+2. Web server Sentry and mobile Sentry/PostHog destinations are not configured.
+3. OpenAI DPA/region/retention/ZDR/support-channel decisions are human legal and
    operational gates.
-6. WeddingCode needs at least five cognitive interviews, a 20-person mini test,
+4. WeddingCode needs at least five cognitive interviews, a 20-person mini test,
    expert review and later statistical validation plus consent/retention policy.
+5. The two DB contract files and removal of five legacy Storage policies must
+   wait for compatible web and minimum-mobile canary; the expand state is safe
+   for mixed clients and must not be mistaken for the final contract.
 
 ## Immediate continuation checklist
 
@@ -97,9 +105,10 @@ git status --short --branch
 git log --oneline --decorate -8
 pnpm install --frozen-lockfile
 pnpm supabase:release:fence
-node scripts/supabase-release-fence.mjs --remote --expect=before-reconcile
+node scripts/supabase-release-fence.mjs --remote --expect=clean
 ```
 
-Continue from PR #43. Re-run only gates affected by newer commits, then follow
-the production runbook in strict order. Never skip from a green build directly
-to OpenAI enablement.
+Continue from PR #43. Re-run the tests affected by the signup-integrity and
+release-script changes, wait for replacement CI/Vercel preview checks, then
+merge and follow steps 6-8 of the production runbook. Never skip from a green
+build directly to OpenAI enablement.

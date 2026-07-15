@@ -6,6 +6,7 @@ const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.AMORA_PREVIEW_SUPABASE_SERVICE_ROLE_KEY;
 const expectedRef = process.env.AMORA_PREVIEW_PROJECT_REF;
 const productionRef = "slrtobkksjmxgzatjyqb";
+const productionConfirmation = `${productionRef}:DELETE_SYNTHETIC_FIXTURES`;
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -14,7 +15,11 @@ function invariant(value, message) {
 invariant(previewUrl && anonKey && serviceRoleKey && expectedRef, "Preview URL, ref, anon key, and service key are required.");
 const parsedUrl = new URL(previewUrl);
 invariant(parsedUrl.hostname.startsWith(`${expectedRef}.`), "Preview URL does not match AMORA_PREVIEW_PROJECT_REF.");
-invariant(expectedRef !== productionRef, "Refusing to run destructive integration fixtures against production.");
+const isProduction = expectedRef === productionRef;
+invariant(
+  !isProduction || process.env.AMORA_PRODUCTION_SYNTHETIC_CONFIRM === productionConfirmation,
+  `Production synthetic fixtures require AMORA_PRODUCTION_SYNTHETIC_CONFIRM=${productionConfirmation}.`
+);
 
 const admin = createClient(previewUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -224,7 +229,9 @@ try {
   await testAccountDeletionCascade();
   await testAtomicReset();
   await testPartnerRetentionAndConcurrency();
-  console.log("Preview integration passed: Auth cascade, atomic reset, partner retention, and 3 parallel reservation/claim fences.");
+  console.log(
+    `${isProduction ? "Production" : "Preview"} hosted integration passed: Auth cascade, atomic reset, partner retention, and 3 parallel reservation/claim fences.`
+  );
 } finally {
   await cleanup();
 }

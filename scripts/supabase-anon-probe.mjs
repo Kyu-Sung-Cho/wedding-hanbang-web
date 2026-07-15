@@ -15,13 +15,26 @@ function readEnvFile(filePath) {
   return env;
 }
 
-const envPath = path.join(process.cwd(), "apps", "web", ".env.local");
-const env = readEnvFile(envPath);
+const defaultEnvPath = path.join(process.cwd(), "apps", "web", ".env.local");
+const envPath = process.env.SUPABASE_ENV_FILE ?? defaultEnvPath;
+const fileEnv = fs.existsSync(envPath) ? readEnvFile(envPath) : {};
+const env = { ...fileEnv, ...process.env };
 const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const expectedProjectRef = env.SUPABASE_EXPECTED_PROJECT_REF;
 
 if (!supabaseUrl || !anonKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  console.error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in process environment or SUPABASE_ENV_FILE."
+  );
+  process.exit(1);
+}
+
+if (
+  expectedProjectRef &&
+  !new URL(supabaseUrl).hostname.startsWith(`${expectedProjectRef}.`)
+) {
+  console.error("Supabase URL does not match SUPABASE_EXPECTED_PROJECT_REF.");
   process.exit(1);
 }
 

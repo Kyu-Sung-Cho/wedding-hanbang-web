@@ -9,7 +9,7 @@ at `2026-07-14 20:13:53 UTC`, status `COMPLETED`, with a Restore action. The
 restore-to-new-project history showed isolated clone `syhmfxauqyhgdcokrheg`
 completed at `2026-07-14 23:04:45 UTC`.
 
-All six Amora expand migrations and both contract artifacts were exercised on
+All seven Amora expand migrations and both contract artifacts were exercised on
 that clone. A real hosted-API integration then passed:
 
 - Auth signup/profile trigger and account deletion cascade/anonymization;
@@ -25,10 +25,14 @@ HBAM2 logical artifacts can be restored independently into a blank isolated
 target. That separate logical replay remains open and must not be described as
 complete.
 
-The production dry-run also matched exactly the 15 hash-pinned migrations in
-the release manifest (`before-reconcile`: nine historical ledger entries plus
-six expand migrations). No production migration, migration-history repair or
-Storage permission change was performed while collecting this evidence.
+The production dry-run at the time also matched exactly the original 15
+hash-pinned migrations in the release manifest (`before-reconcile`: nine
+historical ledger entries plus six then-known expand migrations). No production
+migration, migration-history repair or Storage permission change was performed
+while collecting that earlier evidence. A seventh signup-integrity expand
+migration was added later only after the production synthetic gate reproduced
+the legacy trigger defect; see the release runbook and session handoff for that
+subsequent write receipt.
 
 The hash-pinned read-only audit
 `20260714165500_audit_historical_release_effects.sql` subsequently returned
@@ -60,8 +64,9 @@ the operator's external task record and fixed private local backup root.
 
 This paragraph describes the state at the time of the 2026-07-14 capture. The
 later provider backup/clone and hosted contract evidence above closes those
-specific gates. Independent HBAM2 logical replay and production write-fence
-execution remain incomplete, so Stage B is **not complete**.
+specific gates. Independent HBAM2 logical replay remains incomplete. Production
+write-fence execution subsequently passed, but it does not close the separate
+logical replay gate, so Stage B is **not complete**.
 
 ## Current HBAM2 implementation verification
 

@@ -16,10 +16,14 @@ Stage B remains **open**, with the following evidence as of 2026-07-15 KST:
    provider physical-restore path, but it is not a replay of the HBAM2 logical
    artifacts into a blank target;
 4. **Passed on the provider clone:** hosted RLS/RPC/Auth contract and concurrency
-   tests after all release expand migrations;
-5. **Partially passed:** the production remote dry-run matches exactly 15
-   hash-pinned manifest files. Production write-fence execution, ledger
-   reconciliation and migration apply remain open.
+   tests after all seven release expand migrations;
+5. **Passed for the release write fence:** nine historical ledger versions were
+   reconciled after their read-only audit, seven expand migrations were applied,
+   and the production remote pending set is zero. The later duplicate booking
+   was conditionally cancelled only after a fresh re-identification and backup;
+6. **Still open:** independent HBAM2 logical replay into a blank target. The
+   provider physical clone and PGlite JSONB verification do not substitute for
+   that separate recovery exercise.
 
 PGlite proves authenticated JSONB integrity and precision. It does not install
 the production schema, policies, triggers, or functions. The provider clone
