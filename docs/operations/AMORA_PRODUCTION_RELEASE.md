@@ -8,7 +8,10 @@ its receipt is recorded and every following precondition still holds.
 
 - production Supabase project: `slrtobkksjmxgzatjyqb`;
 - isolated production-data verification clone: `syhmfxauqyhgdcokrheg`;
-- Git branch: `feat/amora-openai-runtime-20260714`;
+- verified production/main commit:
+  `bd879a74668d24695b101307224f4d44b08abc7a`;
+- Amora release merge: PR #43 / `56b7fee1`;
+- native-build repair merge: PR #47 / `77288c6a`;
 - release manifest: `supabase/release-manifests/amora-openai-20260714.json`;
 - runtime starts fail-closed: `AMORA_OPENAI_ENABLED` must remain absent or
   `false` until the post-deploy synthetic smoke gate;
@@ -57,16 +60,26 @@ Passed evidence:
   policies remain until the compatible-client contract gate.
 - the hash-pinned historical-effect audit returned
   `HISTORICAL_RELEASE_EFFECTS_VERIFIED` on both the isolated clone and
-  production in a read-only transaction.
+  production in a read-only transaction;
+- current main GitHub CI run `29387007474` passed both the local quality gate
+  and Supabase release-manifest fence;
+- Vercel production deployment `5V5iydv5vij5ceK9YwJetbhX5B2d` is ready with
+  the OpenAI runtime flag still absent/false. Two post-deploy mobile-width passes
+  across `/`, prices, lounge/login, `/sai` and `/wedding-code` had zero console
+  errors; the three WeddingCode APIs returned 410;
+- Android EAS production build
+  `e6cc6b8f-a377-4aba-8e83-5a9c509cd229` finished from exact current main with
+  `versionCode 2`; its downloaded AAB passed archive-structure validation and
+  the recorded SHA-256 is in
+  `docs/evidence/AMORA_WEB_ANDROID_RELEASE_2026-07-15.md`.
 
 Still open; therefore the runtime remains fail-closed and the release is **not
 yet complete**:
 
-1. commit the newly discovered signup-integrity fix and updated receipts, pass
-   the replacement PR checks, merge, and verify the immutable Vercel production
-   deployment with OpenAI still disabled;
-2. obtain traceable EAS iOS and Android production cloud builds from the merged
-   commit;
+1. finish interactive Apple signing setup and obtain the traceable EAS iOS
+   production cloud build from current main;
+2. independently replay the authenticated HBAM2 logical artifact into a blank
+   isolated target if the logical-restore gate is required for the next write;
 3. supply a controlled OpenAI key to a non-production smoke environment without
    exposing it, then pass the real provider smoke and cost fence;
 4. configure missing server/mobile observability destinations or explicitly
@@ -192,6 +205,10 @@ operation against production; never treat the clone result as a production
 mutation receipt.
 
 ### 6. Deploy compatible code with OpenAI disabled
+
+Status on 2026-07-15: the web deploy and Android production build are complete
+and verified. The iOS production build remains open pending interactive Apple
+credential setup. This status note does not authorize step 7 or step 8.
 
 1. Merge only after PR checks, review and all preceding receipts are green.
 2. Deploy the immutable merge commit to Vercel with

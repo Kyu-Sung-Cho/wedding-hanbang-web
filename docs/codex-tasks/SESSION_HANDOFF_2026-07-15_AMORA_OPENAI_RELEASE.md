@@ -3,16 +3,23 @@
 ## Where to continue
 
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`;
-- branch: `feat/amora-openai-runtime-20260714`;
-- upstream before this release commit: `1bb5a216`;
+- verified production/main commit: `bd879a74668d24695b101307224f4d44b08abc7a`;
+- Amora release merge: PR #43 / `56b7fee1ad3688cc44370dd9c45244c6da461c42`;
+- native-build repair merge: PR #47 / `77288c6ab739a6e88975dee490ee9842b727a209`;
+- PR #48 (`/sai`) followed immediately and is included in the verified main
+  commit above;
 - archived PR #38 is evidence only, not a merge target;
+- draft PR #46 is a large conflicted checkpoint from another computer. Its own
+  body says not to merge or deploy it; reconcile small domains selectively from
+  a fresh main branch instead of cherry-picking it wholesale;
 - production Supabase ref: `slrtobkksjmxgzatjyqb`;
 - isolated verification clone: `syhmfxauqyhgdcokrheg`;
 - exact release procedure:
   `docs/operations/AMORA_PRODUCTION_RELEASE.md`.
 
-On another computer, fetch the branch, install with the committed lockfile and
-start by reading the release runbook plus
+On another computer, fetch `main`, install with the committed lockfile and start
+by reading this handoff, the release runbook, the web/Android release receipt,
+and
 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`. Do not copy `.env` files,
 backup artifacts or keys through Git.
 
@@ -40,7 +47,8 @@ backup artifacts or keys through Git.
 - Next production build (100 routes);
 - Expo iOS/Android/Web export;
 - production dependency audit: no known vulnerability at the configured level;
-- mobile release readiness: 55 passed, 0 warnings, 0 failures;
+- mobile release readiness: 70 passed, 0 warnings, 0 failures; Expo Doctor:
+  18/18;
 - local live smoke: wedding home, market prices, auth redirect, demo lounge and
   390 px Amora panel; browser console had no errors;
 - fresh HBAM2 production capture/verify: 11 tables / 2,893 rows, external private
@@ -67,7 +75,20 @@ backup artifacts or keys through Git.
   synthetic users remained;
 - production `chat-image` was already private and now has the strict immutable
   uploader INSERT policy. Five legacy policies remain for the mixed-client
-  window until post-deploy contract.
+  window until post-deploy contract;
+- PR #43 and the EAS follow-up PRs #44, #45 and #47 were merged. Current main
+  GitHub CI run `29387007474` passed, including the local quality gate and
+  Supabase release-manifest fence;
+- Vercel production deployment `5V5iydv5vij5ceK9YwJetbhX5B2d` serves current
+  main with OpenAI still fail-closed. Two mobile-width canary passes across six
+  routes produced zero console errors; all three WeddingCode APIs remained 410;
+- Android EAS production build
+  `e6cc6b8f-a377-4aba-8e83-5a9c509cd229` finished from exact current main with
+  `versionCode 2`. The 65,249,946-byte AAB passed ZIP structure checks and has
+  SHA-256 `FF3D924578C2FB94BA090042CAA30C4F60E1C504522F3082CB0018687DF84687`.
+
+The detailed immutable receipts and the earlier failed-build root causes are in
+`docs/evidence/AMORA_WEB_ANDROID_RELEASE_2026-07-15.md`.
 
 The DPAPI backup is intentionally tied to the Windows user profile that created
 it and is not portable through Git. A new operator/computer must take its own
@@ -76,9 +97,11 @@ fresh clean-tree backup before production writes.
 ## Still deliberately not done
 
 - no production OpenAI activation or real-key smoke;
-- no Vercel production deployment;
-- no EAS native cloud build;
-- no PR merge;
+- no EAS iOS cloud build yet. Apple signing credentials still require the
+  account holder's interactive Apple login and two-factor authentication;
+- no independent replay of the HBAM2 logical artifact into a blank isolated
+  target; provider physical restore and hosted clone validation are separate
+  evidence;
 - no DB contract-phase ACL/policy removal and no removal of the five production
   legacy Storage policies before compatible web/minimum-mobile canary;
 - no database password reset;
@@ -96,6 +119,8 @@ fresh clean-tree backup before production writes.
 5. The two DB contract files and removal of five legacy Storage policies must
    wait for compatible web and minimum-mobile canary; the expand state is safe
    for mixed clients and must not be mistaken for the final contract.
+6. iOS production signing requires the Apple account holder to finish the
+   interactive EAS credential flow before the build can be submitted.
 
 ## Immediate continuation checklist
 
@@ -108,7 +133,8 @@ pnpm supabase:release:fence
 node scripts/supabase-release-fence.mjs --remote --expect=clean
 ```
 
-Continue from PR #43. Re-run the tests affected by the signup-integrity and
-release-script changes, wait for replacement CI/Vercel preview checks, then
-merge and follow steps 6-8 of the production runbook. Never skip from a green
-build directly to OpenAI enablement.
+Continue from current `main`, not PR #38 or PR #46. First finish Apple credential
+setup and the traceable iOS production build. Then obtain a controlled
+non-production OpenAI key and observability/legal decisions before any provider
+canary. Never skip from a green web/Android build directly to OpenAI enablement
+or DB/Storage contract removal.

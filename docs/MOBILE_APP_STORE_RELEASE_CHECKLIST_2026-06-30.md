@@ -1,8 +1,9 @@
 # Mobile App Store Release Checklist
 
-> Date: 2026-06-30  
+> Date: 2026-06-30, status updated 2026-07-15
 > Scope: `apps/mobile`, Expo SDK 54, EAS Build, App Store/TestFlight readiness  
-> Status: release foundation started, account-dependent setup still required
+> Status: Android production AAB verified; iOS signing and physical-device/store
+> setup still required
 
 ## 1. Current Repo Status
 
@@ -17,6 +18,8 @@
 - EAS build profiles now exist at `apps/mobile/eas.json`.
 - EAS project is linked: `@hanbang/wedding-hanbang`.
 - EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
+- Every EAS profile pins Node `22.13.0`, installs pnpm `11.7.0` exactly once,
+  and uses the same-named EAS Update channel.
 - EAS preview environment has the required public mobile runtime variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
 - Store-build helper scripts now exist in `apps/mobile/package.json`.
 
@@ -35,6 +38,10 @@ Current result:
 - Typecheck: pass.
 - Lint: pass.
 - Web production build: pass.
+- Mobile release readiness: 70/70 pass, no warnings or failures.
+- Expo Doctor: 18/18 pass.
+- Android production EAS build from current main: pass. Build
+  `e6cc6b8f-a377-4aba-8e83-5a9c509cd229`, `versionCode 2`.
 
 Before every mobile release candidate, also run:
 
@@ -87,15 +94,16 @@ The same check also runs inside `pnpm qa:local`, so GitHub Actions blocks releas
 
 These cannot be completed by code alone:
 
-1. Expo account access for owner `hanbang`.
-2. `eas login`.
-3. `pnpm --filter @hanbang/mobile eas:init`.
+1. Expo account access for owner `hanbang`. Completed.
+2. `eas login`. Completed.
+3. `pnpm --filter @hanbang/mobile eas:init`. Completed.
 4. Confirm `extra.eas.projectId` is populated in `apps/mobile/app.json` after EAS init. Completed for `@hanbang/wedding-hanbang`.
 5. Apple Developer Program membership.
 6. App Store Connect app record for bundle ID `ai.hanbang.wedding`.
 7. App Store Connect API key or interactive Apple credentials for EAS Submit.
 8. Google Play Console app record for package `ai.hanbang.wedding`.
-9. Production signing credentials managed by EAS or uploaded manually.
+9. Android production signing credentials managed by EAS. Completed. iOS
+   distribution credentials remain pending interactive Apple setup.
 
 ## 5. App Store Connect Required Metadata
 
@@ -188,14 +196,13 @@ Before web production deployment:
 
 ## 12. Next Practical Sequence
 
-1. Apply Supabase migrations to the intended environment.
-2. Run `pnpm --filter @hanbang/mobile eas:init`.
-3. Confirm EAS project ID is written into `apps/mobile/app.json`.
-4. Build iOS preview or production candidate.
-5. Install on physical iPhone through TestFlight or internal distribution.
-6. QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, notifications.
-7. Prepare App Store Connect metadata and privacy answers.
-8. Submit to TestFlight first, not public App Store review.
+1. Finish interactive Apple distribution credential setup.
+2. Build the iOS production candidate from current main.
+3. Install it on a physical iPhone through TestFlight or internal distribution.
+4. QA login, onboarding, dashboard, Amora, community, budget, schedule, vendors, notifications.
+5. Prepare App Store Connect metadata and privacy answers.
+6. Create/verify the Google Play Console app record before Android submission.
+7. Submit to internal testing/TestFlight first, not public store review.
 
 ## 13. Non-Negotiables
 
