@@ -23,6 +23,38 @@ and
 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`. Do not copy `.env` files,
 backup artifacts or keys through Git.
 
+## Later production addendum: per-couple quota unlocked
+
+On 2026-07-15 KST, normal users could still receive the exact message that all
+beta free consultations had been used. This was not an account-specific
+allowlist problem:
+
+- the only code-level exemption was `profiles.is_admin = true`;
+- Vercel Production had `AMORA_FREE_MESSAGES_PER_COUPLE=30`;
+- `amora_turn_counters` had been seeded from historical chat turns, and the
+  largest aggregate couple counter was 705, so existing users were already over
+  the new cap;
+- the KST global count at diagnosis time was 3, below the retained daily cap of
+  300.
+
+The immediate non-destructive production mitigation raised the per-couple cap
+to `1000000` and redeployed source commit `6dd55ee1` as Vercel deployment
+`6pZCEBoWaBri7g3AFqJMGaTtsnRt`. No counter rows were reset or deleted.
+
+The durable fix in the commit containing this addendum adds a separate
+`AMORA_COUPLE_QUOTA_ENABLED` switch. Production now has this variable set to
+`false`; the next deployment of this code therefore disables the per-couple
+branch for every ordinary account while still using the atomic reservation RPC
+and retaining `AMORA_COST_GUARD_ENABLED=true` plus the global daily cap. It also
+clears stale client-side `quotaRemaining=0` state at the start of all three AI
+request paths, so an old exhausted banner cannot remain after the server limit
+is lifted.
+
+Rollback is configuration-only: set `AMORA_COUPLE_QUOTA_ENABLED=true` (or
+remove it), choose a reviewed positive `AMORA_FREE_MESSAGES_PER_COUPLE`, and
+redeploy. Do not disable the whole cost guard unless responding to a separately
+approved incident, because that would also remove the global cost ceiling.
+
 ## What is implemented
 
 - Amora main/auxiliary runtime uses the OpenAI Responses API only;

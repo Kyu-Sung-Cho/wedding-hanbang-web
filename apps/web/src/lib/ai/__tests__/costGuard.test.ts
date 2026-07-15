@@ -35,6 +35,7 @@ describe("checkAmoraCostGuard", () => {
   beforeEach(() => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
+    delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
     delete process.env.AMORA_FREE_MESSAGES_PER_COUPLE;
     delete process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP;
     vi.resetModules();
@@ -93,6 +94,7 @@ describe("reserveAmoraTurn (원자 예약)", () => {
   beforeEach(() => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
+    delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
   });
   afterEach(() => {
     process.env = ENV;
@@ -112,6 +114,23 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
       p_couple_id: "c1",
       p_couple_cap: 100,
+      p_global_cap: 300,
+    });
+  });
+
+  it("커플별 한도만 끄면 일반 계정도 글로벌 예약을 계속 거친다", async () => {
+    process.env.AMORA_COUPLE_QUOTA_ENABLED = "false";
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const r = await mod.reserveAmoraTurn(admin, BASE);
+
+    expect(r.allowed).toBe(true);
+    expect(r.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
       p_global_cap: 300,
     });
   });
