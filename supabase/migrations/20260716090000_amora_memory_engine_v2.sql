@@ -345,7 +345,9 @@ DECLARE
   v_rows integer;
 BEGIN
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
-  FROM public.couples WHERE id = p_couple_id;
+  FROM public.couples
+  WHERE id = p_couple_id
+  FOR SHARE;
   IF p_visibility NOT IN ('shared', 'bride_private', 'groom_private')
      OR (p_user_id IS DISTINCT FROM v_bride_id AND p_user_id IS DISTINCT FROM v_groom_id)
      OR (p_visibility = 'bride_private' AND p_user_id IS DISTINCT FROM v_bride_id)
@@ -722,7 +724,9 @@ BEGIN
   END IF;
 
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
-  FROM public.couples WHERE id = p_couple_id;
+  FROM public.couples
+  WHERE id = p_couple_id
+  FOR SHARE;
   IF (p_user_id IS DISTINCT FROM v_bride_id AND p_user_id IS DISTINCT FROM v_groom_id)
      OR (p_visibility = 'bride_private' AND p_user_id IS DISTINCT FROM v_bride_id)
      OR (p_visibility = 'groom_private' AND p_user_id IS DISTINCT FROM v_groom_id) THEN
@@ -806,7 +810,9 @@ DECLARE
   v_rows integer;
 BEGIN
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
-  FROM public.couples WHERE id = p_couple_id;
+  FROM public.couples
+  WHERE id = p_couple_id
+  FOR SHARE;
   IF p_visibility NOT IN ('shared', 'bride_private', 'groom_private')
      OR (p_user_id IS DISTINCT FROM v_bride_id AND p_user_id IS DISTINCT FROM v_groom_id)
      OR (p_visibility = 'bride_private' AND p_user_id IS DISTINCT FROM v_bride_id)
@@ -976,7 +982,9 @@ DECLARE
   v_legacy_purged_at timestamptz;
 BEGIN
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
-  FROM public.couples WHERE id = p_couple_id;
+  FROM public.couples
+  WHERE id = p_couple_id
+  FOR SHARE;
 
   IF p_visibility NOT IN ('shared', 'bride_private', 'groom_private')
      OR (
@@ -1117,7 +1125,9 @@ DECLARE
   v_groom_id uuid;
 BEGIN
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
-  FROM public.couples WHERE id = p_couple_id;
+  FROM public.couples
+  WHERE id = p_couple_id
+  FOR SHARE;
   IF p_visibility NOT IN ('shared', 'bride_private', 'groom_private') THEN
     RAISE EXCEPTION 'AMORA_MEMORY_CLEAR_SCOPE_INVALID' USING ERRCODE = '22023';
   END IF;

@@ -139,6 +139,40 @@ async function resetPersona(db: PGlite) {
   await db.query("SELECT set_config('request.jwt.claim.sub', '', false)");
 }
 
+type MediationBinding = {
+  version: string;
+  roster: string;
+};
+
+async function getMediationBinding(db: PGlite, messageId = AI_MESSAGE_ID): Promise<MediationBinding> {
+  const binding = await db.query<MediationBinding>(
+    `SELECT metadata #>> '{mediation,proposalVersion}' AS version,
+            metadata #>> '{mediation,rosterFingerprint}' AS roster
+     FROM public.chat_messages
+     WHERE id = $1`,
+    [messageId],
+  );
+  const current = binding.rows[0];
+  if (!current?.version || !current.roster) {
+    throw new Error("Mediation proposal binding is missing");
+  }
+  return current;
+}
+
+async function acceptMediation(
+  db: PGlite,
+  userId: string,
+  title: string,
+  resolution: string,
+  binding?: MediationBinding,
+) {
+  const expected = binding ?? await getMediationBinding(db);
+  return db.query<{ result: Record<string, unknown> }>(
+    "SELECT public.accept_amora_mediation($1, $2, $3, $4, $5, $6, $7) AS result",
+    [COUPLE_ID, AI_MESSAGE_ID, userId, title, resolution, expected.version, expected.roster],
+  );
+}
+
 describe("Amora memory engine v2 migrations", () => {
   it("applies cleanly and keeps write functions service-only", async () => {
     const db = await createDatabase();
@@ -161,6 +195,119 @@ describe("Amora memory engine v2 migrations", () => {
       )).rejects.toThrow(/permission denied/i);
     } finally {
       await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("locks the couple roster before every member-authorized memory scope lock", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      const definitions = await db.query<{ proname: string; prosrc: string }>(`
+        SELECT procedure.proname, procedure.prosrc
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname IN (
+            'enqueue_amora_memory_job',
+            'update_amora_memory_node',
+            'delete_amora_memory_node',
+            'set_amora_memory_consent',
+            'clear_amora_memory_scope'
+          )
+      `);
+
+      expect(definitions.rows).toHaveLength(5);
+      for (const definition of definitions.rows) {
+        const rosterLock = definition.prosrc.indexOf("FOR SHARE");
+        const scopeLock = definition.prosrc.indexOf("pg_advisory_xact_lock");
+        expect(rosterLock, `${definition.proname} must lock the couples row`).toBeGreaterThan(-1);
+        expect(scopeLock, `${definition.proname} must lock the memory scope`).toBeGreaterThan(-1);
+        expect(rosterLock, `${definition.proname} lock order`).toBeLessThan(scopeLock);
+      }
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it("uses one deadlock-safe lock order for every mediation proposal mutation", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      const definitions = await db.query<{ proname: string; prosrc: string }>(`
+        SELECT procedure.proname, procedure.prosrc
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname IN (
+            'bind_amora_mediation_proposal',
+            'accept_amora_mediation',
+            'revoke_amora_mediation_acceptance'
+          )
+      `);
+
+      expect(definitions.rows).toHaveLength(3);
+      for (const definition of definitions.rows.filter(
+        ({ proname }) => proname !== "bind_amora_mediation_proposal",
+      )) {
+        const proposalRead = definition.prosrc.indexOf("FROM public.chat_messages AS message");
+        const proposalLock = definition.prosrc.indexOf("FOR SHARE", proposalRead);
+        const advisoryLock = definition.prosrc.indexOf("pg_advisory_xact_lock", proposalLock);
+        const rosterLock = definition.prosrc.indexOf("FROM public.couples AS couple", advisoryLock);
+        const acceptanceMutation = definition.prosrc.indexOf(
+          "DELETE FROM public.amora_mediation_acceptances",
+          proposalRead,
+        );
+        expect(proposalRead, `${definition.proname} must read the canonical proposal`).toBeGreaterThan(-1);
+        expect(proposalLock, `${definition.proname} must lock the proposal row`).toBeGreaterThan(proposalRead);
+        expect(advisoryLock, `${definition.proname} must lock the proposal scope`).toBeGreaterThan(proposalLock);
+        expect(rosterLock, `${definition.proname} must lock the couple roster`).toBeGreaterThan(advisoryLock);
+        expect(acceptanceMutation, `${definition.proname} must mutate acceptance rows`).toBeGreaterThan(-1);
+        expect(rosterLock, `${definition.proname} mutation lock order`).toBeLessThan(acceptanceMutation);
+      }
+
+      const binder = definitions.rows.find(({ proname }) => proname === "bind_amora_mediation_proposal");
+      expect(binder).toBeDefined();
+      const updateBranch = binder?.prosrc.indexOf("IF TG_OP = 'UPDATE' THEN") ?? -1;
+      const binderAdvisory = binder?.prosrc.indexOf("pg_advisory_xact_lock", updateBranch) ?? -1;
+      const binderRoster = binder?.prosrc.indexOf("FROM public.couples AS couple", binderAdvisory) ?? -1;
+      const decisionRead = binder?.prosrc.indexOf("FROM public.decision_nodes AS node", binderAdvisory) ?? -1;
+      const pendingDelete = binder?.prosrc.indexOf(
+        "DELETE FROM public.amora_mediation_acceptances",
+        binderAdvisory,
+      ) ?? -1;
+      expect(updateBranch).toBeGreaterThan(-1);
+      expect(binderAdvisory).toBeGreaterThan(updateBranch);
+      expect(binderRoster).toBeGreaterThan(binderAdvisory);
+      expect(decisionRead).toBeGreaterThan(binderRoster);
+      expect(pendingDelete).toBeGreaterThan(decisionRead);
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
+  it("removes the unreleased five-argument mediation acceptance path on retry", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`
+        CREATE FUNCTION public.accept_amora_mediation(uuid, uuid, uuid, text, text)
+        RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+        GRANT EXECUTE ON FUNCTION public.accept_amora_mediation(uuid, uuid, uuid, text, text)
+          TO service_role;
+        BEGIN;
+        ${mediationMigration}
+        COMMIT;
+      `);
+      const signatures = await db.query<{ legacy: string | null; strict: string | null }>(`
+        SELECT
+          to_regprocedure('public.accept_amora_mediation(uuid,uuid,uuid,text,text)')::text AS legacy,
+          to_regprocedure('public.accept_amora_mediation(uuid,uuid,uuid,text,text,uuid,text)')::text AS strict
+      `);
+      expect(signatures.rows[0]?.legacy).toBeNull();
+      expect(signatures.rows[0]?.strict).toContain("accept_amora_mediation");
+    } finally {
       await db.close();
     }
   }, 30_000);
@@ -817,30 +964,28 @@ describe("Amora memory engine v2 migrations", () => {
         [AI_MESSAGE_ID],
       );
 
-      const first = await db.query<{ result: Record<string, unknown> }>(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '예산 합의', '총액 상한을 정한다') AS result",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      );
+      const binding = await getMediationBinding(db);
+      await expect(acceptMediation(
+        db,
+        BRIDE_ID,
+        "잘못된 구성",
+        "총액 상한을 정한다",
+        { ...binding, roster: "00000000000000000000000000000000" },
+      )).rejects.toThrow(/AMORA_MEDIATION_PROPOSAL_CHANGED/);
+      const first = await acceptMediation(db, BRIDE_ID, "예산 합의", "총액 상한을 정한다", binding);
       expect(first.rows[0]?.result).toMatchObject({ accepted_count: 1, required_count: 2, completed: false });
 
-      const second = await db.query<{ result: Record<string, unknown> }>(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '예산 합의', '총액 상한을 정한다') AS result",
-        [COUPLE_ID, AI_MESSAGE_ID, GROOM_ID],
-      );
+      const second = await acceptMediation(db, GROOM_ID, "예산 합의", "총액 상한을 정한다");
       expect(second.rows[0]?.result).toMatchObject({ accepted_count: 2, required_count: 2, completed: true });
 
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '예산 합의', '총액 상한을 정한다')",
-        [COUPLE_ID, AI_MESSAGE_ID, GROOM_ID],
-      );
+      await acceptMediation(db, GROOM_ID, "예산 합의", "총액 상한을 정한다");
       const decisions = await db.query<{ count: number }>(
         "SELECT count(*)::integer AS count FROM public.decision_nodes WHERE category = 'conflict_resolution'",
       );
       expect(decisions.rows[0]?.count).toBe(1);
-      await expect(db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '예산 합의', '총액 상한을 정한다')",
-        [COUPLE_ID, AI_MESSAGE_ID, OUTSIDER_ID],
-      )).rejects.toThrow(/AMORA_MEDIATION_SCOPE_INVALID/);
+      await expect(
+        acceptMediation(db, OUTSIDER_ID, "예산 합의", "총액 상한을 정한다"),
+      ).rejects.toThrow(/AMORA_MEDIATION_SCOPE_INVALID/);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();
@@ -859,10 +1004,9 @@ describe("Amora memory engine v2 migrations", () => {
         [AI_MESSAGE_ID],
       );
 
-      await expect(db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '임의 제목', '서버가 전달한 다른 합의안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      )).rejects.toThrow(/AMORA_MEDIATION_PROPOSAL_INVALID/);
+      await expect(
+        acceptMediation(db, BRIDE_ID, "임의 제목", "서버가 전달한 다른 합의안"),
+      ).rejects.toThrow(/AMORA_MEDIATION_PROPOSAL_INVALID/);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();
@@ -880,10 +1024,7 @@ describe("Amora memory engine v2 migrations", () => {
          WHERE id = $1`,
         [AI_MESSAGE_ID],
       );
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '첫 번째', '첫 번째 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      );
+      await acceptMediation(db, BRIDE_ID, "첫 번째", "첫 번째 선택안");
       await db.query(
         `UPDATE public.chat_messages
          SET metadata = '{"mediation":{"resolution":"수정된 두 번째 선택안"}}'::jsonb
@@ -891,10 +1032,7 @@ describe("Amora memory engine v2 migrations", () => {
         [AI_MESSAGE_ID],
       );
 
-      const second = await db.query<{ result: Record<string, unknown> }>(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '두 번째', '수정된 두 번째 선택안') AS result",
-        [COUPLE_ID, AI_MESSAGE_ID, GROOM_ID],
-      );
+      const second = await acceptMediation(db, GROOM_ID, "두 번째", "수정된 두 번째 선택안");
       expect(second.rows[0]?.result).toMatchObject({
         accepted_count: 1,
         required_count: 2,
@@ -906,7 +1044,205 @@ describe("Amora memory engine v2 migrations", () => {
     }
   }, 30_000);
 
-  it("invalidates pending mediation acceptances when the couple roster changes", async () => {
+  it("never reactivates an acceptance when proposal text changes away and back", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"처음 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const firstBinding = await getMediationBinding(db);
+      expect(firstBinding.version).toMatch(/^[0-9a-f-]{36}$/);
+      expect(firstBinding.roster).toMatch(/^[a-f0-9]{32}$/);
+
+      await acceptMediation(db, BRIDE_ID, "처음", "처음 선택안", firstBinding);
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"중간 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const middleVersion = await db.query<{ version: string }>(
+        "SELECT metadata #>> '{mediation,proposalVersion}' AS version FROM public.chat_messages WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"처음 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const revertedVersion = await db.query<{ version: string }>(
+        "SELECT metadata #>> '{mediation,proposalVersion}' AS version FROM public.chat_messages WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      expect(middleVersion.rows[0]?.version).not.toBe(firstBinding.version);
+      expect(revertedVersion.rows[0]?.version).not.toBe(firstBinding.version);
+      expect(revertedVersion.rows[0]?.version).not.toBe(middleVersion.rows[0]?.version);
+      const invalidated = await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.amora_mediation_acceptances WHERE message_id = $1",
+        [AI_MESSAGE_ID],
+      );
+      expect(invalidated.rows[0]?.count).toBe(0);
+
+      await expect(
+        acceptMediation(db, GROOM_ID, "오래된 화면", "처음 선택안", firstBinding),
+      ).rejects.toThrow(/AMORA_MEDIATION_PROPOSAL_CHANGED/);
+      const acceptance = await acceptMediation(db, GROOM_ID, "다시 처음", "처음 선택안");
+      expect(acceptance.rows[0]?.result).toMatchObject({
+        accepted_count: 1,
+        required_count: 2,
+        completed: false,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("keeps only the current proposal version when acceptance follows a revision", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"수정 전 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      await acceptMediation(db, BRIDE_ID, "수정 전", "수정 전 선택안");
+
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"수정 후 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const accepted = await acceptMediation(db, GROOM_ID, "수정 후", "수정 후 선택안");
+      expect(accepted.rows[0]?.result).toMatchObject({
+        accepted_count: 1,
+        required_count: 2,
+        completed: false,
+      });
+
+      const currentRows = await db.query<{
+        user_id: string;
+        acceptance_version: string;
+        message_version: string;
+        proposal_resolution: string;
+      }>(
+        `SELECT acceptance.user_id,
+                acceptance.proposal_version::text AS acceptance_version,
+                message.metadata #>> '{mediation,proposalVersion}' AS message_version,
+                acceptance.proposal_resolution
+         FROM public.amora_mediation_acceptances AS acceptance
+         JOIN public.chat_messages AS message ON message.id = acceptance.message_id
+         WHERE acceptance.message_id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      expect(currentRows.rows).toHaveLength(1);
+      expect(currentRows.rows[0]).toMatchObject({
+        user_id: GROOM_ID,
+        proposal_resolution: "수정 후 선택안",
+      });
+      expect(currentRows.rows[0]?.acceptance_version).toBe(currentRows.rows[0]?.message_version);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("creates a new consent version when any mediation card field changes", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"같은 선택안","empathy":"처음 공감","data":{"budget":100}}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const first = await db.query<{ version: string }>(
+        "SELECT metadata #>> '{mediation,proposalVersion}' AS version FROM public.chat_messages WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      await acceptMediation(db, BRIDE_ID, "같은 선택안", "같은 선택안");
+
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"같은 선택안","empathy":"수정된 공감","data":{"budget":100}}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const revised = await db.query<{ version: string; count: number }>(
+        `SELECT message.metadata #>> '{mediation,proposalVersion}' AS version,
+                count(acceptance.user_id)::integer AS count
+         FROM public.chat_messages AS message
+         LEFT JOIN public.amora_mediation_acceptances AS acceptance
+           ON acceptance.message_id = message.id
+         WHERE message.id = $1
+         GROUP BY message.id`,
+        [AI_MESSAGE_ID],
+      );
+      expect(revised.rows[0]?.version).not.toBe(first.rows[0]?.version);
+      expect(revised.rows[0]?.count).toBe(0);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("clears pending consent on valid-to-invalid transitions and protects completed proposals", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"공유 중재안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      await acceptMediation(db, BRIDE_ID, "공유 중재안", "공유 중재안");
+
+      await db.query(
+        "UPDATE public.chat_messages SET visibility = 'bride_private' WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      const cleared = await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.amora_mediation_acceptances WHERE message_id = $1",
+        [AI_MESSAGE_ID],
+      );
+      expect(cleared.rows[0]?.count).toBe(0);
+
+      await db.query(
+        "UPDATE public.chat_messages SET visibility = 'shared' WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      await acceptMediation(db, BRIDE_ID, "공유 중재안", "공유 중재안");
+      await acceptMediation(db, GROOM_ID, "공유 중재안", "공유 중재안");
+      await expect(db.query(
+        "UPDATE public.chat_messages SET visibility = 'groom_private' WHERE id = $1",
+        [AI_MESSAGE_ID],
+      )).rejects.toThrow(/AMORA_MEDIATION_ALREADY_COMPLETED/);
+      const protectedMessage = await db.query<{ visibility: string }>(
+        "SELECT visibility FROM public.chat_messages WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      expect(protectedMessage.rows[0]?.visibility).toBe("shared");
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("rejects a mediation proposal created for a previous couple roster", async () => {
     const db = await createDatabase();
     try {
       await db.exec(`BEGIN;\n${memoryMigration}\n${mediationMigration}\nCOMMIT;`);
@@ -917,15 +1253,30 @@ describe("Amora memory engine v2 migrations", () => {
          WHERE id = $1`,
         [AI_MESSAGE_ID],
       );
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '현재 두 사람의 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      );
+      await acceptMediation(db, BRIDE_ID, "선택안", "현재 두 사람의 선택안");
 
       await db.query("UPDATE public.couples SET groom_id = $2 WHERE id = $1", [COUPLE_ID, OUTSIDER_ID]);
-      const replacementAcceptance = await db.query<{ result: Record<string, unknown> }>(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '현재 두 사람의 선택안') AS result",
-        [COUPLE_ID, AI_MESSAGE_ID, OUTSIDER_ID],
+      await expect(
+        acceptMediation(db, OUTSIDER_ID, "선택안", "현재 두 사람의 선택안"),
+      ).rejects.toThrow(/AMORA_MEDIATION_PROPOSAL_CHANGED/);
+
+      const staleRows = await db.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM public.amora_mediation_acceptances WHERE message_id = $1",
+        [AI_MESSAGE_ID],
+      );
+      expect(staleRows.rows[0]?.count).toBe(0);
+
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"새 구성원이 함께 검토할 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const replacementAcceptance = await acceptMediation(
+        db,
+        OUTSIDER_ID,
+        "새 선택안",
+        "새 구성원이 함께 검토할 선택안",
       );
 
       expect(replacementAcceptance.rows[0]?.result).toMatchObject({
@@ -933,6 +1284,65 @@ describe("Amora memory engine v2 migrations", () => {
         required_count: 2,
         completed: false,
       });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("revokes every pending acceptance owned by the user after a proposal revision", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"철회 전 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      await acceptMediation(db, BRIDE_ID, "철회 전", "철회 전 선택안");
+      await db.query(
+        `UPDATE public.chat_messages
+         SET metadata = '{"mediation":{"resolution":"철회 시점의 새 선택안"}}'::jsonb
+         WHERE id = $1`,
+        [AI_MESSAGE_ID],
+      );
+      const currentRoster = await db.query<{ roster: string }>(
+        "SELECT metadata #>> '{mediation,rosterFingerprint}' AS roster FROM public.chat_messages WHERE id = $1",
+        [AI_MESSAGE_ID],
+      );
+      await db.query(
+        `INSERT INTO public.amora_mediation_acceptances(
+           couple_id, message_id, user_id, proposal_resolution,
+           proposal_version, proposal_roster_fingerprint
+         ) VALUES ($1, $2, $3, '철회 전 선택안', $4, $5)`,
+        [
+          COUPLE_ID,
+          AI_MESSAGE_ID,
+          BRIDE_ID,
+          "00000000-0000-4000-8000-000000000099",
+          currentRoster.rows[0]?.roster,
+        ],
+      );
+
+      const revoked = await db.query<{ result: Record<string, unknown> }>(
+        "SELECT public.revoke_amora_mediation_acceptance($1, $2, $3) AS result",
+        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
+      );
+      expect(revoked.rows[0]?.result).toMatchObject({
+        revoked: true,
+        accepted_count: 0,
+        required_count: 2,
+        completed: false,
+      });
+      const remaining = await db.query<{ count: number }>(
+        `SELECT count(*)::integer AS count
+         FROM public.amora_mediation_acceptances
+         WHERE message_id = $1 AND user_id = $2`,
+        [AI_MESSAGE_ID, BRIDE_ID],
+      );
+      expect(remaining.rows[0]?.count).toBe(0);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();
@@ -950,10 +1360,7 @@ describe("Amora memory engine v2 migrations", () => {
          WHERE id = $1`,
         [AI_MESSAGE_ID],
       );
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '함께 검토할 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      );
+      await acceptMediation(db, BRIDE_ID, "선택안", "함께 검토할 선택안");
 
       const revoked = await db.query<{ result: Record<string, unknown> }>(
         "SELECT public.revoke_amora_mediation_acceptance($1, $2, $3) AS result",
@@ -966,14 +1373,8 @@ describe("Amora memory engine v2 migrations", () => {
         completed: false,
       });
 
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '함께 검토할 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      );
-      await db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '함께 검토할 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, GROOM_ID],
-      );
+      await acceptMediation(db, BRIDE_ID, "선택안", "함께 검토할 선택안");
+      await acceptMediation(db, GROOM_ID, "선택안", "함께 검토할 선택안");
       await expect(db.query(
         "SELECT public.revoke_amora_mediation_acceptance($1, $2, $3)",
         [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
@@ -1000,10 +1401,9 @@ describe("Amora memory engine v2 migrations", () => {
         [AI_MESSAGE_ID],
       );
 
-      await expect(db.query(
-        "SELECT public.accept_amora_mediation($1, $2, $3, '선택안', '둘이 연결된 뒤 확인할 선택안')",
-        [COUPLE_ID, AI_MESSAGE_ID, BRIDE_ID],
-      )).rejects.toThrow(/AMORA_MEDIATION_PARTNER_REQUIRED/);
+      await expect(
+        acceptMediation(db, BRIDE_ID, "선택안", "둘이 연결된 뒤 확인할 선택안"),
+      ).rejects.toThrow(/AMORA_MEDIATION_PARTNER_REQUIRED/);
       const decisions = await db.query<{ count: number }>(
         "SELECT count(*)::integer AS count FROM public.decision_nodes WHERE category = 'conflict_resolution'",
       );

@@ -135,18 +135,29 @@ export async function persistAiMessage(
           specialist_type: params.specialistType,
           visibility: params.visibility,
         })
-        .select("id, created_at")
+        .select("id, created_at, content, metadata, stage_tag, specialist_type, visibility")
         .single();
 
       if (!error && data?.id && data.created_at) {
+        const persistedMetadata = data.metadata
+          && typeof data.metadata === "object"
+          && !Array.isArray(data.metadata)
+          ? data.metadata as Record<string, unknown>
+          : metadata;
         return {
           id: data.id as string,
           createdAt: data.created_at as string,
-          content: params.cleanText,
-          metadata,
-          stageTag: params.stageTag,
-          specialistType: params.specialistType,
-          visibility: params.visibility,
+          content: typeof data.content === "string" ? data.content : params.cleanText,
+          metadata: persistedMetadata,
+          stageTag: typeof data.stage_tag === "string" ? data.stage_tag : params.stageTag,
+          specialistType: typeof data.specialist_type === "string"
+            ? data.specialist_type
+            : params.specialistType,
+          visibility: data.visibility === "shared"
+            || data.visibility === "bride_private"
+            || data.visibility === "groom_private"
+            ? data.visibility
+            : params.visibility,
           reused: false,
         };
       }

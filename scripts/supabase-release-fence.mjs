@@ -13,12 +13,6 @@ const manifestPath = join(
   "amora-engine-v2-20260716.json"
 );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-const predecessorManifestPath = join(
-  repoRoot,
-  "supabase",
-  "release-manifests",
-  "amora-openai-20260714.json"
-);
 const args = new Set(process.argv.slice(2));
 
 function fail(message) {
@@ -48,9 +42,25 @@ function verifyHashPinnedArtifact(entry, label) {
 }
 
 function verifyPredecessorManifest() {
-  if (!existsSync(predecessorManifestPath)) {
-    fail("predecessor release manifest missing: supabase/release-manifests/amora-openai-20260714.json");
+  const entry = manifest.predecessorManifest;
+  if (
+    !entry
+    || typeof entry.file !== "string"
+    || !entry.file.startsWith("supabase/release-manifests/")
+    || typeof entry.sha256 !== "string"
+    || !/^[a-f0-9]{64}$/.test(entry.sha256)
+  ) {
+    fail("predecessor release manifest pin is missing or invalid");
   }
+  const predecessorManifestPath = resolve(repoRoot, entry.file);
+  const releaseManifestDir = resolve(repoRoot, "supabase", "release-manifests");
+  if (dirname(predecessorManifestPath) !== releaseManifestDir) {
+    fail(`predecessor release manifest path escapes the release manifest directory: ${entry.file}`);
+  }
+  if (!existsSync(predecessorManifestPath)) {
+    fail(`predecessor release manifest missing: ${entry.file}`);
+  }
+  verifyHashPinnedArtifact(entry, "predecessor release manifest");
   const predecessor = JSON.parse(readFileSync(predecessorManifestPath, "utf8"));
   if (predecessor.projectRef !== manifest.projectRef) {
     fail(`predecessor project ref mismatch; expected ${manifest.projectRef}, received ${predecessor.projectRef}`);

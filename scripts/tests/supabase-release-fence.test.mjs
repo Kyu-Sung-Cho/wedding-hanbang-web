@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -49,6 +49,10 @@ async function createFixture() {
   const currentManifest = {
     release: "current",
     projectRef: "test-project",
+    predecessorManifest: {
+      file: "supabase/release-manifests/amora-openai-20260714.json",
+      sha256: sha256(`${JSON.stringify(previousManifest, null, 2)}\n`),
+    },
     migrationFloor: "20260716000000",
     historicalReconciliation: [],
     expandMigrations: [
@@ -88,6 +92,32 @@ test("이전 릴리스의 hash-pinned migration이 변조되면 정적 fence가 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
     assert.match(result.stderr, /predecessor migration hash mismatch/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("이전 migration과 이전 manifest를 함께 바꿔도 현재 release pin이 차단한다", async () => {
+  const root = await createFixture();
+  try {
+    const predecessorPath = join(
+      root,
+      "supabase/release-manifests/amora-openai-20260714.json",
+    );
+    const predecessor = JSON.parse(await readFile(predecessorPath, "utf8"));
+    const tamperedMigration = "select 'coordinated-tamper';\n";
+    predecessor.historicalReconciliation[0].sha256 = sha256(tamperedMigration);
+    await write(root, "supabase/migrations/20260714000000_previous.sql", tamperedMigration);
+    await write(
+      root,
+      "supabase/release-manifests/amora-openai-20260714.json",
+      `${JSON.stringify(predecessor, null, 2)}\n`,
+    );
+
+    const result = runFence(root);
+
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /predecessor release manifest hash mismatch/i);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

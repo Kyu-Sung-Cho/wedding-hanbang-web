@@ -39,6 +39,7 @@ included_functions as materialized (
         'is_couple_member',
         'can_read_profile',
         'set_amora_action_status_timestamps',
+        'has_current_amora_memory_consent',
         'enqueue_amora_memory_job',
         'claim_amora_memory_job',
         'finish_amora_memory_job',
@@ -46,7 +47,9 @@ included_functions as materialized (
         'update_amora_memory_node',
         'delete_amora_memory_node',
         'insert_amora_memory_summary',
+        'commit_amora_memory_job',
         'accept_amora_mediation',
+        'revoke_amora_mediation_acceptance',
         'insert_amora_care_message',
         'set_amora_memory_consent',
         'clear_amora_memory_scope'

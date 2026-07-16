@@ -138,6 +138,10 @@ export interface ChatMessageMetadata {
     translation?: string;
     data?: string;
     resolution?: string;
+    /** DB-issued consent revision; clients must echo it when confirming. */
+    proposalVersion?: string;
+    /** DB-issued fingerprint of the couple roster at proposal creation. */
+    rosterFingerprint?: string;
   };
   // 함께 대화 새로 시작 — 상호 동의 요청. 한 사용자가 "둘 다 새로시작"을 누르면
   // chat_messages 에 메시지가 인서트되고 metadata.clearRequest 로 식별.

@@ -9,6 +9,10 @@ const cardPath = fileURLToPath(new URL("../components/chat/AmoraMediationCard.ts
 const clientPath = fileURLToPath(new URL("../lib/amoraMediation.ts", import.meta.url));
 const chatSource = readFileSync(chatPath, "utf8");
 const cardSource = existsSync(cardPath) ? readFileSync(cardPath, "utf8") : "";
+const EXPECTED_REVISION = {
+  expectedProposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+  expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
+};
 
 test("a persisted AI mediation message exposes its structured proposal in the native chat", () => {
   assert.equal(existsSync(cardPath), true, "native mediation card is missing");
@@ -17,6 +21,14 @@ test("a persisted AI mediation message exposes its structured proposal in the na
   assert.match(chatSource, /<AmoraMediationCard[\s\S]*block=\{mediationBlock\}[\s\S]*messageId=\{item\.id\}/);
   assert.match(cardSource, /from "react-native"/);
   assert.doesNotMatch(cardSource, /WebView|Linking\.openURL/);
+});
+
+test("native realtime replaces an updated proposal and removes newly hidden messages", () => {
+  assert.match(chatSource, /event:\s*"UPDATE"[\s\S]*table:\s*"chat_messages"/);
+  assert.match(chatSource, /const updated = chatMessageFromRealtimeRow\(payload\.new\)/);
+  assert.match(chatSource, /!canViewerSeeChatMessage\(updated, viewerRole\)[\s\S]*filter\(\(message\) => message\.id !== updatedId\)/);
+  assert.match(chatSource, /map\(\(message\) => message\.id === updated\.id \? updated : message\)/);
+  assert.match(chatSource, /key=\{`\$\{item\.id\}:\$\{mediationBlock\.proposalVersion \?\? "draft"\}:\$\{mediationBlock\.rosterFingerprint \?\? "unknown-roster"\}`\}/);
 });
 
 function loadAcceptanceClient(apiJson) {
@@ -50,6 +62,12 @@ function loadAcceptanceClient(apiJson) {
       canWithdrawMediationAcceptance: typeof canWithdrawMediationAcceptance === "function"
         ? canWithdrawMediationAcceptance
         : undefined,
+      canAcceptMediationResolution: typeof canAcceptMediationResolution === "function"
+        ? canAcceptMediationResolution
+        : undefined,
+      getExpectedMediationRevision: typeof getExpectedMediationRevision === "function"
+        ? getExpectedMediationRevision
+        : undefined,
       normalizeMediationBlock,
     };`,
   )(apiJson);
@@ -65,7 +83,7 @@ test("opening a confirmable proposal loads the authenticated acceptance state", 
   const { getMediationAcceptance } = loadAcceptanceClient(apiJson);
   const messageId = "1474c6f2-29c6-4c77-8d91-d3347eef4c3f";
 
-  const state = await getMediationAcceptance(messageId);
+  const state = await getMediationAcceptance(messageId, EXPECTED_REVISION);
 
   assert.deepEqual(state, {
     accepted: false,
@@ -74,9 +92,32 @@ test("opening a confirmable proposal loads the authenticated acceptance state", 
     completed: false,
   });
   assert.deepEqual(calls, [{
-    path: `/api/amora/mediation/accept?messageId=${messageId}`,
+    path: `/api/amora/mediation/accept?messageId=${messageId}&expectedProposalVersion=${EXPECTED_REVISION.expectedProposalVersion}&expectedRosterFingerprint=${EXPECTED_REVISION.expectedRosterFingerprint}`,
     options: { cache: "no-store" },
   }]);
+});
+
+test("the mobile client preserves a solo account's partner-linked state", async () => {
+  const { getMediationAcceptance } = loadAcceptanceClient(async () => ({
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 2,
+    completed: false,
+    partnerLinked: false,
+  }));
+
+  const state = await getMediationAcceptance(
+    "1474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+    EXPECTED_REVISION,
+  );
+
+  assert.deepEqual(state, {
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 2,
+    completed: false,
+    partnerLinked: false,
+  });
 });
 
 test("untrusted mediation metadata is normalized before it can reach native text", () => {
@@ -86,19 +127,58 @@ test("untrusted mediation metadata is normalized before it can reach native text
     empathy: "  속상했겠어요  ",
     translation: { unsafe: true },
     data: "확인할 자료가 아직 부족해요",
+    proposalVersion: "not-a-uuid",
+    rosterFingerprint: "not-a-fingerprint",
     ignored: "화면에 나오면 안 돼요",
   }), {
     empathy: "속상했겠어요",
     translation: undefined,
     data: "확인할 자료가 아직 부족해요",
     resolution: undefined,
+    proposalVersion: undefined,
+    rosterFingerprint: undefined,
   });
   assert.equal(normalizeMediationBlock(null), null);
   assert.equal(normalizeMediationBlock([]), null);
   assert.equal(normalizeMediationBlock({ resolution: "가".repeat(501) }), null);
 });
 
-test("accepting a proposal posts only its persisted message id", async () => {
+test("native normalization preserves the exact server proposal revision", () => {
+  const { normalizeMediationBlock } = loadAcceptanceClient(async () => ({}));
+
+  assert.deepEqual(normalizeMediationBlock({
+    resolution: "  예산 상한선을 같이 확인해 봐요  ",
+    proposalVersion: "123E4567-E89B-42D3-A456-426614174000",
+    rosterFingerprint: "0123456789abcdef0123456789abcdef",
+  }), {
+    empathy: undefined,
+    translation: undefined,
+    data: undefined,
+    resolution: "예산 상한선을 같이 확인해 봐요",
+    proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+    rosterFingerprint: "0123456789abcdef0123456789abcdef",
+  });
+});
+
+test("native confirmation fails closed without both exact revision fields", () => {
+  const { getExpectedMediationRevision } = loadAcceptanceClient(async () => ({}));
+  assert.equal(typeof getExpectedMediationRevision, "function");
+
+  assert.equal(getExpectedMediationRevision({
+    resolution: "내용은 계속 표시해요",
+    proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+  }), null);
+  assert.deepEqual(getExpectedMediationRevision({
+    resolution: "내용은 계속 표시해요",
+    proposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+    rosterFingerprint: "0123456789abcdef0123456789abcdef",
+  }), {
+    expectedProposalVersion: "123e4567-e89b-42d3-a456-426614174000",
+    expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
+  });
+});
+
+test("accepting a proposal posts its message id and displayed exact revision", async () => {
   const calls = [];
   const apiJson = async (path, options) => {
     calls.push({ path, options });
@@ -108,7 +188,7 @@ test("accepting a proposal posts only its persisted message id", async () => {
   assert.equal(typeof acceptMediationResolution, "function");
   const messageId = "1474c6f2-29c6-4c77-8d91-d3347eef4c3f";
 
-  const state = await acceptMediationResolution(messageId);
+  const state = await acceptMediationResolution(messageId, EXPECTED_REVISION);
 
   assert.deepEqual(state, {
     accepted: true,
@@ -120,12 +200,12 @@ test("accepting a proposal posts only its persisted message id", async () => {
     path: "/api/amora/mediation/accept",
     options: {
       method: "POST",
-      body: JSON.stringify({ messageId }),
+      body: JSON.stringify({ messageId, ...EXPECTED_REVISION }),
     },
   }]);
 });
 
-test("withdrawing my incomplete acceptance deletes only the persisted message id", async () => {
+test("withdrawing my incomplete acceptance sends the displayed exact revision", async () => {
   const calls = [];
   const apiJson = async (path, options) => {
     calls.push({ path, options });
@@ -135,7 +215,7 @@ test("withdrawing my incomplete acceptance deletes only the persisted message id
   assert.equal(typeof withdrawMediationAcceptance, "function");
   const messageId = "1474c6f2-29c6-4c77-8d91-d3347eef4c3f";
 
-  const state = await withdrawMediationAcceptance(messageId);
+  const state = await withdrawMediationAcceptance(messageId, EXPECTED_REVISION);
 
   assert.deepEqual(state, {
     accepted: false,
@@ -147,9 +227,30 @@ test("withdrawing my incomplete acceptance deletes only the persisted message id
     path: "/api/amora/mediation/accept",
     options: {
       method: "DELETE",
-      body: JSON.stringify({ messageId }),
+      body: JSON.stringify({ messageId, ...EXPECTED_REVISION }),
     },
   }]);
+});
+
+test("missing exact revision blocks acceptance requests before the network", async () => {
+  const calls = [];
+  const client = loadAcceptanceClient(async (...args) => {
+    calls.push(args);
+    return {};
+  });
+  const messageId = "1474c6f2-29c6-4c77-8d91-d3347eef4c3f";
+
+  await assert.rejects(
+    () => client.getMediationAcceptance(messageId),
+    /표시된 선택안의 정확한 버전을 확인할 수 없습니다/,
+  );
+  await assert.rejects(
+    () => client.acceptMediationResolution(messageId, {
+      expectedProposalVersion: EXPECTED_REVISION.expectedProposalVersion,
+    }),
+    /표시된 선택안의 정확한 버전을 확인할 수 없습니다/,
+  );
+  assert.deepEqual(calls, []);
 });
 
 test("withdrawal is available only for my acceptance before joint completion", () => {
@@ -176,6 +277,26 @@ test("withdrawal is available only for my acceptance before joint completion", (
   assert.equal(canWithdrawMediationAcceptance(null), false);
 });
 
+test("a solo account cannot confirm a two-person mediation proposal", () => {
+  const { canAcceptMediationResolution } = loadAcceptanceClient(async () => ({}));
+  assert.equal(typeof canAcceptMediationResolution, "function");
+
+  assert.equal(canAcceptMediationResolution({
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 2,
+    completed: false,
+    partnerLinked: false,
+  }), false);
+  assert.equal(canAcceptMediationResolution({
+    accepted: false,
+    acceptedCount: 0,
+    requiredCount: 2,
+    completed: false,
+    partnerLinked: true,
+  }), true);
+});
+
 test("a withdrawal response that still marks me accepted fails closed", async () => {
   const { withdrawMediationAcceptance } = loadAcceptanceClient(async () => ({
     accepted: true,
@@ -185,7 +306,10 @@ test("a withdrawal response that still marks me accepted fails closed", async ()
   }));
 
   await assert.rejects(
-    () => withdrawMediationAcceptance("1474c6f2-29c6-4c77-8d91-d3347eef4c3f"),
+    () => withdrawMediationAcceptance(
+      "1474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      EXPECTED_REVISION,
+    ),
     /확인 취소 응답이 올바르지 않습니다/,
   );
 });
@@ -199,33 +323,54 @@ test("an inconsistent server response fails closed instead of showing a false jo
   }));
 
   await assert.rejects(
-    () => getMediationAcceptance("1474c6f2-29c6-4c77-8d91-d3347eef4c3f"),
+    () => getMediationAcceptance(
+      "1474c6f2-29c6-4c77-8d91-d3347eef4c3f",
+      EXPECTED_REVISION,
+    ),
     /동의 상태 응답이 올바르지 않습니다/,
   );
 });
 
 test("the native confirmation surface distinguishes loading, failure, waiting, and joint completion", () => {
-  assert.match(cardSource, /getMediationAcceptance\(messageId\)/);
-  assert.match(cardSource, /acceptMediationResolution\(messageId\)/);
-  assert.match(cardSource, /동의 상태를 확인하는 중이에요/);
-  assert.match(cardSource, /동의 상태를 확인하지 못했어요/);
-  assert.match(cardSource, /내 동의는 저장됐어요/);
+  assert.match(cardSource, /getExpectedMediationRevision\(block\)/);
+  assert.match(cardSource, /getMediationAcceptance\(messageId, exactRevision\)/);
+  assert.match(cardSource, /acceptMediationResolution\(messageId, exactRevision\)/);
+  assert.match(cardSource, /withdrawMediationAcceptance\(messageId, exactRevision\)/);
+  assert.match(cardSource, /expectedProposalVersion[\s\S]*expectedRosterFingerprint[\s\S]*loadAttempt/s);
+  assert.match(cardSource, /확인 상태를 불러오는 중이에요/);
+  assert.match(cardSource, /확인 상태를 불러오지 못했어요/);
+  assert.match(cardSource, /내가 확인했어요/);
   assert.match(cardSource, /상대방의 확인을 기다리고 있어요/);
-  assert.match(cardSource, /두 분 모두 동의해 공동 기억에 저장했어요/);
-  assert.match(cardSource, /이 제안에 나는 동의해요/);
+  assert.match(cardSource, /두 분이 각각 확인해 공동 결정으로 저장했어요/);
+  assert.match(cardSource, /이 선택안을 나는 확인했어요/);
   assert.match(cardSource, /accessibilityRole="button"/);
   assert.match(cardSource, /confirmButton:\s*\{[^}]*minHeight:\s*(?:4[4-9]|[5-9]\d)/s);
   assert.match(cardSource, /retryButton:\s*\{[^}]*minHeight:\s*(?:4[4-9]|[5-9]\d)/s);
 });
 
+test("the native mediation card describes an AI draft rather than a settled agreement", () => {
+  for (const copy of [
+    "아모라의 대화 정리 초안",
+    "느껴진 감정",
+    "두 사람이 말한 내용",
+    "확인된 사실 · 아직 확인할 점",
+    "같이 검토할 선택안",
+    "파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요",
+    "두 분 모두 확인해야 공동 결정으로 저장돼요",
+  ]) {
+    assert.equal(cardSource.includes(copy), true, `missing non-final copy: ${copy}`);
+  }
+  assert.doesNotMatch(cardSource, /제안 합의안|이 제안을 합의로 남길까요|공동 합의로 기록/);
+});
+
 test("a person waiting on their partner can refresh the joint acceptance state", () => {
-  assert.match(cardSource, /상대방 동의 상태 새로고침/);
+  assert.match(cardSource, /상대방 확인 상태 새로고침/);
   assert.match(cardSource, /setLoadAttempt\(\(attempt\) => attempt \+ 1\)/);
 });
 
 test("the native card offers a 48px withdrawal action only through the incomplete-acceptance guard", () => {
   assert.match(cardSource, /canWithdrawMediationAcceptance\(acceptance\)/);
-  assert.match(cardSource, /withdrawMediationAcceptance\(messageId\)/);
+  assert.match(cardSource, /withdrawMediationAcceptance\(messageId, exactRevision\)/);
   assert.match(cardSource, /내 확인 취소/);
   assert.match(cardSource, /accessibilityLabel="내 확인 취소"/);
   assert.match(cardSource, /withdrawButton:\s*\{[^}]*minHeight:\s*(?:4[8-9]|[5-9]\d)/s);

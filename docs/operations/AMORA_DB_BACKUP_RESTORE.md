@@ -191,11 +191,13 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\tests\amora-db-backup-e2e.ps1
 ```
 
-It uses a fake Supabase CLI and currently covers 31 cases: actual logical SQL,
+It uses a fake Supabase CLI and currently covers 33 cases: actual logical SQL,
 the exact `--workdir` call order, DPAPI/AES/HMAC authentication, external
 anchors, ciphertext and HMAC tampering, captured-at mismatch, extra files, ACL
 widening, cross-set mixing, stale replay anchors, schema drift, relink attempts,
-disabled or wrong-event Auth triggers, partition/missing-table preflight,
+disabled or wrong-event Auth triggers, missing Amora safety triggers, the
+legacy unversioned mediation-acceptance RPC,
+partition/missing-table preflight,
 transaction-control escape attempts, production CLI/Node overrides, inherited
 Node preload options, and concurrent-capture winner preservation without
 publishing a partial set. Its positive production-runtime case also imports the
@@ -207,7 +209,7 @@ The harness is intentionally host-bound: it requires the committed absolute
 Node path, byte size and SHA-256, a user-owned private NTFS ACL, and CurrentUser
 DPAPI. GitHub-hosted Windows runners do not satisfy those production-host
 invariants, so this gate is not run as hosted CI. The normal
-`pnpm amora:db:test-backup` command must pass all 31 cases on the actual
+`pnpm amora:db:test-backup` command must pass all 33 cases on the actual
 production backup host before any production write.
 
 ## What PGlite does not prove
@@ -238,6 +240,8 @@ Before enabling the OpenAI runtime:
    `apply_journey_progress_patch(uuid,jsonb,text[])`,
    `join_couple(text,text)`, `generate_invite_code()`,
    `redact_old_ai_interactions(interval)`,
+   `reset_amora_memory_after_membership_change()`,
+   `has_current_amora_memory_consent(uuid,text)`,
    `enqueue_amora_memory_job(uuid,uuid,text,uuid)`,
    `claim_amora_memory_job(integer)`,
    `finish_amora_memory_job(uuid,boolean,text,integer)`,
@@ -245,11 +249,21 @@ Before enabling the OpenAI runtime:
    `update_amora_memory_node(uuid,text,uuid,uuid,text,text)`,
    `delete_amora_memory_node(uuid,text,uuid,uuid)`,
    `insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)`,
+   `commit_amora_memory_job(uuid,integer,jsonb,text,integer,uuid,uuid)`,
    `set_amora_memory_consent(uuid,text,uuid,boolean)`,
    `clear_amora_memory_scope(uuid,text,uuid)`,
-   `accept_amora_mediation(uuid,uuid,uuid,text,text)`,
+   `bind_amora_mediation_proposal()`,
+   `accept_amora_mediation(uuid,uuid,uuid,text,text,uuid,text)` (and verify the
+   legacy five-argument overload is absent),
+   `revoke_amora_mediation_acceptance(uuid,uuid,uuid)`,
+   `reset_amora_mediation_after_membership_change()`,
    `insert_amora_care_message(uuid,text,jsonb)`, and the signup contract;
-8. destroy the isolated plaintext target after recording non-sensitive results.
+8. verify the enabled row-level safety triggers
+   `trg_reset_amora_memory_after_membership_change`,
+   `trg_reset_amora_mediation_after_membership_change`, and
+   `trg_bind_amora_mediation_proposal`, including their events, timing, and
+   exact function targets;
+9. destroy the isolated plaintext target after recording non-sensitive results.
 
 The current scripts intentionally have no production restore mode. Such a mode
 needs explicit source/destination refs, digest/count preconditions, a write

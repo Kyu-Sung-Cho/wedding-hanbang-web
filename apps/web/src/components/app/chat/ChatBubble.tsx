@@ -6,7 +6,8 @@ import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2 } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
-import MediationCard, { type MediationBlock } from "@/components/app/chat/MediationCard";
+import MediationCard from "@/components/app/chat/MediationCard";
+import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 interface ChatBubbleProps {
@@ -466,7 +467,7 @@ export default function ChatBubble({
   // AI 메시지
   if (sender_role === "ai") {
     const { cleanText, partNumbers } = parseEtiquetteTags(content);
-    const mediationBlock = message.metadata?.mediation as MediationBlock | undefined;
+    const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
@@ -518,7 +519,13 @@ export default function ChatBubble({
               </div>
             )}
           </div>
-          {mediationBlock && <MediationCard block={mediationBlock} messageId={message.id} />}
+          {mediationBlock && (
+            <MediationCard
+              key={`${message.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
+              block={mediationBlock}
+              messageId={message.id}
+            />
+          )}
           <span className="text-sm text-[#B5ADA3] ml-1">
             {formatTime(created_at)}
           </span>

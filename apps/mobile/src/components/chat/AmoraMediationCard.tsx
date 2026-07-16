@@ -18,7 +18,9 @@ import {
 import { colors } from "@hanbang/design-tokens";
 import {
   acceptMediationResolution,
+  canAcceptMediationResolution,
   canWithdrawMediationAcceptance,
+  getExpectedMediationRevision,
   getMediationAcceptance,
   withdrawMediationAcceptance,
   type MediationBlock,
@@ -45,14 +47,24 @@ export default function AmoraMediationCard({
   const [accepting, setAccepting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [actionError, setActionError] = useState<AcceptanceActionError | null>(null);
+  const expectedRevision = getExpectedMediationRevision(block);
+  const expectedProposalVersion = expectedRevision?.expectedProposalVersion;
+  const expectedRosterFingerprint = expectedRevision?.expectedRosterFingerprint;
   const canConfirm = Boolean(
     block.resolution?.trim()
     && messageId
-    && UUID_PATTERN.test(messageId),
+    && UUID_PATTERN.test(messageId)
+    && expectedProposalVersion
+    && expectedRosterFingerprint,
   );
 
   useEffect(() => {
-    if (!canConfirm || !messageId) {
+    if (
+      !canConfirm
+      || !messageId
+      || !expectedProposalVersion
+      || !expectedRosterFingerprint
+    ) {
       setAcceptance(null);
       setLoadState("idle");
       return;
@@ -62,7 +74,8 @@ export default function AmoraMediationCard({
     setAcceptance(null);
     setActionError(null);
     setLoadState("loading");
-    getMediationAcceptance(messageId)
+    const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
+    getMediationAcceptance(messageId, exactRevision)
       .then((nextAcceptance) => {
         if (!active) return;
         setAcceptance(nextAcceptance);
@@ -76,26 +89,37 @@ export default function AmoraMediationCard({
     return () => {
       active = false;
     };
-  }, [canConfirm, loadAttempt, messageId]);
+  }, [
+    canConfirm,
+    expectedProposalVersion,
+    expectedRosterFingerprint,
+    loadAttempt,
+    messageId,
+  ]);
 
   async function acceptResolution() {
     if (
       !messageId
+      || !expectedProposalVersion
+      || !expectedRosterFingerprint
       || accepting
       || loadState !== "ready"
-      || !acceptance
-      || acceptance.accepted
+      || !canAcceptMediationResolution(acceptance)
     ) return;
 
     setAccepting(true);
     setActionError(null);
     try {
-      const nextAcceptance = await acceptMediationResolution(messageId);
-      setAcceptance(nextAcceptance);
+      const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
+      const nextAcceptance = await acceptMediationResolution(messageId, exactRevision);
+      setAcceptance({
+        ...nextAcceptance,
+        partnerLinked: nextAcceptance.partnerLinked ?? acceptance?.partnerLinked,
+      });
     } catch {
       setActionError({
         kind: "accept",
-        message: "동의를 저장하지 못했어요. 기존 상태는 바꾸지 않았어요.",
+        message: "확인을 저장하지 못했어요. 기존 상태는 바꾸지 않았어요.",
       });
     } finally {
       setAccepting(false);
@@ -105,6 +129,8 @@ export default function AmoraMediationCard({
   async function withdrawAcceptance() {
     if (
       !messageId
+      || !expectedProposalVersion
+      || !expectedRosterFingerprint
       || withdrawing
       || loadState !== "ready"
       || !canWithdrawMediationAcceptance(acceptance)
@@ -113,8 +139,12 @@ export default function AmoraMediationCard({
     setWithdrawing(true);
     setActionError(null);
     try {
-      const nextAcceptance = await withdrawMediationAcceptance(messageId);
-      setAcceptance(nextAcceptance);
+      const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
+      const nextAcceptance = await withdrawMediationAcceptance(messageId, exactRevision);
+      setAcceptance({
+        ...nextAcceptance,
+        partnerLinked: nextAcceptance.partnerLinked ?? acceptance?.partnerLinked,
+      });
     } catch {
       setActionError({
         kind: "withdraw",
@@ -128,7 +158,7 @@ export default function AmoraMediationCard({
   const sections = [
     {
       key: "empathy",
-      title: "공감",
+      title: "느껴진 감정",
       Icon: Heart,
       color: "#8B6B24",
       backgroundColor: "#FEF9E8",
@@ -137,7 +167,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "translation",
-      title: "양쪽 입장 통역",
+      title: "두 사람이 말한 내용",
       Icon: MessagesSquare,
       color: colors.noir[800],
       backgroundColor: "#F2F7F5",
@@ -146,7 +176,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "data",
-      title: "확인된 정보",
+      title: "확인된 사실 · 아직 확인할 점",
       Icon: BarChart3,
       color: colors.textSecondary,
       backgroundColor: colors.ivory[100],
@@ -155,7 +185,7 @@ export default function AmoraMediationCard({
     },
     {
       key: "resolution",
-      title: "제안 합의안",
+      title: "같이 검토할 선택안",
       Icon: Scale,
       color: colors.rose[600],
       backgroundColor: colors.surface,
@@ -167,13 +197,13 @@ export default function AmoraMediationCard({
   if (sections.length === 0) return null;
 
   return (
-    <View style={styles.container} accessibilityLabel="아모라 중재 정리">
+    <View style={styles.container} accessibilityLabel="아모라의 대화 정리 초안">
       <View style={styles.intro}>
         <Scale size={16} color={colors.noir[800]} />
         <View style={styles.introTextWrap}>
-          <Text style={styles.introTitle}>아모라가 정리한 중재 제안</Text>
+          <Text style={styles.introTitle}>아모라의 대화 정리 초안</Text>
           <Text style={styles.introCopy}>
-            AI가 정리한 내용이에요. 사실과 서로의 의도는 두 분이 직접 확인해 주세요.
+            아모라가 두 분의 대화를 정리한 초안이에요. 사실과 조건은 두 분이 직접 확인해 주세요.
           </Text>
         </View>
       </View>
@@ -197,32 +227,32 @@ export default function AmoraMediationCard({
 
       {canConfirm && (
         <View style={styles.confirmationPanel}>
-          <Text style={styles.confirmationTitle}>이 제안을 합의로 남길까요?</Text>
+          <Text style={styles.confirmationTitle}>이 선택안을 함께 확인할까요?</Text>
           <Text style={styles.confirmationCopy}>
-            한 사람만 누르면 그 사람의 동의만 저장돼요. 함께 연결된 사람이 모두 동의하기 전에는 공동 합의로 기록하지 않아요.
+            한 사람의 확인만으로 공동 결정이 되지 않아요. 두 분이 각각 확인한 뒤에만 공동 결정으로 저장해요.
           </Text>
 
           {loadState === "loading" && (
             <View
               style={styles.statusRow}
               accessibilityLiveRegion="polite"
-              accessibilityLabel="동의 상태를 확인하는 중이에요"
+              accessibilityLabel="확인 상태를 불러오는 중이에요"
             >
               <ActivityIndicator size="small" color={colors.noir[800]} />
-              <Text style={styles.loadingText}>동의 상태를 확인하는 중이에요</Text>
+              <Text style={styles.loadingText}>확인 상태를 불러오는 중이에요</Text>
             </View>
           )}
 
           {loadState === "error" && (
             <View style={styles.errorBlock} accessibilityLiveRegion="polite">
               <Text style={styles.errorText} accessibilityRole="alert">
-                동의 상태를 확인하지 못했어요. 확인 전에는 동의 버튼을 열지 않았어요.
+                확인 상태를 불러오지 못했어요. 상태 확인 전에는 버튼을 열지 않았어요.
               </Text>
               <Pressable
                 style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
                 onPress={() => setLoadAttempt((attempt) => attempt + 1)}
                 accessibilityRole="button"
-                accessibilityLabel="동의 상태 다시 확인하기"
+                accessibilityLabel="확인 상태 다시 불러오기"
               >
                 <RefreshCw size={16} color={colors.noir[800]} />
                 <Text style={styles.retryButtonText}>다시 확인하기</Text>
@@ -235,8 +265,8 @@ export default function AmoraMediationCard({
               <Check size={18} color={colors.success} />
               <Text style={styles.successText}>
                 {acceptance.requiredCount > 1
-                  ? "두 분 모두 동의해 공동 기억에 저장했어요"
-                  : "내가 동의한 합의로 기억했어요"}
+                  ? "두 분이 각각 확인해 공동 결정으로 저장했어요"
+                  : "내가 확인한 결정으로 저장했어요"}
               </Text>
             </View>
           )}
@@ -246,7 +276,7 @@ export default function AmoraMediationCard({
               <View style={styles.waitingStatus} accessibilityLiveRegion="polite">
                 <Users size={18} color={colors.rose[600]} />
                 <Text style={styles.waitingText}>
-                  내 동의는 저장됐어요{"\n"}상대방의 확인을 기다리고 있어요
+                  내가 확인했어요{"\n"}상대방의 확인을 기다리고 있어요
                 </Text>
               </View>
               {canWithdrawMediationAcceptance(acceptance) && actionError?.kind !== "withdraw" && (
@@ -272,15 +302,32 @@ export default function AmoraMediationCard({
                 style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
                 onPress={() => setLoadAttempt((attempt) => attempt + 1)}
                 accessibilityRole="button"
-                accessibilityLabel="상대방 동의 상태 새로고침"
+                accessibilityLabel="상대방 확인 상태 새로고침"
               >
                 <RefreshCw size={16} color={colors.noir[800]} />
-                <Text style={styles.retryButtonText}>동의 상태 새로고침</Text>
+                <Text style={styles.retryButtonText}>확인 상태 새로고침</Text>
               </Pressable>
             </View>
           )}
 
-          {loadState === "ready" && acceptance && !acceptance.accepted && actionError?.kind !== "accept" && (
+          {loadState === "ready"
+            && acceptance
+            && acceptance.partnerLinked !== true
+            && !acceptance.accepted
+            && !acceptance.completed
+            && (
+              <View style={styles.waitingStatus} accessibilityLiveRegion="polite">
+                <Users size={18} color={colors.textSecondary} />
+                <Text style={styles.waitingText}>
+                  파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요
+                </Text>
+              </View>
+            )}
+
+          {loadState === "ready"
+            && canAcceptMediationResolution(acceptance)
+            && actionError?.kind !== "accept"
+            && (
             <Pressable
               style={({ pressed }) => [
                 styles.confirmButton,
@@ -290,21 +337,26 @@ export default function AmoraMediationCard({
               onPress={() => void acceptResolution()}
               disabled={accepting}
               accessibilityRole="button"
-              accessibilityLabel="이 제안에 나는 동의해요"
+              accessibilityLabel="이 선택안을 나는 확인했어요"
               accessibilityState={{ disabled: accepting, busy: accepting }}
             >
               {accepting
                 ? <ActivityIndicator size="small" color={colors.surface} />
                 : <Check size={18} color={colors.surface} />}
               <Text style={styles.confirmButtonText}>
-                {accepting ? "동의를 저장하는 중이에요" : "이 제안에 나는 동의해요"}
+                {accepting ? "확인을 저장하는 중이에요" : "이 선택안을 나는 확인했어요"}
               </Text>
             </Pressable>
           )}
 
-          {loadState === "ready" && acceptance && !acceptance.completed && acceptance.requiredCount > 1 && (
+          {loadState === "ready"
+            && acceptance
+            && !acceptance.completed
+            && acceptance.partnerLinked === true
+            && acceptance.requiredCount > 1
+            && (
             <Text style={styles.progressText} accessibilityLiveRegion="polite">
-              {acceptance.acceptedCount}/{acceptance.requiredCount}명 확인 · 두 분 모두 동의해야 공동 기억에 저장돼요
+              {acceptance.acceptedCount}/{acceptance.requiredCount}명 확인 · 두 분 모두 확인해야 공동 결정으로 저장돼요
             </Text>
           )}
 
@@ -328,7 +380,7 @@ export default function AmoraMediationCard({
                 accessibilityLabel={
                   actionError.kind === "withdraw"
                     ? "내 확인 취소 다시 시도"
-                    : "동의 저장 다시 시도"
+                    : "확인 저장 다시 시도"
                 }
                 accessibilityState={{
                   disabled: accepting || withdrawing,
@@ -339,7 +391,7 @@ export default function AmoraMediationCard({
                 <Text style={styles.retryButtonText}>
                   {actionError.kind === "withdraw"
                     ? "내 확인 취소 다시 시도"
-                    : "동의 저장 다시 시도"}
+                    : "확인 저장 다시 시도"}
                 </Text>
               </Pressable>
             </View>

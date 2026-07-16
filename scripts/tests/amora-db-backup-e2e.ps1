@@ -701,6 +701,8 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     [ordered]@{ identity = 'generate_invite_code()'; definition = 'create function public.generate_invite_code() returns text language sql as $$ select ''TEST'' $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
     [ordered]@{ identity = 'redact_old_ai_interactions(interval)'; definition = 'create function public.redact_old_ai_interactions(interval) returns integer language sql as $$ select 0 $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
     [ordered]@{ identity = 'create_profile_on_signup()'; definition = 'create function public.create_profile_on_signup() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
+    [ordered]@{ identity = 'reset_amora_memory_after_membership_change()'; definition = 'create function public.reset_amora_memory_after_membership_change() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'has_current_amora_memory_consent(uuid,text)'; definition = 'create function public.has_current_amora_memory_consent(uuid,text) returns boolean language sql as $$ select false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'enqueue_amora_memory_job(uuid,uuid,text,uuid)'; definition = 'create function public.enqueue_amora_memory_job(uuid,uuid,text,uuid) returns text language sql as $$ select ''disabled''::text $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'claim_amora_memory_job(integer)'; definition = 'create function public.claim_amora_memory_job(integer) returns setof public.amora_memory_jobs language sql as $$ select * from public.amora_memory_jobs where false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'finish_amora_memory_job(uuid,boolean,text,integer)'; definition = 'create function public.finish_amora_memory_job(uuid,boolean,text,integer) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
@@ -708,7 +710,11 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     [ordered]@{ identity = 'update_amora_memory_node(uuid,text,uuid,uuid,text,text)'; definition = 'create function public.update_amora_memory_node(uuid,text,uuid,uuid,text,text) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'delete_amora_memory_node(uuid,text,uuid,uuid)'; definition = 'create function public.delete_amora_memory_node(uuid,text,uuid,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)'; definition = 'create function public.insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
-    [ordered]@{ identity = 'accept_amora_mediation(uuid,uuid,uuid,text,text)'; definition = 'create function public.accept_amora_mediation(uuid,uuid,uuid,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'commit_amora_memory_job(uuid,integer,jsonb,text,integer,uuid,uuid)'; definition = 'create function public.commit_amora_memory_job(uuid,integer,jsonb,text,integer,uuid,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'bind_amora_mediation_proposal()'; definition = 'create function public.bind_amora_mediation_proposal() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'accept_amora_mediation(uuid,uuid,uuid,text,text,uuid,text)'; definition = 'create function public.accept_amora_mediation(uuid,uuid,uuid,text,text,uuid,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'revoke_amora_mediation_acceptance(uuid,uuid,uuid)'; definition = 'create function public.revoke_amora_mediation_acceptance(uuid,uuid,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'reset_amora_mediation_after_membership_change()'; definition = 'create function public.reset_amora_mediation_after_membership_change() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'insert_amora_care_message(uuid,text,jsonb)'; definition = 'create function public.insert_amora_care_message(uuid,text,jsonb) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'set_amora_memory_consent(uuid,text,uuid,boolean)'; definition = 'create function public.set_amora_memory_consent(uuid,text,uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'clear_amora_memory_scope(uuid,text,uuid)'; definition = 'create function public.clear_amora_memory_scope(uuid,text,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
@@ -719,8 +725,20 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
   if ($Drift) {
     $functions[0].definition = $functions[0].definition + ' -- synthetic-schema-drift'
   }
+  if ($mode -eq 'legacy-mediation-acceptance-rpc') {
+    $functions += [ordered]@{ identity = 'accept_amora_mediation(uuid,uuid,uuid,text,text)'; definition = 'create function public.accept_amora_mediation(uuid,uuid,uuid,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') }
+  }
   $authTriggerEnabled = if ($mode -eq 'disabled-auth-trigger') { 'D' } else { 'O' }
   $authTriggerFiresInsert = $mode -ne 'wrong-auth-trigger-event'
+  $publicTriggers = @(
+    [ordered]@{ table = 'couples'; name = 'set_updated_at'; enabled = 'O'; type_bits = 19; row_level = $true; timing = 'BEFORE'; fires_insert = $false; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'update_updated_at_column()'; definition = 'CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.couples FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()' },
+    [ordered]@{ table = 'couples'; name = 'trg_reset_amora_memory_after_membership_change'; enabled = 'O'; type_bits = 17; row_level = $true; timing = 'AFTER'; fires_insert = $false; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'reset_amora_memory_after_membership_change()'; definition = 'CREATE TRIGGER trg_reset_amora_memory_after_membership_change AFTER UPDATE ON public.couples FOR EACH ROW EXECUTE FUNCTION reset_amora_memory_after_membership_change()' },
+    [ordered]@{ table = 'couples'; name = 'trg_reset_amora_mediation_after_membership_change'; enabled = 'O'; type_bits = 17; row_level = $true; timing = 'AFTER'; fires_insert = $false; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'reset_amora_mediation_after_membership_change()'; definition = 'CREATE TRIGGER trg_reset_amora_mediation_after_membership_change AFTER UPDATE ON public.couples FOR EACH ROW EXECUTE FUNCTION reset_amora_mediation_after_membership_change()' },
+    [ordered]@{ table = 'chat_messages'; name = 'trg_bind_amora_mediation_proposal'; enabled = 'O'; type_bits = 23; row_level = $true; timing = 'BEFORE'; fires_insert = $true; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'bind_amora_mediation_proposal()'; definition = 'CREATE TRIGGER trg_bind_amora_mediation_proposal BEFORE INSERT OR UPDATE ON public.chat_messages FOR EACH ROW EXECUTE FUNCTION bind_amora_mediation_proposal()' }
+  )
+  if ($mode -eq 'missing-amora-safety-trigger') {
+    $publicTriggers = @($publicTriggers | Where-Object { $_.name -ne 'trg_reset_amora_mediation_after_membership_change' })
+  }
   return [ordered]@{
     captured_at = $CapturedAt.ToString('o')
     source_project_ref = $projectRef
@@ -738,7 +756,7 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     )
     indexes = @([ordered]@{ table = 'couples'; name = 'couples_pkey'; definition = 'CREATE UNIQUE INDEX couples_pkey ON public.couples USING btree (id)' })
     policies = @($tableNames | ForEach-Object { [ordered]@{ schemaname = 'public'; tablename = $_; policyname = "synthetic_$($_)_service"; permissive = 'PERMISSIVE'; roles = '{service_role}'; cmd = 'ALL'; qual = 'true'; with_check = 'true' } })
-    triggers = @([ordered]@{ table = 'couples'; name = 'set_updated_at'; enabled = 'O'; type_bits = 19; row_level = $true; timing = 'BEFORE'; fires_insert = $false; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'update_updated_at_column()'; definition = 'CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.couples FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()' })
+    triggers = $publicTriggers
     functions = $functions
     external_triggers = @([ordered]@{ schema = 'auth'; table = 'users'; name = 'on_auth_user_created'; enabled = $authTriggerEnabled; type_bits = $(if ($authTriggerFiresInsert) { 5 } else { 17 }); row_level = $true; timing = 'AFTER'; fires_insert = $authTriggerFiresInsert; fires_delete = $false; fires_update = (-not $authTriggerFiresInsert); fires_truncate = $false; function_identity = 'create_profile_on_signup()'; definition = $(if ($authTriggerFiresInsert) { 'CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' } else { 'CREATE TRIGGER on_auth_user_created AFTER UPDATE ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' }) })
   }
@@ -818,8 +836,20 @@ Assert-True -Condition ($projectRef -match '^[a-z0-9]{20}$') -Message 'Linked pr
 $nodeCli = (Get-Command node.exe -ErrorAction Stop).Source
 $logicalSqlSelfTestScript = Join-Path $repoRoot 'apps\web\scripts\amora-db-logical-backup-sql-selftest.mjs'
 $logicalSqlPath = Join-Path $repoRoot 'scripts\sql\amora-db-logical-backup.sql'
+$inventorySqlPath = Join-Path $repoRoot 'scripts\sql\amora-db-inventory.sql'
 Assert-True -Condition (Test-Path -LiteralPath $logicalSqlSelfTestScript -PathType Leaf) -Message 'Logical SQL PGlite self-test script is missing.'
 Assert-True -Condition (Test-Path -LiteralPath $logicalSqlPath -PathType Leaf) -Message 'Logical backup SQL is missing.'
+Assert-True -Condition (Test-Path -LiteralPath $inventorySqlPath -PathType Leaf) -Message 'Inventory SQL is missing.'
+$inventorySql = [IO.File]::ReadAllText($inventorySqlPath)
+foreach ($requiredInventoryFunction in @(
+  'has_current_amora_memory_consent',
+  'commit_amora_memory_job',
+  'revoke_amora_mediation_acceptance'
+)) {
+  Assert-True `
+    -Condition ($inventorySql -match "'$([regex]::Escape($requiredInventoryFunction))'") `
+    -Message "Inventory SQL does not explicitly include required function $requiredInventoryFunction."
+}
 
 $stateDirectory = Join-Path ([IO.Path]::GetTempPath()) "WeddingHanbang-Amora-Backup-Harness-$([Guid]::NewGuid().ToString('N'))"
 $roots = [Collections.Generic.List[string]]::new()
@@ -1193,6 +1223,22 @@ try {
     -StateDirectory $stateDirectory -RepoRoot $repoRoot -Mode 'wrong-auth-trigger-event'
   Assert-Rejected -CaseName 'wrong auth signup trigger event' -Result $wrongTriggerEventResult
   [void]$testNames.Add('non-INSERT auth.users signup trigger rejected')
+
+  $rootMissingAmoraTrigger = New-SelfTestRoot
+  [void]$roots.Add($rootMissingAmoraTrigger)
+  $missingAmoraTriggerResult = Invoke-Backup `
+    -BackupScript $backupScript -FakeCli $fakeCliCommand -Root $rootMissingAmoraTrigger -ProjectRef $projectRef `
+    -StateDirectory $stateDirectory -RepoRoot $repoRoot -Mode 'missing-amora-safety-trigger'
+  Assert-Rejected -CaseName 'missing Amora roster safety trigger' -Result $missingAmoraTriggerResult
+  [void]$testNames.Add('missing Amora roster safety trigger rejected')
+
+  $rootLegacyMediationRpc = New-SelfTestRoot
+  [void]$roots.Add($rootLegacyMediationRpc)
+  $legacyMediationRpcResult = Invoke-Backup `
+    -BackupScript $backupScript -FakeCli $fakeCliCommand -Root $rootLegacyMediationRpc -ProjectRef $projectRef `
+    -StateDirectory $stateDirectory -RepoRoot $repoRoot -Mode 'legacy-mediation-acceptance-rpc'
+  Assert-Rejected -CaseName 'legacy unversioned mediation acceptance RPC' -Result $legacyMediationRpcResult
+  [void]$testNames.Add('legacy unversioned mediation acceptance RPC rejected')
 
   $rootPartitioned = New-SelfTestRoot
   [void]$roots.Add($rootPartitioned)

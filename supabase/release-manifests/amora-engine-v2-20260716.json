@@ -1,12 +1,16 @@
 {
   "release": "amora-engine-v2-20260716",
   "projectRef": "slrtobkksjmxgzatjyqb",
+  "predecessorManifest": {
+    "file": "supabase/release-manifests/amora-openai-20260714.json",
+    "sha256": "e65a8b0b58efd7cb266f9b760e0a86a78b05753ac90d9579e20b67fc73a31170"
+  },
   "migrationFloor": "20260716090000",
   "historicalReconciliation": [],
   "expandMigrations": [
-    { "file": "20260716090000_amora_memory_engine_v2.sql", "sha256": "9a7f2a466c893e74128c4861456638e2391bea65dae61e84cebcdb3833ddd2ee" },
+    { "file": "20260716090000_amora_memory_engine_v2.sql", "sha256": "4a767125c88a3b88710c306b1e106df05a81d5d4a3d9ac49c5433d41964015fa" },
     { "file": "20260716091000_care_explicit_consent.sql", "sha256": "0e9ac0f9d114357b567b0dfbaa6db09a009947b9b071b4c6282f9a99c34439d6" },
-    { "file": "20260716092000_amora_mediation_confirmation.sql", "sha256": "01e3a0586ec5b38d0737c1a70c899490283f06b3ebc7eb5e8c48a54baa91680a" }
+    { "file": "20260716092000_amora_mediation_confirmation.sql", "sha256": "438ffc6b401afc338fabec40c44b8769e4f970fa8818a8fa4385199359e9b3d2" }
   ],
   "appliedHotfixes": [],
   "historicalEffectAudit": {
@@ -17,15 +21,15 @@
   "requiredDocuments": [
     {
       "file": "docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md",
-      "sha256": "ceb29e623090424cec1ddc70d42ab372c45212410a3687fa8c1e81acde5ebc07"
+      "sha256": "fa29648cc4ffbb8e0868da285236b2a47c9e828f5cf580b549fcb390fea4371c"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",
-      "sha256": "498d65e9acebed6295a5d2b85d9da89c4dd8fe3f3349d989cde6c47176024cda"
+      "sha256": "19c3221950ec2f0338d75d3b8e874ec8ba6e37a43ace4156b7c773d6931cd444"
     },
     {
       "file": "docs/AMORA_ENGINE_V2_2026-07-16.md",
-      "sha256": "e39ed357ec8e3909cd5ce9b1c382a33bf6e0e55581cf9b8b17c06fdd52fec74d"
+      "sha256": "00a48314674984462e3539820e433b5619afff6491a278f85fff1fa421b7f18b"
     }
   ]
 }

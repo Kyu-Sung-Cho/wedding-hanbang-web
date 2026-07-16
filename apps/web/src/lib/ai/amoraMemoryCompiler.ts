@@ -34,31 +34,61 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const MEMORY_KEY_PATTERN = /^[a-z][a-z0-9_]{1,31}:[a-z0-9_]{2,48}$/;
 const CATEGORY_PATTERN = /^[a-z][a-z0-9_]{1,31}$/;
 const MEMORY_KINDS = new Set(["decision", "preference", "constraint", "relationship", "fact"]);
+const REDACTED_MEMORY_SUMMARY = "[민감정보 제외]";
+const UNICODE_FORMAT_PATTERN = /\p{Cf}/gu;
 const SENSITIVE_TOKEN_PATTERNS = [
   "\\b\\d{6}[- .]?[1-8]\\d{6}\\b", // Korean resident/foreigner registration number
-  "\\b01[016789][- .]?\\d{3,4}[- .]?\\d{4}\\b", // Korean mobile number
+  "\\b01[016789][- ./]?\\d{3,4}[- ./]?\\d{4}\\b", // Korean mobile number
   "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", // email
   "\\b(?:\\d[- .]?){9,18}\\d\\b", // unlabeled account/card/phone-like long number
   "(?:계좌(?:번호)?|account)\\s*[:=은는]?\\s*[\\d -]{8,}",
   "(?:카드(?:번호)?|card)\\s*[:=은는]?\\s*[\\d -]{12,}",
-  "(?:비밀번호|패스워드|password|pwd)\\s*[:=은는]?\\s*\\S+",
+  "(?:비밀번호|비번|패스워드|password|pwd)\\s*[:=은는]?\\s*\\S+",
   "(?:집|자택|거주지)?주소\\s*[:=은는]?\\s*[^,\\n]{3,100}",
   "(?:[가-힣A-Za-z0-9]+(?:로|길)\\s*\\d{1,5}(?:[- ]\\d{1,5})?)", // street-level address
+  "(?:(?:[가-힣]{1,20}(?:시|군|구))\\s+)?[가-힣]{1,20}(?:읍|면|동|리)\\s+\\d{1,5}(?:-\\d{1,5})?", // parcel-level address
+  "(?:현재(?:\\s+임신)?|임신|아기|태아)\\s*(?:상태(?:는|가)?\\s*)?(?:[1-9]|[1-3]\\d|4[0-5])\\s*주차", // pregnancy week without a semantic key
   "(?:질병|진단|임신|알레르기|성생활|성관계|당뇨|인슐린|암|투병|수술|복용|우울증|정신과|혈압|HIV|medical|health|diagnos(?:is|ed)?|pregnan(?:t|cy)?|disease)\\s*[^,.\\n]{0,80}",
+] as const;
+
+const SENSITIVE_SEMANTIC_PATTERNS = [
+  "(?:^|\\n)\\s*(?:health|medical|diagnosis|pregnancy|mental_health)(?::|\\s*(?:\\n|$))",
+  "(?:^|\\n)\\s*(?:identity:(?:birth(?:_date)?|passport|rrn|ssn|national_id)|travel:passport)(?:\\s|$)",
+  "(?:\\uC0DD\\uB144\\uC6D4\\uC77C|\\uCD9C\\uC0DD\\uC77C|date\\s*of\\s*birth|dob)\\s*[:=\\uC740\\uB294]?\\s*(?:19|20)\\d{2}\\s*(?:[-./]|\\uB144\\s*)\\s*(?:0?[1-9]|1[0-2])\\s*(?:[-./]|\\uC6D4\\s*)\\s*(?:0?[1-9]|[12]\\d|3[01])(?:\\s*\\uC77C)?",
+  "(?:\\uC5EC\\uAD8C(?:\\uBC88\\uD638)?|passport(?:\\s*(?:no\\.?|number))?)\\s*[:=\\uC740\\uB294]?\\s*[A-Z]{1,2}[- ]?\\d{7,8}\\b",
+  "(?:family:(?:baby|pregnan(?:cy|t)|gestation)[a-z0-9_]*|baby_timing|pregnan(?:t|cy)?|gestation|\\uC784\\uC2E0|\\uD0DC\\uC544|\\uCD9C\\uC0B0)[\\s\\S]{0,120}(?:[1-9]|[1-3]\\d|4[0-5])\\s*(?:\\uC8FC\\uCC28|weeks?)",
+] as const;
+
+const SENSITIVE_PATTERNS = [
+  ...SENSITIVE_TOKEN_PATTERNS,
+  ...SENSITIVE_SEMANTIC_PATTERNS,
 ] as const;
 
 function sensitivePattern(source: string, global = false): RegExp {
   return new RegExp(source, global ? "giu" : "iu");
 }
 
+export function canonicalizeAmoraMemoryText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(UNICODE_FORMAT_PATTERN, "")
+    .trim();
+}
+
 export function containsPotentialSensitiveData(value: string): boolean {
-  return SENSITIVE_TOKEN_PATTERNS.some((source) => sensitivePattern(source).test(value));
+  const canonical = canonicalizeAmoraMemoryText(value);
+  return SENSITIVE_PATTERNS.some((source) => sensitivePattern(source).test(canonical));
+}
+
+function containsPotentialSemanticSensitiveData(value: string): boolean {
+  const canonical = canonicalizeAmoraMemoryText(value);
+  return SENSITIVE_SEMANTIC_PATTERNS.some((source) => sensitivePattern(source).test(canonical));
 }
 
 export function redactPotentialSensitiveData(value: string): string {
-  return SENSITIVE_TOKEN_PATTERNS.reduce(
+  return SENSITIVE_PATTERNS.reduce(
     (result, source) => result.replace(sensitivePattern(source, true), "[민감정보 제외]"),
-    value,
+    canonicalizeAmoraMemoryText(value),
   );
 }
 
@@ -146,7 +176,11 @@ export function validateAmoraMemoryCompilation(
     throw new Error("invalid memory compilation");
   }
   const record = value as Record<string, unknown>;
-  if (typeof record.summary !== "string" || record.summary.trim().length === 0 || record.summary.length > 600) {
+  if (typeof record.summary !== "string") {
+    throw new Error("invalid memory summary");
+  }
+  const canonicalSummary = canonicalizeAmoraMemoryText(record.summary);
+  if (canonicalSummary.length === 0 || canonicalSummary.length > 600) {
     throw new Error("invalid memory summary");
   }
   if (!Array.isArray(record.memories) || record.memories.length > MAX_MEMORIES) {
@@ -155,33 +189,53 @@ export function validateAmoraMemoryCompilation(
 
   const seenKeys = new Set<string>();
   const memories: CompiledAmoraMemory[] = [];
+  let droppedSemanticSensitiveMemory = false;
   for (const item of record.memories) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw new Error("invalid memory item");
     }
     const memory = item as Record<string, unknown>;
-    if (typeof memory.source_message_id !== "string" || !UUID_PATTERN.test(memory.source_message_id)) {
+    const sourceMessageId = typeof memory.source_message_id === "string"
+      ? canonicalizeAmoraMemoryText(memory.source_message_id)
+      : null;
+    const memoryKey = typeof memory.memory_key === "string"
+      ? canonicalizeAmoraMemoryText(memory.memory_key)
+      : null;
+    const category = typeof memory.category === "string"
+      ? canonicalizeAmoraMemoryText(memory.category)
+      : null;
+    const title = typeof memory.title === "string"
+      ? canonicalizeAmoraMemoryText(memory.title)
+      : null;
+    const memoryValue = typeof memory.value === "string"
+      ? canonicalizeAmoraMemoryText(memory.value)
+      : null;
+    const reasoning = typeof memory.reasoning === "string"
+      ? canonicalizeAmoraMemoryText(memory.reasoning) || null
+      : memory.reasoning;
+
+    if (!sourceMessageId || !UUID_PATTERN.test(sourceMessageId)) {
       throw new Error("invalid memory source");
     }
-    if (allowedUserMessageIds && !allowedUserMessageIds.has(memory.source_message_id)) {
+    if (allowedUserMessageIds && !allowedUserMessageIds.has(sourceMessageId)) {
       throw new Error("memory source is not a user message in this batch");
     }
-    if (typeof memory.memory_key !== "string" || !MEMORY_KEY_PATTERN.test(memory.memory_key)) {
+    if (!memoryKey || !MEMORY_KEY_PATTERN.test(memoryKey)) {
       throw new Error("invalid memory key");
     }
     if (typeof memory.kind !== "string" || !MEMORY_KINDS.has(memory.kind)) {
       throw new Error("invalid memory kind");
     }
-    if (typeof memory.category !== "string" || !CATEGORY_PATTERN.test(memory.category)) {
+    if (!category || !CATEGORY_PATTERN.test(category)) {
       throw new Error("invalid memory category");
     }
-    if (typeof memory.title !== "string" || memory.title.trim().length === 0 || memory.title.length > 60) {
+    if (!title || title.length > 60) {
       throw new Error("invalid memory title");
     }
-    if (typeof memory.value !== "string" || memory.value.trim().length === 0 || memory.value.length > 160) {
+    if (!memoryValue || memoryValue.length > 160) {
       throw new Error("invalid memory value");
     }
-    if (memory.reasoning !== null && (typeof memory.reasoning !== "string" || memory.reasoning.length > 240)) {
+    if (reasoning !== null && (typeof reasoning !== "string" || reasoning.length > 240)) {
       throw new Error("invalid memory reasoning");
     }
     if (typeof memory.confidence !== "number" || !Number.isFinite(memory.confidence) || memory.confidence < 0.8 || memory.confidence > 1) {
@@ -189,29 +243,40 @@ export function validateAmoraMemoryCompilation(
     }
     if (memory.explicit !== true) throw new Error("memory must be explicit");
     const sensitiveCandidate = [
-      memory.memory_key,
-      memory.category,
-      memory.title,
-      memory.value,
-      memory.reasoning ?? "",
+      memoryKey,
+      category,
+      title,
+      memoryValue,
+      reasoning ?? "",
     ].join("\n");
-    if (containsPotentialSensitiveData(sensitiveCandidate)) continue;
-    if (seenKeys.has(memory.memory_key)) throw new Error("duplicate memory key");
-    seenKeys.add(memory.memory_key);
+    if (containsPotentialSensitiveData(sensitiveCandidate)) {
+      droppedSemanticSensitiveMemory ||= containsPotentialSemanticSensitiveData(sensitiveCandidate);
+      continue;
+    }
+    if (seenKeys.has(memoryKey)) throw new Error("duplicate memory key");
+    seenKeys.add(memoryKey);
     memories.push({
-      sourceMessageId: memory.source_message_id,
-      memoryKey: memory.memory_key,
+      sourceMessageId,
+      memoryKey,
       kind: memory.kind as CompiledAmoraMemory["kind"],
-      category: memory.category,
-      title: memory.title.trim(),
-      value: memory.value.trim(),
-      reasoning: typeof memory.reasoning === "string" ? memory.reasoning.trim() || null : null,
+      category,
+      title,
+      value: memoryValue,
+      reasoning: typeof reasoning === "string" ? reasoning : null,
       confidence: memory.confidence,
       explicit: true as const,
     });
   }
 
-  return { summary: redactPotentialSensitiveData(record.summary.trim()), memories };
+  // A terse summary such as "현재 12주차" can lose the semantic label that
+  // made its source memory sensitive. If any candidate was dropped by DLP,
+  // fail the whole summary closed instead of persisting an ambiguous fragment.
+  return {
+    summary: droppedSemanticSensitiveMemory
+      ? REDACTED_MEMORY_SUMMARY
+      : redactPotentialSensitiveData(canonicalSummary),
+    memories,
+  };
 }
 
 export async function compileAmoraMemory(input: {

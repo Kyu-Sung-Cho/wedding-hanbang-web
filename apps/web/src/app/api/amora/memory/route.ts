@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  canonicalizeAmoraMemoryText,
   containsPotentialSensitiveData,
   type AmoraMemoryVisibility,
 } from "@/lib/ai/amoraMemoryCompiler";
@@ -19,7 +20,6 @@ const MAX_BODY_BYTES = 4 * 1024;
 type AuthContext = {
   userId: string;
   coupleId: string;
-  linkedMemberCount: number;
   allowedVisibilities: AmoraMemoryVisibility[];
 };
 
@@ -60,8 +60,6 @@ async function getAuthContext(request: Request): Promise<
     context: {
       userId: user.id,
       coupleId: profile.couple_id,
-      linkedMemberCount: [couple?.bride_id, couple?.groom_id]
-        .filter((value): value is string => typeof value === "string").length,
       allowedVisibilities: ["shared", privateVisibility],
     },
   };
@@ -244,7 +242,7 @@ export async function PATCH(request: Request) {
       }
       const { data: memory, error: lookupError } = await supabase
         .from("decision_nodes")
-        .select("id, visibility, memory_key, title, metadata")
+        .select("id, visibility, memory_key, category, title, metadata")
         .eq("id", record.memoryId)
         .eq("couple_id", context.coupleId)
         .eq("visibility", visibility)
@@ -263,28 +261,34 @@ export async function PATCH(request: Request) {
         if (error || data !== true) throw new Error("MEMORY_DELETE_FAILED");
         return NextResponse.json({ success: true });
       }
-      if (typeof record.value !== "string" || record.value.trim().length === 0 || record.value.length > 160) {
+      if (typeof record.value !== "string") {
         return NextResponse.json({ error: "기억 내용은 1~160자로 입력해주세요." }, { status: 400 });
       }
-      if (record.title !== undefined && (typeof record.title !== "string" || record.title.trim().length === 0 || record.title.length > 60)) {
+      const nextValue = canonicalizeAmoraMemoryText(record.value);
+      if (nextValue.length === 0 || nextValue.length > 160) {
+        return NextResponse.json({ error: "기억 내용은 정리 후 1~160자로 입력해주세요." }, { status: 400 });
+      }
+      if (record.title !== undefined && typeof record.title !== "string") {
         return NextResponse.json({ error: "기억 제목은 1~60자로 입력해주세요." }, { status: 400 });
       }
       const nextTitle = typeof record.title === "string"
-        ? record.title.trim()
+        ? canonicalizeAmoraMemoryText(record.title)
         : typeof memory.title === "string" && memory.title.trim().length > 0
-          ? memory.title.trim()
+          ? canonicalizeAmoraMemoryText(memory.title)
           : "기억";
-      const nextValue = record.value.trim();
-      if (containsPotentialSensitiveData(`${nextTitle}\n${nextValue}`)) {
+      if (nextTitle.length === 0 || nextTitle.length > 60) {
+        return NextResponse.json({ error: "기억 제목은 정리 후 1~60자로 입력해주세요." }, { status: 400 });
+      }
+      const sensitiveCandidate = [
+        typeof memory.memory_key === "string" ? memory.memory_key : "",
+        typeof memory.category === "string" ? memory.category : "",
+        nextTitle,
+        nextValue,
+      ].join("\n");
+      if (containsPotentialSensitiveData(sensitiveCandidate)) {
         return NextResponse.json(
           { error: "연락처·계좌·정확한 주소·건강정보 같은 민감정보는 기억에 저장할 수 없어요." },
           { status: 400 },
-        );
-      }
-      if (record.enabled && visibility === "shared" && context.linkedMemberCount < 2) {
-        return NextResponse.json(
-          { error: "공유 기억은 파트너 연결 후 두 분이 각각 동의해야 시작돼요. 지금은 ‘나만 상담’ 기억을 이용해주세요." },
-          { status: 409 },
         );
       }
       const { data, error } = await admin.rpc("update_amora_memory_node", {

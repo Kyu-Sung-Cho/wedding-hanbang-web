@@ -528,6 +528,30 @@ async function testCareConsent({ bride, groom, coupleId }) {
 }
 
 async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) {
+  const proposalMessage = expectSuccess(
+    "load mediation proposal binding",
+    await admin.from("chat_messages")
+      .select("metadata")
+      .eq("id", aiMessageId)
+      .eq("couple_id", coupleId)
+      .single(),
+  );
+  const proposalVersion = proposalMessage?.metadata?.mediation?.proposalVersion;
+  const rosterFingerprint = proposalMessage?.metadata?.mediation?.rosterFingerprint;
+  invariant(
+    typeof proposalVersion === "string"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(proposalVersion),
+    "mediation proposal did not receive a valid server version",
+  );
+  invariant(
+    typeof rosterFingerprint === "string" && /^[a-f0-9]{32}$/.test(rosterFingerprint),
+    "mediation proposal did not receive a valid server roster fingerprint",
+  );
+  const proposalBinding = {
+    p_expected_proposal_version: proposalVersion,
+    p_expected_roster_fingerprint: rosterFingerprint,
+  };
+
   const first = expectSuccess(
     "first mediation acceptance",
     await admin.rpc("accept_amora_mediation", {
@@ -536,6 +560,7 @@ async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) 
       p_user_id: bride.id,
       p_title: "예산 합의",
       p_resolution: "총액 상한을 함께 정한다",
+      ...proposalBinding,
     }),
   );
   invariant(first?.accepted_count === 1 && first?.required_count === 2 && first?.completed === false,
@@ -548,6 +573,7 @@ async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) 
       p_user_id: groom.id,
       p_title: "예산 합의",
       p_resolution: "총액 상한을 함께 정한다",
+      ...proposalBinding,
     }),
   );
   invariant(second?.accepted_count === 2 && second?.required_count === 2 && second?.completed === true && second?.decision_node_id,
@@ -560,6 +586,7 @@ async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) 
       p_user_id: groom.id,
       p_title: "예산 합의",
       p_resolution: "총액 상한을 함께 정한다",
+      ...proposalBinding,
     }),
   );
   invariant(retry.decision_node_id === second.decision_node_id, "mediation retry created a second decision");
@@ -574,6 +601,7 @@ async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) 
     p_user_id: outsider.id,
     p_title: "권한 없음",
     p_resolution: "기록되면 안 됨",
+    ...proposalBinding,
   });
   invariant(denied.error?.message.includes("AMORA_MEDIATION_SCOPE_INVALID"), "outsider mediation acceptance was not rejected");
 }

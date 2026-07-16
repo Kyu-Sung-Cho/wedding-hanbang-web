@@ -11,13 +11,12 @@ import {
   Undo2,
   Users,
 } from "lucide-react";
+import {
+  getExpectedMediationRevision,
+  type MediationBlock,
+} from "./mediationBlock";
 
-export interface MediationBlock {
-  empathy?: string;
-  translation?: string;
-  data?: string;
-  resolution?: string;
-}
+export type { MediationBlock } from "./mediationBlock";
 
 type AcceptanceState = {
   accepted: boolean;
@@ -34,15 +33,34 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<"accept" | "revoke" | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const canConfirm = Boolean(block.resolution?.trim() && messageId && UUID_PATTERN.test(messageId));
+  const expectedRevision = getExpectedMediationRevision(block);
+  const expectedProposalVersion = expectedRevision?.expectedProposalVersion;
+  const expectedRosterFingerprint = expectedRevision?.expectedRosterFingerprint;
+  const canConfirm = Boolean(
+    block.resolution?.trim()
+    && messageId
+    && UUID_PATTERN.test(messageId)
+    && expectedProposalVersion
+    && expectedRosterFingerprint,
+  );
 
   const refreshAcceptance = useCallback(async () => {
-    if (!canConfirm || !messageId) return;
+    if (
+      !canConfirm
+      || !messageId
+      || !expectedProposalVersion
+      || !expectedRosterFingerprint
+    ) return;
     setLoading(true);
     setStatusError(null);
     try {
+      const searchParams = new URLSearchParams({
+        messageId,
+        expectedProposalVersion,
+        expectedRosterFingerprint,
+      });
       const response = await fetch(
-        `/api/amora/mediation/accept?messageId=${encodeURIComponent(messageId)}`,
+        `/api/amora/mediation/accept?${searchParams.toString()}`,
         { cache: "no-store" },
       );
       const payload = await response.json() as AcceptanceState & { error?: string };
@@ -54,27 +72,46 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
     } finally {
       setLoading(false);
     }
-  }, [canConfirm, messageId]);
+  }, [
+    canConfirm,
+    expectedProposalVersion,
+    expectedRosterFingerprint,
+    messageId,
+  ]);
 
   useEffect(() => {
     void refreshAcceptance();
-  }, [refreshAcceptance]);
+  }, [
+    expectedProposalVersion,
+    expectedRosterFingerprint,
+    refreshAcceptance,
+  ]);
 
   async function updateAcceptance(method: "POST" | "DELETE") {
-    if (!messageId || saving) return;
+    if (
+      !messageId
+      || !expectedProposalVersion
+      || !expectedRosterFingerprint
+      || saving
+    ) return;
+    const exactRevision = { expectedProposalVersion, expectedRosterFingerprint };
     setSaving(method === "POST" ? "accept" : "revoke");
     setStatusError(null);
     try {
       const response = await fetch("/api/amora/mediation/accept", {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId }),
+        body: JSON.stringify({ messageId, ...exactRevision }),
       });
       const payload = await response.json() as AcceptanceState & { error?: string };
       if (!response.ok) {
-        throw new Error(
+        const responseError = new Error(
           payload.error ?? (method === "POST" ? "내 확인을 저장하지 못했어요." : "내 확인을 취소하지 못했어요."),
         );
+        if (response.status === 409) {
+          await refreshAcceptance();
+        }
+        throw responseError;
       }
       setAcceptance(payload);
     } catch (error) {
@@ -164,6 +201,15 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
                   ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   : <Undo2 className="h-4 w-4" aria-hidden="true" />}
                 내 확인 취소
+              </button>
+              <button
+                type="button"
+                disabled={saving !== null || loading}
+                onClick={() => void refreshAcceptance()}
+                className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] hover:bg-[#F4F7F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61] disabled:opacity-50"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                확인 상태 새로고침
               </button>
             </div>
           ) : acceptance?.partnerLinked === false ? (

@@ -383,6 +383,8 @@ For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md befo
 - 현재 제품 기준은 `docs/AMORA_ENGINE_V2_2026-07-16.md`, 운영 절차는
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`다. 이전 아모라
   아이디어 문서의 심리 굴착, 성별 공식, 인간 검토 SLA는 구현 요구사항이 아니다.
+- 다른 컴퓨터에서 이어갈 때는 최신 통합 상태와 남은 게이트를
+  `docs/operations/AMORA_ENGINE_V2_SAFETY_HANDOFF_2026-07-16.md`에서 먼저 확인한다.
 - `AMORA_AUXILIARY_MEMORY_ENABLED` 기본값은 `false`다. DB 마이그레이션, 백업·복구,
   비활성 카나리가 끝나기 전에 켜지 않는다.
 - `AMORA_CARE_OUTBOUND_ENABLED`도 별도 기본값 `false`다. 외부 이메일은 기억

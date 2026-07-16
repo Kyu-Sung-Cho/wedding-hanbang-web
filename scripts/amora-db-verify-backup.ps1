@@ -56,6 +56,8 @@ $RequiredFunctionIdentities = @(
   'generate_invite_code()',
   'redact_old_ai_interactions(interval)',
   'create_profile_on_signup()',
+  'reset_amora_memory_after_membership_change()',
+  'has_current_amora_memory_consent(uuid,text)',
   'enqueue_amora_memory_job(uuid,uuid,text,uuid)',
   'claim_amora_memory_job(integer)',
   'finish_amora_memory_job(uuid,boolean,text,integer)',
@@ -63,10 +65,17 @@ $RequiredFunctionIdentities = @(
   'update_amora_memory_node(uuid,text,uuid,uuid,text,text)',
   'delete_amora_memory_node(uuid,text,uuid,uuid)',
   'insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)',
-  'accept_amora_mediation(uuid,uuid,uuid,text,text)',
+  'commit_amora_memory_job(uuid,integer,jsonb,text,integer,uuid,uuid)',
+  'bind_amora_mediation_proposal()',
+  'accept_amora_mediation(uuid,uuid,uuid,text,text,uuid,text)',
+  'revoke_amora_mediation_acceptance(uuid,uuid,uuid)',
+  'reset_amora_mediation_after_membership_change()',
   'insert_amora_care_message(uuid,text,jsonb)',
   'set_amora_memory_consent(uuid,text,uuid,boolean)',
   'clear_amora_memory_scope(uuid,text,uuid)'
+)
+$ForbiddenFunctionIdentities = @(
+  'accept_amora_mediation(uuid,uuid,uuid,text,text)'
 )
 
 function Show-Help {
@@ -139,6 +148,33 @@ function Assert-InventoryDependencies {
   foreach ($identity in $RequiredFunctionIdentities) {
     if ($identity -notin $identities) {
       throw "Schema inventory is missing required function signature $identity."
+    }
+  }
+  foreach ($identity in $ForbiddenFunctionIdentities) {
+    if ($identity -in $identities) {
+      throw "Schema inventory contains forbidden legacy function signature $identity."
+    }
+  }
+  $requiredTriggers = @(
+    [pscustomobject]@{ Table = 'couples'; Name = 'trg_reset_amora_memory_after_membership_change'; Timing = 'AFTER'; Insert = $false; Update = $true; Function = 'reset_amora_memory_after_membership_change' },
+    [pscustomobject]@{ Table = 'couples'; Name = 'trg_reset_amora_mediation_after_membership_change'; Timing = 'AFTER'; Insert = $false; Update = $true; Function = 'reset_amora_mediation_after_membership_change' },
+    [pscustomobject]@{ Table = 'chat_messages'; Name = 'trg_bind_amora_mediation_proposal'; Timing = 'BEFORE'; Insert = $true; Update = $true; Function = 'bind_amora_mediation_proposal' }
+  )
+  foreach ($required in $requiredTriggers) {
+    $matches = @($Inventory.triggers | Where-Object {
+      [string]$_.table -eq $required.Table -and
+      [string]$_.name -eq $required.Name -and
+      [string]$_.enabled -in @('O', 'A') -and
+      [bool]$_.row_level -and
+      [string]$_.timing -eq $required.Timing -and
+      [bool]$_.fires_insert -eq $required.Insert -and
+      [bool]$_.fires_update -eq $required.Update -and
+      -not [bool]$_.fires_delete -and
+      -not [bool]$_.fires_truncate -and
+      [string]$_.function_identity -match "(^|\.)$([regex]::Escape($required.Function))\("
+    })
+    if ($matches.Count -ne 1) {
+      throw "Schema inventory is missing required safety trigger $($required.Name)."
     }
   }
   if (@($Inventory.external_triggers | Where-Object {

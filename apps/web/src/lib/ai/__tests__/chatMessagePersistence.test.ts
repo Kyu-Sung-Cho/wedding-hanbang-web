@@ -22,7 +22,15 @@ type QueryResult = {
 function makeAdmin(options: {
   lookups?: QueryResult[];
   inserts?: Array<{
-    data: { id: string; created_at: string } | null;
+    data: {
+      id: string;
+      created_at: string;
+      content?: string;
+      metadata?: Record<string, unknown> | null;
+      stage_tag?: string | null;
+      specialist_type?: string | null;
+      visibility?: "shared" | "bride_private" | "groom_private";
+    } | null;
     error: { code?: string; message?: string } | null;
   }>;
 }) {
@@ -110,7 +118,23 @@ describe("persistAiMessage", () => {
     const { admin, insertPayloads } = makeAdmin({
       lookups: [{ data: [], error: null }],
       inserts: [{
-        data: { id: "message-2", created_at: "2026-07-14T00:00:01.000Z" },
+        data: {
+          id: "message-2",
+          created_at: "2026-07-14T00:00:01.000Z",
+          content: BASE.cleanText,
+          metadata: {
+            senderName: "아모라",
+            client_request_id: BASE.clientRequestId,
+            mediation: {
+              resolution: "총예산 상한선을 확인해요",
+              proposalVersion: "55555555-5555-4555-8555-555555555555",
+              rosterFingerprint: "a".repeat(32),
+            },
+          },
+          stage_tag: BASE.stageTag,
+          specialist_type: null,
+          visibility: "shared",
+        },
         error: null,
       }],
     });
@@ -122,6 +146,11 @@ describe("persistAiMessage", () => {
       metadata: {
         senderName: "아모라",
         client_request_id: BASE.clientRequestId,
+        mediation: {
+          resolution: "총예산 상한선을 확인해요",
+          proposalVersion: "55555555-5555-4555-8555-555555555555",
+          rosterFingerprint: "a".repeat(32),
+        },
       },
       stageTag: BASE.stageTag,
       specialistType: null,

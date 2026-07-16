@@ -813,7 +813,7 @@ export default function SettingsPage() {
             <div>
               <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기 · 내 동의</p>
               <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 전후 알림이에요. 두 분이 각각 동의해야 공유 케어가 시작돼요
+                상견례·청첩장 모임 전후 알림이에요. 파트너가 연결돼 있다면 두 분이 각각 동의해야 공유 케어가 시작돼요
               </p>
               {careMessage && <p aria-live="polite" className="mt-1 text-sm text-[#795252]">{careMessage}</p>}
             </div>

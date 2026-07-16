@@ -24,6 +24,9 @@ interface ChatMessageMetadata {
   mediation?: unknown;
 }
 
+type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
+type ViewerRole = "bride" | "groom" | null;
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -31,6 +34,7 @@ interface ChatMessage {
   content: string;
   metadata?: ChatMessageMetadata | null;
   created_at?: string;
+  visibility: ChatMessageVisibility;
 }
 
 type MessageTarget = "ai" | "partner";
@@ -98,6 +102,50 @@ class ChatTransportError extends Error {
     super(code);
     this.name = "ChatTransportError";
   }
+}
+
+function normalizeChatVisibility(value: unknown): ChatMessageVisibility | null {
+  return value === "shared" || value === "bride_private" || value === "groom_private"
+    ? value
+    : null;
+}
+
+function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const visibility = normalizeChatVisibility(row.visibility);
+  const validRole = row.role === "user" || row.role === "assistant";
+  const validSender = row.sender_type === "bride"
+    || row.sender_type === "groom"
+    || row.sender_type === "ai";
+  if (
+    typeof row.id !== "string"
+    || !validRole
+    || !validSender
+    || typeof row.content !== "string"
+    || typeof row.created_at !== "string"
+    || !visibility
+  ) return null;
+
+  const metadata = row.metadata !== null
+    && typeof row.metadata === "object"
+    && !Array.isArray(row.metadata)
+    ? row.metadata as ChatMessageMetadata
+    : null;
+  return {
+    id: row.id,
+    role: row.role as ChatMessage["role"],
+    sender_type: row.sender_type as ChatMessage["sender_type"],
+    content: row.content,
+    metadata,
+    created_at: row.created_at,
+    visibility,
+  };
+}
+
+function canViewerSeeChatMessage(message: ChatMessage, viewerRole: ViewerRole): boolean {
+  if (message.visibility === "shared") return true;
+  return viewerRole !== null && message.visibility === `${viewerRole}_private`;
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -430,9 +478,12 @@ export default function ChatScreen() {
 
       const { data: profile } = await supabase.from("profiles").select("name, role, couple_id").eq("id", user.id).single();
       if (!profile?.couple_id) { setInitialLoaded(true); return; }
+      const viewerRole: ViewerRole = profile.role === "bride" || profile.role === "groom"
+        ? profile.role
+        : null;
       setCoupleId(profile.couple_id);
       if (profile.name) setUserName(profile.name);
-      if (profile.role) setUserRole(profile.role as "bride" | "groom");
+      if (viewerRole) setUserRole(viewerRole);
 
       // 파트너
       const { data: partners } = await supabase.from("couple_profile_directory").select("name").eq("couple_id", profile.couple_id).neq("id", user.id);
@@ -440,26 +491,32 @@ export default function ChatScreen() {
 
       // 대화 이력
       const { data: history } = await supabase.from("chat_messages")
-        .select("id, role, sender_type, content, metadata, created_at")
+        .select("id, role, sender_type, content, metadata, created_at, visibility")
         .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
 
       if (history?.length) {
-        for (const message of history) {
-          const metadata = message.metadata as ChatMessageMetadata | null;
+        const historyMessages = history
+          .map((message) => chatMessageFromRealtimeRow(message))
+          .filter((message): message is ChatMessage => (
+            message !== null && canViewerSeeChatMessage(message, viewerRole)
+          ));
+        for (const message of historyMessages) {
+          const metadata = message.metadata;
           const persistedRequestKey = metadata?.client_visible_request_id ?? metadata?.client_request_id;
           if (message.sender_type === "ai" && persistedRequestKey) {
             persistedAiRequestKeysRef.current.add(persistedRequestKey);
           }
         }
-        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], created_at: m.created_at })));
+        setMessages(historyMessages);
       }
 
       // Realtime
       const ch = supabase.channel(`chat:${profile.couple_id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
-          const n = payload.new as Record<string, unknown>;
-          const incomingMetadata = n.metadata as ChatMessageMetadata | null;
-          const incomingRequestKey = n.sender_type === "ai"
+          const incoming = chatMessageFromRealtimeRow(payload.new);
+          if (!incoming || !canViewerSeeChatMessage(incoming, viewerRole)) return;
+          const incomingMetadata = incoming.metadata;
+          const incomingRequestKey = incoming.sender_type === "ai"
             ? incomingMetadata?.client_visible_request_id ?? incomingMetadata?.client_request_id
             : undefined;
           if (incomingRequestKey) {
@@ -471,19 +528,30 @@ export default function ChatScreen() {
             );
           }
           setMessages((prev) => {
-            if (prev.some((m) => m.id === n.id)) return prev;
+            if (prev.some((m) => m.id === incoming.id)) return prev;
             const withoutMatchingPlaceholder = incomingRequestKey
               ? prev.filter((m) => !(
                 m.id.startsWith("temp_") &&
                 m.metadata?.client_request_id === incomingRequestKey
               ))
               : prev;
-            return [...withoutMatchingPlaceholder, {
-              id: n.id as string, role: n.role as "user" | "assistant", sender_type: n.sender_type as "bride" | "groom" | "ai",
-              content: n.content as string, metadata: incomingMetadata, created_at: n.created_at as string,
-            }];
+            return [...withoutMatchingPlaceholder, incoming];
           });
-        }).subscribe();
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
+          const updated = chatMessageFromRealtimeRow(payload.new);
+          const updatedId = updated?.id
+            ?? (payload.new as Record<string, unknown> | null)?.id;
+          if (typeof updatedId !== "string") return;
+          setMessages((previous) => {
+            if (!updated || !canViewerSeeChatMessage(updated, viewerRole)) {
+              return previous.filter((message) => message.id !== updatedId);
+            }
+            if (!previous.some((message) => message.id === updated.id)) return previous;
+            return previous.map((message) => message.id === updated.id ? updated : message);
+          });
+        })
+        .subscribe();
       channelRef.current = ch;
       setInitialLoaded(true);
     })();
@@ -520,7 +588,7 @@ export default function ChatScreen() {
     intendedTarget: MessageTarget,
   ): Promise<ChatMessage | null> {
     const { data, error } = await supabase.from("chat_messages")
-      .select("id, role, sender_type, content, metadata, created_at")
+      .select("id, role, sender_type, content, metadata, created_at, visibility")
       .eq("couple_id", draft.coupleId)
       .eq("sender_id", draft.userId)
       .eq("sender_type", draft.senderType)
@@ -538,14 +606,7 @@ export default function ChatScreen() {
         : metadata?.target !== "partner";
     });
     if (!match) return null;
-    return {
-      id: match.id,
-      role: "user",
-      sender_type: draft.senderType,
-      content: match.content,
-      metadata: match.metadata as ChatMessageMetadata | null,
-      created_at: match.created_at,
-    };
+    return chatMessageFromRealtimeRow(match);
   }
 
   async function sendPartnerDraft(draft: PartnerDraft, reconcileFirst: boolean) {
@@ -566,19 +627,13 @@ export default function ChatScreen() {
             content: draft.text,
             metadata: { target: "partner" },
           })
-          .select("id, role, sender_type, content, metadata, created_at")
+          .select("id, role, sender_type, content, metadata, created_at, visibility")
           .single();
 
-        durableMessage = !error && data
-          ? {
-            id: data.id,
-            role: "user",
-            sender_type: draft.senderType,
-            content: data.content,
-            metadata: data.metadata as ChatMessageMetadata | null,
-            created_at: data.created_at,
-          }
-          : await findDurableUserMessage(draft, "partner");
+        const insertedMessage = !error && data
+          ? chatMessageFromRealtimeRow(data)
+          : null;
+        durableMessage = insertedMessage ?? await findDurableUserMessage(draft, "partner");
       }
 
       if (!durableMessage) throw new Error("partner message was not persisted");
@@ -624,6 +679,7 @@ export default function ChatScreen() {
         sender_type: "ai",
         content: "",
         metadata: { client_request_id: request.serverRequestKey },
+        visibility: "shared",
       };
       const existingIndex = previous.findIndex((message) => message.id === request.tempId);
       if (existingIndex < 0) return [...previous, placeholder];
@@ -711,19 +767,13 @@ export default function ChatScreen() {
             role: "user",
             content: draft.text,
           })
-          .select("id, role, sender_type, content, metadata, created_at")
+          .select("id, role, sender_type, content, metadata, created_at, visibility")
           .single();
 
-        durableMessage = !error && data
-          ? {
-            id: data.id,
-            role: "user",
-            sender_type: draft.senderType,
-            content: data.content,
-            metadata: data.metadata as ChatMessageMetadata | null,
-            created_at: data.created_at,
-          }
-          : await findDurableUserMessage(draft, "ai");
+        const insertedMessage = !error && data
+          ? chatMessageFromRealtimeRow(data)
+          : null;
+        durableMessage = insertedMessage ?? await findDurableUserMessage(draft, "ai");
       }
 
       if (!durableMessage) throw new Error("user message was not persisted");
@@ -873,7 +923,11 @@ export default function ChatScreen() {
             </View>
           )}
           {mediationBlock && (
-            <AmoraMediationCard block={mediationBlock} messageId={item.id} />
+            <AmoraMediationCard
+              key={`${item.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
+              block={mediationBlock}
+              messageId={item.id}
+            />
           )}
         </View>
       </View>
