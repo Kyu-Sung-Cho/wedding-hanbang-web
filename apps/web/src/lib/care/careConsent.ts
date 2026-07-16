@@ -4,6 +4,23 @@ export type CareConsentRecord = {
   care_notifications_consented_at: string | null;
 };
 
+export function hasSameCareMemberRoster(
+  expectedMemberIds: readonly string[],
+  currentMemberIds: readonly string[],
+): boolean {
+  const expected = new Set(expectedMemberIds);
+  const current = new Set(currentMemberIds);
+  if (
+    expected.size === 0
+    || expected.size !== expectedMemberIds.length
+    || current.size !== currentMemberIds.length
+    || expected.size !== current.size
+  ) {
+    return false;
+  }
+  return [...expected].every((id) => current.has(id));
+}
+
 export function hasUnanimousCareConsent(
   memberIds: readonly string[],
   records: readonly CareConsentRecord[],

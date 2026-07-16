@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { AmoraMemoryVisibility } from "@/lib/ai/amoraMemoryCompiler";
+import {
+  containsPotentialSensitiveData,
+  type AmoraMemoryVisibility,
+} from "@/lib/ai/amoraMemoryCompiler";
 import { isAuxiliaryMemoryRuntimeEnabled } from "@/lib/ai/amoraMemoryQueue";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -16,6 +19,7 @@ const MAX_BODY_BYTES = 4 * 1024;
 type AuthContext = {
   userId: string;
   coupleId: string;
+  linkedMemberCount: number;
   allowedVisibilities: AmoraMemoryVisibility[];
 };
 
@@ -56,6 +60,8 @@ async function getAuthContext(request: Request): Promise<
     context: {
       userId: user.id,
       coupleId: profile.couple_id,
+      linkedMemberCount: [couple?.bride_id, couple?.groom_id]
+        .filter((value): value is string => typeof value === "string").length,
       allowedVisibilities: ["shared", privateVisibility],
     },
   };
@@ -124,13 +130,16 @@ export async function GET(request: Request) {
           .filter((item) => item.visibility === visibility)
           .map((item) => item.user_id),
       );
-      const requiredCount = visibility === "shared" ? members.length : 1;
+      const requiredCount = visibility === "shared" ? 2 : 1;
       const consentedCount = visibility === "shared"
         ? members.filter((id) => consentedIds.has(id)).length
         : Number(consentedIds.has(context.userId));
+      const effectiveEnabled = row?.enabled === true
+        && consentedCount === requiredCount
+        && (visibility !== "shared" || members.length === 2);
       return {
         visibility,
-        enabled: row?.enabled === true,
+        enabled: effectiveEnabled,
         consentedByMe: consentedIds.has(context.userId),
         consentedCount,
         requiredCount,
@@ -152,6 +161,8 @@ export async function GET(request: Request) {
         reasoning: row.reasoning,
         confidence: row.confidence,
         userConfirmedAt: row.user_confirmed_at,
+        userCorrected: (row.metadata as { user_corrected?: unknown } | null)?.user_corrected === true,
+        sourceMessageId: row.source_message_id,
         updatedAt: row.updated_at,
       }));
     return NextResponse.json(
@@ -263,13 +274,26 @@ export async function PATCH(request: Request) {
         : typeof memory.title === "string" && memory.title.trim().length > 0
           ? memory.title.trim()
           : "기억";
+      const nextValue = record.value.trim();
+      if (containsPotentialSensitiveData(`${nextTitle}\n${nextValue}`)) {
+        return NextResponse.json(
+          { error: "연락처·계좌·정확한 주소·건강정보 같은 민감정보는 기억에 저장할 수 없어요." },
+          { status: 400 },
+        );
+      }
+      if (record.enabled && visibility === "shared" && context.linkedMemberCount < 2) {
+        return NextResponse.json(
+          { error: "공유 기억은 파트너 연결 후 두 분이 각각 동의해야 시작돼요. 지금은 ‘나만 상담’ 기억을 이용해주세요." },
+          { status: 409 },
+        );
+      }
       const { data, error } = await admin.rpc("update_amora_memory_node", {
         p_couple_id: context.coupleId,
         p_visibility: visibility,
         p_memory_id: memory.id,
         p_user_id: context.userId,
         p_title: nextTitle,
-        p_value: record.value.trim(),
+        p_value: nextValue,
       });
       if (error || typeof data !== "string" || !UUID_PATTERN.test(data)) {
         throw new Error("MEMORY_UPDATE_FAILED");

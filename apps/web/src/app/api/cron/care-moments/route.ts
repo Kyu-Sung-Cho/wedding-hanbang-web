@@ -19,7 +19,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildCareEmailSubject, buildCareEmailHtml } from "@/lib/care/careEmail";
-import { hasUnanimousCareConsent } from "@/lib/care/careConsent";
+import {
+  hasSameCareMemberRoster,
+  hasUnanimousCareConsent,
+} from "@/lib/care/careConsent";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -53,12 +56,16 @@ export async function GET(req: NextRequest) {
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (process.env.AMORA_CARE_OUTBOUND_ENABLED !== "true") {
+    return NextResponse.json({ ok: true, enabled: false, fired: 0, emails: 0 });
+  }
 
   const admin = getAdmin();
   const stats = {
     couples: 0,
     due: 0,
     skippedNoConsent: 0,
+    skippedEmailMembershipChanged: 0,
     skippedEmailConsentChanged: 0,
     fired: 0,
     alreadySent: 0,
@@ -212,11 +219,27 @@ export async function GET(req: NextRequest) {
       // The DB RPC atomically guards the shared chat write. Re-read consent as
       // close as possible to the external email side effect as a second fence;
       // a post-batch opt-out must not reuse the stale member snapshot.
+      const { data: refreshedCouple, error: refreshedCoupleError } = await admin
+        .from("couples")
+        .select("bride_id, groom_id")
+        .eq("id", journey.couple_id)
+        .maybeSingle();
+      const refreshedMemberIds = [...new Set(
+        [refreshedCouple?.bride_id, refreshedCouple?.groom_id]
+          .filter((value): value is string => typeof value === "string"),
+      )];
+      if (
+        refreshedCoupleError
+        || !hasSameCareMemberRoster(memberIds, refreshedMemberIds)
+      ) {
+        stats.skippedEmailMembershipChanged += 1;
+        continue;
+      }
       const { data: refreshedMembers, error: refreshedMembersError } = await admin
         .from("profiles")
         .select("id, email, name, care_notifications_enabled, care_notifications_consented_at")
-        .in("id", memberIds);
-      if (refreshedMembersError || !hasUnanimousCareConsent(memberIds, refreshedMembers ?? [])) {
+        .in("id", refreshedMemberIds);
+      if (refreshedMembersError || !hasUnanimousCareConsent(refreshedMemberIds, refreshedMembers ?? [])) {
         stats.skippedEmailConsentChanged += 1;
         continue;
       }

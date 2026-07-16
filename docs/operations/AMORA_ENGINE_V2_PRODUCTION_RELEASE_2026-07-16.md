@@ -13,7 +13,8 @@
   1. `20260716090000_amora_memory_engine_v2.sql`
   2. `20260716091000_care_explicit_consent.sql`
   3. `20260716092000_amora_mediation_confirmation.sql`
-- 새 런타임은 `AMORA_AUXILIARY_MEMORY_ENABLED=false`로 시작한다.
+- 새 런타임은 `AMORA_AUXILIARY_MEMORY_ENABLED=false`와
+  `AMORA_CARE_OUTBOUND_ENABLED=false`로 시작한다.
 
 ## 변경 전 안전 게이트
 
@@ -35,9 +36,13 @@
 ## 운영 DB 적용
 
 - 일반 `supabase db push`, `--include-all`, migration history 추측 보정은 금지한다.
-- 각 파일은 manifest 해시, 프로젝트 ref, 직전 원격 pending set을 다시 확인한 뒤
-  짧은 lock/statement timeout을 가진 파일 자체의 트랜잭션으로 순서대로 한 번만
-  적용한다.
+- 현재 저장소에는 이 세 파일만 destination-fence와 migration ledger까지 원자적으로
+  처리하는 승인된 적용 controller가 없다. SQL 파일의 `SET LOCAL`은 자체
+  `BEGIN/COMMIT`을 만들지 않으므로 SQL Editor에서 직접 실행해서는 안 된다.
+- 따라서 controller 또는 검증된 공식 Supabase CLI 절차가 별도 승인되기 전까지
+  운영 적용은 **NO-GO**다. 승인 절차는 manifest 해시, 프로젝트 ref, 직전 원격
+  pending 순서를 확인하고 세 파일을 그 순서로 한 번 적용하며 ledger와 후조건까지
+  같은 실행 기록에 남겨야 한다.
 - 성공 여부가 불명확하면 재실행하지 말고 migration ledger와 후조건을 먼저 읽는다.
 - 적용 후 pending set은 0이어야 한다.
 - 익명 RLS probe와 다음 후조건을 확인한다.
@@ -76,7 +81,8 @@
 ## 호환 배포와 활성화
 
 1. GitHub 필수 체크가 모두 성공한 불변 커밋만 병합한다.
-2. Vercel을 `AMORA_AUXILIARY_MEMORY_ENABLED=false`로 배포한다.
+2. Vercel을 `AMORA_AUXILIARY_MEMORY_ENABLED=false`,
+   `AMORA_CARE_OUTBOUND_ENABLED=false`로 배포한다.
 3. 로그아웃/로그인, 공유·개인 채팅, 일정·예산 도구, 웹과 네이티브 모바일의 기억
    설정, 중재 카드, 케어 설정을 카나리한다. 메모리 크론은 인증되지만
    `enabled:false`로 응답해야 하며 새 동의만 차단되고 삭제·철회는 가능해야 한다.
@@ -90,8 +96,8 @@
 
 1. 가장 먼저 `AMORA_AUXILIARY_MEMORY_ENABLED=false`로 설정하고 재배포해 새 큐
    생성과 처리를 멈춘다.
-2. 문제가 케어 발송이면 크론 경로를 비활성화한다. 명시적 동의 시각이 없는 외부
-   발송은 계속 fail-closed여야 한다.
+2. 문제가 케어 발송이면 `AMORA_CARE_OUTBOUND_ENABLED=false`로 설정하고
+   재배포한다. 명시적 동의 시각이 없는 외부 발송은 계속 fail-closed여야 한다.
 3. 이전의 검증된 Vercel 배포로 되돌린다.
 4. DB 마이그레이션은 expand-only로 남긴다. 장애 중 테이블/열/함수를 삭제하는
    down migration은 실행하지 않는다.

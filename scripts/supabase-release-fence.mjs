@@ -13,6 +13,12 @@ const manifestPath = join(
   "amora-engine-v2-20260716.json"
 );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const predecessorManifestPath = join(
+  repoRoot,
+  "supabase",
+  "release-manifests",
+  "amora-openai-20260714.json"
+);
 const args = new Set(process.argv.slice(2));
 
 function fail(message) {
@@ -39,6 +45,38 @@ function verifyHashPinnedArtifact(entry, label) {
   if (actual !== entry.sha256) {
     fail(`${label} hash mismatch for ${entry.file}; expected ${entry.sha256}, received ${actual}`);
   }
+}
+
+function verifyPredecessorManifest() {
+  if (!existsSync(predecessorManifestPath)) {
+    fail("predecessor release manifest missing: supabase/release-manifests/amora-openai-20260714.json");
+  }
+  const predecessor = JSON.parse(readFileSync(predecessorManifestPath, "utf8"));
+  if (predecessor.projectRef !== manifest.projectRef) {
+    fail(`predecessor project ref mismatch; expected ${manifest.projectRef}, received ${predecessor.projectRef}`);
+  }
+  const predecessorMigrations = [
+    ...(predecessor.historicalReconciliation ?? []),
+    ...(predecessor.expandMigrations ?? []),
+    ...(predecessor.appliedHotfixes ?? []),
+  ];
+  for (const entry of predecessorMigrations) {
+    const path = join(repoRoot, "supabase", "migrations", entry.file);
+    if (!existsSync(path)) fail(`predecessor migration missing: ${entry.file}`);
+    const actual = sha256(path);
+    if (actual !== entry.sha256) {
+      fail(`predecessor migration hash mismatch for ${entry.file}; expected ${entry.sha256}, received ${actual}`);
+    }
+  }
+  if (predecessor.historicalEffectAudit) {
+    verifyHashPinnedArtifact(predecessor.historicalEffectAudit, "predecessor historical effect audit");
+  }
+  for (const entry of predecessor.manualPlatformOperations ?? []) {
+    verifyHashPinnedArtifact(entry, "predecessor manual platform operation");
+  }
+  // A later release may intentionally revise operational documentation and
+  // pin the new version in its own manifest. Immutable predecessor database
+  // migrations, audits and platform operations remain chained here.
 }
 
 function verifyStaticManifest() {
@@ -99,6 +137,10 @@ function assertExact(actual, expected, label) {
   if (unexpected.length || missing.length) {
     fail(`${label}: pending set mismatch; unexpected=${unexpected.join(",") || "none"}; missing=${missing.join(",") || "none"}`);
   }
+  const firstOutOfOrder = expected.findIndex((file, index) => actual[index] !== file);
+  if (firstOutOfOrder !== -1) {
+    fail(`${label}: pending migration order mismatch at index ${firstOutOfOrder}; expected=${expected[firstOutOfOrder] ?? "none"}; received=${actual[firstOutOfOrder] ?? "none"}`);
+  }
 }
 
 function verifyRemotePending() {
@@ -136,6 +178,7 @@ function verifyRemotePending() {
   console.log(`Remote pending set verified for ${linkedRef}: ${expectedMode} (${pending.length} migrations).`);
 }
 
+verifyPredecessorManifest();
 verifyStaticManifest();
 
 if (args.has("--refuse-direct-push")) {

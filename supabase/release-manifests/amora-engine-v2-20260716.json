@@ -4,9 +4,9 @@
   "migrationFloor": "20260716090000",
   "historicalReconciliation": [],
   "expandMigrations": [
-    { "file": "20260716090000_amora_memory_engine_v2.sql", "sha256": "92e462e886b63b67fd1419e4fd60287618bb11ebd2591dc3f7781998a456dfbb" },
+    { "file": "20260716090000_amora_memory_engine_v2.sql", "sha256": "9a7f2a466c893e74128c4861456638e2391bea65dae61e84cebcdb3833ddd2ee" },
     { "file": "20260716091000_care_explicit_consent.sql", "sha256": "0e9ac0f9d114357b567b0dfbaa6db09a009947b9b071b4c6282f9a99c34439d6" },
-    { "file": "20260716092000_amora_mediation_confirmation.sql", "sha256": "53b965c2820273457d4a5a36a49cf20640e78024570c2228510e8d69b449f41a" }
+    { "file": "20260716092000_amora_mediation_confirmation.sql", "sha256": "01e3a0586ec5b38d0737c1a70c899490283f06b3ebc7eb5e8c48a54baa91680a" }
   ],
   "appliedHotfixes": [],
   "historicalEffectAudit": {
@@ -17,7 +17,7 @@
   "requiredDocuments": [
     {
       "file": "docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md",
-      "sha256": "491ab02d20721c039128a71941eb3badb22015a33d51178208080ba105c5ca19"
+      "sha256": "ceb29e623090424cec1ddc70d42ab372c45212410a3687fa8c1e81acde5ebc07"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",

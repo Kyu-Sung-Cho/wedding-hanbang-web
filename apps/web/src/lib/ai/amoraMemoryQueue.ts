@@ -20,20 +20,19 @@ export async function getAmoraMemoryEnablement(
   const client = admin ?? createAdminClient();
   const requested = [...new Set(visibilities)];
   if (requested.length === 0) return result;
-  const { data, error } = await client
-    .from("amora_memory_settings")
-    .select("visibility, enabled")
-    .eq("couple_id", coupleId)
-    .in("visibility", requested);
-  if (error) {
-    console.error("[amora-memory] setting lookup failed", error.code ?? "unknown");
-    return result;
-  }
-  for (const row of data ?? []) {
-    const rowVisibility = row.visibility as unknown;
-    if (rowVisibility === "shared" || rowVisibility === "bride_private" || rowVisibility === "groom_private") {
-      result[rowVisibility] = row.enabled === true;
+  const checks = await Promise.all(requested.map(async (visibility) => {
+    const { data, error } = await client.rpc("has_current_amora_memory_consent", {
+      p_couple_id: coupleId,
+      p_visibility: visibility,
+    });
+    if (error) {
+      console.error("[amora-memory] current consent lookup failed", error.code ?? "unknown");
+      return [visibility, false] as const;
     }
+    return [visibility, data === true] as const;
+  }));
+  for (const [visibility, enabled] of checks) {
+    result[visibility] = enabled;
   }
   return result;
 }

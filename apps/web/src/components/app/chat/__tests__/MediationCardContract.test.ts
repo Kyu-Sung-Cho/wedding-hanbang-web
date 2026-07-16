@@ -28,4 +28,14 @@ describe("Amora mediation card wiring", () => {
     expect(source).toContain('fetch("/api/amora/mediation/accept"');
     expect(source).toContain("body: JSON.stringify({ messageId })");
   });
+
+  it("lets a person revoke only their pending confirmation through the server contract", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/app/chat/MediationCard.tsx"),
+      "utf8",
+    );
+    expect(source).toContain('updateAcceptance("DELETE")');
+    expect(source).toContain("내 확인 취소");
+    expect(source).toContain("acceptance?.completed");
+  });
 });

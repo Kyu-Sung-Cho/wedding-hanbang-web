@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { hasUnanimousCareConsent } from "@/lib/care/careConsent";
+import {
+  hasSameCareMemberRoster,
+  hasUnanimousCareConsent,
+} from "@/lib/care/careConsent";
 
 describe("shared proactive-care consent", () => {
   const consented = (id: string) => ({
@@ -30,5 +33,11 @@ describe("shared proactive-care consent", () => {
 
   it("fails closed when there is no linked member", () => {
     expect(hasUnanimousCareConsent([], [])).toBe(false);
+  });
+
+  it("rejects a stale email recipient snapshot after a member leaves or is replaced", () => {
+    expect(hasSameCareMemberRoster(["bride", "groom"], ["groom", "bride"])).toBe(true);
+    expect(hasSameCareMemberRoster(["bride", "groom"], ["bride", "new-groom"])).toBe(false);
+    expect(hasSameCareMemberRoster(["bride", "groom"], ["bride"])).toBe(false);
   });
 });

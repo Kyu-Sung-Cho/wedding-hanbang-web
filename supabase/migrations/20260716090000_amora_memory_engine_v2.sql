@@ -49,6 +49,22 @@ CREATE INDEX IF NOT EXISTS decision_nodes_active_memory_lookup_idx
   ON public.decision_nodes(couple_id, visibility, updated_at DESC)
   WHERE memory_key IS NOT NULL AND superseded_at IS NULL;
 
+DO $block$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.chat_summaries
+    WHERE to_message_id IS NOT NULL
+    GROUP BY couple_id, visibility, to_message_id
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_SUMMARY_CURSOR_DUPLICATES'
+      USING ERRCODE = '23505',
+            HINT = 'Resolve duplicate chat_summaries rows on an isolated clone before applying this migration.';
+  END IF;
+END
+$block$;
+
 CREATE UNIQUE INDEX IF NOT EXISTS chat_summaries_cursor_unique
   ON public.chat_summaries(couple_id, visibility, to_message_id)
   WHERE to_message_id IS NOT NULL;
@@ -61,6 +77,7 @@ CREATE TABLE IF NOT EXISTS public.amora_memory_settings (
   enabled_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   enabled_at timestamptz,
   memory_reset_at timestamptz,
+  legacy_purged_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (couple_id, visibility),
@@ -69,6 +86,12 @@ CREATE TABLE IF NOT EXISTS public.amora_memory_settings (
     OR (enabled = true AND enabled_at IS NOT NULL)
   )
 );
+
+-- An earlier pre-production draft created this table before the one-time
+-- legacy cleanup marker existed. Keep clone rehearsals and retries compatible;
+-- the production release is still gated and has not applied this migration.
+ALTER TABLE public.amora_memory_settings
+  ADD COLUMN IF NOT EXISTS legacy_purged_at timestamptz;
 
 ALTER TABLE public.amora_memory_settings ENABLE ROW LEVEL SECURITY;
 
@@ -168,6 +191,141 @@ CREATE TRIGGER set_amora_memory_jobs_updated_at
   BEFORE UPDATE ON public.amora_memory_jobs
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+CREATE OR REPLACE FUNCTION public.reset_amora_memory_after_membership_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+SET lock_timeout = '5s'
+SET statement_timeout = '30s'
+AS $function$
+DECLARE
+  v_reset_at timestamptz := now();
+  v_visibilities text[] := ARRAY['shared']::text[];
+  v_visibility text;
+BEGIN
+  IF OLD.bride_id IS DISTINCT FROM NEW.bride_id THEN
+    v_visibilities := pg_catalog.array_append(v_visibilities, 'bride_private');
+  END IF;
+  IF OLD.groom_id IS DISTINCT FROM NEW.groom_id THEN
+    v_visibilities := pg_catalog.array_append(v_visibilities, 'groom_private');
+  END IF;
+
+  FOREACH v_visibility IN ARRAY v_visibilities LOOP
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        'hanbang:amora-memory-consent:' || NEW.id::text || ':' || v_visibility,
+        0
+      )
+    );
+  END LOOP;
+
+  -- A couple roster defines the privacy audience. When that audience changes,
+  -- derived memory from the previous roster must be gone before the new member
+  -- can gain visibility through the existing couple row.
+  DELETE FROM public.decision_nodes
+  WHERE couple_id = NEW.id
+    AND visibility = ANY(v_visibilities)
+    AND (
+      memory_key IS NOT NULL
+      OR (
+        jsonb_typeof(COALESCE(metadata, '{}'::jsonb)) = 'object'
+        AND COALESCE(metadata, '{}'::jsonb) ? 'extracted_by'
+      )
+    );
+  DELETE FROM public.chat_summaries
+  WHERE couple_id = NEW.id AND visibility = ANY(v_visibilities);
+  DELETE FROM public.amora_couple_profiles
+  WHERE couple_id = NEW.id AND visibility = ANY(v_visibilities);
+  DELETE FROM public.amora_memory_consents
+  WHERE couple_id = NEW.id AND visibility = ANY(v_visibilities);
+  UPDATE public.amora_memory_jobs
+  SET status = 'cancelled', claimed_at = NULL, completed_at = v_reset_at, updated_at = v_reset_at
+  WHERE couple_id = NEW.id
+    AND visibility = ANY(v_visibilities)
+    AND status IN ('pending', 'processing');
+
+  INSERT INTO public.amora_memory_settings(
+    couple_id, visibility, enabled, enabled_by, enabled_at, memory_reset_at,
+    legacy_purged_at
+  )
+  SELECT NEW.id, visibility, false, NULL, NULL, v_reset_at, v_reset_at
+  FROM pg_catalog.unnest(v_visibilities) AS visibility
+  ON CONFLICT (couple_id, visibility) DO UPDATE SET
+    enabled = false,
+    enabled_by = NULL,
+    enabled_at = NULL,
+    memory_reset_at = v_reset_at,
+    legacy_purged_at = v_reset_at,
+    updated_at = v_reset_at;
+
+  RETURN NEW;
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.reset_amora_memory_after_membership_change()
+  FROM PUBLIC, anon, authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_reset_amora_memory_after_membership_change
+  ON public.couples;
+CREATE TRIGGER trg_reset_amora_memory_after_membership_change
+  AFTER UPDATE OF bride_id, groom_id ON public.couples
+  FOR EACH ROW
+  WHEN (
+    OLD.bride_id IS DISTINCT FROM NEW.bride_id
+    OR OLD.groom_id IS DISTINCT FROM NEW.groom_id
+  )
+  EXECUTE FUNCTION public.reset_amora_memory_after_membership_change();
+
+CREATE OR REPLACE FUNCTION public.has_current_amora_memory_consent(
+  p_couple_id uuid,
+  p_visibility text
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+SET statement_timeout = '5s'
+AS $function$
+  WITH current_members AS (
+    SELECT member.user_id
+    FROM public.couples AS couple
+    CROSS JOIN LATERAL (
+      VALUES
+        (couple.bride_id, 'bride_private'::text),
+        (couple.groom_id, 'groom_private'::text)
+    ) AS member(user_id, private_visibility)
+    WHERE couple.id = p_couple_id
+      AND member.user_id IS NOT NULL
+      AND (p_visibility = 'shared' OR p_visibility = member.private_visibility)
+  )
+  SELECT p_visibility IN ('shared', 'bride_private', 'groom_private')
+    AND EXISTS (SELECT 1 FROM current_members)
+    AND (
+      p_visibility <> 'shared'
+      OR (SELECT count(*) FROM current_members) = 2
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.amora_memory_settings AS setting
+      WHERE setting.couple_id = p_couple_id
+        AND setting.visibility = p_visibility
+        AND setting.enabled = true
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM current_members AS member
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.amora_memory_consents AS consent
+        WHERE consent.couple_id = p_couple_id
+          AND consent.visibility = p_visibility
+          AND consent.user_id = member.user_id
+      )
+    )
+$function$;
+
 CREATE OR REPLACE FUNCTION public.enqueue_amora_memory_job(
   p_couple_id uuid,
   p_user_id uuid,
@@ -210,10 +368,7 @@ BEGIN
     )
   );
 
-  IF NOT EXISTS (
-    SELECT 1 FROM public.amora_memory_settings
-    WHERE couple_id = p_couple_id AND visibility = p_visibility AND enabled = true
-  ) THEN
+  IF NOT public.has_current_amora_memory_consent(p_couple_id, p_visibility) THEN
     RETURN 'disabled';
   END IF;
 
@@ -225,6 +380,8 @@ BEGIN
     JOIN public.amora_memory_settings AS setting
       ON setting.couple_id = message.couple_id
      AND setting.visibility = message.visibility
+    JOIN public.couples AS couple
+      ON couple.id = message.couple_id
     WHERE message.id = p_to_message_id
       AND setting.couple_id = p_couple_id
       AND setting.visibility = p_visibility
@@ -388,7 +545,15 @@ DECLARE
   v_new_id uuid;
   v_tombstone_id uuid;
 BEGIN
-  IF p_visibility NOT IN ('shared', 'bride_private', 'groom_private')
+  IF p_visibility IS NULL
+     OR p_memory_key IS NULL
+     OR p_category IS NULL
+     OR p_title IS NULL
+     OR p_value IS NULL
+     OR p_confidence IS NULL
+     OR p_decision_type IS NULL
+     OR p_source_message_id IS NULL
+     OR p_visibility NOT IN ('shared', 'bride_private', 'groom_private')
      OR p_memory_key !~ '^[a-z][a-z0-9_]{1,31}:[a-z0-9_]{2,48}$'
      OR p_category !~ '^[a-z][a-z0-9_]{1,31}$'
      OR p_decision_type NOT IN ('considering', 'decided')
@@ -410,13 +575,7 @@ BEGIN
     )
   );
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.amora_memory_settings
-    WHERE couple_id = p_couple_id
-      AND visibility = p_visibility
-      AND enabled = true
-  ) THEN
+  IF NOT public.has_current_amora_memory_consent(p_couple_id, p_visibility) THEN
     RAISE EXCEPTION 'AMORA_MEMORY_DISABLED' USING ERRCODE = '55000';
   END IF;
 
@@ -429,11 +588,21 @@ BEGIN
     JOIN public.amora_memory_settings AS setting
       ON setting.couple_id = message.couple_id
      AND setting.visibility = message.visibility
+    JOIN public.couples AS couple
+      ON couple.id = message.couple_id
     WHERE message.id = p_source_message_id
       AND message.couple_id = p_couple_id
       AND message.visibility = p_visibility
       AND message.role = 'user'
-      AND message.sender_type IN ('bride', 'groom')
+      AND (
+        (message.sender_id = couple.bride_id AND message.sender_type = 'bride')
+        OR (message.sender_id = couple.groom_id AND message.sender_type = 'groom')
+      )
+      AND (
+        p_visibility = 'shared'
+        OR (p_visibility = 'bride_private' AND message.sender_id = couple.bride_id)
+        OR (p_visibility = 'groom_private' AND message.sender_id = couple.groom_id)
+      )
       AND setting.enabled = true
       AND setting.memory_reset_at IS NOT NULL
       AND message.created_at > setting.memory_reset_at
@@ -473,9 +642,13 @@ BEGIN
   LIMIT 1
   FOR UPDATE;
 
-  -- A correction made in Settings is authoritative. Automatic compilation may
-  -- not supersede it; the user can edit or delete it explicitly instead.
-  IF FOUND AND v_existing.user_confirmed_at IS NOT NULL THEN
+  -- A correction made in Settings is authoritative for the memory text.
+  -- Shared corrections are deliberately not treated as mutual confirmation,
+  -- so the metadata marker must protect them even without user_confirmed_at.
+  IF FOUND AND (
+    v_existing.user_confirmed_at IS NOT NULL
+    OR COALESCE(v_existing.metadata, '{}'::jsonb) ->> 'user_corrected' = 'true'
+  ) THEN
     RETURN v_existing.id;
   END IF;
 
@@ -586,11 +759,17 @@ BEGIN
   SET memory_key = COALESCE(memory_key, v_memory_key),
       title = p_title,
       chosen_value = jsonb_build_object('value', p_value),
-      confidence = 1.00,
-      user_confirmed_at = now(),
-      metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+      decision_type = CASE WHEN p_visibility = 'shared' THEN 'considering' ELSE decision_type END,
+      decided_at = CASE WHEN p_visibility = 'shared' THEN NULL ELSE decided_at END,
+      confidence = CASE WHEN p_visibility = 'shared' THEN 0.80 ELSE 1.00 END,
+      user_confirmed_at = CASE WHEN p_visibility = 'shared' THEN NULL ELSE now() END,
+      metadata = (COALESCE(metadata, '{}'::jsonb) - 'user_corrected_by') || jsonb_build_object(
         'user_corrected', true,
-        'user_corrected_by', p_user_id
+        'user_corrected_at', now(),
+        'correction_confirmation', CASE
+          WHEN p_visibility = 'shared' THEN 'single_member'
+          ELSE 'self'
+        END
       ),
       updated_at = now()
   WHERE couple_id = p_couple_id
@@ -662,11 +841,24 @@ BEGIN
 
   UPDATE public.decision_nodes
   SET memory_key = COALESCE(memory_key, v_memory_key),
+      category = 'deleted_memory',
+      decision_type = 'considering',
+      title = '삭제된 기억',
+      chosen_value = '{}'::jsonb,
+      options_considered = '[]'::jsonb,
+      reasoning = NULL,
+      confidence = NULL,
+      stage_tag = NULL,
+      decided_at = NULL,
+      source = 'chat',
+      source_ref_id = NULL,
+      source_message_id = NULL,
       superseded_at = now(),
-      user_confirmed_at = now(),
-      metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+      superseded_by = NULL,
+      user_confirmed_at = NULL,
+      metadata = jsonb_build_object(
         'user_deleted', true,
-        'user_deleted_by', p_user_id
+        'deleted_at', now()
       ),
       updated_at = now()
   WHERE couple_id = p_couple_id
@@ -711,6 +903,10 @@ BEGIN
       0
     )
   );
+
+  IF NOT public.has_current_amora_memory_consent(p_couple_id, p_visibility) THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_DISABLED' USING ERRCODE = '55000';
+  END IF;
 
   IF NOT EXISTS (
     SELECT 1
@@ -777,6 +973,7 @@ DECLARE
   v_enabled boolean;
   v_was_enabled boolean := false;
   v_memory_reset_at timestamptz;
+  v_legacy_purged_at timestamptz;
 BEGIN
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
   FROM public.couples WHERE id = p_couple_id;
@@ -798,8 +995,8 @@ BEGIN
     )
   );
 
-  SELECT enabled, memory_reset_at
-    INTO v_was_enabled, v_memory_reset_at
+  SELECT enabled, memory_reset_at, legacy_purged_at
+    INTO v_was_enabled, v_memory_reset_at, v_legacy_purged_at
   FROM public.amora_memory_settings
   WHERE couple_id = p_couple_id AND visibility = p_visibility;
   v_was_enabled := COALESCE(v_was_enabled, false);
@@ -817,9 +1014,10 @@ BEGIN
   END IF;
 
   IF p_visibility = 'shared' THEN
-    SELECT count(DISTINCT member_id)::integer INTO v_required
-    FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)
-    WHERE member_id IS NOT NULL;
+    -- Shared memory is a two-person product. A solo account can use its
+    -- role-private scope; shared processing starts only after a partner is
+    -- linked and both people consent to the current roster.
+    v_required := 2;
   ELSE
     v_required := 1;
   END IF;
@@ -835,7 +1033,7 @@ BEGIN
     );
 
   v_enabled := v_required > 0 AND v_consented >= v_required;
-  IF v_enabled AND NOT v_was_enabled AND v_memory_reset_at IS NULL THEN
+  IF v_enabled AND v_legacy_purged_at IS NULL THEN
     -- First activation starts clean. Historical automatic summaries/profiles
     -- were created before explicit consent existed, so they cannot become
     -- newly usable merely because the user opts in today. A memory the user
@@ -844,6 +1042,7 @@ BEGIN
     WHERE couple_id = p_couple_id
       AND visibility = p_visibility
       AND user_confirmed_at IS NULL
+      AND COALESCE(metadata, '{}'::jsonb) ->> 'user_corrected' IS DISTINCT FROM 'true'
       AND (
         memory_key IS NOT NULL
         OR (
@@ -855,6 +1054,7 @@ BEGIN
     WHERE couple_id = p_couple_id AND visibility = p_visibility;
     DELETE FROM public.amora_couple_profiles
     WHERE couple_id = p_couple_id AND visibility = p_visibility;
+    v_legacy_purged_at := now();
   END IF;
   IF (v_enabled AND NOT v_was_enabled) OR NOT p_consented THEN
     -- Consent is prospective. Never compile conversations from before first
@@ -862,18 +1062,21 @@ BEGIN
     v_memory_reset_at := now();
   END IF;
   INSERT INTO public.amora_memory_settings(
-    couple_id, visibility, enabled, enabled_by, enabled_at, memory_reset_at
+    couple_id, visibility, enabled, enabled_by, enabled_at, memory_reset_at,
+    legacy_purged_at
   ) VALUES (
     p_couple_id, p_visibility, v_enabled,
     CASE WHEN v_enabled THEN p_user_id ELSE NULL END,
     CASE WHEN v_enabled THEN now() ELSE NULL END,
-    v_memory_reset_at
+    v_memory_reset_at,
+    v_legacy_purged_at
   )
   ON CONFLICT (couple_id, visibility) DO UPDATE SET
     enabled = excluded.enabled,
     enabled_by = excluded.enabled_by,
     enabled_at = excluded.enabled_at,
     memory_reset_at = excluded.memory_reset_at,
+    legacy_purged_at = excluded.legacy_purged_at,
     updated_at = now();
 
   IF NOT v_enabled THEN
@@ -956,15 +1159,17 @@ BEGIN
     AND status IN ('pending', 'processing');
 
   INSERT INTO public.amora_memory_settings(
-    couple_id, visibility, enabled, enabled_by, enabled_at, memory_reset_at
+    couple_id, visibility, enabled, enabled_by, enabled_at, memory_reset_at,
+    legacy_purged_at
   ) VALUES (
-    p_couple_id, p_visibility, false, NULL, NULL, v_reset_at
+    p_couple_id, p_visibility, false, NULL, NULL, v_reset_at, v_reset_at
   )
   ON CONFLICT (couple_id, visibility) DO UPDATE SET
     enabled = false,
     enabled_by = NULL,
     enabled_at = NULL,
     memory_reset_at = v_reset_at,
+    legacy_purged_at = v_reset_at,
     updated_at = v_reset_at;
 
   RETURN jsonb_build_object(
@@ -975,7 +1180,114 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION public.commit_amora_memory_job(
+  p_job_id uuid,
+  p_attempt_count integer,
+  p_memories jsonb,
+  p_summary text,
+  p_message_count integer,
+  p_from_message_id uuid,
+  p_to_message_id uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+SET lock_timeout = '5s'
+SET statement_timeout = '30s'
+AS $function$
+DECLARE
+  v_job public.amora_memory_jobs%ROWTYPE;
+  v_couple_id uuid;
+  v_visibility text;
+  v_memory jsonb;
+  v_finished boolean;
+BEGIN
+  IF p_job_id IS NULL
+     OR p_attempt_count NOT BETWEEN 1 AND 5
+     OR p_to_message_id IS NULL
+     OR jsonb_typeof(p_memories) IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_COMMIT_INVALID' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_memories) > 8 THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_COMMIT_INVALID' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT couple_id, visibility
+    INTO v_couple_id, v_visibility
+  FROM public.amora_memory_jobs
+  WHERE id = p_job_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_JOB_NOT_FOUND' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Keep the same lock order as consent withdrawal: scope first, job row next.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'hanbang:amora-memory-consent:' || v_couple_id::text || ':' || v_visibility,
+      0
+    )
+  );
+
+  SELECT * INTO v_job
+  FROM public.amora_memory_jobs
+  WHERE id = p_job_id
+    AND couple_id = v_couple_id
+    AND visibility = v_visibility
+    AND status = 'processing'
+    AND attempt_count = p_attempt_count
+  FOR UPDATE;
+  IF NOT FOUND OR v_job.to_message_id IS DISTINCT FROM p_to_message_id THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_JOB_LEASE_INVALID' USING ERRCODE = '55000';
+  END IF;
+  IF NOT public.has_current_amora_memory_consent(v_couple_id, v_visibility) THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_DISABLED' USING ERRCODE = '55000';
+  END IF;
+
+  FOR v_memory IN
+    SELECT element FROM jsonb_array_elements(p_memories) AS memories(element)
+  LOOP
+    PERFORM public.upsert_amora_memory_node(
+      v_couple_id,
+      v_visibility,
+      v_memory ->> 'memory_key',
+      v_memory ->> 'category',
+      v_memory ->> 'title',
+      v_memory ->> 'value',
+      NULLIF(v_memory ->> 'reasoning', ''),
+      (v_memory ->> 'confidence')::numeric,
+      v_memory ->> 'decision_type',
+      (v_memory ->> 'source_message_id')::uuid,
+      COALESCE(v_memory -> 'metadata', '{}'::jsonb)
+    );
+  END LOOP;
+
+  PERFORM public.insert_amora_memory_summary(
+    v_couple_id,
+    v_job.user_id,
+    v_visibility,
+    p_summary,
+    p_message_count,
+    p_from_message_id,
+    p_to_message_id
+  );
+
+  v_finished := public.finish_amora_memory_job(
+    p_job_id,
+    true,
+    NULL,
+    p_attempt_count
+  );
+  IF NOT v_finished THEN
+    RAISE EXCEPTION 'AMORA_MEMORY_JOB_FINISH_INVALID' USING ERRCODE = '55000';
+  END IF;
+  RETURN true;
+END
+$function$;
+
 REVOKE ALL ON FUNCTION public.claim_amora_memory_job(integer)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.has_current_amora_memory_consent(uuid, text)
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.enqueue_amora_memory_job(uuid, uuid, text, uuid)
   FROM PUBLIC, anon, authenticated;
@@ -996,8 +1308,13 @@ REVOKE ALL ON FUNCTION public.set_amora_memory_consent(uuid, text, uuid, boolean
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.clear_amora_memory_scope(uuid, text, uuid)
   FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.commit_amora_memory_job(
+  uuid, integer, jsonb, text, integer, uuid, uuid
+) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.claim_amora_memory_job(integer) TO service_role;
+GRANT EXECUTE ON FUNCTION public.has_current_amora_memory_consent(uuid, text)
+  TO service_role;
 GRANT EXECUTE ON FUNCTION public.enqueue_amora_memory_job(uuid, uuid, text, uuid)
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.finish_amora_memory_job(uuid, boolean, text, integer) TO service_role;
@@ -1016,6 +1333,9 @@ GRANT EXECUTE ON FUNCTION public.set_amora_memory_consent(uuid, text, uuid, bool
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.clear_amora_memory_scope(uuid, text, uuid)
   TO service_role;
+GRANT EXECUTE ON FUNCTION public.commit_amora_memory_job(
+  uuid, integer, jsonb, text, integer, uuid, uuid
+) TO service_role;
 
 COMMENT ON TABLE public.amora_memory_settings IS
   'Explicit per-couple/per-visibility consent and kill switch for chat-derived Amora memory.';

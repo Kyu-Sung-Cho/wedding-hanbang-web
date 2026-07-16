@@ -10,7 +10,9 @@ import * as Crypto from "expo-crypto";
 import { Send, Sparkles, Heart } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { normalizeMediationBlock } from "@/lib/amoraMediation";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
+import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
@@ -19,6 +21,7 @@ interface ChatMessageMetadata {
   target?: string;
   client_request_id?: string;
   client_visible_request_id?: string;
+  mediation?: unknown;
 }
 
 interface ChatMessage {
@@ -849,6 +852,9 @@ export default function ChatScreen() {
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
     const isThinking = isAi && item.id.startsWith("temp_") && !item.content && streaming;
+    const mediationBlock = isAi
+      ? normalizeMediationBlock(item.metadata?.mediation)
+      : null;
     const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
@@ -859,11 +865,16 @@ export default function ChatScreen() {
             {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <Text style={st.avatarLetter}>{isBride ? "신부" : "신랑"}</Text>}
           </View>
         )}
-        <View style={{ maxWidth: "78%" }}>
+        <View style={[st.messageBody, mediationBlock && st.mediationMessageBody]}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
-          <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
-            {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
-          </View>
+          {(isThinking || Boolean(item.content.trim())) && (
+            <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+            </View>
+          )}
+          {mediationBlock && (
+            <AmoraMediationCard block={mediationBlock} messageId={item.id} />
+          )}
         </View>
       </View>
     );
@@ -961,6 +972,8 @@ const st = StyleSheet.create({
   messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
+  messageBody: { maxWidth: "78%" },
+  mediationMessageBody: { maxWidth: "92%", flex: 1 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
   avatarBride: { backgroundColor: "#F5E6DF" },

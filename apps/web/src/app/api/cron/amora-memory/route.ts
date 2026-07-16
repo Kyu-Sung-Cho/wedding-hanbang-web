@@ -7,7 +7,10 @@ import {
   type AmoraMemoryVisibility,
   type MemoryCompilerMessage,
 } from "@/lib/ai/amoraMemoryCompiler";
-import { isAuxiliaryMemoryRuntimeEnabled } from "@/lib/ai/amoraMemoryQueue";
+import {
+  getAmoraMemoryEnablement,
+  isAuxiliaryMemoryRuntimeEnabled,
+} from "@/lib/ai/amoraMemoryQueue";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -64,7 +67,12 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
     .eq("visibility", job.visibility)
     .maybeSingle();
   if (settingError) throw new Error("MEMORY_SETTING_LOOKUP_FAILED");
-  if (setting?.enabled !== true) {
+  const currentEnablement = await getAmoraMemoryEnablement(
+    job.couple_id,
+    [job.visibility],
+    admin,
+  );
+  if (setting?.enabled !== true || currentEnablement[job.visibility] !== true) {
     const { error } = await admin
       .from("amora_memory_jobs")
       .update({ status: "cancelled", claimed_at: null, completed_at: new Date().toISOString() })
@@ -157,42 +165,39 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
     messages: compilerMessages,
   });
 
-  for (const memory of compilation.memories) {
-    const { error } = await admin.rpc("upsert_amora_memory_node", {
-      p_couple_id: job.couple_id,
-      p_visibility: job.visibility,
-      p_memory_key: memory.memoryKey,
-      p_category: memory.category,
-      p_title: memory.title,
-      p_value: memory.value,
-      p_reasoning: memory.reasoning,
-      p_confidence: memory.confidence,
-      p_decision_type: memory.kind === "preference" ? "considering" : "decided",
-      p_source_message_id: memory.sourceMessageId,
-      p_metadata: {
+  const lastMessageId = messages[messages.length - 1]?.id;
+  if (!lastMessageId) throw new Error("MEMORY_CURSOR_MISSING");
+  const { data: committed, error: commitError } = await admin.rpc("commit_amora_memory_job", {
+    p_job_id: job.id,
+    p_attempt_count: job.attempt_count,
+    p_memories: compilation.memories.map((memory) => ({
+      memory_key: memory.memoryKey,
+      category: memory.category,
+      title: memory.title,
+      value: memory.value,
+      reasoning: memory.reasoning,
+      confidence: memory.confidence,
+      // An AI extraction from a shared chat is never mutual confirmation.
+      // Only the explicit two-person mediation flow may create a shared
+      // `decided` node. Private memories may preserve the user's own decision.
+      decision_type: job.visibility === "shared" || memory.kind === "preference"
+        ? "considering"
+        : "decided",
+      source_message_id: memory.sourceMessageId,
+      metadata: {
         memory_kind: memory.kind,
         explicit: true,
         compiled_by: "openai_luna_v2",
       },
-    });
-    if (error) throw new Error("MEMORY_NODE_UPSERT_FAILED");
-  }
-
-  const lastMessageId = messages[messages.length - 1]?.id;
-  if (!lastMessageId) throw new Error("MEMORY_CURSOR_MISSING");
-  const { error: insertSummaryError } = await admin.rpc("insert_amora_memory_summary", {
-    p_couple_id: job.couple_id,
-    p_user_id: job.user_id,
-    p_visibility: job.visibility,
+    })),
     p_summary: compilation.summary,
     p_message_count: messages.length,
     p_from_message_id: resetDominatesCursor ? null : previousMessageId ?? null,
     p_to_message_id: lastMessageId,
   });
-  if (insertSummaryError) {
-    throw new Error("MEMORY_SUMMARY_INSERT_FAILED");
+  if (commitError || committed !== true) {
+    throw new Error("MEMORY_BUNDLE_COMMIT_FAILED");
   }
-  await finishJob(job.id, job.attempt_count, true);
   return "compiled";
 }
 

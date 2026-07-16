@@ -42,6 +42,8 @@ type MemoryItem = {
   reasoning: string | null;
   confidence: number | null;
   userConfirmedAt: string | null;
+  userCorrected: boolean;
+  sourceMessageId: string | null;
   updatedAt: string;
 };
 
@@ -67,7 +69,7 @@ type MemoryResponse = {
 };
 
 const KIND_LABELS: Record<string, string> = {
-  decision: "확정한 선택",
+  decision: "대화에서 말한 선택",
   preference: "선호",
   constraint: "꼭 지킬 조건",
   relationship: "가족·커플 맥락",
@@ -299,27 +301,27 @@ export default function AmoraMemorySettingsPage() {
                 <div className="flex items-center gap-2">
                   {activeVisibility === "shared" ? <Users className="h-4 w-4 text-[#795252]" /> : <Eye className="h-4 w-4 text-[#795252]" />}
                   <h2 className="font-medium text-[#1A1A1F]">
-                    대화 기억 {data?.runtimeEnabled ? setting?.enabled ? "켜짐" : "꺼짐" : "준비 중"}
+                    {activeVisibility === "shared" ? "내 공유 기억 동의" : "나만 상담 기억"}
                   </h2>
                 </div>
                 <p className="mt-1 text-sm font-light leading-relaxed text-[#928980]">
                   {activeVisibility === "shared"
                     ? setting?.enabled
-                      ? "두 분 모두 동의했어요. 공유 대화의 기억은 두 분이 함께 보고 활용해요."
+                      ? "공유 기억 상태 · 켜짐. 두 분이 각각 동의했고 함께 보고 활용해요."
                       : setting?.consentedByMe
-                        ? `내 동의 저장됨 · 상대방 동의를 기다리고 있어요 (${setting.consentedCount}/${setting.requiredCount})`
-                        : "공유 대화를 장기기억으로 정리하려면 두 분 모두 동의해야 해요."
-                    : "개인 상담의 기억은 파트너에게 보이지 않아요."}
+                        ? `공유 기억 상태 · 동의 대기 (${setting.consentedCount}/${setting.requiredCount}). 파트너 구성 변경 시 두 분의 동의를 새로 받아요.`
+                        : "공유 기억 상태 · 꺼짐. 파트너 연결 후 두 분이 각각 동의해야 시작돼요."
+                    : `나만 상담 기억 상태 · ${setting?.enabled ? "켜짐" : "꺼짐"}. 파트너에게 보이지 않아요.`}
                 </p>
               </div>
               <button
                 type="button"
                 role="switch"
                 aria-checked={setting?.consentedByMe === true}
-                aria-label="아모라 대화 기억"
+                aria-label={activeVisibility === "shared" ? "내 공유 기억 동의" : "나만 상담 기억"}
                 disabled={busy || !setting || (!data?.runtimeEnabled && !setting.consentedByMe)}
                 onClick={() => void toggleMemory()}
-                className="relative h-11 w-14 flex-shrink-0 rounded-full transition-opacity disabled:opacity-50"
+                className="relative h-11 w-14 flex-shrink-0 rounded-full transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 disabled:opacity-50"
               >
                 <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${setting?.consentedByMe ? "bg-[#2E7D5A]" : "bg-[#D8D1CC]"}`} />
                 <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${setting?.consentedByMe ? "translate-x-7" : "translate-x-1.5"}`} />
@@ -390,7 +392,12 @@ export default function AmoraMemorySettingsPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="rounded-full bg-[#F7F1E8] px-2.5 py-1 text-xs font-medium text-[#8F6662]">{KIND_LABELS[memory.kind] ?? "대화 기억"}</span>
-                              {memory.userConfirmedAt && <span className="inline-flex items-center gap-1 text-xs font-medium text-[#6D806E]"><Check className="h-3 w-3" /> 직접 확인</span>}
+                              {memory.userCorrected && (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-[#6D806E]">
+                                  <Check className="h-3 w-3" />
+                                  {activeVisibility === "shared" ? "한 사람이 직접 고침 · 공동 확인 아님" : "내가 직접 고침"}
+                                </span>
+                              )}
                               <span className="text-xs text-[#B89785]">{formatDate(memory.updatedAt)}</span>
                             </div>
                             <h3 className="mt-2 text-sm font-semibold text-[#1A1A1F]">{memory.title ?? "기억"}</h3>

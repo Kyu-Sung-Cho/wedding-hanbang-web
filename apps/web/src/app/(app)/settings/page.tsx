@@ -97,6 +97,8 @@ export default function SettingsPage() {
   const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
+  const [careSaving, setCareSaving] = useState(false);
+  const [careMessage, setCareMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setPhoneInput(profile?.phone ?? "");
@@ -122,6 +124,21 @@ export default function SettingsPage() {
     } finally {
       setPhoneSaving(false);
       window.setTimeout(() => setPhoneMessage(null), 4000);
+    }
+  }
+
+  async function toggleCareNotifications() {
+    if (isDemo || careSaving) return;
+    setCareSaving(true);
+    setCareMessage(null);
+    try {
+      const enabling = profile?.care_notifications_enabled !== true;
+      await updateProfile({ care_notifications_enabled: enabling });
+      setCareMessage(enabling ? "내 수신 동의를 저장했어요." : "내 수신 동의를 해제했어요.");
+    } catch (error) {
+      setCareMessage(error instanceof Error ? error.message : "알림 설정을 저장하지 못했어요.");
+    } finally {
+      setCareSaving(false);
     }
   }
 
@@ -794,23 +811,20 @@ export default function SettingsPage() {
           {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
           <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
             <div>
-              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기</p>
+              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기 · 내 동의</p>
               <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 전후에 먼저 챙겨요. 공유 대화 알림은 두 분 모두 켜야 시작돼요
+                상견례·청첩장 모임 전후 알림이에요. 두 분이 각각 동의해야 공유 케어가 시작돼요
               </p>
+              {careMessage && <p aria-live="polite" className="mt-1 text-sm text-[#795252]">{careMessage}</p>}
             </div>
             <button
               type="button"
               role="switch"
               aria-label="아모라 먼저 챙기기"
               aria-checked={profile?.care_notifications_enabled === true}
-              onClick={() => {
-                if (isDemo) return;
-                updateProfile({
-                  care_notifications_enabled: profile?.care_notifications_enabled !== true,
-                }).catch(() => {});
-              }}
-              className="relative h-11 w-14 flex-shrink-0 rounded-full"
+              disabled={isDemo || careSaving}
+              onClick={() => void toggleCareNotifications()}
+              className="relative h-11 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${
                 profile?.care_notifications_enabled === true ? "bg-[#8F6662]" : "bg-[#C7D1C2]"

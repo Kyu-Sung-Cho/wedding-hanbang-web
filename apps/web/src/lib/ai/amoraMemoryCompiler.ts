@@ -35,14 +35,16 @@ const MEMORY_KEY_PATTERN = /^[a-z][a-z0-9_]{1,31}:[a-z0-9_]{2,48}$/;
 const CATEGORY_PATTERN = /^[a-z][a-z0-9_]{1,31}$/;
 const MEMORY_KINDS = new Set(["decision", "preference", "constraint", "relationship", "fact"]);
 const SENSITIVE_TOKEN_PATTERNS = [
-  "\\b\\d{6}[- ]?[1-4]\\d{6}\\b", // Korean resident registration number
-  "\\b01[016789][- ]?\\d{3,4}[- ]?\\d{4}\\b", // Korean mobile number
+  "\\b\\d{6}[- .]?[1-8]\\d{6}\\b", // Korean resident/foreigner registration number
+  "\\b01[016789][- .]?\\d{3,4}[- .]?\\d{4}\\b", // Korean mobile number
   "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", // email
+  "\\b(?:\\d[- .]?){9,18}\\d\\b", // unlabeled account/card/phone-like long number
   "(?:계좌(?:번호)?|account)\\s*[:=은는]?\\s*[\\d -]{8,}",
   "(?:카드(?:번호)?|card)\\s*[:=은는]?\\s*[\\d -]{12,}",
   "(?:비밀번호|패스워드|password|pwd)\\s*[:=은는]?\\s*\\S+",
   "(?:집|자택|거주지)?주소\\s*[:=은는]?\\s*[^,\\n]{3,100}",
-  "(?:질병|진단|임신|알레르기|성생활|성관계)\\s*[^,.\\n]{0,80}",
+  "(?:[가-힣A-Za-z0-9]+(?:로|길)\\s*\\d{1,5}(?:[- ]\\d{1,5})?)", // street-level address
+  "(?:질병|진단|임신|알레르기|성생활|성관계|당뇨|인슐린|암|투병|수술|복용|우울증|정신과|혈압|HIV|medical|health|diagnos(?:is|ed)?|pregnan(?:t|cy)?|disease)\\s*[^,.\\n]{0,80}",
 ] as const;
 
 function sensitivePattern(source: string, global = false): RegExp {
@@ -186,7 +188,13 @@ export function validateAmoraMemoryCompilation(
       throw new Error("invalid memory confidence");
     }
     if (memory.explicit !== true) throw new Error("memory must be explicit");
-    const sensitiveCandidate = [memory.title, memory.value, memory.reasoning ?? ""].join("\n");
+    const sensitiveCandidate = [
+      memory.memory_key,
+      memory.category,
+      memory.title,
+      memory.value,
+      memory.reasoning ?? "",
+    ].join("\n");
     if (containsPotentialSensitiveData(sensitiveCandidate)) continue;
     if (seenKeys.has(memory.memory_key)) throw new Error("duplicate memory key");
     seenKeys.add(memory.memory_key);

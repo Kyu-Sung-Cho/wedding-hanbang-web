@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateAmoraMemoryCompilation } from "@/lib/ai/amoraMemoryCompiler";
+import {
+  containsPotentialSensitiveData,
+  validateAmoraMemoryCompilation,
+} from "@/lib/ai/amoraMemoryCompiler";
 
 const USER_MESSAGE_ID = "00000000-0000-4000-8000-000000000001";
 const OTHER_MESSAGE_ID = "00000000-0000-4000-8000-000000000002";
@@ -75,5 +78,29 @@ describe("Amora memory compiler boundary", () => {
     expect(result.summary).toBe("연락처는 [민감정보 제외]이고 강남 예식장을 선호한다.");
     expect(result.memories).toHaveLength(1);
     expect(result.memories[0]?.memoryKey).toBe("venue:backup_area");
+  });
+
+  it.each([
+    "010.1234.5678",
+    "900101-5123456",
+    "당뇨 때문에 인슐린 사용 중",
+    "서울시 강남구 테헤란로 123",
+    "110-245-123456",
+  ])("detects sensitive-data separator and label bypasses: %s", (value) => {
+    expect(containsPotentialSensitiveData(value)).toBe(true);
+  });
+
+  it("drops a sensitive semantic namespace even when the display text is euphemistic", () => {
+    const result = validateAmoraMemoryCompilation({
+      summary: "민감한 개인 상태를 언급했다.",
+      memories: [validMemory({
+        memory_key: "health:pregnant",
+        category: "health",
+        title: "현재 상태",
+        value: "12주차",
+      })],
+    }, new Set([USER_MESSAGE_ID]));
+
+    expect(result.memories).toHaveLength(0);
   });
 });

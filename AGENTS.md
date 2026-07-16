@@ -187,6 +187,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 # Amora AI — OpenAI 전용 런타임. 안전 게이트 통과 후 명시적으로 활성화
 AMORA_OPENAI_ENABLED=false
 AMORA_AUXILIARY_MEMORY_ENABLED=false
+AMORA_CARE_OUTBOUND_ENABLED=false
 OPENAI_API_KEY=sk-xxx...
 OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
 OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
@@ -384,6 +385,8 @@ For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md befo
   아이디어 문서의 심리 굴착, 성별 공식, 인간 검토 SLA는 구현 요구사항이 아니다.
 - `AMORA_AUXILIARY_MEMORY_ENABLED` 기본값은 `false`다. DB 마이그레이션, 백업·복구,
   비활성 카나리가 끝나기 전에 켜지 않는다.
+- `AMORA_CARE_OUTBOUND_ENABLED`도 별도 기본값 `false`다. 외부 이메일은 기억
+  worker와 독립적으로 roster 변경·동의·중복 발송 카나리를 통과한 뒤에만 켠다.
 - 기억 동의는 소급되지 않는다. 최초 활성화 또는 재활성화 이전의 대화를 나중에
   컴파일하지 않는다.
 - 메모리 큐·저장·수정·삭제·요약과 공유 케어 발송은 API의 사전 조회만 믿지 않고
