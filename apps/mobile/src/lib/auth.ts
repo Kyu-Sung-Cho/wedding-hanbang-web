@@ -1,19 +1,19 @@
 // Supabase 공식 Expo OAuth 플로우
 // https://supabase.com/docs/guides/auth/social-login/auth-kakao?queryGroups=framework&framework=expo
 //
-// 핵심: makeRedirectUri() + openAuthSessionAsync + setSession
-// PKCE/implicit 관계없이 URL에서 토큰을 직접 파싱하는 방식
+// 핵심: openAuthSessionAsync + PKCE authorization code exchange
 
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { extractMobileOAuthAuthorizationCode } from "@hanbang/shared/utils";
 import { supabase } from "./supabase";
 import type { Provider } from "@supabase/supabase-js";
 
 // iOS: 브라우저 인증 세션 완료 감지
 WebBrowser.maybeCompleteAuthSession();
 
-// 웹 콜백 페이지를 중간 다리로 사용
-// Supabase → https://hanbang.ai/auth/mobile-callback#tokens → 앱으로 딥링크
+// 웹 콜백 페이지를 중간 다리로 사용한다. 재사용 가능한 세션 토큰은 전달하지 않는다.
+// Supabase → https://hanbang.ai/auth/mobile-callback?code=... → 앱으로 딥링크
 const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const redirectTo = `${SITE_URL}/auth/mobile-callback`;
 
@@ -21,30 +21,11 @@ const redirectTo = `${SITE_URL}/auth/mobile-callback`;
 const appReturnUrl = Linking.createURL("auth/callback");
 
 /**
- * URL에서 세션 토큰 추출 → Supabase 세션 설정
+ * 앱에 저장된 PKCE verifier로 일회용 authorization code를 교환한다.
  */
 async function createSessionFromUrl(url: string) {
-  // hash fragment에서 토큰 추출: ...#access_token=xxx&refresh_token=xxx
-  const hashIndex = url.indexOf("#");
-  const queryIndex = url.indexOf("?");
-  const paramString = hashIndex !== -1
-    ? url.substring(hashIndex + 1)
-    : queryIndex !== -1
-      ? url.substring(queryIndex + 1)
-      : "";
-
-  const params = new URLSearchParams(paramString);
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (!accessToken || !refreshToken) {
-    throw new Error("토큰을 받지 못했습니다. 다시 시도해주세요.");
-  }
-
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
+  const code = extractMobileOAuthAuthorizationCode(url);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) throw error;
   return data.session;
@@ -100,7 +81,7 @@ export async function signInWithOAuth(provider: Provider) {
     throw new Error(`브라우저 오류: ${result.type}`);
   }
 
-  // 리턴된 URL에서 세션 생성
+  // 리턴된 URL의 일회용 code를 시작 기기의 verifier로 교환한다.
   const session = await createSessionFromUrl(result.url);
   return { cancelled: false, session };
 }

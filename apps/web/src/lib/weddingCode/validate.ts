@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 // 웨딩코드 응답 제출 검증 — 시스템 경계(API)에서 스키마를 강제한다.
 // 프로토타입이라도 쓰레기 데이터가 스모크 판독을 오염시키면 테스트 전체가 무효가 되므로
 // enum·범위·길이를 전부 잠근다. 채점은 결과 화면에서 클라이언트 참고용으로만 수행한다.

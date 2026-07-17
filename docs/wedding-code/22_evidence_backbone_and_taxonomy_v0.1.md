@@ -1,5 +1,10 @@
 # WeddingCode Evidence Backbone & Item Taxonomy v0.1
 
+> [!NOTE]
+> **REFERENCE-ONLY.** 출처·안전 원칙의 역사적 백본으로만 사용한다. 아래 유형, 희귀도, overlap,
+> 내부 구인·제품 라우팅 제안은 SUPERSEDED이며 Candidate 5의 문항·축·선택지 타당도를 증명하지
+> 않는다. 현행 상태와 문항별 근거 한계는 [`README.md`](./README.md), `55`, `56`, `57`을 따른다.
+
 작성일: 2026-07-07
 
 목표: 웨딩코드를 "재미있는 공유 테스트"로 만들되, 근거 없는 성격검사나 궁합 장사로 보이지 않게 한다.  

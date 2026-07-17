@@ -114,3 +114,113 @@ describe("proxy preview stub write fence", () => {
     expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
   });
 });
+
+describe("proxy production write fence", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each(["POST", "PUT", "PATCH", "DELETE"])(
+    "fails %s API requests closed with a non-cacheable maintenance response",
+    async (method) => {
+      vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
+      vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "a".repeat(40));
+
+      const response = await proxy(
+        new NextRequest("https://hanbang.ai/api/community/posts", { method })
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("retry-after")).toBe("60");
+      expect(response.headers.get("x-hanbang-deployment-commit")).toBe(
+        "a".repeat(40)
+      );
+      await expect(response.json()).resolves.toEqual({
+        error: "production_write_fence_enabled",
+      });
+      expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["GET", "HEAD", "OPTIONS"])(
+    "keeps %s API requests available for read-only and protocol traffic",
+    async (method) => {
+      vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
+      const request = new NextRequest("https://hanbang.ai/api/vendors", { method });
+
+      const response = await proxy(request);
+
+      expect(response.status).toBe(200);
+      expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    }
+  );
+
+  it.each([
+    "/api/cron/amora-memory",
+    "/api/auth/callback",
+    "/api/auth/me",
+    "/api/community/cohort",
+    "/api/community/profile",
+    "/api/couple/code",
+    "/api/messages",
+    "/api/vendors/12345678-1234-4234-8234-123456789abc",
+  ])("blocks a GET route with known write side effects: %s", async (pathname) => {
+    vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
+    const response = await proxy(
+      new NextRequest(`https://hanbang.ai${pathname}`, { method: "GET" })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: "production_write_fence_enabled",
+    });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("also blocks HEAD because Next.js may synthesize it from a mutating GET handler", async () => {
+    vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
+    const response = await proxy(
+      new NextRequest("https://hanbang.ai/api/cron/care-moments", { method: "HEAD" })
+    );
+
+    expect(response.status).toBe(503);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "/api/vendors",
+    "/api/messages/threads",
+    "/api/community/cohort/123/timeline",
+  ])("keeps an explicitly read-only neighboring GET available: %s", async (pathname) => {
+    vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", "true");
+    const request = new NextRequest(`https://hanbang.ai${pathname}`);
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it.each([undefined, "false", "TRUE", "1"])(
+    "does not activate for the non-exact value %s",
+    async (value) => {
+      if (value === undefined) vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", undefined);
+      else vi.stubEnv("PRODUCTION_WRITE_FENCE_ENABLED", value);
+      const request = new NextRequest("https://hanbang.ai/api/community/posts", {
+        method: "POST",
+      });
+
+      const response = await proxy(request);
+
+      expect(response.status).toBe(200);
+      expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+      expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+    }
+  );
+});

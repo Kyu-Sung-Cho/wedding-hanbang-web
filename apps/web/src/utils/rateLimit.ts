@@ -1,5 +1,7 @@
+import { createHash, createHmac } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 
 // 간단한 인메모리 Rate Limiter (서버리스 환경)
 // Vercel 서버리스에서는 인스턴스당 메모리 — 완벽하지 않지만 기본 방어용
@@ -23,12 +25,31 @@ export interface RateLimitConfig {
   windowMs: number;
 }
 
+export interface PersistentRateLimitOptions {
+  /**
+   * Defaults to true: a shared-store failure must not silently become an
+   * instance-local allowance in a horizontally scaled deployment. Set false
+   * only for an explicitly reviewed, non-sensitive best-effort endpoint.
+   */
+  failClosed?: boolean;
+}
+
 function rateLimitResponse(retryAfter: number): NextResponse {
   return NextResponse.json(
     { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
     {
       status: 429,
       headers: { "Retry-After": String(Math.max(1, retryAfter)) },
+    },
+  );
+}
+
+function rateLimitUnavailableResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "요청 제한 확인에 실패했습니다. 잠시 후 다시 시도해주세요." },
+    {
+      status: 503,
+      headers: { "Retry-After": "60" },
     },
   );
 }
@@ -61,28 +82,30 @@ export function checkRateLimit(
   return null;
 }
 
-let adminClient: SupabaseClient | null = null;
-
 function getAdminClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  adminClient ??= createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  return adminClient;
+  return createPinnedAdminClient();
 }
 
 /**
  * 서버리스 인스턴스를 넘어 공유되는 rate limit.
- * Supabase RPC가 없거나 실패하면 기존 인메모리 limiter로 fallback한다.
+ * Shared-store failures are fail-closed by default. An explicitly reviewed
+ * best-effort endpoint may opt into the instance-local fallback.
  */
 export async function checkRateLimitPersistent(
   key: string,
   config: RateLimitConfig,
+  options: PersistentRateLimitOptions = {},
 ): Promise<NextResponse | null> {
+  const failClosed = options.failClosed !== false;
   const admin = getAdminClient();
-  if (!admin) return checkRateLimit(key, config);
+  if (!admin) {
+    return failClosed
+      ? rateLimitUnavailableResponse()
+      : checkRateLimit(key, config);
+  }
 
   try {
     const { data, error } = await admin.rpc("check_rate_limit", {
@@ -91,19 +114,31 @@ export async function checkRateLimitPersistent(
       p_window_ms: config.windowMs,
     });
     if (error) {
-      console.error("[rateLimit] persistent check failed; falling back:", error.message);
-      return checkRateLimit(key, config);
+      console.error("[rateLimit] persistent check failed:", error.message);
+      return failClosed
+        ? rateLimitUnavailableResponse()
+        : checkRateLimit(key, config);
     }
 
     const result = Array.isArray(data) ? data[0] : data;
-    const allowed = result?.allowed === true;
-    if (allowed) return null;
+    if (result?.allowed === true) return null;
+    if (result?.allowed !== false) {
+      console.error("[rateLimit] persistent check returned an invalid result");
+      return failClosed
+        ? rateLimitUnavailableResponse()
+        : checkRateLimit(key, config);
+    }
 
-    const retryAfter = Number(result?.retry_after_seconds ?? Math.ceil(config.windowMs / 1000));
+    const rawRetryAfter = Number(result.retry_after_seconds);
+    const retryAfter = Number.isFinite(rawRetryAfter) && rawRetryAfter > 0
+      ? Math.ceil(rawRetryAfter)
+      : Math.ceil(config.windowMs / 1000);
     return rateLimitResponse(retryAfter);
   } catch (err) {
-    console.error("[rateLimit] persistent check exception; falling back:", err);
-    return checkRateLimit(key, config);
+    console.error("[rateLimit] persistent check exception:", err);
+    return failClosed
+      ? rateLimitUnavailableResponse()
+      : checkRateLimit(key, config);
   }
 }
 
@@ -124,11 +159,30 @@ export function getClientIp(req: Request): string | null {
 }
 
 /** IP 또는 유저 ID 기반 키 생성 */
+/**
+ * Build a stable, pseudonymous rate-limit bucket key.
+ *
+ * Production must configure RATE_LIMIT_KEY_SECRET (enforced by the release
+ * gate) so identifiers cannot be recovered with a cheap dictionary attack.
+ * The unkeyed SHA-256 fallback keeps local/test databases free of raw
+ * identifiers without making developer environments depend on a secret.
+ */
+export function rateLimitSubjectKey(prefix: string, subject: string): string {
+  const secret = process.env.RATE_LIMIT_KEY_SECRET?.trim();
+  const payload = `${prefix}\0${subject}`;
+  if (secret) {
+    const digest = createHmac("sha256", secret).update(payload).digest("hex");
+    return `${prefix}:hmac-sha256:${digest}`;
+  }
+
+  const digest = createHash("sha256").update(payload).digest("hex");
+  return `${prefix}:sha256:${digest}`;
+}
+
 export function rateLimitKey(
   prefix: string,
   req: Request,
   userId?: string,
 ): string {
-  if (userId) return `${prefix}:${userId}`;
-  return `${prefix}:${getClientIp(req) ?? "unknown"}`;
+  return rateLimitSubjectKey(prefix, userId ?? getClientIp(req) ?? "unknown");
 }

@@ -1,5 +1,5 @@
+import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import {
   cleanIntegerInRange,
@@ -14,11 +14,7 @@ const MAX_BODY_BYTES = 128 * 1024;
 const PROGRESS_REMOVE_KEY_RE = /^[a-zA-Z0-9_.:-]{1,80}$/;
 
 function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  return createPinnedAdminClient();
 }
 
 export async function PATCH(request: Request) {

@@ -1,5 +1,10 @@
 # Amora DB backup evidence — 2026-07-14
 
+> **SUPERSEDED HISTORICAL RECEIPT — not a current Engine V2 write gate.** The
+> 11-table counts and hashes below are preserved as dated evidence only. The
+> pending release requires a new final 14-table pre-expand artifact and a
+> 27-table post-expand artifact; both current release receipts remain separate.
+
 ## Status: HBAM2 and provider-clone gates passed; logical replay remains open
 
 ## 2026-07-15 provider backup and isolated-clone evidence

@@ -1,5 +1,10 @@
 # Amora hosted Storage policy evidence — 2026-07-15 KST
 
+> **SUPERSEDED HISTORICAL RECEIPT — not the 1080 Storage prerequisite.** This
+> document records the earlier `chat-image` policy operation. It does not prove
+> the pending community-media inventory, Dashboard changes, verify receipt, or
+> real-device canary required before migration 1080.
+
 ## Scope
 
 - verification project: isolated production restore clone

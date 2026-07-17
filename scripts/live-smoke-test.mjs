@@ -282,6 +282,44 @@ function buildChecks(skipDemo) {
         }
       },
     },
+    {
+      name: "mobile-wedding-home",
+      path: "/wedding",
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      async assert(page, result) {
+        if (!hasPath(result.finalUrl, "/wedding")) {
+          addFailure(result, `Expected final path /wedding, got ${new URL(result.finalUrl).pathname}`);
+        }
+
+        const horizontalOverflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        );
+        if (horizontalOverflow > 1) {
+          addFailure(result, `Expected no document-level horizontal overflow, got ${horizontalOverflow}px`);
+        }
+
+        const visibleLauncherCount = await page.getByLabel("아모라 AI 상담", { exact: true }).evaluateAll(
+          (elements) => elements.filter((element) => {
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            return rect.width > 0
+              && rect.height > 0
+              && rect.top < window.innerHeight
+              && rect.bottom > 0
+              && rect.left < window.innerWidth
+              && rect.right > 0
+              && style.visibility !== "hidden"
+              && style.display !== "none";
+          }).length,
+        );
+        if (visibleLauncherCount !== 1) {
+          addFailure(result, `Expected exactly one visible public Amora launcher, got ${visibleLauncherCount}`);
+        }
+      },
+    },
   ];
 
   if (!skipDemo) {
@@ -352,7 +390,18 @@ function buildChecks(skipDemo) {
           addFailure(result, `Expected demo login to land on /wedding/lounge, got ${result.finalUrl}`);
         }
 
-        const launcher = page.getByLabel("아모라 AI 상담").last();
+        const launchers = page.getByLabel("아모라 AI 상담", { exact: true });
+        const launcherCount = await launchers.count();
+        if (launcherCount !== 1) {
+          addFailure(result, `Expected exactly one mobile Amora launcher, got ${launcherCount}`);
+        }
+        if (launcherCount === 0) return;
+
+        const launcher = launchers.first();
+        const launcherBox = await launcher.boundingBox();
+        if (!launcherBox || launcherBox.width < 44 || launcherBox.height < 44) {
+          addFailure(result, "Expected the mobile Amora launcher to provide a 44px tap target");
+        }
         await launcher.click({ timeout: 5_000 });
         await page.waitForTimeout(500);
 

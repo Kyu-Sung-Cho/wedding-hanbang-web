@@ -604,6 +604,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
     time: string;
     amount: number;
     status: string;
+    projectionStatus?: "completed" | "pending_retry" | "failed";
   };
 
   if (!result.success) {
@@ -685,6 +686,23 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             </div>
           </div>
 
+          {output.projectionStatus === "pending_retry" && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs font-semibold text-amber-800">일정·예산 반영 중</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
+                예약은 안전하게 접수됐어요. 자동으로 다시 반영하니 예약을 다시 만들 필요는 없어요.
+              </p>
+            </div>
+          )}
+          {output.projectionStatus === "failed" && (
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-xs font-semibold text-red-700">일정·예산 반영 확인 필요</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-red-600">
+                예약은 접수됐어요. 다시 예약하지 말고 고객지원에 알려주세요.
+              </p>
+            </div>
+          )}
+
           {/* 취소 버튼 */}
           {!cancelled && (
             <div className="mt-2">
@@ -739,6 +757,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
     date: string;
     time: string;
     status: string;
+    projectionStatus?: "completed" | "pending_retry" | "failed";
   };
 
   if (!result.success) {
@@ -789,6 +808,22 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
               <span className="text-sm font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
+          {output.projectionStatus === "pending_retry" && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs font-semibold text-amber-800">일정·예산 정리 중</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
+                예약 취소는 완료됐어요. 자동으로 다시 정리하니 취소 요청을 다시 보낼 필요는 없어요.
+              </p>
+            </div>
+          )}
+          {output.projectionStatus === "failed" && (
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <p className="text-xs font-semibold text-red-700">일정·예산 정리 확인 필요</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-red-600">
+                예약 취소는 완료됐어요. 취소 요청을 다시 보내지 말고 고객지원에 알려주세요.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

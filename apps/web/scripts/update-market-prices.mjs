@@ -85,13 +85,9 @@ async function getScheduleNumbers() {
   const currentYear = new Date().getFullYear();
   const numbers = [];
   for (let year = FIRST_YEAR; year <= currentYear; year++) {
-    try {
-      const res = await post("getMonthList.do", { scheduleYear: String(year) });
-      for (const row of res.resultList ?? []) {
-        numbers.push(String(row.weddingPriceScheduleNumber));
-      }
-    } catch {
-      // 해당 연도 자료 없음 — skip
+    const res = await post("getMonthList.do", { scheduleYear: String(year) });
+    for (const row of res.resultList ?? []) {
+      numbers.push(String(row.weddingPriceScheduleNumber));
     }
   }
   assert(numbers.length >= 11, `기간 수가 너무 적음 (${numbers.length})`);
@@ -116,6 +112,7 @@ async function main() {
   const dressPrices = [];
   const makeupPrices = [];
   const seasonal = [];
+  let trendData = null; // 최신 조사월 기준 향후 18개월
   let optionPrices = null; // 최신 기간 기준
 
   for (const sn of scheduleNumbers) {
@@ -123,8 +120,9 @@ async function main() {
     const month = Number(sn.slice(4, 6));
     console.log(`  ${year}년 ${month}월 (${sn}) 수집 중...`);
 
-    const [s1, s3, s4] = await Promise.all([
+    const [s1, s2, s3, s4] = await Promise.all([
       post("areaStatisticSection1.do", { scheduleNumber: sn }),
+      post("areaStatisticSection2.do", { scheduleNumber: sn }),
       post("areaStatisticSection3.do", { scheduleNumber: sn }),
       post("areaStatisticSection4.do", { scheduleNumber: sn }),
     ]);
@@ -149,6 +147,18 @@ async function main() {
       decoration: r1(s1.totalDeco),
     };
     assert(nationalTotals[sn].meal > 0 && nationalTotals[sn].sdm > 0, `${sn} 전국 합산 0`);
+
+    // ── S2: 조사월부터 향후 18개월 예식장/스드메 중간값 ──
+    assert(s2.monthAreaMidianPercentileList?.length === 18, `${sn} 예식장 월별 중간값 길이`);
+    assert(s2.monthAreaSdmMidianPercentileList?.length === 18, `${sn} 스드메 월별 중간값 길이`);
+    trendData = Array.from({ length: 18 }, (_, index) => {
+      const date = new Date(Date.UTC(year, month - 1 + index, 1));
+      return {
+        month: `${String(date.getUTCFullYear()).slice(2)}년 ${String(date.getUTCMonth() + 1).padStart(2, "0")}월`,
+        medianTotal: r1(s2.monthAreaMidianPercentileList[index]),
+        medianSdm: r1(s2.monthAreaSdmMidianPercentileList[index]),
+      };
+    });
 
     // ── S3: 예식장 필수/선택 + 성수기 ──
     // 필수 배열: [대관료, 최소보증인원, 1인식대, 식대총액]
@@ -281,6 +291,8 @@ export const GEN_MAKEUP_PRICES = ${json(makeupPrices)};
 export const GEN_OPTION_PRICES = ${json(optionPrices)};
 
 export const GEN_SEASONAL_DATA = ${json(seasonal)};
+
+export const GEN_TREND_DATA = ${json(trendData)};
 `;
 
   writeFileSync(OUT_PATH, out, "utf8");

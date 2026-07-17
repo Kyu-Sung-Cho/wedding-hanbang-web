@@ -1,5 +1,6 @@
 "use client";
 
+// CANDIDATE4_RETIRED: unreachable legacy UI; do not reconnect or reuse for Candidate 5.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {

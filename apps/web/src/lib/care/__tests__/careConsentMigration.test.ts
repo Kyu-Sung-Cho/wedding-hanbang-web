@@ -68,6 +68,16 @@ describe("explicit outbound-care consent migration", () => {
         { enabled: false, consented_at: null },
       ]);
 
+      const definition = await db.query<{ prosrc: string }>(`
+        SELECT p.prosrc
+        FROM pg_proc AS p
+        JOIN pg_namespace AS n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = 'insert_amora_care_message'
+      `);
+      expect(definition.rows[0]?.prosrc).toMatch(
+        /FROM public\.couples[\s\S]*WHERE id = p_couple_id[\s\S]*FOR SHARE/i,
+      );
+
       await db.exec(`
         INSERT INTO public.profiles(id)
         VALUES ('00000000-0000-4000-8000-000000000003');

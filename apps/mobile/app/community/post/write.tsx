@@ -9,7 +9,7 @@ import { router } from "expo-router";
 import { ChevronDown, Eye, Edit3, Check, ImagePlus, X } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
+import { uploadCommunityMedia } from "@/lib/communityUpload";
 import * as ImagePicker from "expo-image-picker";
 import { AppHeader } from "@/components/ui/AppUI";
 
@@ -30,12 +30,11 @@ const AD_OPTIONS = [
 const TITLE_MAX = 200;
 const CONTENT_MAX = 50000;
 const MAX_IMAGES = 5;
-const UPLOAD_URL = "https://hanbang.ai/api/community/upload";
-
 interface SelectedImage {
   uri: string;
   fileName: string;
   mimeType: string;
+  fileSize?: number;
 }
 
 export default function WritePostScreen() {
@@ -77,6 +76,7 @@ export default function WritePostScreen() {
       uri: asset.uri,
       fileName: asset.fileName || `image_${Date.now()}.jpg`,
       mimeType: asset.mimeType || "image/jpeg",
+      fileSize: asset.fileSize,
     }));
 
     setImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES));
@@ -87,13 +87,9 @@ export default function WritePostScreen() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
-  // 이미지 업로드 — Bearer 토큰으로 인증, FormData 전송
+  // 이미지 바이트는 Vercel 함수를 거치지 않고 private signed path로 직접 전송.
   async function uploadImages(): Promise<string[]> {
     if (images.length === 0) return [];
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("로그인이 필요합니다.");
 
     const urls: string[] = [];
 
@@ -101,27 +97,7 @@ export default function WritePostScreen() {
       setUploadProgress(`${i + 1}/${images.length} 업로드 중...`);
 
       const img = images[i];
-      const formData = new FormData();
-      formData.append("file", {
-        uri: img.uri,
-        name: img.fileName,
-        type: img.mimeType,
-      } as unknown as Blob);
-
-      const res = await fetch(UPLOAD_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `이미지 업로드 실패 (${i + 1}번째)`);
-      }
-
-      const { url } = await res.json();
+      const { url } = await uploadCommunityMedia(img);
       urls.push(url);
     }
 

@@ -5,31 +5,525 @@
     "file": "supabase/release-manifests/amora-openai-20260714.json",
     "sha256": "e65a8b0b58efd7cb266f9b760e0a86a78b05753ac90d9579e20b67fc73a31170"
   },
+  "requiredRemoteHead": "20260715210000",
   "migrationFloor": "20260716090000",
   "historicalReconciliation": [],
   "expandMigrations": [
-    { "file": "20260716090000_amora_memory_engine_v2.sql", "sha256": "4a767125c88a3b88710c306b1e106df05a81d5d4a3d9ac49c5433d41964015fa" },
-    { "file": "20260716091000_care_explicit_consent.sql", "sha256": "0e9ac0f9d114357b567b0dfbaa6db09a009947b9b071b4c6282f9a99c34439d6" },
-    { "file": "20260716092000_amora_mediation_confirmation.sql", "sha256": "438ffc6b401afc338fabec40c44b8769e4f970fa8818a8fa4385199359e9b3d2" }
+    {
+      "file": "20260716090000_amora_memory_engine_v2.sql",
+      "sha256": "b89e5ead1aae6f919d4e612a8a66be6ec3ff3d87b4905140f6c959d97f6d9147"
+    },
+    {
+      "file": "20260716091000_care_explicit_consent.sql",
+      "sha256": "28387b4e91d5946ff054dea74b351ba745b9610c6bdb40532af2689e3625b26e"
+    },
+    {
+      "file": "20260716092000_amora_mediation_confirmation.sql",
+      "sha256": "768e54aa6d00866d44163b68b2db34cb67f7ef5582370f5a4f5ca074c17a23c2"
+    },
+    {
+      "file": "20260716093000_amora_care_queue.sql",
+      "sha256": "bfd4203bff448299040bd2472a8eb1ea26140fd142550048451604bc09ed6b75"
+    },
+    {
+      "file": "20260716094000_couple_roster_epoch.sql",
+      "sha256": "c801442e70ef3757240fcb5636537a89092414439f6945380aa3807363bf919f"
+    },
+    {
+      "file": "20260716095000_amora_care_delivery_policy.sql",
+      "sha256": "dfc13a705e3f8ebf7c7c394e8d73f3a35acf1a4606c7bfb10874998f87a2ef11"
+    },
+    {
+      "file": "20260716096000_amora_tool_retry_fence.sql",
+      "sha256": "7f1776c62d19742f1eef13f9b2b01f4093449f82bafa1b699306f33a375cdfb8"
+    },
+    {
+      "file": "20260716097000_amora_atomic_cost_budget.sql",
+      "sha256": "59cf51a3926f5f5b406f285bf2dabfe1152871f059ddeff4594bbaed994896f9"
+    },
+    {
+      "file": "20260716098000_amora_memory_budget_deferral.sql",
+      "sha256": "8aac4639d5507fd76f8696ebeed78d5a10305c0281a8979db802d5d7a99c24ac"
+    },
+    {
+      "file": "20260716099000_wedding_journey_singleton.sql",
+      "sha256": "f4733317cd9787589f4976d8881412cc68bc5e708ae52df3a2be78b2f7318237"
+    },
+    {
+      "file": "20260716100000_journey_progress_atomic_item_patch.sql",
+      "sha256": "4e7e24fa4e58fb0a0de5e9de9af3faae2d9a3d35f58959ff335b88fe8e923eff"
+    },
+    {
+      "file": "20260716102000_booking_projection_outbox.sql",
+      "sha256": "3153d74406ac9550ad034b46d360d61bc16b66746121f0cdd3c37e822b399a0e"
+    },
+    {
+      "file": "20260716103000_amora_conflict_check_claim.sql",
+      "sha256": "194582918377a65800d7b9e9ae5a52212f91b594101e9317f80f8a7bc0f43988"
+    },
+    {
+      "file": "20260716104000_profile_patch_atomic.sql",
+      "sha256": "d055e3d55e83023bc90df360b2d39a75e7c91130c504352f43d70f8c1d6fe7e8"
+    },
+    {
+      "file": "20260716105000_amora_conflict_receipt_checkpoint.sql",
+      "sha256": "2e3e8961367591c3df26d54ffdc728f314358512835d39047a105a2d0516e577"
+    },
+    {
+      "file": "20260716106000_amora_atomic_chat_response.sql",
+      "sha256": "c0f5f0fdde64c91bbda66475a9dedd179642970f14b8f8725955b4ef059dfda6"
+    },
+    {
+      "file": "20260716107000_wedding_settings_atomic.sql",
+      "sha256": "a6d0d6376b157eddf983c45b69fc068ce3aaa1c2fecefe88c1a5086b939bf1c5"
+    },
+    {
+      "file": "20260716108000_community_upload_service_fence.sql",
+      "sha256": "5244a9f42cb391f7b3408dfb93eb19ef34ec754893cbc58148d6f3dad4b0e528"
+    },
+    {
+      "file": "20260716109000_booking_outcome_atomic.sql",
+      "sha256": "960c07c4505e8f6d264726e405af2d0650d11852728fca1f1e7668fa06c2180d"
+    },
+    {
+      "file": "20260716110000_amora_crash_recovery_atomicity.sql",
+      "sha256": "2930ec691cc0094497bd47822eee6130aafbff3493150785abca38149b19ecb5"
+    },
+    {
+      "file": "20260716111000_community_upload_attachment_lifecycle.sql",
+      "sha256": "28f5fd92e2e57c3fed735ff836e4df12a14bbb11ac816a144a85f88f0e3bcde7"
+    },
+    {
+      "file": "20260716112000_amora_atomic_mutation_coverage.sql",
+      "sha256": "c5b303c6765b7c9b50517c726fbedecd28b2db761ba8392788c3a9d1aed0a253"
+    },
+    {
+      "file": "20260716113000_account_deletion_storage_saga.sql",
+      "sha256": "dd12da9b76a1ec45d30cf0663ec1230ca6735c70a0cc4b2885750686a6fd8252"
+    },
+    {
+      "file": "20260716114000_current_couple_membership_privacy_fence.sql",
+      "sha256": "44275de41d3d04ba3f441218932b07fe9dcc1d09db4c31603c2d7a748cfad755"
+    },
+    {
+      "file": "20260716115000_rate_limit_pseudonym_retention.sql",
+      "sha256": "d6550abaff2e9c37a960b285c1006002a4aa7b0ab6f0329deff7ab8dc2af23e7"
+    },
+    {
+      "file": "20260716116000_ai_log_retention_contract.sql",
+      "sha256": "a5fa2b5b0455789691c37845a74261789083b4fa6d71234c24d839c11aa0011d"
+    },
+    {
+      "file": "20260716117000_account_deletion_auth_fk_contract.sql",
+      "sha256": "e5ca7c53e21cc98b0b11225aebe68e7582b26e07cf213a0b47cc3ab3dabe2d82"
+    }
   ],
   "appliedHotfixes": [],
   "historicalEffectAudit": {
     "file": "supabase/contract-migrations/20260714165500_audit_historical_release_effects.sql",
     "sha256": "9d626616070e96b16be4cdb34f3560d1caf05f944ea1c1ada73fb6587a0f6863"
   },
-  "manualPlatformOperations": [],
+  "preApplyChecks": [
+    {
+      "id": "public-database-write-fence-pre",
+      "type": "read-only-sql",
+      "file": "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+      "sha256": "412511d61f110df8a6b87a5eafcf40ce95c77851438c1e06e31b119f5d0c4a6c",
+      "expectedEvidence": {
+        "production_write_fence_verified_count": 1
+      }
+    },
+    {
+      "id": "storage-global-write-freeze-verify-20260716108000",
+      "type": "read-only-sql",
+      "file": "supabase/release-checks/amora-engine-v2-storage-freeze-pre.sql",
+      "sha256": "f9c1477fe3a457d92c093c183b161ca27c738e3443fa9132121c522e72fdd093",
+      "expectedEvidence": {
+        "storage_policy_count": 4,
+        "storage_mutation_policy_count": 0,
+        "storage_bucket_count": 10,
+        "storage_object_count": 49,
+        "storage_chat_object_count": 6,
+        "storage_community_image_object_count": 43
+      }
+    },
+    {
+      "id": "amora-engine-v2-pre-20260716",
+      "type": "read-only-sql",
+      "file": "supabase/release-checks/amora-engine-v2-20260716-pre.sql",
+      "sha256": "f8f20edc1a04e978bf6274d4d3197eeb768d27a606d02f5e6d73a561ca1a9cf4",
+      "expectedEvidence": {
+        "pre_release_contract_verified_count": 1
+      }
+    }
+  ],
+  "postPushChecks": [
+    {
+      "id": "community-upload-storage-final-verify-20260716108000",
+      "type": "read-only-sql",
+      "file": "supabase/release-checks/amora-engine-v2-storage-final-post-push.sql",
+      "sha256": "8fc1b1fbd13fb8f00f80fba657f90ae15436fb383952cce05691f8e21dd17c7e",
+      "expectedEvidence": {
+        "storage_policy_count": 1,
+        "storage_insert_policy_count": 1,
+        "storage_bucket_count": 11,
+        "storage_object_count": 49,
+        "storage_staging_object_count": 0,
+        "production_storage_fence_closed_count": 1
+      }
+    }
+  ],
+  "postApplyChecks": [
+    {
+      "id": "amora-engine-v2-post-20260716",
+      "type": "read-only-sql",
+      "file": "supabase/release-checks/amora-engine-v2-20260716-post.sql",
+      "sha256": "5a089c7b83588b27fd5d668947d31c026a766c60b418bb8ff7be0e250849ec3a",
+      "expectedEvidence": {
+        "post_release_contract_verified_count": 1
+      }
+    }
+  ],
+  "forwardOnlySecurityOperations": [
+    {
+      "id": "ai-log-retention-exact-acl-20260717141000",
+      "phase": "pre-backup",
+      "verificationCheckId": "amora-engine-v2-pre-20260716",
+      "rollbackPolicy": "forward-fix-only-no-privilege-restoration",
+      "supersedes": {
+        "operationId": "ai-log-retention-acl-hotfix-20260717103000",
+        "forbiddenFiles": [
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_inventory.sql",
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_apply.sql",
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_verify.sql"
+        ]
+      },
+      "inventory": {
+        "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_inventory.sql",
+        "sha256": "fdfab1a5e647ae353213463bce16e0d0bf0f567330ebe490fe000d033ca79386"
+      },
+      "apply": {
+        "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_apply.sql",
+        "sha256": "d1b2546d6a7ee0e2aae6628a97debc21c5c0f1c96cef03d8bf745d3834fd966f"
+      },
+      "verify": {
+        "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_verify.sql",
+        "sha256": "6c2e8c5b9e5db58c4560ca53b9c49df079f570ad537c4a338688ae4afcbbf0c4",
+        "expectedEvidence": {
+          "ai_log_retention_exact_acl_verified": 1
+        }
+      }
+    }
+  ],
+  "manualPlatformOperations": [
+    {
+      "id": "production-write-fence-20260717120000",
+      "phase": "pre-backup",
+      "verificationCheckId": "public-database-write-fence-pre",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql",
+      "sha256": "a5166152091dd8a71f33ce6271a92fc2276993036ae0a8649d7840ba6de6e284"
+    },
+    {
+      "id": "storage-global-write-freeze-20260716108000",
+      "phase": "pre-backup",
+      "verificationCheckId": "storage-global-write-freeze-verify-20260716108000",
+      "file": "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+      "sha256": "cd16b5b5fb4492b7ac22ec5672a53795b899dc305b0d573a0c280f86d5ea6fb5"
+    },
+    {
+      "id": "community-upload-storage-finalize-20260716108000",
+      "phase": "post-push-pre-deploy",
+      "verificationCheckId": "community-upload-storage-final-verify-20260716108000",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
+      "sha256": "4ccf5eb76bc5ceff7eea5413948e0ae4ecbb324336fe2e83b177c1773b69cd56"
+    }
+  ],
+  "rollbackArtifacts": [
+    {
+      "id": "production-write-fence-rollback-20260717120000",
+      "forOperationId": "production-write-fence-20260717120000",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql",
+      "sha256": "bef0340b5296bfa64eae077121653090552e891a4f151aa248f72673c4f50b5d"
+    },
+    {
+      "id": "storage-global-write-freeze-rollback-20260716108000",
+      "forOperationId": "storage-global-write-freeze-20260716108000",
+      "file": "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_rollback.sql",
+      "sha256": "0ece5ef3d0fa1fb9301e6cb8ade7abba0f326ee154ca1321639a931d3f3e0745"
+    },
+    {
+      "id": "community-upload-storage-rollback-20260716108000",
+      "forOperationId": "community-upload-storage-finalize-20260716108000",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_rollback.sql",
+      "sha256": "a703272f5629b2998424bdf0d82dfaa38210a699a619f4011d3af91a78cab8ef"
+    }
+  ],
+  "manualControlEvidence": {
+    "receiptFileName": "amora-engine-v2-20260716-production-write-fence.json",
+    "postPushReceiptFileName": "amora-engine-v2-20260716-post-push-platform.json",
+    "storageDrainReceiptFileName": "amora-engine-v2-20260716-storage-signed-upload-drain.json",
+    "maximumAgeMinutes": 30,
+    "signedUploadTokenTtlMinutes": 120,
+    "signedUploadGraceMinutes": 10,
+    "storageStabilityWindowMinutes": 5
+  },
+  "backupContract": {
+    "id": "pre-amora-current-remote-14-table-baseline",
+    "version": 1,
+    "expectedTableCount": 14,
+    "excludedEphemeralTables": [
+      "production_release_lease_20260717",
+      "rate_limit_buckets"
+    ],
+    "ephemeralRebuildContract": "production_release_lease_20260717=temporary-release-control-dropped-by-paired-write-fence-finalizer;rate_limit_buckets=empty-on-restore-recreated-by-public.check_rate_limit(text,integer,integer)",
+    "expectedCommitBinding": "release-expected-commit",
+    "expectedOrigin": "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git",
+    "verifier": {
+      "file": "scripts/amora-db-current-baseline-verify.ps1",
+      "sha256": "a2e769822bb3afb6f0ce9323c230b70c6d253a5ff35da514e96506cc139f4ebf"
+    },
+    "providerPhysicalBackup": {
+      "maximumAgeHours": 26,
+      "requiredStatus": "COMPLETED",
+      "requirePhysicalBackup": true,
+      "restoreCapability": "completed-physical-backup"
+    },
+    "hostedRestoreEvidence": {
+      "receiptFileName": "amora-engine-v2-20260716-hosted-restore-evidence.json",
+      "maximumAgeMinutes": 1440,
+      "requiredTargetIsolation": "different-supabase-project",
+      "requiredChecks": [
+        "authApiSmokeVerified",
+        "authUsersSchemaAndDataVerified",
+        "checkConstraintsVerified",
+        "columnDefaultsVerified",
+        "destructiveRestoreDrillCompleted",
+        "isolatedTargetConfirmed",
+        "logicalDataDigestsVerified",
+        "rowLevelSecurityPoliciesVerified",
+        "rpcDefinitionsAndAclVerified",
+        "storageMetadataRestoredVerified",
+        "triggersVerified",
+        "typedSchemaVerified"
+      ]
+    },
+    "supabaseCli": {
+      "version": "2.106.0",
+      "binarySha256": "A8ECF0778D52756D7F3A36E391276AAEA988F78AD1B2A8B88967CE4B5C3AEEA2"
+    }
+  },
+  "postExpandBackupContract": {
+    "id": "post-amora-engine-v2-27-table-backup",
+    "version": 1,
+    "phase": "post-push-pre-deployment-canary",
+    "verificationReceiptFileName": "amora-engine-v2-20260716-post-expand-backup-verification.json",
+    "maximumAgeMinutes": 1440,
+    "expectedTableCount": 27,
+    "expectedTables": [
+      "account_deletion_jobs",
+      "account_deletion_media_manifest",
+      "ai_interactions_log",
+      "amora_actions",
+      "amora_care_deliveries",
+      "amora_care_jobs",
+      "amora_care_scan_states",
+      "amora_chat_request_claims",
+      "amora_conflict_check_claims",
+      "amora_couple_profiles",
+      "amora_mediation_acceptances",
+      "amora_memory_consents",
+      "amora_memory_jobs",
+      "amora_memory_settings",
+      "amora_tool_executions",
+      "amora_turn_counters",
+      "amora_turn_requests",
+      "booking_projection_jobs",
+      "chat_feedback",
+      "chat_messages",
+      "chat_summaries",
+      "community_upload_sessions",
+      "couples",
+      "decision_nodes",
+      "profiles",
+      "vendor_reviews",
+      "wedding_journeys"
+    ],
+    "expectedReleaseMigrationBaselineHead": "20260715210000",
+    "expectedReleaseMigrationHead": "20260716117000",
+    "expectedReleaseMigrationVersions": [
+      "20260716090000",
+      "20260716091000",
+      "20260716092000",
+      "20260716093000",
+      "20260716094000",
+      "20260716095000",
+      "20260716096000",
+      "20260716097000",
+      "20260716098000",
+      "20260716099000",
+      "20260716100000",
+      "20260716102000",
+      "20260716103000",
+      "20260716104000",
+      "20260716105000",
+      "20260716106000",
+      "20260716107000",
+      "20260716108000",
+      "20260716109000",
+      "20260716110000",
+      "20260716111000",
+      "20260716112000",
+      "20260716113000",
+      "20260716114000",
+      "20260716115000",
+      "20260716116000",
+      "20260716117000"
+    ],
+    "expectedTableContractSha256": "aa6d4bbbd17d753fa31846568af3402afd51e79ad665bd5b9d204d162fef10ac",
+    "expectedReleaseMigrationContractSha256": "c5e1d58c77f8c11e3d203046d55aadd9d5d09c2c04c639206cc1265b6a899beb",
+    "expectedCommitBinding": "release-expected-commit",
+    "requiredLedgerEvidence": "live-remote-ledger-and-encrypted-backup-contract",
+    "requiredReceiptValues": {
+      "Verified": true,
+      "SourceCanonicalDigestsVerified": true,
+      "PGliteJsonbRoundTripVerified": true,
+      "PlaintextWrittenToDisk": false
+    },
+    "capture": {
+      "file": "scripts/amora-db-backup.ps1",
+      "sha256": "be5d5fdf1f26ec5889695a5d9ffe52ad486bf713c3ab90c9c5d1f6e0c2d81fe3"
+    },
+    "verifier": {
+      "file": "scripts/amora-db-verify-backup.ps1",
+      "sha256": "a99127b5ffcb8fea80712ec748524cd8fd8a7d5c1ea151e8f35a9ab1bfa0bfbd"
+    },
+    "hostedRestoreEvidence": {
+      "receiptFileName": "amora-engine-v2-20260716-post-expand-hosted-restore-evidence.json",
+      "maximumAgeMinutes": 1440,
+      "requiredTargetIsolation": "different-supabase-project",
+      "requiredChecks": [
+        "authApiSmokeVerified",
+        "authUsersSchemaAndDataVerified",
+        "checkConstraintsVerified",
+        "columnDefaultsVerified",
+        "destructiveRestoreDrillCompleted",
+        "isolatedTargetConfirmed",
+        "logicalDataDigestsVerified",
+        "rowLevelSecurityPoliciesVerified",
+        "rpcDefinitionsAndAclVerified",
+        "storageMetadataRestoredVerified",
+        "triggersVerified",
+        "typedSchemaVerified",
+        "exactReleaseMigrationLedgerVerified",
+        "exactTableAllowlistVerified"
+      ]
+    }
+  },
+  "finalizationContract": {
+    "id": "production-write-fence-exact-owner-finalizer",
+    "version": 1,
+    "operation": {
+      "id": "production-write-fence-finalize-20260717121000",
+      "file": "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+      "sha256": "cb328473e789b8d669fe1dcd0052077d3f812fbc099b27333ac95f3bef75893e"
+    },
+    "requiredLeasePhase": "deployment-canary",
+    "canaryMaximumAgeMinutes": 15,
+    "deploymentMaximumAgeMinutes": 1440,
+    "requiredCanaryChecks": [
+      "authenticatedReadPassed",
+      "browserConsoleClean",
+      "databaseFenceStillVerified",
+      "deployedCommitMatched",
+      "deploymentReady",
+      "latencyWithinBaseline",
+      "loginLogoutPassed",
+      "noUnexpected5xx",
+      "publicReadPassed",
+      "serverErrorsWithinBaseline",
+      "signupStillDisabled",
+      "storageHelperClosed",
+      "webWriteFenceStillEnabled"
+    ],
+    "externalEvidence": {
+      "version": 1,
+      "rawEvidenceStorage": "outside-git-receipt-sibling-files",
+      "vercel": {
+        "api": "deployments-v13-by-id",
+        "teamId": "team_XwMZqiJ4wXM2Ypvs99icXaQx",
+        "projectId": "prj_LyKeU6DJGaIa4iJLqgn6rS3Qehes",
+        "productionHost": "hanbang.ai",
+        "requiredTarget": "production",
+        "requiredReadyState": "READY"
+      },
+      "hostedRestore": {
+        "managementApi": "projects-v1-by-ref",
+        "requiredProjectStatus": "ACTIVE_HEALTHY",
+        "requiredTargetIsolation": "different-supabase-project",
+        "requiredProjectNamePattern": "^wedding-hanbang-restore-drill-\\d{8}(?:-[a-z0-9]{1,12})?$",
+        "databaseTarget": "db.{targetProjectRef}.supabase.co:5432/postgres",
+        "databaseProbeSqlSha256": "c173dc3467c1168df33052d39675b5864dc596d997123bb35a3b8f9c1c577080",
+        "logicalDataProbeSqlSha256": "dcbc72d1d048ff9bd546b35d7c4473507ad8ebf7e06de4ab229a5a835e1173a2",
+        "transactionMode": "read-only"
+      },
+      "canary": {
+        "runner": "hanbang-production-canary-v1",
+        "productionHost": "hanbang.ai",
+        "observationWindowSeconds": 300,
+        "httpProbeContractSha256": "2f06b08a49206cf128e95a78ee8d65bfb76263344146fd895810ae15354f5b45",
+        "requiredChecksSha256": "28effd6d8c5a73e49a42e5d48df80f290d7590ab9a39017bc07f9a06eb793342"
+      }
+    },
+    "confirmationIncludesCanarySha256": true
+  },
   "requiredDocuments": [
     {
-      "file": "docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md",
-      "sha256": "fa29648cc4ffbb8e0868da285236b2a47c9e828f5cf580b549fcb390fea4371c"
+      "file": "docs/AMORA_ENGINE_V2_2026-07-16.md",
+      "sha256": "611c70a5bc1cf2555b19813433e5c58c5ce5f6047c72f20a6190c44f6e13967c"
+    },
+    {
+      "file": "docs/operations/ACCOUNT_DELETION_STORAGE_SAGA.md",
+      "sha256": "55402ec2393ce1d3b07d8f98016d60c39713773fb66d2749632226746d516e19"
+    },
+    {
+      "file": "docs/operations/AI_LOG_RETENTION_ACL_HOTFIX_2026-07-17.md",
+      "sha256": "a39df7f739b0d569a398bdb4bfccaae1f89b775b8bcce3d8bfbebe7f188e9302"
+    },
+    {
+      "file": "docs/operations/AI_LOG_RETENTION_CRON_2026-07-17.md",
+      "sha256": "78182f086b2153e00e5c37281d820cf524462aa6ce1422dfc348afa55b5ffbc4"
     },
     {
       "file": "docs/operations/AMORA_DB_BACKUP_RESTORE.md",
-      "sha256": "19c3221950ec2f0338d75d3b8e874ec8ba6e37a43ace4156b7c773d6931cd444"
+      "sha256": "b8d5eeded187eaf5c9000d76bcf6222b429b1667d846d2604eecb98a07a278b9"
     },
     {
-      "file": "docs/AMORA_ENGINE_V2_2026-07-16.md",
-      "sha256": "00a48314674984462e3539820e433b5619afff6491a278f85fff1fa421b7f18b"
+      "file": "docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md",
+      "sha256": "dbe6096b358fcb2fe68146895a835a2587fa82c413d9ea757de77618e4ddc694"
+    },
+    {
+      "file": "docs/operations/AMORA_MIGRATION_LOCK_AUDIT_2026-07-17.md",
+      "sha256": "c33e5e5bd14519eb811c61943637743af921826abf812cad0dd3590f95e23b17"
+    },
+    {
+      "file": "docs/operations/COMMUNITY_UPLOAD_SERVICE_FENCE.md",
+      "sha256": "226242d89ec46662c53bd856a30f1529708002681323627326978aa2ac6b01ba"
+    },
+    {
+      "file": "docs/operations/CURRENT_COUPLE_MEMBERSHIP_PRIVACY_FENCE_2026-07-17.md",
+      "sha256": "c9fb1cab82052ee5cdc0070a082ead733598517c2e8f54242a6f7258b1315ec9"
+    },
+    {
+      "file": "docs/operations/PRE_AMORA_CURRENT_PRODUCTION_BASELINE_BACKUP.md",
+      "sha256": "ce3d8d929a8f440d23f6953dcdfdbc15bf666fc993d8dd191eb7020ec2852dec"
+    },
+    {
+      "file": "docs/operations/PRODUCTION_WRITE_FENCE_2026-07-17.md",
+      "sha256": "b190a2ca0d47d3e6c91ed58baa45b5c8c3c8f9204b65fa3ecb0f50b3affac045"
+    },
+    {
+      "file": "docs/operations/RATE_LIMIT_PSEUDONYM_RETENTION_2026-07-17.md",
+      "sha256": "0ea91a6c4157af1a322af3cf9019cdd81db5d0b8e9f32396bd59a4fffd451db6"
     }
   ]
 }

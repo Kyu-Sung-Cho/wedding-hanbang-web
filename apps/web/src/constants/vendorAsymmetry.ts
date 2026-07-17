@@ -182,39 +182,11 @@ export const VENDOR_ASYMMETRY: VendorAsymmetryItem[] = [
  * - AI가 사용자 상황 맞춰 자연스럽게 인용하도록 가이드
  */
 export function getVendorAsymmetryContext(): string {
-  const byCategory = {
-    negotiation: VENDOR_ASYMMETRY.filter((v) => v.category === "negotiation"),
-    scam: VENDOR_ASYMMETRY.filter((v) => v.category === "scam"),
-    redFlag: VENDOR_ASYMMETRY.filter((v) => v.category === "redFlag"),
-    secret: VENDOR_ASYMMETRY.filter((v) => v.category === "secret"),
-  };
+  return `## 업체·계약 상담 안전 원칙
 
-  const formatItem = (v: VendorAsymmetryItem): string => {
-    const sourceText = v.source ? ` [출처: ${v.source}]` : "";
-    return `  - **${v.title}**: ${v.truth} → ${v.defense}${sourceText}`;
-  };
-
-  return `## 업체 정보 비대칭 — 업체는 알지만 소비자는 모르는 것
-
-마케팅 카피: "업체가 아는 모든 것을 당신도 알 수 있게."
-사용자가 계약·견적·업체 협상 관련 질문 시 아래 데이터를 **상황에 맞게** 자연스럽게 인용. 한 번에 다 쏟지 말고 그 순간 가장 적합한 1~2개만.
-
-### 협상 전술 — 업체가 쓰는 압박 패턴
-${byCategory.negotiation.map(formatItem).join("\n")}
-
-### 흔한 분쟁/사기 패턴
-${byCategory.scam.map(formatItem).join("\n")}
-
-### 계약 전 경고 신호
-${byCategory.redFlag.map(formatItem).join("\n")}
-
-### 업계 비밀 — 소비자 우위 정보
-${byCategory.secret.map(formatItem).join("\n")}
-
-**활용 원칙:**
-1. 사용자가 견적/계약 얘기 꺼낼 때만 활용. 평소 대화엔 안 씀.
-2. 출처 있는 항목은 **반드시 출처 명시** ("공정위 표준약관 §5에 따르면...").
-3. 사용자를 겁주지 말고, **"미리 알면 안전한 정보"**로 부드럽게 전달.
-4. 구체 상황 (사용자가 말한 업체 멘트, 견적 항목)에 매칭되는 것만 인용.
-5. 모든 업체가 그렇다고 일반화 X — "이런 패턴이 흔하니까 미리 체크하면 좋아요" 톤.`;
+- 업체의 의도나 평판을 추측해 사기·거짓말·압박 전술이라고 규정하지 마세요.
+- 사기 여부·위법 여부·계약 효력을 단정하지 마세요. 표준약관 적용 여부도 계약 유형과 최신 원문을 확인하기 전에는 확정하지 마세요.
+- 할인율, 환불 비율, 협상 성공률, 절약액을 일반적인 사실처럼 제시하지 마세요.
+- 사용자가 받은 견적서·계약서와 업체의 서면 답변을 기준으로 가격, 포함 항목, 변경·취소 조건, 제공 일정, 추가금 상한을 확인하도록 도우세요.
+- 분쟁이나 법적 판단이 필요한 경우 증빙 보존과 공식 기관 또는 자격 있는 전문가 확인을 안내하세요.`;
 }

@@ -48,6 +48,7 @@ const BUCKET_BY_KIND: Record<CommunityMediaKind, CommunityMediaBucket> = {
 };
 
 const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/;
+const UPLOAD_SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|gif|webp)$/i;
 
 function fail(reason: ValidationFailure["reason"]): ValidationFailure {
   return { ok: false, reason };
@@ -85,6 +86,7 @@ export function validateCommunityMediaUrl(
     kind: CommunityMediaKind;
     ownerIds: string | string[];
     supabaseUrl?: string;
+    requireUploadSessionPath?: boolean;
   }
 ): CommunityMediaValidationResult {
   if (typeof rawUrl !== "string") return fail("not_string");
@@ -115,6 +117,7 @@ export function validateCommunityMediaUrl(
   }
 
   const suffix = parsedUrl.pathname.slice(PUBLIC_OBJECT_PREFIX.length);
+  const rawSegments = suffix.split("/");
   const segments = decodePathSegments(suffix);
   if (!segments || segments.length < 3) return fail("wrong_storage_path");
   if (segments.some(isUnsafeSegment)) return fail("unsafe_path");
@@ -125,6 +128,14 @@ export function validateCommunityMediaUrl(
 
   const allowedOwners = normalizeOwnerIds(options.ownerIds);
   if (!allowedOwners.has(ownerId)) return fail("wrong_owner");
+  if (options.requireUploadSessionPath) {
+    if (rawSegments.length !== segments.length
+        || rawSegments.some((segment, index) => segment !== segments[index])
+        || pathParts.length !== 1
+        || !UPLOAD_SESSION_FILE_RE.test(pathParts[0])) {
+      return fail("unsafe_path");
+    }
+  }
 
   const objectPath = [ownerId, ...pathParts].join("/");
   return {
@@ -147,17 +158,80 @@ export function validateCommunityAttachmentUrl(
     kind: "image",
     ownerIds: options.ownerIds,
     supabaseUrl: options.supabaseUrl,
+    requireUploadSessionPath: true,
   });
   if (imageResult.ok) return { ...imageResult, kind: "image" };
+  return imageResult;
+}
 
-  const videoResult = validateCommunityMediaUrl(rawUrl, {
+/**
+ * New images must use the sanitized upload-session path. Updates may retain an
+ * older image URL only when that exact URL was already stored on the same post.
+ * Thumbnail URLs count as existing media because they share the same consumer
+ * attachment and cannot expand access to another post or owner.
+ */
+export function validateRetainedCommunityImageUrl(
+  rawUrl: unknown,
+  existingMedia: unknown,
+  options: {
+    ownerIds: string | string[];
+    supabaseUrl?: string;
+  },
+): CommunityMediaValidationResult {
+  const result = validateCommunityMediaUrl(rawUrl, {
+    kind: "image",
+    ownerIds: options.ownerIds,
+    supabaseUrl: options.supabaseUrl,
+  });
+  if (!result.ok) return result;
+
+  const retainedUrls = new Set<string>();
+  for (const entry of Array.isArray(existingMedia) ? existingMedia : []) {
+    if (typeof entry === "string") {
+      retainedUrls.add(entry.trim());
+      continue;
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const media = entry as Record<string, unknown>;
+    if (media.type === "image" && typeof media.url === "string") {
+      retainedUrls.add(media.url.trim());
+    }
+    if (typeof media.thumbnail_url === "string") {
+      retainedUrls.add(media.thumbnail_url.trim());
+    }
+  }
+  return retainedUrls.has(result.url) ? result : fail("unsafe_path");
+}
+
+/**
+ * Video sanitation is not release-ready, so updates may only retain a URL that
+ * was already stored on the same post. This keeps historical posts editable
+ * without creating a back door for a new video URL.
+ */
+export function validateRetainedCommunityVideoUrl(
+  rawUrl: unknown,
+  existingSlides: unknown,
+  options: {
+    ownerIds: string | string[];
+    supabaseUrl?: string;
+  },
+): CommunityMediaValidationResult {
+  const result = validateCommunityMediaUrl(rawUrl, {
     kind: "video",
     ownerIds: options.ownerIds,
     supabaseUrl: options.supabaseUrl,
   });
-  if (videoResult.ok) return { ...videoResult, kind: "video" };
+  if (!result.ok) return result;
 
-  return imageResult.reason === "wrong_bucket" ? videoResult : imageResult;
+  const retainedUrls = new Set(
+    (Array.isArray(existingSlides) ? existingSlides : [])
+      .filter((slide): slide is Record<string, unknown> =>
+        typeof slide === "object" && slide !== null && !Array.isArray(slide)
+      )
+      .filter((slide) => slide.type === "video" && typeof slide.url === "string")
+      .map((slide) => (slide.url as string).trim()),
+  );
+  return retainedUrls.has(result.url) ? result : fail("unsafe_path");
 }
 
 export function validateCommunityHtmlImageSources(
@@ -176,6 +250,7 @@ export function validateCommunityHtmlImageSources(
       kind: "image",
       ownerIds: options.ownerIds,
       supabaseUrl: options.supabaseUrl,
+      requireUploadSessionPath: true,
     });
     if (!result.ok) return { ok: false, src, reason: result.reason };
   }

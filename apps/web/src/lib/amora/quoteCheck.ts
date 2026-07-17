@@ -14,9 +14,8 @@ export type AmoraQuoteScope = "national" | "seoul";
 // 점수·등급·안전/위험·가격대 분류는 견적 구성을 모르는 채로는 정확할 수 없고,
 // 틀린 판정 한 번이 신뢰를 끝낸다(+ 표시광고 리스크). 남기는 것은 사실뿐이다:
 //   ① 견적서에서 확인된/안 된 항목 (사용자 입력 기반)
-//   ② 항목별 평균가·이용률 (실태조사·참가격 출처)
-//   ③ 같은 지역 중위가 (참고 표시 전용 — 비교 기준을 라벨로 명시)
-//   ④ 계약 전 확인 질문 (절차 — 항상 유효)
+//   ② 같은 지역 중위가 (공식 참가격, 참고 표시 전용 — 비교 기준을 라벨로 명시)
+//   ③ 계약 전 확인 질문 (절차 — 항상 유효)
 
 export interface AmoraQuoteCheckInput {
   category: AmoraQuoteCategory;
@@ -32,8 +31,6 @@ export interface AmoraQuoteCheckItem {
   name: string;
   category: HiddenCostItem["category"];
   severity: HiddenCostItem["severity"];
-  priceManwon: number;
-  usageRatePercent: number;
   checkQuestion: string;
   reason: string;
   disguise: string;
@@ -93,14 +90,12 @@ function getRelevantCosts(category: AmoraQuoteCategory): HiddenCostItem[] {
   return HIDDEN_COSTS.filter((item) => categories.includes(item.category));
 }
 
-function toCheckItem(item: HiddenCostItem, scope: AmoraQuoteScope): AmoraQuoteCheckItem {
+function toCheckItem(item: HiddenCostItem): AmoraQuoteCheckItem {
   return {
     id: item.id,
     name: item.name,
     category: item.category,
     severity: item.severity,
-    priceManwon: scope === "seoul" ? item.seoulPrice : item.nationalPrice,
-    usageRatePercent: Math.round(item.usageRate * 100),
     checkQuestion: item.checkQuestion,
     reason: item.reason,
     disguise: item.disguise,
@@ -164,7 +159,7 @@ function getMarketMedian(
   };
 }
 
-// 사실만 기술하는 요약 — 빠진 항목 개수 + 출처 있는 실태조사 인용.
+// 사실만 기술하는 요약 — 사용자가 체크하지 않은 항목 개수만 말한다.
 // 추가금 "추정액 계산"은 하지 않는다(구성을 모르는 채의 합산은 과장/과소가 된다).
 function getSummaryCopy(critical: number, high: number, medium: number) {
   const nonCritical = high + medium;
@@ -180,17 +175,17 @@ function getSummaryCopy(critical: number, high: number, medium: number) {
 
   const phrase =
     critical > 0 && nonCritical > 0
-      ? `필수 ${critical}개와 추가금이 자주 붙는 항목 ${nonCritical}개`
+      ? `핵심 확인 항목 ${critical}개와 추가 확인 항목 ${nonCritical}개`
       : critical > 0
-        ? `필수 항목 ${critical}개`
-        : `추가금이 자주 붙는 항목 ${nonCritical}개`;
+        ? `핵심 확인 항목 ${critical}개`
+        : `추가 확인 항목 ${nonCritical}개`;
 
   return {
     title:
       critical > 0
-        ? `필수 항목 ${critical}개가 견적서에서 확인되지 않았어요`
-        : `추가금이 자주 붙는 항목 ${nonCritical}개가 견적서에서 확인되지 않았어요`,
-    text: `${phrase}이 견적서에서 확인되지 않았어요. 결혼서비스 실태조사(2024)에서는 스드메 계약금(평균 346만원) 외 추가 지불이 평균 174만원으로 보고됐어요 — 빠진 항목은 계약 전에 포함 여부와 추가금 상한을 문서로 확인해두세요.`,
+        ? `핵심 확인 항목 ${critical}개가 견적서에서 확인되지 않았어요`
+        : `추가 확인 항목 ${nonCritical}개가 견적서에서 확인되지 않았어요`,
+    text: `${phrase}이 현재 입력한 견적서에서 확인되지 않았어요. 비용이 생긴다는 뜻은 아니므로, 계약 전에 포함 여부와 미포함 시 금액·상한을 서면으로 확인해두세요.`,
     action:
       "아래 질문을 업체에 그대로 보내고, 항목별 포함 여부와 추가금 상한을 문자나 계약서로 받아두세요. 계약 판단은 그 답을 보고 하면 돼요.",
   };
@@ -200,8 +195,8 @@ export function getQuoteCheckItems(
   category: AmoraQuoteCategory,
   region: AmoraQuoteRegion
 ): AmoraQuoteCheckItem[] {
-  const scope = regionToScope(region);
-  return getRelevantCosts(category).map((item) => toCheckItem(item, scope));
+  void region; // Kept in the public API for callers; item questions are region-independent.
+  return getRelevantCosts(category).map((item) => toCheckItem(item));
 }
 
 export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteCheckResult {
@@ -243,14 +238,14 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     missingCriticalCount: missingCritical.length,
     missingHighCount: missingHigh.length,
     missingMediumCount: missingMedium.length,
-    includedItems: included.map((item) => toCheckItem(item, scope)),
-    missingItems: missing.map((item) => toCheckItem(item, scope)),
+    includedItems: included.map((item) => toCheckItem(item)),
+    missingItems: missing.map((item) => toCheckItem(item)),
     summaryTitle: summary.title,
     summaryText: summary.text,
     recommendedAction: summary.action,
     contractQuestions,
     negotiationScript:
       "안녕하세요. 계약 전 확인차 문의드립니다. 아래 항목들이 견적에 포함인지, 미포함이면 항목별 추가금과 최대 상한이 얼마인지 문자로 남겨주실 수 있을까요?",
-    sourceNote: `한국소비자원 참가격 결혼서비스 통계 ${period?.label ?? ""} 기준과 웨딩한방 숨은비용 체크리스트를 함께 사용했습니다.`,
+    sourceNote: `가격 비교는 한국소비자원 참가격 결혼서비스 통계 ${period?.label ?? ""} 기준(https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do)이며, 확인 항목은 웨딩한방 계약 전 체크리스트입니다. 항목별 실제 추가 비용은 업체 서면 견적을 확인해야 합니다.`,
   };
 }

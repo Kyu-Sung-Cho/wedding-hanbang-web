@@ -13,6 +13,10 @@ const mediationMigration = readFileSync(
   resolve(process.cwd(), "../../supabase/migrations/20260716092000_amora_mediation_confirmation.sql"),
   "utf8",
 );
+const memoryBudgetDeferralMigration = readFileSync(
+  resolve(process.cwd(), "../../supabase/migrations/20260716098000_amora_memory_budget_deferral.sql"),
+  "utf8",
+);
 
 const BRIDE_ID = "00000000-0000-4000-8000-000000000001";
 const GROOM_ID = "00000000-0000-4000-8000-000000000002";
@@ -21,6 +25,8 @@ const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const USER_MESSAGE_ID = "20000000-0000-4000-8000-000000000001";
 const AI_MESSAGE_ID = "20000000-0000-4000-8000-000000000002";
 const NEXT_AI_MESSAGE_ID = "20000000-0000-4000-8000-000000000003";
+const AFTER_TARGET_AI_MESSAGE_ID = "20000000-0000-4000-8000-000000000004";
+const GROOM_USER_MESSAGE_ID = "20000000-0000-4000-8000-000000000005";
 
 async function createDatabase() {
   const db = await PGlite.create();
@@ -73,7 +79,8 @@ async function createDatabase() {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       couple_id uuid REFERENCES public.couples(id) ON DELETE CASCADE,
       user_id uuid,
-      summary_type text NOT NULL DEFAULT 'info',
+      summary_type text NOT NULL DEFAULT 'info'
+        CHECK (summary_type IN ('decision', 'preference', 'budget', 'schedule', 'concern', 'info', 'progress')),
       title text NOT NULL DEFAULT 'summary',
       content text NOT NULL DEFAULT '',
       summary text,
@@ -174,6 +181,11 @@ async function acceptMediation(
 }
 
 describe("Amora memory engine v2 migrations", () => {
+  it("preserves the deployed chat summary type contract", () => {
+    expect(memoryMigration).not.toMatch(/DROP\s+CONSTRAINT[\s\S]{0,300}summary_type/i);
+    expect(memoryMigration).not.toMatch(/summary_type\s*=\s*'cursor'/i);
+  });
+
   it("applies cleanly and keeps write functions service-only", async () => {
     const db = await createDatabase();
     try {
@@ -181,6 +193,10 @@ describe("Amora memory engine v2 migrations", () => {
       await setPersona(db, "authenticated", BRIDE_ID);
 
       await expect(db.query("SELECT public.claim_amora_memory_job(300)")).rejects.toThrow(/permission denied/i);
+      await expect(db.query(
+        "SELECT public.defer_amora_memory_job($1, 1, 3600, 'GLOBAL_BUDGET')",
+        [USER_MESSAGE_ID],
+      )).rejects.toThrow(/permission denied/i);
       await expect(db.query(
         "SELECT public.delete_amora_memory_node($1, 'shared', $2, $3)",
         [COUPLE_ID, USER_MESSAGE_ID, BRIDE_ID],
@@ -193,6 +209,63 @@ describe("Amora memory engine v2 migrations", () => {
         "INSERT INTO public.amora_memory_consents(couple_id, visibility, user_id) VALUES ($1, 'shared', $2)",
         [COUPLE_ID, BRIDE_ID],
       )).rejects.toThrow(/permission denied/i);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("defers a budget-blocked job without consuming an execution attempt", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\n${memoryBudgetDeferralMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      const inserted = await db.query<{ id: string }>(
+        `INSERT INTO public.amora_memory_jobs(
+           couple_id, user_id, visibility, to_message_id,
+           status, attempt_count, claimed_at, available_at
+         ) VALUES ($1, $2, 'shared', $3, 'processing', 1, now(), now())
+         RETURNING id`,
+        [COUPLE_ID, BRIDE_ID, AI_MESSAGE_ID],
+      );
+      const jobId = inserted.rows[0]?.id;
+
+      const stale = await db.query<{ deferred: boolean }>(
+        "SELECT public.defer_amora_memory_job($1, 2, 3600, 'GLOBAL_BUDGET') AS deferred",
+        [jobId],
+      );
+      expect(stale.rows[0]?.deferred).toBe(false);
+
+      const deferred = await db.query<{ deferred: boolean }>(
+        "SELECT public.defer_amora_memory_job($1, 1, 3600, 'GLOBAL_BUDGET') AS deferred",
+        [jobId],
+      );
+      expect(deferred.rows[0]?.deferred).toBe(true);
+      const state = await db.query<{
+        status: string;
+        attempt_count: number;
+        last_error_code: string;
+        claimed_at: string | null;
+        delay_seconds: number;
+      }>(
+        `SELECT status, attempt_count, last_error_code, claimed_at,
+                extract(epoch FROM (available_at - now()))::integer AS delay_seconds
+         FROM public.amora_memory_jobs WHERE id = $1`,
+        [jobId],
+      );
+      expect(state.rows[0]).toMatchObject({
+        status: "pending",
+        attempt_count: 0,
+        last_error_code: "GLOBAL_BUDGET",
+        claimed_at: null,
+      });
+      expect(state.rows[0]?.delay_seconds).toBeGreaterThanOrEqual(3_590);
+      expect(state.rows[0]?.delay_seconds).toBeLessThanOrEqual(3_600);
+
+      await expect(db.query(
+        "SELECT public.defer_amora_memory_job($1, 0, 30, 'GLOBAL_BUDGET')",
+        [jobId],
+      )).rejects.toThrow(/AMORA_MEMORY_JOB_DEFER_INVALID/);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();
@@ -312,6 +385,47 @@ describe("Amora memory engine v2 migrations", () => {
     }
   }, 30_000);
 
+  it("does not recreate memory settings after the final member deletes an empty couple", async () => {
+    const db = await createDatabase();
+    const emptyCoupleId = "10000000-0000-4000-8000-000000000099";
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.query(
+        "INSERT INTO public.couples(id, bride_id, groom_id) VALUES ($1, $2, NULL)",
+        [emptyCoupleId, BRIDE_ID],
+      );
+      await db.exec(`
+        CREATE OR REPLACE FUNCTION public.test_delete_empty_couple()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.bride_id IS NULL AND NEW.groom_id IS NULL THEN
+            DELETE FROM public.couples WHERE id = NEW.id;
+          END IF;
+          RETURN NEW;
+        END $$;
+        CREATE TRIGGER trg_delete_empty_couple_after_membership_change
+          AFTER UPDATE OF bride_id, groom_id ON public.couples
+          FOR EACH ROW
+          WHEN (NEW.bride_id IS NULL AND NEW.groom_id IS NULL)
+          EXECUTE FUNCTION public.test_delete_empty_couple();
+      `);
+      await setPersona(db, "service_role");
+
+      await db.query(
+        "UPDATE public.couples SET bride_id = NULL WHERE id = $1",
+        [emptyCoupleId],
+      );
+      const state = await db.query<{ couples: number; settings: number }>(`
+        SELECT
+          (SELECT count(*)::integer FROM public.couples WHERE id = $1) AS couples,
+          (SELECT count(*)::integer FROM public.amora_memory_settings WHERE couple_id = $1) AS settings
+      `, [emptyCoupleId]);
+      expect(state.rows[0]).toEqual({ couples: 0, settings: 0 });
+    } finally {
+      await db.close();
+    }
+  }, 30_000);
+
   it("claims serially and supersedes a changed semantic memory without duplicates", async () => {
     const db = await createDatabase();
     try {
@@ -393,6 +507,32 @@ describe("Amora memory engine v2 migrations", () => {
         [COUPLE_ID, BRIDE_ID, AI_MESSAGE_ID, NEXT_AI_MESSAGE_ID],
       );
       expect(enqueued.rows.map((row) => row.result)).toEqual(["queued", "queued"]);
+
+      const jobIds = await db.query<{ id: string; to_message_id: string; status: string }>(
+        `SELECT id, to_message_id, status
+         FROM public.amora_memory_jobs
+         WHERE couple_id = $1
+         ORDER BY to_message_id`,
+        [COUPLE_ID],
+      );
+      const targetedJob = jobIds.rows.find((job) => job.to_message_id === NEXT_AI_MESSAGE_ID);
+      const untouchedJob = jobIds.rows.find((job) => job.to_message_id === AI_MESSAGE_ID);
+      expect(targetedJob?.id).toBeTruthy();
+      expect(untouchedJob?.id).toBeTruthy();
+      const targetedClaim = await db.query<{ id: string; attempt_count: number }>(
+        "SELECT id, attempt_count FROM public.claim_amora_memory_job(300, $1)",
+        [targetedJob?.id],
+      );
+      expect(targetedClaim.rows).toEqual([{ id: targetedJob?.id, attempt_count: 1 }]);
+      const untouched = await db.query<{ status: string; attempt_count: number }>(
+        "SELECT status, attempt_count FROM public.amora_memory_jobs WHERE id = $1",
+        [untouchedJob?.id],
+      );
+      expect(untouched.rows[0]).toEqual({ status: "pending", attempt_count: 0 });
+      await db.query(
+        "SELECT public.finish_amora_memory_job($1, true, NULL, 1)",
+        [targetedJob?.id],
+      );
 
       const firstClaim = await db.query<{ id: string; attempt_count: number }>(
         "SELECT id, attempt_count FROM public.claim_amora_memory_job(300)",
@@ -835,6 +975,121 @@ describe("Amora memory engine v2 migrations", () => {
     }
   }, 30_000);
 
+  it("keeps each partner's same-key memory separate and blocks cross-actor correction", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, BRIDE_ID],
+      );
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.chat_messages SET created_at = now() + interval '1 second' WHERE couple_id = $1",
+        [COUPLE_ID],
+      );
+      await db.query(
+        `INSERT INTO public.chat_messages(
+          id, couple_id, sender_id, sender_type, role, content, visibility, created_at
+        ) VALUES ($1, $2, $3, 'groom', 'user', '나는 성수를 선호해', 'shared', now() + interval '2 seconds')`,
+        [GROOM_USER_MESSAGE_ID, COUPLE_ID, GROOM_ID],
+      );
+
+      const brideFirst = await db.query<{ id: string }>(
+        `SELECT public.upsert_amora_memory_node(
+          $1, 'shared', 'venue:preferred_area', 'venue', '선호 지역', '강남',
+          '신부가 직접 말함', 0.91, 'considering', $2, '{}'::jsonb
+        ) AS id`,
+        [COUPLE_ID, USER_MESSAGE_ID],
+      );
+      const groom = await db.query<{ id: string }>(
+        `SELECT public.upsert_amora_memory_node(
+          $1, 'shared', 'venue:preferred_area', 'venue', '선호 지역', '성수',
+          '신랑이 직접 말함', 0.92, 'considering', $2, '{}'::jsonb
+        ) AS id`,
+        [COUPLE_ID, GROOM_USER_MESSAGE_ID],
+      );
+      const brideCorrection = await db.query<{ id: string }>(
+        `SELECT public.upsert_amora_memory_node(
+          $1, 'shared', 'venue:preferred_area', 'venue', '선호 지역', '송파',
+          '신부가 선호를 바꿈', 0.95, 'considering', $2, '{}'::jsonb
+        ) AS id`,
+        [COUPLE_ID, USER_MESSAGE_ID],
+      );
+
+      expect(groom.rows[0]?.id).not.toBe(brideFirst.rows[0]?.id);
+      expect(brideCorrection.rows[0]?.id).not.toBe(brideFirst.rows[0]?.id);
+      const active = await db.query<{
+        source_actor_role: string;
+        value: string;
+      }>(
+        `SELECT source_actor_role, chosen_value ->> 'value' AS value
+         FROM public.decision_nodes
+         WHERE couple_id = $1
+           AND memory_key = 'venue:preferred_area'
+           AND superseded_at IS NULL
+         ORDER BY source_actor_role`,
+        [COUPLE_ID],
+      );
+      expect(active.rows).toEqual([
+        { source_actor_role: "bride", value: "송파" },
+        { source_actor_role: "groom", value: "성수" },
+      ]);
+
+      await expect(db.query(
+        "SELECT public.update_amora_memory_node($1, 'shared', $2, $3, '상대가 고친 기억', '잠실')",
+        [COUPLE_ID, brideCorrection.rows[0]?.id, GROOM_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_UPDATE_ACTOR_INVALID/);
+      await db.query(
+        "SELECT public.update_amora_memory_node($1, 'shared', $2, $3, '직접 고친 기억', '잠실')",
+        [COUPLE_ID, brideCorrection.rows[0]?.id, BRIDE_ID],
+      );
+      const corrected = await db.query<{ metadata: string }>(
+        "SELECT metadata::text FROM public.decision_nodes WHERE id = $1",
+        [brideCorrection.rows[0]?.id],
+      );
+      expect(corrected.rows[0]?.metadata).toContain('"user_corrected": true');
+      expect(corrected.rows[0]?.metadata).toContain('"corrected_actor_role": "bride"');
+
+      const partnerDeleted = await db.query<{ deleted: boolean }>(
+        "SELECT public.delete_amora_memory_node($1, 'shared', $2, $3) AS deleted",
+        [COUPLE_ID, brideCorrection.rows[0]?.id, GROOM_ID],
+      );
+      expect(partnerDeleted.rows[0]?.deleted).toBe(true);
+      const groomStillActive = await db.query<{ actors: string[] }>(
+        `SELECT array_agg(source_actor_role ORDER BY source_actor_role) AS actors
+         FROM public.decision_nodes
+         WHERE couple_id = $1
+           AND memory_key = 'venue:preferred_area'
+           AND superseded_at IS NULL`,
+        [COUPLE_ID],
+      );
+      expect(groomStillActive.rows[0]?.actors).toEqual(["groom"]);
+
+      const privateMemory = await db.query<{ id: string }>(
+        `INSERT INTO public.decision_nodes(
+          couple_id, category, decision_type, title, chosen_value, source,
+          memory_key, source_actor_role, visibility, metadata
+        ) VALUES (
+          $1, 'style', 'considering', '개인 선호', '{"value":"차분함"}'::jsonb,
+          'chat', 'style:private_mood', 'bride', 'bride_private', '{}'::jsonb
+        ) RETURNING id`,
+        [COUPLE_ID],
+      );
+      await expect(db.query(
+        "SELECT public.delete_amora_memory_node($1, 'bride_private', $2, $3)",
+        [COUPLE_ID, privateMemory.rows[0]?.id, GROOM_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_DELETE_SCOPE_INVALID/);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("commits a compiled memory bundle, summary, and job completion in one database transaction", async () => {
     const db = await createDatabase();
     try {
@@ -886,7 +1141,7 @@ describe("Amora memory engine v2 migrations", () => {
 
       const committed = await db.query<{ committed: boolean }>(
         `SELECT public.commit_amora_memory_job(
-          $1, $2, $3::jsonb, '선호 지역과 분위기를 확인했다.', 10, NULL, $4
+          $1, $2, $3::jsonb, '선호 지역과 분위기를 확인했다.', 2, NULL, $4
         ) AS committed`,
         [claimed.rows[0]?.id, claimed.rows[0]?.attempt_count, memories, AI_MESSAGE_ID],
       );
@@ -900,6 +1155,196 @@ describe("Amora memory engine v2 migrations", () => {
         [claimed.rows[0]?.id],
       );
       expect(state.rows[0]).toEqual({ memories: 2, summaries: 1, status: "completed" });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("atomically advances a partial cursor and reclaims the same job until its original target is complete", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, BRIDE_ID],
+      );
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.chat_messages SET created_at = now() + interval '1 second' WHERE couple_id = $1",
+        [COUPLE_ID],
+      );
+      await db.query(
+        `INSERT INTO public.chat_messages(
+          id, couple_id, sender_type, role, content, visibility, created_at
+        ) VALUES ($1, $2, 'ai', 'assistant', '원 target 뒤 메시지', 'shared', now() + interval '2 seconds')`,
+        [AFTER_TARGET_AI_MESSAGE_ID, COUPLE_ID],
+      );
+      await db.query(
+        "SELECT public.enqueue_amora_memory_job($1, $2, 'shared', $3)",
+        [COUPLE_ID, BRIDE_ID, NEXT_AI_MESSAGE_ID],
+      );
+
+      const firstClaim = await db.query<{
+        id: string;
+        attempt_count: number;
+        continuation_count: number;
+      }>(
+        "SELECT id, attempt_count, continuation_count FROM public.claim_amora_memory_job(300)",
+      );
+      const jobId = firstClaim.rows[0]?.id;
+      expect(firstClaim.rows[0]).toMatchObject({ attempt_count: 1, continuation_count: 0 });
+
+      await expect(db.query(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '원 target을 넘긴 배치', 4, NULL, $3
+        )`,
+        [jobId, firstClaim.rows[0]?.attempt_count, AFTER_TARGET_AI_MESSAGE_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_PREFIX_INVALID/);
+
+      await expect(db.query(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '건너뛴 배치', 1, NULL, $3
+        )`,
+        [jobId, firstClaim.rows[0]?.attempt_count, AI_MESSAGE_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_BATCH_COUNT_INVALID/);
+
+      const partial = await db.query<{ committed: boolean }>(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '첫 번째 연속 배치', 2, NULL, $3
+        ) AS committed`,
+        [jobId, firstClaim.rows[0]?.attempt_count, AI_MESSAGE_ID],
+      );
+      expect(partial.rows[0]?.committed).toBe(true);
+
+      const continued = await db.query<{
+        status: string;
+        attempt_count: number;
+        continuation_count: number;
+        summary_type: string;
+        to_message_id: string;
+        cursor: string;
+      }>(
+        `SELECT job.status, job.attempt_count, job.continuation_count,
+                summary.summary_type,
+                job.to_message_id::text,
+                summary.to_message_id AS cursor
+         FROM public.amora_memory_jobs AS job
+         JOIN public.chat_summaries AS summary
+           ON summary.couple_id = job.couple_id
+          AND summary.visibility = job.visibility
+         WHERE job.id = $1`,
+        [jobId],
+      );
+      expect(continued.rows[0]).toEqual({
+        status: "pending",
+        attempt_count: 0,
+        continuation_count: 1,
+        summary_type: "info",
+        to_message_id: NEXT_AI_MESSAGE_ID,
+        cursor: AI_MESSAGE_ID,
+      });
+
+      const secondClaim = await db.query<{
+        id: string;
+        attempt_count: number;
+        continuation_count: number;
+      }>(
+        "SELECT id, attempt_count, continuation_count FROM public.claim_amora_memory_job(300)",
+      );
+      expect(secondClaim.rows[0]).toEqual({
+        id: jobId,
+        attempt_count: 1,
+        continuation_count: 1,
+      });
+
+      await expect(db.query(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '이전 커서를 생략한 배치', 1, NULL, $3
+        )`,
+        [jobId, secondClaim.rows[0]?.attempt_count, NEXT_AI_MESSAGE_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_CURSOR_INVALID/);
+
+      const final = await db.query<{ committed: boolean }>(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '마지막 연속 배치', 1, $3, $4
+        ) AS committed`,
+        [jobId, secondClaim.rows[0]?.attempt_count, AI_MESSAGE_ID, NEXT_AI_MESSAGE_ID],
+      );
+      expect(final.rows[0]?.committed).toBe(true);
+      const completed = await db.query<{
+        status: string;
+        summaries: number;
+        cursor_summaries: number;
+      }>(
+        `SELECT status,
+                (SELECT count(*)::integer FROM public.chat_summaries
+                 WHERE couple_id = $2 AND visibility = 'shared') AS summaries,
+                (SELECT count(*)::integer FROM public.chat_summaries
+                 WHERE couple_id = $2 AND visibility = 'shared'
+                   AND summary = '[AMORA_MEMORY_CURSOR_ONLY]') AS cursor_summaries
+         FROM public.amora_memory_jobs WHERE id = $1`,
+        [jobId, COUPLE_ID],
+      );
+      expect(completed.rows[0]).toEqual({
+        status: "completed",
+        summaries: 2,
+        cursor_summaries: 2,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("fails closed instead of creating an unbounded continuation loop", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await setPersona(db, "service_role");
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, BRIDE_ID],
+      );
+      await db.query(
+        "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
+        [COUPLE_ID, GROOM_ID],
+      );
+      await db.query(
+        "UPDATE public.chat_messages SET created_at = now() + interval '1 second' WHERE couple_id = $1",
+        [COUPLE_ID],
+      );
+      await db.query(
+        "SELECT public.enqueue_amora_memory_job($1, $2, 'shared', $3)",
+        [COUPLE_ID, BRIDE_ID, NEXT_AI_MESSAGE_ID],
+      );
+      await db.query(
+        "UPDATE public.amora_memory_jobs SET continuation_count = 4 WHERE couple_id = $1",
+        [COUPLE_ID],
+      );
+      const claimed = await db.query<{ id: string; attempt_count: number }>(
+        "SELECT id, attempt_count FROM public.claim_amora_memory_job(300)",
+      );
+
+      await expect(db.query(
+        `SELECT public.commit_amora_memory_job(
+          $1, $2, '[]'::jsonb, '제한을 넘는 부분 배치', 2, NULL, $3
+        )`,
+        [claimed.rows[0]?.id, claimed.rows[0]?.attempt_count, AI_MESSAGE_ID],
+      )).rejects.toThrow(/AMORA_MEMORY_CONTINUATION_LIMIT/);
+
+      const state = await db.query<{ status: string; summaries: number }>(
+        `SELECT status,
+                (SELECT count(*)::integer FROM public.chat_summaries
+                 WHERE couple_id = $2 AND visibility = 'shared') AS summaries
+         FROM public.amora_memory_jobs WHERE id = $1`,
+        [claimed.rows[0]?.id, COUPLE_ID],
+      );
+      expect(state.rows[0]).toEqual({ status: "processing", summaries: 0 });
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

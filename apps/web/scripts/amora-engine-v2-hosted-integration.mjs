@@ -1,12 +1,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { verifySupabaseServiceDestination } from "../../../scripts/lib/supabase-service-destination.mjs";
 
 const previewUrl = process.env.AMORA_PREVIEW_SUPABASE_URL;
 const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.AMORA_PREVIEW_SUPABASE_SERVICE_ROLE_KEY;
 const expectedRef = process.env.AMORA_PREVIEW_PROJECT_REF;
 const productionRef = "slrtobkksjmxgzatjyqb";
-const productionConfirmation = `${productionRef}:DELETE_SYNTHETIC_AMORA_V2_FIXTURES`;
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -31,11 +31,18 @@ function expectDenied(label, result) {
 invariant(previewUrl && anonKey && serviceRoleKey && expectedRef, "Hosted test URL, ref, anon key, and service key are required.");
 const parsedUrl = new URL(previewUrl);
 invariant(parsedUrl.hostname === `${expectedRef}.supabase.co`, "Hosted test URL does not match AMORA_PREVIEW_PROJECT_REF.");
-const isProduction = expectedRef === productionRef;
 invariant(
-  !isProduction || process.env.AMORA_PRODUCTION_SYNTHETIC_CONFIRM === productionConfirmation,
-  `Production fixtures require AMORA_PRODUCTION_SYNTHETIC_CONFIRM=${productionConfirmation}.`,
+  expectedRef !== productionRef,
+  "Hosted integration is destructive and unconditionally refuses the production project.",
 );
+verifySupabaseServiceDestination({
+  url: previewUrl,
+  serviceRoleKey,
+  expectedUrl: `https://${expectedRef}.supabase.co`,
+  expectedProjectRef: expectedRef,
+  productionProjectRef: productionRef,
+  access: "operator-write",
+});
 
 const admin = createClient(previewUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -44,6 +51,15 @@ const anonymous = createClient(previewUrl, anonKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const createdUserIds = new Set();
+const createdCareJobIds = new Set();
+
+async function assertIsolatedCareQueue() {
+  const active = await admin.from("amora_care_jobs")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["pending", "processing"]);
+  expectSuccess("verify isolated care queue", active);
+  invariant(active.count === 0, "Hosted integration requires an isolated target with no active care jobs.");
+}
 
 async function createSyntheticUser(label) {
   const email = `amora-v2-${label}-${randomUUID()}@example.invalid`;
@@ -126,6 +142,14 @@ async function testPermissions({ bride, outsider, coupleId, userMessageId }) {
       p_source_message_id: userMessageId,
       p_metadata: {},
     }),
+  );
+  expectDenied(
+    "anonymous care queue read",
+    await anonymous.from("amora_care_jobs").select("id").limit(1),
+  );
+  expectDenied(
+    "member direct care queue claim",
+    await bride.client.rpc("claim_amora_care_job", { p_lease_seconds: 90 }),
   );
   // The row is created later by the consent test. This first query verifies
   // that merely knowing a couple UUID never escalates into a write path.
@@ -294,9 +318,23 @@ async function testMemoryEngine({ bride, groom, coupleId, userMessage, aiMessage
     }),
   );
   invariant(secondQueued === "queued", "second memory job was not queued");
+  const targetedMemoryJobs = expectSuccess(
+    "load synthetic memory job ids",
+    await admin.from("amora_memory_jobs")
+      .select("id,to_message_id")
+      .eq("couple_id", coupleId)
+      .in("to_message_id", [activeAiMessage.id, activeSecondAiMessage.id]),
+  );
+  invariant(targetedMemoryJobs?.length === 2, "synthetic memory job ids are not isolated");
   const parallelClaims = await Promise.all([
-    admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 }),
-    admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 }),
+    admin.rpc("claim_amora_memory_job", {
+      p_lease_seconds: 300,
+      p_job_id: targetedMemoryJobs[0].id,
+    }),
+    admin.rpc("claim_amora_memory_job", {
+      p_lease_seconds: 300,
+      p_job_id: targetedMemoryJobs[1].id,
+    }),
   ]);
   const claimedJobs = parallelClaims.flatMap((result, index) => {
     const data = expectSuccess(`parallel memory claim ${index + 1}`, result);
@@ -513,6 +551,116 @@ async function testCareConsent({ bride, groom, coupleId }) {
   const duplicate = await admin.rpc("insert_amora_care_message", args);
   invariant(duplicate.error?.code === "23505", "care message dedupe index did not reject a duplicate");
 
+  const futureScanParts = Object.fromEntries(new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(Date.now() + 24 * 60 * 60 * 1000))
+    .filter((part) => part.type !== "literal")
+    .map((part) => [part.type, part.value]));
+  const futureScanDay = `${futureScanParts.year}-${futureScanParts.month}-${futureScanParts.day}`;
+  const queueKey = `hosted:${randomUUID()}`;
+  const queued = expectSuccess(
+    "enqueue durable care job",
+    await admin.rpc("enqueue_amora_care_job", {
+      p_couple_id: coupleId,
+      p_scan_day: futureScanDay,
+      p_dedupe_key: queueKey,
+      p_content: "Durable hosted care queue probe",
+      p_metadata: { synthetic_release_gate: true },
+      p_email_subject: "Hosted care probe",
+      p_email_html: "<p>Hosted care probe</p>",
+    }),
+  );
+  invariant(queued?.inserted === true && queued?.status === "pending" && queued?.id,
+    "durable care enqueue did not create a pending job");
+  createdCareJobIds.add(queued.id);
+  const queueDuplicate = expectSuccess(
+    "dedupe durable care job",
+    await admin.rpc("enqueue_amora_care_job", {
+      p_couple_id: coupleId,
+      p_scan_day: futureScanDay,
+      p_dedupe_key: queueKey,
+      p_content: "Durable hosted care queue probe",
+      p_metadata: { synthetic_release_gate: true },
+      p_email_subject: "Hosted care probe",
+      p_email_html: "<p>Hosted care probe</p>",
+    }),
+  );
+  invariant(queueDuplicate?.id === queued.id && queueDuplicate?.inserted === false,
+    "durable care enqueue did not dedupe by couple and key");
+
+  const claimed = expectSuccess(
+    "claim durable care job",
+    await admin.rpc("claim_amora_care_job", { p_lease_seconds: 90, p_job_id: queued.id }),
+  );
+  invariant(claimed?.id === queued.id && claimed?.lease_token,
+    "durable care claim did not return the queued job");
+  const prepared = expectSuccess(
+    "prepare durable care job without Resend",
+    await admin.rpc("prepare_amora_care_job", {
+      p_job_id: claimed.id,
+      p_lease_token: claimed.lease_token,
+      p_email_enabled: false,
+    }),
+  );
+  invariant(prepared?.state === "ready" && prepared?.chat_message_id,
+    "durable care prepare did not persist its chat message");
+  const skippedDeliveries = expectSuccess(
+    "verify durable skipped email state",
+    await admin.from("amora_care_deliveries")
+      .select("user_id,status,idempotency_key")
+      .eq("job_id", claimed.id),
+  );
+  invariant(skippedDeliveries?.length === 2
+    && skippedDeliveries.every((delivery) => delivery.status === "skipped" && delivery.idempotency_key),
+  "missing Resend key did not persist one skipped delivery per current member");
+  const finished = expectSuccess(
+    "finish durable care job",
+    await admin.rpc("finish_amora_care_job", {
+      p_job_id: claimed.id,
+      p_lease_token: claimed.lease_token,
+    }),
+  );
+  invariant(finished?.state === "completed", "durable care job did not complete after explicit email skips");
+  const scrubbedCompletedJob = expectSuccess(
+    "verify completed care payload scrubbing",
+    await admin.from("amora_care_jobs")
+      .select("content,email_subject,email_html,metadata")
+      .eq("id", claimed.id)
+      .single(),
+  );
+  invariant(scrubbedCompletedJob.content === "[redacted]"
+    && scrubbedCompletedJob.email_subject === null
+    && scrubbedCompletedJob.email_html === null
+    && Object.keys(scrubbedCompletedJob.metadata ?? {}).length === 0,
+  "completed care job retained copied message or email payload");
+  const scrubbedCompletedRecipients = expectSuccess(
+    "verify completed care recipient scrubbing",
+    await admin.from("amora_care_deliveries")
+      .select("recipient_email,recipient_name")
+      .eq("job_id", claimed.id),
+  );
+  invariant(scrubbedCompletedRecipients.every((delivery) => (
+    delivery.recipient_email === null && delivery.recipient_name === null
+  )), "completed care delivery retained recipient PII");
+
+  const optOutQueueKey = `hosted-optout:${randomUUID()}`;
+  const optOutQueued = expectSuccess(
+    "enqueue care job before opt-out",
+    await admin.rpc("enqueue_amora_care_job", {
+      p_couple_id: coupleId,
+      p_scan_day: futureScanDay,
+      p_dedupe_key: optOutQueueKey,
+      p_content: "Must be cancelled after opt-out",
+      p_metadata: { synthetic_release_gate: true },
+      p_email_subject: "Must be cancelled",
+      p_email_html: "<p>Must be cancelled</p>",
+    }),
+  );
+  createdCareJobIds.add(optOutQueued.id);
+
   expectSuccess("disable bride care", await admin.from("profiles").update({
     care_notifications_enabled: false,
     care_notifications_consented_at: null,
@@ -525,6 +673,42 @@ async function testCareConsent({ bride, groom, coupleId }) {
     }),
   );
   invariant(afterOptOut === null, "care message was sent after opt-out");
+  const claimedAfterOptOut = expectSuccess(
+    "claim care job after opt-out",
+    await admin.rpc("claim_amora_care_job", {
+      p_lease_seconds: 90,
+      p_job_id: optOutQueued.id,
+    }),
+  );
+  invariant(claimedAfterOptOut?.id === optOutQueued.id, "opt-out queue job was not claimable for cancellation");
+  const cancelledAfterOptOut = expectSuccess(
+    "cancel queued care after opt-out",
+    await admin.rpc("prepare_amora_care_job", {
+      p_job_id: claimedAfterOptOut.id,
+      p_lease_token: claimedAfterOptOut.lease_token,
+      p_email_enabled: true,
+    }),
+  );
+  invariant(cancelledAfterOptOut?.state === "cancelled",
+    "queued care was not terminally cancelled after consent withdrawal");
+  const scrubbedCancelledJob = expectSuccess(
+    "verify cancelled care payload scrubbing",
+    await admin.from("amora_care_jobs")
+      .select("content,email_subject,email_html,metadata")
+      .eq("id", claimedAfterOptOut.id)
+      .single(),
+  );
+  invariant(scrubbedCancelledJob.content === "[redacted]"
+    && scrubbedCancelledJob.email_subject === null
+    && scrubbedCancelledJob.email_html === null
+    && Object.keys(scrubbedCancelledJob.metadata ?? {}).length === 0,
+  "cancelled care job retained copied message or email payload");
+  const forbiddenQueuedMessage = await admin.from("chat_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("couple_id", coupleId)
+    .eq("metadata->>client_request_id", `moment:${optOutQueueKey}`);
+  expectSuccess("verify no queued chat after opt-out", forbiddenQueuedMessage);
+  invariant(forbiddenQueuedMessage.count === 0, "queued care persisted a chat after consent withdrawal");
 }
 
 async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) {
@@ -607,12 +791,16 @@ async function testMediation({ bride, groom, outsider, coupleId, aiMessageId }) 
 }
 
 async function cleanup() {
+  for (const jobId of createdCareJobIds) {
+    await admin.from("amora_care_jobs").delete().eq("id", jobId);
+  }
   for (const userId of createdUserIds) {
     await admin.auth.admin.deleteUser(userId);
   }
 }
 
 try {
+  await assertIsolatedCareQueue();
   const bride = await createSyntheticUser("bride");
   const groom = await createSyntheticUser("groom");
   const outsider = await createSyntheticUser("outsider");
@@ -652,7 +840,7 @@ try {
   await testMediation({ bride, groom, outsider, coupleId: couple.couple_id, aiMessageId: aiMessage.id });
 
   console.log(
-    `${isProduction ? "Production" : "Preview"} Amora V2 hosted integration passed: permissions, explicit memory consent, correction/tombstone/clear, care consent, and two-sided mediation.`,
+    "Non-production Amora V2 hosted integration passed: permissions, explicit memory consent, correction/tombstone/clear, care consent, and two-sided mediation.",
   );
 } finally {
   await cleanup();

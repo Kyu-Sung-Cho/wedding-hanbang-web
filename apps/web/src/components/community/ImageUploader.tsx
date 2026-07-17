@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2, ImageIcon, Film } from "lucide-react";
+import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 
 interface ImageUploaderProps {
   images: string[];
@@ -11,14 +12,11 @@ interface ImageUploaderProps {
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_GIF_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_GIF_SIZE = 6 * 1024 * 1024; // 6MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const ALL_ACCEPTED = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 // iOS Safari + accept — heic/heif도 picker 진입 허용 (실제 업로드 시 friendly error 처리)
 const ACCEPT_STRING =
-  "image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,image/heic,image/heif,.heic,.heif";
+  "image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif";
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|webm)(\?|$)/i.test(url);
@@ -34,21 +32,10 @@ function inferMimeFromName(name: string): string {
       png: "image/png",
       gif: "image/gif",
       webp: "image/webp",
-      mp4: "video/mp4",
-      mov: "video/quicktime",
-      webm: "video/webm",
       heic: "image/heic",
       heif: "image/heif",
     }[ext] ?? ""
   );
-}
-
-// FormData에 non-ASCII 파일명을 그대로 넣으면 iOS Safari가 Content-Disposition
-// 인코딩에서 "The string did not match the expected pattern." DOMException을 던지는
-// 케이스가 있음. 안전하게 영문/숫자/.+_ 만 남기고, 비면 timestamp로 대체.
-function sanitizeFileName(name: string): string {
-  const cleaned = name.replace(/[^\w.\-]/g, "_");
-  return cleaned.length > 0 ? cleaned : `upload_${Date.now()}`;
 }
 
 export default function ImageUploader({
@@ -74,51 +61,24 @@ export default function ImageUploader({
         return null;
       }
 
-      if (!ALL_ACCEPTED.includes(effectiveType)) {
-        setError("JPG, PNG, GIF, WEBP, MP4, MOV, WebM 파일만 업로드할 수 있습니다.");
+      if (!ACCEPTED_IMAGE_TYPES.includes(effectiveType)) {
+        setError("JPG, PNG, GIF, WEBP 파일만 업로드할 수 있습니다.");
         return null;
       }
-      const isVideo = ACCEPTED_VIDEO_TYPES.includes(effectiveType);
       const isGif = effectiveType === "image/gif";
-      const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
+      const maxSize = isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
       if (file.size > maxSize) {
-        const msg = isVideo
-          ? "영상은 50MB 이하여야 합니다."
-          : isGif
-            ? "GIF는 10MB 이하여야 합니다."
-            : "이미지는 5MB 이하여야 합니다.";
+        const msg = isGif
+          ? "GIF는 6MB 이하여야 합니다."
+          : "이미지는 5MB 이하여야 합니다.";
         setError(msg);
         return null;
       }
 
       setProgress(`${idx + 1}/${total} 업로드 중...`);
 
-      // 파일명 ASCII 정리 — iOS Safari의 multipart Content-Disposition 인코딩 에러 방지
-      const safeName = sanitizeFileName(file.name);
-      const safeFile =
-        file.type && file.name === safeName
-          ? file
-          : new File([file], safeName, { type: effectiveType });
-
-      const formData = new FormData();
-      formData.append("file", safeFile);
-
       try {
-        const res = await fetch("/api/community/upload", {
-          method: "POST",
-          body: formData,
-        });
-        // 응답 파싱은 항상 .catch — iOS Safari가 HTML 응답을 json()으로 파싱하면
-        // "The string did not match the expected pattern." DOMException을 던짐.
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.url) {
-          throw new Error(
-            data?.error ||
-              (res.status === 413
-                ? "파일이 너무 커요. 더 작은 사이즈로 다시 시도해주세요."
-                : `업로드 실패 (HTTP ${res.status})`)
-          );
-        }
+        const data = await uploadCommunityMedia(file);
         return data.url;
       } catch (err) {
         setError(
@@ -205,10 +165,10 @@ export default function ImageUploader({
                 : "클릭하거나 파일을 드래그하세요"}
             </p>
             <p className="mt-1 text-xs text-[#B5ADA3]">
-              이미지 5MB · GIF 10MB · 영상 50MB / {images.length}/{max}개
+              이미지 5MB · GIF 6MB / {images.length}/{max}개
             </p>
             <p className="mt-0.5 text-xs text-[#B5ADA3]">
-              JPG, PNG, GIF, WEBP, MP4, MOV, WebM
+              JPG, PNG, GIF, WEBP
             </p>
           </div>
         </div>

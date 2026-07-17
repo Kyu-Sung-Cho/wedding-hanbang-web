@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     },
     reserve: vi.fn(),
     findPersisted: vi.fn(),
+    reconcile: vi.fn(),
     claim: vi.fn(),
     provider: vi.fn(),
     PersistenceError,
@@ -66,6 +67,7 @@ vi.mock("@/lib/ai/chatMessagePersistence", () => ({
 vi.mock("@/lib/ai/chatRequestClaim", () => ({
   ChatRequestClaimError: mocks.ClaimError,
   claimChatRequest: mocks.claim,
+  reconcileChatRequest: mocks.reconcile,
   completeChatRequest: vi.fn(),
   failChatRequest: vi.fn(),
 }));
@@ -106,12 +108,26 @@ describe("POST /api/chat safety ordering", () => {
     mocks.profile.role = "bride";
     mocks.reserve.mockResolvedValue({ allowed: true, remaining: 99 });
     mocks.findPersisted.mockResolvedValue(null);
+    mocks.reconcile.mockResolvedValue(true);
     mocks.claim.mockResolvedValue({ action: "acquired", attemptCount: 1, reclaimed: false });
   });
 
   it("rejects malformed messages before claim, quota reservation, or provider work", async () => {
     const response = await POST(request(validBody({ messages: [{ role: "system", content: "x" }] })));
     expect(response.status).toBe(400);
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed confirmed action id before claim, quota, or provider work", async () => {
+    const response = await POST(request(validBody({ confirmedActionId: "not-a-uuid" })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "INVALID_CONFIRMED_ACTION_ID",
+    });
     expect(mocks.findPersisted).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
@@ -126,7 +142,7 @@ describe("POST /api/chat safety ordering", () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
   });
 
-  it("replays a completed message without claim, quota, model, or tools", async () => {
+  it("reconciles and replays a committed message without quota, model, or tools", async () => {
     mocks.findPersisted.mockResolvedValue({
       id: "20000000-0000-4000-8000-000000000001",
       createdAt: "2026-07-14T00:00:00.000Z",
@@ -140,6 +156,61 @@ describe("POST /api/chat safety ordering", () => {
     const response = await POST(request(validBody()));
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("이미 저장된 답변");
+    expect(mocks.reconcile).toHaveBeenCalledWith(expect.objectContaining({
+      coupleId: COUPLE_ID,
+      messageId: "20000000-0000-4000-8000-000000000001",
+      visibility: "shared",
+    }));
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("fails closed instead of regenerating when a persisted response cannot be reconciled", async () => {
+    mocks.findPersisted.mockResolvedValue({
+      id: "20000000-0000-4000-8000-000000000002",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      content: "이미 저장된 답변",
+      metadata: {},
+      stageTag: "planning_0",
+      specialistType: null,
+      visibility: "shared",
+      reused: true,
+    });
+    mocks.reconcile.mockRejectedValue(new Error("database unavailable"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request(validBody()));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_REPLAY_RECONCILIATION_FAILED",
+    });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when reconciliation explicitly reports that no matching claim exists", async () => {
+    mocks.findPersisted.mockResolvedValue({
+      id: "20000000-0000-4000-8000-000000000003",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      content: "이미 저장된 안전 응답",
+      metadata: { response_origin: "deterministic_crisis_safety" },
+      stageTag: null,
+      specialistType: null,
+      visibility: "shared",
+      reused: true,
+    });
+    mocks.reconcile.mockResolvedValue(false);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await POST(request(validBody()));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CHAT_REPLAY_RECONCILIATION_FAILED",
+    });
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();

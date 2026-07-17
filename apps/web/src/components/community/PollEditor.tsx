@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import type { CreatePollInput } from "@/types/community.types";
+import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 
 interface PollEditorProps {
   value: CreatePollInput | null;
@@ -176,17 +177,7 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
     }
     setUploadingIdx(idx);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/community/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "업로드 실패");
-      }
-      const data = await res.json();
+      const data = await uploadCommunityMedia(file);
       setOptionImage(idx, data.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "업로드에 실패했습니다.");

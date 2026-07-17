@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClientFromRequest(request);
     const includeDebug = process.env.NODE_ENV !== "production";
+    const isGuestProbe = new URL(request.url).searchParams.get("guest_probe") === "1";
     const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
     const {
       data: { user },
@@ -15,6 +16,12 @@ export async function GET(request: Request) {
     if (!user) {
       if (isDemoRequest) {
         return NextResponse.json({ user: null, demo: true });
+      }
+      if (isGuestProbe) {
+        return NextResponse.json(
+          { user: null },
+          { headers: { "Cache-Control": "no-store" } },
+        );
       }
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }

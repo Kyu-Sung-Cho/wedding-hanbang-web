@@ -8,18 +8,14 @@
 // 결과는 ISR (revalidate)로 캐시되어 60초마다 새로고침.
 // =============================================
 
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export { BETA_COUNTER_MIN, BETA_TOTAL, shouldShowBetaCounter } from "@/constants/beta";
 
 export async function getBetaCount(): Promise<number> {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return 0;
-    const admin = createClient(url, key, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return 0;
+    const admin = createAdminClient();
     const { count } = await admin
       .from("preregistrations")
       .select("id", { count: "exact", head: true })

@@ -14,8 +14,9 @@ export interface Profile {
   onboarding_completed: boolean;
   onboarding_step: number;
   is_admin: boolean;
-  /** 아모라 케어 아웃바운드(모멘트 이메일 등) 수신 여부 — 기본 true */
+  /** 아모라 선제 케어 명시적 수신 동의 — 기본 false이며 동의 시각도 함께 있어야 유효 */
   care_notifications_enabled?: boolean;
+  /** 서버가 기록한 아모라 선제 케어 동의 시각 — null=미동의 */
   care_notifications_consented_at?: string | null;
   /** 휴대폰 번호(숫자만) — 알림톡/문자 케어 채널용 */
   phone?: string | null;
@@ -27,9 +28,11 @@ export interface Profile {
 
 export interface Couple {
   id: string;
-  invite_code: string;
+  invite_code: string | null;
   bride_id: string | null;
   groom_id: string | null;
+  /** 첫 2인 roster가 성립한 시각. 값이 있으면 빈 슬롯에 새 멤버를 초대할 수 없다. */
+  membership_sealed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +117,19 @@ export type ChatMessageTarget = "ai" | "partner";
 // 메시지 가시성: shared = 둘 다 볼 수 있음 / bride_private = 신부 단독 / groom_private = 신랑 단독
 export type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
 
+export interface PendingAmoraAction {
+  version: 1;
+  actionId: string;
+  tool: string;
+  input: Record<string, unknown>;
+  /** Canonical, server-authored Korean description of the exact mutation. */
+  confirmation: string;
+  /** Server epoch milliseconds. */
+  issuedAt: number;
+  /** Server epoch milliseconds. */
+  expiresAt: number;
+}
+
 export interface ChatMessageMetadata {
   roomId?: string;
   suggestions?: string[];
@@ -131,6 +147,8 @@ export interface ChatMessageMetadata {
   // D3 — 서버가 계산한 stage/specialist를 SSE로 클라이언트에 전달
   stageTag?: import("./moat.types").StageTag;
   specialistType?: import("./moat.types").SpecialistType;
+  /** Requires an explicit button confirmation; chat prose alone never confirms it. */
+  pending_amora_action?: PendingAmoraAction;
   // 커플 갈등 중재 — AI 응답에서 [mediation]...[/mediation] 마커가 추출되면 백엔드가 채움.
   // 클라이언트는 ChatBubble에서 MediationCard로 시각화.
   mediation?: {

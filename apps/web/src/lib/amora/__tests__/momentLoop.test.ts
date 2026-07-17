@@ -119,4 +119,14 @@ describe("모멘트 루프 — D-3/D-1/D+1 셀 계산 (KST 기준)", () => {
     const b = buildDueMomentCells({ progress: eventProgress("2026-06-16"), now: NOW })[0];
     expect(a.dedupeKey).not.toBe(b.dedupeKey);
   });
+
+  it("같은 날짜와 타입의 중복 이벤트는 하나의 care cell로 축약한다", () => {
+    const duplicate = eventProgress("2026-07-17", "sanggyeonrye").__events[0];
+    const cells = buildDueMomentCells({
+      progress: { __events: Array.from({ length: 300 }, () => ({ ...duplicate })) },
+      now: new Date("2026-07-16T03:00:00.000Z"),
+    });
+
+    expect(cells.filter((cell) => cell.dedupeKey === "sanggyeonrye:d1:2026-07-17")).toHaveLength(1);
+  });
 });

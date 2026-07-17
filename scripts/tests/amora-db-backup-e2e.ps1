@@ -7,20 +7,32 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Security
 
 $ExpectedTables = @(
+  'account_deletion_jobs',
+  'account_deletion_media_manifest',
   'ai_interactions_log',
   'amora_actions',
+  'amora_care_deliveries',
+  'amora_care_jobs',
+  'amora_care_scan_states',
+  'amora_chat_request_claims',
+  'amora_conflict_check_claims',
   'amora_couple_profiles',
   'amora_mediation_acceptances',
   'amora_memory_consents',
   'amora_memory_jobs',
   'amora_memory_settings',
+  'amora_tool_executions',
   'amora_turn_counters',
+  'amora_turn_requests',
+  'booking_projection_jobs',
   'chat_feedback',
   'chat_messages',
   'chat_summaries',
+  'community_upload_sessions',
   'couples',
   'decision_nodes',
   'profiles',
+  'vendor_reviews',
   'wedding_journeys'
 )
 $ExpectedFiles = @(
@@ -143,12 +155,17 @@ function Invoke-NodeSelfTest {
     [Parameter(Mandatory = $true)] [string] $NodeCli,
     [Parameter(Mandatory = $true)] [string] $ScriptPath,
     [Parameter(Mandatory = $true)] [string] $SqlPath,
+    [Parameter(Mandatory = $true)] [string] $PreflightSqlPath,
+    [Parameter(Mandatory = $true)] [string] $InventorySqlPath,
     [Parameter(Mandatory = $true)] [string] $WorkingDirectory
   )
 
   $startInfo = New-Object Diagnostics.ProcessStartInfo
   $startInfo.FileName = $NodeCli
-  $startInfo.Arguments = "$(Quote-ProcessArgument -Value $ScriptPath) $(Quote-ProcessArgument -Value $SqlPath)"
+  $startInfo.Arguments = @(
+    $ScriptPath, $SqlPath, $PreflightSqlPath, $InventorySqlPath
+  ) | ForEach-Object { Quote-ProcessArgument -Value $_ }
+  $startInfo.Arguments = $startInfo.Arguments -join ' '
   $startInfo.WorkingDirectory = $WorkingDirectory
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $true
@@ -350,6 +367,33 @@ function Invoke-Backup {
     -ScriptPath $BackupScript `
     -Parameters $parameters `
     -Environment $environment
+}
+
+function Assert-BackupContractModeRejected {
+  param(
+    [Parameter(Mandatory = $true)] [string] $Mode,
+    [Parameter(Mandatory = $true)] [string] $CaseName,
+    [Parameter(Mandatory = $true)] [string] $TestName,
+    [Parameter(Mandatory = $true)] [string] $BackupScript,
+    [Parameter(Mandatory = $true)] [string] $FakeCli,
+    [Parameter(Mandatory = $true)] [string] $ProjectRef,
+    [Parameter(Mandatory = $true)] [string] $StateDirectory,
+    [Parameter(Mandatory = $true)] [string] $RepoRoot
+  )
+
+  $root = New-SelfTestRoot
+  [void]$roots.Add($root)
+  $result = Invoke-Backup `
+    -BackupScript $BackupScript -FakeCli $FakeCli -Root $root -ProjectRef $ProjectRef `
+    -StateDirectory $StateDirectory -RepoRoot $RepoRoot -Mode $Mode
+  Assert-Rejected -CaseName $CaseName -Result $result
+  if (Test-Path -LiteralPath $root) {
+    $unexpectedEntries = @(Get-ChildItem -LiteralPath $root -Force | Where-Object {
+      $_.Name -notin @('.amora-backup-root-v2', '.amora-backup-capture-v2.lock')
+    })
+    Assert-True -Condition ($unexpectedEntries.Count -eq 0) -Message "$CaseName published or left a partial backup."
+  }
+  [void]$testNames.Add($TestName)
 }
 
 function Invoke-Verify {
@@ -581,11 +625,44 @@ $record = [ordered]@{
 )
 
 $tableNames = @(
-  'ai_interactions_log', 'amora_actions', 'amora_couple_profiles',
+  'account_deletion_jobs', 'account_deletion_media_manifest',
+  'ai_interactions_log', 'amora_actions', 'amora_care_deliveries', 'amora_care_jobs',
+  'amora_care_scan_states', 'amora_chat_request_claims', 'amora_conflict_check_claims',
+  'amora_couple_profiles',
   'amora_mediation_acceptances', 'amora_memory_consents', 'amora_memory_jobs', 'amora_memory_settings',
-  'amora_turn_counters', 'chat_feedback', 'chat_messages',
-  'chat_summaries', 'couples', 'decision_nodes', 'profiles',
+  'amora_tool_executions', 'amora_turn_counters', 'amora_turn_requests',
+  'booking_projection_jobs', 'chat_feedback', 'chat_messages',
+  'chat_summaries', 'community_upload_sessions', 'couples', 'decision_nodes', 'profiles', 'vendor_reviews',
   'wedding_journeys'
+)
+$releaseMigrationVersions = @(
+  '20260716090000',
+  '20260716091000',
+  '20260716092000',
+  '20260716093000',
+  '20260716094000',
+  '20260716095000',
+  '20260716096000',
+  '20260716097000',
+  '20260716098000',
+  '20260716099000',
+  '20260716100000',
+  '20260716102000',
+  '20260716103000',
+  '20260716104000',
+  '20260716105000',
+  '20260716106000',
+  '20260716107000',
+  '20260716108000',
+  '20260716109000',
+  '20260716110000',
+  '20260716111000',
+  '20260716112000',
+  '20260716113000',
+  '20260716114000',
+  '20260716115000',
+  '20260716116000',
+  '20260716117000'
 )
 $baseCapture = [DateTimeOffset]::Parse($env:HBAM_SELFTEST_CAPTURED_AT).ToUniversalTime()
 $emptyDigest = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
@@ -609,6 +686,72 @@ function New-RelationMetadata([string[]] $Names, [string] $Stage) {
   })
 }
 
+function New-CareDeliveryPolicyContract([string] $Stage) {
+  return [ordered]@{
+    migration_version = '20260716095000'
+    migration_present = -not ($mode -eq 'missing-care-policy-migration-preflight' -and $Stage -eq 'preflight')
+    column = 'amora_care_deliveries.send_day'
+    column_present = -not ($mode -eq 'missing-care-policy-column-inventory' -and $Stage -eq 'inventory')
+    constraint = 'profiles_care_consent_state_valid'
+    constraint_present = -not ($mode -eq 'missing-care-policy-constraint-inventory' -and $Stage -eq 'inventory')
+    indexes = @(
+      'amora_care_deliveries_user_send_day_uidx',
+      'amora_care_jobs_active_age_idx',
+      'amora_care_jobs_scan_status_idx'
+    )
+    indexes_present = -not ($mode -eq 'missing-care-policy-index-inventory' -and $Stage -eq 'inventory')
+    functions = @(
+      'amora_care_delivery_clock()',
+      'amora_care_is_delivery_window(timestamp with time zone)',
+      'amora_care_next_delivery_window(timestamp with time zone)',
+      'claim_amora_care_email_delivery(uuid,uuid)',
+      'claim_amora_care_email_delivery_pre_delivery_policy(uuid,uuid)',
+      'enqueue_amora_care_job(uuid,date,text,text,jsonb,text,text)',
+      'enqueue_amora_care_job_pre_delivery_policy(uuid,date,text,text,jsonb,text,text)',
+      'get_amora_care_queue_stats(date)',
+      'prepare_amora_care_job(uuid,uuid,boolean)',
+      'prepare_amora_care_job_pre_delivery_policy(uuid,uuid,boolean)'
+    )
+    functions_present = -not ($mode -eq 'missing-care-policy-function-inventory' -and $Stage -eq 'inventory')
+  }
+}
+
+function New-MemoryBudgetDeferralContract([string] $Stage) {
+  $publicAcl = $mode -eq 'public-memory-deferral-acl-inventory' -and $Stage -eq 'inventory'
+  $missingFunction = $mode -eq 'missing-memory-deferral-function-inventory' -and $Stage -eq 'inventory'
+  return [ordered]@{
+    migration_version = '20260716098000'
+    migration_present = -not ($mode -eq 'missing-memory-deferral-migration-preflight' -and $Stage -eq 'preflight')
+    function = 'defer_amora_memory_job(uuid,integer,integer,text)'
+    function_present = -not $missingFunction
+    service_role_execute = -not $missingFunction
+    anon_execute = $publicAcl
+    authenticated_execute = $false
+    service_only = -not ($publicAcl -or $missingFunction)
+  }
+}
+
+function New-ReleaseMigrationContract([string] $Stage) {
+  $actual = @($releaseMigrationVersions)
+  if ($mode -eq 'missing-release-head-preflight' -and $Stage -eq 'preflight') {
+    $actual = @($actual | Where-Object { $_ -ne '20260716117000' })
+  }
+  if ($mode -eq 'unexpected-release-migration-inventory' -and $Stage -eq 'inventory') {
+    $actual += '20260716118000'
+  }
+  return [ordered]@{
+    baseline_head = '20260715210000'
+    expected_head = '20260716117000'
+    actual_head = [string]($actual | Sort-Object | Select-Object -Last 1)
+    expected_versions = @($releaseMigrationVersions)
+    actual_versions = @($actual | Sort-Object)
+    exact = (
+      $actual.Count -eq $releaseMigrationVersions.Count -and
+      (($actual | Sort-Object) -join "`n") -ceq ($releaseMigrationVersions -join "`n")
+    )
+  }
+}
+
 function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
   $tables = @(New-RelationMetadata -Names $tableNames -Stage 'inventory' | ForEach-Object {
     [ordered]@{
@@ -618,7 +761,13 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
       has_inheritance_children = $_.has_inheritance_children
       is_inheritance_child = $_.is_inheritance_child
       rls = $true
-      force_rls = $false
+      force_rls = (
+        $_.name -in @('account_deletion_jobs', 'account_deletion_media_manifest') -and
+        -not (
+          $mode -eq 'non-force-account-deletion-table-inventory' -and
+          $_.name -eq 'account_deletion_jobs'
+        )
+      )
       owner = 'postgres'
       acl = $null
     }
@@ -692,11 +841,68 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
       generation_expression = $null
     }
   }
+  if ($mode -ne 'missing-care-policy-column-inventory') {
+    $columns += [ordered]@{
+      table_name = 'amora_care_deliveries'
+      ordinal_position = 3
+      column_name = 'send_day'
+      data_type = 'date'
+      udt_schema = 'pg_catalog'
+      udt_name = 'date'
+      type_modifier = -1
+      formatted_type = 'date'
+      character_maximum_length = $null
+      character_octet_length = $null
+      numeric_precision = $null
+      numeric_precision_radix = $null
+      numeric_scale = $null
+      datetime_precision = 0
+      interval_type = $null
+      interval_precision = $null
+      domain_schema = $null
+      domain_name = $null
+      collation_schema = $null
+      collation_name = $null
+      is_nullable = 'YES'
+      column_default = $null
+      is_identity = 'NO'
+      identity_generation = $null
+      identity_start = $null
+      identity_increment = $null
+      identity_maximum = $null
+      identity_minimum = $null
+      identity_cycle = 'NO'
+      is_generated = 'NEVER'
+      generation_expression = $null
+    }
+  }
+  $memoryDeferralAcl = @('postgres=X/postgres', 'service_role=X/postgres')
+  if ($mode -eq 'public-memory-deferral-acl-inventory') {
+    $memoryDeferralAcl += 'anon=X/postgres'
+  }
   $functions = @(
     [ordered]@{ identity = 'update_updated_at_column()'; definition = 'create function public.update_updated_at_column() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
     [ordered]@{ identity = 'is_couple_member(uuid)'; definition = 'create function public.is_couple_member(uuid) returns boolean language sql stable as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
     [ordered]@{ identity = 'reserve_amora_turn(uuid,integer,integer)'; definition = 'create function public.reserve_amora_turn(uuid,integer,integer) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
+    [ordered]@{ identity = 'reserve_amora_turn(uuid,integer,integer,bigint,bigint)'; definition = 'create function public.reserve_amora_turn(uuid,integer,integer,bigint,bigint) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'prepare_amora_provider_call_receipt(uuid,uuid,text,text,text,text,integer,text,text,jsonb)'; definition = 'create function public.prepare_amora_provider_call_receipt(uuid,uuid,text,text,text,text,integer,text,text,jsonb) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'reserve_amora_provider_call(uuid,uuid,text,uuid,integer,integer,bigint,bigint)'; definition = 'create function public.reserve_amora_provider_call(uuid,uuid,text,uuid,integer,integer,bigint,bigint) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finalize_amora_provider_call_receipt(uuid,uuid,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)'; definition = 'create function public.finalize_amora_provider_call_receipt(uuid,uuid,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_tool_execution(uuid,text,text,text,text)'; definition = 'create function public.claim_amora_tool_execution(uuid,text,text,text,text) returns jsonb language sql as $$ select ''{"action":"acquired"}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_tool_execution(uuid,text,text,text,text,integer)'; definition = 'create function public.claim_amora_tool_execution(uuid,text,text,text,text,integer) returns jsonb language sql as $$ select ''{"action":"acquired"}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid)'; definition = 'create function public.claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid) returns jsonb language sql as $$ select ''{"action":"acquired"}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_community_upload_session(uuid,uuid,uuid,timestamp with time zone)'; definition = 'create function public.claim_community_upload_session(uuid,uuid,uuid,timestamp with time zone) returns setof public.community_upload_sessions language sql as $$ select * from public.community_upload_sessions where false $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'begin_account_deletion_job(uuid,text)'; definition = 'create function public.begin_account_deletion_job(uuid,text) returns setof public.account_deletion_jobs language sql security definer set search_path = '''' as $$ select * from public.account_deletion_jobs where false $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'claim_account_deletion_job(uuid,uuid,timestamp with time zone)'; definition = 'create function public.claim_account_deletion_job(uuid,uuid,timestamp with time zone) returns setof public.account_deletion_jobs language sql security definer set search_path = '''' as $$ select * from public.account_deletion_jobs where false $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'replace_account_deletion_media_manifest(uuid,uuid,jsonb)'; definition = 'create function public.replace_account_deletion_media_manifest(uuid,uuid,jsonb) returns setof public.account_deletion_jobs language sql security definer set search_path = '''' as $$ select * from public.account_deletion_jobs where false $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'release_account_deletion_job(uuid,uuid,text)'; definition = 'create function public.release_account_deletion_job(uuid,uuid,text) returns boolean language sql security definer set search_path = '''' as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'mark_account_deletion_manual_review(uuid,uuid,text)'; definition = 'create function public.mark_account_deletion_manual_review(uuid,uuid,text) returns boolean language sql security definer set search_path = '''' as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'resume_account_deletion_after_manual_review(uuid)'; definition = 'create function public.resume_account_deletion_after_manual_review(uuid) returns setof public.account_deletion_jobs language sql security definer set search_path = '''' as $$ select * from public.account_deletion_jobs where false $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'checkpoint_account_deletion_media(uuid,uuid,text,text)'; definition = 'create function public.checkpoint_account_deletion_media(uuid,uuid,text,text) returns boolean language sql security definer set search_path = '''' as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'prepare_account_deletion_auth_delete(uuid,uuid)'; definition = 'create function public.prepare_account_deletion_auth_delete(uuid,uuid) returns boolean language sql security definer set search_path = '''' as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'finalize_account_deletion_job(uuid,uuid)'; definition = 'create function public.finalize_account_deletion_job(uuid,uuid) returns boolean language sql security definer set search_path = '''' as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=') },
     [ordered]@{ identity = 'apply_journey_progress_patch(uuid,jsonb,text[])'; definition = 'create function public.apply_journey_progress_patch(uuid,jsonb,text[]) returns jsonb language sql as $$ select $2 $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
+    [ordered]@{ identity = 'apply_journey_progress_item_patch(uuid,text,jsonb)'; definition = 'create function public.apply_journey_progress_item_patch(uuid,text,jsonb) returns jsonb language sql as $$ select $3 $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'join_couple(text,text)'; definition = 'create function public.join_couple(text,text) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
     [ordered]@{ identity = 'generate_invite_code()'; definition = 'create function public.generate_invite_code() returns text language sql as $$ select ''TEST'' $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
     [ordered]@{ identity = 'redact_old_ai_interactions(interval)'; definition = 'create function public.redact_old_ai_interactions(interval) returns integer language sql as $$ select 0 $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=public') },
@@ -704,7 +910,7 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     [ordered]@{ identity = 'reset_amora_memory_after_membership_change()'; definition = 'create function public.reset_amora_memory_after_membership_change() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'has_current_amora_memory_consent(uuid,text)'; definition = 'create function public.has_current_amora_memory_consent(uuid,text) returns boolean language sql as $$ select false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'enqueue_amora_memory_job(uuid,uuid,text,uuid)'; definition = 'create function public.enqueue_amora_memory_job(uuid,uuid,text,uuid) returns text language sql as $$ select ''disabled''::text $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
-    [ordered]@{ identity = 'claim_amora_memory_job(integer)'; definition = 'create function public.claim_amora_memory_job(integer) returns setof public.amora_memory_jobs language sql as $$ select * from public.amora_memory_jobs where false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_memory_job(integer,uuid)'; definition = 'create function public.claim_amora_memory_job(integer,uuid) returns setof public.amora_memory_jobs language sql as $$ select * from public.amora_memory_jobs where false $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'finish_amora_memory_job(uuid,boolean,text,integer)'; definition = 'create function public.finish_amora_memory_job(uuid,boolean,text,integer) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb)'; definition = 'create function public.upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'update_amora_memory_node(uuid,text,uuid,uuid,text,text)'; definition = 'create function public.update_amora_memory_node(uuid,text,uuid,uuid,text,text) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
@@ -716,6 +922,41 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     [ordered]@{ identity = 'revoke_amora_mediation_acceptance(uuid,uuid,uuid)'; definition = 'create function public.revoke_amora_mediation_acceptance(uuid,uuid,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'reset_amora_mediation_after_membership_change()'; definition = 'create function public.reset_amora_mediation_after_membership_change() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'insert_amora_care_message(uuid,text,jsonb)'; definition = 'create function public.insert_amora_care_message(uuid,text,jsonb) returns uuid language sql as $$ select null::uuid $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_care_scan(date,integer)'; definition = 'create function public.claim_amora_care_scan(date,integer) returns jsonb language sql as $$ select null::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'advance_amora_care_scan(date,uuid,uuid,uuid,integer,boolean,integer)'; definition = 'create function public.advance_amora_care_scan(date,uuid,uuid,uuid,integer,boolean,integer) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'enqueue_amora_care_job(uuid,date,text,text,jsonb,text,text)'; definition = 'create function public.enqueue_amora_care_job(uuid,date,text,text,jsonb,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_care_job(integer,uuid)'; definition = 'create function public.claim_amora_care_job(integer,uuid) returns jsonb language sql as $$ select null::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'prepare_amora_care_job(uuid,uuid,boolean)'; definition = 'create function public.prepare_amora_care_job(uuid,uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_care_email_delivery(uuid,uuid)'; definition = 'create function public.claim_amora_care_email_delivery(uuid,uuid) returns jsonb language sql as $$ select null::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'amora_care_delivery_clock()'; definition = 'create function public.amora_care_delivery_clock() returns timestamp with time zone language sql as $$ select now() $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $false; config = @('search_path=pg_catalog') },
+    [ordered]@{ identity = 'amora_care_is_delivery_window(timestamp with time zone)'; definition = 'create function public.amora_care_is_delivery_window(timestamp with time zone) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $false; config = @('search_path=pg_catalog') },
+    [ordered]@{ identity = 'amora_care_next_delivery_window(timestamp with time zone)'; definition = 'create function public.amora_care_next_delivery_window(timestamp with time zone) returns timestamp with time zone language sql as $$ select $1 $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $false; config = @('search_path=pg_catalog') },
+    [ordered]@{ identity = 'get_amora_care_queue_stats(date)'; definition = 'create function public.get_amora_care_queue_stats(date) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'enqueue_amora_care_job_pre_delivery_policy(uuid,date,text,text,jsonb,text,text)'; definition = 'create function public.enqueue_amora_care_job_pre_delivery_policy(uuid,date,text,text,jsonb,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'prepare_amora_care_job_pre_delivery_policy(uuid,uuid,boolean)'; definition = 'create function public.prepare_amora_care_job_pre_delivery_policy(uuid,uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_care_email_delivery_pre_delivery_policy(uuid,uuid)'; definition = 'create function public.claim_amora_care_email_delivery_pre_delivery_policy(uuid,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finish_amora_care_email_delivery(uuid,uuid,boolean,text,text)'; definition = 'create function public.finish_amora_care_email_delivery(uuid,uuid,boolean,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finish_amora_care_job(uuid,uuid)'; definition = 'create function public.finish_amora_care_job(uuid,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'set_amora_care_consent(uuid,boolean)'; definition = 'create function public.set_amora_care_consent(uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'quarantine_amora_care_queue(text)'; definition = 'create function public.quarantine_amora_care_queue(text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'prevent_direct_amora_care_consent_change()'; definition = 'create function public.prevent_direct_amora_care_consent_change() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'defer_amora_memory_job(uuid,integer,integer,text)'; definition = 'create function public.defer_amora_memory_job(uuid,integer,integer,text) returns boolean language sql security definer as $$ select true $$;'; owner = 'postgres'; acl = $memoryDeferralAcl; security_definer = $true; config = @('search_path=pg_catalog, public', 'lock_timeout=5s', 'statement_timeout=30s') },
+    [ordered]@{ identity = 'enqueue_booking_projection_job()'; definition = 'create function public.enqueue_booking_projection_job() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = @('postgres=X/postgres'); security_definer = $true; config = @('search_path=') },
+    [ordered]@{ identity = 'claim_booking_projection_job(uuid,integer)'; definition = 'create function public.claim_booking_projection_job(uuid,integer) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finish_booking_projection_job(uuid,bigint,uuid,boolean,text,integer)'; definition = 'create function public.finish_booking_projection_job(uuid,bigint,uuid,boolean,text,integer) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'get_booking_projection_queue_stats()'; definition = 'create function public.get_booking_projection_queue_stats() returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'retry_booking_projection_job(uuid)'; definition = 'create function public.retry_booking_projection_job(uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'apply_booking_progress_projection(uuid,uuid,text,jsonb,text,numeric,bigint,uuid)'; definition = 'create function public.apply_booking_progress_projection(uuid,uuid,text,jsonb,text,numeric,bigint,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'claim_amora_conflict_check(uuid,text,uuid)'; definition = 'create function public.claim_amora_conflict_check(uuid,text,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'checkpoint_amora_conflict_check(uuid,text,uuid,jsonb)'; definition = 'create function public.checkpoint_amora_conflict_check(uuid,text,uuid,jsonb) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'complete_amora_conflict_check(uuid,text,uuid,jsonb)'; definition = 'create function public.complete_amora_conflict_check(uuid,text,uuid,jsonb) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'fail_amora_conflict_check(uuid,text,uuid,text)'; definition = 'create function public.fail_amora_conflict_check(uuid,text,uuid,text) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'patch_profile_atomic(uuid,text,text,boolean,boolean,boolean,text,boolean,boolean)'; definition = 'create function public.patch_profile_atomic(uuid,text,text,boolean,boolean,boolean,text,boolean,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finalize_amora_conflict_verify_receipt(uuid,uuid,uuid,text,uuid,jsonb,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)'; definition = 'create function public.finalize_amora_conflict_verify_receipt(uuid,uuid,uuid,text,uuid,jsonb,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'finalize_amora_chat_response(uuid,uuid,uuid,uuid,text,text,integer,text,jsonb,text,text,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)'; definition = 'create function public.finalize_amora_chat_response(uuid,uuid,uuid,uuid,text,text,integer,text,jsonb,text,text,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'reconcile_amora_chat_response(uuid,text,uuid,text,uuid)'; definition = 'create function public.reconcile_amora_chat_response(uuid,text,uuid,text,uuid) returns boolean language sql as $$ select true $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'get_wedding_settings_snapshot(uuid)'; definition = 'create function public.get_wedding_settings_snapshot(uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
+    [ordered]@{ identity = 'patch_wedding_settings_atomic(uuid,uuid,boolean,text,boolean,text,text,boolean,text,date,boolean,date,text,boolean,text,bigint,boolean,bigint)'; definition = 'create function public.patch_wedding_settings_atomic(uuid,uuid,boolean,text,boolean,text,text,boolean,text,date,boolean,date,text,boolean,text,bigint,boolean,bigint) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = @('postgres=X/postgres', 'service_role=X/postgres'); security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'set_amora_memory_consent(uuid,text,uuid,boolean)'; definition = 'create function public.set_amora_memory_consent(uuid,text,uuid,boolean) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'clear_amora_memory_scope(uuid,text,uuid)'; definition = 'create function public.clear_amora_memory_scope(uuid,text,uuid) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') },
     [ordered]@{ identity = 'set_updated_at()'; definition = 'create function public.set_updated_at() returns trigger language plpgsql as $$ begin return new; end $$;'; owner = 'postgres'; acl = $null; security_definer = $false; config = $null },
@@ -728,6 +969,28 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
   if ($mode -eq 'legacy-mediation-acceptance-rpc') {
     $functions += [ordered]@{ identity = 'accept_amora_mediation(uuid,uuid,uuid,text,text)'; definition = 'create function public.accept_amora_mediation(uuid,uuid,uuid,text,text) returns jsonb language sql as $$ select ''{}''::jsonb $$;'; owner = 'postgres'; acl = $null; security_definer = $true; config = @('search_path=pg_catalog, public') }
   }
+  if ($mode -eq 'missing-care-policy-function-inventory') {
+    $functions = @($functions | Where-Object { $_.identity -ne 'get_amora_care_queue_stats(date)' })
+  }
+  if ($mode -eq 'missing-memory-deferral-function-inventory') {
+    $functions = @($functions | Where-Object { $_.identity -ne 'defer_amora_memory_job(uuid,integer,integer,text)' })
+  }
+  if ($mode -eq 'missing-account-deletion-function-inventory') {
+    $functions = @($functions | Where-Object {
+      $_.identity -ne 'finalize_account_deletion_job(uuid,uuid)'
+    })
+  }
+  if ($mode -eq 'public-account-deletion-function-acl-inventory') {
+    $accountDeletionFunction = @($functions | Where-Object {
+      $_.identity -eq 'begin_account_deletion_job(uuid,text)'
+    })[0]
+    $accountDeletionFunction.acl = @($accountDeletionFunction.acl) + 'anon=X/postgres'
+  }
+  if ($mode -eq 'missing-expand-function-inventory') {
+    $functions = @($functions | Where-Object {
+      $_.identity -ne 'finalize_amora_chat_response(uuid,uuid,uuid,uuid,text,text,integer,text,jsonb,text,text,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)'
+    })
+  }
   $authTriggerEnabled = if ($mode -eq 'disabled-auth-trigger') { 'D' } else { 'O' }
   $authTriggerFiresInsert = $mode -ne 'wrong-auth-trigger-event'
   $publicTriggers = @(
@@ -739,6 +1002,46 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
   if ($mode -eq 'missing-amora-safety-trigger') {
     $publicTriggers = @($publicTriggers | Where-Object { $_.name -ne 'trg_reset_amora_mediation_after_membership_change' })
   }
+  $constraints = @(
+    [ordered]@{ table = 'couples'; name = 'couples_pkey'; type = 'p'; validated = $true; definition = 'PRIMARY KEY (id)'; columns = @('id'); referenced_table = $null; referenced_columns = @() },
+    [ordered]@{ table = 'chat_messages'; name = 'chat_messages_couple_id_fkey'; type = 'f'; validated = $true; definition = 'FOREIGN KEY (couple_id) REFERENCES couples(id)'; columns = @('couple_id'); referenced_table = 'public.couples'; referenced_columns = @('id') },
+    [ordered]@{ table = 'profiles'; name = 'profiles_care_consent_state_valid'; type = 'c'; validated = $true; definition = 'CHECK ((care_notifications_enabled = (care_notifications_consented_at IS NOT NULL)))'; columns = @('care_notifications_enabled', 'care_notifications_consented_at'); referenced_table = $null; referenced_columns = @() }
+  )
+  if ($mode -eq 'missing-care-policy-constraint-inventory') {
+    $constraints = @($constraints | Where-Object { $_.name -ne 'profiles_care_consent_state_valid' })
+  }
+  $indexes = @(
+    [ordered]@{ table = 'couples'; name = 'couples_pkey'; definition = 'CREATE UNIQUE INDEX couples_pkey ON public.couples USING btree (id)' },
+    [ordered]@{ table = 'amora_care_deliveries'; name = 'amora_care_deliveries_user_send_day_uidx'; definition = 'CREATE UNIQUE INDEX amora_care_deliveries_user_send_day_uidx ON public.amora_care_deliveries USING btree (user_id, send_day) WHERE (send_day IS NOT NULL)' },
+    [ordered]@{ table = 'amora_care_jobs'; name = 'amora_care_jobs_active_age_idx'; definition = 'CREATE INDEX amora_care_jobs_active_age_idx ON public.amora_care_jobs USING btree (created_at) WHERE (status = ANY (ARRAY[''pending''::text, ''processing''::text]))' },
+    [ordered]@{ table = 'amora_care_jobs'; name = 'amora_care_jobs_scan_status_idx'; definition = 'CREATE INDEX amora_care_jobs_scan_status_idx ON public.amora_care_jobs USING btree (scan_day, status)' }
+  )
+  if ($mode -eq 'missing-care-policy-index-inventory') {
+    $indexes = @($indexes | Where-Object { $_.name -ne 'amora_care_jobs_active_age_idx' })
+  }
+  $externalTriggers = @(
+    [ordered]@{ schema = 'auth'; table = 'users'; name = 'on_auth_user_created'; enabled = $authTriggerEnabled; type_bits = $(if ($authTriggerFiresInsert) { 5 } else { 17 }); row_level = $true; timing = 'AFTER'; fires_insert = $authTriggerFiresInsert; fires_delete = $false; fires_update = (-not $authTriggerFiresInsert); fires_truncate = $false; function_identity = 'create_profile_on_signup()'; definition = $(if ($authTriggerFiresInsert) { 'CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' } else { 'CREATE TRIGGER on_auth_user_created AFTER UPDATE ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' }) },
+    [ordered]@{ schema = 'public'; table = 'vendor_bookings'; name = 'vendor_bookings_projection_outbox'; enabled = 'O'; type_bits = 21; row_level = $true; timing = 'AFTER'; fires_insert = $true; fires_delete = $false; fires_update = $true; fires_truncate = $false; function_identity = 'enqueue_booking_projection_job()'; definition = 'CREATE TRIGGER vendor_bookings_projection_outbox AFTER INSERT OR UPDATE OF status, actual_amount ON public.vendor_bookings FOR EACH ROW EXECUTE FUNCTION public.enqueue_booking_projection_job()' }
+  )
+  if ($mode -eq 'missing-booking-projection-trigger') {
+    $externalTriggers = @($externalTriggers | Where-Object {
+      $_.name -ne 'vendor_bookings_projection_outbox'
+    })
+  }
+  $inventoryReleaseVersions = @($releaseMigrationVersions)
+  if ($mode -eq 'unexpected-release-migration-inventory') {
+    $inventoryReleaseVersions += '20260716118000'
+  }
+  $migrationHistory = @(
+    [ordered]@{ version = '20260714000000'; name = 'synthetic_self_test' }
+  ) + @($inventoryReleaseVersions | ForEach-Object {
+    [ordered]@{ version = $_; name = "release_$_" }
+  })
+  if ($mode -eq 'missing-account-deletion-migration-inventory') {
+    $migrationHistory = @($migrationHistory | Where-Object {
+      $_.version -ne '20260716113000'
+    })
+  }
   return [ordered]@{
     captured_at = $CapturedAt.ToString('o')
     source_project_ref = $projectRef
@@ -747,18 +1050,19 @@ function New-Inventory([DateTimeOffset] $CapturedAt, [bool] $Drift) {
     current_role_bypasses_rls = $true
     row_security = 'off'
     server_version_num = '170004'
-    migration_history = @([ordered]@{ version = '20260714000000'; name = 'synthetic_self_test' })
+    live_schema_contract_sha256 = $(if ($Drift) { 'B' * 64 } else { 'A' * 64 })
+    migration_history = $migrationHistory
     tables = $tables
     columns = $columns
-    constraints = @(
-      [ordered]@{ table = 'couples'; name = 'couples_pkey'; type = 'p'; validated = $true; definition = 'PRIMARY KEY (id)'; columns = @('id'); referenced_table = $null; referenced_columns = @() },
-      [ordered]@{ table = 'chat_messages'; name = 'chat_messages_couple_id_fkey'; type = 'f'; validated = $true; definition = 'FOREIGN KEY (couple_id) REFERENCES couples(id)'; columns = @('couple_id'); referenced_table = 'public.couples'; referenced_columns = @('id') }
-    )
-    indexes = @([ordered]@{ table = 'couples'; name = 'couples_pkey'; definition = 'CREATE UNIQUE INDEX couples_pkey ON public.couples USING btree (id)' })
+    constraints = $constraints
+    indexes = $indexes
     policies = @($tableNames | ForEach-Object { [ordered]@{ schemaname = 'public'; tablename = $_; policyname = "synthetic_$($_)_service"; permissive = 'PERMISSIVE'; roles = '{service_role}'; cmd = 'ALL'; qual = 'true'; with_check = 'true' } })
     triggers = $publicTriggers
     functions = $functions
-    external_triggers = @([ordered]@{ schema = 'auth'; table = 'users'; name = 'on_auth_user_created'; enabled = $authTriggerEnabled; type_bits = $(if ($authTriggerFiresInsert) { 5 } else { 17 }); row_level = $true; timing = 'AFTER'; fires_insert = $authTriggerFiresInsert; fires_delete = $false; fires_update = (-not $authTriggerFiresInsert); fires_truncate = $false; function_identity = 'create_profile_on_signup()'; definition = $(if ($authTriggerFiresInsert) { 'CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' } else { 'CREATE TRIGGER on_auth_user_created AFTER UPDATE ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup()' }) })
+    external_triggers = $externalTriggers
+    care_delivery_policy = New-CareDeliveryPolicyContract -Stage 'inventory'
+    memory_budget_deferral = New-MemoryBudgetDeferralContract -Stage 'inventory'
+    release_migrations = New-ReleaseMigrationContract -Stage 'inventory'
   }
 }
 
@@ -773,6 +1077,9 @@ $payload = switch ($call) {
       current_role_bypasses_rls = $true
       row_security = 'off'
       server_version_num = '170004'
+      care_delivery_policy = New-CareDeliveryPolicyContract -Stage 'preflight'
+      memory_budget_deferral = New-MemoryBudgetDeferralContract -Stage 'preflight'
+      release_migrations = New-ReleaseMigrationContract -Stage 'preflight'
       table_count = $preflightTables.Count
       estimated_total_bytes = 0
       estimated_total_rows = 0
@@ -799,15 +1106,22 @@ $payload = switch ($call) {
         canonical_sha256 = $emptyDigest
       }
     }
-    [ordered]@{
+    $logicalPayload = [ordered]@{
       captured_at = $baseCapture.AddSeconds(-1).ToString('o')
       current_user = 'postgres'
       session_user = 'postgres'
       current_role_bypasses_rls = $true
       row_security = 'off'
+      care_delivery_policy = New-CareDeliveryPolicyContract -Stage 'logical'
+      memory_budget_deferral = New-MemoryBudgetDeferralContract -Stage 'logical'
+      release_migrations = New-ReleaseMigrationContract -Stage 'logical'
       relations = @(New-RelationMetadata -Names $tableNames -Stage 'data')
       tables = $tablePayloads
     }
+    if ($mode -eq 'missing-care-policy-logical-contract') {
+      [void]$logicalPayload.Remove('care_delivery_policy')
+    }
+    $logicalPayload
   }
   4 { New-Inventory -CapturedAt $baseCapture -Drift ($mode -eq 'schema-drift') }
 }
@@ -837,18 +1151,79 @@ $nodeCli = (Get-Command node.exe -ErrorAction Stop).Source
 $logicalSqlSelfTestScript = Join-Path $repoRoot 'apps\web\scripts\amora-db-logical-backup-sql-selftest.mjs'
 $logicalSqlPath = Join-Path $repoRoot 'scripts\sql\amora-db-logical-backup.sql'
 $inventorySqlPath = Join-Path $repoRoot 'scripts\sql\amora-db-inventory.sql'
+$preflightSqlPath = Join-Path $repoRoot 'scripts\sql\amora-db-preflight.sql'
 Assert-True -Condition (Test-Path -LiteralPath $logicalSqlSelfTestScript -PathType Leaf) -Message 'Logical SQL PGlite self-test script is missing.'
 Assert-True -Condition (Test-Path -LiteralPath $logicalSqlPath -PathType Leaf) -Message 'Logical backup SQL is missing.'
 Assert-True -Condition (Test-Path -LiteralPath $inventorySqlPath -PathType Leaf) -Message 'Inventory SQL is missing.'
+Assert-True -Condition (Test-Path -LiteralPath $preflightSqlPath -PathType Leaf) -Message 'Preflight SQL is missing.'
 $inventorySql = [IO.File]::ReadAllText($inventorySqlPath)
 foreach ($requiredInventoryFunction in @(
   'has_current_amora_memory_consent',
   'commit_amora_memory_job',
-  'revoke_amora_mediation_acceptance'
+  'revoke_amora_mediation_acceptance',
+  'amora_care_delivery_clock',
+  'amora_care_is_delivery_window',
+  'amora_care_next_delivery_window',
+  'get_amora_care_queue_stats',
+  'enqueue_amora_care_job_pre_delivery_policy',
+  'prepare_amora_care_job_pre_delivery_policy',
+  'claim_amora_care_email_delivery_pre_delivery_policy',
+  'defer_amora_memory_job',
+  'prepare_amora_provider_call_receipt',
+  'reserve_amora_provider_call',
+  'finalize_amora_provider_call_receipt',
+  'apply_journey_progress_item_patch',
+  'enqueue_booking_projection_job',
+  'claim_booking_projection_job',
+  'finish_booking_projection_job',
+  'get_booking_projection_queue_stats',
+  'retry_booking_projection_job',
+  'apply_booking_progress_projection',
+  'claim_amora_conflict_check',
+  'claim_amora_tool_execution',
+  'claim_community_upload_session',
+  'checkpoint_amora_conflict_check',
+  'complete_amora_conflict_check',
+  'fail_amora_conflict_check',
+  'patch_profile_atomic',
+  'finalize_amora_conflict_verify_receipt',
+  'finalize_amora_chat_response',
+  'reconcile_amora_chat_response',
+  'get_wedding_settings_snapshot',
+  'patch_wedding_settings_atomic',
+  'begin_account_deletion_job',
+  'claim_account_deletion_job',
+  'replace_account_deletion_media_manifest',
+  'release_account_deletion_job',
+  'mark_account_deletion_manual_review',
+  'resume_account_deletion_after_manual_review',
+  'checkpoint_account_deletion_media',
+  'prepare_account_deletion_auth_delete',
+  'finalize_account_deletion_job'
 )) {
   Assert-True `
     -Condition ($inventorySql -match "'$([regex]::Escape($requiredInventoryFunction))'") `
     -Message "Inventory SQL does not explicitly include required function $requiredInventoryFunction."
+}
+foreach ($contractSqlPath in @($preflightSqlPath, $inventorySqlPath, $logicalSqlPath)) {
+  $contractSql = [IO.File]::ReadAllText($contractSqlPath)
+  foreach ($requiredContractMarker in @(
+    '20260716095000',
+    'send_day',
+    'amora_care_deliveries_user_send_day_uidx',
+    'amora_care_jobs_scan_status_idx',
+    'amora_care_jobs_active_age_idx',
+    'profiles_care_consent_state_valid',
+    'get_amora_care_queue_stats',
+    '20260716098000',
+    'defer_amora_memory_job(uuid,integer,integer,text)',
+    '20260716117000',
+    'vendor_reviews'
+  )) {
+    Assert-True `
+      -Condition ($contractSql -match [regex]::Escape($requiredContractMarker)) `
+      -Message "$([IO.Path]::GetFileName($contractSqlPath)) does not bind backup contract marker $requiredContractMarker."
+  }
 }
 
 $stateDirectory = Join-Path ([IO.Path]::GetTempPath()) "WeddingHanbang-Amora-Backup-Harness-$([Guid]::NewGuid().ToString('N'))"
@@ -948,14 +1323,25 @@ try {
     -NodeCli $nodeCli `
     -ScriptPath $logicalSqlSelfTestScript `
     -SqlPath $logicalSqlPath `
+    -PreflightSqlPath $preflightSqlPath `
+    -InventorySqlPath $inventorySqlPath `
     -WorkingDirectory (Join-Path $repoRoot 'apps\web')
   Assert-True -Condition ($logicalSqlResult.ExitCode -eq 0) -Message "Actual logical SQL PGlite self-test failed: $($logicalSqlResult.StdErr)"
   $logicalSqlReceipt = Get-JsonOutput -Output $logicalSqlResult.StdOut
   Assert-True `
     -Condition (
       [bool]$logicalSqlReceipt.ActualLogicalSqlExecuted -and
+      [bool]$logicalSqlReceipt.ActualPreflightSqlExecuted -and
+      [bool]$logicalSqlReceipt.ActualInventorySqlExecuted -and
       [bool]$logicalSqlReceipt.OnlyTargetTablesRead -and
       [bool]$logicalSqlReceipt.RelationIdentityContractCaptured -and
+      [bool]$logicalSqlReceipt.CareDeliveryPolicyContractVerified -and
+      [bool]$logicalSqlReceipt.MemoryDeferralContractVerified -and
+      [bool]$logicalSqlReceipt.ExactReleaseMigrationLedgerVerified -and
+      [bool]$logicalSqlReceipt.MissingReleaseHeadRejectedServerSide -and
+      [bool]$logicalSqlReceipt.FutureReleaseMigrationRejectedServerSide -and
+      [bool]$logicalSqlReceipt.ExpandFunctionIdentityContractVerified -and
+      [bool]$logicalSqlReceipt.BookingProjectionTriggerContractVerified -and
       [bool]$logicalSqlReceipt.CanonicalDigestsLowercase -and
       [bool]$logicalSqlReceipt.ExactLargeIntegerPreserved -and
       [bool]$logicalSqlReceipt.ExactNumericPreserved -and
@@ -988,6 +1374,10 @@ try {
   $manifestA = Read-Manifest -Directory $backupA
   Assert-True -Condition ([string]$manifestA.backup_set_id -eq [string]$receiptA.BackupSetId) -Message 'Receipt and manifest backup set ids differ.'
   Assert-True -Condition ([string]$manifestA.inventory_contract_sha256 -match '^[A-Fa-f0-9]{64}$') -Message 'Manifest has no schema inventory contract digest.'
+  Assert-True -Condition ([string]$manifestA.live_schema_contract_sha256 -match '^[A-F0-9]{64}$') -Message 'Manifest has no live schema contract digest.'
+  Assert-True -Condition ([string]$manifestA.logical_data_contract_sha256 -match '^[A-F0-9]{64}$') -Message 'Manifest has no logical data contract digest.'
+  Assert-True -Condition ([string]$receiptA.LiveSchemaContractSha256 -ceq [string]$manifestA.live_schema_contract_sha256) -Message 'Creator receipt does not bind the live schema contract digest.'
+  Assert-True -Condition ([string]$receiptA.LogicalDataContractSha256 -ceq [string]$manifestA.logical_data_contract_sha256) -Message 'Creator receipt does not bind the logical data contract digest.'
   $actualFiles = @(Get-ChildItem -LiteralPath $backupA -Force | ForEach-Object Name | Sort-Object)
   Assert-True -Condition ($actualFiles.Count -eq $ExpectedFiles.Count) -Message 'Creator wrote plaintext or an unexpected artifact.'
   Assert-True -Condition (@(Compare-Object -ReferenceObject $ExpectedFiles -DifferenceObject $actualFiles).Count -eq 0) -Message 'Creator artifact allowlist differs from HBAM2 contract.'
@@ -1034,6 +1424,8 @@ try {
       [bool]$verifyReceipt.Verified -and
       [bool]$verifyReceipt.SourceCanonicalDigestsVerified -and
       [bool]$verifyReceipt.PGliteJsonbRoundTripVerified -and
+      [string]$verifyReceipt.LiveSchemaContractSha256 -ceq [string]$manifestA.live_schema_contract_sha256 -and
+      [string]$verifyReceipt.LogicalDataContractSha256 -ceq [string]$manifestA.logical_data_contract_sha256 -and
       -not [bool]$verifyReceipt.PlaintextWrittenToDisk
     ) `
     -Message 'Verifier did not return the complete source-digest/JSONB integrity receipt.'
@@ -1107,6 +1499,26 @@ try {
     -VerifyScript $verifyScript -Directory $capturedAtTamper -Root $rootA -ProjectRef $projectRef `
     -BackupSetId ([string]$receiptA.BackupSetId) -ManifestSha256 $capturedManifestHash -NodeCli $nodeCli)
   [void]$testNames.Add('manifest/authenticated payload captured_at mismatch rejected')
+
+  $liveContractTamper = Copy-BackupCase -Source $backupA -Root $rootA -Ordinal 51
+  $liveContractManifest = Read-Manifest -Directory $liveContractTamper
+  $liveContractManifest.live_schema_contract_sha256 = 'F' * 64
+  Write-Manifest -Directory $liveContractTamper -Manifest $liveContractManifest
+  $liveContractManifestHash = Get-FileSha256Hex -Path (Join-Path $liveContractTamper 'manifest.json')
+  Assert-Rejected -CaseName 'live schema digest mismatch with refreshed external hash' -Result (Invoke-Verify `
+    -VerifyScript $verifyScript -Directory $liveContractTamper -Root $rootA -ProjectRef $projectRef `
+    -BackupSetId ([string]$receiptA.BackupSetId) -ManifestSha256 $liveContractManifestHash -NodeCli $nodeCli)
+  [void]$testNames.Add('manifest/authenticated live schema digest mismatch rejected')
+
+  $logicalContractTamper = Copy-BackupCase -Source $backupA -Root $rootA -Ordinal 52
+  $logicalContractManifest = Read-Manifest -Directory $logicalContractTamper
+  $logicalContractManifest.logical_data_contract_sha256 = 'F' * 64
+  Write-Manifest -Directory $logicalContractTamper -Manifest $logicalContractManifest
+  $logicalContractManifestHash = Get-FileSha256Hex -Path (Join-Path $logicalContractTamper 'manifest.json')
+  Assert-Rejected -CaseName 'logical data digest mismatch with refreshed external hash' -Result (Invoke-Verify `
+    -VerifyScript $verifyScript -Directory $logicalContractTamper -Root $rootA -ProjectRef $projectRef `
+    -BackupSetId ([string]$receiptA.BackupSetId) -ManifestSha256 $logicalContractManifestHash -NodeCli $nodeCli)
+  [void]$testNames.Add('manifest/authenticated logical data digest mismatch rejected')
 
   $extraFileCase = Copy-BackupCase -Source $backupA -Root $rootA -Ordinal 4
   [IO.File]::WriteAllText((Join-Path $extraFileCase 'unexpected.txt'), 'synthetic', [Text.UTF8Encoding]::new($false))
@@ -1239,6 +1651,99 @@ try {
     -StateDirectory $stateDirectory -RepoRoot $repoRoot -Mode 'legacy-mediation-acceptance-rpc'
   Assert-Rejected -CaseName 'legacy unversioned mediation acceptance RPC' -Result $legacyMediationRpcResult
   [void]$testNames.Add('legacy unversioned mediation acceptance RPC rejected')
+
+  foreach ($contractCase in @(
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-migration-preflight'
+      CaseName = 'missing 0950 care policy migration at preflight'
+      TestName = '0950 migration omission rejected before backup capture'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-column-inventory'
+      CaseName = 'missing care delivery send_day column'
+      TestName = 'care delivery send_day date column omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-constraint-inventory'
+      CaseName = 'missing validated care consent constraint'
+      TestName = 'validated care consent state constraint omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-index-inventory'
+      CaseName = 'missing care policy index'
+      TestName = 'care delivery policy index omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-function-inventory'
+      CaseName = 'missing care policy function'
+      TestName = 'care delivery policy function omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-care-policy-logical-contract'
+      CaseName = 'logical data missing care policy contract'
+      TestName = 'logical snapshot without care policy contract rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-memory-deferral-migration-preflight'
+      CaseName = 'missing 0980 memory deferral migration at preflight'
+      TestName = '0980 memory deferral migration omission rejected before capture'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-memory-deferral-function-inventory'
+      CaseName = 'missing memory deferral function'
+      TestName = '0980 memory deferral function omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'public-memory-deferral-acl-inventory'
+      CaseName = 'memory deferral function exposed outside service role'
+      TestName = 'memory deferral non-service execute privilege rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-account-deletion-migration-inventory'
+      CaseName = 'missing 1130 account deletion migration'
+      TestName = '1130 account deletion migration omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-release-head-preflight'
+      CaseName = 'missing 1170 release head at preflight'
+      TestName = 'post-expand backup rejects a release ledger below 1170'
+    },
+    [pscustomobject]@{
+      Mode = 'unexpected-release-migration-inventory'
+      CaseName = 'unexpected migration after 1170'
+      TestName = 'post-expand backup rejects an unreviewed migration after 1170'
+    },
+    [pscustomobject]@{
+      Mode = 'non-force-account-deletion-table-inventory'
+      CaseName = 'account deletion table without FORCE RLS'
+      TestName = 'account deletion table without FORCE RLS rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-account-deletion-function-inventory'
+      CaseName = 'missing account deletion function'
+      TestName = 'account deletion function omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'public-account-deletion-function-acl-inventory'
+      CaseName = 'account deletion function exposed outside service role'
+      TestName = 'account deletion non-service execute privilege rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-expand-function-inventory'
+      CaseName = 'missing post-expand atomic response function'
+      TestName = 'post-expand function identity omission rejected'
+    },
+    [pscustomobject]@{
+      Mode = 'missing-booking-projection-trigger'
+      CaseName = 'missing vendor booking projection trigger'
+      TestName = 'booking projection outbox trigger omission rejected'
+    }
+  )) {
+    Assert-BackupContractModeRejected `
+      -Mode $contractCase.Mode -CaseName $contractCase.CaseName -TestName $contractCase.TestName `
+      -BackupScript $backupScript -FakeCli $fakeCliCommand -ProjectRef $projectRef `
+      -StateDirectory $stateDirectory -RepoRoot $repoRoot
+  }
 
   $rootPartitioned = New-SelfTestRoot
   [void]$roots.Add($rootPartitioned)

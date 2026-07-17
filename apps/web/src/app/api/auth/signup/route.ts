@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  checkRateLimitPersistent,
+  getClientIp,
+  rateLimitKey,
+  rateLimitSubjectKey,
+} from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
 import { cleanOptionalText, normalizeEmail } from "@/utils/requestValidation";
 
 function getAdminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  return createAdminClient();
 }
 
 function escapeHtml(value: string): string {
@@ -73,10 +74,13 @@ export async function POST(request: Request) {
     });
     if (ipLimited) return ipLimited;
 
-    const emailLimited = await checkRateLimitPersistent(`signup-email:${normalizeEmailForRateLimit(email)}`, {
-      maxRequests: 3,
-      windowMs: 60 * 60 * 1000,
-    });
+    const emailLimited = await checkRateLimitPersistent(
+      rateLimitSubjectKey("signup-email", normalizeEmailForRateLimit(email)),
+      {
+        maxRequests: 3,
+        windowMs: 60 * 60 * 1000,
+      },
+    );
     if (emailLimited) return emailLimited;
 
     const supabase = getAdminSupabase();

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart } from "lucide-react";
+import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
+import { Send, Sparkles, X, Maximize2, Trash2, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -11,21 +11,24 @@ import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
-import { chatAttachmentKey } from "@/lib/chat/attachments";
+import PendingAmoraActionCard, {
+  getPendingAmoraAction,
+  getPendingActionDisabledReason,
+  isPendingAmoraActionExpired,
+} from "./PendingAmoraActionCard";
+import {
+  chatAttachmentKey,
+  CHAT_ATTACHMENT_MAX_COUNT,
+  CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+  CHAT_ATTACHMENT_TYPE_INFO,
+  prepareChatAttachmentPayload,
+} from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 
-const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
-const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
-};
+const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
 
 interface AttachmentItem {
   base64: string;
@@ -43,27 +46,74 @@ interface ChatSidePanelProps {
   onClose: () => void;
 }
 
+type ChatScope = "shared" | "private";
+
+interface ChatComposerDraft {
+  input: string;
+  attachments: AttachmentItem[];
+}
+
 export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const router = useRouter();
   const { profile, couple, journey, isDemo } = useAuthStore();
   const {
     messages,
     isStreaming,
+    isSending,
     streamingContent,
     streamingToolResults,
     suggestions,
     error,
+    failedRequest,
+    isRetrying,
     initialLoadDone,
     loadMessages,
     sendMessage,
     requestInitialGreeting,
     clearMessages,
     subscribeToMessages,
+    retryFailedMessage,
+    dismissFailedMessageRetry,
   } = useChatStore();
 
-  const [input, setInput] = useState("");
+  const [activeScope, setActiveScope] = useState<ChatScope>("shared");
+  const [composerDrafts, setComposerDrafts] = useState<Record<ChatScope, ChatComposerDraft>>({
+    shared: { input: "", attachments: [] },
+    private: { input: "", attachments: [] },
+  });
+  const input = composerDrafts[activeScope].input;
+  const attachments = composerDrafts[activeScope].attachments;
+  const setInput = useCallback((nextInput: SetStateAction<string>) => {
+    setComposerDrafts((currentDrafts) => {
+      const currentDraft = currentDrafts[activeScope];
+      const resolvedInput = typeof nextInput === "function"
+        ? nextInput(currentDraft.input)
+        : nextInput;
+      return {
+        ...currentDrafts,
+        [activeScope]: { ...currentDraft, input: resolvedInput },
+      };
+    });
+  }, [activeScope]);
+  const setAttachments = useCallback((nextAttachments: SetStateAction<AttachmentItem[]>) => {
+    setComposerDrafts((currentDrafts) => {
+      const currentDraft = currentDrafts[activeScope];
+      const resolvedAttachments = typeof nextAttachments === "function"
+        ? nextAttachments(currentDraft.attachments)
+        : nextAttachments;
+      return {
+        ...currentDrafts,
+        [activeScope]: { ...currentDraft, attachments: resolvedAttachments },
+      };
+    });
+  }, [activeScope]);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [nowMs, setNowMs] = useState(0);
+  const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  const applyingPendingActionRef = useRef<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
   const [showMediationBanner, setShowMediationBanner] = useState(false);
@@ -72,8 +122,93 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const greetingRequested = useRef(false);
   const subscribed = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   const coupleId = couple?.id;
   const hasCouplePartner = !!(couple?.bride_id && couple?.groom_id);
+  const senderRole = profile?.role === "bride" || profile?.role === "groom"
+    ? profile.role
+    : null;
+  const myPrivateVisibility = senderRole ? `${senderRole}_private` as const : null;
+  const activeVisibility = activeScope === "shared" ? "shared" : myPrivateVisibility;
+  const scopedMessages = useMemo(
+    () => messages.filter((message) => (
+      activeScope === "shared"
+        ? message.visibility === "shared"
+        : !!myPrivateVisibility && message.visibility === myPrivateVisibility
+    )),
+    [activeScope, messages, myPrivateVisibility],
+  );
+  const errorMatchesActiveScope = !failedRequest
+    || (!!activeVisibility && failedRequest.visibility === activeVisibility);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const panel = panelRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector = [
+      "button:not([disabled])",
+      "a[href]",
+      "input:not([disabled])",
+      "textarea:not([disabled])",
+      "select:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+
+    const initialControl = panel?.querySelector<HTMLElement>("[data-panel-initial-focus]")
+      ?? panel?.querySelector<HTMLElement>(focusableSelector);
+    initialControl?.focus();
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [isOpen]);
+
+  const handleScopeChange = useCallback((nextScope: ChatScope) => {
+    if (isStreaming || isSending || (nextScope === "private" && !myPrivateVisibility)) return;
+    setActiveScope(nextScope);
+    setMessageTarget("ai");
+    // Suggestions are derived from the previous answer and have no scope field.
+    // Discard them on a scope change rather than showing private-derived copy in shared chat.
+    useChatStore.setState({ suggestions: [] });
+  }, [isStreaming, isSending, myPrivateVisibility]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,6 +219,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updateNow = () => setNowMs(Date.now());
+    updateNow();
+    const timer = window.setInterval(updateNow, 1_000);
+    return () => window.clearInterval(timer);
   }, [isOpen]);
 
   useEffect(() => {
@@ -133,6 +276,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       !isOpen ||
       !coupleId ||
       !profile ||
+      !senderRole ||
       isDemo ||
       !initialLoadDone ||
       isStreaming ||
@@ -144,7 +288,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     greetingRequested.current = true;
     requestInitialGreeting({
       coupleId,
-      senderRole: profile.role ?? "bride",
+      senderRole,
       senderName: profile.name ?? "사용자",
       weddingContext: {
         weddingDate: journey?.wedding_date ?? null,
@@ -153,7 +297,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         progress: journey?.progress ?? {},
       },
     });
-  }, [isOpen, coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
+  }, [isOpen, coupleId, profile, senderRole, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -218,12 +362,26 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
     const typeInfo = ALLOWED_TYPES[file.type];
-    if (!typeInfo) return;
-    if (file.size > typeInfo.maxSize) return;
+    if (!typeInfo) {
+      useChatStore.setState({
+        error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+      });
+      return;
+    }
+    if (file.size > typeInfo.maxSize) {
+      useChatStore.setState({
+        error: `${typeInfo.label} 파일은 ${typeInfo.maxSize / 1024 / 1024}MB 이하로 줄인 뒤 다시 첨부해주세요.`,
+      });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
-      const base64Full = reader.result as string;
+      const base64Full = reader.result;
+      if (typeof base64Full !== "string" || !base64Full.includes(",")) {
+        useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+        return;
+      }
       const base64Data = base64Full.split(",")[1];
       const attachment = {
         base64: base64Data,
@@ -238,8 +396,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         return [...prev, attachment];
       });
     };
+    reader.onerror = () => {
+      useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+    };
     reader.readAsDataURL(file);
-  }, []);
+  }, [setAttachments]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -278,10 +439,23 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
   const handleSend = useCallback(
     async (text?: string) => {
+      if (isStreaming || isSending) return;
       const content = text ?? input.trim();
-      if (!content || !coupleId || !profile) return;
-
       const currentAttachments = [...attachments];
+      if (
+        (!content && currentAttachments.length === 0)
+        || !coupleId
+        || !profile
+        || !senderRole
+        || !activeVisibility
+      ) return;
+
+      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+      if (!attachmentCheck.ok) {
+        useChatStore.setState({ error: attachmentCheck.error });
+        return;
+      }
+
       setInput("");
       setAttachments([]);
 
@@ -299,7 +473,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       await sendMessage({
         content: finalContent,
         senderId: profile.id,
-        senderRole: profile.role ?? "bride",
+        senderRole,
         coupleId,
         senderName: profile.name ?? "사용자",
         weddingContext: {
@@ -309,10 +483,26 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           progress: journey?.progress ?? {},
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
-        target: messageTarget,
+        target: activeScope === "private" ? "ai" : messageTarget,
+        visibility: activeVisibility,
       });
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget]
+    [
+      input,
+      attachments,
+      coupleId,
+      profile,
+      senderRole,
+      journey,
+      sendMessage,
+      messageTarget,
+      activeScope,
+      activeVisibility,
+      setInput,
+      setAttachments,
+      isStreaming,
+      isSending,
+    ]
   );
 
   // 중재 요청
@@ -331,6 +521,67 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
   }, [messages, handleSend]);
 
+  const applyPendingAmoraAction = useCallback(async (actionId: string) => {
+    if (
+      applyingPendingActionRef.current
+      || !coupleId
+      || !profile
+      || (profile.role !== "bride" && profile.role !== "groom")
+    ) return;
+
+    // Re-read the canonical AI-context boundary at click time. Direct partner
+    // messages are deliberately outside Amora context and must not invalidate
+    // an otherwise current server proposal.
+    const current = useChatStore.getState();
+    if (current.isStreaming || current.isSending) return;
+    const latestSharedAmoraMessage = [...current.messages]
+      .reverse()
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      ));
+    if (!latestSharedAmoraMessage) return;
+    const action = getPendingAmoraAction(latestSharedAmoraMessage);
+    if (
+      !action
+      || action.actionId !== actionId
+      || isPendingAmoraActionExpired(action, Date.now())
+    ) return;
+
+    applyingPendingActionRef.current = actionId;
+    setApplyingPendingActionId(actionId);
+    try {
+      await sendMessage({
+        content: "좋아요. 제안한 변경을 적용해 주세요.",
+        senderId: profile.id,
+        senderRole: profile.role,
+        coupleId,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        target: "ai",
+        visibility: "shared",
+        confirmedActionId: actionId,
+      });
+    } finally {
+      applyingPendingActionRef.current = null;
+      setApplyingPendingActionId(null);
+    }
+  }, [coupleId, journey, profile, sendMessage]);
+
+  const dismissPendingAmoraAction = useCallback((actionId: string) => {
+    setDismissedPendingActionIds((current) => {
+      if (current.has(actionId)) return current;
+      const next = new Set(current);
+      next.add(actionId);
+      return next;
+    });
+  }, []);
+
   const handleExpand = () => {
     onClose();
     router.push(weddingPath("/chat"));
@@ -339,9 +590,11 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const handleClearChat = async () => {
     if (!coupleId) return;
     greetingRequested.current = false;
-    // SidePanel에서는 가장 안전한 default — "내 화면만 정리 (함께 대화)"
-    // 진짜 삭제는 메인 채팅 modal에서만 가능
-    await clearMessages(coupleId, "view_reset_shared");
+    // SidePanel에서는 실제 DB 삭제 없이, 현재 보고 있는 범위만 내 화면에서 정리한다.
+    await clearMessages(
+      coupleId,
+      activeScope === "private" ? "view_reset_private" : "view_reset_shared",
+    );
     setShowClearConfirm(false);
   };
 
@@ -366,6 +619,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
       {/* 패널 */}
       <div
+        ref={panelRef}
         className={`fixed z-50 flex flex-col overflow-hidden bg-ivory-50 shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[0_-18px_45px_rgba(7,22,41,0.18)]
@@ -377,6 +631,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         aria-modal={isOpen}
         aria-hidden={!isOpen}
         aria-label="아모라 AI 상담 패널"
+        tabIndex={-1}
         inert={!isOpen}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -409,27 +664,33 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {messages.length > 0 && (
+            {scopedMessages.length > 0 && (
               <button
+                type="button"
                 onClick={() => setShowClearConfirm(true)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors"
+                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-red-50"
                 title="대화 초기화"
+                aria-label="현재 대화 범위 초기화"
               >
                 <Trash2 className="w-4 h-4 text-taupe-500 hover:text-red-400" />
               </button>
             )}
             <button
+              type="button"
               onClick={handleExpand}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-black/[0.04]"
               title="전체 화면으로 보기"
+              aria-label="아모라 상담 전체 화면으로 보기"
             >
               <Maximize2 className="w-4 h-4 text-taupe-500" />
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-black/[0.04]"
               title="닫기"
               aria-label="아모라 상담 패널 닫기"
+              data-panel-initial-focus
             >
               <X className="w-4 h-4 text-taupe-500" />
             </button>
@@ -452,21 +713,100 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           </div>
         ) : (
           <>
+            <div className="border-b border-black/[0.05] bg-white px-3 py-2">
+              <div
+                role="group"
+                aria-label="상담 공개 범위"
+                className="grid grid-cols-2 gap-1 rounded-xl bg-[#F6F3F2] p-1"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange("shared")}
+                  disabled={isStreaming}
+                  aria-pressed={activeScope === "shared"}
+                  className={`min-h-11 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    activeScope === "shared"
+                      ? "bg-white text-[#795252] shadow-sm"
+                      : "text-[#928980] hover:text-[#504444]"
+                  }`}
+                >
+                  함께 대화
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange("private")}
+                  disabled={isStreaming || !myPrivateVisibility}
+                  aria-pressed={activeScope === "private"}
+                  title="아모라와 1:1 — 서비스에 저장되지만 상대방에게는 보이지 않습니다"
+                  className={`flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    activeScope === "private"
+                      ? "bg-white text-[#5a6147] shadow-sm"
+                      : "text-[#928980] hover:text-[#504444]"
+                  }`}
+                >
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  나만 (상담)
+                </button>
+              </div>
+              <p
+                role="status"
+                aria-live="polite"
+                className={`mt-1.5 flex items-center gap-1 text-[0.6875rem] leading-relaxed ${
+                  activeScope === "private" ? "text-[#5a6147]" : "text-[#795252]"
+                }`}
+              >
+                {activeScope === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
+                {activeScope === "private"
+                  ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
+                  : "현재 범위 · 함께 대화 — 파트너에게 보여요"}
+              </p>
+            </div>
+
             {/* 초기화 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between">
-                <p className="text-xs text-red-600">대화를 모두 삭제할까요?</p>
+                <p className="text-xs text-red-600">
+                  {activeScope === "private" ? "나만의 상담을 내 화면에서 정리할까요?" : "함께 대화를 내 화면에서 정리할까요?"}
+                </p>
                 <div className="flex gap-1.5">
-                  <button onClick={() => setShowClearConfirm(false)} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
-                  <button onClick={handleClearChat} className="px-2.5 py-1 text-[0.6875rem] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
+                  <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
+                  <button type="button" onClick={handleClearChat} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-red-500 text-white hover:bg-red-600">삭제</button>
                 </div>
               </div>
             )}
 
             {/* 에러 표시 */}
-            {error && (
-              <div className="mx-3 mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-xs text-red-600">{error}</p>
+            {error && errorMatchesActiveScope && (
+              <div
+                className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5"
+                role="alert"
+              >
+                <p className="text-xs leading-relaxed text-red-700">{error}</p>
+                {failedRequest?.unavailableReason && (
+                  <p className="mt-1 text-[0.6875rem] leading-relaxed text-red-600">
+                    {failedRequest.unavailableReason}
+                  </p>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  {failedRequest?.canRetry && (
+                    <button
+                      type="button"
+                      onClick={() => void retryFailedMessage()}
+                      disabled={isStreaming || isRetrying}
+                      className="min-h-11 rounded-lg bg-red-600 px-3 text-[0.6875rem] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRetrying ? "다시 시도 중..." : "다시 시도"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={dismissFailedMessageRetry}
+                    disabled={isStreaming || isRetrying}
+                    className="min-h-11 rounded-lg border border-red-200 bg-white px-3 text-[0.6875rem] font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    닫기
+                  </button>
+                </div>
               </div>
             )}
 
@@ -475,17 +815,36 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               {(() => {
                 // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
                 const recentAiIds = new Set(
-                  messages
+                  scopedMessages
                     .filter((m) => m.sender_role === "ai")
                     .slice(-3)
                     .map((m) => m.id)
                 );
-                return messages.map((msg) => {
+                const latestSharedAmoraMessageId = [...messages]
+                  .reverse()
+                  .find((message) => (
+                    message.visibility === "shared"
+                    && message.metadata?.target !== "partner"
+                  ))?.id ?? null;
+                return scopedMessages.map((msg) => {
                   const isCurrentUser = msg.sender_id === profile?.id;
                   const hasToolResults =
                     msg.sender_role === "ai" &&
                     msg.metadata?.toolResults &&
                     msg.metadata.toolResults.length > 0;
+                  const pendingActionCandidate = getPendingAmoraAction(msg);
+                  const pendingAction = pendingActionCandidate
+                    && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
+                    ? pendingActionCandidate
+                    : null;
+                  const pendingActionDisabledReason = pendingAction
+                    ? getPendingActionDisabledReason(
+                        pendingAction,
+                        nowMs,
+                        msg.id === latestSharedAmoraMessageId,
+                        isStreaming || isSending,
+                      )
+                    : null;
 
                   return (
                     <div key={msg.id} className="animate-fade-in">
@@ -495,6 +854,15 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         currentUserRole={profile?.role}
                         isRecentAi={recentAiIds.has(msg.id)}
                       />
+                      {pendingAction && (
+                        <PendingAmoraActionCard
+                          action={pendingAction}
+                          disabledReason={pendingActionDisabledReason}
+                          isApplying={applyingPendingActionId === pendingAction.actionId}
+                          onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
+                          onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
+                        />
+                      )}
                       {hasToolResults &&
                         // 같은 메시지 안에서 동일 (toolName, success, displayMessage)
                         // 중복 카드 1개만 표시 — DB 부족 등으로 반복 실패 시 X 카드
@@ -529,12 +897,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
 
             {/* 갈등 중재 제안 배너 */}
-            {showMediationBanner && !isStreaming && (
+            {activeScope === "shared" && showMediationBanner && !isStreaming && (
               <div className="px-3 pb-2">
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-3 py-3 shadow-sm">
                   <button
+                    type="button"
                     onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
-                    className="absolute top-2 right-2 w-5 h-5 rounded-full text-[#B5ADA3] hover:text-[#928980] flex items-center justify-center"
+                    className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[#B5ADA3] hover:text-[#928980]"
+                    aria-label="조율 상담 제안 숨기기"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -547,8 +917,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
                       </p>
                       <button
+                        type="button"
                         onClick={requestMediation}
-                        className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[0.6875rem] font-medium text-white bg-gradient-to-r from-[#C4967E] to-[#C9A96E] hover:shadow-md transition-colors"
+                        className="mt-1.5 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-3 text-[0.6875rem] font-medium text-white transition-colors hover:shadow-md"
                       >
                         <Sparkles className="w-3 h-3" />
                         아모라에게 상담 요청하기
@@ -581,8 +952,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </div>
                     )}
                     <button
+                      type="button"
                       onClick={() => removeAttachment(i)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center rounded-full text-red-600 opacity-70 transition-opacity hover:bg-red-50 hover:opacity-100 focus:opacity-100"
+                      aria-label={`${att.fileName} 첨부 제거`}
                     >
                       <X className="w-2.5 h-2.5" />
                     </button>
@@ -592,13 +965,15 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             )}
 
             {/* 입력 영역 */}
-            <div className="px-3 pb-3 pt-1">
+            <div className="px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-1">
               {/* 대상 토글 (커플 연동 시) */}
-              {hasCouplePartner && (
+              {activeScope === "shared" && hasCouplePartner && (
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <button
+                    type="button"
                     onClick={() => setMessageTarget("ai")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
+                    aria-pressed={messageTarget === "ai"}
+                    className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
@@ -608,8 +983,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                     아모라에게
                   </button>
                   <button
+                    type="button"
                     onClick={() => setMessageTarget("partner")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.625rem] font-medium transition-colors ${
+                    aria-pressed={messageTarget === "partner"}
+                    className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-taupe-400 hover:text-taupe-500 border border-transparent"
@@ -624,10 +1001,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
               <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex items-center gap-1.5 p-1.5">
                 {/* 첨부파일 버튼 */}
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/[0.04] transition-colors disabled:opacity-30 flex-shrink-0"
+                  disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-black/[0.04] disabled:opacity-30"
                   title="파일 첨부"
+                  aria-label="파일 첨부"
                 >
                   <Paperclip className="w-4 h-4 text-taupe-400" />
                 </button>
@@ -651,13 +1030,16 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                     }
                   }}
                   placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "무엇이든 물어보세요..."}
-                  disabled={isStreaming}
+                  disabled={isStreaming || isSending}
+                  aria-label="메시지 입력"
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button
+                  type="button"
                   onClick={() => handleSend()}
-                  disabled={(!input.trim() && attachments.length === 0) || isStreaming}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
+                  disabled={(!input.trim() && attachments.length === 0) || isStreaming || isSending}
+                  aria-label="메시지 보내기"
+                  className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
                       : "bg-[#795252] hover:bg-[#946a6a]"

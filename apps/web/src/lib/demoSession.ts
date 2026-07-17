@@ -6,12 +6,7 @@ const DEMO_SESSION_COOKIE = "demo_session";
 const DEMO_MAX_AGE_SECONDS = 24 * 60 * 60;
 
 function getDemoSecret(): string | null {
-  return (
-    process.env.DEMO_SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.ADMIN_PASSWORD ||
-    null
-  );
+  return process.env.DEMO_SESSION_SECRET || null;
 }
 
 function signPayload(payload: string): string | null {

@@ -31,7 +31,7 @@ const menuItems = [
   { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
   { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { legacyPath: "/etiquette", icon: BookOpen, label: "예절 가이드" },
+  { legacyPath: "/etiquette", icon: BookOpen, label: "가족 조율" },
   { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));

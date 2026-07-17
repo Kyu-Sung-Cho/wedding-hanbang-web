@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import fs from "node:fs";
 import path from "node:path";
+import { verifySupabaseServiceDestinationFromEnv } from "./lib/supabase-service-destination.mjs";
 
 const ROOT = process.cwd();
 const ENV_PATHS = [
@@ -45,6 +46,8 @@ if (!supabaseUrl || !serviceRoleKey) {
   );
   process.exit(1);
 }
+
+verifySupabaseServiceDestinationFromEnv({ access: "read" });
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },

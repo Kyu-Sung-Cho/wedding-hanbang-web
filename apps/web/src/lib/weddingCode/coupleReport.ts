@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 import { WEDDING_CODE_V05_COMPATIBLE_VERSIONS, WEDDING_CODE_V05_QUESTIONS } from "@/constants/weddingCodeV05";
 import { toWeddingCodeV05Answers } from "./answers";
 import { buildWeddingCodeV05CoupleReport, type WeddingCodeV05CoupleReport } from "./report";

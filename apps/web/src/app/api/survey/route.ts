@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { checkRateLimitPersistent, getClientIp, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -10,14 +10,10 @@ import {
   sanitizeJsonObject,
 } from "@/utils/requestValidation";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const MAX_BODY_BYTES = 96 * 1024;
 
 function getServiceClient() {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return createAdminClient();
 }
 
 function scalar(value: unknown, maxLength = 500): string | number | boolean | null {

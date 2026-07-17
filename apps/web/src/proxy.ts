@@ -4,10 +4,50 @@ import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
+  const isApiPath =
+    request.nextUrl.pathname === "/api" ||
+    request.nextUrl.pathname.startsWith("/api/");
+  const isKnownMutatingGetPath =
+    request.nextUrl.pathname === "/api/cron" ||
+    request.nextUrl.pathname.startsWith("/api/cron/") ||
+    [
+      "/api/auth/callback",
+      "/api/auth/me",
+      "/api/community/cohort",
+      "/api/community/profile",
+      "/api/couple/code",
+      "/api/messages",
+    ].includes(request.nextUrl.pathname) ||
+    /^\/api\/vendors\/[^/]+$/.test(request.nextUrl.pathname);
+
+  if (
+    process.env.PRODUCTION_WRITE_FENCE_ENABLED === "true" &&
+    isApiPath &&
+    (
+      !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase()) ||
+      (["GET", "HEAD"].includes(request.method.toUpperCase()) && isKnownMutatingGetPath)
+    )
+  ) {
+    const deploymentCommit = process.env.VERCEL_GIT_COMMIT_SHA;
+    const headers: Record<string, string> = {
+      "Cache-Control": "no-store",
+      "Retry-After": "60",
+    };
+    if (/^[a-f0-9]{40}$/.test(deploymentCommit ?? "")) {
+      headers["X-Hanbang-Deployment-Commit"] = deploymentCommit!;
+    }
+    return NextResponse.json(
+      { error: "production_write_fence_enabled" },
+      {
+        status: 503,
+        headers,
+      }
+    );
+  }
+
   if (
     isPreviewStubMode() &&
-    (request.nextUrl.pathname === "/api" ||
-      request.nextUrl.pathname.startsWith("/api/"))
+    isApiPath
   ) {
     return NextResponse.json(
       { error: "preview_stub_api_disabled" },

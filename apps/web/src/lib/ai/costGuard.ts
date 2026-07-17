@@ -2,17 +2,19 @@
 //
 // 두 겹의 차단기:
 //  1) 커플당 누적 무료 상한 — 신규 유저 1명이 태울 수 있는 최대 비용을 고정.
-//  2) 전역 일일 상한 — 정상 유저가 많아도 하루 총비용에 천장(서킷브레이커).
+//  2) 전역 일일 턴 + 보수적 USD 예산 상한 — 정상 유저가 많아도 지갑에 천장.
 //
 // 두 함수:
 //  - reserveAmoraTurn: 원자적 체크+예약 (reserve_amora_turn RPC, FOR UPDATE 잠금).
 //    실제 LLM 호출 직전에 사용 — 동시 요청도 상한을 못 넘는다 (감사 2.3 H1 해소).
 //  - checkAmoraCostGuard: 읽기전용 체크 (레이스 가능). LLM 호출이 일어날지 불확실한
 //    앞단 게이트(예: check-couple-conflict — 파트너 메시지마다 호출되나 대부분 LLM 0회)와
-//    RPC 미배포 시 폴백용. 여기서 예약하면 LLM 없는 호출이 쿼터를 태우므로 예약 금지.
+//    선행 UX 게이트용. 여기서 예약하면 LLM 없는 호출이 쿼터를 태우므로 예약 금지.
 //
-// 카운트 기준은 ai_interactions_log의 chat_turn — 모든 LLM 턴이 isDemo·저장 여부와
-// 무관하게 무조건 기록되는 비용 장부라 클라이언트가 어떤 값을 조작해도 속일 수 없다.
+// 쿼터 단위는 사용자 상담 turn이다. 최초 카운터 시드는 과거
+// ai_interactions_log.chat_turn에서 읽고, 이후에는 reserve RPC 카운터가 진실원본이다.
+// 한 turn 안의 Luna/Terra provider 호출별 비용 행(amora_director)은 실제 비용
+// 정산용이며 커플 무료 turn을 추가 차감하지 않는다.
 // (chat_messages 기준은 두 번 기각: ①user 메시지 카운트는 파트너 메시지(비용 0)까지
 // 깎아 부당 차단 ②AI 메시지 카운트는 isDemo 위조 시 저장 스킵으로 카운트 우회 가능)
 // 카운터 테이블(amora_turn_counters)은 첫 접근 시 이 장부에서 자동 시드된다.
@@ -25,31 +27,114 @@
 //   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
 //   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
+//   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const FREE_PER_COUPLE = Number(process.env.AMORA_FREE_MESSAGES_PER_COUPLE ?? 100);
-const GLOBAL_DAILY_CAP = Number(process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP ?? 300);
+const POSTGRES_INT_MAX = 2_147_483_647;
+const POSTGRES_BIGINT_SAFE_MAX = Number.MAX_SAFE_INTEGER;
+const DEFAULT_FREE_PER_COUPLE = 100;
+const DEFAULT_GLOBAL_DAILY_CAP = 300;
+const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
+
+function readPositivePostgresInteger(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  if (
+    Number.isSafeInteger(parsed)
+    && parsed > 0
+    && parsed <= POSTGRES_INT_MAX
+  ) {
+    return parsed;
+  }
+  // 잘못된 배포 설정이 NaN 비교로 상한을 사실상 해제하거나 RPC int4 오류로
+  // 전체 장애를 만들지 않도록, 작고 검증된 기본 상한으로 되돌린다.
+  console.error(`[costGuard] invalid ${name}; using safe default`);
+  return fallback;
+}
+
+function readPositiveUsdMicros(name: string, fallbackUsd: number): number {
+  const raw = process.env[name];
+  const fallback = Math.round(fallbackUsd * 1_000_000);
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  const micros = Math.floor(parsed * 1_000_000);
+  if (
+    Number.isFinite(parsed)
+    && parsed > 0
+    && Number.isSafeInteger(micros)
+    && micros > 0
+  ) {
+    return micros;
+  }
+  console.error(`[costGuard] invalid ${name}; using safe default`);
+  return fallback;
+}
+
+const FREE_PER_COUPLE = readPositivePostgresInteger(
+  "AMORA_FREE_MESSAGES_PER_COUPLE",
+  DEFAULT_FREE_PER_COUPLE,
+);
+const GLOBAL_DAILY_CAP = readPositivePostgresInteger(
+  "AMORA_GLOBAL_DAILY_MESSAGE_CAP",
+  DEFAULT_GLOBAL_DAILY_CAP,
+);
+const GLOBAL_DAILY_COST_CAP_MICROUSD = readPositiveUsdMicros(
+  "AMORA_GLOBAL_DAILY_COST_CAP_USD",
+  DEFAULT_GLOBAL_DAILY_COST_CAP_USD,
+);
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
-const DISABLED_COUPLE_CAP = 2_147_483_647;
+const DISABLED_COUPLE_CAP = POSTGRES_INT_MAX;
+// 자동 갈등 감지처럼 사용자 상담 응답이 아닌 provider 호출은 전역 비용 상한에는
+// 포함하되 실제 커플의 무료 상담 카운터를 깎지 않는다. RPC는 UUID 형식만 요구하고
+// counter table에 FK가 없으므로 별도 synthetic ledger key를 안전하게 쓸 수 있다.
+const BACKGROUND_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000002";
 
 export interface CostGuardResult {
   allowed: boolean;
-  reason?: "couple_quota" | "global_daily" | "guard_unavailable";
+  reason?: "couple_quota" | "global_daily" | "global_budget" | "guard_unavailable";
   message?: string;
   /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
   remaining?: number;
 }
 
+export class AmoraCostGuardError extends Error {
+  readonly code: string;
+
+  constructor(readonly result: CostGuardResult) {
+    super(result.message ?? "AMORA_COST_GUARD_BLOCKED");
+    this.name = "AmoraCostGuardError";
+    this.code = result.reason === "couple_quota"
+      ? "COST_GUARD_COUPLE_QUOTA"
+      : result.reason === "global_daily"
+        ? "COST_GUARD_GLOBAL_DAILY"
+        : result.reason === "global_budget"
+          ? "COST_GUARD_GLOBAL_BUDGET"
+          : "COST_GUARD_UNAVAILABLE";
+  }
+}
+
 type CostGuardParams = {
   coupleId: string;
   isAdmin: boolean;
-  /** Release evals use their own ledger key but must still reserve global cost. */
-  quotaScope?: "standard" | "release_eval";
+  /** Demo/release-eval/background calls bypass couple quota, never global cost. */
+  quotaScope?: "standard" | "demo" | "release_eval" | "background";
+};
+
+type ReserveCostGuardParams = CostGuardParams & {
+  /** Conservative maximum provider cost for this logical reservation. */
+  maxCostMicrousd: number;
+};
+
+export type ReserveProviderCallParams = ReserveCostGuardParams & {
+  receiptId: string;
+  claimToken: string;
+  requestKey: string;
 };
 
 const ALLOW: CostGuardResult = { allowed: true };
@@ -59,6 +144,13 @@ const DENY_GLOBAL: CostGuardResult = {
   reason: "global_daily",
   message:
     "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
+};
+
+const DENY_GLOBAL_BUDGET: CostGuardResult = {
+  allowed: false,
+  reason: "global_budget",
+  message:
+    "오늘 아모라의 안전 예산에 도달해 잠시 쉬어가고 있어요. 비용 상태를 확인한 뒤 다시 열어드릴게요.",
 };
 
 const DENY_COUPLE: CostGuardResult = {
@@ -79,29 +171,40 @@ const DENY_UNAVAILABLE: CostGuardResult = {
 // reserve_amora_turn RPC가 카운터 행을 FOR UPDATE로 잠그고 같은 트랜잭션에서
 // 증가시키므로, 동시 요청이 상한을 초과할 수 없다. 실제 LLM 호출 직전에만
 // 부를 것 — 통과하면 턴 1회가 소모된 것으로 계산된다.
-// RPC 미배포/실패 시 기존 읽기전용 가드로 폴백 (무중단, patchJourneyProgress 패턴).
+// RPC 미배포/실패 시 fail closed. 읽기전용 카운트는 동시 요청 사이에서 같은
+// 여유분을 관측하므로 provider 직전 안전 게이트를 대체할 수 없다.
 export async function reserveAmoraTurn(
   admin: SupabaseClient,
-  params: CostGuardParams,
+  params: ReserveCostGuardParams,
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
+  if (!GUARD_ENABLED) return ALLOW;
+  if (
+    !Number.isSafeInteger(params.maxCostMicrousd)
+    || params.maxCostMicrousd < 1
+  ) {
+    console.error("[costGuard] invalid maxCostMicrousd; blocking provider call");
+    return DENY_UNAVAILABLE;
+  }
   const appliesCoupleQuota =
-    params.quotaScope !== "release_eval" && COUPLE_QUOTA_ENABLED;
+    !params.isAdmin
+    && (params.quotaScope ?? "standard") === "standard"
+    && COUPLE_QUOTA_ENABLED;
   const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
+  const ledgerCoupleId = params.quotaScope === "background"
+    ? BACKGROUND_COST_LEDGER_COUPLE_ID
+    : params.coupleId;
 
   try {
     const { data, error } = await admin.rpc("reserve_amora_turn", {
-      p_couple_id: params.coupleId,
+      p_couple_id: ledgerCoupleId,
       p_couple_cap: coupleCap,
       p_global_cap: GLOBAL_DAILY_CAP,
+      p_reserve_cost_microusd: params.maxCostMicrousd,
+      p_global_cost_cap_microusd: GLOBAL_DAILY_COST_CAP_MICROUSD,
     });
     if (error) {
-      if (params.quotaScope === "release_eval") {
-        console.error("[costGuard] 평가 원자 예약 실패 (차단):", error.message);
-        return DENY_UNAVAILABLE;
-      }
-      console.error("[costGuard] 원자 예약 실패 (읽기전용 가드 폴백):", error.message);
-      return checkAmoraCostGuard(admin, params);
+      console.error("[costGuard] 원자 예약 실패 (차단):", error.message);
+      return DENY_UNAVAILABLE;
     }
 
     const row = Array.isArray(data) ? data[0] : data;
@@ -116,22 +219,100 @@ export async function reserveAmoraTurn(
       };
     }
     if (row?.reason === "global_daily") return DENY_GLOBAL;
+    if (row?.reason === "global_daily_budget") return DENY_GLOBAL_BUDGET;
     if (row?.reason === "couple_quota" && appliesCoupleQuota) return DENY_COUPLE;
 
     // Unknown reservation state must never create an unmetered provider call.
     console.error("[costGuard] 예약 RPC 응답 형태 불명 (차단):", JSON.stringify(row ?? null));
     return DENY_UNAVAILABLE;
   } catch (err) {
-    if (params.quotaScope === "release_eval") {
-      console.error("[costGuard] 평가 원자 예약 예외 (차단):", err);
-      return DENY_UNAVAILABLE;
-    }
-    console.error("[costGuard] 원자 예약 예외 (읽기전용 가드 폴백):", err);
-    return checkAmoraCostGuard(admin, params);
+    console.error("[costGuard] 원자 예약 예외 (차단):", err);
+    return DENY_UNAVAILABLE;
   }
 }
 
 // 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
+/**
+ * Reserves one provider-call receipt. This counts the logical request once and
+ * reserves only the current generation maximum. Finalization later replaces
+ * the reservation with actual usage. Receipt reservation remains mandatory
+ * when caps are disabled so every paid call still has a settlement boundary.
+ */
+export async function reserveAmoraProviderCall(
+  admin: SupabaseClient,
+  params: ReserveProviderCallParams,
+): Promise<CostGuardResult> {
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (
+    !Number.isSafeInteger(params.maxCostMicrousd)
+    || params.maxCostMicrousd < 1
+    || !uuidPattern.test(params.receiptId)
+    || !uuidPattern.test(params.claimToken)
+    || !/^[A-Za-z0-9_.:-]{1,240}$/.test(params.requestKey)
+  ) {
+    console.error("[costGuard] invalid provider receipt reservation; blocking call");
+    return DENY_UNAVAILABLE;
+  }
+
+  const appliesCoupleQuota =
+    GUARD_ENABLED
+    && !params.isAdmin
+    && (params.quotaScope ?? "standard") === "standard"
+    && COUPLE_QUOTA_ENABLED;
+  const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
+  const ledgerCoupleId = params.quotaScope === "background"
+    ? BACKGROUND_COST_LEDGER_COUPLE_ID
+    : params.coupleId;
+
+  try {
+    const { data, error } = await admin.rpc("reserve_amora_provider_call", {
+      p_receipt_id: params.receiptId,
+      p_claim_token: params.claimToken,
+      p_request_key: params.requestKey,
+      p_cost_couple_id: ledgerCoupleId,
+      p_couple_cap: coupleCap,
+      p_global_cap: GUARD_ENABLED ? GLOBAL_DAILY_CAP : POSTGRES_INT_MAX,
+      p_reserve_cost_microusd: params.maxCostMicrousd,
+      p_global_cost_cap_microusd: GUARD_ENABLED
+        ? GLOBAL_DAILY_COST_CAP_MICROUSD
+        : POSTGRES_BIGINT_SAFE_MAX,
+    });
+    if (error) {
+      console.error(
+        "[costGuard] provider receipt reservation failed (blocked):",
+        error.message,
+      );
+      return DENY_UNAVAILABLE;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.allowed === true) {
+      return {
+        allowed: true,
+        remaining: appliesCoupleQuota && typeof row.remaining === "number"
+          ? Math.max(0, row.remaining)
+          : undefined,
+      };
+    }
+    if (row?.reason === "global_daily") return DENY_GLOBAL;
+    if (row?.reason === "global_daily_budget") return DENY_GLOBAL_BUDGET;
+    if (row?.reason === "couple_quota" && appliesCoupleQuota) return DENY_COUPLE;
+
+    console.error(
+      "[costGuard] provider receipt reservation state unknown (blocked):",
+      JSON.stringify(row ?? null),
+    );
+    return DENY_UNAVAILABLE;
+  } catch (err) {
+    console.error(
+      "[costGuard] provider receipt reservation exception (blocked):",
+      err,
+    );
+    return DENY_UNAVAILABLE;
+  }
+}
+
 async function readCoupleRemaining(
   admin: SupabaseClient,
   coupleId: string
@@ -156,7 +337,7 @@ export async function checkAmoraCostGuard(
   admin: SupabaseClient,
   params: CostGuardParams,
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED || params.isAdmin) return ALLOW;
+  if (!GUARD_ENABLED) return ALLOW;
 
   // 1) 전역 일일 상한 — KST 자정 기준 오늘 발생한 LLM 턴 수
   const startOfTodayKstUtc = getStartOfTodayKstAsUtcIso();
@@ -174,7 +355,11 @@ export async function checkAmoraCostGuard(
     return DENY_GLOBAL;
   }
 
-  if (!COUPLE_QUOTA_ENABLED || params.quotaScope === "release_eval") {
+  if (
+    params.isAdmin
+    || !COUPLE_QUOTA_ENABLED
+    || (params.quotaScope ?? "standard") !== "standard"
+  ) {
     return ALLOW;
   }
 

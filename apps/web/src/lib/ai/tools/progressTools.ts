@@ -6,8 +6,8 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
  * apply_journey_progress_patch RPC(20260611160000) 가 DB row lock 으로 현재 값을 읽어
  * 병합하므로, 커플 2인이 서로 다른 키를 동시에 고쳐도 lost update 가 나지 않는다.
  *
- * RPC 가 아직 배포(마이그레이션 적용)되지 않았으면 기존 whole-blob 방식으로 폴백한다
- * → 마이그레이션 적용 전에도 무중단. 적용되는 순간 자동으로 원자 경로로 전환된다.
+ * RPC 오류나 비정상 응답에서는 실패로 닫는다. 호출 시점의 오래된 전체 JSON으로
+ * 폴백하면 파트너나 다른 요청이 방금 저장한 값을 지울 수 있기 때문이다.
  */
 export async function patchJourneyProgress(
   ctx: ToolExecutionContext,
@@ -21,22 +21,45 @@ export async function patchJourneyProgress(
     p_remove_keys: removeKeys,
   });
 
-  if (!error && data) {
-    ctx.weddingContext.progress = data as ToolExecutionContext["weddingContext"]["progress"];
-    return;
+  if (error) throw error;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("apply_journey_progress_patch returned invalid data");
   }
 
-  const merged: Record<string, unknown> = {
+  ctx.weddingContext.progress = data as ToolExecutionContext["weddingContext"]["progress"];
+}
+
+/**
+ * Atomically merges fields into one progress item using the database's latest
+ * value. This is required for category fields such as status/budget/checklist:
+ * replacing the whole item from an in-memory snapshot can erase a partner's
+ * concurrent change.
+ */
+export async function patchJourneyProgressItem(
+  ctx: ToolExecutionContext,
+  itemKey: string,
+  itemPatch: Record<string, unknown>,
+): Promise<void> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("apply_journey_progress_item_patch", {
+    p_couple_id: ctx.coupleId,
+    p_item_key: itemKey,
+    p_item_patch: itemPatch,
+  });
+
+  if (
+    error
+    || !data
+    || typeof data !== "object"
+    || Array.isArray(data)
+  ) {
+    throw error ?? new Error("apply_journey_progress_item_patch returned invalid data");
+  }
+
+  ctx.weddingContext.progress = {
     ...(ctx.weddingContext.progress as Record<string, unknown>),
-  };
-  for (const key of removeKeys) delete merged[key];
-  Object.assign(merged, patch);
-  const { error: fallbackError } = await admin
-    .from("wedding_journeys")
-    .update({ progress: merged })
-    .eq("couple_id", ctx.coupleId);
-  if (fallbackError) throw fallbackError;
-  ctx.weddingContext.progress = merged as unknown as ToolExecutionContext["weddingContext"]["progress"];
+    [itemKey]: data,
+  } as ToolExecutionContext["weddingContext"]["progress"];
 }
 
 /**

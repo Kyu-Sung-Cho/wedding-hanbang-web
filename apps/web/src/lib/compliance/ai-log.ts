@@ -6,7 +6,7 @@
 //   - Service role로 INSERT (유저 권한 무관)
 //   - try/catch로 감싸 예외 절대 propagate 안 함
 //   - fire-and-forget: `void logAIInteraction(...)`로 호출 시 await 불필요
-//   - 가격표 내장 → cost_usd 자동 계산
+//   - 버전 관리되는 단일 가격표 → cost_usd 자동 계산
 // 컴플라이언스:
 //   - 대화/도구 원문은 canonical 도메인 행에만 두고 비용 로그에는 복제하지 않음
 //   - 중단된 공급자 요청은 0원이 아닌 usage_status=unknown으로 구분
@@ -14,100 +14,27 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { InteractionType, SpecialistType } from "@/types/moat.types";
+import { log } from "@/utils/log";
+import modelPricingCatalog from "../../../../../config/amora-model-pricing.json";
 
 // -------------------------------------------
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
-// OpenAI 공식 가격 확인일: 2026-07-14
+// OpenAI 공식 모델·가격 확인일: 2026-07-16
 // https://developers.openai.com/api/docs/pricing
 interface TokenRates {
-  in: number;
-  out: number;
+  input: number;
+  output: number;
   cacheWrite: number;
   cacheRead: number;
 }
 
 interface ModelCost extends TokenRates {
-  longContext?: TokenRates & { threshold: number };
+  provider: "openai" | "anthropic";
+  longContext?: TokenRates & { inputTokenThresholdExclusive: number };
 }
 
-const MODEL_COSTS: Record<string, ModelCost> = {
-  "gpt-5.6-terra": {
-    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.125 / 1_000_000, cacheRead: 0.25 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
-      cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-    },
-  },
-  "gpt-5.6-luna": {
-    in: 1 / 1_000_000, out: 6 / 1_000_000,
-    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 2 / 1_000_000, out: 9 / 1_000_000,
-      cacheWrite: 2.5 / 1_000_000, cacheRead: 0.2 / 1_000_000,
-    },
-  },
-  "claude-fable-5": {
-    in: 10 / 1_000_000, out: 50 / 1_000_000,
-    cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
-  },
-  "claude-mythos-5": {
-    in: 10 / 1_000_000, out: 50 / 1_000_000,
-    cacheWrite: 12.5 / 1_000_000, cacheRead: 1.0 / 1_000_000,
-  },
-  "claude-opus-4-8": {
-    in: 5 / 1_000_000, out: 25 / 1_000_000,
-    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-  },
-  "claude-opus-4-7": {
-    in: 5 / 1_000_000, out: 25 / 1_000_000,
-    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-  },
-  "claude-opus-4-6": {
-    in: 5 / 1_000_000, out: 25 / 1_000_000,
-    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-  },
-  "claude-opus-4-5": {
-    in: 5 / 1_000_000, out: 25 / 1_000_000,
-    cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-  },
-  "claude-opus-4-1": {
-    in: 15 / 1_000_000, out: 75 / 1_000_000,
-    cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000,
-  },
-  "claude-opus-4": {
-    in: 15 / 1_000_000, out: 75 / 1_000_000,
-    cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000,
-  },
-  "claude-sonnet-4-6": {
-    in: 3 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
-  },
-  "claude-sonnet-4-5": {
-    in: 3 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
-  },
-  "claude-haiku-4-5-20251001": {
-    in: 1 / 1_000_000, out: 5 / 1_000_000,
-    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.10 / 1_000_000,
-  },
-  "claude-haiku-4-5": {
-    in: 1 / 1_000_000, out: 5 / 1_000_000,
-    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.10 / 1_000_000,
-  },
-  "claude-haiku-3-5": {
-    in: 0.8 / 1_000_000, out: 4 / 1_000_000,
-    cacheWrite: 1.0 / 1_000_000, cacheRead: 0.08 / 1_000_000,
-  },
-  // 기존 호환 모델 (scripts/generate에서 쓰는 구 버전)
-  "claude-sonnet-4-20250514": {
-    in: 3 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000,
-  },
-};
+const MODEL_COSTS = modelPricingCatalog.models as Record<string, ModelCost>;
 
 export function calcCostUsd(
   model: string | null | undefined,
@@ -116,17 +43,26 @@ export function calcCostUsd(
   cacheCreationTokens?: number | null,
   cacheReadTokens?: number | null
 ): number | null {
-  if (!model || tokensIn == null || tokensOut == null) return null;
+  if (
+    !model
+    || tokensIn == null
+    || tokensOut == null
+    || !Number.isFinite(tokensIn)
+    || !Number.isFinite(tokensOut)
+    || tokensIn < 0
+    || tokensOut < 0
+  ) return null;
   const key = Object.keys(MODEL_COSTS)
     .sort((a, b) => b.length - a.length)
     .find((candidate) => model.startsWith(candidate)) ?? null;
   if (!key) return null;
   const modelCost = MODEL_COSTS[key];
-  const rate = modelCost.longContext && tokensIn > modelCost.longContext.threshold
+  const rate = modelCost.longContext
+    && tokensIn > modelCost.longContext.inputTokenThresholdExclusive
     ? modelCost.longContext
     : modelCost;
 
-  if (model.startsWith("gpt-")) {
+  if (modelCost.provider === "openai") {
     // OpenAI input_tokens는 cache read/write를 포함하므로 구간을 분리한다.
     const cachedTokens = Math.min(Math.max(cacheReadTokens ?? 0, 0), tokensIn);
     const writtenTokens = Math.min(
@@ -135,20 +71,20 @@ export function calcCostUsd(
     );
     const uncachedTokens = Math.max(tokensIn - cachedTokens - writtenTokens, 0);
     return (
-      uncachedTokens * rate.in +
+      uncachedTokens * rate.input +
       writtenTokens * rate.cacheWrite +
       cachedTokens * rate.cacheRead +
-      tokensOut * rate.out
-    );
+      tokensOut * rate.output
+    ) / 1_000_000;
   }
 
   // 과거 Anthropic usage는 uncached/cache-write/cache-read가 분리되어 있다.
   return (
-    tokensIn * rate.in +
-    tokensOut * rate.out +
-    (cacheCreationTokens ?? 0) * rate.cacheWrite +
-    (cacheReadTokens ?? 0) * rate.cacheRead
-  );
+    tokensIn * rate.input +
+    tokensOut * rate.output +
+    Math.max(cacheCreationTokens ?? 0, 0) * rate.cacheWrite +
+    Math.max(cacheReadTokens ?? 0, 0) * rate.cacheRead
+  ) / 1_000_000;
 }
 
 // -------------------------------------------
@@ -176,7 +112,7 @@ export interface AIInteractionLogInput {
   cacheCreationTokens?: number | null;
   /** Prompt caching: 캐시 hit 시 사용된 input 토큰 (cache_read, 90% 할인) */
   cacheReadTokens?: number | null;
-  /** 미리 계산된 cost — 없으면 내부에서 MODEL_COSTS 기반 자동 계산 */
+  /** 미리 계산된 cost — 없으면 공유 가격 카탈로그 기반으로 자동 계산 */
   costUsd?: number | null;
   metadata?: Record<string, unknown> | null;
 }
@@ -208,7 +144,10 @@ const SAFE_AI_LOG_METADATA_KEYS = new Set([
   "provider_error_category",
   "provider_error_code",
   "provider_attempted",
+  "provider_call_index",
+  "provider_call_phase",
   "provider_request_id",
+  "provider_request_stage",
   "provider_response_id",
   "reasoning_effort",
   "region",
@@ -262,13 +201,14 @@ const getAdminClient = createAdminClient;
 // 공개 헬퍼: logAIInteraction
 // -------------------------------------------
 /**
- * AI 호출 기록. 예외는 내부에서 삼키고 콘솔에만 남김.
+ * AI 호출 기록. 저장 성공 여부를 반환하되 실패를 사용자 요청에 전파하지 않는다.
+ * 실패는 운영 오류 수집기로 보내므로 비용 원장 누락을 관측할 수 있다.
  * fire-and-forget 패턴:
  *   void logAIInteraction({ ... });  // main flow 안 막음
  */
 export async function logAIInteraction(
   params: AIInteractionLogInput
-): Promise<void> {
+): Promise<boolean> {
   try {
     const admin = getAdminClient();
 
@@ -321,10 +261,19 @@ export async function logAIInteraction(
     });
 
     if (error) {
-      console.error("[ai-log] INSERT 실패 (무시됨):", error.message);
+      log.error(
+        "[ai-log] INSERT failed; provider ledger row may be missing",
+        new Error("ai_interactions_log_insert_failed"),
+      );
+      return false;
     }
-  } catch (err) {
-    console.error("[ai-log] 예외 (무시됨):", err);
+    return true;
+  } catch {
+    log.error(
+      "[ai-log] exception; provider ledger row may be missing",
+      new Error("ai_interactions_log_exception"),
+    );
+    return false;
   }
 }
 

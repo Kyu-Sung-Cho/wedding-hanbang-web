@@ -15,7 +15,8 @@ ALTER TABLE public.profiles
 UPDATE public.profiles
 SET care_notifications_enabled = false,
     care_notifications_consented_at = NULL
-WHERE care_notifications_consented_at IS NULL;
+WHERE care_notifications_enabled IS DISTINCT FROM false
+  AND care_notifications_consented_at IS NULL;
 
 CREATE OR REPLACE FUNCTION public.insert_amora_care_message(
   p_couple_id uuid,
@@ -43,7 +44,8 @@ BEGIN
 
   SELECT bride_id, groom_id INTO v_bride_id, v_groom_id
   FROM public.couples
-  WHERE id = p_couple_id;
+  WHERE id = p_couple_id
+  FOR SHARE;
 
   SELECT count(DISTINCT member_id)::integer INTO v_required
   FROM (VALUES (v_bride_id), (v_groom_id)) AS members(member_id)

@@ -5,6 +5,7 @@ import {
   claimChatRequest,
   completeChatRequest,
   failChatRequest,
+  reconcileChatRequest,
 } from "@/lib/ai/chatRequestClaim";
 
 const BASE = {
@@ -12,6 +13,7 @@ const BASE = {
   requestKey:
     "chat:00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000099",
   userId: "00000000-0000-4000-8000-000000000001",
+  userMessageId: "30000000-0000-4000-8000-000000000001",
   visibility: "shared" as const,
 };
 
@@ -22,6 +24,22 @@ function makeAdmin(results: Array<{ data: unknown; error: unknown }>) {
 }
 
 describe("chat request claim client", () => {
+  it("binds a normal chat claim to its durable user message", async () => {
+    const admin = makeAdmin([
+      { data: { action: "acquired", attempt_count: 1, reclaimed: false }, error: null },
+    ]);
+
+    await claimChatRequest(BASE, admin as never);
+
+    expect(admin.rpc).toHaveBeenCalledWith("claim_amora_chat_request", {
+      p_couple_id: BASE.coupleId,
+      p_request_key: BASE.requestKey,
+      p_user_id: BASE.userId,
+      p_visibility: BASE.visibility,
+      p_user_message_id: BASE.userMessageId,
+    });
+  });
+
   it("parses acquired and in-progress contracts conservatively", async () => {
     const admin = makeAdmin([
       { data: { action: "acquired", attempt_count: 2, reclaimed: true }, error: null },
@@ -47,6 +65,26 @@ describe("chat request claim client", () => {
       ChatRequestClaimError,
     );
   });
+
+  it.each(["acquired", "completed", "in_progress"])(
+    "rejects a %s claim without a positive generation fence",
+    async (action) => {
+      const admin = makeAdmin([{
+        data: {
+          action,
+          ...(action === "completed"
+            ? { message_id: "20000000-0000-4000-8000-000000000001" }
+            : {}),
+          ...(action === "in_progress" ? { retry_after_ms: 2_500 } : {}),
+        },
+        error: null,
+      }]);
+
+      await expect(claimChatRequest(BASE, admin as never)).rejects.toBeInstanceOf(
+        ChatRequestClaimError,
+      );
+    },
+  );
 
   it("fails closed on malformed or database error responses", async () => {
     const malformed = makeAdmin([{ data: { action: "unknown" }, error: null }]);
@@ -76,6 +114,22 @@ describe("chat request claim client", () => {
       p_request_key: BASE.requestKey,
       p_user_id: BASE.userId,
       p_failure_code: "PROVIDER_TIMEOUT",
+    });
+  });
+
+  it("reconciles an exact persisted response before replay", async () => {
+    const admin = makeAdmin([{ data: true, error: null }]);
+    const messageId = "20000000-0000-4000-8000-000000000001";
+    await expect(reconcileChatRequest(
+      { ...BASE, messageId },
+      admin as never,
+    )).resolves.toBe(true);
+    expect(admin.rpc).toHaveBeenCalledWith("reconcile_amora_chat_response", {
+      p_couple_id: BASE.coupleId,
+      p_request_key: BASE.requestKey,
+      p_user_id: BASE.userId,
+      p_visibility: BASE.visibility,
+      p_message_id: messageId,
     });
   });
 });

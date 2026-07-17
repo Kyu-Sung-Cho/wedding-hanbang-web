@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
@@ -18,13 +18,7 @@ type VisibleChatMessage = {
 };
 
 function getServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("CHAT_IMAGE_SIGNING_NOT_CONFIGURED");
-  }
-
-  return createSupabaseClient(supabaseUrl, serviceRoleKey);
+  return createAdminClient();
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

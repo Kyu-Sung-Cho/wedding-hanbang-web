@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import Logo from "@/components/ui/Logo";
+import { getSameOriginRedirectPath } from "@/lib/auth/safeRedirect";
 import { createClient } from "@/lib/supabase/client";
 
 interface PasswordCheck {
@@ -75,8 +76,7 @@ export default function ResetPasswordPage() {
         // redirect 쿼리 파라미터가 있으면 해당 경로로, 없으면 /login으로
         const params = new URLSearchParams(window.location.search);
         const redirectTo = params.get("redirect") || "/login";
-        // 외부 URL 방지 (상대 경로만 허용)
-        const safePath = redirectTo.startsWith("/") ? redirectTo : "/login";
+        const safePath = getSameOriginRedirectPath(redirectTo, window.location.origin);
         setTimeout(() => {
           window.location.href = safePath;
         }, 2000);

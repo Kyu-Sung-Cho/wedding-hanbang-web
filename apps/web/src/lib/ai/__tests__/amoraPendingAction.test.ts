@@ -1,0 +1,279 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildAmoraPendingActionPrompt,
+  extractAmoraPendingAction,
+  resolveAmoraPendingAction,
+} from "@/lib/ai/amoraPendingAction";
+import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+
+const NOW = 1_789_000_000_000;
+const ACTION_ID = "11111111-1111-4111-8111-111111111111";
+const tools: AiToolDefinition[] = [
+  {
+    name: "update_budget",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: { total_budget: { type: "number" } },
+      required: ["total_budget"],
+    },
+  },
+  {
+    name: "update_venue",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: { venue: { type: "string" } },
+      required: ["venue"],
+    },
+  },
+  {
+    name: "add_schedule_event",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string" },
+        title: { type: "string" },
+        memo: { type: "string" },
+      },
+      required: ["date", "title"],
+    },
+  },
+  {
+    name: "apply_budget_plan",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: {
+        total_budget: { type: "number" },
+        allocations: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              category: { type: "string" },
+              budget: { type: "number" },
+            },
+            required: ["category", "budget"],
+          },
+        },
+        intake_summary: { type: "string" },
+      },
+      required: ["total_budget", "allocations", "intake_summary"],
+    },
+  },
+];
+
+function extract(text: string) {
+  return extractAmoraPendingAction({
+    text,
+    allowedTools: tools,
+    now: NOW,
+    createActionId: () => ACTION_ID,
+  });
+}
+
+describe("Amora pending actions", () => {
+  it("replaces a model-authored misleading proposal with a server-owned truthful summary", () => {
+    const result = extract(
+      '일정만 가볍게 확인해볼게요.\n[pending_action]{"tool":"update_budget","input":{"total_budget":30000000},"confirmation":"일정만 확인할까요?"}[/pending_action]',
+    );
+
+    expect(result.cleanText).toBe(
+      "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+    );
+    expect(result.pendingAction).toMatchObject({
+      tool: "update_budget",
+      input: { total_budget: 30_000_000 },
+      confirmation:
+        "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원",
+    });
+  });
+
+  it("does not round a schema-valid numeric value in the confirmation", () => {
+    const result = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000.12345678}}[/pending_action]',
+    );
+
+    expect(result.cleanText).toContain("30,000,000.12345678원");
+  });
+
+  it("strips and stores one schema-valid action with a canonical confirmation", () => {
+    const confirmation =
+      "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경\n- 총 예산: 3,000만 원";
+    const result = extract(
+      '모델이 작성한 제안\n[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    );
+
+    expect(result.cleanText).toBe(confirmation);
+    expect(result.pendingAction).toMatchObject({
+      version: 1,
+      actionId: ACTION_ID,
+      tool: "update_budget",
+      input: { total_budget: 30_000_000 },
+      confirmation,
+      issuedAt: NOW,
+      expiresAt: NOW + 10 * 60 * 1_000,
+    });
+  });
+
+  it.each([
+    '[pending_action]{"tool":"update_budget","input":{}}[/pending_action]',
+    '[pending_action]{"tool":"delete_everything","input":{}}[/pending_action]',
+    '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000,"extra":true}}[/pending_action]',
+  ])("strips but never stores an invalid marker: %s", (marker) => {
+    const result = extract(`총예산을 3,000만 원으로 바꿀까요?\n${marker}`);
+    expect(result.cleanText).toBe("총예산을 3,000만 원으로 바꿀까요?");
+    expect(result.pendingAction).toBeNull();
+  });
+
+  it.each(["\u0085", "\u061c", "\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u202e", "\u2066"])(
+    "rejects a proposal value containing an invisible Unicode control or format character %#",
+    (formatCharacter) => {
+      const payload = JSON.stringify({
+        tool: "update_venue",
+        input: { venue: `안전한 예식장${formatCharacter}거짓` },
+      });
+      const result = extract(
+        `[pending_action]${payload}[/pending_action]`,
+      );
+
+      expect(result.pendingAction).toBeNull();
+    },
+  );
+
+  it("rejects an invisible format character in a nested object key", () => {
+    const payload = JSON.stringify({
+      tool: "apply_budget_plan",
+      input: {
+        total_budget: 30_000_000,
+        allocations: [{
+          category: "venue",
+          budget: 10_000_000,
+          ["숨은\u200b키"]: true,
+        }],
+        intake_summary: "예식장 우선",
+      },
+    });
+
+    const result = extract(`[pending_action]${payload}[/pending_action]`);
+    expect(result.pendingAction).toBeNull();
+  });
+
+  it("does not reinterpret ordinary text that happens to match an enum token", () => {
+    const result = extract(
+      '[pending_action]{"tool":"update_venue","input":{"venue":"completed"}}[/pending_action]',
+    );
+
+    expect(result.cleanText).toContain('- 예식장: "completed"');
+    expect(result.cleanText).not.toContain("- 예식장: 완료");
+  });
+
+  it("preserves meaningful whitespace in a text value instead of summarizing a different value", () => {
+    const result = extract(
+      '[pending_action]{"tool":"update_venue","input":{"venue":"A  B"}}[/pending_action]',
+    );
+
+    expect(result.cleanText).toContain('- 예식장: "A  B"');
+  });
+
+  it("keeps normal memo line breaks as an exact escaped representation", () => {
+    const payload = JSON.stringify({
+      tool: "add_schedule_event",
+      input: {
+        date: "2026-08-01",
+        title: "드레스 피팅",
+        memo: "첫 줄\n둘째 줄",
+      },
+    });
+    const result = extract(`[pending_action]${payload}[/pending_action]`);
+
+    expect(result.cleanText).toContain('- 메모: "첫 줄\\n둘째 줄"');
+    expect(result.pendingAction?.input.memo).toBe("첫 줄\n둘째 줄");
+  });
+
+  it("fails closed when a newly allowed mutation has no server-owned display contract", () => {
+    const result = extractAmoraPendingAction({
+      text: '[pending_action]{"tool":"future_mutation","input":{"value":"x"}}[/pending_action]',
+      allowedTools: [{
+        name: "future_mutation",
+        description: "test",
+        input_schema: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          required: ["value"],
+        },
+      }],
+      now: NOW,
+      createActionId: () => ACTION_ID,
+    });
+
+    expect(result.pendingAction).toBeNull();
+  });
+
+  it("rejects multiple markers instead of choosing one", () => {
+    const marker = '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]';
+    const multiple = extract(`총예산을 3,000만 원으로 바꿀까요?\n${marker}\n${marker}`);
+    expect(multiple.pendingAction).toBeNull();
+    expect(multiple.cleanText).toBe("총예산을 3,000만 원으로 바꿀까요?");
+  });
+
+  it("resolves only the exact unexpired server-issued action id", () => {
+    const pending = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+    expect(pending).not.toBeNull();
+    expect(resolveAmoraPendingAction({
+      value: pending,
+      confirmedActionId: ACTION_ID,
+      allowedTools: tools,
+      now: NOW + 1,
+    })).toEqual(pending);
+    expect(resolveAmoraPendingAction({
+      value: pending,
+      confirmedActionId: ACTION_ID,
+      allowedTools: tools,
+      now: NOW + 10 * 60 * 1_000,
+    })).toBeNull();
+  });
+
+  it("never treats generic reply text or a wrong or foreign id as authority", () => {
+    const pending = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+
+    expect(resolveAmoraPendingAction({
+      value: pending,
+      confirmedActionId: undefined,
+      allowedTools: tools,
+      now: NOW + 1,
+    })).toBeNull();
+    expect(resolveAmoraPendingAction({
+      value: pending,
+      confirmedActionId: "22222222-2222-4222-8222-222222222222",
+      allowedTools: tools,
+      now: NOW + 1,
+    })).toBeNull();
+  });
+
+  it("rejects a stored action whose visible confirmation was tampered with", () => {
+    const pending = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+    expect(resolveAmoraPendingAction({
+      value: pending && { ...pending, confirmation: "아무 변경도 하지 않을까요?" },
+      confirmedActionId: ACTION_ID,
+      allowedTools: tools,
+      now: NOW + 1,
+    })).toBeNull();
+  });
+
+  it("documents the exact server-only marker contract", () => {
+    const prompt = buildAmoraPendingActionPrompt(["update_budget"]);
+    expect(prompt).toContain("update_budget");
+    expect(prompt).toContain("[pending_action]");
+    expect(prompt).toContain("정확한 action_id");
+    expect(prompt).not.toContain('"confirmation"');
+  });
+});

@@ -94,7 +94,6 @@ interface Vendor {
   price_range: string | null;
   price_min: number | null;
   price_max: number | null;
-  business_license_url: string | null;
 }
 
 interface Product {
@@ -153,7 +152,7 @@ export default function VendorDetailScreen() {
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max, business_license_url")
+        .select("id, name, category, region, description, style_tags, business_hours, status, website, thumbnail_url, is_verified, ai_recommend, rating, review_count, price_range, price_min, price_max")
         .eq("id", id)
         .single();
 
@@ -181,7 +180,6 @@ export default function VendorDetailScreen() {
         price_range: v.price_range ? String(v.price_range) : null,
         price_min: typeof v.price_min === "number" && v.price_min > 0 ? v.price_min : null,
         price_max: typeof v.price_max === "number" && v.price_max > 0 ? v.price_max : null,
-        business_license_url: v.business_license_url ? String(v.business_license_url) : null,
       });
     } catch (err) {
       console.error("업체 로드 오류:", err);
@@ -193,7 +191,7 @@ export default function VendorDetailScreen() {
     try {
       const { data, error } = await supabase
         .from("vendor_products")
-        .select("*")
+        .select("id, vendor_id, name, price, original_price, description, includes, excludes, duration_minutes, is_popular, is_active, images, sort_order")
         .eq("vendor_id", id)
         .eq("is_active", true)
         .order("sort_order");
@@ -450,11 +448,11 @@ export default function VendorDetailScreen() {
         <Surface style={st.trustCard}>
           <View style={st.trustCardTop}>
             <View style={st.trustTitleBlock}>
-              <Text style={st.trustEyebrow}>VENDOR TRUST</Text>
-              <Text style={st.trustTitle}>예약 전에 확인할 신뢰 신호</Text>
+              <Text style={st.trustEyebrow}>VENDOR INFORMATION</Text>
+              <Text style={st.trustTitle}>예약 전에 확인할 공개 정보</Text>
             </View>
             <StatusPill
-              label={vendor.is_verified && hasVisiblePrice ? "예약 검토 가능" : "추가 확인"}
+              label={vendor.is_verified && hasVisiblePrice ? "정보 비교 가능" : "추가 확인"}
               tone={trustTone}
             />
           </View>
@@ -465,9 +463,9 @@ export default function VendorDetailScreen() {
                 size={18}
                 color={vendor.is_verified ? colors.success : colors.textTertiary}
               />
-              <Text style={st.trustMetricLabel}>검증</Text>
+              <Text style={st.trustMetricLabel}>확인 상태</Text>
               <Text style={st.trustMetricValue}>
-                {vendor.is_verified ? "완료" : vendor.business_license_url ? "서류 등록" : "확인 전"}
+                {vendor.is_verified ? "정보 확인" : "확인 전"}
               </Text>
             </View>
             <View style={st.trustMetricDivider} />
@@ -496,8 +494,8 @@ export default function VendorDetailScreen() {
           <View style={st.disclosureBox}>
             <Info size={15} color={colors.textTertiary} />
             <Text style={st.disclosureText}>
-              {vendor.ai_recommend ? "한방 큐레이션 후보예요. " : ""}
-              노출과 추천 판단은 광고비가 아니라 검증, 가격 공개, 상품 정보 기준으로 분리해 표시합니다.
+              {vendor.ai_recommend ? "운영 참고 표시가 있는 후보예요. " : ""}
+              확인 상태와 공개 정보는 업체 품질, 계약 안전이나 가격 적정성을 보장하지 않습니다.
             </Text>
           </View>
         </Surface>

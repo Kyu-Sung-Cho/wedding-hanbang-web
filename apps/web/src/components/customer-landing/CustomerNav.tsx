@@ -42,7 +42,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
   const navLinks = [
     { href: weddingPath(), label: "커뮤니티", scroll: false },
     { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
-    { href: weddingPath("/etiquette"), label: "결혼 예절", scroll: false },
+    { href: weddingPath("/etiquette"), label: "가족 조율", scroll: false },
     { href: "/about", label: "소개", scroll: false },
     { href: "#cta", label: "베타 신청", scroll: true },
   ];
@@ -86,7 +86,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
             href={loginHref}
             className="px-6 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
-            {isComingSoon ? "미리 체험하기" : "무료 시작하기"}
+            {isComingSoon ? "미리 체험하기" : "시작하기"}
           </a>
         </div>
 
@@ -154,7 +154,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
               onClick={() => setMenuOpen(false)}
               className="flex items-center justify-center gap-2 w-full py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[14px] font-medium no-underline transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
-              {isComingSoon ? "미리 체험하기" : "무료로 시작하기"}
+              {isComingSoon ? "미리 체험하기" : "서비스 시작하기"}
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>

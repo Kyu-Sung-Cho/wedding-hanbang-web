@@ -5,7 +5,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-throw "Disabled: unscoped pending migration apply is unsafe. Follow docs/operations/AMORA_PRODUCTION_RELEASE.md."
+throw "Disabled: unscoped pending migration apply is unsafe. Follow docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md."
 
 function Show-Help {
   Write-Host ""

@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks, Sparkles } from "lucide-react";
-import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
-import { HIDDEN_COSTS } from "@/constants/hiddenCosts";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
@@ -15,7 +13,7 @@ import type { ProgressItem } from "@/types/database.types";
 
 /**
  * 주차 카드 — 라운지 최상단의 "이번 주 한 장".
- * 보유 데이터의 정적 조합(LLM 비용 0): 할 일 3 + 예절 1 + 함정 1 + 아모라 한 줄.
+ * 보유 데이터의 정적 조합(LLM 비용 0): 할 일 3 + 가족 조율 원칙 + 견적 확인 + 아모라 한 줄.
  * 원칙: 제로 지식 유저에게 132개 체크리스트를 보여주지 않는다 — 이번 주 것만.
  */
 
@@ -54,30 +52,12 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
     const events = getEvents(progressRecord);
     const imminent = getImminentCategories(progress, validWedding, events).slice(0, 3);
 
-    // 알아둘 예절 1 — 가장 임박한 카테고리의 예절 파트
-    const topCategoryKey = imminent[0]?.key;
-    const etiquettePartNumber = topCategoryKey
-      ? CATEGORY_ETIQUETTE_MAP[topCategoryKey]?.[0]
-      : undefined;
-    const etiquettePart = ETIQUETTE_PARTS.find(
-      (part) => part.number === (etiquettePartNumber ?? 21)
-    );
-
-    // 조심할 함정 1 — 임박 카테고리 매칭 숨은비용 (없으면 common의 critical)
-    const trapCategory =
-      topCategoryKey === "studio" || topCategoryKey === "dress" || topCategoryKey === "makeup"
-        ? topCategoryKey
-        : "common";
-    const trap =
-      HIDDEN_COSTS.find((item) => item.category === trapCategory && item.severity === "critical") ??
-      HIDDEN_COSTS.find((item) => item.severity === "critical");
-
     // 아모라가 기억하는 다음 행동 (채팅 밖 첫 노출)
     const openActions = (actions ?? getAmoraActions(progressRecord))
       .filter((action) => action.status === "open")
       .slice(0, 3);
 
-    return { brief, briefHref, imminent, etiquettePart, trap, openActions };
+    return { brief, briefHref, imminent, openActions };
   }, [weddingDate, totalBudget, progress, actions]);
 
   return (
@@ -148,46 +128,38 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           )}
         </div>
 
-        {/* 알아둘 예절 */}
-        {data.etiquettePart && (
-          <Link
-            {...weddingLinkProps(`/etiquette?part=${data.etiquettePart.number}`)}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
-          >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
-              <BookOpen className="h-3.5 w-3.5" />
-              알아둘 예절
-            </p>
-            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
-              {data.etiquettePart.title}
-            </p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-              {data.etiquettePart.subtitle}
-            </p>
-          </Link>
-        )}
+        {/* 가족·문화마다 다른 준비 원칙 — 상세 콘텐츠 검증 중에도 안전한 공통 안내만 노출 */}
+        <Link
+          {...weddingLinkProps("/etiquette")}
+          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+        >
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <BookOpen className="h-3.5 w-3.5" />
+            가족 조율 가이드
+          </p>
+          <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+            정답보다 두 사람의 기준부터
+          </p>
+          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+            가족·지역·문화마다 다르니 필요한 범위를 직접 확인해요.
+          </p>
+        </Link>
 
-        {/* 조심할 함정 */}
-        {data.trap && (
-          <Link
-            {...weddingLinkProps("/community/quote-check")}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
-          >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              조심할 함정
-            </p>
-            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
-              {data.trap.name}
-              <span className="ml-1.5 text-[11px] font-semibold text-[#9d6f36]">
-                {Math.round(data.trap.usageRate * 100)}%가 추가로 냄
-              </span>
-            </p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-              {data.trap.disguise}
-            </p>
-          </Link>
-        )}
+        <Link
+          {...weddingLinkProps("/community/quote-check")}
+          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+        >
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            계약 전 확인
+          </p>
+          <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+            포함·불포함 항목을 서면으로
+          </p>
+          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+            견적서에 없는 항목은 비용과 상한을 업체에 확인해요.
+          </p>
+        </Link>
       </div>
 
       {/* 아모라가 기억하는 다음 행동 — 채팅 밖 첫 노출 */}

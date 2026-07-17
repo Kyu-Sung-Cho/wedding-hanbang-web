@@ -1,270 +1,507 @@
-// 아모라 케어 아웃바운드 크론 — "앱을 열어야 인사하는 친언니"를 "먼저 연락하는 친언니"로.
-//
-// 매일 아침(09:30 KST, vercel.json crons) 전 커플의 due 모멘트(D-3/D-1/D+1)를 계산해서:
-//  1) 채팅에 아모라 메시지를 먼저 넣어두고 (proactive 라우트와 동일 dedupe —
-//     chat_messages 유니크 인덱스(couple_id, metadata->>client_request_id))
-//  2) "이번 크론이 삽입에 성공한 커플"에게만 이메일을 보낸다.
-//     → 사용자가 이미 앱에서 그 셀을 본 경우(proactive가 먼저 발화) insert가 23505로
-//       실패하므로 중복 알림이 구조적으로 불가능. 알림을 눌러 채팅에 들어오면
-//       같은 메시지가 대화방에 기다리고 있다 — 카톡 → 대화방 UX.
-//
-// 안전장치: CRON_SECRET Bearer 필수(fail-closed) / 수신 설정(care_notifications_enabled)
-// 존중 / 실행당 발화 상한 / 이메일 실패는 무시(다음 날 셀이 지나면 자연 소멸 — 스팸 재시도 없음).
-//
-// 채널 로드맵: Phase1 이메일(현재) → Phase2 Expo 푸시(모바일 출시 시 여기에 추가)
-// → Phase3 카카오 알림톡(채널 개설 후). 문구·dedupe·스케줄은 그대로 재사용.
-
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { buildDueMomentCells } from "@/lib/amora/momentLoop";
-import { buildCareEmailSubject, buildCareEmailHtml } from "@/lib/care/careEmail";
 import {
-  hasSameCareMemberRoster,
-  hasUnanimousCareConsent,
-} from "@/lib/care/careConsent";
+  buildDueMomentCells,
+  type DueMomentCell,
+} from "@/lib/amora/momentLoop";
+import { buildCareEmailHtml, buildCareEmailSubject } from "@/lib/care/careEmail";
+import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
+import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-// 실행당 발화(커플) 상한 — 폭주 방어. 베타 규모(커플 수십)에선 도달 불가.
-const MAX_FIRES_PER_RUN = 100;
-// 조회 커플 상한 — 규모가 커지면 페이지네이션으로 전환할 것 (그 전에 이 캡이 알림).
-const MAX_JOURNEYS = 500;
-const LOOKUP_CHUNK_SIZE = 100;
+export const CARE_SCAN_PAGE_SIZE = 100;
+export const CARE_SCAN_PAGES_PER_RUN = 2;
+export const CARE_JOBS_PER_RUN = 100;
+const CARE_EMAILS_PER_JOB = 4;
+const CARE_LEASE_SECONDS = 90;
+const EXECUTION_BUDGET_MS = 105_000;
+const SCAN_BUDGET_MS = 30_000;
 
-function chunks<T>(values: readonly T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let index = 0; index < values.length; index += size) {
-    result.push(values.slice(index, index + size));
-  }
-  return result;
-}
+type Admin = ReturnType<typeof getAdmin>;
+type JsonRecord = Record<string, unknown>;
+
+type CareStats = {
+  scanDay: string;
+  scanned: number;
+  enqueued: number;
+  scanCompleted: boolean;
+  invalidJourneys: number;
+  claimed: number;
+  chatCompleted: number;
+  completed: number;
+  completedWithWarnings: number;
+  cancelled: number;
+  expired: number;
+  emails: number;
+  emailErrors: number;
+  emailWarnings: number;
+  failed: number;
+  activeBacklog: number;
+  oldestActiveAgeSeconds: number;
+  deferred: number;
+  frequencySkipped: number;
+};
 
 function getAdmin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+  return createAdminClient();
+}
+
+function objectValue(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonRecord
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function providerErrorCode(value: unknown): string {
+  const name = objectValue(value)?.name;
+  return typeof name === "string" && /^[A-Za-z0-9_.:-]{1,80}$/.test(name)
+    ? name
+    : "provider_error";
+}
+
+function queueMetric(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`care queue metric invalid: ${name}`);
+  }
+  return value;
+}
+
+async function refreshQueueStats(admin: Admin, stats: CareStats) {
+  const { data, error } = await admin.rpc("get_amora_care_queue_stats", {
+    p_scan_day: stats.scanDay,
+  });
+  if (error) throw new Error("care queue stats failed");
+  const queue = objectValue(data);
+  if (!queue) throw new Error("care queue stats payload invalid");
+  stats.failed = queueMetric(queue.failed, "failed");
+  stats.activeBacklog = queueMetric(queue.active_backlog, "active_backlog");
+  stats.oldestActiveAgeSeconds = queueMetric(
+    queue.oldest_active_age_seconds,
+    "oldest_active_age_seconds",
   );
+  stats.deferred = queueMetric(queue.deferred, "deferred");
+  stats.frequencySkipped = queueMetric(queue.frequency_skipped, "frequency_skipped");
+}
+
+function careCellFromJob(job: JsonRecord): DueMomentCell {
+  const metadata = objectValue(job.metadata);
+  const moment = objectValue(metadata?.moment);
+  return {
+    momentType: (stringValue(moment?.momentType) ?? "wedding_day") as DueMomentCell["momentType"],
+    momentLabel: stringValue(moment?.momentLabel) ?? "웨딩 일정",
+    cellKind: (stringValue(moment?.cellKind) ?? "d1") as DueMomentCell["cellKind"],
+    momentDate: stringValue(moment?.momentDate) ?? stringValue(job.scan_day) ?? "",
+    dedupeKey: stringValue(moment?.dedupeKey) ?? stringValue(job.dedupe_key) ?? "care",
+    message: stringValue(job.content) ?? "확인할 웨딩 일정이 있어요.",
+    memoryKeys: Array.isArray(moment?.memoryKeys)
+      ? moment.memoryKeys.filter((value): value is string => typeof value === "string").slice(0, 20)
+      : [],
+    priority: typeof moment?.priority === "number" ? moment.priority : 0,
+  };
+}
+
+function emailPayloadFromJob(job: JsonRecord) {
+  const storedSubject = stringValue(job.email_subject);
+  const storedHtml = stringValue(job.email_html);
+  if (storedSubject && storedHtml) return { subject: storedSubject, html: storedHtml };
+  const cell = careCellFromJob(job);
+  return {
+    subject: buildCareEmailSubject(cell),
+    html: buildCareEmailHtml({ recipientName: null, cell }),
+  };
+}
+
+async function scanJourneys(
+  admin: Admin,
+  scanDay: string,
+  scanNow: Date,
+  scanDeadline: number,
+  stats: CareStats,
+) {
+  const { data: claimData, error: claimError } = await admin.rpc("claim_amora_care_scan", {
+    p_scan_day: scanDay,
+    p_lease_seconds: CARE_LEASE_SECONDS,
+  });
+  if (claimError) throw new Error("care scan claim failed");
+  const claim = objectValue(claimData);
+  if (claim?.state === "completed") {
+    stats.scanCompleted = true;
+    return;
+  }
+  if (claim?.claimed !== true) return;
+
+  const leaseToken = stringValue(claim.lease_token);
+  if (!leaseToken) throw new Error("care scan lease token missing");
+  let cursorCoupleId = stringValue(claim.last_couple_id);
+  let cursorJourneyId = stringValue(claim.last_journey_id);
+  const snapshotAt = stringValue(claim.snapshot_at);
+  if ((cursorCoupleId && !cursorJourneyId) || (!cursorCoupleId && cursorJourneyId) || !snapshotAt) {
+    throw new Error("care scan cursor payload invalid");
+  }
+
+  for (let page = 0; page < CARE_SCAN_PAGES_PER_RUN; page += 1) {
+    let query = admin
+      .from("wedding_journeys")
+      .select("id, couple_id, wedding_date, progress")
+      .not("couple_id", "is", null)
+      .order("couple_id", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(CARE_SCAN_PAGE_SIZE);
+    if (cursorCoupleId && cursorJourneyId) {
+      const snapshotFilter = `or(created_at.lte.${snapshotAt},created_at.is.null)`;
+      query = query.or(
+        `and(${snapshotFilter},couple_id.gt.${cursorCoupleId}),`
+        + `and(${snapshotFilter},couple_id.eq.${cursorCoupleId},id.gt.${cursorJourneyId})`,
+      );
+    } else {
+      query = query.or(`created_at.lte.${snapshotAt},created_at.is.null`);
+    }
+    const { data: journeys, error: journeysError } = await query;
+    if (journeysError) throw new Error("care journey scan failed");
+
+    const rows = journeys ?? [];
+    let pageEnqueued = 0;
+    let processedRows = 0;
+    let lastProcessedCoupleId: string | null = null;
+    let lastProcessedJourneyId: string | null = null;
+    for (const journey of rows) {
+      if (Date.now() >= scanDeadline) break;
+      const rowCoupleId = stringValue(journey.couple_id);
+      const rowJourneyId = stringValue(journey.id);
+      if (!rowCoupleId || !rowJourneyId) {
+        throw new Error("care journey cursor value invalid");
+      }
+      const progress = objectValue(journey.progress);
+      const inspection = inspectScheduleEvents(progress ?? {});
+      if (
+        (journey.progress != null && progress === null)
+        || inspection.malformedContainer
+        || inspection.rejectedCount > 0
+        || inspection.truncatedCount > 0
+      ) {
+        // Count known user-data validation failures without logging tenant IDs
+        // or the payload. Unexpected engine exceptions still fail the scan so
+        // they retry instead of silently dropping an entire day's care work.
+        stats.invalidJourneys += 1;
+      }
+      const cells: DueMomentCell[] = buildDueMomentCells({
+        weddingDate: journey.wedding_date,
+        progress,
+        // The due-date calculation is pinned to this durable KST scan day.
+        // A delayed worker must never silently recalculate yesterday's cell as today.
+        now: scanNow,
+      });
+      let completedRow = true;
+      for (const cell of cells) {
+        if (Date.now() >= scanDeadline) {
+          completedRow = false;
+          break;
+        }
+        const emailSubject = buildCareEmailSubject(cell);
+        const emailHtml = buildCareEmailHtml({ recipientName: null, cell });
+        const { data: enqueueData, error: enqueueError } = await admin.rpc(
+          "enqueue_amora_care_job",
+          {
+            p_couple_id: journey.couple_id,
+            p_scan_day: scanDay,
+            p_dedupe_key: cell.dedupeKey,
+            p_content: cell.message,
+            p_email_subject: emailSubject,
+            p_email_html: emailHtml,
+            p_metadata: {
+              channel: "care_cron",
+              scanDay,
+              moment: {
+                dedupeKey: cell.dedupeKey,
+                momentType: cell.momentType,
+                momentLabel: cell.momentLabel,
+                cellKind: cell.cellKind,
+                momentDate: cell.momentDate,
+                memoryKeys: cell.memoryKeys.slice(0, 20),
+                priority: cell.priority,
+              },
+            },
+          },
+        );
+        if (enqueueError) {
+          // Do not advance the page cursor. A retry safely re-enqueues earlier
+          // rows through the database unique key and cannot skip this row.
+          throw new Error("care enqueue failed");
+        }
+        if (objectValue(enqueueData)?.inserted === true) pageEnqueued += 1;
+      }
+      // A partially enqueued row is deliberately not checkpointed. The next
+      // run replays it through the unique dedupe key and completes it safely.
+      if (!completedRow) break;
+      processedRows += 1;
+      lastProcessedCoupleId = rowCoupleId;
+      lastProcessedJourneyId = rowJourneyId;
+    }
+
+    const consumedWholePage = processedRows === rows.length;
+    const completed = consumedWholePage && rows.length < CARE_SCAN_PAGE_SIZE;
+    const { error: advanceError } = await admin.rpc("advance_amora_care_scan", {
+      p_scan_day: scanDay,
+      p_lease_token: leaseToken,
+      p_last_couple_id: lastProcessedCoupleId,
+      p_last_journey_id: lastProcessedJourneyId,
+      p_scanned_count: processedRows,
+      p_completed: completed,
+      p_enqueued_count: pageEnqueued,
+    });
+    if (advanceError) throw new Error("care scan cursor advance failed");
+
+    stats.scanned += processedRows;
+    stats.enqueued += pageEnqueued;
+    cursorCoupleId = lastProcessedCoupleId ?? cursorCoupleId;
+    cursorJourneyId = lastProcessedJourneyId ?? cursorJourneyId;
+    if (completed) {
+      stats.scanCompleted = true;
+      break;
+    }
+    if (!consumedWholePage) break;
+  }
+}
+
+async function drainJobs(
+  admin: Admin,
+  resend: Resend | null,
+  deadline: number,
+  stats: CareStats,
+) {
+  for (let index = 0; index < CARE_JOBS_PER_RUN && Date.now() < deadline; index += 1) {
+    const { data: claimData, error: claimError } = await admin.rpc("claim_amora_care_job", {
+      p_lease_seconds: CARE_LEASE_SECONDS,
+    });
+    if (claimError) throw new Error("care job claim failed");
+    const job = objectValue(claimData);
+    if (!job) break;
+    const jobId = stringValue(job.id);
+    const leaseToken = stringValue(job.lease_token);
+    if (!jobId || !leaseToken) throw new Error("care job lease payload invalid");
+    stats.claimed += 1;
+
+    const { data: prepareData, error: prepareError } = await admin.rpc("prepare_amora_care_job", {
+      p_job_id: jobId,
+      p_lease_token: leaseToken,
+      p_email_enabled: Boolean(resend),
+    });
+    if (prepareError) throw new Error("care job prepare failed");
+    const prepared = objectValue(prepareData);
+    if (prepared?.state === "cancelled") {
+      stats.cancelled += 1;
+      continue;
+    }
+    if (prepared?.state === "expired") {
+      stats.expired += 1;
+      continue;
+    }
+    if (prepared?.state === "deferred") {
+      stats.deferred += 1;
+      continue;
+    }
+    if (prepared?.state !== "ready") throw new Error("care job prepare state invalid");
+    stats.chatCompleted += 1;
+
+    let jobDeferred = false;
+    for (let emailIndex = 0; emailIndex < CARE_EMAILS_PER_JOB; emailIndex += 1) {
+      const { data: deliveryData, error: deliveryError } = await admin.rpc(
+        "claim_amora_care_email_delivery",
+        { p_job_id: jobId, p_lease_token: leaseToken },
+      );
+      if (deliveryError) throw new Error("care email delivery claim failed");
+      const delivery = objectValue(deliveryData);
+      if (!delivery) break;
+      if (delivery.state === "cancelled") {
+        stats.cancelled += 1;
+        break;
+      }
+      if (delivery.state === "expired") {
+        stats.expired += 1;
+        break;
+      }
+      if (delivery.state === "deferred") {
+        stats.deferred += 1;
+        jobDeferred = true;
+        break;
+      }
+      if (delivery.state === "warning" || delivery.state === "skipped") {
+        stats.emailWarnings += 1;
+        if (delivery.reason === "daily_frequency_limit") {
+          stats.frequencySkipped += 1;
+        }
+        continue;
+      }
+      if (delivery.state !== "ready" || !resend) {
+        throw new Error("care email delivery state invalid");
+      }
+
+      const deliveryId = stringValue(delivery.id);
+      const recipient = stringValue(delivery.email);
+      const idempotencyKey = stringValue(delivery.idempotency_key);
+      if (!deliveryId || !recipient || !idempotencyKey) {
+        throw new Error("care email delivery payload invalid");
+      }
+
+      let success = false;
+      let providerMessageId: string | null = null;
+      let providerError = "provider_error";
+      try {
+        const email = emailPayloadFromJob(job);
+        const result = await resend.emails.send(
+          {
+            from: "아모라 · 웨딩한방 <noreply@hanbang.ai>",
+            to: recipient,
+            subject: email.subject,
+            html: email.html,
+          },
+          { idempotencyKey },
+        );
+        providerMessageId = stringValue(result.data?.id);
+        success = !result.error && Boolean(providerMessageId);
+        providerError = result.error
+          ? providerErrorCode(result.error)
+          : providerMessageId
+            ? providerError
+            : "provider_receipt_missing";
+      } catch (error) {
+        providerError = providerErrorCode(error);
+      }
+
+      const { error: finishDeliveryError } = await admin.rpc(
+        "finish_amora_care_email_delivery",
+        {
+          p_delivery_id: deliveryId,
+          p_lease_token: leaseToken,
+          p_success: success,
+          p_provider_message_id: providerMessageId,
+          p_error: success ? null : providerError.slice(0, 500),
+        },
+      );
+      if (finishDeliveryError) throw new Error("care email delivery finish failed");
+      if (success) stats.emails += 1;
+      else stats.emailErrors += 1;
+    }
+
+    // The DB released this lease and moved the whole job to the next window.
+    // Finishing with the stale token would both fail and obscure the deferral.
+    if (jobDeferred) continue;
+
+    const { data: finishData, error: finishError } = await admin.rpc("finish_amora_care_job", {
+      p_job_id: jobId,
+      p_lease_token: leaseToken,
+    });
+    if (finishError) throw new Error("care job finish failed");
+    const finishState = objectValue(finishData)?.state;
+    if (finishState === "completed") stats.completed += 1;
+    else if (finishState === "completed_with_warning") {
+      stats.completed += 1;
+      stats.completedWithWarnings += 1;
+    }
+    else if (finishState === "cancelled") stats.cancelled += 1;
+    else if (finishState === "expired") stats.expired += 1;
+    else if (finishState === "failed") stats.failed += 1;
+    else if (finishState !== "pending") throw new Error("care job finish state invalid");
+  }
+}
+
+export async function runCareCron(input: {
+  admin: Admin;
+  resend: Resend | null;
+  now: Date;
+}) {
+  const scanDay = ymdInKst(input.now);
+  const stats: CareStats = {
+    scanDay,
+    scanned: 0,
+    enqueued: 0,
+    scanCompleted: false,
+    invalidJourneys: 0,
+    claimed: 0,
+    chatCompleted: 0,
+    completed: 0,
+    completedWithWarnings: 0,
+    cancelled: 0,
+    expired: 0,
+    emails: 0,
+    emailErrors: 0,
+    emailWarnings: 0,
+    failed: 0,
+    activeBacklog: 0,
+    oldestActiveAgeSeconds: 0,
+    deferred: 0,
+    frequencySkipped: 0,
+  };
+  const startedAt = Date.now();
+  const deadline = startedAt + EXECUTION_BUDGET_MS;
+  await scanJourneys(
+    input.admin,
+    scanDay,
+    kstMidnightFromYmd(scanDay),
+    Math.min(deadline, startedAt + SCAN_BUDGET_MS),
+    stats,
+  );
+  await drainJobs(input.admin, input.resend, deadline, stats);
+  // This DB snapshot also exposes terminal failures performed as claim-time
+  // housekeeping, which otherwise return no claimed row to the worker.
+  await refreshQueueStats(input.admin, stats);
+  return stats;
 }
 
 export async function GET(req: NextRequest) {
-  // Vercel Cron은 CRON_SECRET 환경변수가 있으면 Authorization: Bearer <값>을 자동으로 붙인다.
-  // 시크릿 미설정 시에도 공개 트리거를 막기 위해 fail-closed.
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // The kill switch also quarantines already-durable work. Otherwise turning it
+  // back on later the same day could send payloads prepared before rollback.
   if (process.env.AMORA_CARE_OUTBOUND_ENABLED !== "true") {
-    return NextResponse.json({ ok: true, enabled: false, fired: 0, emails: 0 });
+    try {
+      const admin = getAdmin();
+      const { data, error } = await admin.rpc("quarantine_amora_care_queue", {
+        p_reason: "outbound_disabled",
+      });
+      const quarantined = objectValue(data);
+      if (error || !quarantined) throw new Error("care queue quarantine failed");
+      return NextResponse.json({
+        ok: true,
+        enabled: false,
+        scanned: 0,
+        claimed: 0,
+        quarantinedJobs: quarantined.jobs ?? 0,
+        quarantinedDeliveries: quarantined.deliveries ?? 0,
+      });
+    } catch (error) {
+      console.error("[care-cron] kill-switch quarantine failed", error instanceof Error ? error.message : "unknown");
+      return NextResponse.json(
+        { error: "care queue quarantine failed" },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+  if (!process.env.RESEND_API_KEY) {
+    // Enabling outbound care means email delivery is part of the contract.
+    // Never consume and terminally skip durable jobs because of a bad deploy.
+    return NextResponse.json(
+      { error: "care email provider is not configured" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
-  const admin = getAdmin();
-  const stats = {
-    couples: 0,
-    due: 0,
-    skippedNoConsent: 0,
-    skippedEmailMembershipChanged: 0,
-    skippedEmailConsentChanged: 0,
-    fired: 0,
-    alreadySent: 0,
-    emails: 0,
-    emailErrors: 0,
-  };
-
   try {
-    const { data: journeys, error: journeysError } = await admin
-      .from("wedding_journeys")
-      .select("couple_id, wedding_date, progress")
-      .limit(MAX_JOURNEYS);
-
-    if (journeysError) {
-      console.error("[care-cron] journeys 조회 실패:", journeysError.message);
-      return NextResponse.json({ error: "journeys 조회 실패" }, { status: 500 });
-    }
-    if ((journeys?.length ?? 0) >= MAX_JOURNEYS) {
-      console.warn(`[care-cron] journeys가 캡(${MAX_JOURNEYS})에 도달 — 페이지네이션 전환 필요`);
-    }
-
-    // Consent data is fetched in bounded batches. Avoid two database round trips
-    // per due couple while keeping PostgREST URLs below practical limits.
-    const coupleIds = [...new Set((journeys ?? []).map((journey) => journey.couple_id))];
-    const coupleResults = await Promise.all(
-      chunks(coupleIds, LOOKUP_CHUNK_SIZE).map((ids) => admin
-        .from("couples")
-        .select("id, bride_id, groom_id")
-        .in("id", ids)),
-    );
-    if (coupleResults.some((result) => result.error)) {
-      console.error("[care-cron] couples 동의 조회 실패");
-      return NextResponse.json({ error: "couples 조회 실패", ...stats }, { status: 503 });
-    }
-    const coupleById = new Map(
-      coupleResults.flatMap((result) => result.data ?? []).map((couple) => [couple.id, couple]),
-    );
-    const currentMemberIds = [...new Set(
-      [...coupleById.values()]
-        .flatMap((couple) => [couple.bride_id, couple.groom_id])
-        .filter((value): value is string => typeof value === "string"),
-    )];
-    const memberResults = await Promise.all(
-      chunks(currentMemberIds, LOOKUP_CHUNK_SIZE).map((ids) => admin
-        .from("profiles")
-        .select("id, email, name, care_notifications_enabled, care_notifications_consented_at")
-        .in("id", ids)),
-    );
-    if (memberResults.some((result) => result.error)) {
-      console.error("[care-cron] profiles 동의 조회 실패");
-      return NextResponse.json({ error: "profiles 조회 실패", ...stats }, { status: 503 });
-    }
-    const memberById = new Map(
-      memberResults.flatMap((result) => result.data ?? []).map((member) => [member.id, member]),
-    );
-
-    const resendKey = process.env.RESEND_API_KEY;
-    const resend = resendKey ? new Resend(resendKey) : null;
-
-    for (const journey of journeys ?? []) {
-      if (stats.fired >= MAX_FIRES_PER_RUN) break;
-      stats.couples += 1;
-
-      const dueCells = buildDueMomentCells({
-        weddingDate: journey.wedding_date,
-        progress: journey.progress,
-      });
-      if (dueCells.length === 0) continue;
-      stats.due += 1;
-
-      // 공유 대화에 먼저 말을 거는 기능이므로 현재 연결된 두 사람 모두의
-      // 명시적 동의가 필요하다. 한 명만 연결된 커플은 그 한 명의 동의로 충분하다.
-      const couple = coupleById.get(journey.couple_id);
-      if (!couple) {
-        stats.skippedNoConsent += 1;
-        continue;
-      }
-      const memberIds = [...new Set(
-        [couple.bride_id, couple.groom_id]
-          .filter((value): value is string => typeof value === "string"),
-      )];
-      if (memberIds.length === 0) {
-        stats.skippedNoConsent += 1;
-        continue;
-      }
-      const members = memberIds
-        .map((id) => memberById.get(id))
-        .filter((member): member is NonNullable<typeof member> => Boolean(member));
-      if (!hasUnanimousCareConsent(memberIds, members)) {
-        stats.skippedNoConsent += 1;
-        continue;
-      }
-
-      // 이미 발화된 셀 제외 (proactive 라우트와 동일 패턴)
-      const dueKeys = dueCells.map((cell) => `moment:${cell.dedupeKey}`);
-      const { data: sentRows } = await admin
-        .from("chat_messages")
-        .select("metadata")
-        .eq("couple_id", journey.couple_id)
-        .eq("sender_type", "ai")
-        .in("metadata->>client_request_id", dueKeys);
-      const sentKeys = new Set(
-        (sentRows ?? [])
-          .map((row) => (row.metadata as { client_request_id?: string } | null)?.client_request_id)
-          .filter(Boolean) as string[]
-      );
-      const cell = dueCells.find((c) => !sentKeys.has(`moment:${c.dedupeKey}`));
-      if (!cell) {
-        stats.alreadySent += 1;
-        continue;
-      }
-
-      // 채팅에 선삽입 — 23505(유니크 위반)면 다른 경로가 먼저 발화한 것 → 알림 생략
-      const { data: insertedMessageId, error: insertError } = await admin.rpc(
-        "insert_amora_care_message",
-        {
-          p_couple_id: journey.couple_id,
-          p_content: cell.message,
-          p_metadata: {
-            client_request_id: `moment:${cell.dedupeKey}`,
-            moment: {
-              dedupeKey: cell.dedupeKey,
-              momentType: cell.momentType,
-              cellKind: cell.cellKind,
-              momentDate: cell.momentDate,
-              memoryKeys: cell.memoryKeys,
-              channel: "care_cron",
-            },
-          },
-        },
-      );
-
-      if (insertError) {
-        if (insertError.code === "23505") {
-          stats.alreadySent += 1;
-        } else {
-          console.error("[care-cron] 모멘트 insert 실패:", insertError.message);
-        }
-        continue;
-      }
-      if (typeof insertedMessageId !== "string") {
-        // Consent changed after the batch read. The DB function rechecked it
-        // atomically and refused the shared message.
-        stats.skippedNoConsent += 1;
-        continue;
-      }
-      stats.fired += 1;
-
-      // 수신 동의된 커플 멤버에게 이메일 (최대 2명). 실패는 기록만 — 재시도 없음.
-      if (!resend) continue;
-      // The DB RPC atomically guards the shared chat write. Re-read consent as
-      // close as possible to the external email side effect as a second fence;
-      // a post-batch opt-out must not reuse the stale member snapshot.
-      const { data: refreshedCouple, error: refreshedCoupleError } = await admin
-        .from("couples")
-        .select("bride_id, groom_id")
-        .eq("id", journey.couple_id)
-        .maybeSingle();
-      const refreshedMemberIds = [...new Set(
-        [refreshedCouple?.bride_id, refreshedCouple?.groom_id]
-          .filter((value): value is string => typeof value === "string"),
-      )];
-      if (
-        refreshedCoupleError
-        || !hasSameCareMemberRoster(memberIds, refreshedMemberIds)
-      ) {
-        stats.skippedEmailMembershipChanged += 1;
-        continue;
-      }
-      const { data: refreshedMembers, error: refreshedMembersError } = await admin
-        .from("profiles")
-        .select("id, email, name, care_notifications_enabled, care_notifications_consented_at")
-        .in("id", refreshedMemberIds);
-      if (refreshedMembersError || !hasUnanimousCareConsent(refreshedMemberIds, refreshedMembers ?? [])) {
-        stats.skippedEmailConsentChanged += 1;
-        continue;
-      }
-      for (const member of refreshedMembers ?? []) {
-        if (member.care_notifications_enabled !== true) continue;
-        if (typeof member.care_notifications_consented_at !== "string") continue;
-        if (typeof member.email !== "string" || !member.email.includes("@")) continue;
-        try {
-          await resend.emails.send({
-            from: "아모라 · 웨딩한방 <noreply@hanbang.ai>",
-            to: member.email,
-            subject: buildCareEmailSubject(cell),
-            html: buildCareEmailHtml({ recipientName: member.name ?? null, cell }),
-          });
-          stats.emails += 1;
-        } catch (emailErr) {
-          stats.emailErrors += 1;
-          console.error("[care-cron] 이메일 발송 실패:", emailErr);
-        }
-      }
-    }
-
-    return NextResponse.json({ ok: true, ...stats });
-  } catch (err) {
-    console.error("[care-cron] 실행 에러:", err);
-    return NextResponse.json({ error: "서버 오류", ...stats }, { status: 500 });
+    const admin = getAdmin();
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const stats = await runCareCron({ admin, resend, now: new Date() });
+    return NextResponse.json({ ok: true, enabled: true, ...stats });
+  } catch (error) {
+    console.error("[care-cron] durable queue run failed", error instanceof Error ? error.message : "unknown");
+    return NextResponse.json({ error: "care queue run failed" }, { status: 500 });
   }
 }

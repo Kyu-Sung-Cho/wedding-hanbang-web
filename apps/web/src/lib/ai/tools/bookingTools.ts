@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  syncBookingProgressAfterCancel,
-  syncBookingProgressAfterCreate,
-} from "@/lib/bookings/progressSync";
+  processBookingProjectionJob,
+  type BookingProjectionDeliveryStatus,
+} from "@/lib/bookings/projectionOutbox";
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
 import {
   addDaysUtc,
@@ -772,22 +772,25 @@ export async function executeCreateBooking(
   let syncedEvent: ScheduleEvent | null = null;
   let syncedCategoryKey: string | null = null;
   let syncedNewSpent: number | null = null;
+  let projectionStatus: BookingProjectionDeliveryStatus = "pending_retry";
+  let projectionRetryable = true;
+  let projectionAttemptCount = 0;
+  let projectionErrorCode: string | null = null;
   try {
-    const syncResult = await syncBookingProgressAfterCreate(admin, {
-      coupleId: ctx.coupleId,
-      booking: {
-        id: booking.id,
-        date,
-        time,
-        amount: booking.amount,
-      },
-      vendorId,
-      productId,
-      staffId,
-      productName,
+    const projection = await processBookingProjectionJob(admin, {
+      bookingId: booking.id,
     });
+    projectionStatus = projection?.status ?? "pending_retry";
+    projectionRetryable = projection?.retryable ?? true;
+    projectionAttemptCount = projection?.attemptCount ?? 0;
+    projectionErrorCode = projection?.errorCode ?? null;
+    const syncResult = projection?.sync;
 
-    if (syncResult.persisted) {
+    if (
+      projectionStatus === "completed" &&
+      syncResult?.persisted &&
+      "scheduleAdded" in syncResult
+    ) {
       scheduleAdded = syncResult.scheduleAdded;
       budgetUpdated = syncResult.budgetUpdated;
       budgetExceededBy = syncResult.budgetExceededBy;
@@ -798,11 +801,18 @@ export async function executeCreateBooking(
       syncedNewSpent = syncResult.syncedNewSpent;
       ctx.weddingContext.progress =
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
-    } else {
-      console.error("[create_booking] auto-sync (schedule+budget) failed:", syncResult.error);
+    } else if (projectionStatus !== "completed") {
+      console.error("[create_booking] schedule/budget projection is not complete:", {
+        bookingId: booking.id,
+        status: projectionStatus,
+        errorCode: projectionErrorCode,
+      });
     }
   } catch (syncErr) {
-    console.error("[create_booking] auto-sync (schedule+budget) failed (non-fatal):", syncErr);
+    projectionStatus = "pending_retry";
+    projectionRetryable = true;
+    projectionErrorCode = "PROJECTION_PROCESS_FAILED";
+    console.error("[create_booking] projection processing failed; durable retry remains queued:", syncErr);
   }
 
   const syncNote = scheduleAdded
@@ -814,6 +824,11 @@ export async function executeCreateBooking(
   const overNote = budgetExceededBy > 0
     ? `\n\n⚠️ 다만 ${categoryLabelForOver} 카테고리 예산 ${formatWon(categoryBudgetLimit)} 중에 ${formatWon(budgetExceededBy)} 초과예요. 다른 카테고리 줄이거나 총 예산 조정 검토해보시겠어요?`
     : "";
+  const projectionNote = projectionStatus === "pending_retry"
+    ? "\n\n예약은 정상 접수됐지만 일정·예산 반영이 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 예약을 다시 만들 필요는 없어요."
+    : projectionStatus === "failed"
+      ? "\n\n예약은 정상 접수됐지만 일정·예산 자동 반영이 재시도 한도를 넘었어요. 예약을 다시 만들지 말고 고객지원에 알려주세요."
+      : "";
 
   return {
     toolName: "create_booking",
@@ -835,9 +850,14 @@ export async function executeCreateBooking(
       syncedEvent,
       syncedCategoryKey,
       syncedNewSpent,
+      projectionStatus,
+      projectionRetryable,
+      projectionAttemptCount,
+      projectionErrorCode,
+      fullyApplied: projectionStatus === "completed",
     },
     success: true,
-    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}`,
+    displayMessage: `${vendor.name} 예약이 접수되었습니다! (${date} ${time}${productName ? ` / ${productName}` : ""}${staffName ? ` / ${staffName}` : ""})${syncNote}${overNote}${projectionNote}`,
   };
 }
 
@@ -1018,32 +1038,43 @@ export async function executeCancelBooking(
   let budgetReverted = false;
   let syncedNewSpent: number | null = null;
   let syncedEventIdRemoved: string | null = null;
+  let projectionStatus: BookingProjectionDeliveryStatus = "pending_retry";
+  let projectionRetryable = true;
+  let projectionAttemptCount = 0;
+  let projectionErrorCode: string | null = null;
   try {
-    const syncResult = await syncBookingProgressAfterCancel(admin, {
-      coupleId: ctx.coupleId,
-      booking: {
-        id: booking.id,
-        amount,
-      },
-      vendor: {
-        id: booking.vendor_id,
-        name: vendorName,
-        category: categoryKey,
-      },
+    const projection = await processBookingProjectionJob(admin, {
+      bookingId: booking.id,
     });
+    projectionStatus = projection?.status ?? "pending_retry";
+    projectionRetryable = projection?.retryable ?? true;
+    projectionAttemptCount = projection?.attemptCount ?? 0;
+    projectionErrorCode = projection?.errorCode ?? null;
+    const syncResult = projection?.sync;
 
-    if (syncResult.persisted) {
+    if (
+      projectionStatus === "completed" &&
+      syncResult?.persisted &&
+      "scheduleRemoved" in syncResult
+    ) {
       scheduleRemoved = syncResult.scheduleRemoved;
       budgetReverted = syncResult.budgetReverted;
       syncedNewSpent = syncResult.syncedNewSpent;
       syncedEventIdRemoved = syncResult.syncedEventIdRemoved;
       ctx.weddingContext.progress =
         syncResult.nextProgress as unknown as ToolExecutionContext["weddingContext"]["progress"];
-    } else {
-      console.error("[cancel_booking] auto-revert (schedule+budget) failed:", syncResult.error);
+    } else if (projectionStatus !== "completed") {
+      console.error("[cancel_booking] schedule/budget projection is not complete:", {
+        bookingId: booking.id,
+        status: projectionStatus,
+        errorCode: projectionErrorCode,
+      });
     }
   } catch (syncErr) {
-    console.error("[cancel_booking] auto-revert (schedule+budget) failed (non-fatal):", syncErr);
+    projectionStatus = "pending_retry";
+    projectionRetryable = true;
+    projectionErrorCode = "PROJECTION_PROCESS_FAILED";
+    console.error("[cancel_booking] projection processing failed; durable retry remains queued:", syncErr);
   }
 
   const revertNote = scheduleRemoved
@@ -1051,6 +1082,11 @@ export async function executeCancelBooking(
       ? " (일정·예산에서도 자동 정리했어요)"
       : " (일정에서도 자동 정리했어요)"
     : "";
+  const projectionNote = projectionStatus === "pending_retry"
+    ? "\n\n예약 취소는 완료됐지만 일정·예산 정리가 잠시 지연되고 있어요. 저장된 작업을 자동으로 다시 반영할게요. 취소 요청을 다시 보낼 필요는 없어요."
+    : projectionStatus === "failed"
+      ? "\n\n예약 취소는 완료됐지만 일정·예산 자동 정리가 재시도 한도를 넘었어요. 취소 요청을 다시 보내지 말고 고객지원에 알려주세요."
+      : "";
 
   return {
     toolName: "cancel_booking",
@@ -1068,8 +1104,13 @@ export async function executeCancelBooking(
       syncedEventIdRemoved,
       syncedCategoryKey: budgetReverted ? categoryKey : null,
       syncedNewSpent,
+      projectionStatus,
+      projectionRetryable,
+      projectionAttemptCount,
+      projectionErrorCode,
+      fullyApplied: projectionStatus === "completed",
     },
     success: true,
-    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})${revertNote}`,
+    displayMessage: `${vendorName} 예약이 취소되었습니다. (${booking.booking_date} ${booking.booking_time}${productName ? ` / ${productName}` : ""})${revertNote}${projectionNote}`,
   };
 }

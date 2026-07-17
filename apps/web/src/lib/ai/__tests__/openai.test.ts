@@ -5,11 +5,25 @@ import OpenAI, {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildMultimodalContent,
-  chatWithToolsStream,
+  chatWithToolsStream as rawChatWithToolsStream,
+  getSafeOpenAIErrorMetadata,
   OpenAIInputTokenLimitError,
   OpenAIProviderError,
   normalizeOpenAIProviderError,
 } from "../openai";
+
+type ChatWithToolsOptions = Parameters<typeof rawChatWithToolsStream>[0];
+
+function chatWithToolsStream(
+  options: Omit<ChatWithToolsOptions, "maxInputTokens"> & {
+    maxInputTokens?: number;
+  },
+) {
+  return rawChatWithToolsStream({
+    maxInputTokens: 64_000,
+    ...options,
+  });
+}
 
 const originalEnabled = process.env.AMORA_OPENAI_ENABLED;
 const originalApiKey = process.env.OPENAI_API_KEY;
@@ -36,7 +50,10 @@ function streamOf(events: unknown[], terminalError?: unknown) {
 function fakeClient(events: unknown[], options?: { terminalError?: unknown }) {
   const stream = streamOf(events, options?.terminalError);
   const create = vi.fn().mockReturnValue(apiResult(stream));
-  const count = vi.fn();
+  const count = vi.fn().mockReturnValue(apiResult({
+    object: "response.input_tokens",
+    input_tokens: 1,
+  }, "req_count_default"));
   return {
     client: { responses: { create, inputTokens: { count } } } as unknown as OpenAI,
     create,
@@ -95,6 +112,7 @@ describe("OpenAI Responses adapter", () => {
       systemPrompt: "system",
       input: "안녕",
       tools: [],
+      beforeGeneration: vi.fn(),
       client,
     })).rejects.toMatchObject({
       category: "auth_config",
@@ -139,6 +157,7 @@ describe("OpenAI Responses adapter", () => {
       }],
       onTextDelta: (delta) => deltas.push(delta),
       safetyIdentifierScope: "raw-user-id-123",
+      beforeGeneration: vi.fn(),
       client,
     });
 
@@ -194,6 +213,7 @@ describe("OpenAI Responses adapter", () => {
           required: ["total_budget"],
         },
       }],
+      beforeGeneration: vi.fn(),
       client,
     });
 
@@ -214,6 +234,7 @@ describe("OpenAI Responses adapter", () => {
       systemPrompt: "system",
       input: "unsafe",
       tools: [],
+      beforeGeneration: vi.fn(),
       client,
     });
 
@@ -233,6 +254,7 @@ describe("OpenAI Responses adapter", () => {
       systemPrompt: "system",
       input: "안녕",
       tools: [],
+      beforeGeneration: vi.fn(),
       client,
     });
     await expect(promise).rejects.toMatchObject({
@@ -240,11 +262,48 @@ describe("OpenAI Responses adapter", () => {
       usageStatus: "unknown",
       requestId: "req_test",
       responseId: "resp_1",
+      requestStage: "generation",
+    });
+  });
+
+  it("fails closed when a JavaScript caller omits the required exact-count ceiling", async () => {
+    const { client, create, count } = fakeClient([]);
+
+    await expect(rawChatWithToolsStream({
+      systemPrompt: "system",
+      input: "안녕",
+      tools: [],
+      maxInputTokens: undefined as never,
+      beforeGeneration: vi.fn(),
+      client,
+    })).rejects.toThrow("maxInputTokens must be a positive integer");
+    expect(count).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("preserves generation stage on a stage-less OpenAIProviderError from the stream", async () => {
+    const { client } = fakeClient([], {
+      terminalError: new OpenAIProviderError("stream failed", {
+        category: "transport",
+        usageStatus: "unknown",
+      }),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "안녕",
+      tools: [],
+      beforeGeneration: vi.fn(),
+      client,
+    })).rejects.toMatchObject({
+      category: "transport",
+      requestStage: "generation",
     });
   });
 
   it("uses exact counting to block an oversized request before generation", async () => {
     const { client, create, count } = fakeClient([]);
+    const beforeGeneration = vi.fn();
     count.mockReturnValue(apiResult({
       object: "response.input_tokens",
       input_tokens: 100_001,
@@ -255,9 +314,179 @@ describe("OpenAI Responses adapter", () => {
       input: "긴 문서",
       tools: [],
       maxInputTokens: 100_000,
+      beforeGeneration,
       client,
     })).rejects.toBeInstanceOf(OpenAIInputTokenLimitError);
     expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["5xx", Object.assign(new Error("count service unavailable"), {
+      status: 503,
+      requestID: "req_count_503",
+      code: "server_error",
+    }), "provider_5xx", "req_count_503"],
+    ["timeout", new APIConnectionTimeoutError(), "timeout", undefined],
+  ])("preserves an input-count %s failure as pre-generation", async (
+    _label,
+    countError,
+    category,
+    requestId,
+  ) => {
+    const { client, create, count } = fakeClient([]);
+    const beforeGeneration = vi.fn();
+    count.mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(countError),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "토큰 수 확인",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toMatchObject({
+      category,
+      requestId,
+      requestStage: "input_count",
+      usageStatus: "unknown",
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  it("awaits beforeGeneration exactly once after exact counting and immediately before create", async () => {
+    const order: string[] = [];
+    const response = completedResponse([], "완료");
+    const { client, create, count } = fakeClient([]);
+    count.mockImplementation(() => {
+      order.push("count_start");
+      return {
+        withResponse: vi.fn(async () => {
+          order.push("count_done");
+          return {
+            data: { object: "response.input_tokens", input_tokens: 123 },
+            response: new Response(),
+            request_id: "req_count",
+          };
+        }),
+      };
+    });
+    create.mockImplementation(() => {
+      order.push("create");
+      return apiResult(streamOf([{ type: "response.completed", response }]));
+    });
+    const beforeGeneration = vi.fn(async () => {
+      order.push("before_generation");
+    });
+
+    await chatWithToolsStream({
+      systemPrompt: "system",
+      input: "정확히 센 뒤 생성",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    });
+
+    expect(order).toEqual([
+      "count_start",
+      "count_done",
+      "before_generation",
+      "create",
+    ]);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not invoke beforeGeneration when the signal aborts after counting", async () => {
+    const controller = new AbortController();
+    const beforeGeneration = vi.fn();
+    const { client, create, count } = fakeClient([]);
+    count.mockReturnValue({
+      withResponse: vi.fn(async () => {
+        controller.abort();
+        return {
+          data: { object: "response.input_tokens", input_tokens: 123 },
+          response: new Response(),
+          request_id: "req_count",
+        };
+      }),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "중단",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      signal: controller.signal,
+      client,
+    })).rejects.toMatchObject({ name: "AbortError" });
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("does not create a generation when beforeGeneration fails", async () => {
+    const hookError = new Error("quota reservation unavailable");
+    const beforeGeneration = vi.fn().mockRejectedValue(hookError);
+    const { client, create, count } = fakeClient([]);
+    count.mockReturnValue(apiResult({
+      object: "response.input_tokens",
+      input_tokens: 123,
+    }, "req_count"));
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "생성 금지",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toBe(hookError);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("marks a stage-less generation create error as generation", async () => {
+    const { client, create } = fakeClient([]);
+    create.mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(new OpenAIProviderError("create failed", {
+        category: "transport",
+        usageStatus: "unknown",
+      })),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "생성",
+      tools: [],
+      beforeGeneration: vi.fn(),
+      client,
+    })).rejects.toMatchObject({
+      category: "transport",
+      requestStage: "generation",
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps count request ids separate from paid generation request metadata", () => {
+    const metadata = getSafeOpenAIErrorMetadata(new OpenAIProviderError("count failed", {
+      category: "provider_5xx",
+      requestId: "req_count_only",
+      requestStage: "input_count",
+      usageStatus: "unknown",
+      providerCode: "server_error",
+    }));
+
+    expect(metadata).toMatchObject({
+      provider_request_id: null,
+      input_count_request_id: "req_count_only",
+      provider_request_stage: "input_count",
+      unknown_paid_attempt: false,
+    });
   });
 
   it("rejects prompt-cache breakpoints before any provider request", async () => {
@@ -271,6 +500,7 @@ describe("OpenAI Responses adapter", () => {
         prompt_cache_breakpoint: { type: "default" },
       }] as never,
       tools: [],
+      beforeGeneration: vi.fn(),
       client,
     })).rejects.toMatchObject({
       category: "invalid_request",
@@ -290,6 +520,7 @@ describe("OpenAI Responses adapter", () => {
         name: "duplicate name with spaces",
         input_schema: { type: "object" },
       }],
+      beforeGeneration: vi.fn(),
       client,
     })).rejects.toMatchObject({
       category: "invalid_request",
@@ -309,6 +540,7 @@ describe("OpenAI Responses adapter", () => {
       input: "안녕",
       tools: [],
       signal: controller.signal,
+      beforeGeneration: vi.fn(),
       client,
     });
     expect(create).toHaveBeenCalledWith(expect.any(Object), { signal: controller.signal });
@@ -387,6 +619,7 @@ describe("OpenAI Responses adapter", () => {
       systemPrompt: "system",
       input: "검색하지 마",
       tools: [],
+      beforeGeneration: vi.fn(),
       client,
     })).rejects.toMatchObject({
       category: "response_invalid",

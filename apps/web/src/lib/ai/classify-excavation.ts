@@ -18,6 +18,10 @@
 // =============================================
 
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+  blockLegacyAuxiliaryProviderGeneration,
+} from "@/lib/ai/amoraRequestPolicy";
 import type { StageTag } from "@/types/moat.types";
 
 const MAX_USER_CHARS = 400;
@@ -148,7 +152,9 @@ async function classifyWithOpenAI(
 
     const response = await createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 200,
+      beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: CLASSIFY_SYSTEM_PROMPT,
       input: conversation,
       responseFormat: {
@@ -160,7 +166,7 @@ async function classifyWithOpenAI(
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
-        interactionType: "chat_turn",
+        interactionType: "amora_director",
         userInput: null,
         metadata: {
           endpoint: "chat/classify-excavation",

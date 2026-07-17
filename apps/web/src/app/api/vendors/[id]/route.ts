@@ -1,6 +1,13 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
+import {
+  PUBLIC_PRODUCT_TIMESLOT_COLUMNS,
+  PUBLIC_VENDOR_COLUMNS,
+  PUBLIC_VENDOR_PRODUCT_COLUMNS,
+  PUBLIC_VENDOR_REVIEW_COLUMNS,
+  PUBLIC_VENDOR_TIMESLOT_COLUMNS,
+} from "@/lib/vendors/publicFields";
 import { isUuid } from "@/utils/requestValidation";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 업체 정보
     const { data: vendorRow, error } = await supabase
       .from("vendors")
-      .select("*")
+      .select(PUBLIC_VENDOR_COLUMNS)
       .eq("id", id)
       .eq("status", "approved")
       .single();
@@ -26,13 +33,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 타임슬롯
     const { data: timeslots } = await supabase
       .from("vendor_timeslots")
-      .select("*")
+      .select(PUBLIC_VENDOR_TIMESLOT_COLUMNS)
       .eq("vendor_id", id);
 
     // 상품
     const { data: productRows } = await supabase
       .from("vendor_products")
-      .select("*")
+      .select(PUBLIC_VENDOR_PRODUCT_COLUMNS)
       .eq("vendor_id", id)
       .eq("is_active", true)
       .order("sort_order");
@@ -40,7 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 상품별 타임슬롯
     const productIds = (productRows ?? []).map((p) => p.id);
     const { data: productTimeslots } = productIds.length > 0
-      ? await supabase.from("product_timeslots").select("*").in("product_id", productIds)
+      ? await supabase.from("product_timeslots").select(PUBLIC_PRODUCT_TIMESLOT_COLUMNS).in("product_id", productIds)
       : { data: [] };
 
     // 향후 7일간 예약 수 조회 (잔여 슬롯 계산용)
@@ -95,7 +102,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 리뷰
     const { data: reviews } = await supabase
       .from("vendor_reviews")
-      .select("*")
+      .select(PUBLIC_VENDOR_REVIEW_COLUMNS)
       .eq("vendor_id", id)
       .eq("is_visible", true)
       .order("created_at", { ascending: false })

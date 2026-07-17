@@ -32,7 +32,7 @@ export interface GuestGuaranteeResult {
   confirmedRsvpGuests: number | null;
   guaranteedGuests: number | null;
   mealPriceManwon: number | null;
-  noShowRatePercent: number;
+  noShowRatePercent: number | null;
   expectedAttendanceGuests: number | null;
   payableGuests: number | null;
   expectedMealTotalManwon: number | null;
@@ -47,15 +47,16 @@ export interface GuestGuaranteeResult {
 }
 
 const RISK_LABELS: Record<GuestGuaranteeRiskLevel, string> = {
-  low: "안정권",
-  medium: "조정 검토",
-  high: "손실 주의",
+  low: "보증 범위 안",
+  medium: "차이 확인",
+  high: "마감 확인",
 };
 
 const FIELD_LABELS: Record<string, string> = {
   estimatedGuests: "예상 하객 수",
   guaranteedGuests: "보증 인원",
   mealPriceManwon: "1인 식대",
+  noShowRatePercent: "계산에 사용할 불참률",
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -124,13 +125,18 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
   const confirmedRsvpGuests = Number.isFinite(input.confirmedRsvpGuests) && (input.confirmedRsvpGuests ?? 0) > 0
     ? Math.round(input.confirmedRsvpGuests!)
     : null;
-  const noShowRatePercent = clamp(input.noShowRatePercent ?? 8, 0, 30);
+  const noShowRatePercent = Number.isFinite(input.noShowRatePercent)
+    && (input.noShowRatePercent ?? -1) >= 0
+    && (input.noShowRatePercent ?? 101) <= 100
+    ? clamp(input.noShowRatePercent!, 0, 100)
+    : null;
   const venueName = input.venueName?.trim() || null;
 
   const missingFields = [
     estimatedGuests === null ? "estimatedGuests" : "",
     guaranteedGuests === null ? "guaranteedGuests" : "",
     mealPriceManwon === null ? "mealPriceManwon" : "",
+    noShowRatePercent === null ? "noShowRatePercent" : "",
   ].filter(Boolean);
 
   if (missingFields.length > 0) {
@@ -154,7 +160,7 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
       emptySeatLossManwon: null,
       scenarios: [],
       missingFields,
-      recommendation: `한 번에 이렇게 알려주시면 됩니다: 예상 180명, 보증 200명, 식대 7.5만원.`,
+      recommendation: `한 번에 이렇게 알려주시면 됩니다: 예상 180명, 보증 200명, 식대 7.5만원, 계산할 불참률 5%.`,
       vendorQuestions: [
         "최종 인원 통보 마감일은 언제인가요?",
         "보증 인원 하향 조정이 가능한 마지막 날짜가 있나요?",
@@ -168,7 +174,7 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
   const baseGuests = confirmedRsvpGuests && confirmedRsvpGuests > estimatedGuests!
     ? confirmedRsvpGuests
     : estimatedGuests!;
-  const expectedAttendanceGuests = Math.max(1, Math.round(baseGuests * (1 - noShowRatePercent / 100)));
+  const expectedAttendanceGuests = Math.max(1, Math.round(baseGuests * (1 - noShowRatePercent! / 100)));
   const payableGuests = Math.max(expectedAttendanceGuests, guaranteedGuests!);
   const expectedMealTotalManwon = roundManwon(payableGuests * mealPriceManwon!);
   const emptySeats = Math.max(0, guaranteedGuests! - expectedAttendanceGuests);
@@ -176,34 +182,28 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
 
   const scenarios = [
     toScenario(
-      "conservative",
-      "적게 오는 경우",
-      Math.max(1, Math.round(baseGuests * 0.85)),
+      "expected",
+      `사용자 지정 불참률 ${noShowRatePercent}%`,
+      expectedAttendanceGuests,
       guaranteedGuests!,
-      mealPriceManwon!
-    ),
-    toScenario("expected", "현재 예상", expectedAttendanceGuests, guaranteedGuests!, mealPriceManwon!),
-    toScenario(
-      "optimistic",
-      "많이 오는 경우",
-      Math.round(baseGuests * 1.05),
-      guaranteedGuests!,
-      mealPriceManwon!
+      mealPriceManwon!,
     ),
   ];
 
   const deadlineDays = daysUntil(input.noticeDeadlineYmd);
-  const highLoss = emptySeatLossManwon >= 200 || emptySeats >= 30;
-  const mediumLoss = emptySeatLossManwon >= 80 || emptySeats >= 12;
-  const deadlineSoon = deadlineDays !== null && deadlineDays >= 0 && deadlineDays <= 14;
-  const riskLevel: GuestGuaranteeRiskLevel = highLoss ? "high" : mediumLoss || deadlineSoon ? "medium" : "low";
+  const deadlinePassed = deadlineDays !== null && deadlineDays < 0;
+  const riskLevel: GuestGuaranteeRiskLevel = deadlinePassed
+    ? "high"
+    : emptySeats > 0
+      ? "medium"
+      : "low";
 
   const summaryTitle =
     riskLevel === "high"
-      ? "보증 인원이 현재 예상보다 높아 식대 손실을 먼저 줄여야 해요"
+      ? "최종 인원 통보 마감일을 업체에 바로 확인해 주세요"
       : riskLevel === "medium"
-        ? "보증 인원은 크게 위험하진 않지만 조정 가능일을 확인해야 해요"
-        : "현재 보증 인원은 예상 참석 범위 안에서 관리 가능해요";
+        ? "입력한 불참률 시나리오와 보증 인원 사이에 차이가 있어요"
+        : "입력한 불참률 시나리오에서는 보증 인원 이상으로 계산돼요";
 
   const deadlineText =
     deadlineDays === null
@@ -214,13 +214,12 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
 
   const summaryText =
     emptySeats > 0
-      ? `노쇼 ${noShowRatePercent}% 기준 참석 예상은 ${expectedAttendanceGuests}명입니다. 보증 ${guaranteedGuests}명이라 빈 자리 ${emptySeats}명, 약 ${emptySeatLossManwon}만원이 손실 후보입니다. ${deadlineText}`
-      : `노쇼 ${noShowRatePercent}% 기준 참석 예상은 ${expectedAttendanceGuests}명이고, 보증 인원을 넘습니다. 총 식대는 약 ${expectedMealTotalManwon}만원으로 봅니다. ${deadlineText}`;
+      ? `사용자가 지정한 불참률 ${noShowRatePercent}%로 계산하면 참석 시나리오는 ${expectedAttendanceGuests}명입니다. 보증 ${guaranteedGuests}명과의 차이는 ${emptySeats}명, 식대 차이 후보는 약 ${emptySeatLossManwon}만원입니다. ${deadlineText}`
+      : `사용자가 지정한 불참률 ${noShowRatePercent}%로 계산하면 참석 시나리오는 ${expectedAttendanceGuests}명이고 보증 인원 이상입니다. 식대 계산값은 약 ${expectedMealTotalManwon}만원입니다. ${deadlineText}`;
 
-  const lowerTarget = Math.max(1, Math.round((expectedAttendanceGuests * 0.95) / 10) * 10);
   const recommendation =
     emptySeats > 0
-      ? `업체가 허용하면 보증 인원을 ${Math.min(guaranteedGuests!, lowerTarget)}명 안팎으로 낮출 수 있는지 먼저 물어보세요. 낮출 수 없다면 확정 하객을 빠르게 모아 빈 자리 ${emptySeats}명을 줄이는 쪽이 우선입니다.`
+      ? `업체가 허용하면 보증 인원을 사용자 시나리오의 ${expectedAttendanceGuests}명 쪽으로 조정할 수 있는지 먼저 서면으로 물어보세요. 실제 변경 가능 범위와 정산 기준은 계약 조건을 따라야 합니다.`
       : "보증 인원을 더 낮추기보다 초과 인원 정산 방식과 좌석·식사 여유분을 확인하는 쪽이 좋습니다.";
 
   const vendorQuestions = [
@@ -259,6 +258,6 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
       mealPriceManwon: mealPriceManwon!,
       expectedAttendanceGuests,
     }),
-    sourceNote: "사용자 입력값과 노쇼율 가정 기반 시뮬레이션입니다. 최종 정산은 업체 계약서 기준으로 확인해야 합니다.",
+    sourceNote: "사용자 입력값과 사용자가 직접 정한 불참률 시나리오의 단순 계산입니다. 예측이나 업계 평균이 아니며 최종 정산은 업체 계약서 기준으로 확인해야 합니다.",
   };
 }

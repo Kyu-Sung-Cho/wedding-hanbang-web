@@ -32,6 +32,8 @@ export interface SendMessageParams {
   images?: ImageAttachmentData[];
   target?: ChatMessageTarget; // "ai" (기본) | "partner"
   visibility?: ChatMessageVisibility; // "shared" (기본) | "bride_private" | "groom_private"
+  /** Exact server-issued action id from an explicit confirmation control. */
+  confirmedActionId?: string;
 }
 
 export interface WeddingContext {
@@ -59,6 +61,6 @@ export type SSEEvent =
   | { type: "suggestions"; suggestions: string[] }
   | { type: "quota"; remaining: number }
   | { type: "done"; fullContent: string; metadata: ChatMessageMetadata }
-  | { type: "error"; message: string };
+  | { type: "error"; code?: string; message: string };
 
 export type { ChatMessage, MessageSenderRole, ToolExecutionResult, ChatMessageMetadata, ChatMessageTarget, ChatMessageVisibility };

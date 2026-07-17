@@ -1,23 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
-let adminClient: SupabaseClient | null = null;
+import { verifyRuntimeSupabaseServiceDestination } from "./destinationFence";
 
 export function createAdminClient(): SupabaseClient {
-  if (adminClient) return adminClient;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const destination = verifyRuntimeSupabaseServiceDestination();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error("Supabase service role environment variables are not configured.");
-  }
-
-  adminClient = createClient(url, key, {
+  // Validate every construction. A process-global client could otherwise
+  // survive an in-process destination/env rotation with stale credentials.
+  return createClient(destination.url, key!, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
-
-  return adminClient;
 }

@@ -1,5 +1,10 @@
 # Amora OpenAI release handoff — 2026-07-15 KST
 
+> **SUPERSEDED HISTORICAL HANDOFF — DO NOT CONTINUE FROM THIS FILE.** The clone
+> `syhmfxauqyhgdcokrheg` no longer exists and must never be reused. Continue from
+> `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-17.md` and the current
+> remote HEAD of PR #61.
+
 ## Where to continue
 
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`;

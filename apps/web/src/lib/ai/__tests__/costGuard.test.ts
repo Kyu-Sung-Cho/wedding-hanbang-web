@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { checkAmoraCostGuard, reserveAmoraTurn } from "../costGuard";
+import {
+  checkAmoraCostGuard,
+  reserveAmoraProviderCall,
+  reserveAmoraTurn,
+} from "../costGuard";
 
 // chat_messages 카운트를 흉내내는 가짜 Supabase 클라이언트.
 // .from().select(...,{head,count}).eq().eq()/.gte() 체인이 최종적으로
@@ -28,7 +32,7 @@ function makeAdmin(counts: { global?: number; couple?: number; error?: boolean }
   } as never;
 }
 
-const BASE = { coupleId: "c1", isAdmin: false };
+const BASE = { coupleId: "c1", isAdmin: false, maxCostMicrousd: 254_400 };
 
 describe("checkAmoraCostGuard", () => {
   const ENV = process.env;
@@ -38,15 +42,54 @@ describe("checkAmoraCostGuard", () => {
     delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
     delete process.env.AMORA_FREE_MESSAGES_PER_COUPLE;
     delete process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP;
+    delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
     vi.resetModules();
   });
   afterEach(() => {
     process.env = ENV;
   });
 
-  it("관리자는 면제", async () => {
-    const r = await checkAmoraCostGuard(makeAdmin({ global: 9999, couple: 9999 }), { ...BASE, isAdmin: true });
+  it("관리자도 global daily hard cap은 우회하지 않는다", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 300, couple: 9999 }), {
+      ...BASE,
+      isAdmin: true,
+    });
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+  });
+
+  it("관리자는 global cap 아래에서 커플 lifetime cap을 우회한다", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 100 }), {
+      ...BASE,
+      isAdmin: true,
+    });
     expect(r.allowed).toBe(true);
+  });
+
+  it("demo도 global daily hard cap은 우회하지 않는다", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 300, couple: 0 }), {
+      ...BASE,
+      quotaScope: "demo",
+    });
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+  });
+
+  it("demo는 global cap 아래에서 커플 lifetime cap을 우회한다", async () => {
+    const r = await checkAmoraCostGuard(makeAdmin({ global: 10, couple: 100 }), {
+      ...BASE,
+      quotaScope: "demo",
+    });
+    expect(r.allowed).toBe(true);
+  });
+
+  it.each([
+    ["admin", { ...BASE, isAdmin: true }],
+    ["demo", { ...BASE, quotaScope: "demo" as const }],
+  ])("%s 사전 게이트는 global 장부 조회 실패 시 fail-closed 한다", async (_label, params) => {
+    const r = await checkAmoraCostGuard(makeAdmin({ error: true }), params);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("guard_unavailable");
   });
 
   it("정상 범위 내면 통과", async () => {
@@ -95,16 +138,65 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     process.env = { ...ENV };
     delete process.env.AMORA_COST_GUARD_ENABLED;
     delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
+    delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
   });
   afterEach(() => {
     process.env = ENV;
   });
 
-  it("관리자는 면제 — RPC를 호출하지 않는다 (턴 미소모)", async () => {
-    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
+  it("관리자는 커플 lifetime cap만 우회하고 global daily hard cap에는 거부된다", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: false, reason: "global_daily" },
+    });
     const r = await reserveAmoraTurn(admin, { ...BASE, isAdmin: true });
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
+    });
+  });
+
+  it("demo는 커플 lifetime cap을 우회하지만 global 사용량을 원자 예약한다", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const r = await reserveAmoraTurn(admin, { ...BASE, quotaScope: "demo" });
+
     expect(r.allowed).toBe(true);
-    expect(rpcSpy).not.toHaveBeenCalled();
+    expect(r.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
+    });
+  });
+
+  it("demo도 global daily hard cap에는 거부된다", async () => {
+    const { admin } = makeReserveAdmin({
+      rpc: { allowed: false, reason: "global_daily" },
+    });
+
+    const r = await reserveAmoraTurn(admin, { ...BASE, quotaScope: "demo" });
+
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("global_daily");
+  });
+
+  it.each([
+    ["admin", { ...BASE, isAdmin: true }],
+    ["demo", { ...BASE, quotaScope: "demo" as const }],
+  ])("%s 원자 예약은 장부 장애 시 fail-closed 한다", async (_label, params) => {
+    const { admin } = makeReserveAdmin({ rpc: "error" });
+
+    const r = await reserveAmoraTurn(admin, params);
+
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("guard_unavailable");
   });
 
   it("RPC allowed=true면 통과", async () => {
@@ -115,6 +207,8 @@ describe("reserveAmoraTurn (원자 예약)", () => {
       p_couple_id: "c1",
       p_couple_cap: 100,
       p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
     });
   });
 
@@ -132,6 +226,8 @@ describe("reserveAmoraTurn (원자 예약)", () => {
       p_couple_id: "c1",
       p_couple_cap: 2_147_483_647,
       p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
     });
   });
 
@@ -146,6 +242,8 @@ describe("reserveAmoraTurn (원자 예약)", () => {
       p_couple_id: "c1",
       p_couple_cap: 2_147_483_647,
       p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
     });
   });
 
@@ -175,6 +273,28 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.message).toBeTruthy();
   });
 
+  it("전역 USD 예약 예산 도달 시 별도 사유로 차단한다", async () => {
+    const { admin } = makeReserveAdmin({
+      rpc: { allowed: false, reason: "global_daily_budget" },
+    });
+
+    const r = await reserveAmoraTurn(admin, BASE);
+
+    expect(r).toMatchObject({ allowed: false, reason: "global_budget" });
+    expect(r.message).toContain("안전 예산");
+  });
+
+  it("유효하지 않은 최악 비용은 RPC 전에 fail-closed 한다", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true, reason: null },
+    });
+
+    const r = await reserveAmoraTurn(admin, { ...BASE, maxCostMicrousd: 0 });
+
+    expect(r).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
   it("커플 상한 도달 시 차단", async () => {
     const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "couple_quota" } });
     const r = await reserveAmoraTurn(admin, BASE);
@@ -182,24 +302,21 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     expect(r.reason).toBe("couple_quota");
   });
 
-  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 상한 초과면 차단", async () => {
-    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 100 } });
-    const r = await reserveAmoraTurn(admin, BASE);
-    expect(r.allowed).toBe(false);
-    expect(r.reason).toBe("couple_quota");
-  });
+  it.each(["error", "throw"] as const)(
+    "일반 상담도 원자 예약 RPC %s 시 읽기전용 폴백 없이 fail-closed 한다",
+    async (rpc) => {
+      const { admin } = makeReserveAdmin({
+        rpc,
+        // 읽기전용 수치가 여유로워도 원자성이 없으면 provider를 허용하면 안 된다.
+        counts: { global: 10, couple: 5 },
+      });
 
-  it("RPC 에러(미배포) 시 읽기전용 가드로 폴백 — 정상 범위면 통과", async () => {
-    const { admin } = makeReserveAdmin({ rpc: "error", counts: { global: 10, couple: 5 } });
-    const r = await reserveAmoraTurn(admin, BASE);
-    expect(r.allowed).toBe(true);
-  });
+      const r = await reserveAmoraTurn(admin, BASE);
 
-  it("RPC 예외 시에도 폴백", async () => {
-    const { admin } = makeReserveAdmin({ rpc: "throw", counts: { global: 10, couple: 5 } });
-    const r = await reserveAmoraTurn(admin, BASE);
-    expect(r.allowed).toBe(true);
-  });
+      expect(r.allowed).toBe(false);
+      expect(r.reason).toBe("guard_unavailable");
+    },
+  );
 
   it("알 수 없는 reason은 미계측 호출을 막기 위해 fail-closed", async () => {
     const { admin } = makeReserveAdmin({ rpc: { allowed: false, reason: "invalid_args" } });
@@ -216,5 +333,116 @@ describe("reserveAmoraTurn (원자 예약)", () => {
     const r = await mod.reserveAmoraTurn(admin, BASE);
     expect(r.allowed).toBe(true);
     expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("백그라운드 케어 호출은 실제 커플 무료 상담 카운터를 소모하지 않는다", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const r = await reserveAmoraTurn(admin, { ...BASE, quotaScope: "background" });
+
+    expect(r.allowed).toBe(true);
+    expect(r.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "00000000-0000-4000-8000-000000000002",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
+    });
+  });
+
+  it.each([
+    ["NaN"],
+    ["1.5"],
+    ["0"],
+    ["-1"],
+    ["2147483648"],
+  ])("잘못된 비용 상한 %s는 int4 안전 기본값으로 대체한다", async (invalidCap) => {
+    process.env.AMORA_FREE_MESSAGES_PER_COUPLE = invalidCap;
+    process.env.AMORA_GLOBAL_DAILY_MESSAGE_CAP = invalidCap;
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    const r = await mod.reserveAmoraTurn(admin, BASE);
+
+    expect(r.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 100,
+      p_global_cap: 300,
+      p_reserve_cost_microusd: 254_400,
+      p_global_cost_cap_microusd: 20_000_000,
+    });
+  });
+
+  it("배포에서 지정한 USD 일일 상한을 정확한 micro-USD 정수로 전달한다", async () => {
+    process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD = "12.5";
+    vi.resetModules();
+    const mod = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+    await mod.reserveAmoraTurn(admin, BASE);
+
+    expect(rpcSpy).toHaveBeenCalledWith(
+      "reserve_amora_turn",
+      expect.objectContaining({ p_global_cost_cap_microusd: 12_500_000 }),
+    );
+  });
+
+  it.each(["NaN", "0", "-1", "100000000000000000000"])(
+    "잘못된 USD 일일 상한 %s는 $20 안전 기본값으로 되돌린다",
+    async (invalidCap) => {
+      process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD = invalidCap;
+      vi.resetModules();
+      const mod = await import("../costGuard");
+      const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true, reason: null } });
+
+      await mod.reserveAmoraTurn(admin, BASE);
+
+      expect(rpcSpy).toHaveBeenCalledWith(
+        "reserve_amora_turn",
+        expect.objectContaining({ p_global_cost_cap_microusd: 20_000_000 }),
+      );
+    },
+  );
+});
+
+describe("reserveAmoraProviderCall", () => {
+  const ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...ENV };
+    delete process.env.AMORA_COST_GUARD_ENABLED;
+    delete process.env.AMORA_COUPLE_QUOTA_ENABLED;
+    delete process.env.AMORA_GLOBAL_DAILY_COST_CAP_USD;
+  });
+  afterEach(() => {
+    process.env = ENV;
+  });
+
+  it("reserves exactly one provider-call receipt under the logical request", async () => {
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true, reason: null },
+    });
+
+    const result = await reserveAmoraProviderCall(admin, {
+      ...BASE,
+      receiptId: "30000000-0000-4000-8000-000000000001",
+      claimToken: "40000000-0000-4000-8000-000000000001",
+      requestKey: "request_123",
+      maxCostMicrousd: 212_000,
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(rpcSpy).toHaveBeenCalledWith("reserve_amora_provider_call", {
+      p_receipt_id: "30000000-0000-4000-8000-000000000001",
+      p_claim_token: "40000000-0000-4000-8000-000000000001",
+      p_request_key: "request_123",
+      p_cost_couple_id: "c1",
+      p_couple_cap: 100,
+      p_global_cap: 300,
+      p_reserve_cost_microusd: 212_000,
+      p_global_cost_cap_microusd: 20_000_000,
+    });
   });
 });

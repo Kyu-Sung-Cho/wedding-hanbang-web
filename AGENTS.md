@@ -1,410 +1,221 @@
-## 최상위 규칙
-모든 작업은 PRINCIPLES.md의 6개 원칙을 따른다.
-충돌 시 우선순위: P1 > P3 > P2 > P4 > P5 > P6.
-모든 AI 호출은 ai_interactions_log에 기록되며,
-모든 커플 의사결정은 decision_nodes에 기록된다.
+# 웨딩한방 저장소 작업 규칙
 
----
+## 최상위 원칙
 
-# 웨딩한방 웹 (hanbang.ai) - Codex 가이드
+- 모든 제품 판단은 `PRINCIPLES.md`의 여섯 원칙을 따른다. 충돌 시 우선순위는
+  P1 > P3 > P2 > P4 > P5 > P6이다.
+- 시각·UI 판단 전에는 `DESIGN.md`를 읽는다.
+- AI 호출은 `ai_interactions_log`, 커플의 확정 의사결정은 `decision_nodes`에
+  기록한다. 모델의 문장만으로 저장 성공을 간주하지 않는다.
+- 테스트, 빌드, DB 적용, 배포, 백업, 복구는 실제 증거가 있을 때만 완료로
+  보고한다.
+- 날짜가 오래된 문서는 역사적 증거일 수 있다. 상단 상태 문구와 아래의 현재 기준
+  문서를 먼저 확인한다.
 
-## 🎯 프로젝트 개요
+## 프로젝트 개요
 
-**한 줄 요약**: 웨딩한방 모바일 앱의 웹 버전 + 마케팅 랜딩페이지. 같은 Supabase 백엔드를 공유하여 앱과 웹 데이터가 실시간 동기화됨.
+웨딩한방은 한국 예비부부가 일정, 예산, 업체, 커뮤니티 정보와 커플 의사결정을
+한곳에서 관리하는 소비자 웹·모바일 서비스다. 아모라는 사용자의 조건과 선택을
+기억하고, 근거를 구분하며, 승인된 행동만 실행하는 OpenAI 기반 결혼 준비
+동반자다.
 
-**도메인**: hanbang.ai (www.hanbang.ai)
-**배포**: Vercel
-**기존 앱**: React Native CLI (별도 레포)
+현재 저장소는 모노레포다.
 
-## 🏗 기술 스택
+주요 실행 경계는 `apps/web`, `apps/mobile`, `packages/shared`다.
 
-| 레이어 | 기술 | 이유 |
-|--------|------|------|
-| Framework | Next.js 14 (App Router) | SSR, API Routes, Vercel 최적화 |
-| Language | TypeScript | 타입 안정성 |
-| Styling | Tailwind CSS | 빠른 개발, 일관된 디자인 |
-| State | Zustand | 앱과 동일한 패턴 |
-| Backend/DB | Supabase (기존 프로젝트 공유) | PostgreSQL, Auth, Realtime, Storage |
-| AI | OpenAI Responses API (GPT-5.6 Luna·Terra) | 전환 브랜치 기준. 운영 활성화는 별도 안전 게이트 |
-| Auth | Supabase Auth (카카오, 구글) | 앱과 동일한 인증 |
-| 배포 | Vercel | 자동 배포, Edge Functions |
-| 이메일 | Resend | 사전등록 확인 메일 |
-
-## 📁 프로젝트 구조
-
-```
-hanbang-web/
-├── AGENTS.md                    # 이 파일
-├── next.config.ts
-├── tailwind.config.ts
-├── package.json
-├── .env.local                   # 환경변수 (git 제외)
-│
-├── public/
-│   ├── fonts/                   # 커스텀 폰트
-│   ├── images/                  # 정적 이미지
-│   └── og-image.png             # 소셜 공유 이미지
-│
-├── src/
-│   ├── app/                     # Next.js App Router
-│   │   ├── layout.tsx           # 루트 레이아웃
-│   │   ├── page.tsx             # 랜딩페이지 (/)
-│   │   ├── globals.css          # 글로벌 스타일
-│   │   │
-│   │   ├── (auth)/              # 인증 그룹
-│   │   │   ├── login/page.tsx   # 로그인
-│   │   │   ├── signup/page.tsx  # 회원가입
-│   │   │   └── callback/page.tsx # OAuth 콜백
-│   │   │
-│   │   ├── (app)/               # 로그인 후 앱 기능 그룹
-│   │   │   ├── layout.tsx       # 앱 레이아웃 (사이드바/네비)
-│   │   │   ├── dashboard/page.tsx    # 대시보드 (홈)
-│   │   │   ├── chat/page.tsx         # AI 채팅
-│   │   │   ├── budget/page.tsx       # 예산 관리
-│   │   │   ├── schedule/page.tsx     # 일정 관리
-│   │   │   ├── fitting/page.tsx      # AI 드레스 피팅
-│   │   │   ├── vendors/page.tsx      # 업체 탐색
-│   │   │   ├── etiquette/page.tsx    # 예절 가이드
-│   │   │   └── settings/page.tsx     # 설정
-│   │   │
-│   │   ├── (admin)/             # 관리자 (사전등록 현황 등)
-│   │   │   └── admin/page.tsx
-│   │   │
-│   │   └── api/                 # API Routes
-│   │       ├── auth/callback/route.ts
-│   │       ├── chat/route.ts         # AI 채팅 API
-│   │       ├── preregister/route.ts  # 사전등록
-│   │       └── vendors/route.ts      # 업체 검색
-│   │
-│   ├── components/
-│   │   ├── landing/             # 랜딩페이지 섹션들
-│   │   │   ├── Hero.tsx
-│   │   │   ├── PainPoints.tsx
-│   │   │   ├── Solutions.tsx
-│   │   │   ├── Comparison.tsx
-│   │   │   ├── VirtualFitting.tsx
-│   │   │   ├── Stats.tsx
-│   │   │   ├── HowItWorks.tsx
-│   │   │   ├── Testimonials.tsx
-│   │   │   ├── CTA.tsx
-│   │   │   └── SparkleCanvas.tsx
-│   │   │
-│   │   ├── app/                 # 앱 기능 컴포넌트
-│   │   │   ├── chat/
-│   │   │   │   ├── ChatBubble.tsx
-│   │   │   │   ├── ChatInput.tsx
-│   │   │   │   ├── ButtonOptions.tsx
-│   │   │   │   └── VendorCard.tsx
-│   │   │   ├── budget/
-│   │   │   │   ├── BudgetOverview.tsx
-│   │   │   │   └── BudgetBar.tsx
-│   │   │   ├── schedule/
-│   │   │   │   ├── Calendar.tsx
-│   │   │   │   └── Timeline.tsx
-│   │   │   └── common/
-│   │   │       ├── Sidebar.tsx
-│   │   │       ├── TopNav.tsx
-│   │   │       └── LoadingSpinner.tsx
-│   │   │
-│   │   └── ui/                  # 공통 UI 컴포넌트
-│   │       ├── Button.tsx
-│   │       ├── Card.tsx
-│   │       ├── Input.tsx
-│   │       └── Modal.tsx
-│   │
-│   ├── lib/
-│   │   ├── supabase/
-│   │   │   ├── client.ts        # 브라우저용 클라이언트
-│   │   │   ├── server.ts        # 서버용 클라이언트
-│   │   │   └── middleware.ts    # Auth 미들웨어
-│   │   ├── ai/
-│   │   │   ├── Codex.ts        # Codex API 호출
-│   │   │   └── prompts.ts       # 시스템 프롬프트
-│   │   └── resend.ts            # 이메일 발송
-│   │
-│   ├── stores/                  # Zustand 스토어
-│   │   ├── authStore.ts
-│   │   ├── chatStore.ts
-│   │   ├── budgetStore.ts
-│   │   └── scheduleStore.ts
-│   │
-│   ├── types/
-│   │   ├── database.types.ts    # Supabase 생성 타입
-│   │   ├── chat.types.ts
-│   │   └── vendor.types.ts
-│   │
-│   ├── constants/
-│   │   ├── categories.ts        # 20개 웨딩 카테고리
-│   │   ├── prices.ts            # 평균 가격 데이터
-│   │   └── design.ts            # 디자인 토큰
-│   │
-│   └── utils/
-│       ├── format.ts            # 가격, 날짜 포맷
-│       └── validators.ts        # 입력 검증
-│
-└── middleware.ts                 # Next.js 미들웨어 (인증 체크)
+```text
+wedding-amora-engine-v2/
+├── apps/
+│   ├── web/                 Next.js 16 웹·API·Vercel 배포 대상
+│   └── mobile/              Expo/React Native·EAS 빌드 대상
+├── packages/
+│   ├── shared/              웹·모바일 공유 로직과 타입
+│   └── design-tokens/       공통 디자인 토큰
+├── supabase/
+│   ├── migrations/          순서가 고정된 DB 마이그레이션
+│   ├── platform-operations/ Dashboard에서 별도로 수행하는 운영 작업
+│   ├── release-checks/      read-only 사후 검증
+│   └── release-manifests/   파일 hash와 릴리스 순서를 고정하는 manifest
+├── scripts/                 QA·백업·복구·릴리스 컨트롤러
+├── docs/                    제품·연구·운영 문서와 검증 증거
+├── DESIGN.md
+└── PRINCIPLES.md
 ```
 
-## 🎨 디자인 시스템
+## 현재 기준 문서
 
-앱과 동일한 컬러 팔레트:
+- 제품·디자인: `DESIGN.md`
+- 아모라 제품·기술 기준: `docs/AMORA_ENGINE_V2_2026-07-16.md`
+- 현행 운영 릴리스:
+  `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
+- 현재 인수인계:
+  `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-17.md`
+- 모바일: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
+- WeddingCode: `docs/wedding-code/README.md`
+- Storage 운영: `supabase/platform-operations/storage/README.md`
 
-```css
-/* Primary - Noir */
---noir-800: #1A1A1F;
---noir-900: #0D0D0F;
+`docs/operations/AMORA_PRODUCTION_RELEASE.md`,
+`docs/operations/AMORA_ENGINE_V2_SAFETY_HANDOFF_2026-07-16.md`와 날짜가 더 오래된
+release manifest는 과거 릴리스의 증거다. 상단의 superseded 안전 배너를 먼저 읽고
+본문을 현재 실행 절차·현재 완료 증거로 사용하지 않는다. 과거 hash-bound 원문이
+필요하면 현재 파일을 신뢰하지 말고 해당 Git commit과 historical manifest hash로
+복원·검증한다.
 
-/* Accent - Rose Champagne */
---rose-500: #C4967E;
---rose-600: #9A6B62;
+## 기술 스택
 
-/* Background - Warm Ivory */
---ivory-50: #FDFCFA;
---ivory-100: #FAF8F5;
---ivory-200: #F5F2ED;
+| 영역 | 현재 기준 |
+|---|---|
+| 웹 | Next.js 16 App Router, React 19, TypeScript 5.9, Tailwind CSS 4 |
+| 모바일 | Expo SDK 54, Expo Router, React Native, TypeScript strict |
+| 상태 | Zustand와 서버/API 기반 상태 |
+| 데이터 | Supabase PostgreSQL, Auth, Realtime, Storage |
+| AI | OpenAI Responses API, GPT-5.6 Luna·Terra만 허용 |
+| 배포 | Vercel, EAS Build |
+| 패키지 | pnpm workspace + Turborepo |
 
-/* Taupe */
---taupe-400: #B5ADA3;
---taupe-500: #928980;
+정확한 버전은 각 `package.json`, `pnpm-lock.yaml`, `apps/mobile/app.json`을 읽어
+확인한다. 이 문서의 숫자만 믿고 의존성을 바꾸지 않는다.
 
-/* Gold */
---gold: #C9A96E;
+## 개발 환경
+
+루트 `package.json`의 `engines`와 `packageManager`를 따른다.
+
+```powershell
+corepack enable
+corepack pnpm install --frozen-lockfile
+Copy-Item apps/web/.env.example apps/web/.env.local
 ```
 
-폰트:
-- 한글 제목: Noto Serif KR (300, 400, 500)
-- 한글 본문: Noto Sans KR (300, 400, 500, 600)
-- 영문 제목/숫자: Cormorant Garamond (300, 400, 600)
+- 운영 키를 개발 파일에 복사하지 않는다.
+- `NEXT_PUBLIC_*` 이외의 키는 브라우저 번들에 포함하지 않는다.
+- OpenAI 키, Supabase service-role 키, 사용자 원문, 백업 payload, receipt 원문을
+  로그·문서·Git에 남기지 않는다.
+- 모바일 환경과 OAuth deep link는 `docs/MOBILE_SETUP.md`를 따른다.
 
-## 🔑 환경변수 (.env.local)
+주요 명령:
 
-```
-# Supabase (기존 앱과 동일한 프로젝트!)
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
-SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
-
-# Amora AI — OpenAI 전용 런타임. 안전 게이트 통과 후 명시적으로 활성화
-AMORA_OPENAI_ENABLED=false
-AMORA_AUXILIARY_MEMORY_ENABLED=false
-AMORA_CARE_OUTBOUND_ENABLED=false
-OPENAI_API_KEY=sk-xxx...
-OPENAI_AMORA_PRIMARY_MODEL=gpt-5.6-terra
-OPENAI_AMORA_FAST_MODEL=gpt-5.6-luna
-OPENAI_AMORA_PRIMARY_REASONING_EFFORT=none
-OPENAI_AMORA_FAST_REASONING_EFFORT=none
-
-# Resend (이메일)
-RESEND_API_KEY=re_xxx...
-
-# 도메인
-NEXT_PUBLIC_SITE_URL=https://hanbang.ai
+```powershell
+corepack pnpm dev:web
+corepack pnpm dev:mobile
+corepack pnpm qa:local
+corepack pnpm test
+corepack pnpm mobile:release-check
 ```
 
-## 🗄 Supabase 공유
+## 코드 변경 규칙
 
-모바일 앱과 **같은 Supabase 프로젝트**를 사용합니다.
-기존 테이블: profiles, couples, wedding_journeys, chat_messages, chat_summaries, schedules, budgets, budget_items, vendors, customer_insights, fitting_requests
+- 기존 사용자 변경을 보존한다. 범위 밖 파일을 되돌리지 않는다.
+- TypeScript에서 `any`, 무검증 type assertion, 클라이언트가 보낸 권한·소유권 값을
+  신뢰하지 않는다.
+- 사용자·커플·공유/개인 범위는 서버와 RLS에서 다시 확인한다.
+- service-role 쓰기는 대상 Supabase URL·project ref·명시적 production confirmation을
+  검증한 뒤에만 가능하다.
+- 복수 테이블 또는 비용 예약과 사용자 결과가 하나의 의미 단위면 DB 함수와
+  트랜잭션으로 원자화한다.
+- 비동기 재시도는 안정적인 idempotency key, 획득 토큰, 최대 시도 수와 실패 종료
+  상태를 갖는다.
+- 오류 응답은 사용자가 복구할 수 있는 문구를 주되 내부 SDK/DB 원문과 비밀값을
+  노출하지 않는다.
+- UI는 한 화면의 우선 행동을 명확히 하고, 로딩·빈 상태·오류·재시도를 모두
+  제공한다.
 
-웹 전용 추가 테이블:
-```sql
--- 사전등록 (기존 프로토타입에서 이미 있을 수 있음)
-CREATE TABLE IF NOT EXISTS preregistrations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  wedding_date TEXT,
-  source TEXT DEFAULT 'web',  -- 'web', 'app', 'instagram'
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+## 디자인 시스템
 
-ALTER TABLE preregistrations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role can manage" ON preregistrations FOR ALL USING (true);
-```
+- 모든 시각 변경은 `DESIGN.md`가 기준이다.
+- 웹·모바일은 Paperlogy를 사용한다. 모바일의 예전 Noto/Cormorant 이름은 실제
+  Paperlogy 파일에 매핑된 호환 alias일 수 있으므로 로더를 확인한다.
+- Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage 토큰을 사용하고 임의의 핑크·골드
+  팔레트를 새로 만들지 않는다.
+- 모바일 첫 화면은 5초 안에 “오늘 무엇을 해야 하는지” 보여야 한다.
+- 카드 안에 카드를 중첩하지 않고, 고정 버튼은 safe-area·bottom navigation·다른
+  FAB와 겹치지 않게 실제 320/375px 화면에서 확인한다.
+- AI 추천과 검증된 업체 사실, 광고·협찬 상태를 시각·문구로 분리한다.
+- 모바일 내비게이션·화면 계층·업체·아모라 흐름 변경 전에는
+  `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`도 읽는다.
 
-## 📐 페이지별 라우팅
+## 테스트와 검증
 
-| URL | 설명 | 인증 필요 |
-|-----|------|----------|
-| `/` | 랜딩페이지 | ❌ |
-| `/login` | 로그인 | ❌ |
-| `/signup` | 회원가입 | ❌ |
-| `/dashboard` | 대시보드 | ✅ |
-| `/chat` | AI 채팅 | ✅ |
-| `/budget` | 예산 관리 | ✅ |
-| `/schedule` | 일정 관리 | ✅ |
-| `/fitting` | AI 드레스 피팅 | ✅ |
-| `/vendors` | 업체 탐색 | ✅ |
-| `/etiquette` | 예절 가이드 | ✅ |
-| `/settings` | 설정 | ✅ |
-| `/admin` | 관리자 (사전등록 현황) | ✅ (admin만) |
+1. 변경한 함수·route·migration에 가장 가까운 테스트를 먼저 RED로 만든다.
+2. 수정 후 해당 테스트를 GREEN으로 만든다.
+3. 영향 범위에 따라 typecheck, lint, 전체 테스트, production build로 확장한다.
+4. UI는 실제 브라우저 또는 실기기에서 작은 모바일·일반 모바일·데스크톱을 확인한다.
+5. 운영 전에는 preview/hosted clone 증거와 production-safe read-only probe를 구분한다.
 
-## 🔒 인증 플로우
+전체 로컬 게이트는 `pnpm qa:local`이다. 웹 tests·typecheck·lint·build와 모바일
+tests·typecheck·lint·bundle export가 모두 성공해야 한다. 마이그레이션 SQL은 정적
+문자열 테스트만으로 완료하지 않고 PGlite와 hosted PostgreSQL 사후조건도 확인한다.
 
-1. 랜딩페이지 → "무료로 시작하기" 클릭
-2. `/login` → 카카오 or 구글 소셜 로그인
-3. Supabase Auth → OAuth 콜백 → `/callback`
-4. 프로필 체크 → 신규면 온보딩, 기존이면 대시보드
-5. middleware.ts에서 (app) 그룹 페이지 접근 시 인증 체크
+## Git과 다른 컴퓨터 인수인계
 
-## 🛠 개발 순서 (권장)
+- 작업 시작: `git status --short --branch`, `git fetch --prune origin`, PR/원격 HEAD 확인.
+- dirty worktree를 `reset --hard`, `checkout --`, `clean`으로 지우지 않는다.
+- 의도한 파일만 stage한다. `git add -A`로 범위를 숨기지 않는다.
+- 공유 전에는 현재 HEAD, 원격 HEAD, 테스트 결과, 남은 운영 게이트를 문서화한다.
+- 원격 변경은 clean integration branch 또는 명시적 merge/rebase 계획으로 합친다.
+- 강제 push는 금지한다.
 
-### Phase 1: 기초 셋업 (Day 1)
-1. `npx create-next-app@latest hanbang-web --typescript --tailwind --app --src-dir`
-2. 폰트, 컬러, 글로벌 스타일 설정
-3. Supabase 클라이언트 설정 (기존 프로젝트 키 사용)
-4. 환경변수 설정
+커밋 제목은 `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:` 중 실제 변경에
+맞는 접두사를 사용한다.
 
-### Phase 2: 랜딩 + 사전등록 (Day 1-2)
-1. 랜딩페이지 컴포넌트로 분리 (기존 HTML → React 컴포넌트)
-2. 사전등록 API Route (/api/preregister)
-3. Supabase에 이메일 저장
-4. Resend로 확인 이메일 발송
-5. 관리자 페이지 (등록 현황 확인)
+## 운영 DB·Storage·배포 규칙
 
-### Phase 3: 인증 (Day 2-3)
-1. Supabase Auth 설정 (카카오, 구글)
-2. 로그인/회원가입 페이지
-3. OAuth 콜백 처리
-4. middleware.ts 인증 가드
-5. 앱 레이아웃 (사이드바 + 탑네비)
+- `supabase db push`를 직접 실행하지 않는다.
+- 현재 릴리스 manifest와 컨트롤러가 허용한 `supabase:release:apply` 경로만 사용한다.
+- 운영 변경 전에 전역 web/API/Auth/public DB/Storage write fence, DB 백업, Storage
+  원본 백업, 복구 검증, rollback artifact를 먼저 확보한다.
+- Supabase DB 백업은 Storage 원본 bytes를 포함하지 않는다.
+- Storage signed URL은 RLS 정책 변경과 별개로 만료 전까지 유효할 수 있으므로,
+  freeze 검증은 정책 수뿐 아니라 토큰 만료 대기와 객체 수 안정성까지 포함한다.
+- 운영 실패 시 fence와 release lock을 유지한다. 약한 과거 정책을 자동 복원하지
+  않는다.
+- PR 병합·Vercel production deploy·카나리는 모든 사전 게이트가 통과한 경우에만
+  진행한다.
 
-### Phase 4: 핵심 기능 (Day 3-7)
-1. 대시보드 (D-day, 진행률, 카테고리 현황)
-2. AI 채팅 (Codex API 연동)
-3. 예산 관리
-4. 일정 관리
-5. 업체 탐색
+## 증거 기반 작업 프로토콜
 
-### Phase 5: 고급 기능 (Day 7-10)
-1. AI 드레스 피팅 (Decart API)
-2. 예절 가이드
-3. 커플 연동 (초대 코드)
-4. 알림 (웹 푸시)
+- E: 이번 작업에서 파일·명령·테스트·화면으로 직접 확인한 사실.
+- S: 공식 문서나 1차 자료에서 확인한 사실.
+- I: E/S에서 나온 추론.
+- M: 기억 기반. 최신 상태, 숫자, 비용, 배포·테스트 성공 판정에는 사용하지 않는다.
 
-## 🧪 코딩 컨벤션
+숫자·가격·법·API 사양·버전·URL·운영 상태는 변할 수 있으므로 직접 확인한다.
+작업을 시작할 때 목표, 위험, 완료 조건을 나누고, 위험한 변경은 실패 시나리오와
+rollback을 먼저 적는다. 확인하지 못한 항목은 `UNVERIFIED` 또는 남은 게이트로
+남긴다.
 
-- **컴포넌트**: 함수형 컴포넌트만, `export default function ComponentName()`
-- **스타일**: Tailwind CSS만 (인라인 style 금지)
-- **상태관리**: 서버 데이터는 Supabase Realtime, 로컬 상태는 Zustand
-- **타입**: any 금지, 모든 props에 타입 정의
-- **네이밍**: 컴포넌트 PascalCase, 함수/변수 camelCase, 파일 PascalCase(컴포넌트) / camelCase(유틸)
-- **에러 처리**: try-catch + 사용자 친화적 에러 메시지
-- **주석**: 한국어로 핵심 로직에만
+## 아모라 OpenAI 프로토콜
 
-## 📝 커밋 컨벤션
+- `AMORA_OPENAI_ENABLED`는 명시적 `true`일 때만 켜진다.
+- 허용 모델은 `gpt-5.6-luna`와 `gpt-5.6-terra`뿐이다. 다른 모델이나 Anthropic
+  fallback으로 조용히 우회하지 않는다.
+- 일반 상담은 Luna, 계약·위기·반복 수정처럼 오답 비용이 큰 경우에만 Terra를 쓴다.
+- 모든 생성 호출은 Responses API, `store:false`, 출력 상한, 자동 provider retry
+  0회와 원문 비저장 감사 로그를 유지한다.
+- `store:false`를 Zero Data Retention이라고 표현하지 않는다.
+- 커플별 베타 상담 한도는 현재 release contract에서 해제하되, 전역 일일 턴과
+  USD 비용 상한은 원자적 장부로 유지한다.
+- 모델 응답과 도구 실행을 분리한다. 일정·예산은 승인된 도구의 DB 결과를 받은
+  뒤에만 성공이라고 말한다.
 
-```
-feat: 새 기능 추가
-fix: 버그 수정
-style: 디자인/스타일 변경
-refactor: 코드 리팩토링
-docs: 문서 수정
-chore: 설정, 패키지 등
-```
+## 아모라 기억·케어·삭제 프로토콜
 
-## Design System
-
-Always read DESIGN.md before making any visual or UI decisions.
-All font choices, colors, spacing, and aesthetic direction are defined there.
-Do not deviate without explicit user approval.
-In QA mode, flag any code that does not match DESIGN.md.
-For mobile product work, also read docs/MOBILE_APP_MASTERPLAN_2026-06-30.md before changing navigation, screen hierarchy, AI flows, vendor flows, or launch-readiness behavior.
-
-## Codex Operating Protocol
-
-이 섹션은 Codex가 이 저장소에서 일할 때 항상 따르는 작업 루프다. 단, system/developer 지시, PRINCIPLES.md, DESIGN.md, 보안/저작권/도구 정책과 충돌하면 더 높은 우선순위의 지시를 따른다.
-
-모든 작업은 Fable 5식 검증 태도를 기본값으로 적용한다. 이것은 모델 설정을 바꾸는 것이 아니라 작업 절차다. 작은 요청은 머릿속 체크리스트로 압축 적용하고, 제품/코드/문서/배포/데이터/AI처럼 틀리면 비용이 큰 작업은 아래 루프를 명시적으로 수행한다.
-
-1. 요청을 먼저 분해한다.
-   - 사용자가 명시한 요구사항과 암묵적 성공 기준을 모두 확인한다.
-   - 작업 범위, 언어, 검증 기준, 배포/커밋 여부를 구분한다.
-   - 애매해도 합리적으로 추론 가능한 경우에는 멈추지 말고 진행한다.
-   - 목표, 제약, Definition of Done, 필요한 가정을 먼저 잡는다.
-
-2. Truth Protocol을 지킨다.
-   - 중요한 주장은 E/S/I/M으로 구분 가능해야 한다.
-   - E: 이번 세션에서 파일·명령·테스트·화면으로 직접 확인.
-   - S: 이번 세션에서 공식 문서·원문·신뢰 가능한 출처를 읽어 확인.
-   - I: E/S에서 나온 코드 기반 또는 자료 기반 추론.
-   - M: 기억 기반. 안정적인 배경 설명에만 쓰고, 숫자·최신 상태·테스트 성공·배포 성공에는 쓰지 않는다.
-   - 숫자, 가격, 통계, 버전, URL, 인용문, 최신 데이터, 법/규제, 읽지 않은 파일 내용, 테스트·빌드·배포 성공 여부는 기억으로 말하지 않는다. 직접 확인하거나 `UNVERIFIED`로 표시하거나 생략한다.
-
-3. 난이도에 맞게 힘을 조절한다.
-   - 간단한 질문은 짧고 직접 답한다.
-   - 일반 작업은 짧게 맥락을 확인하고 바로 실행한 뒤 검증한다.
-   - 버그, 배포, 데이터, 결제, 인증, AI, 모바일/웹 연동처럼 틀리면 큰 문제인 작업은 원인 분석과 회귀 검증까지 한다.
-   - 중요한 설계·카피·제품 판단은 바로 하나로 확정하지 않고 2-3개 후보 또는 대안을 검토한 뒤 선택 이유를 남긴다.
-
-4. 말보다 실행을 우선한다.
-   - 사용자가 구현, 점검, 수정, 배포, 정리를 요청하면 제안만 하지 말고 가능한 범위에서 실제로 한다.
-   - 산출물은 바로 사용할 수 있게 만든다. 코드나 문서에 생략 표시를 남기지 않는다.
-   - 기존 코드 스타일과 프로젝트 구조를 우선한다.
-
-5. 적대적 검수를 통과시킨다.
-   - 위험한 변경 전후에는 "이게 어떻게 실패할 수 있나"를 먼저 본다.
-   - 사용자 trust, 데이터 무결성, 보안, 과장 카피, AI 환각, 모바일/웹 불일치, 배포 리스크를 우선 의심한다.
-   - 주장이 들어간 문서·카피·리포트는 근거와 표현 범위를 함께 확인한다.
-
-6. 검증은 생략하지 않는다.
-   - 코드 변경 후 관련 테스트를 먼저 돌리고, 위험도가 있으면 typecheck, lint, 전체 테스트, build, QA까지 확장한다.
-   - UI/UX 변경은 실제 화면에서 깨질 가능성을 확인한다.
-   - 날짜, 버전, 배포 상태, 최신 정보처럼 변할 수 있는 내용은 도구로 확인한다.
-   - 검증하지 못한 항목은 완료로 말하지 않고, 남은 리스크로 분리한다.
-
-7. 확실한 것과 추정을 구분한다.
-   - 확인한 사실, 코드 기반 추론, 아직 불확실한 내용을 섞어 말하지 않는다.
-   - 배포/커밋/테스트는 실제로 성공한 경우에만 완료라고 말한다.
-   - 모르는 내용은 모른다고 말하고, 가장 안전한 확인 방법을 제시하거나 직접 확인한다.
-
-8. 보고는 한국어로 간결하게 한다.
-   - 사용자의 말투에 맞춰 자연스럽게 답하되, 사실성과 정확성을 우선한다.
-   - 긴 설명보다 원인, 수정, 검증, 남은 리스크를 우선한다.
-   - 실수했으면 한 문장으로 인정하고 바로 고친다.
-
-## Amora OpenAI Staged Migration Protocol
-
-아모라의 OpenAI 전환은 원자적 런타임 교체가 완료될 때까지 단계적으로 취급한다.
-
-- `AMORA_OPENAI_ENABLED`의 기본값은 `false`다. 기반 코드나 환경변수만 추가된 상태를 OpenAI 전환 완료로 보고하지 않는다.
-- 허용 모델은 `gpt-5.6-luna`와 `gpt-5.6-terra`뿐이며, 임의의 alias나 다른 모델로 조용히 대체하지 않는다.
-- 생성 호출은 `store: false`, 명시적 출력 상한, 자동 재시도 0회, 원문 감사 로그 금지를 유지한다.
-- `store: false`를 Zero Data Retention으로 표현하지 않는다. 실제 데이터 보존·처리 지역·DPA·지원 채널은 별도 운영/법적 게이트다.
-- 실제 전환 전에는 운영 DB 백업·복구 리허설, canonical 서버 대화 경계, 메시지 멱등성, 위기 응답, 비용 제한, route 통합 테스트를 먼저 통과시킨다.
-- OpenAI 키나 원문 대화·첨부 내용은 코드, Git, 로그, 오류 메시지, 문서에 기록하지 않는다.
-- 현재 단계와 남은 게이트는 `docs/AMORA_OPENAI_MIGRATION_PLAN_2026-07-14.md`를 기준으로 인수인계한다.
-
-## Amora Memory and Care Safety Protocol
-
-- 현재 제품 기준은 `docs/AMORA_ENGINE_V2_2026-07-16.md`, 운영 절차는
-  `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`다. 이전 아모라
-  아이디어 문서의 심리 굴착, 성별 공식, 인간 검토 SLA는 구현 요구사항이 아니다.
-- 다른 컴퓨터에서 이어갈 때는 최신 통합 상태와 남은 게이트를
-  `docs/operations/AMORA_ENGINE_V2_SAFETY_HANDOFF_2026-07-16.md`에서 먼저 확인한다.
-- `AMORA_AUXILIARY_MEMORY_ENABLED` 기본값은 `false`다. DB 마이그레이션, 백업·복구,
-  비활성 카나리가 끝나기 전에 켜지 않는다.
-- `AMORA_CARE_OUTBOUND_ENABLED`도 별도 기본값 `false`다. 외부 이메일은 기억
-  worker와 독립적으로 roster 변경·동의·중복 발송 카나리를 통과한 뒤에만 켠다.
-- 기억 동의는 소급되지 않는다. 최초 활성화 또는 재활성화 이전의 대화를 나중에
-  컴파일하지 않는다.
-- 메모리 큐·저장·수정·삭제·요약과 공유 케어 발송은 API의 사전 조회만 믿지 않고
-  서비스 전용 DB 함수가 회원 범위와 최신 동의를 원자적으로 다시 확인해야 한다.
-- 사용자 수정 기억은 자동 컴파일러가 덮어쓰지 않고, 개별 삭제 의미 키는 전체
-  초기화 전까지 tombstone으로 재생성을 막는다.
+- 기준은 `docs/AMORA_ENGINE_V2_2026-07-16.md`다.
+- `AMORA_AUXILIARY_MEMORY_ENABLED`, `AMORA_CARE_OUTBOUND_ENABLED`, 삭제 worker와
+  AI 원문 retention cron은 각각 별도 안전 게이트가 끝날 때까지 `false`다.
+- 기억 동의 기본값은 false이고 소급되지 않는다. 공유 기억은 현재 커플 멤버 모두의
+  동의가 필요하다.
+- 큐·기억·요약·동의 철회·삭제는 같은 범위의 DB 잠금과 사후 소유권 검증을 쓴다.
 - 주민등록번호, 연락처, 이메일, 계좌·카드·비밀번호, 정확한 주소, 건강·성 관련
-  민감정보는 모델 프롬프트뿐 아니라 결정적 서버 필터로도 저장을 차단한다.
+  민감정보는 결정적 서버 필터로 저장을 막는다.
+- 계정 삭제는 DB row, Auth identity, private/public Storage object, 법적 보존,
+  notification과 복구 기록을 하나의 saga로 관리한다. 자동 진행은 운영 owner와
+  수동 SLA가 없으면 켜지 않는다.
 
-## WeddingCode Additional Fable-Adapted Protocol
+## WeddingCode 프로토콜
 
-전역 Fable식 운영 프로토콜에 더해, 웨딩코드 문항, 점수화, 결과 카피, 커플 비교, 희귀도, 신뢰도 주장 작업을 할 때는
-`docs/wedding-code/31_fable_mode_adaptation_protocol_v0.1.md`를 먼저 읽고 따른다.
-
-핵심 규칙:
-- 숫자, 가격, 통계, 버전, URL, 인용문, 최신 데이터, 읽지 않은 파일 내용은 기억으로 말하지 않는다. 도구로 확인하거나 `UNVERIFIED`로 표시하거나 생략한다.
-- 문항/결과/근거 문서는 초안 → 적대적 검수 → 주장 감사 → 수정 순서로 닫는다.
-- "궁합", "결혼 성공", "심리 진단", "과학적으로 입증된 유형"처럼 과장될 수 있는 표현은 금지하고, 검증 가능한 범위의 "준비 방식", "대화 지점", "먼저 맞춰볼 기준"으로만 말한다.
-- 코드 반영은 16문항과 scoring/copy gate가 문서에서 통과된 뒤 진행한다.
+- 현재 연구 상태와 공개 경계는 `docs/wedding-code/README.md`를 먼저 읽는다.
+- 사람 인지면접·전문가 검토·타당도 검증 전에는 정식 검사, 과학적 유형, 궁합,
+  결혼 성공/이혼 예측이라고 말하지 않는다.
+- 문항마다 construct, 근거 수준, 대안 해석, 위치 편향, 폐기 기준을 추적한다.
+- 질문·선택지·점수·결과 문구 변경은 문서의 exact-version과 함께 검증한다.
+- 연구 수집 API가 닫혀 있으면 UI만 열거나 데이터를 우회 저장하지 않는다.

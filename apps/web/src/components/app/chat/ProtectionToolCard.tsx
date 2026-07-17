@@ -271,7 +271,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
     confirmedRsvpGuests?: number | null;
     guaranteedGuests?: number | null;
     mealPriceManwon?: number | null;
-    noShowRatePercent?: number;
+    noShowRatePercent?: number | null;
     expectedAttendanceGuests?: number | null;
     payableGuests?: number | null;
     expectedMealTotalManwon?: number | null;

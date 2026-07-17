@@ -2,8 +2,8 @@
  * 자동 생성 파일 — 직접 수정 금지.
  * 생성: scripts/update-market-prices.mjs (npm run update:market-prices)
  * 출처: 한국소비자원 참가격 결혼서비스 가격조사 (price.go.kr)
- * 수집 시각: 2026-07-06T11:54:16.476Z
- * 포함 기간: 202504 ~ 202605 (14개)
+ * 수집 시각: 2026-07-16T23:34:52.036Z
+ * 포함 기간: 202504 ~ 202606 (15개)
  */
 
 export const GEN_PRICE_PERIODS = [
@@ -90,6 +90,12 @@ export const GEN_PRICE_PERIODS = [
     "label": "2026년 5월",
     "year": 2026,
     "month": 5
+  },
+  {
+    "id": "202606",
+    "label": "2026년 6월",
+    "year": 2026,
+    "month": 6
   }
 ] as const;
 
@@ -177,6 +183,12 @@ export const GEN_NATIONAL_TOTALS: Record<string, { meal: number; sdm: number; re
     "sdm": 318.6,
     "rental": 436.2,
     "decoration": 69.4
+  },
+  "202606": {
+    "meal": 1330,
+    "sdm": 320.4,
+    "rental": 439.1,
+    "decoration": 69.5
   }
 };
 
@@ -404,6 +416,22 @@ export const GEN_MEAL_DATA: Record<string, number[]> = {
     1037.8,
     801.8,
     1402.3
+  ],
+  "202606": [
+    2069.2,
+    1716.6,
+    759.4,
+    1054.3,
+    1015.4,
+    1189.3,
+    1064.2,
+    1044.7,
+    1324.2,
+    1258.4,
+    1008.4,
+    1046.7,
+    810.2,
+    1487.4
   ]
 };
 
@@ -631,6 +659,22 @@ export const GEN_SDM_DATA: Record<string, number[]> = {
     318.5,
     211.5,
     141.4
+  ],
+  "202606": [
+    410.6,
+    484,
+    279.7,
+    275.2,
+    232,
+    336.3,
+    283.9,
+    224.4,
+    254.8,
+    234.9,
+    278.8,
+    320,
+    226,
+    139.6
   ]
 };
 
@@ -858,6 +902,22 @@ export const GEN_RENTAL_DATA: Record<string, number[]> = {
     320.3,
     258.4,
     115.4
+  ],
+  "202606": [
+    750.4,
+    675.7,
+    195,
+    208.1,
+    242.7,
+    253.4,
+    299.1,
+    385.5,
+    414.6,
+    320.9,
+    365.5,
+    315.4,
+    271.6,
+    140.3
   ]
 };
 
@@ -1085,6 +1145,22 @@ export const GEN_DECO_DATA: Record<string, number[]> = {
     13.3,
     0.5,
     48.2
+  ],
+  "202606": [
+    223.6,
+    114.9,
+    0,
+    39.8,
+    22.8,
+    1.8,
+    53.4,
+    8.1,
+    56.9,
+    48.4,
+    12.3,
+    9.4,
+    0.5,
+    55.5
   ]
 };
 
@@ -1312,6 +1388,22 @@ export const GEN_VENUE_NECESSARY = [
     "minGuests": 200,
     "perPersonMeal": 8,
     "totalFood": 1600
+  },
+  {
+    "periodId": "202606",
+    "scope": "national",
+    "rental": 350,
+    "minGuests": 200,
+    "perPersonMeal": 5.9,
+    "totalFood": 1140
+  },
+  {
+    "periodId": "202606",
+    "scope": "seoul",
+    "rental": 600,
+    "minGuests": 200,
+    "perPersonMeal": 8,
+    "totalFood": 1584
   }
 ];
 
@@ -1581,6 +1673,25 @@ export const GEN_VENUE_OPT_NATIONAL: Record<string, number[]> = {
     27.5,
     38,
     15
+  ],
+  "202606": [
+    250,
+    25,
+    30,
+    30,
+    16,
+    30,
+    10,
+    15,
+    25,
+    76.5,
+    50,
+    15,
+    40,
+    37,
+    27.5,
+    38,
+    15
   ]
 };
 
@@ -1833,6 +1944,25 @@ export const GEN_VENUE_OPT_SEOUL: Record<string, number[]> = {
     32
   ],
   "202605": [
+    500,
+    30,
+    30,
+    30,
+    20,
+    36,
+    15,
+    16.5,
+    29,
+    85,
+    50,
+    22,
+    40,
+    37,
+    33,
+    44,
+    34
+  ],
+  "202606": [
     500,
     30,
     30,
@@ -2343,6 +2473,41 @@ export const GEN_SDM_PACKAGES = [
     "packageMedian": 280,
     "dmPackageMedian": 180,
     "studioBasic": 115
+  },
+  {
+    "periodId": "202606",
+    "region": "전체",
+    "packageMedian": 300,
+    "dmPackageMedian": 180,
+    "studioBasic": 139
+  },
+  {
+    "periodId": "202606",
+    "region": "서울",
+    "packageMedian": 360,
+    "dmPackageMedian": 200,
+    "studioBasic": 150
+  },
+  {
+    "periodId": "202606",
+    "region": "경기/인천",
+    "packageMedian": 250,
+    "dmPackageMedian": 133,
+    "studioBasic": 120
+  },
+  {
+    "periodId": "202606",
+    "region": "5대광역시",
+    "packageMedian": 281,
+    "dmPackageMedian": 180,
+    "studioBasic": 140
+  },
+  {
+    "periodId": "202606",
+    "region": "기타지역",
+    "packageMedian": 280,
+    "dmPackageMedian": 180,
+    "studioBasic": 115
   }
 ];
 
@@ -2541,6 +2706,20 @@ export const GEN_DRESS_PRICES = [
     "scope": "seoul",
     "photoShoot": 179,
     "ceremony": 158,
+    "secondDress": 150
+  },
+  {
+    "periodId": "202606",
+    "scope": "national",
+    "photoShoot": 160,
+    "ceremony": 145,
+    "secondDress": 141
+  },
+  {
+    "periodId": "202606",
+    "scope": "seoul",
+    "photoShoot": 174,
+    "ceremony": 154,
     "secondDress": 150
   }
 ];
@@ -2741,6 +2920,20 @@ export const GEN_MAKEUP_PRICES = [
     "photoShoot": 97,
     "ceremony": 84,
     "rehearsal": 77
+  },
+  {
+    "periodId": "202606",
+    "scope": "national",
+    "photoShoot": 81,
+    "ceremony": 73,
+    "rehearsal": 66
+  },
+  {
+    "periodId": "202606",
+    "scope": "seoul",
+    "photoShoot": 96,
+    "ceremony": 84,
+    "rehearsal": 77
   }
 ];
 
@@ -2760,14 +2953,14 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "studio",
     "name": "드레스 외 의상 추가",
-    "nationalPrice": 11.5,
+    "nationalPrice": 12.25,
     "seoulPrice": 11
   },
   {
     "category": "studio",
     "name": "수정비용",
     "nationalPrice": 5,
-    "seoulPrice": 5
+    "seoulPrice": 7.15
   },
   {
     "category": "studio",
@@ -2826,8 +3019,8 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "studio",
     "name": "소품 활용",
-    "nationalPrice": 51,
-    "seoulPrice": 60
+    "nationalPrice": 50,
+    "seoulPrice": 59
   },
   {
     "category": "studio",
@@ -2905,13 +3098,13 @@ export const GEN_OPTION_PRICES = [
     "category": "dress",
     "name": "드레스 지정비",
     "nationalPrice": 88,
-    "seoulPrice": 78.75
+    "seoulPrice": 82.5
   },
   {
     "category": "dress",
     "name": "디자인 추가",
     "nationalPrice": 115,
-    "seoulPrice": 110
+    "seoulPrice": 88
   },
   {
     "category": "dress",
@@ -2922,31 +3115,31 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "dress",
     "name": "2부 드레스",
-    "nationalPrice": 42,
+    "nationalPrice": 44,
     "seoulPrice": 50
   },
   {
     "category": "dress",
     "name": "퍼스트웨어",
-    "nationalPrice": 110,
+    "nationalPrice": 100,
     "seoulPrice": 110
   },
   {
     "category": "dress",
     "name": "야외 예식",
     "nationalPrice": 15,
-    "seoulPrice": 15
+    "seoulPrice": 16.5
   },
   {
     "category": "dress",
     "name": "턱시도 대여",
-    "nationalPrice": 21.25,
-    "seoulPrice": 25
+    "nationalPrice": 20,
+    "seoulPrice": 22.5
   },
   {
     "category": "dress",
     "name": "액세서리 대여",
-    "nationalPrice": 0,
+    "nationalPrice": 22.5,
     "seoulPrice": 0
   },
   {
@@ -2964,7 +3157,7 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "makeup",
     "name": "휴무일 진행비",
-    "nationalPrice": 16.5,
+    "nationalPrice": 15,
     "seoulPrice": 16.5
   },
   {
@@ -2977,12 +3170,12 @@ export const GEN_OPTION_PRICES = [
     "category": "makeup",
     "name": "신랑헤어",
     "nationalPrice": 5,
-    "seoulPrice": 5.5
+    "seoulPrice": 5.25
   },
   {
     "category": "makeup",
     "name": "신부 커트",
-    "nationalPrice": 7.5,
+    "nationalPrice": 7.05,
     "seoulPrice": 6.6
   },
   {
@@ -3000,7 +3193,7 @@ export const GEN_OPTION_PRICES = [
   {
     "category": "makeup",
     "name": "헤어변형",
-    "nationalPrice": 35,
+    "nationalPrice": 34,
     "seoulPrice": 35
   },
   {
@@ -3131,5 +3324,104 @@ export const GEN_SEASONAL_DATA = [
     "peak": 1550,
     "offPeak": 1400,
     "savings": 150
+  },
+  {
+    "periodId": "202606",
+    "peak": 1550,
+    "offPeak": 1400,
+    "savings": 150
+  }
+];
+
+export const GEN_TREND_DATA = [
+  {
+    "month": "26년 06월",
+    "medianTotal": 1640,
+    "medianSdm": 290
+  },
+  {
+    "month": "26년 07월",
+    "medianTotal": 1400,
+    "medianSdm": 290
+  },
+  {
+    "month": "26년 08월",
+    "medianTotal": 1300,
+    "medianSdm": 290
+  },
+  {
+    "month": "26년 09월",
+    "medianTotal": 1600,
+    "medianSdm": 292
+  },
+  {
+    "month": "26년 10월",
+    "medianTotal": 1519,
+    "medianSdm": 294
+  },
+  {
+    "month": "26년 11월",
+    "medianTotal": 1497,
+    "medianSdm": 300
+  },
+  {
+    "month": "26년 12월",
+    "medianTotal": 1497,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 01월",
+    "medianTotal": 1400,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 02월",
+    "medianTotal": 1400,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 03월",
+    "medianTotal": 1600,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 04월",
+    "medianTotal": 1610,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 05월",
+    "medianTotal": 1550,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 06월",
+    "medianTotal": 1538,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 07월",
+    "medianTotal": 1418,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 08월",
+    "medianTotal": 1400,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 09월",
+    "medianTotal": 1575,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 10월",
+    "medianTotal": 1580,
+    "medianSdm": 300
+  },
+  {
+    "month": "27년 11월",
+    "medianTotal": 1675,
+    "medianSdm": 326
   }
 ];

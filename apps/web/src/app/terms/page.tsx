@@ -17,7 +17,7 @@ export default function TermsPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">서비스 이용약관</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 4월 29일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 17일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -115,7 +115,7 @@ export default function TermsPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제9조 (AI 서비스 관련 고지)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>아모라는 「인공지능 발전 및 신뢰 기반 조성 등에 관한 법률」(이하 &quot;AI 기본법&quot;)에 따라 AI 기반 서비스임을 사전에 고지합니다. 자세한 사항은 <Link href="/ai-policy" className="text-rose-500 underline">AI 정책</Link>을 참고하시기 바랍니다.</li>
-              <li>아모라가 생성하는 모든 응답에는 &quot;AI 생성&quot; 표시가 포함되며, 회원의 모든 상호작용 기록은 관련 법령에 따라 5년간 보관됩니다.</li>
+              <li>아모라의 AI 생성 응답에는 AI가 만든 내용임을 알리는 표시가 포함됩니다. 상호작용 기록은 <Link href="/privacy" className="text-rose-500 underline">개인정보 처리방침</Link>에 고지한 목적과 기간에 따라 처리합니다.</li>
               <li>아모라의 추천·답변은 참고 자료이며, 최종 결정과 책임은 회원에게 있습니다.</li>
             </ol>
           </section>
@@ -124,7 +124,7 @@ export default function TermsPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 언제든지 설정 페이지에서 탈퇴를 신청할 수 있습니다.</li>
-              <li>탈퇴 시 회원의 개인정보는 즉시 삭제되며, 단 관련 법령에 따라 보관이 의무화된 정보는 해당 기간까지 보관됩니다.</li>
+              <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한됩니다. 회사는 발급된 임시 접근 링크의 만료와 파일 소유권 등 안전 확인을 거쳐 보유 목적이 끝난 개인정보를 지체 없이 파기합니다. 관련 법령상 별도 보관이 필요한 정보가 확인되면 적용 범위와 기간을 개인정보 처리방침에 고지하고 그 범위에서만 보관합니다.</li>
               <li>회사는 회원이 본 약관을 중대하게 위반한 경우 사전 통지 후 회원 자격을 상실시킬 수 있습니다.</li>
             </ol>
           </section>
@@ -153,7 +153,7 @@ export default function TermsPage() {
           </section>
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 2026년 4월 29일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 2026년 7월 17일부터 시행합니다.</p>
           </section>
         </div>
       </div>

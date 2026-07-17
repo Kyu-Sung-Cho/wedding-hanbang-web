@@ -10,20 +10,32 @@ const { PGlite } = await import(pathToFileURL(pgliteEntry).href)
 delete process.env.HBAM_PGLITE_ENTRY
 
 const EXPECTED_TABLES = [
+  'account_deletion_jobs',
+  'account_deletion_media_manifest',
   'ai_interactions_log',
   'amora_actions',
+  'amora_care_deliveries',
+  'amora_care_jobs',
+  'amora_care_scan_states',
+  'amora_chat_request_claims',
+  'amora_conflict_check_claims',
   'amora_couple_profiles',
   'amora_mediation_acceptances',
   'amora_memory_consents',
   'amora_memory_jobs',
   'amora_memory_settings',
+  'amora_tool_executions',
   'amora_turn_counters',
+  'amora_turn_requests',
+  'booking_projection_jobs',
   'chat_feedback',
   'chat_messages',
   'chat_summaries',
+  'community_upload_sessions',
   'couples',
   'decision_nodes',
   'profiles',
+  'vendor_reviews',
   'wedding_journeys',
 ]
 const MAX_INPUT_LINE_CHARS = 180_000_000

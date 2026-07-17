@@ -19,10 +19,15 @@ import {
   GEN_SDM_DATA,
   GEN_SDM_PACKAGES,
   GEN_SEASONAL_DATA,
+  GEN_TREND_DATA,
   GEN_VENUE_NECESSARY,
   GEN_VENUE_OPT_NATIONAL,
   GEN_VENUE_OPT_SEOUL,
 } from "./marketPricesData.generated";
+import {
+  OFF_PEAK_WEDDING_MONTHS_LABEL,
+  PEAK_WEDDING_MONTHS_LABEL,
+} from "./weddingSeasonality";
 
 // ===== 타입 정의 =====
 
@@ -163,27 +168,8 @@ export function getRegionalCosts(periodId: string): RegionalCost[] {
   }));
 }
 
-// 18개월 트렌드 데이터 (예식 예정월 기준 — 갱신 스크립트 미포함, 수동 관리)
-export const TREND_DATA: TrendDataPoint[] = [
-  { month: "26년 01월", medianTotal: 1190, medianSdm: 280 },
-  { month: "26년 02월", medianTotal: 1245, medianSdm: 278 },
-  { month: "26년 03월", medianTotal: 1655, medianSdm: 280 },
-  { month: "26년 04월", medianTotal: 1725, medianSdm: 289 },
-  { month: "26년 05월", medianTotal: 1750, medianSdm: 290 },
-  { month: "26년 06월", medianTotal: 1660, medianSdm: 293 },
-  { month: "26년 07월", medianTotal: 1400, medianSdm: 290 },
-  { month: "26년 08월", medianTotal: 1300, medianSdm: 290 },
-  { month: "26년 09월", medianTotal: 1580, medianSdm: 300 },
-  { month: "26년 10월", medianTotal: 1496, medianSdm: 300 },
-  { month: "26년 11월", medianTotal: 1478, medianSdm: 300 },
-  { month: "26년 12월", medianTotal: 1430, medianSdm: 302 },
-  { month: "27년 01월", medianTotal: 1190, medianSdm: 300 },
-  { month: "27년 02월", medianTotal: 1310, medianSdm: 310 },
-  { month: "27년 03월", medianTotal: 1728, medianSdm: 309 },
-  { month: "27년 04월", medianTotal: 1643, medianSdm: 310 },
-  { month: "27년 05월", medianTotal: 1745, medianSdm: 305 },
-  { month: "27년 06월", medianTotal: 1700, medianSdm: 310 },
-];
+// 조사월부터 향후 18개월의 예식장/스드메 중간값. 공식 S2 응답에서 자동 생성.
+export const TREND_DATA: TrendDataPoint[] = GEN_TREND_DATA;
 
 // 예식장 필수항목 (기간별, 전국/서울)
 export const VENUE_NECESSARY: VenueNecessary[] = GEN_VENUE_NECESSARY as VenueNecessary[];
@@ -291,7 +277,9 @@ export function getMarketPriceContext(): string {
   const pid = getLatestPeriodId();
   const period = PRICE_PERIODS.find(p => p.id === pid)!;
   const nat = getNationalTotal(pid);
-  const seoul = getSeoulTotal(pid);
+  const regionalCosts = getRegionalCosts(pid);
+  const seoulGangnam = regionalCosts.find((cost) => cost.region === "seoulGangnam")!;
+  const seoulOther = regionalCosts.find((cost) => cost.region === "seoulOther")!;
   const sdmNat = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "전체")!;
   const sdmSeoul = SDM_PACKAGES.find(s => s.periodId === pid && s.region === "서울")!;
   const venueNat = VENUE_NECESSARY.find(v => v.periodId === pid && v.scope === "national")!;
@@ -304,11 +292,17 @@ export function getMarketPriceContext(): string {
   const optNat = getVenueOptionalItems(pid, "national");
   const optSeoul = getVenueOptionalItems(pid, "seoul");
 
-  return `## 한국소비자원 웨딩 시세 (${period.label} 기준, price.go.kr)
+  return `## 한국소비자원 참가격 결혼서비스 통계
 
-### 총 비용 (식대+스드메+대관료+꽃장식)
+- 조사 기준: ${period.label}
+- 원문: https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do
+- 표본 기반 통계이며 평균값과 중간값이 섞여 있습니다. 아래 표시를 구분하고, 선택품목은 총비용에 자동 포함하지 마세요.
+- 이 통계는 개별 견적의 적정성, 특정 업체의 최신 가격, 최종 결제액을 보증하지 않습니다.
+
+### 평균 총 계약금액 (식대+스드메+대관료+기본장식비, 선택품목 제외)
 - 전국 평균: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 꽃장식 ${nat.decoration})
-- 서울 평균: ${seoul.total}만원 (식대 ${seoul.meal} + 스드메 ${seoul.sdm} + 대관료 ${seoul.rental} + 꽃장식 ${seoul.decoration})
+- 서울(강남) 평균: ${seoulGangnam.total}만원
+- 서울(강남외) 평균: ${seoulOther.total}만원
 
 ### 예식장 필수
 - 대관료: 전국 ${venueNat.rental}만원 / 서울 ${venueSeoul.rental}만원
@@ -341,16 +335,16 @@ export function getMarketPriceContext(): string {
 - 촬영: 전국 ${makeupNat.photoShoot}만원 / 서울 ${makeupSeoul.photoShoot}만원
 - 본식: 전국 ${makeupNat.ceremony}만원 / 서울 ${makeupSeoul.ceremony}만원
 
-### 성수기 vs 비수기
-- 성수기(4~6월,9~11월): ${seasonal.peak}만원
-- 비수기(1~3월,7~8월,12월): ${seasonal.offPeak}만원
-- 비수기 절약: 약 ${seasonal.savings}만원
+### 예식장 필수품목 성수기·비수기 중간값
+- 성수기(${PEAK_WEDDING_MONTHS_LABEL}): ${seasonal.peak}만원
+- 비수기(${OFF_PEAK_WEDDING_MONTHS_LABEL}): ${seasonal.offPeak}만원
+- 두 표본 중간값의 차이: ${seasonal.savings}만원
+- 이 차이는 특정 날짜·업체에서 절약된다는 보장이 아니며, 업체·지역·요일·구성별 실제 가격과 예약 가능 여부는 다를 수 있음
 
 ### 시세 활용 규칙
-1. 고객이 예산 적정성을 물으면 시세와 비교하여 구체적 수치로 답변
-2. 지역(서울/경기·인천/광역시)에 따라 기준 중위가가 크게 다르므로 반드시 지역 기준으로 안내
-3. 비수기 결혼 시 절약 가능 금액 안내
-4. 출처를 "한국소비자원 ${period.label} 기준"으로 명시
-5. 스드메 패키지와 개별 계약 차이 안내
-6. 예식장 선택항목은 필수가 아니므로 절약 포인트로 안내`;
+1. 사용자가 공식 참고 통계를 요청했을 때만, 평균/중간값·지역·구성·조사월을 함께 표시
+2. 공식 통계와 개별 업체 견적은 같은 구성이 아닐 수 있으므로 좋고 나쁨이나 바가지 여부를 판정하지 않음
+3. 성수기·비수기 차이를 보장된 할인이나 자동 절약액으로 표현하지 않음
+4. 사용자가 받은 견적은 포함·불포함 항목과 최신 서면 가격을 별도로 확인
+5. 숫자와 가까운 곳에 위 원문 URL과 ${period.label} 기준임을 표시`;
 }

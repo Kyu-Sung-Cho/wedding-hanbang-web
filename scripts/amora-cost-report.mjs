@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { createClient } from "@supabase/supabase-js";
 import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { classifyUsageRow } from "./amora-cost-report-logic.mjs";
+import { calcModelCostUsd } from "./amora-model-pricing.mjs";
+import { verifySupabaseServiceDestinationFromEnv } from "./lib/supabase-service-destination.mjs";
 
 const ROOT = process.cwd();
 const ENV_PATHS = [
@@ -13,44 +14,6 @@ const ENV_PATHS = [
 const PAGE_SIZE = 1000;
 const DEFAULT_DAYS = 30;
 const DEFAULT_KRW_PER_USD = 1350;
-
-// OpenAI source checked 2026-07-14:
-// https://developers.openai.com/api/docs/pricing
-// Values are USD per token, converted from USD / MTok.
-const MODEL_COSTS = {
-  "gpt-5.6-terra": {
-    in: 2.5 / 1_000_000, out: 15 / 1_000_000,
-    cacheWrite: 3.125 / 1_000_000, cacheRead: 0.25 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 5 / 1_000_000, out: 22.5 / 1_000_000,
-      cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000,
-    },
-  },
-  "gpt-5.6-luna": {
-    in: 1 / 1_000_000, out: 6 / 1_000_000,
-    cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000,
-    longContext: {
-      threshold: 272_000,
-      in: 2 / 1_000_000, out: 9 / 1_000_000,
-      cacheWrite: 2.5 / 1_000_000, cacheRead: 0.2 / 1_000_000,
-    },
-  },
-  "claude-fable-5": { in: 10 / 1_000_000, out: 50 / 1_000_000, cacheWrite: 12.5 / 1_000_000, cacheRead: 1 / 1_000_000 },
-  "claude-mythos-5": { in: 10 / 1_000_000, out: 50 / 1_000_000, cacheWrite: 12.5 / 1_000_000, cacheRead: 1 / 1_000_000 },
-  "claude-opus-4-8": { in: 5 / 1_000_000, out: 25 / 1_000_000, cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000 },
-  "claude-opus-4-7": { in: 5 / 1_000_000, out: 25 / 1_000_000, cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000 },
-  "claude-opus-4-6": { in: 5 / 1_000_000, out: 25 / 1_000_000, cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000 },
-  "claude-opus-4-5": { in: 5 / 1_000_000, out: 25 / 1_000_000, cacheWrite: 6.25 / 1_000_000, cacheRead: 0.5 / 1_000_000 },
-  "claude-opus-4-1": { in: 15 / 1_000_000, out: 75 / 1_000_000, cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000 },
-  "claude-opus-4": { in: 15 / 1_000_000, out: 75 / 1_000_000, cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000 },
-  "claude-sonnet-4-6": { in: 3 / 1_000_000, out: 15 / 1_000_000, cacheWrite: 3.75 / 1_000_000, cacheRead: 0.3 / 1_000_000 },
-  "claude-sonnet-4-5": { in: 3 / 1_000_000, out: 15 / 1_000_000, cacheWrite: 3.75 / 1_000_000, cacheRead: 0.3 / 1_000_000 },
-  "claude-sonnet-4-20250514": { in: 3 / 1_000_000, out: 15 / 1_000_000, cacheWrite: 3.75 / 1_000_000, cacheRead: 0.3 / 1_000_000 },
-  "claude-haiku-4-5-20251001": { in: 1 / 1_000_000, out: 5 / 1_000_000, cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000 },
-  "claude-haiku-4-5": { in: 1 / 1_000_000, out: 5 / 1_000_000, cacheWrite: 1.25 / 1_000_000, cacheRead: 0.1 / 1_000_000 },
-  "claude-haiku-3-5": { in: 0.8 / 1_000_000, out: 4 / 1_000_000, cacheWrite: 1 / 1_000_000, cacheRead: 0.08 / 1_000_000 },
-};
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -98,6 +61,7 @@ function parseArgs(argv) {
   };
 
   for (const arg of argv) {
+    if (arg === "--") continue;
     if (arg.startsWith("--days=")) options.days = Number(arg.slice("--days=".length));
     else if (arg.startsWith("--from=")) options.from = arg.slice("--from=".length);
     else if (arg.startsWith("--to=")) options.to = arg.slice("--to=".length);
@@ -151,12 +115,6 @@ function getWindow(options) {
   };
 }
 
-function modelKey(model) {
-  if (!model) return null;
-  const keys = Object.keys(MODEL_COSTS).sort((a, b) => b.length - a.length);
-  return keys.find((key) => model.startsWith(key)) ?? null;
-}
-
 function numberOrZero(value) {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -174,36 +132,17 @@ function calcCostUsd(row) {
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
   if (metadata.usage_status === "unknown") return null;
   if (row.tokens_input == null || row.tokens_output == null) return null;
-  const key = modelKey(row.model);
-  if (!key) return null;
-  const modelCost = MODEL_COSTS[key];
   const tokensInput = Number(row.tokens_input);
   const tokensOutput = Number(row.tokens_output);
   if (!Number.isFinite(tokensInput) || !Number.isFinite(tokensOutput)) return null;
-  const rate = modelCost.longContext && tokensInput > modelCost.longContext.threshold
-    ? modelCost.longContext
-    : modelCost;
   const { cacheCreationTokens, cacheReadTokens } = getCacheTokens(row);
-  if (String(row.model ?? "").startsWith("gpt-")) {
-    const cachedTokens = Math.min(Math.max(cacheReadTokens, 0), tokensInput);
-    const writtenTokens = Math.min(
-      Math.max(cacheCreationTokens, 0),
-      Math.max(tokensInput - cachedTokens, 0)
-    );
-    const uncachedTokens = Math.max(tokensInput - cachedTokens - writtenTokens, 0);
-    return (
-      uncachedTokens * rate.in +
-      writtenTokens * rate.cacheWrite +
-      cachedTokens * rate.cacheRead +
-      tokensOutput * rate.out
-    );
-  }
-  return (
-    tokensInput * rate.in +
-    tokensOutput * rate.out +
-    cacheCreationTokens * rate.cacheWrite +
-    cacheReadTokens * rate.cacheRead
-  );
+  return calcModelCostUsd({
+    model: row.model,
+    tokensInput,
+    tokensOutput,
+    cacheCreationTokens,
+    cacheReadTokens,
+  });
 }
 
 function kstDayKey(value) {
@@ -229,11 +168,12 @@ function makeBucket(name) {
     currentPriceCostUsd: 0,
     unknownPriceRows: 0,
     unknownUsageRows: 0,
+    preparedLedgerRows: 0,
   };
 }
 
 function addRow(bucket, row, currentCost) {
-  const { unknownPriceEligible, usageUnknown } = classifyUsageRow(row);
+  const { ledgerPrepared, unknownPriceEligible, usageUnknown } = classifyUsageRow(row);
   const { cacheCreationTokens, cacheReadTokens } = getCacheTokens(row);
   bucket.rows += 1;
   if (row.success === false) bucket.failedRows += 1;
@@ -250,6 +190,7 @@ function addRow(bucket, row, currentCost) {
   if (!usageUnknown) {
     bucket.currentPriceCostUsd += currentCost ?? numberOrZero(row.cost_usd);
   }
+  if (ledgerPrepared) bucket.preparedLedgerRows += 1;
 }
 
 function sortedEntries(map) {
@@ -257,7 +198,7 @@ function sortedEntries(map) {
 }
 
 function pseudonymousCoupleLabel(coupleId) {
-  const reportKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const reportKey = process.env.AMORA_COST_REPORT_PSEUDONYM_KEY;
   if (!reportKey) return "(redacted)";
   const digest = createHmac("sha256", reportKey)
     .update(`amora-cost-report-v1:${coupleId}`, "utf8")
@@ -370,6 +311,9 @@ function printText(report, options) {
   if (report.total.unknownUsageRows > 0) {
     console.log(`Unknown-usage provider attempts: ${report.total.unknownUsageRows} (not priced as zero; reconcile with provider billing)`);
   }
+  if (report.total.preparedLedgerRows > 0) {
+    console.log(`Prepared receipts awaiting reconciliation: ${report.total.preparedLedgerRows} (provider exposure is unknown; release gate must stay closed)`);
+  }
 
   printBucketRows("By day (KST)", report.byDay, options);
   printBucketRows("By model", report.byModel, options);
@@ -377,9 +321,8 @@ function printText(report, options) {
   printBucketRows("Top couples (pseudonymous)", report.topCouples, options);
 }
 
-for (const envPath of ENV_PATHS) loadEnvFile(envPath);
-
 const options = parseArgs(process.argv.slice(2));
+for (const envPath of ENV_PATHS) loadEnvFile(envPath);
 const { fromIso, toIso } = getWindow(options);
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -389,6 +332,9 @@ if (!supabaseUrl || !serviceRoleKey) {
   process.exit(1);
 }
 
+verifySupabaseServiceDestinationFromEnv({ access: "read" });
+
+const { createClient } = await import("@supabase/supabase-js");
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });

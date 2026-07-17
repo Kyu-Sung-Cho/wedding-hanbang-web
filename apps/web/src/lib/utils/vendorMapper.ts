@@ -13,6 +13,24 @@ import type {
   VendorCategory,
 } from "@/types/vendor.types";
 
+type PrivateVendorColumn =
+  | "owner_id"
+  | "owner_name"
+  | "email"
+  | "business_number"
+  | "business_license_url"
+  | "notification_settings"
+  | "commission_rate"
+  | "bank_name"
+  | "account_number"
+  | "account_holder";
+
+type VendorMapperRow = Omit<VendorRow, PrivateVendorColumn>
+  & Partial<Pick<VendorRow, PrivateVendorColumn>>;
+
+type VendorProductMapperRow = Omit<VendorProductRow, "notes">
+  & Partial<Pick<VendorProductRow, "notes">>;
+
 // 카테고리 매핑 (DB 영문 → 프론트엔드 한글)
 const CATEGORY_MAP: Record<string, VendorCategory> = {
   studio: "스튜디오",
@@ -82,13 +100,13 @@ export function slotsToTimeslotInserts(
 // ─── Vendor 매퍼 ───
 
 export function vendorRowToVendor(
-  row: VendorRow,
+  row: VendorMapperRow,
   timeslots?: VendorTimeslotRow[],
   products?: VendorProduct[]
 ): Vendor {
   return {
     id: row.id,
-    ownerId: row.owner_id,
+    ownerId: row.owner_id ?? null,
     name: row.name,
     category: categoryToKorean(row.category),
     location: row.location ?? row.region ?? "",
@@ -179,7 +197,7 @@ export function vendorToUpdateRow(vendor: Partial<Vendor>): Record<string, unkno
 
 // ─── VendorProduct 매퍼 ───
 
-export function productRowToProduct(row: VendorProductRow, timeslots?: ProductTimeslotRow[]): VendorProduct {
+export function productRowToProduct(row: VendorProductMapperRow, timeslots?: ProductTimeslotRow[]): VendorProduct {
   return {
     id: row.id,
     vendorId: row.vendor_id,

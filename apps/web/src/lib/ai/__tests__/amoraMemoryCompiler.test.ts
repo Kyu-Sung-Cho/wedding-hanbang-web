@@ -1,13 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
+  AMORA_MEMORY_MAX_INPUT_CHARS,
+  type AmoraMemorySource,
   canonicalizeAmoraMemoryText,
   containsPotentialSensitiveData,
+  extractTrustedMomentMemoryKeys,
+  prepareAmoraMemoryBatch,
   redactPotentialSensitiveData,
+  shouldDeferAmoraMemoryBatch,
   validateAmoraMemoryCompilation,
 } from "@/lib/ai/amoraMemoryCompiler";
 
 const USER_MESSAGE_ID = "00000000-0000-4000-8000-000000000001";
 const OTHER_MESSAGE_ID = "00000000-0000-4000-8000-000000000002";
+const USER_SOURCE = "서울 동쪽 지역을 우선 검토하고 싶어";
+const USER_SOURCES = new Map<string, AmoraMemorySource>([[
+  USER_MESSAGE_ID,
+  { content: USER_SOURCE, actorRole: "bride" },
+]]);
+
+function sourceMap(
+  entries: Array<[string, string, "bride" | "groom"]>,
+): Map<string, AmoraMemorySource> {
+  return new Map(entries.map(([id, content, actorRole]) => [id, { content, actorRole }]));
+}
 
 function validMemory(overrides: Record<string, unknown> = {}) {
   return {
@@ -17,6 +33,7 @@ function validMemory(overrides: Record<string, unknown> = {}) {
     category: "venue",
     title: "선호 지역",
     value: "서울 동쪽 지역을 우선 검토",
+    evidence: "서울 동쪽 지역을 우선 검토",
     reasoning: "사용자가 직접 선호 지역을 말함",
     confidence: 0.91,
     explicit: true,
@@ -25,10 +42,247 @@ function validMemory(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Amora memory compiler boundary", () => {
+  it("keeps assistant rows in the cursor batch but excludes assistant text and derived keys from provider input", () => {
+    const messages = [
+      {
+        id: USER_MESSAGE_ID,
+        role: "user" as const,
+        content: "강남 지역을 우선 보고 싶어",
+        sourceActorRole: "bride" as const,
+        momentMemoryKeys: ["venue:preferred_area"],
+      },
+      {
+        id: OTHER_MESSAGE_ID,
+        role: "assistant" as const,
+        content: "그럼 신라호텔을 선호한다고 기억할게",
+        sourceActorRole: null,
+        momentMemoryKeys: ["venue:preferred_hotel"],
+      },
+    ];
+
+    const batch = prepareAmoraMemoryBatch(messages);
+
+    expect(batch.messages.map((message) => message.id)).toEqual([
+      USER_MESSAGE_ID,
+      OTHER_MESSAGE_ID,
+    ]);
+    expect(batch.input).toContain("강남 지역을 우선 보고 싶어");
+    expect(batch.input).not.toContain("신라호텔");
+    expect(batch.input).not.toContain("venue:preferred_area");
+    expect(batch.input).not.toContain("venue:preferred_hotel");
+  });
+
+  it("accepts only catalogued keys from a server-authored moment envelope", () => {
+    expect(extractTrustedMomentMemoryKeys({
+      client_request_id: "moment:venue_visit:d1:2026-07-16",
+      moment: {
+        memoryKeys: [
+          "venue_candidates",
+          "venue_quotes",
+          "not_in_the_catalog",
+          "venue_candidates",
+        ],
+      },
+    })).toEqual(["moment:venue_candidates", "moment:venue_quotes"]);
+
+    expect(extractTrustedMomentMemoryKeys({
+      client_request_id: "client-controlled-key",
+      moment: { memoryKeys: ["venue_candidates"] },
+    })).toEqual([]);
+    expect(extractTrustedMomentMemoryKeys({
+      client_request_id: "moment:venue_visit:d1:2026-07-16",
+      moment: { memoryKeys: ["not_in_the_catalog", 123, null] },
+    })).toEqual([]);
+  });
+
+  it("passes trusted care topics to only the next user line without exposing assistant content as evidence", () => {
+    const batch = prepareAmoraMemoryBatch([
+      {
+        id: OTHER_MESSAGE_ID,
+        role: "assistant",
+        content: "오늘 본 예식장 중 어디가 제일 좋았어요?",
+        sourceActorRole: null,
+        trustedMomentMemoryKeys: ["moment:venue_candidates", "moment:venue_quotes"],
+      },
+      {
+        id: USER_MESSAGE_ID,
+        role: "user",
+        content: "라온홀이 채광이 좋아서 제일 마음에 들었어",
+        sourceActorRole: "bride",
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000003",
+        role: "user",
+        content: "내일은 드레스도 보러 가",
+        sourceActorRole: "bride",
+      },
+    ]);
+
+    const lines = batch.input.split("\n");
+    expect(lines[0]).toContain("후보 기억 주제: moment:venue_candidates, moment:venue_quotes");
+    expect(lines[0]).toContain("라온홀이 채광이 좋아서 제일 마음에 들었어");
+    expect(lines[1]).not.toContain("후보 기억 주제");
+    expect(batch.input).not.toContain("오늘 본 예식장");
+  });
+
+  it("does not advance a trusted care question past the input boundary without its first user reply", () => {
+    const prefix = Array.from({ length: 28 }, (_, index) => ({
+      id: `60000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      role: "user" as const,
+      content: `${index}-${"가".repeat(850)}`,
+      sourceActorRole: "bride" as const,
+    }));
+    const careQuestion = {
+      id: "70000000-0000-4000-8000-000000000001",
+      role: "assistant" as const,
+      content: "오늘 본 예식장은 어땠어요?",
+      sourceActorRole: null,
+      trustedMomentMemoryKeys: ["moment:venue_candidates"],
+    };
+    const reply = {
+      id: "70000000-0000-4000-8000-000000000002",
+      role: "user" as const,
+      content: `라온홀이 제일 마음에 들었어 ${"나".repeat(800)}`,
+      sourceActorRole: "bride" as const,
+    };
+
+    const first = prepareAmoraMemoryBatch([...prefix, careQuestion, reply]);
+    const remainder = [...prefix, careQuestion, reply].slice(first.messages.length);
+    const second = prepareAmoraMemoryBatch(remainder);
+
+    expect(first.messages).not.toContainEqual(careQuestion);
+    expect(second.messages.slice(-2).map((message) => message.id)).toEqual([
+      careQuestion.id,
+      reply.id,
+    ]);
+    expect(second.input).toContain("후보 기억 주제: moment:venue_candidates");
+    expect(second.input).toContain(reply.content);
+  });
+
+  it("consumes an oversized 40-message window as contiguous whole-message batches without skipping a cursor", () => {
+    const messages = Array.from({ length: 40 }, (_, index) => ({
+      id: `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      role: index % 2 === 0 ? "user" as const : "assistant" as const,
+      content: `${"x".repeat(1_300)}-tail-${String(index + 1).padStart(2, "0")}`,
+      sourceActorRole: index % 2 === 0
+        ? (index % 4 === 0 ? "bride" as const : "groom" as const)
+        : null,
+    }));
+
+    const consumedIds: string[] = [];
+    let offset = 0;
+    let batchCount = 0;
+    while (offset < messages.length) {
+      const batch = prepareAmoraMemoryBatch(messages.slice(offset));
+
+      expect(batch.input.length).toBeLessThanOrEqual(AMORA_MEMORY_MAX_INPUT_CHARS);
+      expect(batch.messages.length).toBeGreaterThan(0);
+      for (const message of batch.messages) {
+        if (message.role === "user") {
+          expect(batch.input).toContain(`[${message.id}]`);
+          expect(batch.input).toContain(message.content);
+        } else {
+          expect(batch.input).not.toContain(`[${message.id}]`);
+          expect(batch.input).not.toContain(message.content);
+        }
+      }
+      consumedIds.push(...batch.messages.map((message) => message.id));
+      offset += batch.messages.length;
+      batchCount += 1;
+    }
+
+    expect(batchCount).toBeGreaterThan(1);
+    expect(consumedIds).toEqual(messages.map((message) => message.id));
+  });
+
+  it("includes the complete durable user message before advancing its cursor", () => {
+    const tailFact = "최종 확정은 야외 예식이 아니라 실내 예식이야";
+    const message = {
+      id: "30000000-0000-4000-8000-000000000999",
+      role: "user" as const,
+      content: `${"앞부분 ".repeat(250)}${tailFact}`,
+      sourceActorRole: "bride" as const,
+    };
+
+    const batch = prepareAmoraMemoryBatch([message]);
+
+    expect(message.content.length).toBeGreaterThan(900);
+    expect(batch.messages).toEqual([message]);
+    expect(batch.input).toContain(tailFact);
+    expect(batch.input).toContain(message.content);
+  });
+
+  it("keeps the ten-message threshold for new jobs but compiles a short final continuation", () => {
+    expect(shouldDeferAmoraMemoryBatch(9, 0)).toBe(true);
+    expect(shouldDeferAmoraMemoryBatch(1, 1)).toBe(false);
+  });
+
+  it("ignores provider-authored summary text and derives a deterministic summary from accepted memories only", () => {
+    const result = validateAmoraMemoryCompilation({
+      summary: "사용자는 신라호텔을 가장 선호한다.",
+      memories: [validMemory()],
+    }, USER_SOURCES);
+
+    expect(result.summary).toBe("- 신부 · 선호 지역: 서울 동쪽 지역을 우선 검토");
+    expect(result.memories[0]).not.toHaveProperty("evidence");
+  });
+
+  it("rejects a memory whose evidence is not an exact substring of its user source", () => {
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        value: "신라호텔",
+        evidence: "신라호텔을 가장 선호해",
+      })],
+    }, USER_SOURCES);
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it.each(["응", "네", "그래 맞아", "좋아!", "오케이", "ㅇㅇ", "예", "넵"])(
+    "does not treat acknowledgement-only user text as factual evidence: %s",
+    (acknowledgement) => {
+      const result = validateAmoraMemoryCompilation({
+        memories: [validMemory({
+          value: "신라호텔 선호",
+          evidence: acknowledgement,
+        })],
+      }, sourceMap([[USER_MESSAGE_ID, acknowledgement, "bride"]]));
+
+      expect(result).toEqual({ summary: null, memories: [] });
+    },
+  );
+
+  it("drops a clearly invented value even when the quoted evidence exists in the source", () => {
+    const budgetSource = "예산은 5천만원으로 준비할게";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        memory_key: "venue:preferred_hotel",
+        title: "선호 호텔",
+        value: "신라호텔",
+        evidence: budgetSource,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, budgetSource, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it("does not accept an invented value merely because its title overlaps the evidence", () => {
+    const source = "지역은 아직 모르겠어";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        title: "선호 지역",
+        value: "강남",
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
   it("accepts bounded explicit memories backed by a user message in the batch", () => {
     const result = validateAmoraMemoryCompilation(
       { summary: "예식장 지역 선호를 확인했다.", memories: [validMemory()] },
-      new Set([USER_MESSAGE_ID]),
+      USER_SOURCES,
     );
 
     expect(result.memories[0]).toMatchObject({
@@ -41,7 +295,7 @@ describe("Amora memory compiler boundary", () => {
   it("rejects a source that is not an allowed user message", () => {
     expect(() => validateAmoraMemoryCompilation(
       { summary: "요약", memories: [validMemory({ source_message_id: OTHER_MESSAGE_ID })] },
-      new Set([USER_MESSAGE_ID]),
+      USER_SOURCES,
     )).toThrow(/not a user message/);
   });
 
@@ -54,14 +308,37 @@ describe("Amora memory compiler boundary", () => {
     expect(() => validateAmoraMemoryCompilation({
       summary: "요약",
       memories: [validMemory(override)],
-    }, new Set([USER_MESSAGE_ID]))).toThrow();
+    }, USER_SOURCES)).toThrow();
   });
 
   it("rejects duplicate semantic keys in one compiler response", () => {
     expect(() => validateAmoraMemoryCompilation({
       summary: "요약",
       memories: [validMemory(), validMemory({ source_message_id: OTHER_MESSAGE_ID })],
-    }, new Set([USER_MESSAGE_ID, OTHER_MESSAGE_ID]))).toThrow(/duplicate memory key/);
+    }, sourceMap([
+      [USER_MESSAGE_ID, USER_SOURCE, "bride"],
+      [OTHER_MESSAGE_ID, USER_SOURCE, "bride"],
+    ]))).toThrow(/duplicate memory key/);
+  });
+
+  it("allows each partner to contribute the same semantic key in one batch", () => {
+    const groomSource = "성수 지역을 우선 검토하고 싶어";
+    const result = validateAmoraMemoryCompilation({
+      memories: [
+        validMemory(),
+        validMemory({
+          source_message_id: OTHER_MESSAGE_ID,
+          value: "성수 지역을 우선 검토",
+          evidence: "성수 지역을 우선 검토",
+        }),
+      ],
+    }, sourceMap([
+      [USER_MESSAGE_ID, USER_SOURCE, "bride"],
+      [OTHER_MESSAGE_ID, groomSource, "groom"],
+    ]));
+
+    expect(result.memories).toHaveLength(2);
+    expect(result.memories.map((memory) => memory.sourceActorRole)).toEqual(["bride", "groom"]);
   });
 
   it("drops memories containing obvious personal identifiers and redacts them from summaries", () => {
@@ -73,11 +350,15 @@ describe("Amora memory compiler boundary", () => {
           source_message_id: OTHER_MESSAGE_ID,
           memory_key: "venue:backup_area",
           value: "성수도 함께 검토",
+          evidence: "성수도 함께 검토",
         }),
       ],
-    }, new Set([USER_MESSAGE_ID, OTHER_MESSAGE_ID]));
+    }, sourceMap([
+      [USER_MESSAGE_ID, USER_SOURCE, "bride"],
+      [OTHER_MESSAGE_ID, "성수도 함께 검토하고 싶어", "groom"],
+    ]));
 
-    expect(result.summary).toBe("연락처는 [민감정보 제외]이고 강남 예식장을 선호한다.");
+    expect(result.summary).toBe("- 신랑 · 선호 지역: 성수도 함께 검토");
     expect(result.memories).toHaveLength(1);
     expect(result.memories[0]?.memoryKey).toBe("venue:backup_area");
   });
@@ -104,10 +385,10 @@ describe("Amora memory compiler boundary", () => {
         title: "현재 상태",
         value: "12주차",
       })],
-    }, new Set([USER_MESSAGE_ID]));
+    }, USER_SOURCES);
 
     expect(result.memories).toHaveLength(0);
-    expect(result.summary).toBe("[민감정보 제외]");
+    expect(result.summary).toBeNull();
   });
 
   it("fails a gestational summary closed when its semantic memory candidate is removed", () => {
@@ -119,10 +400,10 @@ describe("Amora memory compiler boundary", () => {
         title: "현재 상태",
         value: "12주차",
       })],
-    }, new Set([USER_MESSAGE_ID]));
+    }, USER_SOURCES);
 
     expect(result).toEqual({
-      summary: "[민감정보 제외]",
+      summary: null,
       memories: [],
     });
   });
@@ -131,9 +412,9 @@ describe("Amora memory compiler boundary", () => {
     const result = validateAmoraMemoryCompilation({
       summary: "사용자는 현재 12주차라고 말했다.",
       memories: [],
-    }, new Set([USER_MESSAGE_ID]));
+    }, USER_SOURCES);
 
-    expect(result.summary).toBe("사용자는 [민감정보 제외]라고 말했다.");
+    expect(result.summary).toBeNull();
     expect(result.memories).toEqual([]);
   });
 
@@ -160,11 +441,12 @@ describe("Amora memory compiler boundary", () => {
       memories: [validMemory({
         title: "  선호\u200B 지역  ",
         value: "  서울 Ａ구역  ",
+        evidence: "서울 Ａ구역",
         reasoning: "  직접\u2060 말함  ",
       })],
-    }, new Set([USER_MESSAGE_ID]));
+    }, sourceMap([[USER_MESSAGE_ID, "서울 Ａ구역을 먼저 볼게", "bride"]]));
 
-    expect(result.summary).toBe("이전 대화를 NFKC로 정리했어요.");
+    expect(result.summary).toBe("- 신부 · 선호 지역: 서울 A구역");
     expect(result.memories[0]).toMatchObject({
       title: "선호 지역",
       value: "서울 A구역",

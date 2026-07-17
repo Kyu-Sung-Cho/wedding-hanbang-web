@@ -1,3 +1,5 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
+// The candidate.4 items, weights, score, and result contracts are unvalidated and must not be reactivated.
 import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
 
 export const WEDDING_CODE_V05_VERSION = "v0.5-candidate.4";

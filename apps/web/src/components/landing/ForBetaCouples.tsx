@@ -7,16 +7,16 @@ import { shouldShowBetaCounter } from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
 
 const BENEFITS = [
-  "실거래가 · Contract Diff 무료 Premium",
-  "아모라 풀 기능 우선 사용",
-  "종료 후 6개월 무료 연장",
-  "정식 출시 시 선배 신부 인증",
+  "운영 검증을 마친 기능부터 먼저 사용",
+  "불편한 점과 필요한 기능을 제품팀에 전달",
+  "기능 변경과 정식 출시 소식 안내",
+  "제공 범위·기간·비용을 참여 전 확인",
 ];
 
 const CONDITIONS = [
-  "2026년 6~12월 결혼 예정",
-  "신부 · 신랑 모두 참여 가능",
-  "주 1회 짧은 피드백",
+  "현재 결혼을 준비 중인 본인",
+  "신부·신랑 또는 커플 모두 신청 가능",
+  "사용 중 발견한 불편이나 오류를 전달할 수 있는 분",
 ];
 
 interface ForBetaCouplesProps {
@@ -57,9 +57,9 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
         >
           <SectionLabel label="초대" tone="light" />
           <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
-            6주간 함께해 주실
+            아모라의 운영 검증에
             <br />
-            <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
+            <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.
           </h2>
         </motion.div>
 
@@ -119,7 +119,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           >
             <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
               <p className="text-[12px] md:text-[13px] tracking-[0.28em] text-rose-light font-medium mb-8">
-                베타 50쌍 한정
+                베타 신청 현황
               </p>
 
               {showCounter ? (

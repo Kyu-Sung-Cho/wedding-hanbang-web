@@ -1,5 +1,13 @@
 ﻿# WeddingCode v0.5 Copy Clarity Pass
 
+> [!CAUTION]
+> **읽기 손상 / SUPERSEDED / 보존용입니다.** 아래 본문은 인코딩이 손상되어 신뢰성 있게 읽을 수
+> 없고, candidate.2 당시 기록이라 현재 설계 근거로 사용할 수 없습니다. 원문 보존을 위해 삭제하지
+> 않았습니다. 현재 출시·수집 판단은
+> [`55_conservative_readiness_audit_2026-07-15.md`](./55_conservative_readiness_audit_2026-07-15.md), 후속 연구
+> 초안은 [`56_candidate5_research_spec_2026-07-17.md`](./56_candidate5_research_spec_2026-07-17.md)를 따릅니다.
+> **문구·선택지·테스트 결과 재사용 금지.**
+
 ?묒꽦?? 2026-07-08
 ?곹깭: 1李??ъ슜???쇰뱶諛?諛섏쁺 ??肄붾뱶 ?섏젙 ?꾨즺
 

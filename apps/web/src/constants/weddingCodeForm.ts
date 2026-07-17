@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 // 웨딩코드 폼 공통 카피와 참여자 컨텍스트 옵션.
 // 실제 v0.5 문항·채점 버전은 weddingCodeV05.ts가 관리한다.
 // 공개 결과는 준비 방식 참고 카드이며, 최종 유형·캐릭터·4글자 코드·관계 판정으로 표현하지 않는다.

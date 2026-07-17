@@ -1,7 +1,7 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   getNationalTotal,
-  getSeoulTotal,
+  getRegionalCosts,
   getLatestPeriodId,
   VENUE_NECESSARY,
   SDM_PACKAGES,
@@ -18,6 +18,12 @@ import {
   type AmoraQuoteCategory,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+import {
+  OFF_PEAK_WEDDING_MONTHS_LABEL,
+  PEAK_WEDDING_MONTHS_LABEL,
+} from "@/constants/weddingSeasonality";
+
+const MARKET_PRICE_SOURCE_URL = "https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do";
 
 export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
   const category = input.category as string;
@@ -32,9 +38,11 @@ export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecu
   switch (category) {
     case "total": {
       const nat = getNationalTotal(pid);
-      const seoul = getSeoulTotal(pid);
-      displayMessage = `[${period.label} 기준 총 비용]\n전국 평균: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 꽃장식 ${nat.decoration})\n서울 평균: ${seoul.total}만원 (식대 ${seoul.meal} + 스드메 ${seoul.sdm} + 대관료 ${seoul.rental} + 꽃장식 ${seoul.decoration})`;
-      toolOutput = { national: nat, seoul };
+      const regional = getRegionalCosts(pid);
+      const seoulGangnam = regional.find((row) => row.region === "seoulGangnam");
+      const seoulOther = regional.find((row) => row.region === "seoulOther");
+      displayMessage = `[${period.label} 평균 총 계약금액 — 선택품목 제외]\n전국: ${nat.total}만원 (식대 ${nat.meal} + 스드메 ${nat.sdm} + 대관료 ${nat.rental} + 기본장식비 ${nat.decoration})\n서울(강남): ${seoulGangnam?.total ?? "-"}만원\n서울(강남외): ${seoulOther?.total ?? "-"}만원\n표본 평균이며 개별 견적의 적정성이나 최종 결제액을 뜻하지 않습니다.`;
+      toolOutput = { national: nat, seoulGangnam, seoulOther };
       break;
     }
     case "venue": {
@@ -86,7 +94,7 @@ export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecu
     case "options": {
       const allOpts = OPTION_PRICES;
       const priceKey = scope === "seoul" ? "seoulPrice" : "nationalPrice";
-      displayMessage = `[${scopeLabel} 옵션별 시세 - 최신 기준]\n\n스튜디오 (${allOpts.filter((option) => option.category === "studio").length}개):\n` +
+      displayMessage = `[${scopeLabel} 옵션별 중간값 - ${period.label} 조사]\n\n스튜디오 (${allOpts.filter((option) => option.category === "studio").length}개):\n` +
         allOpts.filter((option) => option.category === "studio" && option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n") +
         `\n\n드레스 (${allOpts.filter((option) => option.category === "dress").length}개):\n` +
         allOpts.filter((option) => option.category === "dress" && option[priceKey] > 0).map((option) => `- ${option.name}: ${option[priceKey]}만원`).join("\n") +
@@ -97,13 +105,21 @@ export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecu
     }
     case "seasonal": {
       const latest = SEASONAL_DATA[SEASONAL_DATA.length - 1];
-      displayMessage = `[성수기 vs 비수기 - ${period.label}]\n성수기 (4~6월, 9~11월): ${latest.peak}만원\n비수기 (1~3월, 7~8월, 12월): ${latest.offPeak}만원\n비수기 절약: 약 ${latest.savings}만원`;
+      displayMessage = `[예식장 필수품목 표본 중간값 - ${period.label} 조사]\n성수기 (${PEAK_WEDDING_MONTHS_LABEL}): ${latest.peak}만원\n비수기 (${OFF_PEAK_WEDDING_MONTHS_LABEL}): ${latest.offPeak}만원\n두 표본 중간값 차이: ${latest.savings}만원\n특정 날짜·업체의 할인이나 절약액을 보장하지 않아요.`;
       toolOutput = { seasonal: latest };
       break;
     }
     default:
       displayMessage = "지원하지 않는 카테고리입니다.";
   }
+
+  toolOutput = {
+    ...toolOutput,
+    sourceName: "한국소비자원 참가격 결혼서비스 통계",
+    sourceUrl: MARKET_PRICE_SOURCE_URL,
+    periodLabel: period.label,
+    applicability: "표본 통계이며 개별 업체의 최신 가격·구성·견적 적정성·최종 결제액을 보증하지 않습니다.",
+  };
 
   return {
     toolName: "get_market_price",
@@ -194,8 +210,6 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
           name: item.name,
           category: item.category,
           severity: item.severity,
-          price: item.priceManwon,
-          usageRate: item.usageRatePercent,
           checkQuestion: item.checkQuestion,
         })),
       },
@@ -227,8 +241,6 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
       name: item.name,
       category: item.category,
       severity: item.severity,
-      price: item.priceManwon,
-      usageRate: item.usageRatePercent,
       reason: item.reason,
       checkQuestion: item.checkQuestion,
       disguise: item.disguise,
@@ -256,7 +268,7 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     success: true,
     displayMessage:
       analysis.missingCriticalCount + analysis.missingHighCount + analysis.missingMediumCount > 0
-        ? `견적 체크 완료: 필수 ${analysis.missingCriticalCount}개·추가금 항목 ${analysis.missingHighCount + analysis.missingMediumCount}개가 견적서에서 확인되지 않았어요`
+        ? `견적 체크 완료: 핵심 확인 ${analysis.missingCriticalCount}개·추가 확인 ${analysis.missingHighCount + analysis.missingMediumCount}개가 견적서에서 확인되지 않았어요`
         : "견적 체크 완료: 체크리스트의 주요 항목이 모두 견적서에 명시돼 있어요",
   };
 }

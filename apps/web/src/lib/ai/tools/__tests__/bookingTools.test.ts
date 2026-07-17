@@ -247,6 +247,9 @@ describe("bookingTools", () => {
       studio: { category: "studio", status: "in_progress", budget: 1_000_000, spent: 200_000 },
     };
     let progressPatch: Record<string, unknown> | null = null;
+    const projectionVendorId = "22345678-1234-4234-9234-123456789abc";
+    const projectionCoupleId = "32345678-1234-4234-9234-123456789abc";
+    const claimToken = "42345678-1234-4234-9234-123456789abc";
 
     mockAdminClient(
       {
@@ -285,10 +288,64 @@ describe("bookingTools", () => {
       },
       {
         create_booking_atomic: () => ({ data: bookingId, error: null }),
-        apply_journey_progress_patch: (args) => {
-          progressPatch = args.p_patch as Record<string, unknown>;
-          return { data: null, error: null };
+        claim_booking_projection_job: () => ({
+          data: {
+            bookingId,
+            coupleId: projectionCoupleId,
+            desiredState: "active",
+            generation: 1,
+            attemptCount: 1,
+            claimToken,
+            booking: {
+              date: "2026-07-06",
+              time: "10:00",
+              amount: 450_000,
+              status: "confirmed",
+              vendorId: projectionVendorId,
+              productId: null,
+              staffId: null,
+              vendorName: "Hanbang Studio",
+              vendorCategory: "studio",
+            },
+          },
+          error: null,
+        }),
+        apply_booking_progress_projection: (args) => {
+          const event = args.p_event as ScheduleEvent;
+          progressPatch = {
+            ...initialProgress,
+            studio: { ...initialProgress.studio, spent: 650_000 },
+            __events: [event],
+            __booking_costs: {
+              [bookingId]: { amount: 450_000, categoryKey: "studio" },
+            },
+          };
+          return {
+            data: {
+              accepted: true,
+              status: "completed",
+              progress: progressPatch,
+              event,
+              scheduleAdded: true,
+              scheduleUpdated: false,
+              scheduleRemoved: false,
+              budgetUpdated: true,
+              budgetReverted: false,
+              budgetDelta: 450_000,
+              budgetExceededBy: 0,
+              categoryBudgetLimit: 1_000_000,
+              categoryKey: "studio",
+              newSpent: 650_000,
+              revertedAmount: 0,
+              removedEventId: null,
+            },
+            error: null,
+          };
         },
+        finish_booking_projection_job: () => ({
+          data: { accepted: true, status: "completed" },
+          error: null,
+        }),
       }
     );
 
@@ -336,6 +393,95 @@ describe("bookingTools", () => {
     expect(events?.[0]).toMatchObject({ id: `evt_booking_${bookingId}` });
   });
 
+  it("keeps the booking accepted but explicitly reports a queued projection failure", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
+
+    const bookingId = "12345678-1234-4234-9234-123456789abc";
+    const vendorId = "22345678-1234-4234-9234-123456789abc";
+    const claimToken = "32345678-1234-4234-9234-123456789abc";
+    mockAdminClient(
+      {
+        vendors: [
+          { singleResult: { data: { name: "Hanbang Studio", category: "studio" }, error: null } },
+          { singleResult: { data: { id: vendorId, name: "Hanbang Studio", category: "studio" }, error: null } },
+        ],
+        profiles: [{ awaitResult: { data: [], error: null } }],
+        vendor_bookings: [{
+          singleResult: {
+            data: {
+              id: bookingId,
+              amount: 500_000,
+              status: "pending",
+              product_id: null,
+              staff_id: null,
+            },
+            error: null,
+          },
+        }],
+      },
+      {
+        create_booking_atomic: () => ({ data: bookingId, error: null }),
+        claim_booking_projection_job: () => ({
+          data: {
+            bookingId,
+            coupleId: "10000000-0000-4000-8000-000000000001",
+            desiredState: "active",
+            generation: 1,
+            attemptCount: 1,
+            claimToken,
+            booking: {
+              date: "2026-07-06",
+              time: "10:00",
+              amount: 500_000,
+              status: "pending",
+              vendorId,
+              productId: null,
+              staffId: null,
+              vendorName: "Hanbang Studio",
+              vendorCategory: "studio",
+            },
+          },
+          error: null,
+        }),
+        apply_booking_progress_projection: () => ({
+          data: null,
+          error: { message: "atomic projection failed" },
+        }),
+        finish_booking_projection_job: () => ({
+          data: {
+            accepted: true,
+            status: "pending",
+            retryable: true,
+            attemptCount: 1,
+            retryAfterSeconds: 5,
+          },
+          error: null,
+        }),
+      },
+    );
+
+    const result = await executeCreateBooking(
+      { vendor_id: vendorId, date: "2026-07-06", time: "10:00" },
+      createContext({
+        coupleId: "10000000-0000-4000-8000-000000000001",
+        currentUserText: "[date:2026-07-06] [time:10:00] 예약해줘",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).toMatchObject({
+      bookingId,
+      status: "pending",
+      projectionStatus: "pending_retry",
+      projectionRetryable: true,
+      projectionErrorCode: "PROJECTION_APPLY_FAILED",
+      fullyApplied: false,
+    });
+    expect(result.displayMessage).toContain("예약을 다시 만들 필요는 없어요");
+    expect(result.displayMessage).toContain("자동으로 다시 반영");
+  });
+
   it("reverts synced schedule and budget data when a booking is cancelled", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
@@ -355,6 +501,8 @@ describe("bookingTools", () => {
       }],
     };
     let progressPatch: Record<string, unknown> | null = null;
+    const projectionCoupleId = "22345678-1234-4234-9234-123456789abc";
+    const claimToken = "32345678-1234-4234-9234-123456789abc";
 
     mockAdminClient(
       {
@@ -376,10 +524,60 @@ describe("bookingTools", () => {
           },
           error: null,
         }),
-        apply_journey_progress_patch: (args) => {
-          progressPatch = args.p_patch as Record<string, unknown>;
-          return { data: null, error: null };
+        claim_booking_projection_job: () => ({
+          data: {
+            bookingId,
+            coupleId: projectionCoupleId,
+            desiredState: "cancelled",
+            generation: 2,
+            attemptCount: 1,
+            claimToken,
+            booking: {
+              date: "2026-07-06",
+              time: "10:00",
+              amount: 500_000,
+              status: "cancelled",
+              vendorId: "12345678-1234-4234-9234-123456789abd",
+              productId: null,
+              staffId: null,
+              vendorName: "Hanbang Studio",
+              vendorCategory: "studio",
+            },
+          },
+          error: null,
+        }),
+        apply_booking_progress_projection: () => {
+          progressPatch = {
+            studio: { ...initialProgress.studio, spent: 200_000 },
+            __events: [],
+            __booking_costs: {},
+          };
+          return {
+            data: {
+              accepted: true,
+              status: "completed",
+              progress: progressPatch,
+              event: null,
+              scheduleAdded: false,
+              scheduleUpdated: false,
+              scheduleRemoved: true,
+              budgetUpdated: false,
+              budgetReverted: true,
+              budgetDelta: -650_000,
+              budgetExceededBy: 0,
+              categoryBudgetLimit: 1_000_000,
+              categoryKey: "studio",
+              newSpent: 200_000,
+              revertedAmount: 650_000,
+              removedEventId: `evt_booking_${bookingId}`,
+            },
+            error: null,
+          };
         },
+        finish_booking_projection_job: () => ({
+          data: { accepted: true, status: "completed" },
+          error: null,
+        }),
       }
     );
 
@@ -419,6 +617,91 @@ describe("bookingTools", () => {
     });
   });
 
+  it("explicitly reports a queued cancellation projection failure", async () => {
+    const bookingId = "12345678-1234-4234-9234-123456789abc";
+    const vendorId = "22345678-1234-4234-9234-123456789abc";
+    const coupleId = "32345678-1234-4234-9234-123456789abc";
+    const claimToken = "42345678-1234-4234-9234-123456789abc";
+    mockAdminClient(
+      {
+        vendors: [{
+          singleResult: {
+            data: { name: "Hanbang Studio", category: "studio" },
+            error: null,
+          },
+        }],
+      },
+      {
+        cancel_booking_atomic: () => ({
+          data: {
+            id: bookingId,
+            vendor_id: vendorId,
+            product_id: null,
+            booking_date: "2026-07-06",
+            booking_time: "10:00",
+            status: "cancelled",
+            amount: 500_000,
+            idempotent: false,
+          },
+          error: null,
+        }),
+        claim_booking_projection_job: () => ({
+          data: {
+            bookingId,
+            coupleId,
+            desiredState: "cancelled",
+            generation: 2,
+            attemptCount: 1,
+            claimToken,
+            booking: {
+              date: "2026-07-06",
+              time: "10:00",
+              amount: 500_000,
+              status: "cancelled",
+              vendorId,
+              productId: null,
+              staffId: null,
+              vendorName: "Hanbang Studio",
+              vendorCategory: "studio",
+            },
+          },
+          error: null,
+        }),
+        apply_booking_progress_projection: () => ({
+          data: null,
+          error: { message: "atomic cancellation projection failed" },
+        }),
+        finish_booking_projection_job: () => ({
+          data: {
+            accepted: true,
+            status: "pending",
+            retryable: true,
+            attemptCount: 1,
+            retryAfterSeconds: 5,
+          },
+          error: null,
+        }),
+      },
+    );
+
+    const result = await executeCancelBooking(
+      { booking_id: bookingId, confirmed: true },
+      createContext({ coupleId }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).toMatchObject({
+      bookingId,
+      status: "cancelled",
+      projectionStatus: "pending_retry",
+      projectionRetryable: true,
+      projectionErrorCode: "PROJECTION_APPLY_FAILED",
+      fullyApplied: false,
+    });
+    expect(result.displayMessage).toContain("취소 요청을 다시 보낼 필요는 없어요");
+    expect(result.displayMessage).toContain("자동으로 다시 반영");
+  });
+
   it("repairs legacy progress on an exact retry of an already-cancelled booking", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-29T15:00:00.000Z"));
@@ -436,6 +719,8 @@ describe("bookingTools", () => {
       }],
     };
     let progressPatch: Record<string, unknown> | null = null;
+    const projectionCoupleId = "22345678-1234-4234-9234-123456789abc";
+    const claimToken = "32345678-1234-4234-9234-123456789abc";
 
     mockAdminClient(
       {
@@ -457,10 +742,60 @@ describe("bookingTools", () => {
           },
           error: null,
         }),
-        apply_journey_progress_patch: (args) => {
-          progressPatch = args.p_patch as Record<string, unknown>;
-          return { data: null, error: null };
+        claim_booking_projection_job: () => ({
+          data: {
+            bookingId,
+            coupleId: projectionCoupleId,
+            desiredState: "cancelled",
+            generation: 2,
+            attemptCount: 1,
+            claimToken,
+            booking: {
+              date: "2026-07-06",
+              time: "10:00",
+              amount: 500_000,
+              status: "cancelled",
+              vendorId: "12345678-1234-4234-9234-123456789abd",
+              productId: null,
+              staffId: null,
+              vendorName: "Hanbang Studio",
+              vendorCategory: "studio",
+            },
+          },
+          error: null,
+        }),
+        apply_booking_progress_projection: () => {
+          progressPatch = {
+            studio: { ...initialProgress.studio, spent: 200_000 },
+            __events: [],
+            __booking_costs: {},
+          };
+          return {
+            data: {
+              accepted: true,
+              status: "completed",
+              progress: progressPatch,
+              event: null,
+              scheduleAdded: false,
+              scheduleUpdated: false,
+              scheduleRemoved: true,
+              budgetUpdated: false,
+              budgetReverted: true,
+              budgetDelta: -500_000,
+              budgetExceededBy: 0,
+              categoryBudgetLimit: 1_000_000,
+              categoryKey: "studio",
+              newSpent: 200_000,
+              revertedAmount: 500_000,
+              removedEventId: "evt_booking_12345678",
+            },
+            error: null,
+          };
         },
+        finish_booking_projection_job: () => ({
+          data: { accepted: true, status: "completed" },
+          error: null,
+        }),
       }
     );
 

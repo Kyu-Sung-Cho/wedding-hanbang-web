@@ -1,5 +1,10 @@
 # 모바일 웹 UI 감사 및 아모라 버튼 충돌 수정 증적
 
+> **SUPERSEDED HISTORICAL RECEIPT — 현재 Engine V2 실기기 증거가 아님.** 아래
+> 브라우저 viewport·Expo export 결과는 당시 UI 수정만 검증한다. 최종 Engine V2
+> commit의 signed Android/iOS EAS build와 실제 기기 VoiceOver/TalkBack 검증은
+> `NOT RUN`이다.
+
 - 감사일: 2026-07-15 (KST)
 - 기준 브랜치: `fix/mobile-amora-overlap-20260715`
 - 기준 `main`: `2f3c8fe66a268cc19346fb28a6930e46e6b03c56`

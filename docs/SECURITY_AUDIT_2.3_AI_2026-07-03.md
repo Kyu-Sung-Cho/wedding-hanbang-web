@@ -1,5 +1,11 @@
 # 보안 감사 2.3 — AI 계열 API 감사 (2026-07-03)
 
+> ⚠️ **역사적 감사 스냅샷 — 현재 운영 기준 아님 (2026-07-16)**
+> 이 문서는 Anthropic 런타임과 당시 비용 가드를 감사한 기록이다. 현재 런타임은 OpenAI
+> GPT-5.6 Luna·Terra 전용이고, 원자적 턴·비용 예약과 provider-call 장부가 후속 변경됐다.
+> 현재 판정에는 `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`와
+> `docs/operations/AMORA_PROVIDER_COST_LATENCY_POLICY_2026-07-16.md`를 사용한다.
+
 > 대상: Claude(LLM)를 호출해 **Anthropic 토큰 비용이 나가는** 모든 표면.
 > 핵심 질문: 무인증/무권한 호출로 비용을 태울 수 있는가, costGuard(비용 가드레일)를 우회할 수 있는가.
 > 방법: 4개 공격 각도(비용폭탄 우회·costGuard 견고성·SSRF/인젝션·amora+로깅) 병렬 → 발견별 반박 검증 → **확정 건 감사자 직접 재검증**.

@@ -126,7 +126,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              AI 웨딩 플래너와 함께{"\n"}완벽한 결혼을 준비하세요
+              AI 웨딩 플래너와 함께{"\n"}우리답게 결혼을 준비하세요
             </Text>
           </Animated.View>
 

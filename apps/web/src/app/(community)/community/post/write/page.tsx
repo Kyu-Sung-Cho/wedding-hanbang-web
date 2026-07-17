@@ -25,6 +25,7 @@ import PriceQuestionForm from "@/components/community/PriceQuestionForm";
 import PollEditor from "@/components/community/PollEditor";
 import { sanitizeHtml } from "@/utils/sanitize";
 import { communityPostPath } from "@/lib/community/routes";
+import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 import { weddingPath } from "@/lib/weddingPaths";
 import type {
   CommunityCategory,
@@ -442,34 +443,24 @@ function PostWriteContent() {
       setInsertImageError(null);
       // 5MB 검증 (이미지), 10MB (GIF)
       const isGif = file.type === "image/gif";
-      const max = isGif ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+      const max = isGif ? 6 * 1024 * 1024 : 5 * 1024 * 1024;
       if (!file.type.startsWith("image/")) {
         setInsertImageError("이미지/GIF 파일만 삽입할 수 있어요.");
         return;
       }
       if (file.size > max) {
-        setInsertImageError(isGif ? "GIF는 10MB 이하" : "이미지는 5MB 이하");
+        setInsertImageError(isGif ? "GIF는 6MB 이하" : "이미지는 5MB 이하");
         return;
       }
       setInsertingImage(true);
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/community/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (!res.ok || !data.url) {
-          setInsertImageError(data?.error ?? "업로드에 실패했어요.");
-          return;
-        }
+        const data = await uploadCommunityMedia(file);
         // 토큰만 textarea에 삽입 (raw HTML 보이는 것 방지). 발행/미리보기 때 HTML로 변환.
         const id = newInlineImageId();
         setInlineImages((prev) => [...prev, { id, url: data.url }]);
         insertAtCursor(`\n\n[!img:${id}]\n\n`);
-      } catch {
-        setInsertImageError("업로드 중 오류가 발생했어요.");
+      } catch (error) {
+        setInsertImageError(error instanceof Error ? error.message : "업로드 중 오류가 발생했어요.");
       } finally {
         setInsertingImage(false);
         if (inlineImageInputRef.current) inlineImageInputRef.current.value = "";
@@ -537,7 +528,7 @@ function PostWriteContent() {
     }
     if (postMode === "slides") {
       if (slides.length === 0) {
-        setError("카드 게시물에는 이미지나 영상이 최소 1장 이상 필요해요.");
+        setError("카드 게시물에는 이미지가 최소 1장 이상 필요해요.");
         return;
       }
     } else if (!content.trim()) {
@@ -944,11 +935,11 @@ function PostWriteContent() {
               )}
             </section>
 
-            {/* 이미지/영상 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
+            {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
             {postMode === "regular" && (
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <label className="block text-sm font-semibold text-[#263832] mb-3">
-                  이미지/영상
+                  이미지
                 </label>
                 <ImageUploader images={images} onChange={setImages} max={5} />
               </section>

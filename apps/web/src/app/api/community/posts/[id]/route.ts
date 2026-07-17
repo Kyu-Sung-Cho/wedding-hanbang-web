@@ -1,5 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
@@ -9,6 +9,8 @@ import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
   validateCommunityMediaUrl,
+  validateRetainedCommunityImageUrl,
+  validateRetainedCommunityVideoUrl,
 } from "@/lib/community/mediaUrls";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
@@ -16,15 +18,12 @@ import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/c
 const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
 
 function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 function invalidCommunityMediaResponse() {
   return NextResponse.json(
-    { error: "커뮤니티 업로드로 등록된 이미지와 영상만 첨부할 수 있습니다." },
+    { error: "커뮤니티 업로드로 등록된 이미지만 첨부할 수 있습니다." },
     { status: 400 }
   );
 }
@@ -214,7 +213,7 @@ export async function PATCH(
     // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
     const { data: existingPost } = await readClient
       .from("community_posts")
-      .select("author_id, slides")
+      .select("author_id, slides, images")
       .eq("id", id)
       .maybeSingle();
 
@@ -269,11 +268,30 @@ export async function PATCH(
     if (body.images !== undefined) {
       const images: string[] = [];
       for (const rawImageUrl of (Array.isArray(body.images) ? body.images : []).slice(0, 10)) {
-        const mediaResult = validateCommunityAttachmentUrl(rawImageUrl, {
+        const imageResult = validateCommunityAttachmentUrl(rawImageUrl, {
           ownerIds: mediaOwnerIds,
         });
-        if (!mediaResult.ok) return invalidCommunityMediaResponse();
-        images.push(mediaResult.url);
+        if (imageResult.ok) {
+          images.push(imageResult.url);
+          continue;
+        }
+        const retainedImageResult = validateRetainedCommunityImageUrl(
+          rawImageUrl,
+          existingPost.images,
+          { ownerIds: mediaOwnerIds },
+        );
+        if (retainedImageResult.ok) {
+          images.push(retainedImageResult.url);
+          continue;
+        }
+        const retainedVideoResult = validateRetainedCommunityVideoUrl(
+          rawImageUrl,
+          (Array.isArray(existingPost.images) ? existingPost.images : [])
+            .map((url) => ({ type: "video", url })),
+          { ownerIds: mediaOwnerIds },
+        );
+        if (!retainedVideoResult.ok) return invalidCommunityMediaResponse();
+        images.push(retainedVideoResult.url);
       }
       updateData.images = images;
     }
@@ -284,11 +302,23 @@ export async function PATCH(
       } else if (Array.isArray(body.slides)) {
         const slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
         for (const s of body.slides.slice(0, 10)) {
-          const type: "image" | "video" = s?.type === "video" ? "video" : "image";
-          const mediaResult = validateCommunityMediaUrl(s?.url, {
-            kind: type,
-            ownerIds: mediaOwnerIds,
-          });
+          const type = s?.type === "video" ? "video" as const : "image" as const;
+          const strictImageResult = type === "image"
+            ? validateCommunityMediaUrl(s?.url, {
+                kind: "image",
+                ownerIds: mediaOwnerIds,
+                requireUploadSessionPath: true,
+              })
+            : null;
+          const mediaResult = type === "video"
+            ? validateRetainedCommunityVideoUrl(s?.url, existingPost.slides, {
+                ownerIds: mediaOwnerIds,
+              })
+            : strictImageResult?.ok
+              ? strictImageResult
+              : validateRetainedCommunityImageUrl(s?.url, existingPost.slides, {
+                  ownerIds: mediaOwnerIds,
+                });
           if (!mediaResult.ok) return invalidCommunityMediaResponse();
 
           const slide: { type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string } = {
@@ -298,10 +328,16 @@ export async function PATCH(
           if (typeof s.width === "number" && s.width > 0) slide.width = Math.min(8192, Math.round(s.width));
           if (typeof s.height === "number" && s.height > 0) slide.height = Math.min(8192, Math.round(s.height));
           if (typeof s.thumbnail_url === "string" && s.thumbnail_url.trim().length > 0) {
-            const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
+            const strictThumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
               kind: "image",
               ownerIds: mediaOwnerIds,
+              requireUploadSessionPath: true,
             });
+            const thumbnailResult = strictThumbnailResult.ok
+              ? strictThumbnailResult
+              : validateRetainedCommunityImageUrl(s.thumbnail_url, existingPost.slides, {
+                  ownerIds: mediaOwnerIds,
+                });
             if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
             slide.thumbnail_url = thumbnailResult.url;
           }

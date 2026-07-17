@@ -6,8 +6,21 @@ const db = vi.hoisted(() => {
   return { from, insert };
 });
 
+const observability = vi.hoisted(() => ({
+  error: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: db.from }),
+}));
+
+vi.mock("@/utils/log", () => ({
+  log: {
+    error: observability.error,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 import { logAIInteraction } from "../ai-log";
@@ -17,6 +30,7 @@ describe("logAIInteraction privacy boundary", () => {
     db.from.mockClear();
     db.insert.mockReset();
     db.insert.mockResolvedValue({ error: null });
+    observability.error.mockClear();
   });
 
   it("never persists prompt, response, or tool payload content", async () => {
@@ -88,5 +102,21 @@ describe("logAIInteraction privacy boundary", () => {
     }));
     const inserted = db.insert.mock.calls[0]?.[0];
     expect(inserted?.metadata).not.toHaveProperty("endpoint");
+  });
+
+  it("returns false and emits an operational signal when the durable row is missing", async () => {
+    db.insert.mockResolvedValue({ error: { message: "database unavailable" } });
+
+    await expect(logAIInteraction({
+      interactionType: "amora_director",
+      model: "gpt-5.6-luna",
+      tokensInput: 10,
+      tokensOutput: 2,
+    })).resolves.toBe(false);
+
+    expect(observability.error).toHaveBeenCalledWith(
+      expect.stringContaining("provider ledger row may be missing"),
+      expect.any(Error),
+    );
   });
 });

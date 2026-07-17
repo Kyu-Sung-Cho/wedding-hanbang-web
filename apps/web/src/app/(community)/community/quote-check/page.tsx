@@ -31,9 +31,9 @@ const CATEGORY_OPTIONS: AmoraQuoteCategory[] = ["sdm_package", "studio", "dress"
 const REGION_OPTIONS: AmoraQuoteRegion[] = ["seoul", "gyeonggi", "busan", "daegu", "other"];
 
 const SEVERITY_LABELS = {
-  critical: "필수",
-  high: "고빈도",
-  medium: "선택",
+  critical: "핵심 확인",
+  high: "추가 확인",
+  medium: "선택 확인",
 } as const;
 
 const SEVERITY_STYLES = {
@@ -289,7 +289,7 @@ export default function AmoraQuoteCheckPage() {
               <div>
                 <h2 className="text-lg font-semibold text-[#263832]">견적서에 포함된 항목</h2>
                 <p className="mt-1 text-sm text-[#928980]">
-                  확인된 항목만 선택하면 빠진 비용을 계산합니다.
+                  견적서에 명시된 항목만 선택하면 계약 전 확인할 내용을 정리합니다.
                 </p>
               </div>
               <span className="rounded-full bg-[#f6efe5] px-3 py-1 text-xs text-[#635b51]">
@@ -297,9 +297,9 @@ export default function AmoraQuoteCheckPage() {
               </span>
             </div>
 
-            <ItemGroup title="필수 확인" items={requiredItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="자주 붙는 추가금" items={highItems} selected={includedItemIds} onToggle={toggleItem} />
-            <ItemGroup title="선택 항목" items={mediumItems} selected={includedItemIds} onToggle={toggleItem} compact />
+            <ItemGroup title="핵심 확인" items={requiredItems} selected={includedItemIds} onToggle={toggleItem} />
+            <ItemGroup title="추가 확인" items={highItems} selected={includedItemIds} onToggle={toggleItem} />
+            <ItemGroup title="선택 확인" items={mediumItems} selected={includedItemIds} onToggle={toggleItem} compact />
 
             {error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -395,7 +395,7 @@ function ItemGroup({
                 </span>
                 {!compact && (
                   <span className="mt-1 block text-xs text-[#928980]">
-                    평균 {formatManwon(item.priceManwon)} · 이용률 {item.usageRatePercent}%
+                    현재 견적서에 포함되어 있는지 선택해 주세요
                   </span>
                 )}
               </span>
@@ -425,7 +425,7 @@ function ResultPanel({
   const [shareSharing, setShareSharing] = useState(false);
   const [instaCopied, setInstaCopied] = useState(false);
 
-  // missingItems 중 추가금 발생 가능성이 높은 것 우선 — 공유/포스트 노출용
+  // missingItems 중 계약 전 확인 우선순위가 높은 것부터 공유/포스트에 노출한다.
   const topMissing = useMemo(() => {
     const order = { critical: 0, high: 1, medium: 2 } as const;
     return [...result.missingItems]
@@ -445,7 +445,7 @@ function ResultPanel({
       lines.push("빠진 항목:");
       topMissing.forEach((item) => {
         lines.push(
-          `- ${item.name} (평균 ${formatManwon(item.priceManwon)}, ${item.severity === "critical" ? "필수" : item.severity === "high" ? "추가금" : "선택"})`
+          `- ${item.name} (${item.severity === "critical" ? "핵심 확인" : item.severity === "high" ? "추가 확인" : "선택 확인"})`
         );
       });
     }
@@ -471,8 +471,8 @@ function ResultPanel({
     if (topMissing.length > 0) {
       lines.push("⚠️ 견적서에서 확인 안 된 항목");
       topMissing.forEach((item) => {
-        const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
-        lines.push(`- ${tag} ${item.name} — 평균 ${formatManwon(item.priceManwon)}`);
+        const tag = item.severity === "critical" ? "[핵심 확인]" : item.severity === "high" ? "[추가 확인]" : "[선택 확인]";
+        lines.push(`- ${tag} ${item.name}`);
       });
       lines.push("");
     }
@@ -502,12 +502,12 @@ function ResultPanel({
   // 공유 텍스트 — 빠진 세부 항목까지 포함 (이슈 6)
   const buildShareText = (compact = false) => {
     const head = `${formatManwon(result.quotePriceManwon)} 견적 체크리스트 — ${result.summaryTitle}`;
-    const meta = `견적서에서 확인 안 된 항목 ${missingTotal}개 (필수 ${result.missingCriticalCount}개)`;
+    const meta = `견적서에서 확인 안 된 항목 ${missingTotal}개 (핵심 확인 ${result.missingCriticalCount}개)`;
     if (compact || topMissing.length === 0) return `${head}\n${meta}`;
 
     const detailLines = topMissing.slice(0, 5).map((item) => {
-      const tag = item.severity === "critical" ? "[필수]" : item.severity === "high" ? "[추가금]" : "[선택]";
-      return `${tag} ${item.name} (평균 ${formatManwon(item.priceManwon)})`;
+      const tag = item.severity === "critical" ? "[핵심 확인]" : item.severity === "high" ? "[추가 확인]" : "[선택 확인]";
+      return `${tag} ${item.name}`;
     });
     return `${head}\n${meta}\n\n[견적서에 없는 항목]\n${detailLines.join("\n")}`;
   };
@@ -581,7 +581,7 @@ function ResultPanel({
         />
         <ResultMetric
           label="견적서에서 확인 안 된 항목"
-          value={`${missingTotal}개 (필수 ${result.missingCriticalCount})`}
+          value={`${missingTotal}개 (핵심 확인 ${result.missingCriticalCount})`}
         />
       </div>
       <p className="mt-2 text-xs leading-5 text-[#928980]">

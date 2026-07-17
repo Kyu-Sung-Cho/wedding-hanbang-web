@@ -5,11 +5,14 @@ import {
   validateCommunityHtmlImageSources,
   validateCommunityAttachmentUrl,
   validateCommunityMediaUrl,
+  validateRetainedCommunityImageUrl,
+  validateRetainedCommunityVideoUrl,
 } from "@/lib/community/mediaUrls";
 
 const SUPABASE_URL = "https://project.supabase.co";
 const OWNER_ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_OWNER_ID = "22222222-2222-2222-2222-222222222222";
+const UPLOAD_ID = "33333333-3333-4333-8333-333333333333";
 
 function publicObjectUrl(bucket: string, ownerId = OWNER_ID, fileName = "1700000000000_file.jpg") {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${ownerId}/${fileName}`;
@@ -91,21 +94,58 @@ describe("validateCommunityMediaUrl", () => {
     expect(result).toEqual({ ok: false, reason: "wrong_bucket" });
   });
 
-  it("accepts regular post attachments from image or video buckets", () => {
+  it("accepts only canonical image upload-session paths for new post attachments", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
-    const imageUrl = publicObjectUrl(COMMUNITY_IMAGE_BUCKET);
+    const imageUrl = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, `${UPLOAD_ID}.png`);
     const videoUrl = publicObjectUrl(COMMUNITY_VIDEO_BUCKET, OWNER_ID, "1700000000000_file.mp4");
+    const encodedIdUrl = imageUrl.replace(UPLOAD_ID, `%33${UPLOAD_ID.slice(1)}`);
 
     expect(validateCommunityAttachmentUrl(imageUrl, { ownerIds: OWNER_ID })).toMatchObject({
       ok: true,
       kind: "image",
       bucket: COMMUNITY_IMAGE_BUCKET,
     });
-    expect(validateCommunityAttachmentUrl(videoUrl, { ownerIds: OWNER_ID })).toMatchObject({
-      ok: true,
-      kind: "video",
-      bucket: COMMUNITY_VIDEO_BUCKET,
-    });
+    expect(validateCommunityAttachmentUrl(videoUrl, { ownerIds: OWNER_ID }).ok).toBe(false);
+    expect(validateCommunityAttachmentUrl(encodedIdUrl, { ownerIds: OWNER_ID }).ok).toBe(false);
+    expect(validateCommunityAttachmentUrl(
+      publicObjectUrl(COMMUNITY_IMAGE_BUCKET),
+      { ownerIds: OWNER_ID },
+    ).ok).toBe(false);
+  });
+
+  it("allows an update to retain only a video URL already present on that post", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
+    const retained = publicObjectUrl(COMMUNITY_VIDEO_BUCKET, OWNER_ID, "old.mp4");
+    const other = publicObjectUrl(COMMUNITY_VIDEO_BUCKET, OWNER_ID, "other.mp4");
+    const existingSlides = [{ type: "video", url: retained }];
+
+    expect(validateRetainedCommunityVideoUrl(retained, existingSlides, {
+      ownerIds: OWNER_ID,
+    })).toMatchObject({ ok: true, url: retained, bucket: COMMUNITY_VIDEO_BUCKET });
+    expect(validateRetainedCommunityVideoUrl(other, existingSlides, {
+      ownerIds: OWNER_ID,
+    })).toEqual({ ok: false, reason: "unsafe_path" });
+  });
+
+  it("allows only an exact legacy image or thumbnail already present on the same post", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
+    const retainedImage = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, "1700000000000_old.jpg");
+    const retainedThumbnail = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, "1700000000000_thumb.jpg");
+    const other = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, "1700000000000_other.jpg");
+    const existingMedia = [
+      retainedImage,
+      { type: "video", url: publicObjectUrl(COMMUNITY_VIDEO_BUCKET, OWNER_ID, "old.mp4"), thumbnail_url: retainedThumbnail },
+    ];
+
+    expect(validateRetainedCommunityImageUrl(retainedImage, existingMedia, {
+      ownerIds: OWNER_ID,
+    })).toMatchObject({ ok: true, url: retainedImage, bucket: COMMUNITY_IMAGE_BUCKET });
+    expect(validateRetainedCommunityImageUrl(retainedThumbnail, existingMedia, {
+      ownerIds: OWNER_ID,
+    })).toMatchObject({ ok: true, url: retainedThumbnail, bucket: COMMUNITY_IMAGE_BUCKET });
+    expect(validateRetainedCommunityImageUrl(other, existingMedia, {
+      ownerIds: OWNER_ID,
+    })).toEqual({ ok: false, reason: "unsafe_path" });
   });
 
   it("rejects encoded path traversal", () => {
@@ -122,7 +162,7 @@ describe("validateCommunityMediaUrl", () => {
 
   it("accepts HTML image sources from the owner's community image folder", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
-    const url = publicObjectUrl(COMMUNITY_IMAGE_BUCKET);
+    const url = publicObjectUrl(COMMUNITY_IMAGE_BUCKET, OWNER_ID, `${UPLOAD_ID}.png`);
 
     const result = validateCommunityHtmlImageSources(`<p>본문</p><img src="${url}" alt="">`, {
       ownerIds: OWNER_ID,

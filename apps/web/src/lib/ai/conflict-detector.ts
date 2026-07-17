@@ -14,11 +14,24 @@
  *  ChatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
  */
 
-import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  createOpenAIStructuredResponseWithAudit,
+  type AuditedOpenAIStructuredResponse,
+} from "@/lib/ai/auditedOpenAI";
+import { AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL } from "@/lib/ai/amoraRequestPolicy";
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
+import { AmoraCostGuardError } from "@/lib/ai/costGuard";
+import type { AmoraConflictDetectionCheckpoint } from "@/lib/ai/amoraConflictCheckClaim";
 
 const MAX_LLM_MESSAGE_CHARS = 800;
 const MAX_LLM_INPUT_CHARS = 8_000;
+
+class ConflictVerificationBudgetError extends Error {
+  constructor() {
+    super("CONFLICT_VERIFICATION_COST_GUARD_REJECTED");
+    this.name = "ConflictVerificationBudgetError";
+  }
+}
 
 // ──────────────────────────────────────────────────────────────
 // 타입
@@ -44,7 +57,19 @@ export interface ConflictDetection {
   conflictContext: string;
   /** LLM 검증을 거쳤는지 — 비용 통계용 */
   llmVerified: boolean;
+  /** Provider 직전 원자 예약이 거절되어 LLM을 호출하지 않은 경우. */
+  providerBlockedReason?: "cost_guard" | "provider_error";
 }
+
+type ConflictVerificationProviderResult =
+  AuditedOpenAIStructuredResponse<ConflictVerificationResponse>
+  & { providerCheckpoint?: AmoraConflictDetectionCheckpoint };
+
+export type ConflictVerificationProviderRunner = (
+  call: (
+    beforeGeneration: () => Promise<void>,
+  ) => Promise<ConflictVerificationProviderResult>,
+) => Promise<ConflictVerificationProviderResult>;
 
 // ──────────────────────────────────────────────────────────────
 // 정규화 — 공백·문장부호·반복문자 처리
@@ -377,8 +402,16 @@ export function validateConflictVerification(value: unknown): ConflictVerificati
 
 async function verifyWithLLM(
   coupleMessages: CoupleMessage[],
-  audit?: { coupleId?: string | null; userId?: string | null }
-): Promise<{ isConflict: boolean; reason: string }> {
+  options: {
+    reserveProviderTurn?: () => Promise<boolean>;
+    runProviderCall?: ConflictVerificationProviderRunner;
+  },
+  audit?: { coupleId?: string | null; userId?: string | null },
+): Promise<{
+  isConflict: boolean;
+  reason: string;
+  providerBlockedReason?: "cost_guard" | "provider_error";
+}> {
   if (!hasOpenAIConfig("fast")) {
     return { isConflict: false, reason: "OpenAI 비활성 — LLM 검증 스킵" };
   }
@@ -409,10 +442,15 @@ async function verifyWithLLM(
 
 판단 이유는 한국어 한 줄, 80자 이내로 작성하세요.`;
 
-  try {
-    const res = await createOpenAIStructuredResponseWithAudit({
+  const callProvider = (beforeGeneration: () => Promise<void>) =>
+    createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 100,
+      beforeGeneration,
+      auditPersistence: options.runProviderCall
+        ? "external_provider_receipt"
+        : "internal",
       instructions,
       input: formatted,
       responseFormat: {
@@ -424,19 +462,43 @@ async function verifyWithLLM(
       audit: {
         userId: audit?.userId ?? null,
         coupleId: audit?.coupleId ?? null,
-        interactionType: "chat_turn",
+        interactionType: "amora_director",
         userInput: null,
         metadata: { source: "conflict_detector_verify" },
       },
     });
+
+  try {
+    const res = options.runProviderCall
+      ? await options.runProviderCall(callProvider)
+      : await callProvider(async () => {
+          let providerTurnReserved = false;
+          try {
+            providerTurnReserved = await options.reserveProviderTurn?.() ?? false;
+          } catch {
+            // A reservation-store outage must never become an unmetered call.
+          }
+          if (!providerTurnReserved) throw new ConflictVerificationBudgetError();
+        });
     return {
       isConflict: res.data.conflict,
       reason: res.data.reason,
     };
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof ConflictVerificationBudgetError
+      || error instanceof AmoraCostGuardError
+    ) {
+      return {
+        isConflict: false,
+        reason: "비용 가드 예약 실패",
+        providerBlockedReason: "cost_guard",
+      };
+    }
     return {
       isConflict: false,
       reason: "LLM 검증 실패",
+      providerBlockedReason: "provider_error",
     };
   }
 }
@@ -448,6 +510,10 @@ async function verifyWithLLM(
 const HARD_TRIGGER_SCORE = 10; // 이 이상이면 LLM 검증 없이 즉시 트리거
 const HARD_REJECT_SCORE = 5; // 미만이면 무조건 비-갈등
 
+function getBorderlineReason(score: number, llmReason: string): string {
+  return `borderline 점수 ${score} → LLM: ${llmReason}`;
+}
+
 export async function detectCoupleConflict(params: {
   coupleId?: string | null;
   userId?: string | null;
@@ -457,6 +523,10 @@ export async function detectCoupleConflict(params: {
   pastConflicts: PastConflictSummary[];
   /** 최대 윈도우 (분) — 이 시간 이전 메시지는 무시. 기본 5분 */
   windowMinutes?: number;
+  /** 첫 provider 호출 직전 한 번만 실행되고 이후 호출에서 재사용되는 원자 예약. */
+  reserveProviderTurn?: () => Promise<boolean>;
+  /** Durable per-provider receipt wrapper used by production callers. */
+  runProviderCall?: ConflictVerificationProviderRunner;
 }): Promise<ConflictDetection> {
   const windowMs = (params.windowMinutes ?? 5) * 60 * 1000;
   const cutoff = Date.now() - windowMs;
@@ -506,15 +576,46 @@ export async function detectCoupleConflict(params: {
   }
 
   // borderline — LLM 검증
+  const conflictContext = h.conflictMessages.join(" / ").slice(0, 2_000);
+  const runProviderCall = params.runProviderCall
+    ? (call: Parameters<ConflictVerificationProviderRunner>[0]) =>
+        params.runProviderCall!(async (beforeGeneration) => {
+          const response = await call(beforeGeneration);
+          return {
+            ...response,
+            providerCheckpoint: {
+              stage: "detection_complete",
+              triggered: response.data.conflict,
+              score: Math.round(h.score),
+              reason: getBorderlineReason(h.score, response.data.reason).slice(0, 2_000),
+              conflictContext,
+              llmVerified: true,
+            },
+          };
+        })
+    : undefined;
   const llm = await verifyWithLLM(coupleMessages, {
+    reserveProviderTurn: params.reserveProviderTurn,
+    runProviderCall,
+  }, {
     coupleId: params.coupleId ?? null,
     userId: params.userId ?? null,
   });
+  if (llm.providerBlockedReason) {
+    return {
+      triggered: false,
+      score: h.score,
+      reason: `borderline 점수 ${h.score} → ${llm.reason}`,
+      conflictContext: h.conflictMessages.join(" / "),
+      llmVerified: false,
+      providerBlockedReason: llm.providerBlockedReason,
+    };
+  }
   return {
     triggered: llm.isConflict,
     score: h.score,
-    reason: `borderline 점수 ${h.score} → LLM: ${llm.reason}`,
-    conflictContext: h.conflictMessages.join(" / "),
+    reason: getBorderlineReason(h.score, llm.reason),
+    conflictContext,
     llmVerified: true,
   };
 }

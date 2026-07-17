@@ -11,6 +11,10 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+  blockLegacyAuxiliaryProviderGeneration,
+} from "@/lib/ai/amoraRequestPolicy";
 
 const SUMMARY_TRIGGER_THRESHOLD = 10; // 마지막 요약 이후 새 메시지 N개 이상이면 요약
 const MAX_INPUT_CHARS = 12_000; // 모델에 보낼 대화 전문 상한 (토큰 절약)
@@ -77,13 +81,15 @@ async function generateSummary(
   try {
     const response = await createOpenAIResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 200,
+      beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: SUMMARY_SYSTEM_PROMPT,
       input: formattedConversation,
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
-        interactionType: "chat_turn",
+        interactionType: "amora_director",
         userInput: null,
         metadata: {
           endpoint: "chat/summarize",

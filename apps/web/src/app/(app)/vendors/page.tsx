@@ -18,7 +18,6 @@ import Link from "next/link";
 import type { Vendor } from "@/types/vendor.types";
 import { useEventTracker } from "@/hooks/useEventTracker";
 import { useAuthStore } from "@/stores/authStore";
-import AmoraDirector from "@/components/app/AmoraDirector";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const categories = ["전체", "스튜디오", "드레스", "메이크업", "예식장", "한복", "예물", "신혼여행"];
@@ -123,7 +122,8 @@ export default function VendorsPage() {
     return vendors.filter((v) => v.aiRecommend).length;
   }, [vendors]);
 
-  // AI 맞춤 추천 로직: 유저 선호도와 공개 품질 지표 기반 TOP 3
+  // 설명 가능한 조건 참고 표시: 사용자가 입력한 우선순위와 공개 평점만 사용한다.
+  // 적합성·품질·계약 안전성을 뜻하는 추천 점수가 아니다.
   const { journey } = useAuthStore();
   const userPrefs = useMemo(() => {
     return ((journey?.progress ?? {}) as Record<string, unknown>)?.__preferences as
@@ -147,7 +147,7 @@ export default function VendorsPage() {
       return new Set<string>();
     }
 
-    // 각 업체에 매칭 점수 부여
+    // 후보를 좁히기 위한 단순 참고 점수
     const scored = vendors.map((v) => {
       let score = 0;
 
@@ -230,16 +230,16 @@ export default function VendorsPage() {
           <div className="relative overflow-hidden rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:col-span-2 md:col-span-1 md:p-5">
             <TrendingUp className="absolute top-4 right-4 h-5 w-5 text-[#36534E]/25" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
-              HANBANG CURATED
+              INFORMATION STATUS
             </p>
             <p className="mt-3 font-serif-kr text-[28px] font-medium leading-none text-[#071629] sm:text-[31px]">
               {curatedVendorsCount || "—"}
             </p>
-            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">검토된 후보</p>
+            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">운영 참고 표시</p>
           </div>
         </div>
 
-        {/* 맞춤 추천 안내 배너 — 선호도 없으면 설정 유도 */}
+        {/* 조건 참고 안내 — 선호도 없으면 설정 유도 */}
         {aiRecommendedIds.size === 0 && (
           <div className="mb-5 flex flex-col items-start justify-between gap-4 rounded-[18px] border border-[#eadfc9] bg-[#fffdf7]/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:flex-row sm:items-center sm:p-5">
             <div className="flex items-start sm:items-center gap-4 min-w-0">
@@ -248,10 +248,10 @@ export default function VendorsPage() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-[14px] font-semibold text-[#071629]">
-                  AI 맞춤 추천을 받아보세요
+                  내 조건과 가까운 후보를 좁혀보세요
                 </h3>
                 <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
-                  예산과 웨딩 스타일을 알려주시면 어울리는 업체에 맞춤 추천 뱃지가 표시돼요
+                  입력한 우선순위와 공개 평점을 기준으로 참고 뱃지를 표시해요. 적합성을 보장하는 추천은 아니에요.
                 </p>
               </div>
             </div>
@@ -345,13 +345,13 @@ export default function VendorsPage() {
                         {aiRecommendedIds.has(vendor.id) && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-lg">
                             <Sparkles className="w-3.5 h-3.5" />
-                            맞춤 추천
+                            조건 참고
                           </span>
                         )}
                         {!aiRecommendedIds.has(vendor.id) && vendor.aiRecommend && (
                           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/95 text-[#36534E] text-sm font-medium shadow-lg ring-1 ring-[#d9e4dc]">
                             <Star className="w-3.5 h-3.5" />
-                            한방 큐레이션
+                            운영 참고
                           </span>
                         )}
                         {hasSlots && (
@@ -435,13 +435,13 @@ export default function VendorsPage() {
               <>
                 <p className="font-serif-kr text-[22px] font-medium text-[#071629] mb-2">곧 만날 수 있어요</p>
                 <p className="mb-4 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
-                  믿을 수 있는 업체만 엄선해서 모시는 중이에요. 등록 직후 알려드릴게요.
+                  공개 가능한 업체 정보를 정리하는 중이에요. 등록 상태는 각 상세 화면에서 확인해 주세요.
                 </p>
                 <Link
                   {...weddingLinkProps("/chat")}
                   className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#36534E] transition-all hover:gap-3"
                 >
-                  아모라에게 미리 추천 요청하기
+                  아모라와 조건 정리하기
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </>
@@ -449,36 +449,29 @@ export default function VendorsPage() {
           </div>
         )}
 
-        {/* AI Spotlight */}
+        {/* 조건 정리 안내 */}
         <div className="mb-6 rounded-[18px] border border-[#36534E]/20 bg-[#36534E] p-5 shadow-[0_10px_28px_rgba(54,83,78,0.16)] animate-fade-in sm:p-6">
           <div className="max-w-xl">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
-              AMORA CURATION
+               AMORA CONDITION CHECK
             </p>
             <h3 className="mt-1 font-serif-kr text-[22px] font-medium leading-tight text-white sm:text-[24px]">
-              내 예산과 스타일에 맞는 업체 찾기
+              내 예산과 스타일 조건 정리하기
             </h3>
             <p className="mt-2 mb-5 text-[13px] font-medium leading-[1.65] text-white/75">
-              예산, 지역, 스타일을 알려주시면 AI 아모라가 딱 맞는 업체 3곳을 추천해드려요
+              예산, 지역, 스타일을 알려주시면 공개된 항목을 비교하기 쉽게 정리해요. 최종 조건과 계약 내용은 업체에 직접 확인해 주세요.
             </p>
             <Link
               {...weddingLinkProps("/chat")}
               className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec]"
             >
-              맞춤 추천 받기
+              조건 정리 시작하기
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </div>
 
-      {/* 아모라 플로팅 디렉터 */}
-      <AmoraDirector
-        context="vendors"
-        categoryName={activeCategory}
-        favoriteCount={favoritesCount}
-        hasPreferences={hasUserPreferences}
-      />
     </div>
   );
 }

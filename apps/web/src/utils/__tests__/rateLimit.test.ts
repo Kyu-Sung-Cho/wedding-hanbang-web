@@ -1,5 +1,13 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { rateLimitKey } from "../rateLimit";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rateLimitKey, rateLimitSubjectKey } from "../rateLimit";
+
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+}));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: vi.fn(() => ({ rpc: mocks.rpc })),
+}));
 
 // The module-level `buckets` Map and `lastCleanup` are encapsulated in the module.
 // Re-importing resets nothing — we need to use fake timers to control Date.now().
@@ -86,30 +94,54 @@ describe("checkRateLimit", () => {
 });
 
 describe("rateLimitKey", () => {
+  beforeEach(() => {
+    vi.stubEnv("RATE_LIMIT_KEY_SECRET", "release-test-secret-that-is-at-least-32-bytes");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("uses userId when provided", () => {
     const req = new Request("http://localhost", { headers: {} });
-    expect(rateLimitKey("chat", req, "user-123")).toBe("chat:user-123");
+    const key = rateLimitKey("chat", req, "user-123");
+    expect(key).toMatch(/^chat:hmac-sha256:[a-f0-9]{64}$/);
+    expect(key).not.toContain("user-123");
   });
 
   it("falls back to x-forwarded-for IP", () => {
     const req = new Request("http://localhost", {
       headers: { "x-forwarded-for": "1.2.3.4" },
     });
-    expect(rateLimitKey("chat", req)).toBe("chat:1.2.3.4");
+    const key = rateLimitKey("chat", req);
+    expect(key).toMatch(/^chat:hmac-sha256:[a-f0-9]{64}$/);
+    expect(key).not.toContain("1.2.3.4");
   });
 
   it("uses LAST IP from comma-separated x-forwarded-for (최좌측은 스푸핑 가능 — 감사 2.2 M2)", () => {
     const req = new Request("http://localhost", {
       headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
     });
-    expect(rateLimitKey("chat", req)).toBe("chat:5.6.7.8");
+    const trustedHop = rateLimitKey("chat", req);
+    const directTrustedHop = rateLimitKey(
+      "chat",
+      new Request("http://localhost", {
+        headers: { "x-forwarded-for": "5.6.7.8" },
+      }),
+    );
+    expect(trustedHop).toBe(directTrustedHop);
   });
 
   it("prefers x-real-ip over x-forwarded-for", () => {
     const req = new Request("http://localhost", {
       headers: { "x-real-ip": "7.7.7.7", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
     });
-    expect(rateLimitKey("chat", req)).toBe("chat:7.7.7.7");
+    expect(rateLimitKey("chat", req)).toBe(
+      rateLimitKey(
+        "chat",
+        new Request("http://localhost", { headers: { "x-real-ip": "7.7.7.7" } }),
+      ),
+    );
   });
 
   it("spoofed leftmost XFF cannot create fresh buckets", () => {
@@ -124,13 +156,100 @@ describe("rateLimitKey", () => {
 
   it("falls back to 'unknown' when no IP header", () => {
     const req = new Request("http://localhost", { headers: {} });
-    expect(rateLimitKey("chat", req)).toBe("chat:unknown");
+    const key = rateLimitKey("chat", req);
+    expect(key).toMatch(/^chat:hmac-sha256:[a-f0-9]{64}$/);
+    expect(key).not.toContain("unknown");
   });
 
   it("prefers userId over IP header", () => {
     const req = new Request("http://localhost", {
       headers: { "x-forwarded-for": "9.9.9.9" },
     });
-    expect(rateLimitKey("chat", req, "user-abc")).toBe("chat:user-abc");
+    expect(rateLimitKey("chat", req, "user-abc")).toBe(
+      rateLimitKey("chat", new Request("http://localhost"), "user-abc"),
+    );
+  });
+
+  it("pseudonymizes normalized email subjects before persistent storage", () => {
+    const key = rateLimitSubjectKey("signup-email", "person@example.com");
+    expect(key).toMatch(/^signup-email:hmac-sha256:[a-f0-9]{64}$/);
+    expect(key).not.toContain("person@example.com");
+  });
+
+  it("keeps labels separated even for the same subject", () => {
+    const signup = rateLimitSubjectKey("signup-email", "person@example.com");
+    const forgot = rateLimitSubjectKey("forgot-email", "person@example.com");
+    expect(signup).not.toBe(forgot);
+  });
+
+  it("uses a deterministic SHA-256 fallback without persisting the raw subject locally", () => {
+    vi.stubEnv("RATE_LIMIT_KEY_SECRET", "");
+    const first = rateLimitSubjectKey("chat", "user-123");
+    const second = rateLimitSubjectKey("chat", "user-123");
+    expect(first).toBe(second);
+    expect(first).toMatch(/^chat:sha256:[a-f0-9]{64}$/);
+    expect(first).not.toContain("user-123");
+  });
+});
+
+describe("checkRateLimitPersistent fail-closed mode", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", `sb_secret_${"a".repeat(40)}`);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to 503 instead of an instance-local fallback when the shared RPC fails", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "database unavailable" },
+    });
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const response = await checkRateLimitPersistent(
+      "provider-cost:test-user",
+      { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+    );
+
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get("Retry-After")).toBe("60");
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.any(String),
+    });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a malformed shared RPC result as unavailable, not a valid allowance", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const response = await checkRateLimitPersistent(
+      "provider-cost:malformed",
+      { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+      { failClosed: true },
+    );
+
+    expect(response?.status).toBe(503);
+  });
+
+  it("allows an explicitly reviewed endpoint to opt into the local fallback", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "database unavailable" },
+    });
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const response = await checkRateLimitPersistent(
+      "best-effort:test-user",
+      { maxRequests: 30, windowMs: 60 * 60 * 1000 },
+      { failClosed: false },
+    );
+
+    expect(response).toBeNull();
   });
 });

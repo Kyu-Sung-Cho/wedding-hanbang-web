@@ -3,9 +3,22 @@ import type { Response as OpenAIResponse } from "openai/resources/responses/resp
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildToolResultInput,
-  chatWithToolsStream,
+  chatWithToolsStream as rawChatWithToolsStream,
   normalizeResponseUsage,
 } from "../openai";
+
+type ChatWithToolsOptions = Parameters<typeof rawChatWithToolsStream>[0];
+
+function chatWithToolsStream(
+  options: Omit<ChatWithToolsOptions, "maxInputTokens"> & {
+    maxInputTokens?: number;
+  },
+) {
+  return rawChatWithToolsStream({
+    maxInputTokens: 64_000,
+    ...options,
+  });
+}
 
 const originalEnabled = process.env.AMORA_OPENAI_ENABLED;
 const originalApiKey = process.env.OPENAI_API_KEY;
@@ -63,7 +76,15 @@ function clientFor(response: OpenAIResponse): OpenAI {
           request_id: "req_boundary",
         })),
       })),
-      inputTokens: { count: vi.fn() },
+      inputTokens: {
+        count: vi.fn(() => ({
+          withResponse: vi.fn(async () => ({
+            data: { object: "response.input_tokens", input_tokens: 1 },
+            response: new Response(),
+            request_id: "req_boundary_count",
+          })),
+        })),
+      },
     },
   } as unknown as OpenAI;
 }
@@ -137,6 +158,7 @@ describe("OpenAI Responses boundary helpers", () => {
       systemPrompt: "system",
       input: [{ role: "user", content: "예산 변경" }],
       tools: [UPDATE_BUDGET_TOOL],
+      beforeGeneration: vi.fn(),
       client: clientFor(response),
     })).rejects.toMatchObject({
       category: "response_invalid",
@@ -158,6 +180,7 @@ describe("OpenAI Responses boundary helpers", () => {
       systemPrompt: "system",
       input: [priorCall, priorOutput] as never,
       tools: [UPDATE_BUDGET_TOOL],
+      beforeGeneration: vi.fn(),
       client: clientFor(response),
     })).rejects.toMatchObject({
       category: "response_invalid",

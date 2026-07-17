@@ -1,5 +1,14 @@
 # WeddingCode candidate.4 plain-language rewrite
 
+> [!WARNING]
+> **SUPERSEDED / 역사 보존용 구현 기록입니다.** 아래 테스트·빌드 PASS는 당시 카피와 기술 구현을
+> 확인한 결과이며 문항 타당도나 현재 출시 준비도 승인이 아닙니다. candidate.4의 문항·가중치·커플
+> 비교는 2026-07-15 재감사 이후 출시 불가 상태입니다. 현재 기준은
+> [`55_conservative_readiness_audit_2026-07-15.md`](./55_conservative_readiness_audit_2026-07-15.md)이고,
+> [`56_candidate5_research_spec_2026-07-17.md`](./56_candidate5_research_spec_2026-07-17.md)는 구현·수집을
+> 허가하지 않는 미검증 연구 초안입니다.
+> **문구·선택지·가중치·테스트 결과 재사용 금지.**
+
 Date: 2026-07-08
 Version: `v0.5-candidate.4`
 Previous: `v0.5-candidate.3`

@@ -1,5 +1,10 @@
 # Amora production expand evidence — 2026-07-15 KST
 
+> **SUPERSEDED HISTORICAL RECEIPT — not current Engine V2 evidence.** This
+> receipt remains the immutable record for the earlier OpenAI expand only. It
+> does not validate the pending 27-file Engine V2 set, the current Storage 1080
+> operation, or any current deployment/mobile canary.
+
 ## Scope and recovery
 
 - production project: `slrtobkksjmxgzatjyqb`;

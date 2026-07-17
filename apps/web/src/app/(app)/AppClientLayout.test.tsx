@@ -102,4 +102,16 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open"))
       .toBe("false");
   });
+
+  it.each([
+    "/wedding/vendors",
+    "/wedding/vendors/vendor-123",
+  ])("keeps exactly one global Amora launcher on %s", async (pathname) => {
+    mocks.pathname = pathname;
+    await renderLayout();
+
+    expect(
+      container.querySelectorAll('button[aria-label="아모라 AI 상담"]'),
+    ).toHaveLength(1);
+  });
 });

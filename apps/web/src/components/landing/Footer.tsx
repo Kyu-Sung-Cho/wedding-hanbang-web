@@ -107,18 +107,14 @@ export default function Footer() {
         {/* AI 고지 */}
         <AiNoticeFooter variant="dark" />
 
-        {/* 사업자 정보 + 통신판매중개자 고지 (전자상거래법 제20조) */}
+        {/* 거래 기능을 열기 전 법률·사업 검토를 거쳐 확정할 정보 */}
         <div className="pt-8 mt-8 border-t border-white/10 space-y-3">
           <p className="text-ivory-50/70 text-xs leading-relaxed">
-            <span className="text-rose-light font-medium">사업자 정보</span> ·
-            상호 주식회사 웨딩한방 · 대표 조규성 · 사업자등록번호 사업 개시 후 등록 예정 ·
-            통신판매업 신고 사업 개시 후 신고 예정 ·
-            주소 사업장 등록 후 게시 ·
+            <span className="text-rose-light font-medium">운영 문의</span> ·
             대표 이메일 <a href={`mailto:${CONTACT.email}`} className="underline hover:text-white">{CONTACT.email}</a>
           </p>
           <p className="text-ivory-50/50 text-xs leading-relaxed">
-            웨딩한방은 「전자상거래 등에서의 소비자보호에 관한 법률」 제20조에 따른 <strong className="text-ivory-50/70">통신판매중개자</strong>로서, 회원과 파트너 업체 간 거래의 당사자가 아닙니다.
-            개별 거래에 관한 책임은 해당 파트너 업체에 있으며, 분쟁 발생 시 회사는 합리적 조정을 위해 노력합니다.
+            현재 공개 화면은 정보 정리와 베타 기능을 제공합니다. 결제·중개 등 거래 기능을 제공하기 전 운영 주체, 사업자 정보, 책임 범위와 환불 기준을 법률 검토 후 별도로 고지합니다.
           </p>
         </div>
 
@@ -127,9 +123,7 @@ export default function Footer() {
           <p className="text-ivory-50/60 text-xs">
             &copy; 2026 Hanbang Group. All rights reserved.
           </p>
-          <p className="text-ivory-50/50 text-xs leading-relaxed">
-            AI 기본법 (2026.1.22) · 가격표시제 (2025.11) · 표준계약서 (2025.4) 준수
-          </p>
+          <p className="text-ivory-50/50 text-xs leading-relaxed">AI 답변은 참고 자료이며 계약·가격·법률 판단은 원문과 전문가를 통해 최종 확인해 주세요.</p>
         </div>
       </div>
     </footer>

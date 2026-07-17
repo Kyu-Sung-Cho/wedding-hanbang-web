@@ -1,166 +1,231 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import crypto from "crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClientFromRequest } from "@/lib/supabase/server";
+import { hasActiveAccountDeletion } from "@/lib/accountDeletion/communityStorageSaga";
+import {
+  COMMUNITY_MEDIA_RULES,
+  COMMUNITY_SIGNED_UPLOAD_TTL_MS,
+  COMMUNITY_STAGING_BUCKET,
+  isValidCommunityMediaSize,
+  normalizeCommunityMimeType,
+} from "@/lib/community/uploadPolicy";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_GIF_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
-const EXT_MAP: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "video/mp4": "mp4",
-  "video/quicktime": "mov",
-  "video/webm": "webm",
-};
+const MAX_INIT_BODY_BYTES = 2 * 1024;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
-function getServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) return null;
-
-  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+function json(body: Record<string, unknown>, status: number, headers: HeadersInit = {}) {
+  return NextResponse.json(body, {
+    status,
+    headers: { ...NO_STORE_HEADERS, ...headers },
   });
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClientFromRequest(req);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-    }
-
-    const rlResult = checkRateLimit(
-      rateLimitKey("community:upload", req, user.id),
-      { maxRequests: 20, windowMs: 10 * 60 * 1000 }
-    );
-    if (rlResult) return rlResult;
-
-    const serviceClient = getServiceClient();
-    const storageClient = serviceClient ?? supabase;
-
-    const today = new Date().toISOString().split("T")[0];
-    const [imageList, videoList] = await Promise.allSettled([
-      storageClient.storage.from("community-images").list(user.id, { limit: 100 }),
-      storageClient.storage.from("community-videos").list(user.id, { limit: 100 }),
-    ]);
-    const imageFiles =
-      imageList.status === "fulfilled" && !imageList.value.error
-        ? imageList.value.data
-        : [];
-    const videoFiles =
-      videoList.status === "fulfilled" && !videoList.value.error
-        ? videoList.value.data
-        : [];
-
-    const allFiles = [...(imageFiles ?? []), ...(videoFiles ?? [])];
-    if (allFiles.length >= 50) {
-      const todayFiles = allFiles.filter(
-        (f) => f.created_at && f.created_at.startsWith(today)
-      );
-      if (todayFiles.length >= 50) {
-        return NextResponse.json(
-          { error: "일일 업로드 한도(50개)를 초과했습니다." },
-          { status: 429 }
-        );
-      }
-    }
-
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-
-    if (!file) {
-      return NextResponse.json({ error: "파일을 선택해주세요." }, { status: 400 });
-    }
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "지원하지 않는 파일 형식입니다. JPEG, PNG, GIF, WebP, MP4, MOV, WebM만 업로드할 수 있어요." },
-        { status: 400 }
-      );
-    }
-
-    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
-    const isGif = file.type === "image/gif";
-    const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
-
-    if (file.size > maxSize) {
-      const sizeMsg = isVideo
-        ? "동영상은 50MB 이하로 업로드할 수 있어요."
-        : isGif
-          ? "GIF는 10MB 이하로 업로드할 수 있어요."
-          : "이미지는 5MB 이하로 업로드할 수 있어요.";
-      return NextResponse.json({ error: sizeMsg }, { status: 400 });
-    }
-
-    const ext = EXT_MAP[file.type] ?? "jpg";
-    const timestamp = Date.now();
-    const random = crypto.randomUUID();
-    const bucket = isVideo ? "community-videos" : "community-images";
-    const filePath = `${user.id}/${timestamp}_${random}.${ext}`;
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const bytes = new Uint8Array(buffer.slice(0, 12));
-    const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8;
-    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-    const isGIF = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
-    const isWEBP = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-    const isFtyp = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
-    const isEBML = bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
-    const isValidImage = isJPEG || isPNG || isGIF || isWEBP;
-    const isValidVideo = isFtyp || isEBML;
-
-    if (!isValidImage && !isValidVideo) {
-      return NextResponse.json({ error: "파일 내용이 지원 형식과 일치하지 않습니다." }, { status: 400 });
-    }
-
-    let uploadClient = storageClient;
-    let { error: uploadError } = await uploadClient.storage
-      .from(bucket)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (uploadError && serviceClient) {
-      console.warn("[community upload] service upload failed; retrying with user session:", uploadError);
-      uploadClient = supabase;
-      const retry = await uploadClient.storage
-        .from(bucket)
-        .upload(filePath, buffer, {
-          contentType: file.type,
-          upsert: false,
-        });
-      uploadError = retry.error;
-    }
-
-    if (uploadError) {
-      console.error("[community upload] upload error:", uploadError);
-      return NextResponse.json({ error: "파일 업로드에 실패했습니다." }, { status: 500 });
-    }
-
-    const {
-      data: { publicUrl },
-    } = uploadClient.storage.from(bucket).getPublicUrl(filePath);
-
-    const fileType: "image" | "video" | "gif" = isVideo ? "video" : isGif ? "gif" : "image";
-
-    return NextResponse.json({ url: publicUrl, type: fileType });
-  } catch (err) {
-    console.error("[community upload] unexpected:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+async function readStrictInitBody(request: Request): Promise<{
+  mimeType: string;
+  size: number;
+} | null> {
+  if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase()
+      !== "application/json") {
+    return null;
   }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_INIT_BODY_BYTES) return null;
+
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_INIT_BODY_BYTES) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const record = parsed as Record<string, unknown>;
+  if (Object.keys(record).sort().join(",") !== "mimeType,size") return null;
+  if (typeof record.mimeType !== "string" || typeof record.size !== "number") return null;
+  return { mimeType: record.mimeType, size: record.size };
+}
+
+export async function POST(req: NextRequest) {
+  const requestClient = await createClientFromRequest(req);
+  const {
+    data: { user },
+  } = await requestClient.auth.getUser();
+
+  if (!user) {
+    return json({ error: "로그인이 필요해요.", code: "AUTH_REQUIRED" }, 401);
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return json(
+      {
+        error: "업로드 서비스를 잠시 사용할 수 없어요.",
+        code: "COMMUNITY_UPLOAD_NOT_CONFIGURED",
+      },
+      503,
+      { "Retry-After": "60" },
+    );
+  }
+
+  try {
+    if (await hasActiveAccountDeletion(admin, user.id)) {
+      return json(
+        {
+          error: "계정 삭제를 처리 중이라 새 파일을 올릴 수 없어요.",
+          code: "ACCOUNT_DELETION_PENDING",
+        },
+        409,
+      );
+    }
+  } catch {
+    return json(
+      {
+        error: "계정 삭제 상태를 안전하게 확인하지 못했어요.",
+        code: "ACCOUNT_DELETION_FENCE_UNAVAILABLE",
+      },
+      503,
+      { "Retry-After": "30" },
+    );
+  }
+
+  const burstLimited = await checkRateLimitPersistent(
+    rateLimitKey("community:upload:burst", req, user.id),
+    { maxRequests: 20, windowMs: 10 * 60 * 1000 },
+    { failClosed: true },
+  );
+  if (burstLimited) return burstLimited;
+
+  const dailyLimited = await checkRateLimitPersistent(
+    rateLimitKey("community:upload:daily", req, user.id),
+    { maxRequests: 50, windowMs: 24 * 60 * 60 * 1000 },
+    { failClosed: true },
+  );
+  if (dailyLimited) return dailyLimited;
+
+  const body = await readStrictInitBody(req);
+  const mimeType = normalizeCommunityMimeType(body?.mimeType);
+  if (!body || !mimeType || !isValidCommunityMediaSize(mimeType, body.size)) {
+    return json(
+      {
+        error: "지원하는 파일 형식과 용량을 확인해 주세요.",
+        code: "INVALID_MEDIA_DECLARATION",
+      },
+      400,
+    );
+  }
+
+  const uploadId = randomUUID();
+  const rule = COMMUNITY_MEDIA_RULES[mimeType];
+  const path = `${user.id}/${uploadId}.${rule.extension}`;
+  const expiresAt = new Date(Date.now() + COMMUNITY_SIGNED_UPLOAD_TTL_MS).toISOString();
+
+  const { error: sessionError } = await admin
+    .from("community_upload_sessions")
+    .insert({
+      id: uploadId,
+      user_id: user.id,
+      staging_path: path,
+      final_bucket: rule.bucket,
+      final_path: path,
+      declared_mime_type: mimeType,
+      declared_size: body.size,
+      status: "issued",
+      expires_at: expiresAt,
+    })
+    .select("id")
+    .single();
+
+  if (sessionError) {
+    console.error("[community upload] durable session creation failed");
+    return json(
+      { error: "업로드 준비에 실패했어요. 잠시 후 다시 시도해 주세요.", code: "UPLOAD_INIT_FAILED" },
+      503,
+      { "Retry-After": "30" },
+    );
+  }
+
+  // The first check is only a fast path. Persisting the session before this
+  // second check closes the race with deletion inventory: if deletion starts
+  // after this check, its worker must see this durable session; if it starts
+  // before this check, no signed token is issued.
+  let postSessionDeletionFence: "allowed" | "blocked" | "unavailable" = "allowed";
+  try {
+    if (await hasActiveAccountDeletion(admin, user.id)) {
+      postSessionDeletionFence = "blocked";
+    }
+  } catch {
+    postSessionDeletionFence = "unavailable";
+  }
+  if (postSessionDeletionFence !== "allowed") {
+    const now = new Date().toISOString();
+    await admin
+      .from("community_upload_sessions")
+      .update({
+        status: "rejected",
+        rejection_code: postSessionDeletionFence === "blocked"
+          ? "account_deletion_started"
+          : "account_deletion_fence_unavailable",
+        rejected_at: now,
+        staging_deleted_at: now,
+        updated_at: now,
+      })
+      .eq("id", uploadId);
+    return postSessionDeletionFence === "blocked"
+      ? json(
+        {
+          error: "계정 삭제를 처리 중이라 새 파일을 올릴 수 없어요.",
+          code: "ACCOUNT_DELETION_PENDING",
+        },
+        409,
+      )
+      : json(
+        {
+          error: "계정 삭제 상태를 안전하게 확인하지 못했어요.",
+          code: "ACCOUNT_DELETION_FENCE_UNAVAILABLE",
+        },
+        503,
+        { "Retry-After": "30" },
+      );
+  }
+
+  const { data: signed, error: signError } = await admin.storage
+    .from(COMMUNITY_STAGING_BUCKET)
+    .createSignedUploadUrl(path, { upsert: false });
+
+  if (signError || !signed?.token) {
+    await admin
+      .from("community_upload_sessions")
+      .update({
+        status: "rejected",
+        rejection_code: "signing_failed",
+        rejected_at: new Date().toISOString(),
+        staging_deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", uploadId);
+    console.error("[community upload] signed upload creation failed");
+    return json(
+      { error: "업로드 준비에 실패했어요. 잠시 후 다시 시도해 주세요.", code: "UPLOAD_SIGNING_FAILED" },
+      503,
+      { "Retry-After": "30" },
+    );
+  }
+
+  return json({
+    uploadId,
+    bucket: COMMUNITY_STAGING_BUCKET,
+    path,
+    token: signed.token,
+    expiresAt,
+  }, 201);
 }

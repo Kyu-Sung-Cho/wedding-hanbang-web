@@ -26,7 +26,6 @@ const CRITICAL = "#b0483f";
 
 export interface QuoteReportItem {
   name: string;
-  priceManwon: number;
   severity: "critical" | "high" | "medium";
 }
 
@@ -48,7 +47,7 @@ export function formatReportManwon(manwon: number): string {
 }
 
 function severityTag(severity: QuoteReportItem["severity"]): string {
-  return severity === "critical" ? "필수" : severity === "high" ? "추가금" : "선택";
+  return severity === "critical" ? "핵심" : severity === "high" ? "추가" : "선택";
 }
 
 /** 항목 한 줄 텍스트 — 폭 초과 시 이름을 말줄임 (테스트로 폭 보장) */
@@ -58,12 +57,11 @@ export function buildItemLine(
   measure: MeasureFn,
   maxWidth: number = MAX_W
 ): string {
-  const suffix = ` — 평균 ${formatReportManwon(item.priceManwon)}`;
   let name = item.name;
-  let line = `${name}${suffix}`;
+  let line = name;
   while (name.length > 4 && measure(line, fontSize) > maxWidth) {
     name = name.slice(0, -1);
-    line = `${name}…${suffix}`;
+    line = `${name}…`;
   }
   return line;
 }

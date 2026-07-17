@@ -124,6 +124,22 @@ function setupClients(
 }
 
 const coupleId = "12345678-1234-4234-9234-123456789abc";
+function storedScheduleEvent(
+  id: string,
+  momentType: string,
+  date: string,
+  title = "기존 일정",
+) {
+  return {
+    id,
+    momentType,
+    date,
+    title,
+    createdAt: "2026-07-01T00:00:00.000Z",
+    updatedAt: "2026-07-01T00:00:00.000Z",
+  };
+}
+
 const createSuccess = {
   success: true,
   created: true,
@@ -136,8 +152,8 @@ const createSuccess = {
 describe("/api/onboarding POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;
   });
 
   it("creates membership through the authenticated RPC and never writes couples directly", async () => {
@@ -233,12 +249,12 @@ describe("/api/onboarding POST", () => {
     const existingProgress = {
       budget: { spent: 1_000_000 },
       __events: [
-        {
-          id: "partner-event",
-          momentType: "sanggyeonrye",
-          date: "2027-02-01",
-          title: "파트너 상견례",
-        },
+        storedScheduleEvent(
+          "partner-event",
+          "sanggyeonrye",
+          "2027-02-01",
+          "파트너 상견례",
+        ),
       ],
     };
     const { admin } = setupClients(
@@ -282,7 +298,7 @@ describe("/api/onboarding POST", () => {
   it("merges a missing sanggyeonrye event with an exact-value compare-and-swap", async () => {
     const existingProgress = {
       budget: { spent: 1_000_000 },
-      __events: [{ id: "other-event", momentType: "venue", date: "2027-01-10" }],
+      __events: [storedScheduleEvent("other-event", "venue", "2027-01-10")],
     };
     let updatePayload: unknown;
     let filterCall: unknown;
@@ -312,7 +328,7 @@ describe("/api/onboarding POST", () => {
                   ...existingProgress,
                   __events: [
                     ...existingProgress.__events,
-                    { id: "new-event", momentType: "sanggyeonrye", date: "2027-03-01" },
+                    storedScheduleEvent("new-event", "sanggyeonrye", "2027-03-01"),
                   ],
                 },
               },
@@ -360,12 +376,12 @@ describe("/api/onboarding POST", () => {
 
   it("re-reads after a lost CAS and preserves the partner's concurrent event", async () => {
     const initialProgress = {
-      __events: [{ id: "initial-event", momentType: "venue", date: "2027-01-10" }],
+      __events: [storedScheduleEvent("initial-event", "venue", "2027-01-10")],
     };
     const partnerProgress = {
       __events: [
         ...initialProgress.__events,
-        { id: "partner-event", momentType: "dress", date: "2027-01-20" },
+        storedScheduleEvent("partner-event", "dress", "2027-01-20"),
       ],
     };
     const updates: unknown[] = [];
@@ -399,7 +415,7 @@ describe("/api/onboarding POST", () => {
                 progress: {
                   __events: [
                     ...partnerProgress.__events,
-                    { id: "ours", momentType: "sanggyeonrye", date: "2027-03-01" },
+                    storedScheduleEvent("ours", "sanggyeonrye", "2027-03-01"),
                   ],
                 },
               },
@@ -458,7 +474,7 @@ describe("/api/onboarding POST", () => {
               data: {
                 progress: {
                   __events: [
-                    { id: "ours", momentType: "sanggyeonrye", date: "2027-03-01" },
+                    storedScheduleEvent("ours", "sanggyeonrye", "2027-03-01"),
                   ],
                 },
               },

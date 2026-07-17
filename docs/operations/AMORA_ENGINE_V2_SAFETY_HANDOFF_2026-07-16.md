@@ -1,5 +1,11 @@
 # 아모라 Engine V2 안전성 점검 인계서
 
+> **SUPERSEDED HISTORICAL CHECKPOINT — 현재 릴리스 증거가 아님.** 이 문서는 아래
+> `c10b3afd` 기능 스냅샷과 당시 테스트 수치만 기록한다. 이후 추가된 27개 migration
+> 전체, account-deletion/retention/Storage 변경, 최종 signed EAS·실기기 결과를
+> 검증하지 않았다. 현재 최종 release SHA/hash는 `NOT FROZEN`, signed EAS와
+> real-device 검증은 `NOT RUN`이므로 production-ready 판단에 사용하지 않는다.
+
 기준 브랜치: `feat/amora-engine-v2-20260716`
 
 검증된 기능·안전성 커밋: `c10b3afd313aec2f02708a8ed23b3f5561c4a1ea`

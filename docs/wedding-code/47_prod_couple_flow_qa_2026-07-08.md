@@ -1,5 +1,12 @@
 # WeddingCode v0.5 Production Couple Flow QA
 
+> [!WARNING]
+> **SUPERSEDED / 과거 기술 QA 증적입니다.** 아래 PASS는 2026-07-08 당시 두 개의 합성 QA 응답으로
+> 저장·페어링·조회 흐름이 동작했다는 뜻일 뿐, 문항 타당도·커플 해석의 유용성·현재 운영 준비도를
+> 증명하지 않습니다. 현재 public/API/DB 수집 차단과 출시 판단은
+> [`55_conservative_readiness_audit_2026-07-15.md`](./55_conservative_readiness_audit_2026-07-15.md)가 우선합니다.
+> 아래 Production URL, 토큰, 응답 ID를 재사용하거나 이 절차를 다시 실행하지 마세요.
+
 Date: 2026-07-08 KST
 Environment: production, `https://hanbang.ai`
 Build scope: WeddingCode individual result + couple comparison report

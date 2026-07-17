@@ -8,7 +8,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-throw "Disabled: unscoped migration shipping is unsafe. Follow docs/operations/AMORA_PRODUCTION_RELEASE.md."
+throw "Disabled: unscoped migration shipping is unsafe. Follow docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md."
 
 function Show-Help {
   Write-Host ""

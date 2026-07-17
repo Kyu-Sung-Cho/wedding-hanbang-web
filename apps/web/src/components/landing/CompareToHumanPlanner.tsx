@@ -10,12 +10,12 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { label: "상담 시간", human: "영업시간 내", amora: "24시간 365일" },
-  { label: "비용", human: "200~500만원", amora: "무료 (베타)" },
+  { label: "대화 방식", human: "약속한 시간에 사람과 상담", amora: "서비스 접속 시 AI와 대화" },
+  { label: "비용", human: "서비스·계약 범위에 따라 다름", amora: "베타 안내에 표시된 범위 적용" },
   { label: "선호 정리", human: "상담 경험 기반", amora: "대화에서 확인한 조건·취향 기반" },
-  { label: "커플 소통", human: "각자 공유", amora: "실시간 함께 + 따로" },
-  { label: "의사결정 기록", human: "메모장", amora: "Couple Memory Graph" },
-  { label: "업체 정보", human: "제한적", amora: "AI 맞춤 추천" },
+  { label: "커플 소통", human: "상담 내용과 자료를 직접 공유", amora: "공유 대화와 개인 대화를 구분" },
+  { label: "의사결정 기록", human: "상담 방식에 따라 다름", amora: "확인한 결정과 변경 이력을 저장" },
+  { label: "업체 정보", human: "플래너의 관계·경험에 따라 다름", amora: "공개·입력 정보를 정리하고 원문 확인 안내" },
 ];
 
 export default function CompareToHumanPlanner() {
@@ -30,12 +30,15 @@ export default function CompareToHumanPlanner() {
           transition={{ duration: 0.6 }}
           className="mb-20 md:mb-24 max-w-3xl"
         >
-          <SectionLabel label="사람 플래너와 비교" />
+          <SectionLabel label="역할이 다른 두 가지 도움" />
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em]">
-            같은 고민에 대한
+            아모라는 사람 플래너를
             <br />
-            <em className="not-italic text-rose-500">다른 접근</em>.
+            <em className="not-italic text-rose-500">대체한다고 약속하지 않아요.</em>
           </h2>
+          <p className="mt-6 max-w-2xl text-[15px] leading-7 text-charcoal">
+            사람의 현장 경험과 중재가 필요한 일, 반복해서 조건을 정리하고 기록하는 일은 서로 다릅니다. 상황에 맞게 함께 사용할 수 있도록 차이를 설명합니다.
+          </p>
         </motion.div>
 
         {/* 비교 — 3컬럼 editorial */}

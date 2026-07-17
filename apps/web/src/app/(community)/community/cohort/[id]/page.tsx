@@ -26,6 +26,7 @@ import { useToast } from "@/components/community/Toast";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import { communityPostPath } from "@/lib/community/routes";
+import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 import { weddingPath } from "@/lib/weddingPaths";
 import {
   cohortRoomName,
@@ -301,7 +302,7 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
       <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
-        <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_45%] md:order-2">
+        <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
         <div className="p-6 sm:p-8 lg:p-10">
@@ -537,29 +538,18 @@ function ChatTab({
       return;
     }
 
-    const maxSize = file.type === "image/gif" ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    const maxSize = file.type === "image/gif" ? 6 * 1024 * 1024 : 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      toastFn.error(file.type === "image/gif" ? "GIF는 10MB 이하로 올릴 수 있어요." : "이미지는 5MB 이하로 올릴 수 있어요.");
+      toastFn.error(file.type === "image/gif" ? "GIF는 6MB 이하로 올릴 수 있어요." : "이미지는 5MB 이하로 올릴 수 있어요.");
       return;
     }
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/community/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-
-      if (!res.ok || !data.url) {
-        toastFn.error(data.error ?? "이미지 업로드에 실패했어요.");
-        return;
-      }
-
+      const data = await uploadCommunityMedia(file);
       setInput((prev) => prev + (prev ? " " : "") + `[img:${data.url}] `);
+    } catch (error) {
+      toastFn.error(error instanceof Error ? error.message : "이미지 업로드에 실패했어요.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

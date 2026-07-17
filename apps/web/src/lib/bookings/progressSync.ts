@@ -42,6 +42,7 @@ export interface BookingProgressSyncResult {
   scheduleAdded: boolean;
   scheduleUpdated: boolean;
   budgetUpdated: boolean;
+  budgetDelta?: number;
   budgetExceededBy: number;
   categoryBudgetLimit: number;
   categoryLabel: string | null;
@@ -53,6 +54,7 @@ export interface BookingProgressSyncResult {
 export interface BookingProgressPersistenceResult
   extends Omit<BookingProgressSyncResult, "patch"> {
   persisted: boolean;
+  projectionDisposition?: BookingProjectionDisposition;
   error?: string;
 }
 
@@ -68,12 +70,6 @@ export interface BookingOutcomeProgressSyncResult {
   categoryLabel: string | null;
   syncedCategoryKey: string | null;
   syncedNewSpent: number | null;
-}
-
-export interface BookingOutcomeProgressPersistenceResult
-  extends Omit<BookingOutcomeProgressSyncResult, "patch"> {
-  persisted: boolean;
-  error?: string;
 }
 
 export interface BookingCancelProgressSyncResult {
@@ -92,7 +88,19 @@ export interface BookingCancelProgressSyncResult {
 export interface BookingCancelProgressPersistenceResult
   extends Omit<BookingCancelProgressSyncResult, "patch"> {
   persisted: boolean;
+  projectionDisposition?: BookingProjectionDisposition;
   error?: string;
+}
+
+export type BookingProjectionDisposition =
+  | "completed"
+  | "superseded"
+  | "stale_claim"
+  | "not_found";
+
+export interface BookingProjectionClaimContext {
+  generation: number;
+  claimToken: string;
 }
 
 interface VendorRow {
@@ -110,8 +118,38 @@ interface StaffRow {
   role: string | null;
 }
 
-interface JourneyProgressRow {
-  progress: Record<string, unknown> | null;
+interface AtomicBookingProjectionResult {
+  accepted: true;
+  status: "completed";
+  progress: Record<string, unknown>;
+  event: ScheduleEvent | null;
+  scheduleAdded: boolean;
+  scheduleUpdated: boolean;
+  scheduleRemoved: boolean;
+  budgetUpdated: boolean;
+  budgetReverted: boolean;
+  budgetDelta: number;
+  budgetExceededBy: number;
+  categoryBudgetLimit: number;
+  categoryKey: string | null;
+  newSpent: number | null;
+  revertedAmount: number;
+  removedEventId: string | null;
+}
+
+interface RejectedBookingProjectionResult {
+  accepted: false;
+  status: string;
+  reason: Exclude<BookingProjectionDisposition, "completed">;
+}
+
+type AtomicBookingProjectionResponse =
+  | AtomicBookingProjectionResult
+  | RejectedBookingProjectionResult;
+
+interface BookingCostContribution {
+  amount: number;
+  categoryKey: string | null;
 }
 
 const BOOKING_EVENT_PREFIX = "evt_booking_";
@@ -143,8 +181,107 @@ function finiteNonNegativeAmount(value: unknown): number | null {
   return null;
 }
 
+function finiteSignedAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value)) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount : null;
+  }
+  return null;
+}
+
+function parseScheduleEvent(value: unknown): ScheduleEvent | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.date !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.createdAt !== "string" ||
+    typeof value.updatedAt !== "string"
+  ) {
+    return null;
+  }
+  return value as unknown as ScheduleEvent;
+}
+
+function parseAtomicBookingProjectionResult(
+  value: unknown
+): AtomicBookingProjectionResponse | null {
+  if (!isRecord(value) || typeof value.accepted !== "boolean") return null;
+  if (!value.accepted) {
+    if (
+      typeof value.status !== "string" ||
+      (value.reason !== "superseded" &&
+        value.reason !== "stale_claim" &&
+        value.reason !== "not_found")
+    ) {
+      return null;
+    }
+    return {
+      accepted: false,
+      status: value.status,
+      reason: value.reason,
+    };
+  }
+  if (value.status !== "completed" || !isRecord(value.progress)) return null;
+  const booleanKeys = [
+    "scheduleAdded",
+    "scheduleUpdated",
+    "scheduleRemoved",
+    "budgetUpdated",
+    "budgetReverted",
+  ] as const;
+  if (booleanKeys.some((key) => typeof value[key] !== "boolean")) return null;
+
+  const budgetDelta = finiteSignedAmount(value.budgetDelta);
+  const budgetExceededBy = finiteNonNegativeAmount(value.budgetExceededBy);
+  const categoryBudgetLimit = finiteNonNegativeAmount(value.categoryBudgetLimit);
+  const revertedAmount = finiteNonNegativeAmount(value.revertedAmount);
+  const newSpent = value.newSpent === null
+    ? null
+    : finiteNonNegativeAmount(value.newSpent);
+  if (
+    budgetDelta === null ||
+    budgetExceededBy === null ||
+    categoryBudgetLimit === null ||
+    revertedAmount === null ||
+    (value.newSpent !== null && newSpent === null) ||
+    (value.categoryKey !== null && typeof value.categoryKey !== "string") ||
+    (value.removedEventId !== null && typeof value.removedEventId !== "string")
+  ) {
+    return null;
+  }
+
+  const event = value.event === null ? null : parseScheduleEvent(value.event);
+  if (value.event !== null && !event) return null;
+
+  return {
+    accepted: true,
+    status: "completed",
+    progress: value.progress,
+    event,
+    scheduleAdded: value.scheduleAdded as boolean,
+    scheduleUpdated: value.scheduleUpdated as boolean,
+    scheduleRemoved: value.scheduleRemoved as boolean,
+    budgetUpdated: value.budgetUpdated as boolean,
+    budgetReverted: value.budgetReverted as boolean,
+    budgetDelta,
+    budgetExceededBy,
+    categoryBudgetLimit,
+    categoryKey: value.categoryKey as string | null,
+    newSpent,
+    revertedAmount,
+    removedEventId: value.removedEventId as string | null,
+  };
+}
+
 function compactLabel(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function projectionCategoryKey(value: string | null | undefined): string | null {
+  const key = compactLabel(value);
+  return key && key.length <= 80 && !key.startsWith("__") ? key : null;
 }
 
 function bookingEventId(bookingId: string): string {
@@ -173,15 +310,34 @@ function wonMemo(amount: number): string {
   return ` · ${amount.toLocaleString()}원`;
 }
 
-function readBookingCostContributions(progress: Record<string, unknown>): Record<string, number> {
+function readBookingCostContributions(
+  progress: Record<string, unknown>
+): Record<string, BookingCostContribution> {
   const raw = progress.__booking_costs;
   if (!isRecord(raw)) return {};
 
-  return Object.fromEntries(
-    Object.entries(raw)
-      .map(([bookingId, amount]) => [bookingId, finiteNonNegativeAmount(amount)] as const)
-      .filter((entry): entry is readonly [string, number] => entry[1] !== null)
-  );
+  const contributions: Record<string, BookingCostContribution> = {};
+  for (const [bookingId, rawContribution] of Object.entries(raw)) {
+    if (isRecord(rawContribution)) {
+      const amount = finiteNonNegativeAmount(rawContribution.amount);
+      if (amount === null) continue;
+      contributions[bookingId] = {
+        amount,
+        categoryKey: typeof rawContribution.categoryKey === "string"
+          ? projectionCategoryKey(rawContribution.categoryKey)
+          : null,
+      };
+      continue;
+    }
+
+    // Read the legacy numeric ledger until every existing journey has been
+    // rewritten by a create/outcome projection.
+    const amount = finiteNonNegativeAmount(rawContribution);
+    if (amount !== null) {
+      contributions[bookingId] = { amount, categoryKey: null };
+    }
+  }
+  return contributions;
 }
 
 function buildEventTitle(input: BookingProgressBuildInput): string {
@@ -200,12 +356,16 @@ export function buildBookingOutcomeProgressPatch(input: {
   vendor: BookingProgressVendor;
 }): BookingOutcomeProgressSyncResult {
   const progress = input.progress;
-  const categoryKey = compactLabel(input.vendor.category) || null;
   const actualAmount = finiteUnknownAmount(input.booking.actualAmount);
   const existingContributions = readBookingCostContributions(progress);
   const existingEvent = getEvents(progress).find(
     (event) => isBookingEvent(event, input.booking.id)
   );
+  const storedContribution = existingContributions[input.booking.id];
+  const categoryKey =
+    storedContribution?.categoryKey ??
+    projectionCategoryKey(existingEvent?.categoryKey) ??
+    projectionCategoryKey(input.vendor.category);
 
   const nextProgress: Record<string, unknown> = { ...progress };
   const patch: Record<string, unknown> = {};
@@ -226,10 +386,9 @@ export function buildBookingOutcomeProgressPatch(input: {
     };
   }
 
-  const storedContribution = existingContributions[input.booking.id];
   const previousActualContribution = finiteUnknownAmount(input.booking.previousActualAmount);
   const previousContribution =
-    storedContribution ??
+    storedContribution?.amount ??
     (previousActualContribution > 0
       ? previousActualContribution
       : existingEvent
@@ -246,7 +405,7 @@ export function buildBookingOutcomeProgressPatch(input: {
   };
   const nextContributions = {
     ...existingContributions,
-    [input.booking.id]: actualAmount,
+    [input.booking.id]: { amount: actualAmount, categoryKey },
   };
 
   patch.__booking_costs = nextContributions;
@@ -283,18 +442,22 @@ export function buildBookingCancelledProgressPatch(input: {
   vendor: BookingProgressVendor;
 }): BookingCancelProgressSyncResult {
   const progress = input.progress;
-  const categoryKey = compactLabel(input.vendor.category) || null;
   const events = getEvents(progress);
   const removedEvents = events.filter((event) => isBookingEvent(event, input.booking.id));
   const nextEvents = events.filter((event) => !isBookingEvent(event, input.booking.id));
   const scheduleRemoved = removedEvents.length > 0;
   const existingContributions = readBookingCostContributions(progress);
+  const storedContribution = existingContributions[input.booking.id];
+  const categoryKey =
+    storedContribution?.categoryKey ??
+    projectionCategoryKey(removedEvents[0]?.categoryKey) ??
+    projectionCategoryKey(input.vendor.category);
   const hasStoredContribution = Object.prototype.hasOwnProperty.call(
     existingContributions,
     input.booking.id
   );
   const previousContribution = hasStoredContribution
-    ? existingContributions[input.booking.id]
+    ? storedContribution?.amount ?? 0
     : scheduleRemoved
       ? finiteUnknownAmount(input.booking.amount)
       : 0;
@@ -357,7 +520,7 @@ export function buildBookingCreatedProgressPatch(
   const progress = input.progress;
   const events = getEvents(progress);
   const amount = finiteAmount(input.booking.amount);
-  const categoryKey = compactLabel(input.vendor.category) || null;
+  const categoryKey = projectionCategoryKey(input.vendor.category);
   const eventId = bookingEventId(input.booking.id);
   const sourceKey = bookingSourceKey(input.booking.id);
   const now = new Date().toISOString();
@@ -389,6 +552,16 @@ export function buildBookingCreatedProgressPatch(
     ...progress,
     __events: nextEvents,
   };
+  const existingContributions = readBookingCostContributions(progress);
+  const nextContributions = {
+    ...existingContributions,
+    [input.booking.id]: {
+      amount: categoryKey ? amount : 0,
+      categoryKey,
+    },
+  };
+  patch.__booking_costs = nextContributions;
+  nextProgress.__booking_costs = nextContributions;
 
   let budgetUpdated = false;
   let budgetExceededBy = 0;
@@ -452,26 +625,19 @@ export async function syncBookingProgressAfterCreate(
     productId?: string | null;
     staffId?: string | null;
     productName?: string | null;
+    projectionClaim: BookingProjectionClaimContext;
   }
 ): Promise<BookingProgressPersistenceResult> {
-  const [{ data: journeyRow, error: journeyError }, { data: vendorRow, error: vendorError }] =
-    await Promise.all([
-      client
-        .from("wedding_journeys")
-        .select("progress")
-        .eq("couple_id", input.coupleId)
-        .single(),
-      client
-        .from("vendors")
-        .select("id, name, category")
-        .eq("id", input.vendorId)
-        .single(),
-    ]);
+  const { data: vendorRow, error: vendorError } = await client
+    .from("vendors")
+    .select("id, name, category")
+    .eq("id", input.vendorId)
+    .single();
 
-  if (journeyError || vendorError || !journeyRow || !vendorRow) {
+  if (vendorError || !vendorRow) {
     return {
       persisted: false,
-      error: journeyError?.message ?? vendorError?.message ?? "missing sync context",
+      error: vendorError?.message ?? "missing sync context",
       ...buildBookingCreatedProgressPatch({
         progress: {},
         booking: input.booking,
@@ -507,12 +673,8 @@ export async function syncBookingProgressAfterCreate(
   }
 
   const vendor = vendorRow as VendorRow;
-  const progress = ((journeyRow as JourneyProgressRow).progress ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const syncResult = buildBookingCreatedProgressPatch({
-    progress,
+  const draftResult = buildBookingCreatedProgressPatch({
+    progress: {},
     booking: input.booking,
     vendor: {
       id: vendor.id,
@@ -523,87 +685,76 @@ export async function syncBookingProgressAfterCreate(
     staffName,
   });
 
-  const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
+  const { data: projectionData, error: projectionError } = await client.rpc(
+    "apply_booking_progress_projection",
+    {
     p_couple_id: input.coupleId,
-    p_patch: syncResult.patch,
-    p_remove_keys: [],
-  });
+      p_booking_id: input.booking.id,
+      p_desired_state: "active",
+      p_event: draftResult.syncedEvent,
+      p_category_key: vendor.category,
+      p_amount: finiteAmount(input.booking.amount),
+      p_generation: input.projectionClaim.generation,
+      p_claim_token: input.projectionClaim.claimToken,
+    }
+  );
 
-  if (!patchError) {
-    return { persisted: true, ...syncResult };
-  }
-
-  const { error: updateError } = await client
-    .from("wedding_journeys")
-    .update({ progress: syncResult.nextProgress })
-    .eq("couple_id", input.coupleId);
-
-  return {
-    persisted: !updateError,
-    error: updateError?.message ?? patchError.message,
-    ...syncResult,
-  };
-}
-
-export async function syncBookingProgressAfterOutcome(
-  client: SupabaseClient,
-  input: {
-    coupleId: string;
-    booking: BookingOutcomeProgressBooking;
-    vendor: BookingProgressVendor;
-  }
-): Promise<BookingOutcomeProgressPersistenceResult> {
-  const { data: journeyRow, error: journeyError } = await client
-    .from("wedding_journeys")
-    .select("progress")
-    .eq("couple_id", input.coupleId)
-    .single();
-
-  if (journeyError || !journeyRow) {
+  if (projectionError) {
     return {
       persisted: false,
-      error: journeyError?.message ?? "missing journey progress",
-      ...buildBookingOutcomeProgressPatch({
-        progress: {},
-        booking: input.booking,
-        vendor: input.vendor,
-      }),
+      error: projectionError.message,
+      ...draftResult,
     };
   }
 
-  const progress = ((journeyRow as JourneyProgressRow).progress ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const syncResult = buildBookingOutcomeProgressPatch({
-    progress,
-    booking: input.booking,
-    vendor: input.vendor,
-  });
-
-  if (Object.keys(syncResult.patch).length === 0) {
-    return { persisted: true, ...syncResult };
+  const projection = parseAtomicBookingProjectionResult(projectionData);
+  if (!projection) {
+    return {
+      persisted: false,
+      error: "invalid booking projection response",
+      ...draftResult,
+    };
+  }
+  if (projection.accepted === false) {
+    return {
+      persisted: false,
+      projectionDisposition: projection.reason,
+      error: `booking projection ${projection.reason}`,
+      ...draftResult,
+    };
+  }
+  if (!projection.event) {
+    return {
+      persisted: false,
+      error: "invalid booking projection response",
+      ...draftResult,
+    };
   }
 
-  const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
-    p_couple_id: input.coupleId,
-    p_patch: syncResult.patch,
-    p_remove_keys: [],
-  });
-
-  if (!patchError) {
-    return { persisted: true, ...syncResult };
-  }
-
-  const { error: updateError } = await client
-    .from("wedding_journeys")
-    .update({ progress: syncResult.nextProgress })
-    .eq("couple_id", input.coupleId);
+  const projectedCategoryValue = projection.categoryKey
+    ? projection.progress[projection.categoryKey]
+    : null;
+  const projectedCategory = isRecord(projectedCategoryValue)
+    ? projectedCategoryValue
+    : {};
+  const categoryLabel = typeof projectedCategory.label === "string"
+    ? projectedCategory.label
+    : projection.categoryKey;
 
   return {
-    persisted: !updateError,
-    error: updateError?.message ?? patchError.message,
-    ...syncResult,
+    persisted: true,
+    projectionDisposition: "completed",
+    nextProgress: projection.progress,
+    scheduleAdded: projection.scheduleAdded,
+    scheduleUpdated: projection.scheduleUpdated,
+    budgetUpdated: projection.budgetUpdated,
+    budgetDelta: projection.budgetDelta,
+    budgetExceededBy: projection.budgetExceededBy,
+    categoryBudgetLimit: projection.categoryBudgetLimit,
+    categoryLabel,
+    syncedEvent: projection.event,
+    syncedCategoryKey: projection.budgetUpdated ? projection.categoryKey : null,
+    syncedNewSpent: projection.newSpent,
   };
 }
 
@@ -613,58 +764,75 @@ export async function syncBookingProgressAfterCancel(
     coupleId: string;
     booking: BookingCancelledProgressBooking;
     vendor: BookingProgressVendor;
+    projectionClaim: BookingProjectionClaimContext;
   }
 ): Promise<BookingCancelProgressPersistenceResult> {
-  const { data: journeyRow, error: journeyError } = await client
-    .from("wedding_journeys")
-    .select("progress")
-    .eq("couple_id", input.coupleId)
-    .single();
-
-  if (journeyError || !journeyRow) {
-    return {
-      persisted: false,
-      error: journeyError?.message ?? "missing journey progress",
-      ...buildBookingCancelledProgressPatch({
-        progress: {},
-        booking: input.booking,
-        vendor: input.vendor,
-      }),
-    };
-  }
-
-  const progress = ((journeyRow as JourneyProgressRow).progress ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const syncResult = buildBookingCancelledProgressPatch({
-    progress,
+  const draftResult = buildBookingCancelledProgressPatch({
+    progress: {},
     booking: input.booking,
     vendor: input.vendor,
   });
 
-  if (Object.keys(syncResult.patch).length === 0) {
-    return { persisted: true, ...syncResult };
-  }
-
-  const { error: patchError } = await client.rpc("apply_journey_progress_patch", {
+  const { data: projectionData, error: projectionError } = await client.rpc(
+    "apply_booking_progress_projection",
+    {
     p_couple_id: input.coupleId,
-    p_patch: syncResult.patch,
-    p_remove_keys: [],
-  });
+      p_booking_id: input.booking.id,
+      p_desired_state: "cancelled",
+      p_event: null,
+      p_category_key: input.vendor.category,
+      p_amount: finiteUnknownAmount(input.booking.amount),
+      p_generation: input.projectionClaim.generation,
+      p_claim_token: input.projectionClaim.claimToken,
+    }
+  );
 
-  if (!patchError) {
-    return { persisted: true, ...syncResult };
+  if (projectionError) {
+    return {
+      persisted: false,
+      error: projectionError.message,
+      ...draftResult,
+    };
   }
 
-  const { error: updateError } = await client
-    .from("wedding_journeys")
-    .update({ progress: syncResult.nextProgress })
-    .eq("couple_id", input.coupleId);
+  const projection = parseAtomicBookingProjectionResult(projectionData);
+  if (!projection) {
+    return {
+      persisted: false,
+      error: "invalid booking projection response",
+      ...draftResult,
+    };
+  }
+  if (projection.accepted === false) {
+    return {
+      persisted: false,
+      projectionDisposition: projection.reason,
+      error: `booking projection ${projection.reason}`,
+      ...draftResult,
+    };
+  }
+
+  const projectedCategoryValue = projection.categoryKey
+    ? projection.progress[projection.categoryKey]
+    : null;
+  const projectedCategory = isRecord(projectedCategoryValue)
+    ? projectedCategoryValue
+    : {};
+  const categoryLabel = typeof projectedCategory.label === "string"
+    ? projectedCategory.label
+    : projection.categoryKey;
 
   return {
-    persisted: !updateError,
-    error: updateError?.message ?? patchError.message,
-    ...syncResult,
+    persisted: true,
+    projectionDisposition: "completed",
+    nextProgress: projection.progress,
+    scheduleRemoved: projection.scheduleRemoved,
+    budgetReverted: projection.budgetReverted,
+    revertedAmount: projection.revertedAmount,
+    categoryBudgetLimit: projection.categoryBudgetLimit,
+    categoryLabel,
+    syncedEventIdRemoved: projection.removedEventId,
+    syncedCategoryKey: projection.budgetReverted ? projection.categoryKey : null,
+    syncedNewSpent: projection.newSpent,
   };
 }

@@ -1,16 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { cleanOptionalText, isRecord, normalizeEmail } from "@/utils/requestValidation";
 
 function getServiceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  return createAdminClient();
 }
 
 function safeEqualString(left: unknown, right: string): boolean {
@@ -41,7 +37,7 @@ export async function GET(req: Request) {
     const checkOnly = url.searchParams.get("check") === "exists";
 
     if (checkOnly) {
-      const limited = checkRateLimit(rateLimitKey("admin-auth-check", req), {
+      const limited = await checkRateLimitPersistent(rateLimitKey("admin-auth-check", req), {
         maxRequests: 30,
         windowMs: 10 * 60 * 1000,
       });
@@ -94,7 +90,7 @@ export async function POST(req: Request) {
     }
 
     const action = typeof body.action === "string" ? body.action : "login";
-    const limited = checkRateLimit(rateLimitKey(`admin-auth:${action}`, req), {
+    const limited = await checkRateLimitPersistent(rateLimitKey(`admin-auth:${action}`, req), {
       maxRequests: 8,
       windowMs: 15 * 60 * 1000,
     });
@@ -114,10 +110,18 @@ export async function POST(req: Request) {
       const initPassword = body.password;
       const initName = cleanOptionalText(body.name, 60) ?? "어드민 관리자";
 
-      const { count } = await serviceClient
+      const { count, error: adminCountError } = await serviceClient
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("is_admin", true);
+
+      if (adminCountError) {
+        console.error("Initial admin count failed:", adminCountError.message);
+        return NextResponse.json(
+          { error: "관리자 상태를 확인하지 못했습니다." },
+          { status: 503 },
+        );
+      }
 
       if ((count ?? 0) > 0) {
         return NextResponse.json(
@@ -159,7 +163,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
-      await serviceClient.from("profiles").upsert({
+      const { error: profileError } = await serviceClient.from("profiles").upsert({
         id: newUser.user.id,
         name: initName,
         email: initEmail,
@@ -167,6 +171,20 @@ export async function POST(req: Request) {
         onboarding_step: 5,
         is_admin: true,
       });
+
+      if (profileError) {
+        const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
+          newUser.user.id,
+        );
+        console.error("Initial admin profile persistence failed:", profileError.message);
+        if (rollbackError) {
+          console.error("Initial admin Auth rollback failed:", rollbackError.message);
+        }
+        return NextResponse.json(
+          { error: "관리자 계정 생성이 완료되지 않았습니다." },
+          { status: 500 },
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -229,7 +247,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "계정 생성에 실패했습니다." }, { status: 500 });
       }
 
-      await serviceClient.from("profiles").upsert({
+      const { error: profileError } = await serviceClient.from("profiles").upsert({
         id: newUser.user.id,
         name: newName,
         email: newEmail,
@@ -237,6 +255,20 @@ export async function POST(req: Request) {
         onboarding_step: 5,
         is_admin: true,
       });
+
+      if (profileError) {
+        const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
+          newUser.user.id,
+        );
+        console.error("Admin profile persistence failed:", profileError.message);
+        if (rollbackError) {
+          console.error("Admin Auth rollback failed:", rollbackError.message);
+        }
+        return NextResponse.json(
+          { error: "관리자 계정 생성이 완료되지 않았습니다." },
+          { status: 500 },
+        );
+      }
 
       return NextResponse.json({
         success: true,

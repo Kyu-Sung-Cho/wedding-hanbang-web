@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateAmoraProfileUpdate } from "@/lib/ai/amora-profile";
@@ -15,16 +15,58 @@ const scopedRuntimeFiles = [
   "src/app/api/chat/check-couple-conflict/route.ts",
   "src/app/api/community/ai-comment/route.ts",
 ];
+const auxiliaryAuditedCallFiles = [
+  "src/lib/ai/amoraMemoryCompiler.ts",
+  "src/lib/ai/amora-profile.ts",
+  "src/lib/ai/conflict-detector.ts",
+  "src/lib/ai/extract-decision.ts",
+  "src/lib/ai/classify-excavation.ts",
+  "src/lib/ai/summarize.ts",
+  "src/app/api/chat/check-couple-conflict/route.ts",
+];
 const webRoot = existsSync(resolve(process.cwd(), "src/lib/ai/summarize.ts"))
   ? process.cwd()
   : resolve(process.cwd(), "apps/web");
 
+function collectRuntimeTypeScriptFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      return entry.name === "__tests__"
+        ? []
+        : collectRuntimeTypeScriptFiles(absolute);
+    }
+    return /\.(?:ts|tsx)$/.test(entry.name) && !/\.test\.(?:ts|tsx)$/.test(entry.name)
+      ? [absolute]
+      : [];
+  });
+}
+
 describe("auxiliary OpenAI runtime migration", () => {
+  it("allows direct Responses generation only inside the two audited boundaries", () => {
+    const allowed = new Set([
+      resolve(webRoot, "src/lib/ai/openai.ts"),
+      resolve(webRoot, "src/lib/ai/auditedOpenAI.ts"),
+    ]);
+    const directCallers = collectRuntimeTypeScriptFiles(resolve(webRoot, "src"))
+      .filter((path) => /responses\s*\.\s*create\s*\(/.test(readFileSync(path, "utf8")));
+
+    expect(directCallers.sort()).toEqual([...allowed].sort());
+  });
+
   it("has no Anthropic runtime dependency or Claude model string in scope", () => {
     for (const path of scopedRuntimeFiles) {
       const source = readFileSync(resolve(webRoot, path), "utf8");
       expect(source).not.toMatch(/auditedAnthropic|createAnthropic|claude-|ANTHROPIC_API_KEY/);
       expect(source).toMatch(/createOpenAI(?:Structured)?ResponseWithAudit/);
+    }
+  });
+
+  it("keeps auxiliary provider calls out of the user-turn quota ledger", () => {
+    for (const path of auxiliaryAuditedCallFiles) {
+      const source = readFileSync(resolve(webRoot, path), "utf8");
+      expect(source).not.toMatch(/interactionType:\s*["']chat_turn["']/);
+      expect(source).toMatch(/interactionType:\s*["']amora_director["']/);
     }
   });
 

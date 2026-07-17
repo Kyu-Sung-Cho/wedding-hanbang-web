@@ -1,5 +1,13 @@
 # Amora OpenAI production release runbook
 
+> **SUPERSEDED HISTORICAL RUNBOOK — DO NOT EXECUTE.** This file describes the
+> dated `amora-openai-20260714` release only. Its former clone
+> `syhmfxauqyhgdcokrheg` no longer exists and must never be reused. The current
+> path is `AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md` plus
+> `PRODUCTION_WRITE_FENCE_2026-07-17.md`. The original hash-bound body remains
+> recoverable from Git history; this safety banner intentionally prevents the
+> historical manifest from being mistaken for current executable evidence.
+
 This is the only authorized path for the `amora-openai-20260714` release. It
 does not authorize a production change by itself. A step is complete only when
 its receipt is recorded and every following precondition still holds.

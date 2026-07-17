@@ -17,20 +17,32 @@ const RUNTIME_ENV = {
   HBAM_PGLITE_ENTRY: PGLITE_ENTRY_PATH,
 };
 const TABLES = [
+  "account_deletion_jobs",
+  "account_deletion_media_manifest",
   "ai_interactions_log",
   "amora_actions",
+  "amora_care_deliveries",
+  "amora_care_jobs",
+  "amora_care_scan_states",
+  "amora_chat_request_claims",
+  "amora_conflict_check_claims",
   "amora_couple_profiles",
   "amora_mediation_acceptances",
   "amora_memory_consents",
   "amora_memory_jobs",
   "amora_memory_settings",
+  "amora_tool_executions",
   "amora_turn_counters",
+  "amora_turn_requests",
+  "booking_projection_jobs",
   "chat_feedback",
   "chat_messages",
   "chat_summaries",
+  "community_upload_sessions",
   "couples",
   "decision_nodes",
   "profiles",
+  "vendor_reviews",
   "wedding_journeys",
 ];
 
@@ -121,14 +133,46 @@ describe("Amora authenticated JSONB round-trip", () => {
     expect(receipt).toMatchObject({
       JsonbRoundTripVerified: true,
       AuthenticatedJsonbStaged: true,
-      TableCount: 15,
-      TotalRows: "15",
-      PrimaryConstraintsChecked: 15,
+      TableCount: 27,
+      TotalRows: "27",
+      PrimaryConstraintsChecked: 27,
       ForeignKeysChecked: 1,
       SourceCanonicalDigestsVerified: true,
       LogicalDataParsedInV8: false,
       PlaintextWrittenToDisk: false,
     });
+  });
+
+  it("rejects a payload missing vendor_reviews from the exact backup allowlist", () => {
+    const { inventory, rawLogicalJson } = validFixture();
+    const typedInventory = inventory as {
+      columns: Array<{ table_name: string }>;
+      constraints: Array<{ table: string }>;
+    };
+    const logicalData = JSON.parse(rawLogicalJson) as {
+      tables: Record<string, unknown>;
+    };
+    delete logicalData.tables.vendor_reviews;
+
+    const result = spawnSync(process.execPath, [SCRIPT_PATH], {
+      input: authenticatedInput(
+        {
+          columns: typedInventory.columns.filter(
+            (column) => column.table_name !== "vendor_reviews",
+          ),
+          constraints: typedInventory.constraints.filter(
+            (constraint) => constraint.table !== "vendor_reviews",
+          ),
+        },
+        JSON.stringify(logicalData),
+      ),
+      encoding: "utf8",
+      timeout: 30_000,
+      env: RUNTIME_ENV,
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("JSONB round-trip table allowlist mismatch");
   });
 
   it("rejects a source canonical digest mismatch without echoing payload data", () => {

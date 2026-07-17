@@ -14,17 +14,17 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://hanbang.ai"),
-  title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
+  title: "웨딩한방 — 결혼 준비를 함께 정리하는 아모라",
   description:
-    "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지. 웨딩 플래너 없이도 완벽한 결혼 준비를 시작하세요.",
+    "대화에서 확인한 조건을 바탕으로 견적 질문, 예산, 일정과 다음 할 일을 함께 정리하는 AI 도우미 아모라.",
   icons: {
     icon: "/images/favicon.png",
     apple: "/images/apple-touch-icon.png",
   },
   openGraph: {
-    title: "웨딩한방 — AI가 이끄는 새로운 결혼 준비",
+    title: "웨딩한방 — 결혼 준비를 함께 정리하는 아모라",
     description:
-      "24시간 맞춤 상담, AI 드레스 가상 피팅, 스마트 예산 관리까지.",
+      "견적 질문, 예산, 일정과 다음 할 일을 함께 정리하는 AI 도우미 아모라.",
     url: "https://hanbang.ai/wedding",
     siteName: "웨딩한방",
     locale: "ko_KR",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
         url: "/images/og-image.png",
         width: 1200,
         height: 630,
-        alt: "웨딩한방 - AI 웨딩 플래너",
+        alt: "웨딩한방 아모라",
       },
     ],
   },

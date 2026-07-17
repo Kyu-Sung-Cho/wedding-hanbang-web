@@ -13,26 +13,30 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
-import { chatAttachmentKey } from "@/lib/chat/attachments";
+import PendingAmoraActionCard, {
+  getPendingAmoraAction,
+  getPendingActionDisabledReason,
+  isPendingAmoraActionExpired,
+} from "@/components/app/chat/PendingAmoraActionCard";
+import {
+  chatAttachmentKey,
+  CHAT_ATTACHMENT_MAX_COUNT,
+  CHAT_ATTACHMENT_SNAPSHOT_ERROR,
+  CHAT_ATTACHMENT_TYPE_INFO,
+  prepareChatAttachmentPayload,
+} from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
-const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 // 메시지 수가 이 이상이면 새 채팅 시작 안내
 const NEW_CHAT_THRESHOLD = 200;
 
 // 허용 파일 타입
-const ALLOWED_TYPES: Record<string, { maxSize: number; label: string }> = {
-  "image/jpeg": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/png": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/gif": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "image/webp": { maxSize: 5 * 1024 * 1024, label: "이미지" },
-  "application/pdf": { maxSize: 10 * 1024 * 1024, label: "PDF" },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 10 * 1024 * 1024, label: "Word" },
-  "application/msword": { maxSize: 10 * 1024 * 1024, label: "Word" },
-};
+const ALLOWED_TYPES = CHAT_ATTACHMENT_TYPE_INFO;
 
 interface AttachmentItem {
   base64: string;
@@ -362,10 +366,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const {
     messages,
     isStreaming,
+    isSending,
     streamingContent,
     streamingToolResults,
     suggestions,
     error,
+    failedRequest,
+    isRetrying,
     quotaRemaining,
     initialLoadDone,
     presence,
@@ -377,6 +384,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     pollNewMessages,
     notifyTyping,
     requestSharedClear,
+    retryFailedMessage,
+    dismissFailedMessageRetry,
   } = useChatStore();
   const [input, setInput] = useState("");
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
@@ -386,6 +395,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
   >("closed");
   const [nowMs, setNowMs] = useState(0);
+  const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  const applyingPendingActionRef = useRef<string | null>(null);
   const [showNewChatBanner, setShowNewChatBanner] = useState(false);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -422,6 +436,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activeDialogRef = useRef<HTMLDivElement>(null);
+  const closeActiveDialogRef = useRef<() => void>(() => {});
 
   // input 외부 비움(전송 후 등) 시 textarea 높이 리셋
   useEffect(() => {
@@ -493,7 +509,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   useEffect(() => {
     if (!coupleId || isDemo || proactiveCheckedRef.current) return;
     proactiveCheckedRef.current = true;
-    fetch("/api/chat/proactive").catch(() => {});
+    void requestProactiveCare();
   }, [coupleId, isDemo]);
 
   // 탭 복귀 시 놓친 메시지 safety-net fetch (Realtime 구독이 백그라운드에서
@@ -605,6 +621,72 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [communityPosting, setCommunityPosting] = useState(false);
   const [communityPostError, setCommunityPostError] = useState<string | null>(null);
   const [communityPromptMessageIds, setCommunityPromptMessageIds] = useState<Set<string>>(() => new Set());
+  const hasBlockingDialog = Boolean(communityDraft || pendingSend || clearStep !== "closed");
+
+  closeActiveDialogRef.current = () => {
+    if (communityDraft) {
+      setCommunityDraft(null);
+      return;
+    }
+    if (pendingSend) {
+      setPendingSend(null);
+      return;
+    }
+    setClearStep("closed");
+  };
+
+  useEffect(() => {
+    if (!hasBlockingDialog) return;
+
+    const dialog = activeDialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector = [
+      "button:not([disabled])",
+      "a[href]",
+      "input:not([disabled])",
+      "textarea:not([disabled])",
+      "select:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+    const initialControl = dialog?.querySelector<HTMLElement>("[data-modal-initial-focus]")
+      ?? dialog?.querySelector<HTMLElement>(focusableSelector);
+    initialControl?.focus();
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeActiveDialogRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => !element.hasAttribute("disabled"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [hasBlockingDialog]);
 
   // 컨테이너 스크롤 추적 — 바닥 근처 여부 + ↓ 버튼 표시
   useEffect(() => {
@@ -752,17 +834,25 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     uniqueFiles(files).forEach((file) => {
       const typeInfo = ALLOWED_TYPES[file.type];
       if (!typeInfo) {
-        alert(`지원하지 않는 파일 형식이에요: ${file.name}\n(이미지, PDF, Word 가능)`);
+        useChatStore.setState({
+          error: `지원하지 않는 파일 형식이에요: ${file.name} (이미지, PDF, DOCX만 가능해요.)`,
+        });
         return;
       }
       if (file.size > typeInfo.maxSize) {
-        alert(`${typeInfo.label} 파일은 ${typeInfo.maxSize / 1024 / 1024}MB 이하만 가능해요`);
+        useChatStore.setState({
+          error: `${typeInfo.label} 파일은 ${typeInfo.maxSize / 1024 / 1024}MB 이하로 줄인 뒤 다시 첨부해주세요.`,
+        });
         return;
       }
 
       const reader = new FileReader();
       reader.onload = () => {
-        const result = reader.result as string;
+        const result = reader.result;
+        if (typeof result !== "string" || !result.includes(",")) {
+          useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
+          return;
+        }
         const base64 = result.split(",")[1];
         const isImage = file.type.startsWith("image/");
         const previewUrl = isImage ? URL.createObjectURL(file) : `file:${file.type}:${file.name}`;
@@ -780,6 +870,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           }
           return [...prev, attachment];
         });
+      };
+      reader.onerror = () => {
+        useChatStore.setState({ error: CHAT_ATTACHMENT_SNAPSHOT_ERROR });
       };
       reader.readAsDataURL(file);
     });
@@ -868,10 +961,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
   const handleSend = useCallback(
     async (text?: string) => {
+      if (isStreaming || isSending) return;
       const content = text ?? input.trim();
       if ((!content && attachments.length === 0) || !coupleId || !profile) return;
 
       const currentAttachments = [...attachments];
+      const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
+      if (!attachmentCheck.ok) {
+        useChatStore.setState({ error: attachmentCheck.error });
+        return;
+      }
       setInput("");
       setAttachments([]);
       currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
@@ -911,8 +1010,68 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         visibility,
       });
     },
-    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate]
+    [input, attachments, coupleId, profile, journey, sendMessage, messageTarget, isPrivate, isStreaming, isSending]
   );
+
+  const applyPendingAmoraAction = useCallback(async (actionId: string) => {
+    if (
+      applyingPendingActionRef.current
+      || !coupleId
+      || !profile
+      || (profile.role !== "bride" && profile.role !== "groom")
+    ) return;
+
+    // Re-read the shared store at click time. A stale rendered card must never
+    // authorize an action after any newer shared message or after expiry.
+    const current = useChatStore.getState();
+    if (current.isStreaming || current.isSending) return;
+    const latestSharedMessage = [...current.messages]
+      .reverse()
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      ));
+    if (!latestSharedMessage) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
+    if (
+      !action
+      || action.actionId !== actionId
+      || isPendingAmoraActionExpired(action, Date.now())
+    ) return;
+
+    applyingPendingActionRef.current = actionId;
+    setApplyingPendingActionId(actionId);
+    try {
+      await sendMessage({
+        content: "좋아요. 제안한 변경을 적용해 주세요.",
+        senderId: profile.id,
+        senderRole: profile.role,
+        coupleId,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        target: "ai",
+        visibility: "shared",
+        confirmedActionId: actionId,
+      });
+    } finally {
+      applyingPendingActionRef.current = null;
+      setApplyingPendingActionId(null);
+    }
+  }, [coupleId, journey, profile, sendMessage]);
+
+  const dismissPendingAmoraAction = useCallback((actionId: string) => {
+    setDismissedPendingActionIds((current) => {
+      if (current.has(actionId)) return current;
+      const next = new Set(current);
+      next.add(actionId);
+      return next;
+    });
+  }, []);
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
     const privacyMode: CommunityDraftPrivacyMode =
@@ -1122,19 +1281,25 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => setCommunityDraft(null)}
           >
             <div
+              ref={activeDialogRef}
               className="w-full max-w-[36rem] rounded-2xl bg-white shadow-2xl"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="community-draft-dialog-title"
+              tabIndex={-1}
             >
               <div className="flex items-start justify-between gap-3 border-b border-[#F0EFED] px-5 py-4">
                 <div>
                   <p className="text-xs font-semibold tracking-[0.18em] text-[#795252]">COMMUNITY</p>
-                  <h3 className="mt-1 font-serif-kr text-xl text-[#1A1A1F]">이 내용으로 커뮤니티에 물어볼게요</h3>
+                  <h3 id="community-draft-dialog-title" className="mt-1 font-serif-kr text-xl text-[#1A1A1F]">이 내용으로 커뮤니티에 물어볼게요</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCommunityDraft(null)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#928980] hover:bg-[#F6F3F2] hover:text-[#1A1A1F] transition-colors"
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-[#928980] hover:bg-[#F6F3F2] hover:text-[#1A1A1F] transition-colors"
                   aria-label="닫기"
+                  data-modal-initial-focus
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1435,13 +1600,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           onClick={() => setClearStep("closed")}
         >
           <div
+            ref={activeDialogRef}
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-chat-dialog-title"
+            tabIndex={-1}
           >
             {/* Step 1a: 함께 대화 — 옵션 선택 */}
             {clearStep === "shared_choose" && (
               <>
-                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 새 채팅</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 새 채팅</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
                   지금 대화를 정리하고 싶으세요? 두 가지 방법 중 골라주세요.
                   <br />
@@ -1472,7 +1642,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("closed")}
                     autoFocus
-                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    data-modal-initial-focus
                   >
                     취소
                   </button>
@@ -1483,7 +1654,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1b: 함께 대화 둘 다 — 동의 요청 확인 */}
             {clearStep === "shared_confirm_both" && (
               <>
-                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">상대방에게 동의 요청 보낼게요</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">상대방에게 동의 요청 보낼게요</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
                   채팅에 동의 카드가 올라가고 상대방이 [동의] 누르면 양쪽 화면이
                   정리됩니다. 거절되면 그대로 유지돼요.
@@ -1494,7 +1665,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("shared_choose")}
                     autoFocus
-                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    data-modal-initial-focus
                   >
                     돌아가기
                   </button>
@@ -1507,7 +1679,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       }
                       setClearStep("closed");
                     }}
-                    className="px-4 py-2 text-sm rounded-lg bg-[#795252] text-white hover:bg-[#946a6a]"
+                    className="min-h-11 px-4 text-sm rounded-lg bg-[#795252] text-white hover:bg-[#946a6a]"
                   >
                     동의 요청 보내기
                   </button>
@@ -1518,7 +1690,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 2: 나만 (상담) — 단순 확인 */}
             {clearStep === "private_confirm" && (
               <>
-                <h3 className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 기록</h3>
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 기록</h3>
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
                   지금까지의 비공개 상담 기록을 정리하시겠어요?
                   <br />
@@ -1544,7 +1716,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("closed")}
                     autoFocus
-                    className="px-4 py-2 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    data-modal-initial-focus
                   >
                     취소
                   </button>
@@ -1564,7 +1737,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
             <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" />
             <span>
-              비공개 상담 — 이 탭의 대화는 <strong>상대방에게 보이지 않아요</strong>. 아모라와 1:1로 솔직하게 털어놓으세요.
+              비공개 상담 — 이 탭의 대화는 <strong>서비스에 저장되지만 상대방에게는 보이지 않아요</strong>. 아모라와 1:1로 이야기할 수 있어요.
             </span>
           </div>
         )}
@@ -1599,12 +1772,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
+          const latestSharedMessageId = [...messages]
+            .reverse()
+            .find((message) => (
+              message.visibility === "shared"
+              && message.metadata?.target !== "partner"
+            ))?.id ?? null;
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const hasToolResults =
               msg.sender_role === "ai" &&
               msg.metadata?.toolResults &&
               msg.metadata.toolResults.length > 0;
+            const pendingActionCandidate = getPendingAmoraAction(msg);
+            const pendingAction = pendingActionCandidate
+              && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
+              ? pendingActionCandidate
+              : null;
             const previousHumanMessage = msg.sender_role === "ai"
               ? [...filteredMessages.slice(0, index)].reverse().find((m) => m.sender_role !== "ai")
               : undefined;
@@ -1620,6 +1804,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const canConsiderCommunityFallback =
               !isDemo &&
               msg.sender_role === "ai" &&
+              !pendingActionCandidate &&
               !hasSuccessfulSystemAction(msg) &&
               recentAiIds.has(msg.id) &&
               previousHumanMessage?.sender_id === profile?.id &&
@@ -1642,6 +1827,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     ariaLabel: "아모라 답변을 바탕으로 커뮤니티에 의견 묻기",
                   }
               : null;
+            const pendingActionDisabledReason = pendingAction
+              ? getPendingActionDisabledReason(
+                  pendingAction,
+                  nowMs,
+                  msg.id === latestSharedMessageId,
+                  isStreaming || isSending,
+                )
+              : null;
 
             return (
               <div
@@ -1655,6 +1848,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   isRecentAi={recentAiIds.has(msg.id)}
                   onNegativeFeedback={markCommunityFallbackAvailable}
                 />
+                {pendingAction && (
+                  <PendingAmoraActionCard
+                    action={pendingAction}
+                    disabledReason={pendingActionDisabledReason}
+                    isApplying={applyingPendingActionId === pendingAction.actionId}
+                    onApply={(actionId) => void applyPendingAmoraAction(actionId)}
+                    onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
+                  />
+                )}
                 {displayCommunityAskCue && previousHumanMessage && (
                   <div className="ml-11 mt-1 flex max-w-[94%] sm:ml-14 sm:max-w-[53.75rem]">
                     <button
@@ -1772,14 +1974,36 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 에러 메시지 */}
       {error && !isStreaming && (
-        <div className="mx-2 mt-2 p-3.5 rounded-xl bg-red-50 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-red-600">{error}</p>
-          <button
-            onClick={() => useChatStore.setState({ error: null })}
-            className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div
+          className="mx-2 mt-2 rounded-xl border border-red-100 bg-red-50 p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
+          role="alert"
+        >
+          <p className="text-sm leading-relaxed text-red-700">{error}</p>
+          {failedRequest?.unavailableReason && (
+            <p className="mt-1 text-xs leading-relaxed text-red-600">
+              {failedRequest.unavailableReason}
+            </p>
+          )}
+          <div className="mt-2.5 flex items-center gap-2">
+            {failedRequest?.canRetry && (
+              <button
+                type="button"
+                onClick={() => void retryFailedMessage()}
+                disabled={isStreaming || isRetrying}
+                className="min-h-9 rounded-lg bg-red-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isRetrying ? "다시 시도 중..." : "다시 시도"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissFailedMessageRetry}
+              disabled={isStreaming || isRetrying}
+              className="min-h-9 rounded-lg border border-red-200 bg-white px-3.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       )}
 
@@ -1790,15 +2014,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           onClick={() => setPendingSend(null)}
         >
           <div
+            ref={activeDialogRef}
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-send-dialog-title"
+            tabIndex={-1}
           >
             <div className="flex items-start gap-3 mb-4">
               <div className="shrink-0 w-10 h-10 rounded-xl bg-[#C9A96E]/15 flex items-center justify-center text-[#C9A96E]">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-serif-kr text-lg sm:text-xl text-[#1A1A1F] font-light mb-1.5 leading-snug">
+                <h3 id="pending-send-dialog-title" className="font-serif-kr text-lg sm:text-xl text-[#1A1A1F] font-light mb-1.5 leading-snug">
                   잠시 기다리시겠어요?
                 </h3>
                 <p className="text-sm text-[#504444] leading-relaxed">
@@ -1812,7 +2041,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               <button
                 type="button"
                 onClick={() => setPendingSend(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-[#1A1A1F] bg-[#F6F3F2] hover:bg-[#EDE8E5] transition-colors"
+                className="min-h-11 flex-1 px-4 rounded-xl text-sm font-medium text-[#1A1A1F] bg-[#F6F3F2] hover:bg-[#EDE8E5] transition-colors"
+                data-modal-initial-focus
               >
                 기다릴게요
               </button>
@@ -1823,7 +2053,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   setPendingSend(null);
                   void handleSend(t);
                 }}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
+                className="min-h-11 flex-1 px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
               >
                 그래도 보내기
               </button>
@@ -1945,14 +2175,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.doc"
+            accept={Object.keys(ALLOWED_TYPES).join(",")}
             multiple
             onChange={handleFileSelect}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || attachments.length >= MAX_ATTACHMENTS}
+            disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             title="파일 첨부 (이미지, PDF, Word)"
           >
@@ -1993,12 +2223,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   ? "아모라에게 솔직히…"
                   : "무엇이든 물어보세요…"
             }
-            disabled={isStreaming}
+            disabled={isStreaming || isSending}
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"
           />
           <button
             onClick={() => attemptSend()}
-            disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+            disabled={(!input.trim() && attachments.length === 0) || isStreaming || isSending}
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${
               messageTarget === "partner"
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"

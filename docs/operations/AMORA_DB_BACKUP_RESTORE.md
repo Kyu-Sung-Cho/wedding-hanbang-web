@@ -1,32 +1,50 @@
 # Amora database backup and recovery runbook
 
-This runbook is the safety gate for the Amora OpenAI migration. The HBAM2
-backup protects the 15 Amora-related tables after the Engine V2 expand
-migration, but it is not by itself a database restore or authorization to
-change production. A pre-migration backup must use the clean pre-release
-`main` commit whose 11-table allowlist matches the then-current schema; after
-the expand, use this 15-table version.
+This runbook is the safety gate for the Amora OpenAI migration. The release
+version of HBAM2 protects 27 Amora-related tables after the complete Engine V2
+expand set, but it is not by itself a database restore or authorization to
+change production.
+
+The two backup contracts must not be mixed:
+
+- **Before the production expand:** create and verify the write-fence backup
+  from the clean pre-expand commit recorded in the receipt. The current
+  production baseline contract has an exact 14-table durable allowlist plus two
+  explicit ephemeral exclusions. Engine V2
+  tables do not exist at required remote head `20260715210000`.
+- **After all reviewed expand migrations:** use this release checkout's
+  27-table allowlist and immediately verify a new post-expand backup.
+
+A 27-table capture cannot be used as the pre-write gate against the pre-expand
+schema, and a 14-table capture is not a complete post-expand backup. Historical
+11-table receipts remain evidence for their dated release only and cannot open
+the current Engine V2 write gate.
 
 ## Current gate
 
-Stage B remains **open**, with the following evidence as of 2026-07-15 KST:
+Stage B remains **open**, with the following evidence as of 2026-07-17 KST:
 
-1. **Passed:** fresh production HBAM2 capture and immediate verification;
-2. **Passed:** provider backup `2026-07-14 20:13:53 UTC` is `COMPLETED`
-   and exposes a Restore action;
-3. **Partially passed:** Supabase restored production into isolated clone
-   `syhmfxauqyhgdcokrheg`, including real schema, Auth and data. This proves the
-   provider physical-restore path, but it is not a replay of the HBAM2 logical
-   artifacts into a blank target;
-4. **Passed on the provider clone:** hosted RLS/RPC/Auth contract and concurrency
-   tests after all seven release expand migrations;
-5. **Passed for the release write fence:** nine historical ledger versions were
-   reconciled after their read-only audit, seven expand migrations were applied,
-   and the production remote pending set is zero. The later duplicate booking
-   was conditionally cancelled only after a fresh re-identification and backup;
-6. **Still open:** independent HBAM2 logical replay into a blank target. The
+1. **Still open:** create the final production pre-expand HBAM2 artifact from
+   the exact 14-table contract in a clean immutable checkout and immediately
+   verify it. The completed production-shaped `self_test` proves the
+   implementation and remote shape but is explicitly not the final write-fence
+   artifact;
+2. **Dated evidence only:** a provider physical backup reported `COMPLETED`,
+   and an isolated with-data provider clone was healthy. Re-check freshness and
+   Restore availability immediately before the production write;
+3. **Passed locally without a production query:** the post-expand SQL executes
+   with all 27 tables, exact numeric preservation, the exact release ledger
+   through `20260716117000`, current function identities, and the booking
+   projection trigger; the Windows HBAM2 harness passes all 52
+   creator/verifier and rejection cases;
+4. **Still open:** apply the exact final migration set to the isolated clone,
+   run the hosted schema/RLS/RPC/concurrency gates, then create and verify a
+   27-table post-expand backup on that isolated schema;
+5. **Still open:** independent HBAM2 logical replay into a blank target. The
    provider physical clone and PGlite JSONB verification do not substitute for
    that separate recovery exercise.
+
+Production writes remain blocked while any open item is unresolved.
 
 PGlite proves authenticated JSONB integrity and precision. It does not install
 the production schema, policies, triggers, or functions. The provider clone
@@ -38,20 +56,32 @@ restorable HBAM2 logical path.
 `scripts/sql/amora-db-logical-backup.sql` reads exactly these tables in one
 PostgreSQL statement, so the included rows share one statement snapshot:
 
+- `account_deletion_jobs`
+- `account_deletion_media_manifest`
 - `ai_interactions_log`
 - `amora_actions`
+- `amora_chat_request_claims`
+- `amora_care_deliveries`
+- `amora_care_jobs`
+- `amora_care_scan_states`
+- `amora_conflict_check_claims`
 - `amora_couple_profiles`
 - `amora_mediation_acceptances`
 - `amora_memory_consents`
 - `amora_memory_jobs`
 - `amora_memory_settings`
+- `amora_tool_executions`
 - `amora_turn_counters`
+- `amora_turn_requests`
+- `booking_projection_jobs`
 - `chat_feedback`
 - `chat_messages`
 - `chat_summaries`
+- `community_upload_sessions`
 - `couples`
 - `decision_nodes`
 - `profiles`
+- `vendor_reviews`
 - `wedding_journeys`
 
 The inventory records migration history, relation OID/kind/inheritance shape,
@@ -59,8 +89,66 @@ RLS state, columns including typmods,
 domain and collation metadata, constraints, indexes, policies, trigger event
 bits/timing/row level/enabled state, function owner/ACL/configuration, exact RPC
 signatures, and external triggers that call included public functions. The
-`auth.users` AFTER ROW INSERT trigger calling `create_profile_on_signup()` is
-an explicit required dependency.
+`auth.users` AFTER ROW INSERT trigger calling `create_profile_on_signup()` and
+the `public.vendor_bookings` AFTER ROW INSERT/UPDATE
+`vendor_bookings_projection_outbox` trigger calling
+`enqueue_booking_projection_job()` are explicit required dependencies.
+
+The post-expand function identity fence additionally requires these exact
+`pg_proc` identities (argument names/defaults do not change an identity):
+
+- `20260716096000`: the rolling-deploy compatibility signatures
+  `claim_amora_tool_execution(uuid,text,text,text,text)`,
+  `claim_amora_tool_execution(uuid,text,text,text,text,integer)`, and the
+  server-issued approval capability signature
+  `claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid)`;
+- `20260716097000`: `reserve_amora_turn(uuid,integer,integer)`,
+  `reserve_amora_turn(uuid,integer,integer,bigint,bigint)`,
+  `prepare_amora_provider_call_receipt(uuid,uuid,text,text,text,text,integer,text,text,jsonb)`,
+  `reserve_amora_provider_call(uuid,uuid,text,uuid,integer,integer,bigint,bigint)`,
+  and
+  `finalize_amora_provider_call_receipt(uuid,uuid,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)`;
+- `20260716100000`:
+  `apply_journey_progress_item_patch(uuid,text,jsonb)`;
+- `20260716102000`: `enqueue_booking_projection_job()`,
+  `claim_booking_projection_job(uuid,integer)`,
+  `finish_booking_projection_job(uuid,bigint,uuid,boolean,text,integer)`,
+  `get_booking_projection_queue_stats()`,
+  `retry_booking_projection_job(uuid)`, and
+  `apply_booking_progress_projection(uuid,uuid,text,jsonb,text,numeric,bigint,uuid)`;
+- `20260716103000`: `claim_amora_conflict_check(uuid,text,uuid)`,
+  `checkpoint_amora_conflict_check(uuid,text,uuid,jsonb)`,
+  `complete_amora_conflict_check(uuid,text,uuid,jsonb)`, and
+  `fail_amora_conflict_check(uuid,text,uuid,text)`;
+- `20260716104000`:
+  `patch_profile_atomic(uuid,text,text,boolean,boolean,boolean,text,boolean,boolean)`;
+- `20260716105000`:
+  `finalize_amora_conflict_verify_receipt(uuid,uuid,uuid,text,uuid,jsonb,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)`;
+- `20260716106000`:
+  `finalize_amora_chat_response(uuid,uuid,uuid,uuid,text,text,integer,text,jsonb,text,text,boolean,text,bigint,boolean,text,text,integer,integer,integer,jsonb)`
+  and `reconcile_amora_chat_response(uuid,text,uuid,text,uuid)`;
+- `20260716107000`: `get_wedding_settings_snapshot(uuid)` and
+  `patch_wedding_settings_atomic(uuid,uuid,boolean,text,boolean,text,text,boolean,text,date,boolean,date,text,boolean,text,bigint,boolean,bigint)`;
+- `20260716108000`:
+  `claim_community_upload_session(uuid,uuid,uuid,timestamp with time zone)`.
+- `20260716113000`: `begin_account_deletion_job(uuid,text)`,
+  `claim_account_deletion_job(uuid,uuid,timestamp with time zone)`,
+  `replace_account_deletion_media_manifest(uuid,uuid,jsonb)`,
+  `release_account_deletion_job(uuid,uuid,text)`,
+  `mark_account_deletion_manual_review(uuid,uuid,text)`,
+  `resume_account_deletion_after_manual_review(uuid)`,
+  `checkpoint_account_deletion_media(uuid,uuid,text,text)`,
+  `prepare_account_deletion_auth_delete(uuid,uuid)`, and
+  `finalize_account_deletion_job(uuid,uuid)`.
+
+Creator and verifier both fail closed if any identity is absent. The inventory
+also stores owner, ACL, `SECURITY DEFINER`, configuration and full definition,
+so the before/after schema digest detects changes to those attributes.
+For both 1130 tables it also requires RLS enabled plus `FORCE ROW LEVEL
+SECURITY`; every 1130 function must be owned by `postgres`, be
+`SECURITY DEFINER`, use the reviewed empty search path, grant execute to
+`service_role`, and grant no execute privilege to `PUBLIC`, `anon`, or
+`authenticated`.
 
 This targeted backup does not include every public table, Auth user rows,
 Storage objects, extension state, or provider-managed settings. Supabase's
@@ -78,16 +166,35 @@ physical backup remains the disaster-recovery layer.
   `rolsuper` or `rolbypassrls`.
 - A read-only preflight runs before data capture. The local gate allows at most
   16 MiB estimated table size and 250,000 estimated rows; every SQL payload is
-  capped at 32 MiB. All 15 targets must be present as standalone ordinary
+  capped at 32 MiB. All 27 targets must be present as standalone ordinary
   tables; missing tables, partition parents, and inheritance parents or
   children are rejected rather than relying on partial size estimates.
 - Query processes have a 150-second default wall-clock timeout.
 - Schema inventory is captured before and after the data statement. Publication
   fails if their canonical contract SHA-256 values differ.
 - Preflight, inventory-before, the data statement, and inventory-after must
-  report the same 15 relation OIDs and standalone ordinary-table shape. Every
+  report the same 27 relation OIDs and standalone ordinary-table shape. Every
   row CTE reads `FROM ONLY public.<table>`, so a transient inheritance child is
   never included. This closes rename/recreate and attach/detach DDL ABA races.
+- Those same four stages bind the exact care-delivery policy contract from
+  migration `20260716095000`: the `amora_care_deliveries.send_day` `date`
+  column, validated `profiles_care_consent_state_valid` CHECK constraint,
+  indexes `amora_care_deliveries_user_send_day_uidx`,
+  `amora_care_jobs_active_age_idx`, and `amora_care_jobs_scan_status_idx`, and
+  all ten public/internal policy RPC signatures. Any missing marker rejects the
+  payload server-side and is independently rejected again by the creator or
+  verifier from authenticated metadata.
+- Those stages also require the exact 27-version release ledger after baseline
+  head `20260715210000`, with no missing or additional version and exact final
+  head `20260716117000`. A database below `1170` or with an unreviewed later
+  migration cannot produce a valid post-expand backup.
+- Migration `20260716098000` and
+  `defer_amora_memory_job(uuid,integer,integer,text)` are also mandatory. The
+  function must be owned by `postgres`, be `SECURITY DEFINER`, retain the exact
+  search-path/lock/statement-timeout configuration, grant execute to
+  `service_role`, and grant no execute privilege to `PUBLIC`, `anon`, or
+  `authenticated`. Preflight, both inventories, logical data, raw function ACL,
+  and authenticated verification all fail closed on a mismatch.
 - Each table carries a SHA-256 computed by source PostgreSQL from canonical
   `jsonb::text`. PGlite must independently reproduce it before and after
   generic staging, including values outside JavaScript's safe integer range.
@@ -182,6 +289,29 @@ Never commit or upload the timestamp directory, encrypted payloads, DPAPI key
 files, manifest, or production receipt. The manifest contains no row content,
 but it is still part of the external authentication workflow.
 
+### Hand the verified pre-write backup to the release controller
+
+The pre-expand backup tool and the release controller intentionally live in
+different immutable checkouts when the pending release adds backup-covered
+tables. Keep the clean pre-expand checkout at the receipt's exact `GitCommit`
+after immediate verification. Save the verifier's one-line JSON output to a
+private absolute path outside Git; do not edit or merge creator and verifier
+receipts by hand.
+
+The production controller requires both that JSON file and the clean
+pre-expand checkout. It first compares the checkout HEAD to `GitCommit`, then
+runs that checkout's `amora-db-verify-backup.ps1` again with the manifest
+project ref, backup-set ID, manifest SHA-256 and a 30-minute maximum age. It
+also requires the current native Supabase CLI version and binary SHA-256 to
+match the freshly authenticated verifier receipt. A copied JSON object alone
+therefore cannot open the production write gate.
+
+Do not switch the pre-expand checkout to the release commit, regenerate the
+receipt with the post-expand 27-table allowlist before the schema exists, or
+put database passwords/tokens in controller arguments. The outcome receipt is
+separate metadata, is created outside Git before the push, and contains no
+row data or credentials.
+
 ## Synthetic regression gate
 
 Run the Windows-only creator/verifier test without contacting production:
@@ -191,16 +321,25 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\tests\amora-db-backup-e2e.ps1
 ```
 
-It uses a fake Supabase CLI and currently covers 33 cases: actual logical SQL,
-the exact `--workdir` call order, DPAPI/AES/HMAC authentication, external
-anchors, ciphertext and HMAC tampering, captured-at mismatch, extra files, ACL
+It uses a fake Supabase CLI and currently covers 52 cases: actual preflight,
+inventory, and logical SQL; the exact `--workdir` call order;
+DPAPI/AES/HMAC authentication; external
+anchors, ciphertext and HMAC tampering, captured-at mismatch, authenticated
+live-schema/logical-data digest tampering, extra files, ACL
 widening, cross-set mixing, stale replay anchors, schema drift, relink attempts,
 disabled or wrong-event Auth triggers, missing Amora safety triggers, the
 legacy unversioned mediation-acceptance RPC,
 partition/missing-table preflight,
 transaction-control escape attempts, production CLI/Node overrides, inherited
-Node preload options, and concurrent-capture winner preservation without
-publishing a partial set. Its positive production-runtime case also imports the
+Node preload options, all 0950 migration/column/constraint/index/function and
+logical-contract omission gates, the 0980 migration/function omissions and
+non-service ACL
+gates, the 1130 migration omission, a missing `1170` head, an unreviewed
+post-`1170` migration, missing account-deletion `FORCE RLS`,
+missing account-deletion function identity, account-deletion non-service
+execute privilege, omission of a post-expand atomic function identity, omission of the
+booking projection outbox trigger, and concurrent-capture winner preservation
+without publishing a partial set. Its positive production-runtime case also imports the
 locked physical PGlite entry, opens a database, executes a query, and closes it.
 The final three cases reject a preflight-to-inventory OID replacement, an
 inventory-to-data OID replacement, and a transient inherited data relation.
@@ -209,7 +348,7 @@ The harness is intentionally host-bound: it requires the committed absolute
 Node path, byte size and SHA-256, a user-owned private NTFS ACL, and CurrentUser
 DPAPI. GitHub-hosted Windows runners do not satisfy those production-host
 invariants, so this gate is not run as hosted CI. The normal
-`pnpm amora:db:test-backup` command must pass all 33 cases on the actual
+`pnpm amora:db:test-backup` command must pass all 52 cases on the actual
 production backup host before any production write.
 
 ## What PGlite does not prove
@@ -236,20 +375,31 @@ Before enabling the OpenAI runtime:
    destination-fenced transaction;
 5. compare row counts and source canonical digests;
 6. run anonymous, user A, partner, non-member, and service-role RLS cases;
-7. exercise exact signatures `reserve_amora_turn(uuid,integer,integer)`,
+7. exercise every exact identity in the post-expand function identity fence
+   above, plus all retained baseline signatures. Both
+   `reserve_amora_turn(uuid,integer,integer)` and
+   `reserve_amora_turn(uuid,integer,integer,bigint,bigint)`
+   must remain callable during the rolling-deploy compatibility window; also
+   exercise all three rolling-deploy approval signatures:
+   `claim_amora_tool_execution(uuid,text,text,text,text)`,
+   `claim_amora_tool_execution(uuid,text,text,text,text,integer)`, and
+   `claim_amora_tool_execution(uuid,text,text,text,text,integer,uuid)`, plus
+   `claim_community_upload_session(uuid,uuid,uuid,timestamp with time zone)`,
    `apply_journey_progress_patch(uuid,jsonb,text[])`,
    `join_couple(text,text)`, `generate_invite_code()`,
    `redact_old_ai_interactions(interval)`,
    `reset_amora_memory_after_membership_change()`,
    `has_current_amora_memory_consent(uuid,text)`,
    `enqueue_amora_memory_job(uuid,uuid,text,uuid)`,
-   `claim_amora_memory_job(integer)`,
+   `claim_amora_memory_job(integer,uuid)`,
    `finish_amora_memory_job(uuid,boolean,text,integer)`,
    `upsert_amora_memory_node(uuid,text,text,text,text,text,text,numeric,text,uuid,jsonb)`,
    `update_amora_memory_node(uuid,text,uuid,uuid,text,text)`,
    `delete_amora_memory_node(uuid,text,uuid,uuid)`,
    `insert_amora_memory_summary(uuid,uuid,text,text,integer,uuid,uuid)`,
    `commit_amora_memory_job(uuid,integer,jsonb,text,integer,uuid,uuid)`,
+   `defer_amora_memory_job(uuid,integer,integer,text)` with service-only execute
+   privilege,
    `set_amora_memory_consent(uuid,text,uuid,boolean)`,
    `clear_amora_memory_scope(uuid,text,uuid)`,
    `bind_amora_mediation_proposal()`,
@@ -257,11 +407,20 @@ Before enabling the OpenAI runtime:
    legacy five-argument overload is absent),
    `revoke_amora_mediation_acceptance(uuid,uuid,uuid)`,
    `reset_amora_mediation_after_membership_change()`,
-   `insert_amora_care_message(uuid,text,jsonb)`, and the signup contract;
+   `insert_amora_care_message(uuid,text,jsonb)`,
+   `enqueue_amora_care_job(uuid,date,text,text,jsonb,text,text)`,
+   `prepare_amora_care_job(uuid,uuid,boolean)`,
+   `claim_amora_care_email_delivery(uuid,uuid)`,
+   `amora_care_delivery_clock()`,
+   `amora_care_is_delivery_window(timestamp with time zone)`,
+   `amora_care_next_delivery_window(timestamp with time zone)`,
+   `get_amora_care_queue_stats(date)`, plus all three
+   `_pre_delivery_policy` internal signatures, and the signup contract;
 8. verify the enabled row-level safety triggers
    `trg_reset_amora_memory_after_membership_change`,
    `trg_reset_amora_mediation_after_membership_change`, and
-   `trg_bind_amora_mediation_proposal`, including their events, timing, and
+   `trg_bind_amora_mediation_proposal`, plus external trigger
+   `vendor_bookings_projection_outbox`, including their events, timing, and
    exact function targets;
 9. destroy the isolated plaintext target after recording non-sensitive results.
 
@@ -271,8 +430,9 @@ transaction, a rollback transaction, and operator confirmation.
 
 ## Migration-history warning
 
-Production contains objects that are not fully explained by the remote
-migration ledger while this repository also has pending migrations. Therefore:
+As of the 2026-07-17 read-only audit, production has not applied this release's
+pending Engine V2 migration set. Re-read the remote ledger immediately before
+release; do not infer migration state from this dated document. Therefore:
 
 - never run unscoped `supabase db push` or `--include-all`;
 - never repair migration history merely to make lists look equal;

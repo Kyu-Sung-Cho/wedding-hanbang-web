@@ -57,10 +57,15 @@ function response(options?: { output?: unknown[]; outputText?: string; status?: 
   };
 }
 
-function fakeClient(result: unknown) {
+function fakeClient(result: unknown, inputTokens = 20) {
+  const count = vi.fn().mockReturnValue(apiResult({
+    input_tokens: inputTokens,
+    object: "response.input_tokens",
+  }, "req_input_count"));
   const create = vi.fn().mockReturnValue(apiResult(result));
   return {
-    client: { responses: { create } } as unknown as OpenAI,
+    client: { responses: { create, inputTokens: { count } } } as unknown as OpenAI,
+    count,
     create,
   };
 }
@@ -74,6 +79,193 @@ describe("audited OpenAI Responses", () => {
     process.env.OPENAI_AMORA_FAST_REASONING_EFFORT = "none";
   });
 
+  it("counts the exact provider input before the reservation hook and generation", async () => {
+    const order: string[] = [];
+    const { client, count, create } = fakeClient(response());
+    count.mockImplementation(() => {
+      order.push("count");
+      return apiResult({ input_tokens: 20, object: "response.input_tokens" }, "req_input_count");
+    });
+    create.mockImplementation(() => {
+      order.push("create");
+      return apiResult(response());
+    });
+    const beforeGeneration = vi.fn(async () => {
+      order.push("hook");
+    });
+
+    await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    });
+
+    expect(order).toEqual(["count", "hook", "create"]);
+    expect(count).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gpt-5.6-luna",
+      instructions: "system",
+      input: "input",
+      reasoning: { effort: "none" },
+      text: { verbosity: "low" },
+    }), undefined);
+  });
+
+  it("does not write a duplicate row when a durable provider receipt owns the audit", async () => {
+    const { client } = fakeClient(response());
+
+    await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration: async () => undefined,
+      auditPersistence: "external_provider_receipt",
+      client,
+      audit: { interactionType: "amora_director" },
+    });
+
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("blocks an oversized counted input before the hook or paid generation", async () => {
+    const { client, create } = fakeClient(response(), 64_001);
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toMatchObject({
+      providerCode: "input_token_limit",
+      requestStage: "input_count",
+    });
+
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      tokensInput: null,
+      tokensOutput: null,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        provider_request_id: null,
+        input_count_request_id: "req_input_count",
+        provider_request_stage: "input_count",
+      }),
+    }));
+  });
+
+  it("records an input-count transport failure as a non-generation attempt", async () => {
+    const count = vi.fn().mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count network"), {
+        request_id: "req_count_failed",
+      })),
+    });
+    const create = vi.fn();
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toMatchObject({
+      requestId: "req_count_failed",
+      requestStage: "input_count",
+    });
+
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        provider_request_id: null,
+        input_count_request_id: "req_count_failed",
+        provider_request_stage: "input_count",
+      }),
+    }));
+  });
+
+  it("does not start generation when the final reservation hook rejects", async () => {
+    const { client, create } = fakeClient(response());
+    const reservationError = new Error("reservation rejected");
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration: async () => {
+        throw reservationError;
+      },
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toBe(reservationError);
+
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        input_count_request_id: "req_input_count",
+      }),
+    }));
+  });
+
+  it("checks cancellation again after exact counting and before the hook", async () => {
+    const abortController = new AbortController();
+    const { client, count, create } = fakeClient(response());
+    count.mockImplementation(() => {
+      abortController.abort();
+      return apiResult({ input_tokens: 20, object: "response.input_tokens" }, "req_input_count");
+    });
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "input",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      signal: abortController.signal,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toBeInstanceOf(Error);
+
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        input_count_request_id: "req_input_count",
+      }),
+    }));
+  });
+
   it("does not call an injected client while the production kill switch is off", async () => {
     const { client, create } = fakeClient(response());
     process.env.AMORA_OPENAI_ENABLED = "false";
@@ -82,7 +274,9 @@ describe("audited OpenAI Responses", () => {
       modelRole: "fast",
       instructions: "system",
       input: "input",
+      maxInputTokens: 64_000,
       maxOutputTokens: 100,
+      beforeGeneration: vi.fn(),
       client,
       audit: { interactionType: "chat_turn" },
     })).rejects.toMatchObject({
@@ -109,7 +303,9 @@ describe("audited OpenAI Responses", () => {
       modelRole: "fast",
       instructions: "system secret",
       input: "user secret",
+      maxInputTokens: 64_000,
       maxOutputTokens: 200,
+      beforeGeneration: vi.fn(),
       client,
       audit: {
         userId: "user-id",
@@ -163,7 +359,9 @@ describe("audited OpenAI Responses", () => {
       modelRole: "fast",
       instructions: "system",
       input: "unsafe",
+      maxInputTokens: 64_000,
       maxOutputTokens: 100,
+      beforeGeneration: vi.fn(),
       client,
       audit: { interactionType: "chat_turn" },
     })).rejects.toBeInstanceOf(OpenAIRefusalError);
@@ -178,12 +376,14 @@ describe("audited OpenAI Responses", () => {
   });
 
   it("validates structured JSON after the provider schema contract", async () => {
-    const { client, create } = fakeClient(response({ outputText: '{"ok":true}' }));
+    const { client, count, create } = fakeClient(response({ outputText: '{"ok":true}' }));
     const result = await createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
       instructions: "json",
       input: "input",
+      maxInputTokens: 64_000,
       maxOutputTokens: 100,
+      beforeGeneration: vi.fn(),
       client,
       audit: { interactionType: "chat_turn" },
       responseFormat: {
@@ -204,6 +404,18 @@ describe("audited OpenAI Responses", () => {
     });
 
     expect(result.data).toEqual({ ok: true });
+    expect(count).toHaveBeenCalledWith(expect.objectContaining({
+      instructions: "json",
+      input: "input",
+      text: expect.objectContaining({
+        verbosity: "low",
+        format: expect.objectContaining({
+          type: "json_schema",
+          name: "test_result",
+          strict: true,
+        }),
+      }),
+    }), undefined);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       text: expect.objectContaining({
         format: expect.objectContaining({ type: "json_schema", strict: true }),
@@ -212,18 +424,24 @@ describe("audited OpenAI Responses", () => {
   });
 
   it("keeps transport failures as unknown paid attempts", async () => {
+    const count = vi.fn().mockReturnValue(apiResult({
+      input_tokens: 20,
+      object: "response.input_tokens",
+    }, "req_input_count"));
     const create = vi.fn().mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("network"), {
         request_id: "req_failed",
       })),
     });
-    const client = { responses: { create } } as unknown as OpenAI;
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
 
     await expect(createOpenAIResponseWithAudit({
       modelRole: "fast",
       instructions: "system",
       input: "input",
+      maxInputTokens: 64_000,
       maxOutputTokens: 100,
+      beforeGeneration: vi.fn(),
       client,
       audit: { interactionType: "chat_turn" },
     })).rejects.toMatchObject({ usageStatus: "unknown" });

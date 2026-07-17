@@ -42,15 +42,38 @@ import {
   CATEGORY_RATIOS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
-import { patchJourneyProgress } from "@/lib/ai/tools/progressTools";
+import {
+  patchJourneyProgress,
+  patchJourneyProgressItem,
+} from "@/lib/ai/tools/progressTools";
+import {
+  kstMidnightFromYmd,
+  todayKstMidnight,
+  ymdInKst,
+} from "@/lib/utils/kstDate";
+import { isValidScheduleYmd } from "@/utils/scheduleEvents";
 import {
   formatWon,
   requireDestructiveConfirmation,
   subjectParticle,
   type ToolExecutionContext as ExecutionContext,
 } from "@/lib/ai/tools/toolTypes";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import {
+  applyAmoraAtomicToolResultToContext,
+  buildAmoraAtomicToolOperation,
+} from "@/lib/ai/amoraAtomicToolOperation";
 
 export { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+
+const MAX_WEDDING_AMOUNT_WON = 1_000_000_000_000;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidWonAmount(value: unknown): value is number {
+  return Number.isSafeInteger(value)
+    && (value as number) >= 0
+    && (value as number) <= MAX_WEDDING_AMOUNT_WON;
+}
 
 function getAdminClient() {
   return createAdminClient();
@@ -68,7 +91,15 @@ function getAdminClient() {
 type DurableToolClaim =
   | { action: "acquired" }
   | { action: "completed"; result: unknown }
-  | { action: "in_progress" | "uncertain" | "conflict" };
+  | {
+      action:
+        | "in_progress"
+        | "uncertain"
+        | "conflict"
+        | "stale_context"
+        | "stale_attempt"
+        | "retry_new_operation_blocked";
+    };
 
 // One execution context is retained across all model tool rounds. Caching the
 // promise closes the same-process/concurrent duplicate window before the
@@ -77,29 +108,6 @@ const executionCache = new WeakMap<
   ExecutionContext,
   Map<string, Promise<ToolExecutionResult>>
 >();
-
-function canonicalJson(value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "boolean") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("Non-finite tool input");
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJson(item ?? null)).join(",")}]`;
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
-      .join(",")}}`;
-  }
-  throw new Error("Unsupported tool input value");
-}
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -170,17 +178,25 @@ export async function executeTool(
     try {
       return await executeToolOnce(toolName, toolInput, context);
     } catch (error) {
+      console.error("[amora-tool] read tool failed", {
+        toolName,
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
       return {
         toolName,
         toolInput,
-        toolOutput: { error: String(error) },
+        toolOutput: { error_code: "TOOL_EXECUTION_FAILED" },
         success: false,
         displayMessage: "처리 중 오류가 발생했습니다.",
       };
     }
   }
 
-  if (!context.requestKey) {
+  if (
+    !context.requestKey
+    || !Number.isInteger(context.requestAttemptCount)
+    || (context.requestAttemptCount ?? 0) < 1
+  ) {
     return failureResult(
       toolName,
       toolInput,
@@ -189,9 +205,30 @@ export async function executeTool(
     );
   }
 
-  let canonicalInput: string;
+  if (
+    context.pendingActionId !== undefined
+    && (
+      typeof context.pendingActionId !== "string"
+      || !UUID_PATTERN.test(context.pendingActionId)
+    )
+  ) {
+    return failureResult(
+      toolName,
+      toolInput,
+      "INVALID_PENDING_ACTION_ID",
+      "승인한 변경의 식별자를 안전하게 확인하지 못해 적용하지 않았습니다.",
+    );
+  }
+
+  const pendingActionId = context.pendingActionId?.toLowerCase();
+
+  let inputDigest: string;
+  let operationKey: string;
   try {
-    canonicalInput = canonicalJson(toolInput);
+    ({ inputDigest, operationKey } = getAmoraToolOperationIdentity(
+      toolName,
+      toolInput,
+    ));
   } catch {
     return failureResult(
       toolName,
@@ -201,9 +238,7 @@ export async function executeTool(
     );
   }
 
-  const inputDigest = sha256(canonicalInput);
-  const operationKey = sha256(`${toolName}\n${canonicalInput}`);
-  const cacheKey = `${context.requestKey}:${operationKey}`;
+  const cacheKey = `${context.requestKey}:${operationKey}:${pendingActionId ?? "request"}`;
   let contextCache = executionCache.get(context);
   if (!contextCache) {
     contextCache = new Map();
@@ -219,6 +254,7 @@ export async function executeTool(
     context,
     inputDigest,
     operationKey,
+    pendingActionId,
   });
   contextCache.set(cacheKey, execution);
   return execution;
@@ -230,12 +266,14 @@ async function executeMutatingToolWithLedger({
   context,
   inputDigest,
   operationKey,
+  pendingActionId,
 }: {
   toolName: string;
   toolInput: Record<string, unknown>;
   context: ExecutionContext;
   inputDigest: string;
   operationKey: string;
+  pendingActionId?: string;
 }): Promise<ToolExecutionResult> {
   const admin = getAdminClient();
   const claimArgs = {
@@ -244,6 +282,13 @@ async function executeMutatingToolWithLedger({
     p_operation_key: operationKey,
     p_tool_name: toolName,
     p_input_digest: inputDigest,
+    p_request_attempt_count: context.requestAttemptCount!,
+    ...(context.providerCallIndex !== undefined || pendingActionId !== undefined
+      ? {
+          p_pending_action_id: pendingActionId ?? null,
+          p_provider_call_index: context.providerCallIndex ?? null,
+        }
+      : {}),
   };
 
   const { data: rawClaim, error: claimError } = await admin.rpc(
@@ -261,12 +306,17 @@ async function executeMutatingToolWithLedger({
 
   const claim = rawClaim as unknown as DurableToolClaim;
   if (claim.action === "completed") {
-    return hydrateDurableResult(claim.result, toolName, toolInput) ?? failureResult(
-      toolName,
-      toolInput,
-      "TOOL_LEDGER_RESULT_INVALID",
-      "이전 변경 결과를 안전하게 확인하지 못했습니다. 상태를 직접 확인해 주세요."
-    );
+    const replayed = hydrateDurableResult(claim.result, toolName, toolInput);
+    if (!replayed) {
+      return failureResult(
+        toolName,
+        toolInput,
+        "TOOL_LEDGER_RESULT_INVALID",
+        "이전 변경 결과를 안전하게 확인하지 못했습니다. 상태를 직접 확인해 주세요.",
+      );
+    }
+    applyAmoraAtomicToolResultToContext(replayed, context);
+    return replayed;
   }
   if (claim.action === "in_progress") {
     return failureResult(
@@ -284,6 +334,30 @@ async function executeMutatingToolWithLedger({
       "이전 변경의 완료 여부가 불확실해 다시 실행하지 않았습니다. 현재 상태를 먼저 확인해 주세요."
     );
   }
+  if (claim.action === "retry_new_operation_blocked") {
+    return failureResult(
+      toolName,
+      toolInput,
+      "TOOL_RETRY_NEW_OPERATION_BLOCKED",
+      "이 요청은 재시도 중이라 이전에 확인되지 않은 새 변경을 적용하지 않았습니다. 현재 상태를 확인한 뒤 새 메시지로 요청해 주세요."
+    );
+  }
+  if (claim.action === "stale_attempt") {
+    return failureResult(
+      toolName,
+      toolInput,
+      "TOOL_REQUEST_ATTEMPT_STALE",
+      "이미 더 최신 재시도가 시작되어 이 응답의 변경을 적용하지 않았습니다."
+    );
+  }
+  if (claim.action === "stale_context") {
+    return failureResult(
+      toolName,
+      toolInput,
+      "TOOL_CONTEXT_STALE",
+      "그 사이 대화가 더 이어져 이전 맥락의 변경은 적용하지 않았습니다. 최신 대화에서 다시 확인해 주세요."
+    );
+  }
   if (claim.action !== "acquired") {
     return failureResult(
       toolName,
@@ -291,6 +365,51 @@ async function executeMutatingToolWithLedger({
       "TOOL_IDEMPOTENCY_CONFLICT",
       "요청 식별자가 다른 변경과 충돌해 적용하지 않았습니다."
     );
+  }
+
+  const requiresAtomicCommit = context.providerCallIndex !== undefined
+    || pendingActionId !== undefined;
+  if (requiresAtomicCommit) {
+    const operation = buildAmoraAtomicToolOperation(
+      toolName,
+      toolInput,
+      context,
+      operationKey,
+    );
+    const durablePayload = durableResultPayload(operation.result);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const { data, error } = await admin.rpc(
+          "apply_amora_atomic_tool_execution",
+          {
+            p_couple_id: context.coupleId,
+            p_request_key: context.requestKey!,
+            p_operation_key: operationKey,
+            p_request_attempt_count: context.requestAttemptCount!,
+            p_input_digest: inputDigest,
+            p_tool_input: toolInput,
+            p_domain_mutation: operation.domainMutation,
+            p_result: durablePayload,
+          },
+        );
+        const committed = !error
+          ? hydrateDurableResult(data, toolName, toolInput)
+          : null;
+        if (committed) {
+          applyAmoraAtomicToolResultToContext(committed, context);
+          return committed;
+        }
+      } catch {
+        // Retry the same operation-key-scoped transaction. A committed first
+        // attempt returns its stored result; an uncommitted one has no domain
+        // side effect by construction.
+      }
+    }
+    // Do not let the provider turn this uncertainty into a terminal assistant
+    // message. The transaction may have committed while its response was
+    // lost; failing the chat claim preserves the journal so the same request
+    // can replay the ledger's completed result.
+    throw new Error("[amora-tool] atomic commit outcome unavailable");
   }
 
   const markExecutionUncertain = async (failureCode: string) => {
@@ -444,7 +563,16 @@ async function executeUpdateBudget(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
-  const newBudget = input.total_budget as number;
+  const newBudget = input.total_budget;
+  if (!isValidWonAmount(newBudget)) {
+    return {
+      toolName: "update_budget",
+      toolInput: input,
+      toolOutput: { error: "invalid_budget_amount" },
+      success: false,
+      displayMessage: "총예산은 0원 이상 1조원 이하의 원 단위 정수여야 합니다.",
+    };
+  }
   const oldBudget = ctx.weddingContext.budget;
 
   const admin = getAdminClient();
@@ -488,8 +616,7 @@ async function executeUpdateWeddingDate(
   }
 
   // 2) 유효한 달력 날짜인지 (예: 2026-02-31 거부)
-  const parsed = new Date(`${newDate}T00:00:00`);
-  if (isNaN(parsed.getTime())) {
+  if (!isValidScheduleYmd(newDate)) {
     return {
       toolName: "update_wedding_date",
       toolInput: input,
@@ -498,12 +625,13 @@ async function executeUpdateWeddingDate(
       displayMessage: `유효하지 않은 날짜입니다: ${newDate}`,
     };
   }
+  const parsed = kstMidnightFromYmd(newDate);
 
-  // 3) 과거 날짜 거부 — AI 연도 추론 실수 방어 (오늘 자정 기준)
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (parsed < todayStart) {
-    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // 3) 과거 날짜 거부 — 서버 시간대와 무관하게 사용자 기준(KST) 오늘을 사용한다.
+  const todayIso = ymdInKst();
+  const todayStart = todayKstMidnight();
+  if (newDate < todayIso) {
+    const nextYear = Number(todayIso.slice(0, 4)) + 1;
     return {
       toolName: "update_wedding_date",
       toolInput: input,
@@ -511,7 +639,7 @@ async function executeUpdateWeddingDate(
         error: "past_date_rejected",
         attempted: newDate,
         today: todayIso,
-        message: `${newDate}는 오늘(${todayIso}) 이전입니다. 결혼 예정일은 미래 날짜여야 합니다. 사용자에게 정확한 연도를 다시 확인하세요. (예: '내년 3월 12일' → ${now.getFullYear() + 1}-03-12)`,
+        message: `${newDate}는 오늘(${todayIso}) 이전입니다. 결혼 예정일은 미래 날짜여야 합니다. 사용자에게 정확한 연도를 다시 확인하세요. (예: '내년 3월 12일' → ${nextYear}-03-12)`,
       },
       success: false,
       displayMessage: `과거 날짜(${newDate})는 결혼 예정일로 설정할 수 없습니다.`,
@@ -528,8 +656,8 @@ async function executeUpdateWeddingDate(
 
   ctx.weddingContext.weddingDate = newDate;
 
-  const dDay = Math.ceil(
-    (parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  const dDay = Math.round(
+    (parsed.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24),
   );
 
   return {
@@ -545,12 +673,26 @@ async function executeUpdateTaskStatus(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
-  const category = input.category as string;
-  const status = input.status as string;
-  const label = CATEGORY_LABELS[category] || category;
-  const statusLabel = STATUS_LABELS[status] || status;
+  const category = input.category;
+  const status = input.status;
+  if (
+    typeof category !== "string"
+    || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
+    || typeof status !== "string"
+    || !Object.prototype.hasOwnProperty.call(STATUS_LABELS, status)
+  ) {
+    return {
+      toolName: "update_task_status",
+      toolInput: input,
+      toolOutput: { error: "invalid_task_status" },
+      success: false,
+      displayMessage: "준비 항목과 진행 상태를 확인하지 못해 변경하지 않았습니다.",
+    };
+  }
+  const label = CATEGORY_LABELS[category];
+  const statusLabel = STATUS_LABELS[status];
 
-  await patchJourneyProgress(ctx, { [category]: { category, status } });
+  await patchJourneyProgressItem(ctx, category, { category, status });
 
   return {
     toolName: "update_task_status",
@@ -565,7 +707,24 @@ async function executeUpdateCategoryBudget(
   input: Record<string, unknown>,
   ctx: ExecutionContext
 ): Promise<ToolExecutionResult> {
-  const category = input.category as string;
+  const category = input.category;
+  const hasBudget = input.budget !== undefined;
+  const hasSpent = input.spent !== undefined;
+  if (
+    typeof category !== "string"
+    || !Object.prototype.hasOwnProperty.call(CATEGORY_RATIOS, category)
+    || (!hasBudget && !hasSpent)
+    || (hasBudget && !isValidWonAmount(input.budget))
+    || (hasSpent && !isValidWonAmount(input.spent))
+  ) {
+    return {
+      toolName: "update_category_budget",
+      toolInput: input,
+      toolOutput: { error: "invalid_category_budget" },
+      success: false,
+      displayMessage: "예산 항목과 금액을 확인하지 못해 변경하지 않았습니다.",
+    };
+  }
   const label = CATEGORY_LABELS[category] || category;
 
   const existing = ctx.weddingContext.progress[category] ?? { category, status: "not_started" };
@@ -612,7 +771,7 @@ async function executeApplyBudgetPlan(
   const invalidPlan = (
     !Number.isSafeInteger(totalBudget) ||
     totalBudget < 0 ||
-    totalBudget > 1_000_000_000_000 ||
+    totalBudget > MAX_WEDDING_AMOUNT_WON ||
     !Array.isArray(allocations) ||
     allocations.length === 0 ||
     allocations.length > Object.keys(CATEGORY_RATIOS).length ||
@@ -623,7 +782,7 @@ async function executeApplyBudgetPlan(
       !(allocation.category in CATEGORY_RATIOS) ||
       !Number.isSafeInteger(allocation.budget) ||
       allocation.budget < 0 ||
-      allocation.budget > 1_000_000_000_000
+      allocation.budget > MAX_WEDDING_AMOUNT_WON
     ) ||
     new Set(allocations.map((allocation) => allocation.category)).size !== allocations.length
   );
@@ -750,7 +909,7 @@ async function executeAddCustomCategory(
   for (const field of ["budget", "spent"] as const) {
     if (
       input[field] !== undefined &&
-      (typeof input[field] !== "number" || !Number.isFinite(input[field]) || input[field] < 0)
+      !isValidWonAmount(input[field])
     ) {
       return {
         toolName: "add_custom_category",

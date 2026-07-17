@@ -37,6 +37,7 @@ import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import { getEvents } from "@/utils/scheduleEvents";
+import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 
 type Status = "not_started" | "in_progress" | "completed";
 
@@ -243,7 +244,7 @@ export default function DashboardPage() {
       if (Date.now() - last < 10 * 60 * 1000) return;
       sessionStorage.setItem(key, String(Date.now()));
     } catch { /* sessionStorage 불가 환경은 서버 dedupe에 위임 */ }
-    fetch("/api/chat/proactive").catch(() => {});
+    void requestProactiveCare();
   }, [isDemo]);
 
   async function copyCode() {
@@ -333,8 +334,8 @@ export default function DashboardPage() {
             예식일 하나만 알려주세요
           </h2>
           <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
-            날짜가 있어야 매주 &lsquo;이번 주 한 장&rsquo;으로 할 일을 골라드리고, 상견례·투어 같은 일정도
-            3일 전부터 먼저 챙겨드릴 수 있어요. 아직 미정이어도 괜찮아요 — 예상 시기만 잡아도 됩니다.
+            날짜를 입력하면 남은 기간에 맞춰 &lsquo;이번 주 한 장&rsquo;과 일정을 정리할 수 있어요.
+            아직 미정이어도 괜찮고, 알림 수신 여부는 설정에서 따로 선택합니다.
           </p>
           <div className="mt-4 flex flex-wrap gap-2.5">
             <Link

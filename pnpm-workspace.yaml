@@ -9,6 +9,7 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
+  "@types/react-dom": "19.1.11"
   "@xmldom/xmldom": "0.8.13"
   postcss: "8.5.14"
   "shell-quote@<=1.8.3": "1.8.4"

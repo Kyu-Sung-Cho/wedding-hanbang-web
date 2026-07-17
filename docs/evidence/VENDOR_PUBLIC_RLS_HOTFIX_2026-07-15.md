@@ -1,5 +1,10 @@
 # Vendor public RLS hotfix evidence — 2026-07-15
 
+> **HISTORICAL PRODUCTION RECEIPT — not current Engine V2 release approval.**
+> The vendor-policy hotfix and remote head recorded below remain predecessor
+> facts. This receipt does not validate the pending 27-file release, its current
+> backup/Storage/mobile gates, or a final immutable release SHA.
+
 ## Scope
 
 This receipt covers only the production vendor read-policy drift fence. It does

@@ -1,5 +1,10 @@
 # WeddingCode Cognitive Interview Protocol v0.1
 
+> [!WARNING]
+> **RETIRED / Candidate 4 인터뷰안 / 재사용 금지.** 형용사+동물, 원답·overlap 공유 컨셉은
+> Candidate 5 경계와 충돌한다. 모집·인터뷰·결과 카드에 사용하지 않는다. Candidate 5 사람 검증은
+> `56`의 G2–G5와 별도 exact-version 실행 문서가 승인된 뒤에만 가능하다.
+
 작성일: 2026-07-07  
 대상: v0.5 문항 초안 16개 + 제품 라우팅 문항 1개  
 목표: 문항이 실제 결혼 준비 상황처럼 느껴지는지, 선택지가 정답처럼 보이지 않는지, 결과 공유가 대화로 이어질 수 있는지 확인한다.

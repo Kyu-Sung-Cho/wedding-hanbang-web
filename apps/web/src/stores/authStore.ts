@@ -25,6 +25,7 @@ const DEMO_COUPLE: Couple = {
   invite_code: "WH-DEMO01",
   bride_id: "demo",
   groom_id: null,
+  membership_sealed_at: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };

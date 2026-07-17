@@ -10,7 +10,6 @@ import {
   SEASONAL_DATA,
   getLatestPeriodId,
   getNationalTotal,
-  getSeoulTotal,
   getRegionalCosts,
   REGION_LABELS,
 } from "@/constants/marketPrices";
@@ -24,7 +23,6 @@ export default function MarketPriceSeoContent() {
   const period = PRICE_PERIODS.find((p) => p.id === pid);
   const label = period?.label ?? "최신";
   const nat = getNationalTotal(pid);
-  const seoul = getSeoulTotal(pid);
   const sdmNat = SDM_PACKAGES.find((s) => s.periodId === pid && s.region === "전체");
   const sdmSeoul = SDM_PACKAGES.find((s) => s.periodId === pid && s.region === "서울");
   const sdmGyeonggi = SDM_PACKAGES.find((s) => s.periodId === pid && s.region === "경기/인천");
@@ -32,6 +30,8 @@ export default function MarketPriceSeoContent() {
   const makeupNat = MAKEUP_PRICES.find((m) => m.periodId === pid && m.scope === "national");
   const seasonal = SEASONAL_DATA.find((s) => s.periodId === pid);
   const regional = getRegionalCosts(pid);
+  const gangnam = regional.find((row) => row.region === "seoulGangnam");
+  const seoulOther = regional.find((row) => row.region === "seoulOther");
 
   return (
     <section
@@ -42,13 +42,13 @@ export default function MarketPriceSeoContent() {
         웨딩 시세 한눈에 보기 ({label} 기준)
       </h2>
       <p className="mt-2 text-[13px] leading-[1.7] text-[#5d6879]">
-        한국소비자원 참가격(price.go.kr) 공공데이터 기준 결혼 비용 평균입니다. 식대·스드메·대관료·꽃장식을
-        합산한 총비용은 전국 평균 약 {man(nat.total)}, 서울 평균 약 {man(seoul.total)}이에요. 스드메
-        패키지 중위가는 전국 {man(sdmNat?.packageMedian)}, 서울 {man(sdmSeoul?.packageMedian)},
-        경기·인천 {man(sdmGyeonggi?.packageMedian)} 수준입니다.
+        한국소비자원 참가격의 {label} 조사 표본입니다. 선택품목을 제외한 식대·스드메·대관료·기본장식비
+        평균 합계는 전국 {man(nat.total)}, 서울(강남) {man(gangnam?.total)}, 서울(강남외) {man(seoulOther?.total)}입니다.
+        서울 두 권역을 임의로 합친 평균은 만들지 않았습니다. 스드메 패키지 중간값은 전국 {man(sdmNat?.packageMedian)},
+        서울 {man(sdmSeoul?.packageMedian)}, 경기·인천 {man(sdmGyeonggi?.packageMedian)}입니다.
       </p>
 
-      <h3 className="mt-4 text-[14px] font-semibold text-[#071629]">카테고리별 평균 가격</h3>
+      <h3 className="mt-4 text-[14px] font-semibold text-[#071629]">품목별 중간값</h3>
       <table className="mt-2 w-full border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-[#eadfc9] text-left text-[#7a8290]">
@@ -58,11 +58,6 @@ export default function MarketPriceSeoContent() {
           </tr>
         </thead>
         <tbody className="text-[#5d6879]">
-          <tr className="border-b border-[#f0efed]">
-            <td className="py-2 pr-3">총 비용(식대+스드메+대관+꽃)</td>
-            <td className="py-2 pr-3">{man(nat.total)}</td>
-            <td className="py-2">{man(seoul.total)}</td>
-          </tr>
           <tr className="border-b border-[#f0efed]">
             <td className="py-2 pr-3">스드메 패키지(중위가)</td>
             <td className="py-2 pr-3">{man(sdmNat?.packageMedian)}</td>
@@ -88,8 +83,8 @@ export default function MarketPriceSeoContent() {
 
       {seasonal && (
         <p className="mt-4 text-[13px] leading-[1.7] text-[#5d6879]">
-          성수기(4~6월·9~11월) 평균은 {man(seasonal.peak)}, 비수기(1~3월·7~8월·12월)는 {man(seasonal.offPeak)}으로,
-          비수기에 진행하면 약 {man(seasonal.savings)}을 아낄 수 있어요.
+          예식장 필수품목의 성수기 표본 중간값은 {man(seasonal.peak)}, 비수기 표본 중간값은 {man(seasonal.offPeak)}이고
+          차이는 {man(seasonal.savings)}입니다. 이는 특정 날짜나 업체에서 보장되는 할인·절약액이 아닙니다.
         </p>
       )}
 
@@ -107,8 +102,9 @@ export default function MarketPriceSeoContent() {
       )}
 
       <p className="mt-4 text-[12px] text-[#7a8290]">
-        출처: 한국소비자원 참가격(price.go.kr), {label} 기준. 시세는 구성·시즌에 따라 달라지며 가격의
-        좋고 나쁨을 판정하지 않습니다 — 평균 참고용입니다.
+        출처: 한국소비자원 참가격 결혼서비스 통계,
+        {" "}<a className="underline" href="https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do">원문 보기</a>,
+        {" "}{label} 조사. 평균값과 중간값을 구분했으며 표본·구성·지역 차이 때문에 개별 견적의 좋고 나쁨을 판정하지 않습니다.
       </p>
     </section>
   );

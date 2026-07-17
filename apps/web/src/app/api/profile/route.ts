@@ -1,10 +1,8 @@
+import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import {
-  getCommunityNicknameFallback,
   isCommunityNicknameUniqueViolation,
-  normalizeCommunityNickname,
   validateCommunityNickname,
 } from "@/lib/community/nickname";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -16,163 +14,101 @@ import {
 } from "@/utils/requestValidation";
 
 const MAX_BODY_BYTES = 8 * 1024;
+const PROFILE_READ_COLUMNS =
+  "id, name, role, couple_id, care_notifications_enabled, care_notifications_consented_at";
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+};
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createPinnedAdminClient();
 }
 
-type AdminClient = ReturnType<typeof getAdminClient>;
-type CommunityNicknameSyncResult =
-  | { synced: boolean }
-  | { error: { message: string; status: number } };
-
-async function hasDuplicateCommunityNickname(
-  admin: AdminClient,
-  userId: string,
-  nickname: string
-): Promise<boolean> {
-  const { data, error } = await admin
-    .from("community_profiles")
-    .select("user_id")
-    .eq("nickname", nickname)
-    .neq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("Community nickname duplicate lookup failed; relying on DB constraint:", error);
-    return false;
-  }
-
-  return Boolean(data);
-}
-
-async function countVisibleCommunityPosts(admin: AdminClient, userId: string): Promise<number> {
-  const { count, error } = await admin
-    .from("community_posts")
-    .select("id", { count: "exact", head: true })
-    .eq("author_id", userId)
-    .in("visibility", ["public", "members"])
-    .eq("under_review", false);
-
-  if (error) {
-    console.warn("Community post count lookup failed during profile sync:", error);
-  }
-
-  return count ?? 0;
-}
-
-async function countActiveCommunityComments(admin: AdminClient, userId: string): Promise<number> {
-  const { count, error } = await admin
-    .from("community_comments")
-    .select("id", { count: "exact", head: true })
-    .eq("author_id", userId)
-    .eq("is_deleted", false);
-
-  if (error) {
-    console.warn("Community comment count lookup failed during profile sync:", error);
-  }
-
-  return count ?? 0;
-}
-
-async function createCommunityProfileForSync(
-  admin: AdminClient,
-  userId: string,
-  nickname: string
-): Promise<CommunityNicknameSyncResult> {
-  const [postCount, commentCount] = await Promise.all([
-    countVisibleCommunityPosts(admin, userId),
-    countActiveCommunityComments(admin, userId),
-  ]);
-
-  const { error } = await admin.from("community_profiles").insert({
-    user_id: userId,
-    nickname,
-    badge: "member",
-    post_count: postCount,
-    comment_count: commentCount,
-    total_upvotes_received: 0,
+function profileReadResponse(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: PRIVATE_NO_STORE_HEADERS,
   });
-
-  if (error) {
-    if (isCommunityNicknameUniqueViolation(error)) {
-      return { error: { message: "이미 사용 중인 닉네임입니다.", status: 409 } };
-    }
-
-    console.warn("Community profile create failed during profile sync:", error);
-    return { error: { message: "커뮤니티 프로필 저장에 실패했습니다.", status: 500 } };
-  }
-
-  return { synced: true };
 }
 
-async function syncCommunityNicknameIfDefault(
-  admin: AdminClient,
-  userId: string,
-  nextName: string,
-  previousName: string | null,
-  forceSync: boolean
-): Promise<CommunityNicknameSyncResult> {
-  const { data: communityProfile, error: communityProfileError } = await admin
-    .from("community_profiles")
-    .select("nickname")
-    .eq("user_id", userId)
-    .maybeSingle();
+function careAvailabilityFor(user: { email_confirmed_at?: string | null }) {
+  return {
+    outboundEnabled: process.env.AMORA_CARE_OUTBOUND_ENABLED === "true",
+    emailVerified:
+      typeof user.email_confirmed_at === "string" &&
+      user.email_confirmed_at.trim().length > 0,
+  };
+}
 
-  if (communityProfileError) {
-    console.warn("Community profile lookup failed during profile sync:", communityProfileError);
-    return { synced: false };
-  }
+function toMobileProfile(data: unknown, authenticatedUserId: string) {
+  if (!isRecord(data) || data.id !== authenticatedUserId) return null;
 
-  const currentNickname =
-    typeof communityProfile?.nickname === "string"
-      ? communityProfile.nickname.trim()
-      : null;
+  return {
+    id: authenticatedUserId,
+    name: typeof data.name === "string" ? data.name : null,
+    role: data.role === "bride" || data.role === "groom" ? data.role : null,
+    couple_id: typeof data.couple_id === "string" ? data.couple_id : null,
+    care_notifications_enabled: data.care_notifications_enabled === true,
+    care_notifications_consented_at:
+      typeof data.care_notifications_consented_at === "string" &&
+      data.care_notifications_consented_at.trim().length > 0
+        ? data.care_notifications_consented_at
+        : null,
+  };
+}
 
-  if (!currentNickname && !forceSync) return { synced: false };
+export async function GET(request: Request) {
+  try {
+    const supabase = await createClientFromRequest(request);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const nicknameValidation = validateCommunityNickname(nextName);
-  if (!nicknameValidation.ok) {
-    return { error: { message: nicknameValidation.message, status: 400 } };
-  }
-
-  const previousNickname = normalizeCommunityNickname(previousName);
-  const isDefaultNickname =
-    currentNickname === previousName?.trim() ||
-    currentNickname === previousNickname ||
-    currentNickname === "익명" ||
-    currentNickname === getCommunityNicknameFallback(userId);
-
-  if ((!forceSync && !isDefaultNickname) || currentNickname === nicknameValidation.nickname) {
-    return { synced: false };
-  }
-
-  if (await hasDuplicateCommunityNickname(admin, userId, nicknameValidation.nickname)) {
-    return { error: { message: "이미 사용 중인 닉네임입니다.", status: 409 } };
-  }
-
-  if (!currentNickname) {
-    return createCommunityProfileForSync(admin, userId, nicknameValidation.nickname);
-  }
-
-  const { error: updateError } = await admin
-    .from("community_profiles")
-    .update({ nickname: nicknameValidation.nickname })
-    .eq("user_id", userId);
-
-  if (updateError) {
-    if (isCommunityNicknameUniqueViolation(updateError)) {
-      return { error: { message: "이미 사용 중인 닉네임입니다.", status: 409 } };
+    if (!user) {
+      return profileReadResponse({ error: "인증이 필요합니다." }, 401);
     }
 
-    console.warn("Community nickname sync failed:", updateError);
-    return { error: { message: "커뮤니티 닉네임 저장에 실패했습니다.", status: 500 } };
-  }
+    const limited = checkRateLimit(rateLimitKey("profile:read", request, user.id), {
+      maxRequests: 60,
+      windowMs: 60 * 1000,
+    });
+    if (limited) {
+      limited.headers.set("Cache-Control", PRIVATE_NO_STORE_HEADERS["Cache-Control"]);
+      return limited;
+    }
 
-  return { synced: true };
+    const { data, error } = await getAdminClient()
+      .from("profiles")
+      .select(PROFILE_READ_COLUMNS)
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Profile read error:", error);
+      return profileReadResponse({ error: "프로필을 불러오지 못했습니다." }, 500);
+    }
+
+    if (!data) {
+      return profileReadResponse({ error: "프로필을 찾을 수 없습니다." }, 404);
+    }
+
+    const profile = toMobileProfile(data, user.id);
+    if (!profile) {
+      console.error("Profile read returned an invalid user record.");
+      return profileReadResponse({ error: "프로필을 불러오지 못했습니다." }, 500);
+    }
+
+    return profileReadResponse({
+      profile,
+      careAvailability: careAvailabilityFor(user),
+    });
+  } catch (err) {
+    console.error("Profile read API error:", err);
+    return profileReadResponse({ error: "서버 오류" }, 500);
+  }
 }
 
 export async function PATCH(request: Request) {
@@ -187,6 +123,7 @@ export async function PATCH(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
+    const careAvailability = careAvailabilityFor(user);
 
     const limited = checkRateLimit(rateLimitKey("profile:update", request, user.id), {
       maxRequests: 30,
@@ -199,15 +136,49 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    const updates: Record<string, unknown> = {};
+    let name: string | null = null;
+    let communityNickname: string | null = null;
+    let phone: string | null = null;
+    const phoneProvided = body.phone !== undefined;
+    const communityNicknameProvided = body.community_nickname !== undefined;
     const forceCommunityNicknameSync = body.sync_community_nickname === true;
+    let careConsentUpdate: boolean | undefined;
+    let phoneCareConsent: boolean | null = null;
 
     if (body.name !== undefined) {
-      const name = cleanOptionalText(body.name, 80);
+      name = cleanOptionalText(body.name, 80);
       if (!name) {
         return NextResponse.json({ error: "이름 형식이 올바르지 않습니다." }, { status: 400 });
       }
-      updates.name = name;
+      const nicknameValidation = communityNicknameProvided
+        ? null
+        : validateCommunityNickname(name);
+      if (nicknameValidation && !nicknameValidation.ok) {
+        return NextResponse.json(
+          { error: nicknameValidation.message },
+          { status: 400 }
+        );
+      }
+      if (nicknameValidation?.ok) {
+        communityNickname = nicknameValidation.nickname;
+      }
+    }
+
+    if (communityNicknameProvided) {
+      if (forceCommunityNicknameSync) {
+        return NextResponse.json(
+          { error: "커뮤니티 별명 직접 변경과 이름 자동 동기화는 동시에 요청할 수 없습니다." },
+          { status: 400 }
+        );
+      }
+      const nicknameValidation = validateCommunityNickname(body.community_nickname);
+      if (!nicknameValidation.ok) {
+        return NextResponse.json(
+          { error: nicknameValidation.message },
+          { status: 400 }
+        );
+      }
+      communityNickname = nicknameValidation.nickname;
     }
 
     // 아모라 케어 아웃바운드(모멘트 이메일) 수신 설정 — boolean만 허용
@@ -215,23 +186,26 @@ export async function PATCH(request: Request) {
       if (typeof body.care_notifications_enabled !== "boolean") {
         return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
       }
-      updates.care_notifications_enabled = body.care_notifications_enabled;
-      updates.care_notifications_consented_at = body.care_notifications_enabled
-        ? new Date().toISOString()
-        : null;
+      careConsentUpdate = body.care_notifications_enabled;
+      if (careConsentUpdate && !careAvailability.outboundEnabled) {
+        return profileReadResponse({
+          error: "아모라 먼저 챙기기 발송은 현재 준비 중입니다.",
+          code: "CARE_OUTBOUND_UNAVAILABLE",
+          careAvailability,
+        }, 409);
+      }
     }
 
     // 휴대폰 번호 — 알림톡/문자 케어 채널용. 숫자만 저장, 삭제 시 채널 동의도 함께 해제.
-    if (body.phone !== undefined) {
-      const phone = cleanOptionalKoreanMobile(body.phone);
-      if (phone === undefined) {
+    if (phoneProvided) {
+      const cleanedPhone = cleanOptionalKoreanMobile(body.phone);
+      if (cleanedPhone === undefined) {
         return NextResponse.json(
           { error: "휴대폰 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)" },
           { status: 400 }
         );
       }
-      updates.phone = phone;
-      if (phone === null) updates.phone_care_consented_at = null;
+      phone = cleanedPhone;
     }
 
     // 카톡·문자 케어 수신 동의 — 동의 시각을 기록(법적 근거). 번호 없이 동의만은 불가.
@@ -239,91 +213,99 @@ export async function PATCH(request: Request) {
       if (typeof body.phone_care_consent !== "boolean") {
         return NextResponse.json({ error: "동의 값이 올바르지 않습니다." }, { status: 400 });
       }
-      if (body.phone_care_consent) {
-        const willHavePhone =
-          typeof updates.phone === "string"
-            ? true
-            : updates.phone === null
-              ? false
-              : undefined; // 이 요청에서 번호 변경 없음 → 기존 번호 확인 필요
-        if (willHavePhone === false) {
-          return NextResponse.json(
-            { error: "휴대폰 번호를 먼저 입력해주세요." },
-            { status: 400 }
-          );
-        }
-        if (willHavePhone === undefined) {
-          const { data: current } = await getAdminClient()
-            .from("profiles")
-            .select("phone")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (!current?.phone) {
-            return NextResponse.json(
-              { error: "휴대폰 번호를 먼저 입력해주세요." },
-              { status: 400 }
-            );
-          }
-        }
-        updates.phone_care_consented_at = new Date().toISOString();
-      } else {
-        updates.phone_care_consented_at = null;
+      phoneCareConsent = body.phone_care_consent;
+      if (phoneCareConsent && phoneProvided && phone === null) {
+        return NextResponse.json(
+          { error: "휴대폰 번호를 먼저 입력해주세요." },
+          { status: 400 }
+        );
       }
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (
+      name === null
+      && !phoneProvided
+      && phoneCareConsent === null
+      && careConsentUpdate === undefined
+      && !communityNicknameProvided
+    ) {
       return NextResponse.json({ error: "수정할 항목이 없습니다." }, { status: 400 });
     }
 
     const admin = getAdminClient();
-    let previousName: string | null = null;
-
-    if (typeof updates.name === "string") {
-      const { data: previousProfile, error: previousProfileError } = await admin
-        .from("profiles")
-        .select("name")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (previousProfileError) {
-        console.warn("Previous profile name lookup failed; continuing profile update:", previousProfileError);
+    const { data: patchResult, error: patchError } = await admin.rpc(
+      "patch_profile_atomic",
+      {
+        p_user_id: user.id,
+        p_name: name,
+        p_phone: phone,
+        p_phone_provided: phoneProvided,
+        p_phone_care_consent: phoneCareConsent,
+        p_care_notifications_enabled: careConsentUpdate ?? null,
+        p_community_nickname: communityNickname,
+        p_community_nickname_provided: communityNicknameProvided,
+        p_force_community_nickname_sync:
+          forceCommunityNicknameSync && name !== null,
       }
-      previousName = typeof previousProfile?.name === "string" ? previousProfile.name : null;
-    }
+    );
 
-    let communityProfileSynced = false;
-    if (typeof updates.name === "string") {
-      const syncResult = await syncCommunityNicknameIfDefault(
-        admin,
-        user.id,
-        updates.name,
-        previousName,
-        forceCommunityNicknameSync
-      );
-
-      if ("error" in syncResult) {
+    if (patchError) {
+      if (isCommunityNicknameUniqueViolation(patchError)) {
         return NextResponse.json(
-          { error: syncResult.error.message },
-          { status: syncResult.error.status }
+          { error: "이미 사용 중인 닉네임입니다." },
+          { status: 409 }
         );
       }
-
-      communityProfileSynced = syncResult.synced;
+      const errorText = isRecord(patchError)
+        ? `${String(patchError.message ?? "")} ${String(patchError.details ?? "")}`
+        : String(patchError);
+      if (/PROFILE_PATCH_PHONE_REQUIRED/i.test(errorText)) {
+        return NextResponse.json(
+          { error: "휴대폰 번호를 먼저 입력해주세요." },
+          { status: 400 }
+        );
+      }
+      if (/PROFILE_PATCH_INVALID_PHONE/i.test(errorText)) {
+        return NextResponse.json(
+          { error: "휴대폰 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)" },
+          { status: 400 }
+        );
+      }
+      if (/PROFILE_PATCH_INVALID/i.test(errorText)) {
+        return NextResponse.json(
+          { error: "프로필 변경 요청이 올바르지 않습니다." },
+          { status: 400 }
+        );
+      }
+      if (/PROFILE_PATCH_PROFILE_NOT_FOUND/i.test(errorText)) {
+        return NextResponse.json(
+          { error: "프로필을 찾을 수 없습니다." },
+          { status: 404 }
+        );
+      }
+      console.error("Atomic profile patch failed:", patchError);
+      return NextResponse.json({ error: "프로필 저장에 실패했습니다." }, { status: 500 });
     }
 
-    const { data: profile, error } = await admin
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Profile update error:", error);
-      return NextResponse.json({ error: "업데이트에 실패했습니다." }, { status: 500 });
+    if (
+      !isRecord(patchResult)
+      || !isRecord(patchResult.profile)
+      || patchResult.profile.id !== user.id
+      || typeof patchResult.community_profile_synced !== "boolean"
+    ) {
+      console.error("Atomic profile patch returned an invalid result.");
+      return NextResponse.json({ error: "프로필 저장에 실패했습니다." }, { status: 500 });
     }
 
-    return NextResponse.json({ profile, communityProfileSynced });
+    return profileReadResponse({
+      profile: patchResult.profile,
+      communityProfileSynced: patchResult.community_profile_synced,
+      communityNickname:
+        typeof patchResult.community_nickname === "string"
+          ? patchResult.community_nickname
+          : null,
+      careAvailability,
+    });
   } catch (err) {
     console.error("Profile API error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "npx next dev",
-    "build": "npx next build",
+    "build": "node ../../scripts/check-amora-build-env.mjs && npx next build",
     "start": "npx next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "update:market-prices": "node scripts/update-market-prices.mjs",
+    "update:market-prices": "node --use-system-ca scripts/update-market-prices.mjs",
     "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo"
   },
   "dependencies": {
@@ -33,11 +33,11 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.4",
-    "@sentry/nextjs": "^10.63.0",
+    "@sentry/nextjs": "^10.66.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "~19.1.17",
+    "@types/react-dom": "^19.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "jsdom": "^29.1.1",

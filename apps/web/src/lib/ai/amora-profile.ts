@@ -8,6 +8,10 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+  blockLegacyAuxiliaryProviderGeneration,
+} from "@/lib/ai/amoraRequestPolicy";
 
 export type AmoraProfileVisibility = "shared" | "bride_private" | "groom_private";
 
@@ -523,6 +527,11 @@ const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 플래너 아모라의 
 업데이트할 장기 정보가 없으면:
 {"should_update": false, "profile": null}`;
 
+/**
+ * Legacy rollback-only writer. Production V2 callers intentionally remain at
+ * zero; personalization is projected from validated decision_nodes instead.
+ * Do not reconnect this model-written profile upsert to chat or memory APIs.
+ */
 export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInput): Promise<void> {
   try {
     if (!isAmoraProfileMemoryEnabled()) return;
@@ -539,7 +548,9 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
 
     const response = await createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 750,
+      beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: PROFILE_SYSTEM_PROMPT,
       input:
         `[업데이트 대상 visibility]\n${visibilityLabel}\n\n` +
@@ -554,7 +565,7 @@ export async function maybeUpdateAmoraProfile(input: MaybeUpdateAmoraProfileInpu
       audit: {
         userId: input.userId ?? null,
         coupleId: input.coupleId,
-        interactionType: "chat_turn",
+        interactionType: "amora_director",
         userInput: null,
         metadata: {
           endpoint: "chat/amora-profile",

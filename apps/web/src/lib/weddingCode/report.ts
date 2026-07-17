@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 import {
   WEDDING_CODE_V05_QUESTIONS,
   type WeddingCodeV05OptionValue,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
@@ -13,6 +14,15 @@ const MAX_TAG_CHARS = 40;
 const MAX_COST_CATEGORIES = 12;
 const MAX_COST_LABEL_CHARS = 60;
 const MAX_MODEL_INPUT_CHARS = 3_000;
+const COMMUNITY_AI_COMMENT_MAX_INPUT_TOKENS = 64_000;
+const COMMUNITY_AI_COMMENT_MAX_COST_MICROUSD = 84_800;
+
+class CommunityAiCommentUnavailableError extends Error {
+  constructor() {
+    super("COMMUNITY_AI_COMMENT_UNAVAILABLE");
+    this.name = "CommunityAiCommentUnavailableError";
+  }
+}
 
 function plainText(value: unknown, maxLength: number): string {
   if (typeof value !== "string") return "";
@@ -24,10 +34,7 @@ function plainText(value: unknown, maxLength: number): string {
 }
 
 function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 // 카테고리별 프롬프트 힌트
@@ -61,6 +68,16 @@ export async function POST(req: NextRequest) {
     const { authorized, userId } = await verifyAdmin(req);
     if (!authorized) {
       return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
+    }
+
+    if (process.env.AMORA_COMMUNITY_AI_COMMENT_ENABLED !== "true") {
+      return NextResponse.json(
+        {
+          error: "커뮤니티 AI 댓글 기능이 비활성화되어 있습니다.",
+          code: "COMMUNITY_AI_COMMENT_DISABLED",
+        },
+        { status: 503 }
+      );
     }
 
     const limited = await checkRateLimitPersistent(rateLimitKey("community:ai-comment", req, userId), {
@@ -154,9 +171,26 @@ export async function POST(req: NextRequest) {
 
     const message = await createOpenAIResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: COMMUNITY_AI_COMMENT_MAX_INPUT_TOKENS,
       maxOutputTokens: 300,
       instructions: SYSTEM_PROMPT,
       input: userContent,
+      beforeGeneration: async () => {
+        let reservation;
+        try {
+          reservation = await reserveAmoraTurn(serviceClient, {
+            coupleId: AMORA_USER_ID,
+            isAdmin: false,
+            quotaScope: "background",
+            maxCostMicrousd: COMMUNITY_AI_COMMENT_MAX_COST_MICROUSD,
+          });
+        } catch {
+          throw new CommunityAiCommentUnavailableError();
+        }
+        if (!reservation.allowed) {
+          throw new CommunityAiCommentUnavailableError();
+        }
+      },
       audit: {
         userId: post.author_id ?? null,
         interactionType: "community_amora_comment",
@@ -287,6 +321,15 @@ export async function POST(req: NextRequest) {
       },
     }, { status: 201 });
   } catch (err) {
+    if (err instanceof CommunityAiCommentUnavailableError) {
+      return NextResponse.json(
+        {
+          error: "커뮤니티 AI 댓글을 안전하게 생성할 수 없습니다.",
+          code: "COMMUNITY_AI_COMMENT_UNAVAILABLE",
+        },
+        { status: 503 }
+      );
+    }
     console.error("AI comment generation error:", err);
     return NextResponse.json(
       { error: "AI 댓글 생성 중 오류가 발생했습니다." },

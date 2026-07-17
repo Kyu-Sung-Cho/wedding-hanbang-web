@@ -3,7 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { recordDecision } from "@/lib/memory/record-decision";
-import { syncBookingProgressAfterCreate } from "@/lib/bookings/progressSync";
+import {
+  processBookingProjectionJob,
+  type BookingProjectionDeliveryResult,
+} from "@/lib/bookings/projectionOutbox";
 import {
   cleanOptionalIsoDate,
   cleanOptionalText,
@@ -23,10 +26,6 @@ interface BookingRequestBody {
   groomName?: string | null;
   contactPhone?: string | null;
   memo?: string | null;
-}
-
-interface ProductPriceRow {
-  name: string | null;
 }
 
 function parseBookingRequestBody(body: unknown): BookingRequestBody | null {
@@ -86,7 +85,6 @@ export async function POST(req: Request) {
 
     // 상품 금액 조회
     const admin = createAdminClient();
-    let productName: string | null = null;
     if (productId) {
       const { data: product, error: productError } = await admin
         .from("vendor_products")
@@ -104,7 +102,6 @@ export async function POST(req: Request) {
           { status: productError ? 503 : 400 }
         );
       }
-      productName = (product as ProductPriceRow).name ?? null;
     }
 
     // Atomic booking via Postgres RPC — TOCTOU 방어.
@@ -178,21 +175,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "예약 금액 확인에 실패했습니다." }, { status: 500 });
     }
 
-    const syncResult = await syncBookingProgressAfterCreate(admin, {
-      coupleId: profile.couple_id,
-      booking: {
-        id: bookingId as unknown as string,
-        date,
-        time,
-        amount: persistedAmount,
-      },
-      vendorId,
-      productId,
-      staffId,
-      productName,
-    });
-    if (!syncResult.persisted) {
-      console.error("[bookings] progress sync failed:", syncResult.error);
+    let projection: BookingProjectionDeliveryResult;
+    try {
+      projection = await processBookingProjectionJob(admin, {
+        bookingId: bookingId as unknown as string,
+      }) ?? {
+        bookingId: bookingId as unknown as string,
+        desiredState: "active",
+        status: "pending_retry",
+        retryable: true,
+        attemptCount: 0,
+        errorCode: "PROJECTION_NOT_CLAIMED",
+      };
+    } catch (projectionError) {
+      console.error("[bookings] projection processing failed; durable retry remains queued:", projectionError);
+      projection = {
+        bookingId: bookingId as unknown as string,
+        desiredState: "active",
+        status: "pending_retry",
+        retryable: true,
+        attemptCount: 0,
+        errorCode: "PROJECTION_PROCESS_FAILED",
+      };
+    }
+    if (projection.status !== "completed") {
+      console.error("[bookings] schedule/budget projection is not complete:", {
+        bookingId,
+        status: projection.status,
+        errorCode: projection.errorCode,
+      });
     }
 
     // D2 Hook 2: decision_nodes에 'vendor booking = booked' 기록 (fire-and-forget)
@@ -229,18 +240,37 @@ export async function POST(req: Request) {
       })();
     }
 
+    const createSync = projection.sync && "scheduleAdded" in projection.sync
+      ? projection.sync
+      : null;
+    const fullyApplied = projection.status === "completed";
+    const message = fullyApplied
+      ? "예약이 접수되었고 일정·예산에도 반영되었습니다."
+      : projection.status === "pending_retry"
+        ? "예약은 정상 접수되었지만 일정·예산 반영이 지연되고 있습니다. 저장된 작업을 자동 재시도하므로 예약을 다시 만들 필요는 없습니다."
+        : "예약은 정상 접수되었지만 일정·예산 자동 반영이 재시도 한도를 넘었습니다. 예약을 다시 만들지 말고 고객지원에 알려주세요.";
+
     return NextResponse.json({
+      bookingAccepted: true,
+      fullyApplied,
       booking,
       sync: {
-        persisted: syncResult.persisted,
-        scheduleAdded: syncResult.scheduleAdded,
-        scheduleUpdated: syncResult.scheduleUpdated,
-        budgetUpdated: syncResult.budgetUpdated,
-        budgetExceededBy: syncResult.budgetExceededBy,
-        categoryKey: syncResult.syncedCategoryKey,
+        persisted: fullyApplied,
+        scheduleAdded: createSync?.scheduleAdded ?? false,
+        scheduleUpdated: createSync?.scheduleUpdated ?? false,
+        budgetUpdated: createSync?.budgetUpdated ?? false,
+        budgetExceededBy: createSync?.budgetExceededBy ?? 0,
+        categoryKey: createSync?.syncedCategoryKey ?? null,
       },
-      message: "예약이 접수되었습니다.",
-    });
+      projection: {
+        status: projection.status,
+        retryable: projection.retryable,
+        attemptCount: projection.attemptCount,
+        retryAfterSeconds: projection.retryAfterSeconds,
+        errorCode: projection.errorCode,
+      },
+      message,
+    }, { status: fullyApplied ? 200 : 202 });
   } catch (err) {
     console.error("Booking create error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

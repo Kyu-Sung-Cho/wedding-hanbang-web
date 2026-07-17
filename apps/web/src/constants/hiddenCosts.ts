@@ -627,50 +627,14 @@ export function getCriticalHiddenCosts(): HiddenCostItem[] {
   return HIDDEN_COSTS.filter((item) => item.severity === "critical");
 }
 
-// 예상 추가금 계산 (빠진 항목 기반)
-export function estimateHiddenCosts(
-  missingItems: HiddenCostItem[],
-  scope: "national" | "seoul" = "national"
-): number {
-  return missingItems.reduce((total, item) => {
-    const price = scope === "seoul" ? item.seoulPrice : item.nationalPrice;
-    // 이용률 가중 평균: 실제로 추가할 확률 × 가격
-    return total + price * item.usageRate;
-  }, 0);
-}
-
-// AI 프롬프트용 숨겨진 비용 요약
+// AI 프롬프트용 계약 전 확인 원칙.
+// 개별 견적의 구성과 실제 선택 여부를 모르는 상태에서 가격×이용률을
+// 합산하면 소비자에게 가짜 정밀도를 주므로 수치 추정은 의도적으로 하지 않는다.
 export function getHiddenCostContext(): string {
-  const critical = HIDDEN_COSTS.filter((i) => i.severity === "critical");
-  const high = HIDDEN_COSTS.filter((i) => i.severity === "high");
+  return `## 견적의 포함·불포함 확인 원칙
 
-  const criticalLines = critical.map((i) =>
-    `  - ${i.name} (${i.category}): 전국 ${i.nationalPrice}만원/서울 ${i.seoulPrice}만원, 이용률 ${Math.round(i.usageRate * 100)}% — ${i.disguise}`
-  ).join("\n");
-
-  const highLines = high.map((i) =>
-    `  - ${i.name} (${i.category}): 전국 ${i.nationalPrice}만원/서울 ${i.seoulPrice}만원, 이용률 ${Math.round(i.usageRate * 100)}%`
-  ).join("\n");
-
-  const redFlagLines = RED_FLAGS.map((f) => `  - ${f.name}: ${f.description}`).join("\n");
-
-  return `## 숨겨진 비용 데이터 (정부 결혼서비스 실태조사 2024 + 소비자원)
-
-기본금 평균 346만원 → 실제 지불 520만원 (추가금 174만원, +50%)
-
-### 🚨 필수급 항목 (이용률 55%↑, 미포함 시 거의 확실히 추가)
-${criticalLines}
-
-### ⚠️ 높은 이용률 항목 (이용률 35~55%, 대부분 추가)
-${highLines}
-
-### 레드플래그
-${redFlagLines}
-
-### 견적 분석 규칙
-1. 사용자가 견적/가격을 언급하면 → 포함 항목을 파악하고 빠진 필수 항목 안내
-2. 각 빠진 항목에: 예상 가격 + 이용률 + 왜 필요한지 + 계약 전 확인 질문
-3. 예상 실제 총비용 = 견적가 + 빠진 항목들의 (가격 × 이용률) 합계
-4. 기본가가 시세 대비 30%↓ → 미끼 가격 경고
-5. 출처: "정부 결혼서비스 실태조사(2024)" 또는 "소비자원 참가격" 명시`;
+- 견적서에 적힌 구성만으로 사용자가 실제 선택할 추가 항목이나 최종 지불액을 추정하지 마세요.
+- 포함·불포함 항목과 추가금 상한을 서면으로 확인하도록 돕고, 확인 전에는 예상 추가금이나 예상 총비용을 합산하지 마세요.
+- 개별 참고 가격을 말해야 한다면 현재 출처 URL·기준일·지역·구성 범위가 확인된 데이터만 별도로 제시하세요.
+- 누락 가능성이 있는 항목은 "비용이 생긴다"고 단정하지 말고 업체에 보낼 확인 질문으로 바꾸세요.`;
 }

@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 // 웨딩코드 공유 카드 렌더러 — 1080×1920 PNG, 외부 의존성 0 (Canvas API 직접 드로잉).
 // 스크린샷이 유통 단위(지시서 §3): 주인공은 사용자의 문장, 타이포 대비로 위계,
 // 이름 없음, 하단 브랜드마크만. 레이아웃 로직은 순수 함수로 분리해 16종 인용 문장

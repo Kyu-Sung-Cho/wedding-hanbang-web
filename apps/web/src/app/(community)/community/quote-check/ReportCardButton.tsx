@@ -40,7 +40,6 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
         missingCriticalCount: result.missingCriticalCount,
         items: result.missingItems.map((item) => ({
           name: item.name,
-          priceManwon: item.priceManwon,
           severity: item.severity,
         })),
         sourceNote: result.sourceNote,

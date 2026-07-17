@@ -17,7 +17,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 15일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 17일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -73,13 +73,13 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제3조 (개인정보의 보유 및 이용기간)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원 탈퇴 시 즉시 파기됩니다. 다만, 관련 법령에 따라 보관이 의무화된 정보는 해당 기간 동안 보관됩니다.
+              <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고, 발급된 임시 접근 링크의 만료와 파일 소유권 확인 등 안전한 삭제 절차가 시작됩니다. 회사는 해당 절차가 끝난 뒤 보유 목적이 사라진 개인정보를 지체 없이 파기합니다. 관련 법령상 별도 보관이 필요한 정보의 적용 범위·기간은 법률 검토와 전용 보관 경계가 검증된 뒤 구체적으로 고지합니다.
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                   <li>계약 또는 청약철회 등에 관한 기록: <strong>5년</strong> (전자상거래법)</li>
                   <li>대금결제 및 재화 등의 공급에 관한 기록: <strong>5년</strong> (전자상거래법)</li>
                   <li>소비자의 불만 또는 분쟁처리에 관한 기록: <strong>3년</strong> (전자상거래법)</li>
                   <li>웹사이트 방문 기록: <strong>3개월</strong> (통신비밀보호법)</li>
-                  <li>AI 상호작용 기록: 데이터 유형별 보관기간은 운영 적용 전 법률 검토와 실제 삭제 자동화 확인 후 확정·고지합니다.</li>
+                  <li>AI 상호작용 기록: 원문과 비용·안전 메타데이터의 보유기간 및 자동 파기 일정을 재검증 중입니다. 확정 전에는 장기 보관을 전제로 추가 활용하지 않으며, 검증 완료 후 실제 적용일과 기간을 고지합니다.</li>
                 </ul>
               </li>
             </ol>
@@ -180,7 +180,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 4월 29일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 17일부터 시행합니다.</p>
           </section>
         </div>
       </div>

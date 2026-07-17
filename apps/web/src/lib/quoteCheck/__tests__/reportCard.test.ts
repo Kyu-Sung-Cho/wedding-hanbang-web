@@ -13,27 +13,27 @@ const MAX_W = REPORT_W - REPORT_PAD * 2;
 describe("견적 리포트 카드 레이아웃", () => {
   it("초장문 항목명도 말줄임으로 폭 안에 들어간다 (38px)", () => {
     const line = buildItemLine(
-      { name: "아주아주아주아주 길고 긴 스튜디오 원본 전체 데이터 구매 비용 항목", priceManwon: 38.5, severity: "high" },
+      { name: "아주아주아주아주 길고 긴 스튜디오 원본 전체 데이터 구매 비용 항목", severity: "high" },
       38,
       approxMeasure
     );
     expect(approxMeasure(line, 38)).toBeLessThanOrEqual(MAX_W);
     expect(line).toContain("…");
-    expect(line).toContain("평균 39만원");
+    expect(line).not.toContain("평균");
   });
 
   it("일반 항목명은 그대로 유지된다", () => {
     const line = buildItemLine(
-      { name: "원본구매비", priceManwon: 39, severity: "high" },
+      { name: "원본구매비", severity: "high" },
       38,
       approxMeasure
     );
-    expect(line).toBe("원본구매비 — 평균 39만원");
+    expect(line).toBe("원본구매비");
   });
 
   it("태그 폭을 뺀 좁은 폭에서도 안전하다", () => {
     const line = buildItemLine(
-      { name: "본식드레스도우미헬퍼추가비용", priceManwon: 25, severity: "critical" },
+      { name: "본식드레스도우미헬퍼추가비용", severity: "critical" },
       38,
       approxMeasure,
       MAX_W - 120
@@ -44,7 +44,6 @@ describe("견적 리포트 카드 레이아웃", () => {
   it("항목 선택 — 필수 우선 정렬, 최대 6개, 나머지는 moreCount로 정직 표기", () => {
     const items = Array.from({ length: 9 }, (_, i) => ({
       name: `항목${i}`,
-      priceManwon: 10,
       severity: (i < 3 ? "medium" : i < 6 ? "high" : "critical") as "critical" | "high" | "medium",
     }));
     const { shown, moreCount } = selectReportItems(items);

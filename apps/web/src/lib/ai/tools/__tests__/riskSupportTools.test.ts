@@ -24,7 +24,7 @@ describe("riskSupportTools", () => {
     });
   });
 
-  it("keeps guest guarantee simulator output shape", () => {
+  it("asks for an explicit no-show scenario instead of applying a hidden default", () => {
     const result = executeSimulateGuestGuarantee({
       estimated_guests: 180,
       guaranteed_guests: 200,
@@ -37,8 +37,26 @@ describe("riskSupportTools", () => {
     expect(result.success).toBe(true);
     expect(result.displayMessage).toBeTruthy();
     expect(result.toolOutput).toMatchObject({
+      mode: "input_needed",
       estimatedGuests: 180,
       guaranteedGuests: 200,
+      noShowRatePercent: null,
+      missingFields: ["noShowRatePercent"],
+    });
+  });
+
+  it("calculates only with the user's explicit no-show scenario", () => {
+    const result = executeSimulateGuestGuarantee({
+      estimated_guests: 180,
+      guaranteed_guests: 200,
+      meal_price: 75000,
+      no_show_rate_percent: 5,
+    });
+
+    expect(result.toolOutput).toMatchObject({
+      mode: "analysis",
+      noShowRatePercent: 5,
+      expectedAttendanceGuests: 171,
     });
   });
 });

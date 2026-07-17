@@ -7,6 +7,12 @@ import {
   type AmoraMemoryVisibility,
 } from "@/lib/ai/amoraMemoryCompiler";
 import { isAuxiliaryMemoryRuntimeEnabled } from "@/lib/ai/amoraMemoryQueue";
+import {
+  AMORA_PROFILE_PROJECTION_QUERY_LIMIT,
+  normalizeAmoraProfileProjectionRows,
+  projectAmoraProfiles,
+  toAmoraProfileApiRows,
+} from "@/lib/ai/amoraProfileProjection";
 import { isBodyTooLarge } from "@/utils/requestValidation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -21,6 +27,7 @@ type AuthContext = {
   userId: string;
   coupleId: string;
   allowedVisibilities: AmoraMemoryVisibility[];
+  memberIds: { bride: string | null; groom: string | null };
 };
 
 async function getAuthContext(request: Request): Promise<
@@ -61,6 +68,10 @@ async function getAuthContext(request: Request): Promise<
       userId: user.id,
       coupleId: profile.couple_id,
       allowedVisibilities: ["shared", privateVisibility],
+      memberIds: {
+        bride: couple.bride_id ?? null,
+        groom: couple.groom_id ?? null,
+      },
     },
   };
 }
@@ -77,7 +88,7 @@ export async function GET(request: Request) {
     if (!auth.ok) return auth.response;
     const { supabase, context } = auth;
     const admin = createAdminClient();
-    const [settingsResult, memoriesResult, profilesResult, consentsResult, coupleResult] = await Promise.all([
+    const [settingsResult, memoriesResult, profileNodesResult, consentsResult, coupleResult] = await Promise.all([
       supabase
         .from("amora_memory_settings")
         .select("visibility, enabled, enabled_at, memory_reset_at, updated_at")
@@ -92,10 +103,14 @@ export async function GET(request: Request) {
         .order("updated_at", { ascending: false })
         .limit(200),
       supabase
-        .from("amora_couple_profiles")
-        .select("visibility, persona_summary, budget_posture, decision_style, taste_profile, communication_style, conflict_pattern, recommendation_rules, open_questions, confidence_score, updated_at")
+        .from("decision_nodes")
+        .select("id, couple_id, visibility, memory_key, title, chosen_value, reasoning, confidence, source_message_id, source_actor_role, superseded_at, metadata, created_at, updated_at, source_message:chat_messages!decision_nodes_source_message_id_fkey(id, couple_id, visibility, sender_id, sender_type, role, metadata)")
         .eq("couple_id", context.coupleId)
-        .in("visibility", context.allowedVisibilities),
+        .in("visibility", context.allowedVisibilities)
+        .not("memory_key", "is", null)
+        .is("superseded_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(AMORA_PROFILE_PROJECTION_QUERY_LIMIT),
       admin
         .from("amora_memory_consents")
         .select("visibility, user_id")
@@ -107,11 +122,10 @@ export async function GET(request: Request) {
         .eq("id", context.coupleId)
         .single(),
     ]);
-    if (settingsResult.error || memoriesResult.error || profilesResult.error || consentsResult.error || coupleResult.error) {
+    if (settingsResult.error || memoriesResult.error || consentsResult.error || coupleResult.error) {
       console.error("[amora-memory-api] read failed", {
         settings: settingsResult.error?.code,
         memories: memoriesResult.error?.code,
-        profiles: profilesResult.error?.code,
         consents: consentsResult.error?.code,
         couple: coupleResult.error?.code,
       });
@@ -145,6 +159,31 @@ export async function GET(request: Request) {
         memoryResetAt: row?.memory_reset_at ?? null,
       };
     });
+    const enabledProfileVisibilities = settings
+      .filter((setting) => setting.enabled)
+      .map((setting) => setting.visibility);
+    const profileProjection = profileNodesResult.error
+      ? { profiles: [], rejectedReason: null }
+      : projectAmoraProfiles(
+          normalizeAmoraProfileProjectionRows(profileNodesResult.data ?? []),
+          {
+            coupleId: context.coupleId,
+            memberIds: context.memberIds,
+            allowedVisibilities: enabledProfileVisibilities,
+          },
+        );
+    if (profileNodesResult.error) {
+      console.warn(
+        "[amora-memory-api] profile projection source query failed",
+        profileNodesResult.error.code,
+      );
+    } else if (profileProjection.rejectedReason) {
+      console.warn(
+        "[amora-memory-api] profile projection failed closed",
+        profileProjection.rejectedReason,
+      );
+    }
+    const projectedProfiles = toAmoraProfileApiRows(profileProjection.profiles);
     const memories = (memoriesResult.data ?? [])
       .filter(isAutomaticMemory)
       .map((row) => ({
@@ -168,7 +207,7 @@ export async function GET(request: Request) {
         runtimeEnabled: isAuxiliaryMemoryRuntimeEnabled(),
         settings,
         memories,
-        profiles: profilesResult.data ?? [],
+        profiles: projectedProfiles,
       },
       { headers: { "Cache-Control": "private, no-store" } },
     );

@@ -33,7 +33,7 @@ export default function CommunityAmoraLauncher() {
         return;
       }
 
-      const res = await fetch("/api/auth/me", {
+      const res = await fetch("/api/auth/me?guest_probe=1", {
         cache: "no-store",
         credentials: "include",
       });

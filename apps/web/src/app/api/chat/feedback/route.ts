@@ -1,5 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -62,10 +62,7 @@ function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
 
 // Service role 클라이언트 (RLS 우회)
 function getServiceClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 // 레이트 리밋: 시간당 20회

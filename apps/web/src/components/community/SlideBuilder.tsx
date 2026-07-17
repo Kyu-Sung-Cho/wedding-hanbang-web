@@ -3,6 +3,7 @@
 import { type DragEvent, useRef, useState } from "react";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Loader2, Image as ImageIcon, Film, Play } from "lucide-react";
 import type { SlideMedia } from "@/types/community.types";
+import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 
 interface SlideBuilderProps {
   slides: SlideMedia[];
@@ -13,14 +14,11 @@ interface SlideBuilderProps {
 
 // 서버 측 허용과 동일하게 유지 — apps/web/src/app/api/community/upload/route.ts 와 일치해야 함
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_GIF_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
+const MAX_GIF_SIZE = 6 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 // iOS Safari + accept 속성 — heic/heif도 picker가 열도록 허용. 실제 업로드 시 friendly error.
 const ACCEPT_STRING =
-  ALLOWED_TYPES.join(",") +
+  ALLOWED_IMAGE_TYPES.join(",") +
   ",image/heic,image/heif,.heic,.heif";
 
 // iPhone PHPicker는 type을 비워주거나 비표준 값을 보내기도 함. 파일명 확장자로 보정.
@@ -33,26 +31,15 @@ function inferMimeFromName(name: string): string {
       png: "image/png",
       gif: "image/gif",
       webp: "image/webp",
-      mp4: "video/mp4",
-      mov: "video/quicktime",
-      webm: "video/webm",
       heic: "image/heic",
       heif: "image/heif",
     }[ext] ?? ""
   );
 }
 
-// FormData에 non-ASCII 파일명을 그대로 넣으면 iOS Safari가 Content-Disposition
-// 인코딩에서 "The string did not match the expected pattern." DOMException을 던지는
-// 케이스가 있음. 안전하게 영문/숫자/.+_ 만 남기고, 비면 timestamp로 대체.
-function sanitizeFileName(name: string): string {
-  const cleaned = name.replace(/[^\w.\-]/g, "_");
-  return cleaned.length > 0 ? cleaned : `upload_${Date.now()}`;
-}
-
 /**
  * 인스타 캐러셀 스타일 게시물 작성용 빌더.
- * - 이미지/영상 동시 업로드 (multipart, /api/community/upload)
+ * - 이미지 업로드 (private signed staging → verified finalize)
  * - 슬라이드 썸네일 리스트 + 좌우 화살표로 순서 변경
  * - 슬라이드 삭제
  * - 최대 N장(기본 10)
@@ -89,53 +76,24 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           );
         }
 
-        if (!ALLOWED_TYPES.includes(effectiveType)) {
+        if (!ALLOWED_IMAGE_TYPES.includes(effectiveType)) {
           throw new Error(
-            "지원하지 않는 파일 형식이에요. JPG, PNG, GIF, WEBP, MP4, MOV, WebM만 올릴 수 있어요."
+            "지원하지 않는 파일 형식이에요. JPG, PNG, GIF, WEBP만 올릴 수 있어요."
           );
         }
 
-        const isVideo = ALLOWED_VIDEO_TYPES.includes(effectiveType);
         const isGif = effectiveType === "image/gif";
-        const maxSize = isVideo ? MAX_VIDEO_SIZE : isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
+        const maxSize = isGif ? MAX_GIF_SIZE : MAX_IMAGE_SIZE;
         if (file.size > maxSize) {
           throw new Error(
-            isVideo
-              ? "영상은 한 장당 50MB 이하여야 해요."
-              : isGif
-                ? "GIF는 10MB 이하여야 해요."
-                : "이미지는 5MB 이하여야 해요."
+            isGif
+              ? "GIF는 6MB 이하여야 해요."
+              : "이미지는 5MB 이하여야 해요."
           );
         }
 
-        // 2) 파일명 ASCII 정리 — multipart Content-Disposition 인코딩 안전.
-        const safeName = sanitizeFileName(file.name);
-        const safeFile =
-          file.type && file.name === safeName
-            ? file
-            : new File([file], safeName, { type: effectiveType });
-
-        const formData = new FormData();
-        formData.append("file", safeFile);
-
-        // 3) 응답 파싱은 항상 안전하게 — Vercel/CDN이 HTML 에러 페이지를 돌려줄 때
-        //    iOS Safari가 res.json()에서 "The string did not match the expected pattern."를
-        //    던지는 케이스 방지.
-        const res = await fetch("/api/community/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.url) {
-          throw new Error(
-            data?.error ||
-              (res.status === 413
-                ? "파일이 너무 커요. 더 작은 사이즈로 다시 시도해주세요."
-                : `업로드 실패 (HTTP ${res.status})`)
-          );
-        }
-        const type: "image" | "video" = data.type === "video" ? "video" : "image";
-        uploaded.push({ type, url: data.url as string });
+        const data = await uploadCommunityMedia(file);
+        uploaded.push({ type: "image", url: data.url });
       }
       onChange([...slides, ...uploaded]);
     } catch (err) {
@@ -203,8 +161,8 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
     >
       {/* 안내 */}
       <p className="text-sm text-[#928980] mb-3 leading-relaxed">
-        인스타 캐러셀처럼 이미지·영상을 여러 장 올릴 수 있어요. 옆으로 넘기는 게시물이 됩니다.
-        최대 {max}장 · 영상은 한 장당 50MB 이하.
+        인스타 캐러셀처럼 이미지를 여러 장 올릴 수 있어요. 옆으로 넘기는 게시물이 됩니다.
+        최대 {max}장 · 이미지 5MB, GIF 6MB 이하.
       </p>
 
       {/* 추가 버튼 */}
@@ -231,7 +189,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           ) : (
             <>
               <Plus className="w-4 h-4" />
-              이미지 · 영상 추가 ({slides.length}/{max})
+              이미지 추가 ({slides.length}/{max})
             </>
           )}
         </button>
@@ -333,7 +291,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           </div>
           <p className="text-sm text-[#635b51]">아직 추가된 슬라이드가 없어요</p>
           <p className="text-xs text-[#928980] mt-1">
-            클릭하거나 이미지·영상을 끌어다 놓아 추가하세요
+            클릭하거나 이미지를 끌어다 놓아 추가하세요
           </p>
         </button>
       )}

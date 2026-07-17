@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
@@ -25,6 +25,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import {
+  canChangeCareConsent,
+  hasCareConsent,
+  parseCareAvailability,
+  type CareAvailability,
+} from "@/lib/care/careConsent";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
 import type { Profile } from "@/types/database.types";
@@ -35,6 +41,10 @@ import type {
   GuestCount,
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import {
+  resolveCoupleConnectionState,
+  type CoupleConnectionState,
+} from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
 const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
@@ -79,17 +89,38 @@ type ProfileUpdateResponse = {
   error?: string;
 };
 
+type CareAvailabilityResponse = {
+  profile?: {
+    id?: unknown;
+    care_notifications_enabled?: unknown;
+    care_notifications_consented_at?: unknown;
+  };
+  careAvailability?: unknown;
+  error?: string;
+  code?: string;
+};
+
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
+function maskEmail(email: string): string | null {
+  const at = email.lastIndexOf("@");
+  if (at <= 0 || at === email.length - 1) return null;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
+
 export default function SettingsPage() {
-  const { profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
+  const { user, profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
-  const [coupleCode, setCoupleCode] = useState("");
-  const [isFullyLinked, setIsFullyLinked] = useState(false);
+  const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
+    resolveCoupleConnectionState(null),
+  );
   const [regenerating, setRegenerating] = useState(false);
 
   // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
@@ -99,6 +130,62 @@ export default function SettingsPage() {
   const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
   const [careSaving, setCareSaving] = useState(false);
   const [careMessage, setCareMessage] = useState<string | null>(null);
+  const [careAvailability, setCareAvailability] = useState<CareAvailability | null>(null);
+  const careNotificationsConsented = hasCareConsent({
+    care_notifications_enabled: profile?.care_notifications_enabled ?? false,
+    care_notifications_consented_at: profile?.care_notifications_consented_at ?? null,
+  });
+
+  const refreshCareAvailability = useCallback(async (signal?: AbortSignal) => {
+    if (isDemo) {
+      setCareAvailability(null);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/profile", {
+        cache: "no-store",
+        signal,
+      });
+      const payload = (await response.json().catch(() => ({}))) as CareAvailabilityResponse;
+      const nextAvailability = parseCareAvailability(payload.careAvailability);
+      const serverProfile = payload.profile;
+      if (
+        !response.ok ||
+        !nextAvailability ||
+        typeof serverProfile?.id !== "string" ||
+        typeof serverProfile.care_notifications_enabled !== "boolean" ||
+        !(
+          serverProfile.care_notifications_consented_at === null ||
+          typeof serverProfile.care_notifications_consented_at === "string"
+        )
+      ) {
+        throw new Error("CARE_AVAILABILITY_LOOKUP_FAILED");
+      }
+      const currentProfile = useAuthStore.getState().profile;
+      if (!currentProfile || currentProfile.id !== serverProfile.id) {
+        throw new Error("CARE_PROFILE_MISMATCH");
+      }
+      useAuthStore.setState({
+        profile: {
+          ...currentProfile,
+          care_notifications_enabled: serverProfile.care_notifications_enabled,
+          care_notifications_consented_at: serverProfile.care_notifications_consented_at,
+        },
+      });
+      setCareAvailability(nextAvailability);
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
+        setCareAvailability(null);
+      }
+    }
+  }, [isDemo]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshCareAvailability(controller.signal);
+    return () => controller.abort();
+  }, [refreshCareAvailability]);
 
   useEffect(() => {
     setPhoneInput(profile?.phone ?? "");
@@ -129,14 +216,19 @@ export default function SettingsPage() {
 
   async function toggleCareNotifications() {
     if (isDemo || careSaving) return;
+    const enabling = !careNotificationsConsented;
+    if (enabling && !canChangeCareConsent(false, careAvailability)) {
+      setCareMessage("아모라 먼저 챙기기는 현재 준비 중이에요.");
+      return;
+    }
     setCareSaving(true);
     setCareMessage(null);
     try {
-      const enabling = profile?.care_notifications_enabled !== true;
       await updateProfile({ care_notifications_enabled: enabling });
       setCareMessage(enabling ? "내 수신 동의를 저장했어요." : "내 수신 동의를 해제했어요.");
     } catch (error) {
       setCareMessage(error instanceof Error ? error.message : "알림 설정을 저장하지 못했어요.");
+      await refreshCareAvailability();
     } finally {
       setCareSaving(false);
     }
@@ -158,7 +250,6 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
-  const [deleteReasonOther, setDeleteReasonOther] = useState("");
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
@@ -168,22 +259,54 @@ export default function SettingsPage() {
   const [preferenceSaving, setPreferenceSaving] = useState(false);
 
   useEffect(() => {
-    if (!couple) return;
+    const context = {
+      partnerPresent: Boolean(partner),
+      membershipSealedAt: couple?.membership_sealed_at,
+    };
 
-    if (isDemo) {
-      setCoupleCode(couple.invite_code ?? "WH-DEMO01");
-      setIsFullyLinked(Boolean(couple.bride_id && couple.groom_id));
+    setCopied(false);
+
+    if (!couple) {
+      setCoupleConnection(resolveCoupleConnectionState(null, context));
       return;
     }
 
-    fetch("/api/couple/code")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.inviteCode) setCoupleCode(d.inviteCode);
-        if (d.isFullyLinked) setIsFullyLinked(true);
+    if (isDemo) {
+      setCoupleConnection(resolveCoupleConnectionState({
+        inviteCode: couple.invite_code ?? "WH-DEMO01",
+        isFullyLinked: Boolean(couple.bride_id && couple.groom_id),
+        isMembershipSealed: Boolean(couple.membership_sealed_at),
+      }, context));
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    // Clear any retained invite immediately. Local partner/seal evidence can
+    // still identify linked or sealed states while the privileged API loads.
+    setCoupleConnection(resolveCoupleConnectionState(null, context));
+
+    fetch("/api/couple/code", { signal: controller.signal })
+      .then(async (response) => {
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new Error("COUPLE_CONNECTION_LOOKUP_FAILED");
+        if (!cancelled) {
+          setCoupleConnection(resolveCoupleConnectionState(payload, context));
+        }
       })
-      .catch(() => {});
-  }, [couple, isDemo]);
+      .catch(() => {
+        // Fail closed: never restore a previously displayed invite code.
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [couple, isDemo, partner]);
+
+  const phase = coupleConnection.phase;
+  const coupleCode = coupleConnection.inviteCode;
 
   const handleCopy = () => {
     if (!coupleCode) return;
@@ -193,20 +316,43 @@ export default function SettingsPage() {
   };
 
   const handleRegenerateCode = async () => {
+    if (!coupleConnection.canInvite) return;
+
     setRegenerating(true);
     try {
       if (isDemo) {
-        setCoupleCode(`WH-DEMO${Math.floor(Math.random() * 90 + 10)}`);
+        setCoupleConnection(resolveCoupleConnectionState({
+          inviteCode: `WH-DEMO${Math.floor(Math.random() * 90 + 10)}`,
+          isFullyLinked: false,
+          isMembershipSealed: false,
+        }));
         return;
       }
 
       const res = await fetch("/api/couple/code", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.inviteCode) {
-        setCoupleCode(data.inviteCode);
+      const payload: unknown = await res.json().catch(() => null);
+      if (res.ok) {
+        const inviteCode = typeof payload === "object" && payload !== null
+          ? (payload as { inviteCode?: unknown }).inviteCode
+          : null;
+        setCoupleConnection(resolveCoupleConnectionState({
+          inviteCode,
+          isFullyLinked: false,
+          isMembershipSealed: false,
+        }));
+      } else {
+        // A join can win the race after this screen loaded. Remove the old
+        // code immediately and let the next canonical GET reveal the phase.
+        setCoupleConnection(resolveCoupleConnectionState(null, {
+          partnerPresent: Boolean(partner),
+          membershipSealedAt: couple?.membership_sealed_at,
+        }));
       }
     } catch {
-      // 실패 시 무시
+      setCoupleConnection(resolveCoupleConnectionState(null, {
+        partnerPresent: Boolean(partner),
+        membershipSealedAt: couple?.membership_sealed_at,
+      }));
     } finally {
       setRegenerating(false);
     }
@@ -320,7 +466,7 @@ export default function SettingsPage() {
     { value: "wedding_done", label: "결혼 준비 완료" },
     { value: "privacy", label: "개인정보 우려" },
     { value: "low_usage", label: "사용 빈도 낮음" },
-    { value: "other", label: "기타 (직접 입력)" },
+    { value: "other", label: "기타" },
   ];
 
   const handleDeleteAccount = async () => {
@@ -328,26 +474,41 @@ export default function SettingsPage() {
     setDeleting(true);
     setDeleteError("");
 
-    const reason = deleteReason === "other"
-      ? (deleteReasonOther.trim() || "기타")
-      : DELETE_REASONS.find(r => r.value === deleteReason)?.label ?? deleteReason;
-
     try {
       const res = await fetch("/api/auth/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: deleteReason }),
       });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        pending?: boolean;
+      };
+
+      if (data.pending) {
+        window.alert(
+          data.message
+            ?? "계정 삭제 요청을 안전하게 처리 중이에요. 새 파일 업로드는 제한돼요.",
+        );
+        try {
+          await signOut();
+        } finally {
+          window.location.href = "/login";
+        }
+        return;
+      }
 
       if (!res.ok) {
         setDeleteError(data.error ?? "계정 삭제에 실패했습니다.");
         return;
       }
 
-      document.cookie = "onboarding_complete=; path=/; max-age=0";
-      document.cookie = "demo_mode=; path=/; max-age=0";
-      window.location.href = "/login";
+      try {
+        await signOut();
+      } finally {
+        window.location.href = "/login";
+      }
     } catch {
       setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
@@ -383,7 +544,30 @@ export default function SettingsPage() {
   };
 
   const userName = profile?.name ?? "사용자";
-  const userEmail = profile?.email ?? "";
+  const userEmail = user?.email ?? profile?.email ?? "";
+  const careDeliveryEmail = careAvailability?.emailVerified
+    ? maskEmail(userEmail)
+    : null;
+  const careConsentChangeAllowed = canChangeCareConsent(
+    careNotificationsConsented,
+    careAvailability,
+  );
+  const careStatus = !careAvailability
+    ? "상태 확인 중"
+    : !careAvailability.outboundEnabled
+      ? careNotificationsConsented ? "발송 일시중지" : "준비 중"
+      : careDeliveryEmail ? "사용 가능" : "이메일 인증 필요";
+  const careDescription = !careAvailability
+    ? careNotificationsConsented
+      ? "아모라 케어 발송 상태를 확인하고 있어요. 기존 동의는 언제든 해제할 수 있어요."
+      : "아모라 케어 발송 상태를 확인하고 있어요."
+    : !careAvailability.outboundEnabled
+      ? careNotificationsConsented
+        ? "아모라 먼저 챙기기 발송이 일시중지됐어요. 기존 동의는 유지되며 언제든 해제할 수 있어요."
+        : "아모라 먼저 챙기기는 현재 준비 중이에요. 발송을 시작하면 여기서 켤 수 있어요."
+      : careDeliveryEmail
+        ? `상견례·청첩장 모임 전후 공유 대화와 이메일을 가입 이메일 ${careDeliveryEmail}로 보내요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작되고, 언제든 여기서 해제할 수 있어요.`
+        : "상견례·청첩장 모임 전후 아모라 케어를 준비해요. 가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작돼요.";
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
@@ -709,7 +893,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-[#F6F3F2] rounded-xl p-5">
-          {coupleCode && !isFullyLinked && (
+          {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -737,7 +921,7 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={handleRegenerateCode}
-                disabled={regenerating}
+                disabled={regenerating || !coupleConnection.canInvite}
                 className="mt-2 text-sm text-[#B5ADA3] hover:text-[#795252] transition-colors disabled:opacity-50"
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
@@ -745,27 +929,65 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {partner ? (
+          {phase === "linked" ? (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center">
-                <span className="text-base text-white font-medium">{partnerName?.slice(0, 2)}</span>
+                <span className="text-base text-white font-medium">{partnerName?.slice(0, 2) ?? "두 분"}</span>
               </div>
               <div className="flex-1">
-                <p className="text-base text-[#1A1A1F] font-medium">{partnerName}</p>
-                <p className="text-sm text-[#2E7D5A]">{partnerRole} · 연동 완료</p>
+                <p className="text-base text-[#1A1A1F] font-medium">{partnerName ?? "파트너"}</p>
+                <p className="text-sm text-[#2E7D5A]">{partnerRole ? `${partnerRole} · ` : ""}연동 완료</p>
               </div>
               <Check className="w-6 h-6 text-[#2E7D5A]" />
             </div>
-          ) : (
+          ) : phase === "sealed_single" ? (
+            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-[#795252]" />
+                </span>
+                <div>
+                  <p className="text-base font-medium text-[#1A1A1F]">이 커플 연결은 종료됐어요</p>
+                  <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
+                    연결 기록을 보호하기 위해 새 멤버를 이 커플에 초대할 수 없어요.
+                    아래에서 새 커플로 다시 시작하거나 문제가 있으면 고객지원에 문의해 주세요.
+                  </p>
+                  <a
+                    href="https://hanbang.ai/support"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                  >
+                    고객지원 열기
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : phase === "awaiting_partner" ? (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
               <div className="w-12 h-12 rounded-full bg-[#F6F3F2] flex items-center justify-center">
                 <User className="w-6 h-6 text-[#B5ADA3]" />
               </div>
               <div className="flex-1">
-                <p className="text-base text-[#B5ADA3] font-light">파트너 미연동</p>
-                <p className="text-sm text-[#B5ADA3]/70">코드를 공유해서 파트너를 초대하세요</p>
+                <p className="text-base text-[#504444] font-medium">파트너 초대 대기</p>
+                <p className="text-sm text-[#928980]">위 코드를 파트너에게 공유해 주세요</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[#1A1A1F]">연결 상태를 확인하지 못했어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
+                안전을 위해 새 멤버 초대는 잠시 멈췄어요. 화면을 새로고침하거나 고객지원에 문의해 주세요.
+              </p>
+              <a
+                href="https://hanbang.ai/support"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+              >
+                고객지원 열기
+              </a>
             </div>
           )}
 
@@ -810,10 +1032,15 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-1">
           {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
           <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
-            <div>
-              <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기 · 내 동의</p>
-              <p className="text-sm text-[#B5ADA3] font-light">
-                상견례·청첩장 모임 전후 알림이에요. 파트너가 연결돼 있다면 두 분이 각각 동의해야 공유 케어가 시작돼요
+            <div className="min-w-0 pr-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기 · 내 동의</p>
+                <span className="rounded-full bg-[#F0E8E4] px-2.5 py-1 text-xs font-medium text-[#795252]">
+                  {careStatus}
+                </span>
+              </div>
+              <p id="care-availability-description" className="mt-1 text-sm text-[#928980] font-light leading-relaxed">
+                {careDescription}
               </p>
               {careMessage && <p aria-live="polite" className="mt-1 text-sm text-[#795252]">{careMessage}</p>}
             </div>
@@ -821,16 +1048,17 @@ export default function SettingsPage() {
               type="button"
               role="switch"
               aria-label="아모라 먼저 챙기기"
-              aria-checked={profile?.care_notifications_enabled === true}
-              disabled={isDemo || careSaving}
+              aria-describedby="care-availability-description"
+              aria-checked={careNotificationsConsented}
+              disabled={isDemo || careSaving || !careConsentChangeAllowed}
               onClick={() => void toggleCareNotifications()}
               className="relative h-11 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${
-                profile?.care_notifications_enabled === true ? "bg-[#8F6662]" : "bg-[#C7D1C2]"
+                careNotificationsConsented ? "bg-[#8F6662]" : "bg-[#C7D1C2]"
               }`} />
               <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
-                profile?.care_notifications_enabled === true ? "translate-x-7" : "translate-x-1.5"
+                careNotificationsConsented ? "translate-x-7" : "translate-x-1.5"
               }`} />
             </button>
           </div>
@@ -1083,9 +1311,9 @@ export default function SettingsPage() {
                 정말 탈퇴하시겠어요?
               </h3>
               <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
-                탈퇴하면 모든 데이터가 영구 삭제되며
+                계정과 직접 소유한 데이터 삭제를 요청합니다.
                 <br />
-                복구할 수 없습니다.
+                안전 확인이 필요한 경우 완료까지 시간이 걸릴 수 있어요.
               </p>
 
               {/* 탈퇴 사유 */}
@@ -1108,15 +1336,6 @@ export default function SettingsPage() {
                     </label>
                   ))}
                 </div>
-                {deleteReason === "other" && (
-                  <textarea
-                    value={deleteReasonOther}
-                    onChange={(e) => setDeleteReasonOther(e.target.value)}
-                    placeholder="탈퇴 사유를 알려주세요..."
-                    rows={2}
-                    className="w-full mt-2 px-3 py-2.5 rounded-xl bg-[#F6F3F2] text-base outline-none resize-none focus:ring-2 focus:ring-[#795252]/30"
-                  />
-                )}
               </div>
 
               <div className="mb-5">
@@ -1138,10 +1357,10 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || (deleteReason === "other" && !deleteReasonOther.trim()) || deleting}
+                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || deleting}
                 className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {deleting ? "삭제 중..." : "계정 영구 삭제"}
+                {deleting ? "요청 중..." : "계정 삭제 요청"}
               </button>
 
               <button
@@ -1150,7 +1369,6 @@ export default function SettingsPage() {
                   setDeleteConfirmText("");
                   setDeleteError("");
                   setDeleteReason("");
-                  setDeleteReasonOther("");
                 }}
                 className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
               >

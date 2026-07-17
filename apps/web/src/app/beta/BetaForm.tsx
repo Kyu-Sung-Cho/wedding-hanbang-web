@@ -95,7 +95,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
-          감사합니다. 2~3일 이내 참여 확정 메일을 보내드릴게요.
+          감사합니다. 신청 내용을 확인한 뒤 참여 가능 여부와 제공 범위를 이메일로 안내드릴게요.
           <br />
           <span className="text-white/60">{email}</span>
         </p>
@@ -122,7 +122,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
   return (
     <div className="border border-white/15 rounded-[28px] p-8 md:p-10 backdrop-blur-sm bg-white/[0.03]">
       <p className="text-[11px] tracking-[0.28em] text-rose-light font-medium mb-6">
-        베타 50쌍 한정
+        베타 신청 현황
       </p>
 
       {showCounter ? (

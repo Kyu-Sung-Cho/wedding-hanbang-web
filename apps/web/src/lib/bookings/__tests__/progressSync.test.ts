@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildBookingCancelledProgressPatch,
   buildBookingCreatedProgressPatch,
   buildBookingOutcomeProgressPatch,
+  syncBookingProgressAfterCancel,
+  syncBookingProgressAfterCreate,
 } from "../progressSync";
 
 const booking = {
@@ -17,8 +20,129 @@ const vendor = {
   name: "B드레스",
   category: "dress",
 };
+const projectionClaim = {
+  generation: 1,
+  claimToken: "40000000-0000-4000-8000-000000000001",
+};
 
 describe("booking progress sync", () => {
+  it("예약 생성 동기화 RPC가 실패하면 오래된 전체 progress로 덮어쓰지 않는다", async () => {
+    const journeyQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: { progress: { dress: { status: "in_progress", spent: 200_000 } } },
+        error: null,
+      }),
+    };
+    journeyQuery.select.mockReturnValue(journeyQuery);
+    journeyQuery.eq.mockReturnValue(journeyQuery);
+    const vendorQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      single: vi.fn().mockResolvedValue({ data: vendor, error: null }),
+    };
+    vendorQuery.select.mockReturnValue(vendorQuery);
+    vendorQuery.eq.mockReturnValue(vendorQuery);
+    const fallbackUpdate = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
+    const from = vi.fn((table: string) => {
+      if (table === "vendors") return vendorQuery;
+      if (from.mock.calls.filter(([name]) => name === "wedding_journeys").length === 1) {
+        return journeyQuery;
+      }
+      return { update: fallbackUpdate };
+    });
+    const client = {
+      from,
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: "XX000", message: "atomic patch failed" },
+      }),
+    } as unknown as SupabaseClient;
+
+    const result = await syncBookingProgressAfterCreate(client, {
+      coupleId: "00000000-0000-4000-8000-000000000001",
+      booking,
+      vendorId: vendor.id,
+      projectionClaim,
+    });
+
+    expect(result).toMatchObject({ persisted: false, error: "atomic patch failed" });
+    expect(client.rpc).toHaveBeenCalledWith(
+      "apply_booking_progress_projection",
+      expect.objectContaining({
+        p_booking_id: booking.id,
+        p_desired_state: "active",
+        p_generation: projectionClaim.generation,
+        p_claim_token: projectionClaim.claimToken,
+      }),
+    );
+    expect(fallbackUpdate).not.toHaveBeenCalled();
+  });
+
+  it("예약 취소 동기화 RPC가 실패하면 오래된 전체 progress로 덮어쓰지 않는다", async () => {
+    const journeyQuery = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: {
+          progress: {
+            __events: [{
+              id: `evt_booking_${booking.id}`,
+              sourceKey: `booking:${booking.id}`,
+              date: booking.date,
+              title: "상담",
+              createdAt: "2026-06-01T00:00:00.000Z",
+              updatedAt: "2026-06-01T00:00:00.000Z",
+            }],
+            __booking_costs: { [booking.id]: booking.amount },
+            dress: { spent: booking.amount },
+          },
+        },
+        error: null,
+      }),
+    };
+    journeyQuery.select.mockReturnValue(journeyQuery);
+    journeyQuery.eq.mockReturnValue(journeyQuery);
+    const fallbackUpdate = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
+    const from = vi.fn(() => (
+      from.mock.calls.length === 1 ? journeyQuery : { update: fallbackUpdate }
+    ));
+    const client = {
+      from,
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { code: "XX000", message: "atomic cancel patch failed" },
+      }),
+    } as unknown as SupabaseClient;
+
+    const result = await syncBookingProgressAfterCancel(client, {
+      coupleId: "00000000-0000-4000-8000-000000000001",
+      booking: { id: booking.id, amount: booking.amount },
+      vendor,
+      projectionClaim,
+    });
+
+    expect(result).toMatchObject({
+      persisted: false,
+      error: "atomic cancel patch failed",
+    });
+    expect(client.rpc).toHaveBeenCalledWith(
+      "apply_booking_progress_projection",
+      expect.objectContaining({
+        p_booking_id: booking.id,
+        p_desired_state: "cancelled",
+        p_generation: projectionClaim.generation,
+        p_claim_token: projectionClaim.claimToken,
+      }),
+    );
+    expect(fallbackUpdate).not.toHaveBeenCalled();
+  });
+
   it("adds a booking event and increments the matching category spent", () => {
     const result = buildBookingCreatedProgressPatch({
       progress: {
@@ -43,6 +167,9 @@ describe("booking progress sync", () => {
     expect(result.syncedEvent.sourceKey).toBe(`booking:${booking.id}`);
     expect(result.syncedEvent.title).toContain("B드레스");
     expect(result.patch).toHaveProperty("__events");
+    expect(result.patch.__booking_costs).toMatchObject({
+      [booking.id]: { amount: booking.amount, categoryKey: "dress" },
+    });
     expect(result.patch).toHaveProperty("dress");
   });
 
@@ -99,6 +226,8 @@ describe("booking progress sync", () => {
           date: booking.date,
           title: "B드레스 상담",
           sourceKey: `booking:${booking.id}`,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
         }],
         dress: {
           label: "드레스",
@@ -121,7 +250,9 @@ describe("booking progress sync", () => {
     expect(result.syncedNewSpent).toBe(1_900_000);
     expect(result.budgetExceededBy).toBe(0);
     expect(result.patch.dress).toMatchObject({ spent: 1_900_000 });
-    expect(result.patch.__booking_costs).toMatchObject({ [booking.id]: 1_900_000 });
+    expect(result.patch.__booking_costs).toMatchObject({
+      [booking.id]: { amount: 1_900_000, categoryKey: "dress" },
+    });
   });
 
   it("uses stored booking cost contribution when an outcome is edited later", () => {
@@ -182,6 +313,8 @@ describe("booking progress sync", () => {
           date: booking.date,
           title: "B드레스 상담",
           sourceKey: `booking:${booking.id}`,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
         }],
         dress: {
           label: "드레스",
@@ -203,7 +336,9 @@ describe("booking progress sync", () => {
     expect(result.budgetDelta).toBe(-1_500_000);
     expect(result.syncedNewSpent).toBe(0);
     expect(result.patch.dress).toMatchObject({ spent: 0 });
-    expect(result.patch.__booking_costs).toMatchObject({ [booking.id]: 0 });
+    expect(result.patch.__booking_costs).toMatchObject({
+      [booking.id]: { amount: 0, categoryKey: "dress" },
+    });
   });
 
   it("removes full-id booking events and subtracts stored actual cost on cancellation", () => {
@@ -215,6 +350,8 @@ describe("booking progress sync", () => {
           date: booking.date,
           title: "B드레스 상담",
           sourceKey: `booking:${booking.id}`,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
         }],
         dress: {
           label: "드레스",
@@ -246,6 +383,8 @@ describe("booking progress sync", () => {
           id: "evt_booking_11111111",
           date: booking.date,
           title: "B드레스 상담",
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
         }],
         dress: {
           label: "드레스",

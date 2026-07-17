@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2 } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
-import { ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -495,28 +494,19 @@ export default function ChatBubble({
               {renderAiMarkdown(cleanText)}
             </div>
             {partNumbers.length > 0 && (
-              <div className="mt-3 flex flex-col gap-2">
-                {partNumbers.map((num) => {
-                  const part = ETIQUETTE_PARTS.find((p) => p.number === num);
-                  if (!part) return null;
-                  return (
-                    <Link
-                      key={num}
-                      {...weddingLinkProps(`/etiquette?part=${num}`)}
-                      className="flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border border-[#E8D5CD]/40 hover:border-[#C4967E]/30 transition-colors group"
-                    >
-                      <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>
-                        <BookOpen className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base font-medium text-[#1A1A1F] truncate">{part.title}</p>
-                        <p className="text-sm text-[#928980]">예절 가이드 보기</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-[#B5ADA3] group-hover:text-[#C4967E] transition-colors flex-shrink-0" />
-                    </Link>
-                  );
-                })}
-              </div>
+              <Link
+                {...weddingLinkProps("/etiquette")}
+                className="mt-3 flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
+              >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+                  <BookOpen className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-medium text-[#1A1A1F]">가족 조율 가이드</p>
+                  <p className="text-sm text-[#928980]">가족·문화마다 다른 준비 원칙 보기</p>
+                </div>
+                <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#C4967E]" />
+              </Link>
             )}
           </div>
           {mediationBlock && (

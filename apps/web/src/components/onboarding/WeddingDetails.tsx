@@ -121,7 +121,7 @@ export default function WeddingDetails({
           </button>
         </div>
         <p className="text-[12px] text-taupe-400 leading-relaxed">
-          날짜를 알려주면 상견례 3일 전·전날·다음날에 아모라가 먼저 챙겨드려요.
+          날짜를 입력하면 준비 일정에 반영돼요. 알림은 기능 제공 상태와 수신 설정에 따라 별도로 안내합니다.
         </p>
       </div>
 

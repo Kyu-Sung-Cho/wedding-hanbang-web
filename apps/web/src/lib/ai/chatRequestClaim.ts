@@ -21,6 +21,8 @@ interface ClaimParams {
   coupleId: string;
   requestKey: string;
   userId: string;
+  /** Durable user row that establishes the exact normal-chat intent. */
+  userMessageId?: string;
   visibility: "shared" | "bride_private" | "groom_private";
 }
 
@@ -28,10 +30,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function asPositiveInteger(value: unknown, fallback = 1): number {
+function asPositiveInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
-    : fallback;
+    : null;
 }
 
 export async function claimChatRequest(
@@ -43,6 +45,9 @@ export async function claimChatRequest(
     p_request_key: params.requestKey,
     p_user_id: params.userId,
     p_visibility: params.visibility,
+    ...(params.userMessageId
+      ? { p_user_message_id: params.userMessageId }
+      : {}),
   });
 
   if (error || !isRecord(data)) {
@@ -51,24 +56,30 @@ export async function claimChatRequest(
     });
   }
 
-  if (data.action === "acquired") {
+  const attemptCount = asPositiveInteger(data.attempt_count);
+
+  if (data.action === "acquired" && attemptCount !== null) {
     return {
       action: "acquired",
-      attemptCount: asPositiveInteger(data.attempt_count),
+      attemptCount,
       reclaimed: data.reclaimed === true,
     };
   }
-  if (data.action === "completed" && typeof data.message_id === "string") {
+  if (
+    data.action === "completed"
+    && attemptCount !== null
+    && typeof data.message_id === "string"
+  ) {
     return {
       action: "completed",
-      attemptCount: asPositiveInteger(data.attempt_count),
+      attemptCount,
       messageId: data.message_id,
     };
   }
-  if (data.action === "in_progress") {
+  if (data.action === "in_progress" && attemptCount !== null) {
     return {
       action: "in_progress",
-      attemptCount: asPositiveInteger(data.attempt_count),
+      attemptCount,
       retryAfterMs:
         typeof data.retry_after_ms === "number" && data.retry_after_ms > 0
           ? Math.min(data.retry_after_ms, 30_000)
@@ -95,6 +106,26 @@ export async function completeChatRequest(
       cause: error,
     });
   }
+}
+
+/** Repair an exact message-first legacy split before replaying the response. */
+export async function reconcileChatRequest(
+  params: ClaimParams & { messageId: string },
+  admin: AdminClient = createAdminClient(),
+): Promise<boolean> {
+  const { data, error } = await admin.rpc("reconcile_amora_chat_response", {
+    p_couple_id: params.coupleId,
+    p_request_key: params.requestKey,
+    p_user_id: params.userId,
+    p_visibility: params.visibility,
+    p_message_id: params.messageId,
+  });
+  if (error || typeof data !== "boolean") {
+    throw new ChatRequestClaimError("Could not reconcile chat request", {
+      cause: error,
+    });
+  }
+  return data;
 }
 
 export async function failChatRequest(

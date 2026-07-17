@@ -1,5 +1,10 @@
 # Amora web and Android release evidence — 2026-07-15 KST
 
+> **SUPERSEDED HISTORICAL RECEIPT — not a current mobile release gate.** The
+> Android AAB below belongs only to commit `bd879a74668d24695b101307224f4d44b08abc7a`.
+> Signed Android/iOS EAS builds and real-device accessibility/Storage QA from
+> the final Engine V2 commit are `NOT RUN` and must not reuse this receipt.
+
 This receipt records only non-sensitive deployment and build evidence. It does
 not contain environment values, signing material, backup payloads, customer
 identifiers or provider prompts.

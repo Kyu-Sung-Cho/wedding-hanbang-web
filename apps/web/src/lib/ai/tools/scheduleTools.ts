@@ -2,7 +2,17 @@ import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types"
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
-import { upsertMomentEvent } from "@/utils/scheduleEvents";
+import {
+  getEvents,
+  inspectScheduleEvents,
+  isValidScheduleYmd,
+  MAX_SCHEDULE_EVENTS,
+  ScheduleEventCapacityError,
+  ScheduleEventValidationError,
+  updateEvent,
+  upsertCategoryEvent,
+  upsertMomentEvent,
+} from "@/utils/scheduleEvents";
 import { addDaysUtc, kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { patchJourneyProgress, saveProgress } from "@/lib/ai/tools/progressTools";
@@ -40,54 +50,34 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
   };
 }
 
-function getEventsFromProgress(progress: Record<string, unknown>): ScheduleEvent[] {
-  return ((progress as Record<string, unknown>).__events as ScheduleEvent[] | undefined) ?? [];
+function scheduleCapacityFailure(
+  toolName: string,
+  input: Record<string, unknown>,
+): ToolExecutionResult {
+  return {
+    toolName,
+    toolInput: input,
+    toolOutput: {
+      error: "schedule_capacity_exceeded",
+      limit: MAX_SCHEDULE_EVENTS,
+    },
+    success: false,
+    displayMessage: `일정은 최대 ${MAX_SCHEDULE_EVENTS}개까지 저장할 수 있어요. 기존 일정을 정리한 뒤 다시 시도해 주세요.`,
+  };
 }
 
-function getCategoryEventSourceKey(categoryKey: string): string {
-  return `category:${categoryKey}`;
-}
-
-function normalizeEventText(value: string | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function findCategoryScheduleEvent(
-  events: ScheduleEvent[],
-  categoryKey: string | undefined
-): ScheduleEvent | undefined {
-  if (!categoryKey || categoryKey === "general") return undefined;
-
-  const sourceKey = getCategoryEventSourceKey(categoryKey);
-  const label = normalizeEventText(CATEGORY_LABELS[categoryKey]);
-
-  return (
-    events.find((event) => event.sourceKey === sourceKey) ??
-    (label
-      ? events.find(
-          (event) =>
-            event.categoryKey === categoryKey &&
-            normalizeEventText(event.title) === label
-        )
-      : undefined) ??
-    (label
-      ? events.find(
-          (event) =>
-            event.categoryKey === categoryKey &&
-            normalizeEventText(event.title).startsWith(label)
-        )
-      : undefined)
-  );
-}
-
-const EVENT_YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isValidEventDate(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    EVENT_YMD_RE.test(value) &&
-    !Number.isNaN(new Date(`${value}T00:00:00`).getTime())
-  );
+function scheduleValidationFailure(
+  toolName: string,
+  input: Record<string, unknown>,
+  field: string,
+): ToolExecutionResult {
+  return {
+    toolName,
+    toolInput: input,
+    toolOutput: { error: "invalid_schedule_event", field },
+    success: false,
+    displayMessage: "일정 내용이 올바르지 않아요. 날짜와 제목을 다시 확인해 주세요.",
+  };
 }
 
 export async function executeAddScheduleEvent(
@@ -99,7 +89,7 @@ export async function executeAddScheduleEvent(
   const memo = input.memo as string | undefined;
   const categoryKey = input.category_key as string | undefined;
 
-  if (!isValidEventDate(date)) {
+  if (!isValidScheduleYmd(date)) {
     return {
       toolName: "add_schedule_event", toolInput: input,
       toolOutput: { error: "invalid_date", received: String(date) },
@@ -108,50 +98,43 @@ export async function executeAddScheduleEvent(
     };
   }
 
-  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
-  const now = new Date().toISOString();
-  const existingCategoryEvent = findCategoryScheduleEvent(events, categoryKey);
-  const sourceKey =
-    categoryKey && categoryKey !== "general"
-      ? getCategoryEventSourceKey(categoryKey)
-      : undefined;
-
-  if (existingCategoryEvent) {
-    const updatedEvent: ScheduleEvent = {
-      ...existingCategoryEvent,
-      date,
-      title,
-      memo: memo ?? existingCategoryEvent.memo,
-      categoryKey,
-      sourceKey,
-      updatedAt: now,
-    };
-    const updatedEvents = events.map((event) =>
-      event.id === existingCategoryEvent.id ? updatedEvent : event
-    );
-    await patchJourneyProgress(ctx, { __events: updatedEvents });
-
-    return {
-      toolName: "add_schedule_event",
-      toolInput: input,
-      toolOutput: { event: updatedEvent, upserted: true, replaced_event_id: existingCategoryEvent.id },
-      success: true,
-      displayMessage: `${CATEGORY_LABELS[categoryKey ?? ""] ?? title} 일정이 ${date}로 업데이트되었습니다.`,
-    };
+  const inspection = inspectScheduleEvents(
+    ctx.weddingContext.progress as Record<string, unknown>,
+  );
+  if (inspection.truncatedCount > 0) {
+    return scheduleCapacityFailure("add_schedule_event", input);
   }
 
-  const newEvent: ScheduleEvent = {
-    id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-    date, title, memo, categoryKey, sourceKey, createdAt: now, updatedAt: now,
-  };
+  let mutation: ReturnType<typeof upsertCategoryEvent>;
+  try {
+    mutation = upsertCategoryEvent(
+      ctx.weddingContext.progress as Record<string, unknown>,
+      { date, title, memo, categoryKey },
+      CATEGORY_LABELS[categoryKey ?? ""],
+    );
+  } catch (error) {
+    if (error instanceof ScheduleEventCapacityError) {
+      return scheduleCapacityFailure("add_schedule_event", input);
+    }
+    if (error instanceof ScheduleEventValidationError) {
+      return scheduleValidationFailure("add_schedule_event", input, error.field);
+    }
+    throw error;
+  }
 
-  await patchJourneyProgress(ctx, { __events: [...events, newEvent] });
+  const { newProgress, event, created } = mutation;
+  await saveProgress(ctx, newProgress);
 
   return {
     toolName: "add_schedule_event", toolInput: input,
-    toolOutput: { event: newEvent },
+    toolOutput: {
+      event,
+      ...(created ? {} : { upserted: true, replaced_event_id: event.id }),
+    },
     success: true,
-    displayMessage: `${date}에 "${title}" 일정이 추가되었습니다.`,
+    displayMessage: created
+      ? `${date}에 "${title}" 일정이 추가되었습니다.`
+      : `${CATEGORY_LABELS[categoryKey ?? ""] ?? title} 일정이 ${date}로 업데이트되었습니다.`,
   };
 }
 
@@ -160,7 +143,13 @@ export async function executeUpdateScheduleEvent(
   ctx: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const eventId = input.event_id as string;
-  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const inspection = inspectScheduleEvents(
+    ctx.weddingContext.progress as Record<string, unknown>,
+  );
+  if (inspection.truncatedCount > 0) {
+    return scheduleCapacityFailure("update_schedule_event", input);
+  }
+  const events = inspection.events;
   const existing = events.find((event) => event.id === eventId);
   if (!existing) {
     return {
@@ -171,8 +160,8 @@ export async function executeUpdateScheduleEvent(
   }
 
   const updates: Partial<ScheduleEvent> = {};
-  if (input.date) {
-    if (!isValidEventDate(input.date)) {
+  if (input.date !== undefined) {
+    if (!isValidScheduleYmd(input.date)) {
       return {
         toolName: "update_schedule_event", toolInput: input,
         toolOutput: { error: "invalid_date", received: String(input.date) },
@@ -182,14 +171,24 @@ export async function executeUpdateScheduleEvent(
     }
     updates.date = input.date as string;
   }
-  if (input.title) updates.title = input.title as string;
+  if (input.title !== undefined) updates.title = input.title as string;
   if (input.memo !== undefined) updates.memo = input.memo as string;
 
-  const updatedEvents = events.map((event) =>
-    event.id === eventId ? { ...event, ...updates, updatedAt: new Date().toISOString() } : event
-  );
-  await patchJourneyProgress(ctx, { __events: updatedEvents });
-  const updated = updatedEvents.find((event) => event.id === eventId)!;
+  let newProgress: Record<string, unknown>;
+  try {
+    newProgress = updateEvent(
+      ctx.weddingContext.progress as Record<string, unknown>,
+      eventId,
+      updates,
+    );
+  } catch (error) {
+    if (error instanceof ScheduleEventValidationError) {
+      return scheduleValidationFailure("update_schedule_event", input, error.field);
+    }
+    throw error;
+  }
+  await saveProgress(ctx, newProgress);
+  const updated = getEvents(newProgress).find((event) => event.id === eventId)!;
 
   return {
     toolName: "update_schedule_event", toolInput: input,
@@ -211,7 +210,13 @@ export async function executeDeleteScheduleEvent(
   if (confirmation) return confirmation;
 
   const eventId = input.event_id as string;
-  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const inspection = inspectScheduleEvents(
+    ctx.weddingContext.progress as Record<string, unknown>,
+  );
+  if (inspection.truncatedCount > 0) {
+    return scheduleCapacityFailure("delete_schedule_event", input);
+  }
+  const events = inspection.events;
   const existing = events.find((event) => event.id === eventId);
   if (!existing) {
     return {
@@ -286,13 +291,33 @@ export function executeGetScheduleEvents(
   input: Record<string, unknown>,
   ctx: ToolExecutionContext
 ): ToolExecutionResult {
-  const events = getEventsFromProgress(ctx.weddingContext.progress as Record<string, unknown>);
+  const events = getEvents(ctx.weddingContext.progress as Record<string, unknown>);
   const today = ymdInKst();
   const fromDate = (input.from_date as string) || today;
+
+  if (!isValidScheduleYmd(fromDate)) {
+    return {
+      toolName: "get_schedule_events",
+      toolInput: input,
+      toolOutput: { error: "invalid_date_range", field: "from_date" },
+      success: false,
+      displayMessage: "조회 시작 날짜를 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요.",
+    };
+  }
 
   let toDate = input.to_date as string;
   if (!toDate) {
     toDate = ymdInKst(addDaysUtc(kstMidnightFromYmd(fromDate), 30));
+  }
+
+  if (!isValidScheduleYmd(toDate) || fromDate > toDate) {
+    return {
+      toolName: "get_schedule_events",
+      toolInput: input,
+      toolOutput: { error: "invalid_date_range", field: "to_date" },
+      success: false,
+      displayMessage: "조회 종료 날짜는 시작 날짜 이후의 실제 날짜여야 해요.",
+    };
   }
 
   const filtered = events
@@ -331,11 +356,11 @@ export async function executeLogWeddingEvent(
   }
 
   const date = String(input.date ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) {
+  if (!isValidScheduleYmd(date)) {
     return {
       toolName: "log_wedding_event",
       toolInput: input,
-      toolOutput: { error: "invalid date" },
+      toolOutput: { error: "invalid_date", received: date },
       success: false,
       displayMessage: "날짜를 YYYY-MM-DD 형식으로 알려주세요.",
     };
@@ -347,10 +372,32 @@ export async function executeLogWeddingEvent(
       : def.label;
   const memo = typeof input.memo === "string" ? input.memo.slice(0, 300) : undefined;
 
-  const { newProgress, event, created } = upsertMomentEvent(
+  const inspection = inspectScheduleEvents(
     ctx.weddingContext.progress as Record<string, unknown>,
-    { momentType, date, title, memo }
   );
+  const existingMoment = inspection.events.some(
+    (event) => event.momentType === momentType && event.date === date,
+  );
+  if (
+    inspection.truncatedCount > 0
+    || (!existingMoment && inspection.events.length >= MAX_SCHEDULE_EVENTS)
+  ) {
+    return scheduleCapacityFailure("log_wedding_event", input);
+  }
+
+  let mutation: ReturnType<typeof upsertMomentEvent>;
+  try {
+    mutation = upsertMomentEvent(
+      ctx.weddingContext.progress as Record<string, unknown>,
+      { momentType, date, title, memo },
+    );
+  } catch (error) {
+    if (error instanceof ScheduleEventCapacityError) {
+      return scheduleCapacityFailure("log_wedding_event", input);
+    }
+    throw error;
+  }
+  const { newProgress, event, created } = mutation;
 
   await saveProgress(ctx, newProgress);
 
@@ -360,7 +407,7 @@ export async function executeLogWeddingEvent(
     toolOutput: { event, created, moment_label: def.label },
     success: true,
     displayMessage: created
-      ? `${date} "${title}" 일정을 저장했어요. 3일 전에 챙길 것, 전날 체크리스트, 다음날 안부까지 제가 먼저 챙길게요.`
+      ? `${date} "${title}" 일정을 저장했어요.`
       : `${date} "${title}" 일정을 업데이트했어요.`,
   };
 }

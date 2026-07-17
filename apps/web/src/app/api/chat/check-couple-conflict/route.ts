@@ -20,21 +20,44 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { detectCoupleConflict, type CoupleMessage } from "@/lib/ai/conflict-detector";
+import {
+  detectCoupleConflict,
+  type ConflictDetection,
+  type CoupleMessage,
+} from "@/lib/ai/conflict-detector";
 import { extractMediation } from "@/lib/ai/mediation";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
-import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
-import { checkAmoraCostGuard, reserveAmoraTurn } from "@/lib/ai/costGuard";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import {
+  AmoraCostGuardError,
+  checkAmoraCostGuard,
+} from "@/lib/ai/costGuard";
+import {
+  AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+  getAmoraProviderCallCostReservationMicrousd,
+} from "@/lib/ai/amoraRequestPolicy";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
+import { getAmoraMemoryEnablement } from "@/lib/ai/amoraMemoryQueue";
+import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
 import {
   claimChatRequest,
-  completeChatRequest,
   failChatRequest,
 } from "@/lib/ai/chatRequestClaim";
-import { createHash } from "node:crypto";
+import {
+  claimAmoraConflictCheck,
+  checkpointAmoraConflictCheck,
+  completeAmoraConflictCheck,
+  createAmoraConflictMessageDigest,
+  failAmoraConflictCheck,
+  type AmoraConflictDetectionCheckpoint,
+} from "@/lib/ai/amoraConflictCheckClaim";
+import {
+  runAmoraProviderCallWithLedger,
+  type AtomicAmoraChatResponseFinalization,
+} from "@/lib/ai/amoraProviderCallLedger";
 
 const MEDIATION_COOLDOWN_MIN = 10;
 const RECENT_MESSAGE_LIMIT = 20;
@@ -42,20 +65,34 @@ const MAX_MEDIATION_SYSTEM_CHARS = 48_000;
 const MAX_MEDIATION_MESSAGE_CHARS = 1_200;
 const MAX_CONFLICT_CONTEXT_CHARS = 2_000;
 
+type MemoryClassifiableDecision = {
+  memory_key: string | null;
+  superseded_at: string | null;
+  metadata: { extracted_by?: string } | null;
+};
+
+function isAutomaticMemoryDecision(decision: MemoryClassifiableDecision): boolean {
+  return decision.memory_key !== null
+    || typeof decision.metadata?.extracted_by === "string";
+}
+
 function getAdminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  return createPinnedAdminClient();
 }
 
 export async function POST(req: NextRequest) {
+  let conflictCheckClaim: {
+    coupleId: string;
+    messageDigest: string;
+    claimToken: string;
+  } | null = null;
   let durableClaim: {
     coupleId: string;
     requestKey: string;
     userId: string;
     visibility: "shared";
   } | null = null;
+  let durableClaimAttemptCount: number | null = null;
   try {
     // ── 1. 인증 + 커플 확인 ───────────────────────────────────
     const supabase = await createClientFromRequest(req);
@@ -68,11 +105,15 @@ export async function POST(req: NextRequest) {
 
     // Rate limit — 이 라우트는 중재 시 OpenAI 모델을 호출하므로, 메인 채팅과
     // 별개로 호출 빈도를 제한해 borderline 구간 반복 호출로 인한 LLM 폭주를 막는다.
-    const limited = checkRateLimit(rateLimitKey("conflict-check", req, user.id), {
-      maxRequests: 30,
-      windowMs: 60 * 60 * 1000,
-    });
-    if (limited) return NextResponse.json({ triggered: false, reason: "rate_limited" });
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("conflict-check", req, user.id),
+      {
+        maxRequests: 30,
+        windowMs: 60 * 60 * 1000,
+      },
+      { failClosed: true },
+    );
+    if (limited) return limited;
 
     const body = (await req.json().catch(() => ({}))) as { coupleId?: string };
     const requestCoupleId = body.coupleId;
@@ -90,18 +131,6 @@ export async function POST(req: NextRequest) {
     }
     if (requestCoupleId && requestCoupleId !== coupleId) {
       return NextResponse.json({ triggered: false, reason: "couple_mismatch" }, { status: 403 });
-    }
-
-    // 비용 가드 — mediation LLM 호출도 메인 채팅과 같은 장부(chat_turn)를 공유한다.
-    // 상한 도달 시 detector 실행 전에 차단(가드 밖 LLM 호출 사각지대 제거).
-    // 여기는 읽기전용 체크만 — 이 라우트는 파트너 메시지마다 fire-and-forget으로
-    // 호출되고 대부분 LLM 0회로 끝나므로, 예약(턴 소모)은 mediation 직전에만 한다.
-    const guard = await checkAmoraCostGuard(admin, {
-      coupleId,
-      isAdmin: profile?.is_admin === true,
-    });
-    if (!guard.allowed) {
-      return NextResponse.json({ triggered: false, reason: "cost_guard" });
     }
 
     // ── 2. cooldown 락 — 최근 10분 mediation 메시지 검사 ──────
@@ -152,6 +181,104 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // The shared message-set claim is acquired before memory reads, conflict
+    // history reads, or any provider reservation/call. Requests from either
+    // partner therefore converge on one durable result.
+    const messageDigest = createAmoraConflictMessageDigest(
+      rawMessages.map((message) => String(message.id)),
+    );
+    const checkClaim = await claimAmoraConflictCheck({
+      coupleId,
+      messageDigest,
+      requesterUserId: user.id,
+    }, admin);
+    if (checkClaim.action === "completed") {
+      return NextResponse.json(checkClaim.result, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    if (checkClaim.action === "in_progress") {
+      return NextResponse.json(
+        {
+          triggered: false,
+          reason: "in_progress",
+          retryAfterMs: checkClaim.retryAfterMs,
+        },
+        {
+          status: 409,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": String(Math.max(1, Math.ceil(checkClaim.retryAfterMs / 1_000))),
+          },
+        },
+      );
+    }
+    conflictCheckClaim = {
+      coupleId,
+      messageDigest,
+      claimToken: checkClaim.claimToken,
+    };
+
+    const respondAndCompleteConflictCheck = async (
+      result: Record<string, unknown>,
+      status = 200,
+    ) => {
+      if (!conflictCheckClaim) {
+        throw new Error("AMORA_CONFLICT_CHECK_CLAIM_MISSING");
+      }
+      await completeAmoraConflictCheck({
+        ...conflictCheckClaim,
+        result,
+      }, admin);
+      conflictCheckClaim = null;
+      return NextResponse.json(result, {
+        status,
+        headers: { "Cache-Control": "no-store" },
+      });
+    };
+    const releaseConflictCheck = async (failureCode: string) => {
+      if (!conflictCheckClaim) return;
+      const claimToRelease = conflictCheckClaim;
+      await failAmoraConflictCheck({
+        ...claimToRelease,
+        failureCode,
+      }, admin);
+      conflictCheckClaim = null;
+    };
+
+    const replayedDetection = checkClaim.checkpoint;
+    if (replayedDetection && !replayedDetection.triggered) {
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        score: replayedDetection.score,
+        reason: replayedDetection.reason,
+        llmVerified: replayedDetection.llmVerified,
+      });
+    }
+
+    // Cost availability is persisted for this exact message set. Repeated
+    // fire-and-forget requests cannot keep probing or paying for the same work.
+    const guard = await checkAmoraCostGuard(admin, {
+      coupleId,
+      isAdmin: profile?.is_admin === true,
+    });
+    if (!guard.allowed) {
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "cost_guard",
+      });
+    }
+
+    // Reuse the main chat's current-consent lookup. The helper defaults to
+    // disabled and treats an RPC error as false, so provider context fails
+    // closed even though this route reads through a service-role client.
+    const memoryEnablement = await getAmoraMemoryEnablement(
+      coupleId,
+      ["shared"],
+      admin,
+    );
+    const sharedMemoryEnabled = memoryEnablement.shared === true;
+
     const recentMessages: CoupleMessage[] = rawMessages
       .map((m) => ({
         content: m.content as string,
@@ -162,31 +289,93 @@ export async function POST(req: NextRequest) {
       }))
       .reverse(); // 시간 오름차순으로 정렬
 
-    // ── 4. 과거 conflict_resolution decision_nodes ────────────
-    const { data: pastConflictsRaw } = await admin
-      .from("decision_nodes")
-      .select("title, created_at")
-      .eq("couple_id", coupleId)
-      .eq("category", "conflict_resolution")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    const pastConflicts = (pastConflictsRaw ?? []).map((c) => ({
-      title: c.title as string,
-      createdAt: c.created_at as string,
-    }));
-
-    // ── 5. detector 실행 ──────────────────────────────────────
-    const detection = await detectCoupleConflict({
+    const conflictProviderRequestKey = `conflict:${messageDigest}`;
+    const conflictCostGuard = (maxCostMicrousd: number) => ({
       coupleId,
-      userId: user.id,
-      recentSharedMessages: recentMessages,
-      pastConflicts,
-      windowMinutes: 5,
+      isAdmin: profile?.is_admin === true,
+      // Background conflict checks count against global spend, never the
+      // couple's free consultation counter.
+      quotaScope: "background" as const,
+      maxCostMicrousd,
     });
 
+    let detection: ConflictDetection;
+    if (replayedDetection) {
+      detection = replayedDetection;
+    } else {
+      // ── 4. 과거 conflict_resolution decision_nodes ──────────
+      const { data: pastConflictsRaw } = await admin
+        .from("decision_nodes")
+        .select("title, created_at, memory_key, superseded_at, metadata")
+        .eq("couple_id", coupleId)
+        .eq("category", "conflict_resolution")
+        .eq("visibility", "shared")
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const pastConflicts = (pastConflictsRaw ?? [])
+        .filter((conflict) => {
+          const candidate = conflict as typeof conflict & MemoryClassifiableDecision;
+          return candidate.superseded_at === null
+            && (sharedMemoryEnabled || !isAutomaticMemoryDecision(candidate));
+        })
+        .map((c) => ({
+          title: c.title as string,
+          createdAt: c.created_at as string,
+        }));
+
+      const verificationClaim = conflictCheckClaim;
+      if (!verificationClaim) {
+        throw new Error("AMORA_CONFLICT_CHECK_CLAIM_MISSING");
+      }
+
+      // ── 5. detector 실행 ────────────────────────────────────
+      detection = await detectCoupleConflict({
+        coupleId,
+        userId: user.id,
+        recentSharedMessages: recentMessages,
+        pastConflicts,
+        windowMinutes: 5,
+        runProviderCall: (call) => runAmoraProviderCallWithLedger(
+          {
+            userId: user.id,
+            coupleId,
+            requestKey: conflictProviderRequestKey,
+            source: "conflict_check",
+            sessionId: messageDigest,
+            modelRole: "fast",
+            specialistType: "general",
+            callIndex: 1,
+            phase: "conflict_verify",
+            conflictCheckpointClaim: verificationClaim,
+            costGuard: conflictCostGuard(
+              getAmoraProviderCallCostReservationMicrousd("fast"),
+            ),
+          },
+          call,
+        ),
+      });
+    }
+
+    if (detection.providerBlockedReason === "cost_guard") {
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "cost_guard",
+      });
+    }
+    if (detection.providerBlockedReason === "provider_error") {
+      await releaseConflictCheck("CONFLICT_VERIFICATION_PROVIDER_FAILED");
+      return NextResponse.json(
+        { triggered: false, reason: "provider_unavailable" },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store", "Retry-After": "2" },
+        },
+      );
+    }
+
     if (!detection.triggered) {
-      return NextResponse.json({
+      return respondAndCompleteConflictCheck({
         triggered: false,
         score: detection.score,
         reason: detection.reason,
@@ -196,38 +385,64 @@ export async function POST(req: NextRequest) {
 
     // ── 6. mediation 메시지 생성 ─────────────────────────────
     if (!hasOpenAIConfig("primary")) {
-      return NextResponse.json({
+      return respondAndCompleteConflictCheck({
         triggered: false,
         reason: "openai_not_configured",
       });
     }
 
-    const mediationDigest = createHash("sha256")
-      .update(coupleId)
-      .update("\0")
-      .update(
-        rawMessages
-          .map((message) => String(message.id))
-          .sort()
-          .join(","),
-      )
-      .digest("hex");
+    // Hard heuristic triggers have no Luna receipt to carry the checkpoint.
+    // Persist their bounded detection result before the paid Terra boundary so
+    // a transient mediation failure can resume without time-window drift.
+    if (!replayedDetection && !detection.llmVerified) {
+      if (!conflictCheckClaim) {
+        throw new Error("AMORA_CONFLICT_CHECK_CLAIM_MISSING");
+      }
+      const checkpoint: AmoraConflictDetectionCheckpoint = {
+        stage: "detection_complete",
+        triggered: true,
+        score: Math.round(detection.score),
+        reason: detection.reason.slice(0, 2_000),
+        conflictContext: detection.conflictContext.slice(0, MAX_CONFLICT_CONTEXT_CHARS),
+        llmVerified: false,
+      };
+      await checkpointAmoraConflictCheck({
+        ...conflictCheckClaim,
+        checkpoint,
+      }, admin);
+    }
+
     durableClaim = {
       coupleId,
-      requestKey: `mediation:${mediationDigest}`,
+      requestKey: `mediation:${messageDigest}`,
       userId: user.id,
       visibility: "shared",
     };
     const claim = await claimChatRequest(durableClaim, admin);
     if (claim.action === "completed") {
-      return NextResponse.json({ triggered: false, reason: "already_completed" });
+      durableClaim = null;
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "already_completed",
+      });
     }
     if (claim.action === "in_progress") {
-      return NextResponse.json({ triggered: false, reason: "in_progress" }, { status: 409 });
+      durableClaim = null;
+      await releaseConflictCheck("MEDIATION_IN_PROGRESS");
+      return NextResponse.json(
+        { triggered: false, reason: "in_progress" },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
     }
     if (claim.action === "conflict") {
-      return NextResponse.json({ triggered: false, reason: "request_conflict" }, { status: 409 });
+      durableClaim = null;
+      await releaseConflictCheck("MEDIATION_REQUEST_CONFLICT");
+      return NextResponse.json(
+        { triggered: false, reason: "request_conflict" },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
     }
+    durableClaimAttemptCount = claim.attemptCount;
 
     // 6-a. 시스템 프롬프트 빌드용 컨텍스트 조회
     const { data: journey } = await admin
@@ -248,24 +463,35 @@ export async function POST(req: NextRequest) {
     const senderName = profile?.name ?? "사용자";
 
     // 6-b. 최근 대화 요약
-    const { data: summariesRaw } = await admin
-      .from("chat_summaries")
-      .select("summary")
-      .eq("couple_id", coupleId)
-      .eq("visibility", "shared")
-      .order("created_at", { ascending: false })
-      .limit(3);
-    const chatSummaries = (summariesRaw ?? []).map((s) => s.summary as string);
+    let chatSummaries: string[] = [];
+    if (sharedMemoryEnabled) {
+      const { data: summariesRaw } = await admin
+        .from("chat_summaries")
+        .select("summary, summary_type")
+        .eq("couple_id", coupleId)
+        .eq("visibility", "shared")
+        .or("summary_type.is.null,summary_type.neq.cursor")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      chatSummaries = (summariesRaw ?? [])
+        .filter(isFactualAmoraMemorySummary)
+        .map((summary) => summary.summary);
+    }
 
     // 6-c. pastDecisions / pastConflicts 요약 풀어주기
     const { data: decisionsRaw } = await admin
       .from("decision_nodes")
-      .select("category, decision_type, title, chosen_value, reasoning, confidence, source, created_at")
+      .select("category, decision_type, title, chosen_value, reasoning, confidence, source, stage_tag, created_at, memory_key, superseded_at, metadata")
       .eq("couple_id", coupleId)
       .eq("visibility", "shared")
       .order("created_at", { ascending: false })
       .limit(30);
-    const pastDecisions = (decisionsRaw ?? []).map((d) => ({
+    const decisionsData = (decisionsRaw ?? []).filter((decision) => {
+      const candidate = decision as typeof decision & MemoryClassifiableDecision;
+      return candidate.superseded_at === null
+        && (sharedMemoryEnabled || !isAutomaticMemoryDecision(candidate));
+    });
+    const pastDecisions = decisionsData.map((d) => ({
       category: d.category as string,
       decisionType: d.decision_type as string,
       title: d.title as string,
@@ -276,22 +502,17 @@ export async function POST(req: NextRequest) {
       createdAt: d.created_at as string,
     }));
 
-    const { data: conflictsForPromptRaw } = await admin
-      .from("decision_nodes")
-      .select("title, chosen_value, reasoning, stage_tag, created_at")
-      .eq("couple_id", coupleId)
-      .eq("category", "conflict_resolution")
-      .eq("visibility", "shared")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    const pastConflictsForPrompt = (conflictsForPromptRaw ?? []).map((c) => ({
-      title: c.title as string,
-      resolution:
-        ((c.chosen_value as { value?: string } | null)?.value) ?? null,
-      reasoning: (c.reasoning as string | null) ?? null,
-      stageTag: (c.stage_tag as string | null) ?? null,
-      createdAt: c.created_at as string,
-    }));
+    const pastConflictsForPrompt = decisionsData
+      .filter((decision) => decision.category === "conflict_resolution")
+      .slice(0, 5)
+      .map((c) => ({
+        title: c.title as string,
+        resolution:
+          ((c.chosen_value as { value?: string } | null)?.value) ?? null,
+        reasoning: (c.reasoning as string | null) ?? null,
+        stageTag: (c.stage_tag as string | null) ?? null,
+        createdAt: c.created_at as string,
+      }));
 
     // 6-d. 시스템 프롬프트 생성
     const systemPrompt = buildAmoraSystemPrompt({
@@ -312,6 +533,7 @@ export async function POST(req: NextRequest) {
       specialist: "general",
       requestKind: "mediation",
       persistenceMode: "durable",
+      enabledToolNames: [],
       maxChars: MAX_MEDIATION_SYSTEM_CHARS,
     });
 
@@ -334,125 +556,127 @@ export async function POST(req: NextRequest) {
       content: `[${triggerRoleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등이 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${detection.conflictContext.slice(0, MAX_CONFLICT_CONTEXT_CHARS)}`,
     });
 
-    // 6-f. OpenAI 호출 (non-streaming, 고위험 중재는 Terra)
-    // 실제 LLM 호출 직전 원자 예약 — 앞단 읽기전용 체크와 달리 여기서 턴 1회를
-    // 소모 확정한다 (동시 요청 상한 초과 방지, 감사 2.3 H1).
-    const reserved = await reserveAmoraTurn(admin, {
-      coupleId,
-      isAdmin: profile?.is_admin === true,
-    });
-    if (!reserved.allowed) {
+    // 6-f. Exact count first, then a receipt-scoped atomic reservation at the
+    // paid Terra boundary. Known usage settles the conservative maximum.
+    let completion: Awaited<ReturnType<typeof createOpenAIResponseWithAudit>>;
+    let preparedMediation: ReturnType<typeof extractMediation> | null = null;
+    let atomicFinalization: AtomicAmoraChatResponseFinalization | null = null;
+    try {
+      completion = await runAmoraProviderCallWithLedger(
+        {
+          userId: user.id,
+          coupleId,
+          requestKey: conflictProviderRequestKey,
+          source: "conflict_check",
+          sessionId: messageDigest,
+          modelRole: "primary",
+          specialistType: "general",
+          // A hard heuristic trigger skips Luna verification, so Terra owns
+          // the first receipt. Borderline verified conflicts already used #1.
+          callIndex: detection.llmVerified ? 2 : 1,
+          phase: "conflict_mediation",
+          costGuard: conflictCostGuard(
+            getAmoraProviderCallCostReservationMicrousd("primary"),
+          ),
+        },
+        (beforeGeneration) => createOpenAIResponseWithAudit({
+          modelRole: "primary",
+          maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+          maxOutputTokens: 800,
+          beforeGeneration,
+          auditPersistence: "external_provider_receipt",
+          instructions: systemPrompt,
+          input: messageList,
+          audit: {
+            userId: user.id,
+            coupleId,
+            interactionType: "amora_director",
+            specialistType: "general",
+            userInput: null,
+            metadata: { source: "auto_conflict_detection", score: detection.score },
+          },
+        }),
+        {
+          buildAtomicChatResponse: (providerResult) => {
+            const prepared = extractMediation(providerResult.text);
+            preparedMediation = prepared;
+            // Empty provider output is not a terminal response. Its paid
+            // receipt is still settled, but no message/claim completion is
+            // fabricated and the route fails closed below.
+            if (!prepared.cleanText.trim()) return null;
+            if (!durableClaim || durableClaimAttemptCount === null) {
+              throw new Error("AMORA_MEDIATION_CLAIM_GENERATION_MISSING");
+            }
+            return {
+              coupleId,
+              userId: user.id,
+              requestKey: durableClaim.requestKey,
+              visibility: "shared",
+              claimAttemptCount: durableClaimAttemptCount,
+              content: prepared.cleanText,
+              metadata: {
+                kind: "mediation",
+                ...(prepared.mediation ? { mediation: prepared.mediation } : {}),
+                source: "auto_conflict_detection",
+                score: detection.score,
+                llmVerified: detection.llmVerified,
+              },
+              stageTag: null,
+              specialistType: "general",
+            };
+          },
+          onAtomicChatResponseFinalized: (finalization) => {
+            atomicFinalization = finalization;
+          },
+        },
+      );
+    } catch (error) {
+      if (!(error instanceof AmoraCostGuardError)) throw error;
       await failChatRequest({ ...durableClaim, failureCode: "COST_GUARD_REJECTED" }, admin)
-        .catch((error) => console.error("[check-couple-conflict] claim release failed", error));
+        .catch((claimError) => console.error("[check-couple-conflict] claim release failed", claimError));
       durableClaim = null;
-      return NextResponse.json({ triggered: false, reason: "cost_guard" });
+      durableClaimAttemptCount = null;
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "cost_guard",
+      });
     }
 
-    const completion = await createOpenAIResponseWithAudit({
-      modelRole: "primary",
-      maxOutputTokens: 800,
-      instructions: systemPrompt,
-      input: messageList,
-      audit: {
-        userId: user.id,
-        coupleId,
-        interactionType: "chat_turn",
-        specialistType: "general",
-        userInput: null,
-        metadata: { source: "auto_conflict_detection", score: detection.score },
-      },
-    });
-
-    const fullText = completion.text;
-
-    const { cleanText, mediation } = extractMediation(fullText);
+    const mediationResult = preparedMediation as
+      ReturnType<typeof extractMediation> | null;
+    const cleanText = mediationResult?.cleanText ?? completion.text;
     if (!cleanText.trim()) {
       await failChatRequest({ ...durableClaim, failureCode: "EMPTY_RESPONSE" }, admin)
         .catch((error) => console.error("[check-couple-conflict] claim failure marker failed", error));
       durableClaim = null;
-      return NextResponse.json({ triggered: false, reason: "empty_response" });
-    }
-
-    // ── 7. 결과 INSERT — race 방어 위해 마지막 cooldown 한 번 더 체크 ─
-    const { data: secondCheck } = await admin
-      .from("chat_messages")
-      .select("id, metadata")
-      .eq("couple_id", coupleId)
-      .eq("sender_type", "ai")
-      .eq("visibility", "shared")
-      .gte("created_at", cooldownCutoff)
-      .order("created_at", { ascending: false })
-      .limit(5);
-    const lateMediationFound =
-      (secondCheck ?? []).some((m) => {
-        const md = m.metadata as { kind?: string; mediation?: unknown } | null;
-        return md?.kind === "mediation" || Boolean(md?.mediation);
-      });
-    if (lateMediationFound) {
-      // 다른 클라이언트가 먼저 mediation INSERT — 우리는 abort
-      await failChatRequest({ ...durableClaim, failureCode: "COOLDOWN_RACE_LOST" }, admin)
-        .catch((error) => console.error("[check-couple-conflict] claim release failed", error));
-      durableClaim = null;
-      return NextResponse.json({ triggered: false, reason: "race_lost" });
-    }
-
-    const { data: inserted, error: insertError } = await admin
-      .from("chat_messages")
-      .insert({
-        couple_id: coupleId,
-        sender_id: null,
-        sender_type: "ai",
-        role: "assistant",
-        content: cleanText,
-        visibility: "shared",
-        metadata: {
-          kind: "mediation",
-          ...(mediation ? { mediation } : {}),
-          source: "auto_conflict_detection",
-          score: detection.score,
-          llmVerified: detection.llmVerified,
-          client_request_id: durableClaim.requestKey,
-        },
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !inserted?.id) {
-      if (insertError?.code === "23505") {
-        const { data: existing } = await admin
-          .from("chat_messages")
-          .select("id")
-          .eq("couple_id", coupleId)
-          .eq("metadata->>client_request_id", durableClaim.requestKey)
-          .eq("sender_type", "ai")
-          .eq("role", "assistant")
-          .eq("visibility", "shared")
-          .limit(1);
-        if (existing?.[0]?.id) {
-          await completeChatRequest(
-            { ...durableClaim, messageId: existing[0].id as string },
-            admin,
-          );
-          durableClaim = null;
-          return NextResponse.json({ triggered: false, reason: "race_lost" });
-        }
-      }
-      console.error("[check-couple-conflict] mediation persistence failed", insertError);
-      await failChatRequest({ ...durableClaim, failureCode: "PERSISTENCE_FAILED" }, admin)
-        .catch((error) => console.error("[check-couple-conflict] claim failure marker failed", error));
-      durableClaim = null;
+      durableClaimAttemptCount = null;
+      await releaseConflictCheck("EMPTY_RESPONSE");
       return NextResponse.json(
-        { triggered: false, reason: "persistence_failed" },
-        { status: 503 },
+        { triggered: false, reason: "empty_response" },
+        { headers: { "Cache-Control": "no-store" } },
       );
     }
 
-    await completeChatRequest({ ...durableClaim, messageId: inserted.id }, admin);
+    const committed = atomicFinalization as
+      AtomicAmoraChatResponseFinalization | null;
+    if (committed?.outcome === "cooldown_race_lost") {
+      durableClaim = null;
+      durableClaimAttemptCount = null;
+      return respondAndCompleteConflictCheck({
+        triggered: false,
+        reason: "race_lost",
+      });
+    }
+    if (committed?.outcome !== "persisted" || !committed.message?.id) {
+      throw new Error("AMORA_MEDIATION_ATOMIC_COMMIT_MISSING");
+    }
+    const insertedMessageId = committed.message.id;
     durableClaim = null;
+    durableClaimAttemptCount = null;
 
-    return NextResponse.json({
+    return respondAndCompleteConflictCheck({
       triggered: true,
-      messageId: inserted.id,
+      messageId: insertedMessageId,
       score: detection.score,
       reason: detection.reason,
       llmVerified: detection.llmVerified,
@@ -462,6 +686,14 @@ export async function POST(req: NextRequest) {
     if (durableClaim) {
       await failChatRequest({ ...durableClaim, failureCode: "MEDIATION_FAILED" }, getAdminClient())
         .catch((claimError) => console.error("[check-couple-conflict] claim failure marker failed", claimError));
+    }
+    if (conflictCheckClaim) {
+      await failAmoraConflictCheck({
+        ...conflictCheckClaim,
+        failureCode: "CONFLICT_CHECK_FAILED",
+      }, getAdminClient()).catch((claimError) => {
+        console.error("[check-couple-conflict] conflict-check failure marker failed", claimError);
+      });
     }
     return NextResponse.json(
       {

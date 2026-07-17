@@ -1,5 +1,9 @@
 # WeddingCode D4 Item Review - 당일 혜택이 있는 상담 후 결정
 
+> [!WARNING]
+> **RETIRED / Candidate 4 문항 기록 / 재사용 금지.** 이 문항·선택지·가중치는 현행 검사나
+> Candidate 5에 복사하지 않는다. 현재 판정과 연구안은 [`README.md`](./README.md), `55`, `56`, `57`을 따른다.
+
 상태: v0.5 후보 문항 확정 전 심층 리뷰  
 작성일: 2026-07-07  
 관련 문항군: Category 5. 스트레스 상황 대화/회복, Category 1. 돈·조건·계약 리스크

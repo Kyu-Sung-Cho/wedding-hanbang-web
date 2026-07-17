@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
+import { PUBLIC_VENDOR_COLUMNS, PUBLIC_VENDOR_PRODUCT_COLUMNS } from "@/lib/vendors/publicFields";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
 
 // 카테고리 alias — DB에는 영어 슬러그·한글 라벨·변형이 섞여 들어가 있어서,
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
     // (Phase 2에서 "조건 공개"/"검증 참여" 기반 설명 가능한 랭킹으로 재도입 예정)
     let query = supabase
       .from("vendors")
-      .select("*", { count: "exact" })
+      .select(PUBLIC_VENDOR_COLUMNS, { count: "exact" })
       .eq("status", "approved")
       .order("rating", { ascending: false })
       .order("created_at", { ascending: false })
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
     const { data: productRows } = vendorIds.length > 0
       ? await supabase
           .from("vendor_products")
-          .select("*")
+          .select(PUBLIC_VENDOR_PRODUCT_COLUMNS)
           .in("vendor_id", vendorIds)
           .eq("is_active", true)
           .order("sort_order")

@@ -8,6 +8,23 @@ export interface ToolExecutionContext {
    * model retry cannot bypass the database operation ledger.
    */
   requestKey?: string;
+  /**
+   * Attempt number returned by the durable chat-request claim. Mutating tool
+   * claims bind to this value so a reclaimed/retried turn cannot invent a new
+   * operation after an earlier attempt may already have changed state.
+   */
+  requestAttemptCount?: number;
+  /**
+   * Paid provider call whose durable journal authorized this automatic tool
+   * call. User-confirmed pending actions use pendingActionId instead.
+   */
+  providerCallIndex?: number;
+  /**
+   * Server-issued approval capability for a user-confirmed pending action.
+   * When present, mutating-tool claims are additionally deduplicated for the
+   * whole couple so either partner cannot apply the approval twice.
+   */
+  pendingActionId?: string;
   currentUserText?: string;
   weddingContext: {
     weddingDate: string | null;

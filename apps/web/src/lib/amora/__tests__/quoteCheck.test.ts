@@ -71,6 +71,12 @@ describe("판정 없음 — 사실만 노출", () => {
     ]) {
       expect(result[banned], `${banned} 필드는 제거되어야 함`).toBeUndefined();
     }
+
+    for (const item of analyze("sdm_package", "seoul", 300).missingItems) {
+      const publicItem = item as unknown as Record<string, unknown>;
+      expect(publicItem.priceManwon).toBeUndefined();
+      expect(publicItem.usageRatePercent).toBeUndefined();
+    }
   });
 
   it("요약 문구가 개수 사실만 말하고 평가 단어를 쓰지 않는다", () => {
@@ -80,6 +86,9 @@ describe("판정 없음 — 사실만 노출", () => {
       expect(result.summaryTitle).not.toContain(judgment);
       expect(result.summaryText).not.toContain(judgment);
     }
+    expect(result.summaryText).not.toContain("174만원");
+    expect(result.sourceNote).not.toContain("숨은비용");
+    expect(result.sourceNote).toContain("https://www.price.go.kr/");
   });
 });
 

@@ -419,7 +419,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "log_wedding_event",
     description:
-      "사용자가 대화 중 결혼 준비 일정의 날짜를 말하면 즉시 저장합니다. 예: '토요일에 상견례야', '다음 주 금요일에 드레스 투어 잡았어', '청첩장 모임 25일이야'. 저장하면 아모라가 그 일정의 3일 전 챙김 → 전날 체크리스트 → 다음날 안부까지 먼저 챙깁니다. 상대 날짜('토요일', '다음 주')는 오늘 날짜 기준으로 정확한 YYYY-MM-DD로 변환해 저장하고, 애매하면 사용자에게 날짜를 먼저 확인하세요. 같은 종류 일정이 여러 번 있을 수 있습니다(청첩장 모임 그룹별 등).",
+      "사용자가 결혼 준비 일정의 제목과 날짜를 명시적으로 저장하겠다고 확인한 경우에만 일정에 반영합니다. 상대 날짜는 오늘 기준 YYYY-MM-DD로 변환하되 애매하면 저장 전에 확인합니다. 이 도구는 일정 저장만 보장하며, 별도 기능 상태와 수신 동의가 필요한 선제 알림을 약속하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -730,7 +730,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_market_price",
     description:
-      "한국소비자원 웨딩 시세 데이터를 조회합니다. 고객이 '스드메 시세가 어떻게 돼?', '서울 예식장 평균 비용', '드레스 얼마가 적정해?' 같은 질문을 할 때 사용합니다.",
+      "한국소비자원 참가격 결혼서비스 표본 통계를 조회합니다. 사용자가 공식 평균·중간값 참고자료를 요청할 때 사용하며, 개별 견적의 적정성·업체 품질·최종 결제액 판정에는 사용하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -857,7 +857,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         no_show_rate_percent: {
           type: "number",
-          description: "노쇼/불참 가정 비율. 모르면 생략하면 기본 8%로 계산.",
+          description: "사용자가 직접 정한 노쇼/불참 시나리오 비율(0~100). 업계 평균이나 기본값을 추정하지 말고, 모르면 계산 전에 사용자에게 확인합니다.",
         },
         notice_deadline: {
           type: "string",

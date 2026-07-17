@@ -1,5 +1,6 @@
 "use client";
 
+// CANDIDATE4_RETIRED: unreachable legacy UI; do not reconnect or reuse for Candidate 5.
 // 웨딩코드 v0.5 폼 — 16개 상황형 질문을 한 화면 한 질문으로 진행한다.
 // 결과 화면에서 v0.5 score/report를 참고용으로 보여주며, 사람이나 관계를 단정하지 않는다.
 

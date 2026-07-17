@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { syncBookingProgressAfterOutcome } from "@/lib/bookings/progressSync";
-import { recordDecision } from "@/lib/memory/record-decision";
+import {
+  processBookingProjectionJob,
+  type BookingProjectionDeliveryResult,
+} from "@/lib/bookings/projectionOutbox";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanIntegerInRange,
@@ -17,6 +19,12 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 24 * 1024;
 const MAX_AMOUNT = 1_000_000_000;
+// PostgreSQL UUID columns can contain older seed values whose version/variant
+// bits are not RFC-generated. The request booking id remains strict, while a
+// committed database identity is validated by shape so legacy rows do not turn
+// a successful transaction into an ambiguous 503 response.
+const DATABASE_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface OutcomeBody {
   actualAmount: number;
@@ -26,17 +34,31 @@ interface OutcomeBody {
   sharePublicReview: boolean;
 }
 
-interface BookingOutcomeRow {
-  id: string;
-  couple_id: string;
-  vendor_id: string;
-  product_id: string | null;
-  amount: number | string | null;
-  contracted_amount: number | string | null;
-  actual_amount: number | string | null;
-  status: string | null;
-  vendor: { name: string | null; category: string | null } | null;
-  product: { name: string | null } | null;
+interface AtomicBookingOutcome {
+  coupleId: string;
+  booking: {
+    id: string;
+    status: string;
+    amount: number | null;
+    contractedAmount: number | null;
+    actualAmount: number;
+  };
+  review: {
+    id: string;
+    rating: number;
+    content: string | null;
+    isVisible: boolean;
+  };
+  decisionId: string;
+  baselineAmount: number;
+  extraAmount: number;
+  context: {
+    vendorId: string;
+    vendorName: string | null;
+    vendorCategory: string | null;
+    productId: string | null;
+    productName: string | null;
+  };
 }
 
 function parseOutcomeBody(body: unknown): OutcomeBody | null {
@@ -72,54 +94,89 @@ function numberOrNull(value: unknown): number | null {
   return null;
 }
 
-async function upsertVendorReview({
-  admin,
-  booking,
-  userId,
-  outcome,
-}: {
-  admin: ReturnType<typeof createAdminClient>;
-  booking: BookingOutcomeRow;
-  userId: string;
-  outcome: OutcomeBody;
-}) {
-  const payload = {
-    vendor_id: booking.vendor_id,
-    product_id: booking.product_id,
-    booking_id: booking.id,
-    customer_id: userId,
-    rating: outcome.rating,
-    content: outcome.review,
-    is_visible: outcome.sharePublicReview,
-  };
+function optionalText(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" ? value : undefined;
+}
 
-  const { data: existing } = await admin
-    .from("vendor_reviews")
-    .select("id")
-    .eq("booking_id", booking.id)
-    .eq("customer_id", userId)
-    .maybeSingle();
+function isDatabaseUuid(value: unknown): value is string {
+  return typeof value === "string" && DATABASE_UUID_RE.test(value);
+}
 
-  if (existing?.id) {
-    const { data, error } = await admin
-      .from("vendor_reviews")
-      .update(payload)
-      .eq("id", existing.id)
-      .select("id, rating, content, is_visible")
-      .single();
-
-    if (error) throw error;
-    return data;
+function parseAtomicBookingOutcome(value: unknown): AtomicBookingOutcome | null {
+  if (
+    !isRecord(value) || value.accepted !== true ||
+    !isRecord(value.booking) || !isRecord(value.review) ||
+    !isRecord(value.context)
+  ) {
+    return null;
   }
 
-  const { data, error } = await admin
-    .from("vendor_reviews")
-    .insert(payload)
-    .select("id, rating, content, is_visible")
-    .single();
+  const amount = value.booking.amount === null
+    ? null
+    : numberOrNull(value.booking.amount);
+  const contractedAmount = value.booking.contractedAmount === null
+    ? null
+    : numberOrNull(value.booking.contractedAmount);
+  const actualAmount = numberOrNull(value.booking.actualAmount);
+  const rating = numberOrNull(value.review.rating);
+  const baselineAmount = numberOrNull(value.baselineAmount);
+  const extraAmount = numberOrNull(value.extraAmount);
+  const reviewContent = optionalText(value.review.content);
+  const vendorName = optionalText(value.context.vendorName);
+  const vendorCategory = optionalText(value.context.vendorCategory);
+  const productId = optionalText(value.context.productId);
+  const productName = optionalText(value.context.productName);
 
-  if (error) throw error;
-  return data;
+  if (
+    !isDatabaseUuid(value.coupleId) ||
+    !isDatabaseUuid(value.booking.id) ||
+    typeof value.booking.status !== "string" ||
+    (value.booking.amount !== null && amount === null) ||
+    (value.booking.contractedAmount !== null && contractedAmount === null) ||
+    (amount !== null && amount < 0) ||
+    (contractedAmount !== null && contractedAmount < 0) ||
+    actualAmount === null || actualAmount < 0 ||
+    !isDatabaseUuid(value.review.id) ||
+    rating === null || !Number.isInteger(rating) || rating < 1 || rating > 5 ||
+    reviewContent === undefined || typeof value.review.isVisible !== "boolean" ||
+    !isDatabaseUuid(value.decisionId) ||
+    baselineAmount === null || baselineAmount < 0 ||
+    extraAmount === null || extraAmount < 0 ||
+    !isDatabaseUuid(value.context.vendorId) ||
+    vendorName === undefined || vendorCategory === undefined ||
+    productId === undefined || (productId !== null && !isDatabaseUuid(productId)) ||
+    productName === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    coupleId: value.coupleId,
+    booking: {
+      id: value.booking.id,
+      status: value.booking.status,
+      amount,
+      contractedAmount,
+      actualAmount,
+    },
+    review: {
+      id: value.review.id,
+      rating,
+      content: reviewContent,
+      isVisible: value.review.isVisible,
+    },
+    decisionId: value.decisionId,
+    baselineAmount,
+    extraAmount,
+    context: {
+      vendorId: value.context.vendorId,
+      vendorName,
+      vendorCategory,
+      productId,
+      productName,
+    },
+  };
 }
 
 export async function PATCH(
@@ -154,122 +211,135 @@ export async function PATCH(
     }
 
     const admin = createAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("couple_id")
-      .eq("id", user.id)
-      .single();
+    const { data: atomicData, error: atomicError } = await admin.rpc(
+      "complete_vendor_booking_outcome",
+      {
+        p_booking_id: id,
+        p_customer_id: user.id,
+        p_actual_amount: outcome.actualAmount,
+        p_contracted_amount: outcome.contractedAmount,
+        p_rating: outcome.rating,
+        p_review: outcome.review,
+        p_share_public_review: outcome.sharePublicReview,
+      },
+    );
 
-    if (!profile?.couple_id) {
-      return NextResponse.json({ error: "커플 정보가 필요합니다." }, { status: 404 });
+    if (atomicError) {
+      const message = atomicError.message?.toLowerCase() ?? "";
+      if (message.includes("booking_outcome_not_found")) {
+        return NextResponse.json({ error: "예약을 찾을 수 없습니다." }, { status: 404 });
+      }
+      if (message.includes("invalid_booking_outcome")) {
+        return NextResponse.json(
+          { error: "예약 결과 입력값이 올바르지 않습니다." },
+          { status: 400 },
+        );
+      }
+      console.error("Booking outcome atomic RPC error:", atomicError);
+      return NextResponse.json(
+        {
+          error: "예약 결과 저장 여부를 확인하지 못했습니다. 같은 내용을 다시 저장해도 중복 처리되지 않습니다.",
+        },
+        { status: 503 },
+      );
     }
 
-    const { data: bookingRow, error: bookingError } = await admin
-      .from("vendor_bookings")
-      .select("id, couple_id, vendor_id, product_id, amount, contracted_amount, actual_amount, status, vendor:vendors(name, category), product:vendor_products(name)")
-      .eq("id", id)
-      .maybeSingle();
-
-    const booking = bookingRow as BookingOutcomeRow | null;
-    if (bookingError || !booking || booking.couple_id !== profile.couple_id) {
-      return NextResponse.json({ error: "예약을 찾을 수 없습니다." }, { status: 404 });
+    const atomicOutcome = parseAtomicBookingOutcome(atomicData);
+    if (!atomicOutcome || atomicOutcome.booking.id !== id) {
+      console.error("Booking outcome atomic RPC returned an invalid response");
+      return NextResponse.json(
+        {
+          error: "예약 결과 저장 여부를 확인하지 못했습니다. 같은 내용을 다시 저장해도 중복 처리되지 않습니다.",
+        },
+        { status: 503 },
+      );
     }
 
-    const { data: updatedBooking, error: updateError } = await admin
-      .from("vendor_bookings")
-      .update({
-        actual_amount: outcome.actualAmount,
-        contracted_amount: outcome.contractedAmount,
-        status: "completed",
-      })
-      .eq("id", id)
-      .eq("couple_id", profile.couple_id)
-      .select("id, status, amount, contracted_amount, actual_amount")
-      .single();
-
-    if (updateError || !updatedBooking) {
-      console.error("Booking outcome update error:", updateError);
-      return NextResponse.json({ error: "예약 결과 저장에 실패했습니다." }, { status: 500 });
+    // Updating actual_amount fires the projection outbox trigger in the same
+    // database transaction as the canonical booking mutation. This immediate
+    // attempt is only a latency optimization; cron can safely retry the
+    // durable generation if this request ends here.
+    let projection: BookingProjectionDeliveryResult;
+    try {
+      projection = await processBookingProjectionJob(admin, { bookingId: id }) ?? {
+        bookingId: id,
+        desiredState: "active",
+        status: "pending_retry",
+        retryable: true,
+        attemptCount: 0,
+        errorCode: "PROJECTION_NOT_CLAIMED",
+      };
+    } catch (projectionError) {
+      console.error(
+        "[booking outcome] projection processing failed; durable retry remains queued:",
+        projectionError,
+      );
+      projection = {
+        bookingId: id,
+        desiredState: "active",
+        status: "pending_retry",
+        retryable: true,
+        attemptCount: 0,
+        errorCode: "PROJECTION_PROCESS_FAILED",
+      };
+    }
+    if (projection.status !== "completed") {
+      console.error("[booking outcome] budget projection is not complete:", {
+        bookingId: id,
+        status: projection.status,
+        errorCode: projection.errorCode,
+      });
     }
 
-    const review = await upsertVendorReview({ admin, booking, userId: user.id, outcome });
+    const baselineAmount = atomicOutcome.baselineAmount;
+    const extraAmount = atomicOutcome.extraAmount;
 
-    const budgetSync = await syncBookingProgressAfterOutcome(admin, {
-      coupleId: profile.couple_id,
-      booking: {
-        id: booking.id,
-        amount: numberOrNull(booking.amount),
-        previousActualAmount: numberOrNull(booking.actual_amount),
-        actualAmount: outcome.actualAmount,
-      },
-      vendor: {
-        id: booking.vendor_id,
-        name: booking.vendor?.name ?? "업체",
-        category: booking.vendor?.category ?? null,
-      },
-    });
-    if (!budgetSync.persisted) {
-      console.error("[booking outcome] budget sync failed:", budgetSync.error);
-    }
-
-    const baselineAmount =
-      outcome.contractedAmount ??
-      numberOrNull(booking.contracted_amount) ??
-      numberOrNull(booking.amount) ??
-      0;
-    const extraAmount = Math.max(0, outcome.actualAmount - baselineAmount);
-
-    void recordDecision({
-      coupleId: profile.couple_id,
-      userId: user.id,
-      category: booking.vendor?.category ?? "vendor",
-      title: `완료: ${booking.vendor?.name ?? "업체"}`,
-      chosenValue: {
-        booking_id: booking.id,
-        vendor_id: booking.vendor_id,
-        vendor_name: booking.vendor?.name ?? null,
-        product_id: booking.product_id,
-        product_name: booking.product?.name ?? null,
-        quoted_amount: numberOrNull(booking.amount),
-        contracted_amount: outcome.contractedAmount,
-        actual_amount: outcome.actualAmount,
-        extra_amount: extraAmount,
-        rating: outcome.rating,
-        public_review: outcome.sharePublicReview,
-      },
-      decisionType: "completed",
-      source: "vendor_booking",
-      sourceRefId: booking.id,
-      reasoning: outcome.review,
-      confidence: 0.9,
-      metadata: {
-        hook: "booking_outcome",
-        review_id: (review as { id?: string } | null)?.id ?? null,
-        extra_amount: extraAmount,
-      },
-      dedupeKey: {
-        sourceRefId: booking.id,
-        source: "vendor_booking",
-        decisionType: "completed",
-      },
-    });
+    const createSync = projection.sync && "scheduleAdded" in projection.sync
+      ? projection.sync
+      : null;
+    const fullyApplied = projection.status === "completed";
+    const message = fullyApplied
+      ? "예약 결과가 저장되었고 예산에도 반영되었습니다."
+      : projection.status === "pending_retry"
+        ? "예약 결과는 저장되었지만 예산 반영이 지연되고 있습니다. 자동 재시도하므로 결과를 다시 입력할 필요는 없습니다."
+        : "예약 결과는 저장되었지만 예산 자동 반영이 재시도 한도를 넘었습니다. 결과를 다시 입력하지 말고 고객지원에 알려주세요.";
 
     return NextResponse.json({
-      booking: updatedBooking,
-      review,
+      outcomeAccepted: true,
+      fullyApplied,
+      booking: {
+        id: atomicOutcome.booking.id,
+        status: atomicOutcome.booking.status,
+        amount: atomicOutcome.booking.amount,
+        contracted_amount: atomicOutcome.booking.contractedAmount,
+        actual_amount: atomicOutcome.booking.actualAmount,
+      },
+      review: {
+        id: atomicOutcome.review.id,
+        rating: atomicOutcome.review.rating,
+        content: atomicOutcome.review.content,
+        is_visible: atomicOutcome.review.isVisible,
+      },
       outcome: {
         extraAmount,
         baselineAmount,
         budgetSync: {
-          persisted: budgetSync.persisted,
-          budgetUpdated: budgetSync.budgetUpdated,
-          budgetDelta: budgetSync.budgetDelta,
-          categoryKey: budgetSync.syncedCategoryKey,
-          categorySpent: budgetSync.syncedNewSpent,
+          persisted: fullyApplied,
+          budgetUpdated: createSync?.budgetUpdated ?? false,
+          budgetDelta: createSync?.budgetDelta ?? null,
+          categoryKey: createSync?.syncedCategoryKey ?? null,
+          categorySpent: createSync?.syncedNewSpent ?? null,
         },
       },
-      message: "예약 결과가 저장되었습니다.",
-    });
+      projection: {
+        status: projection.status,
+        retryable: projection.retryable,
+        attemptCount: projection.attemptCount,
+        retryAfterSeconds: projection.retryAfterSeconds,
+        errorCode: projection.errorCode,
+      },
+      message,
+    }, { status: fullyApplied ? 200 : 202 });
   } catch (err) {
     console.error("Booking outcome error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

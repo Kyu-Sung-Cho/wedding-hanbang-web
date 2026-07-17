@@ -1,0 +1,202 @@
+import { describe, expect, it } from "vitest";
+import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import {
+  AMORA_TOOL_POLICY_NAMES,
+  selectAmoraPendingProposalTools,
+  selectAmoraTools,
+} from "@/lib/ai/amoraToolPolicy";
+
+function names(userText: string, specialistType: Parameters<typeof selectAmoraTools>[0]["specialistType"] = "general") {
+  return selectAmoraTools({
+    availableTools: BETA_SAFE_TOOLS,
+    userText,
+    specialistType,
+  }).map((tool) => tool.name);
+}
+
+describe("selectAmoraTools", () => {
+  it("keeps every configured policy name inside the beta-safe registry", () => {
+    const safeNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
+    expect([...AMORA_TOOL_POLICY_NAMES].filter((name) => !safeNames.has(name))).toEqual([]);
+  });
+
+  it("keeps a small stable read-only baseline for general conversation", () => {
+    const selected = names("요즘 준비가 막막해");
+    expect(selected).toEqual([
+      "get_budget_summary",
+      "get_schedule_summary",
+      "get_wedding_info",
+      "get_amora_actions",
+      "get_my_bookings",
+    ]);
+    expect(selected.length).toBeLessThan(BETA_SAFE_TOOLS.length);
+  });
+
+  it("adds budget reads without mutations for an informational question", () => {
+    const selected = names("스드메 견적 시세가 적당한지 알려줘", "budget_optimizer");
+    expect(selected).toEqual(expect.arrayContaining([
+      "get_budget_summary",
+      "get_market_price",
+      "simulate_guest_guarantee",
+      "search_vendors",
+    ]));
+    expect(selected).not.toContain("update_budget");
+    expect(selected).not.toContain("apply_budget_plan");
+  });
+
+  it("unlocks only matching mutations when write intent is explicit", () => {
+    const selected = names("총 예산을 4천만원으로 변경해줘", "budget_optimizer");
+    expect(selected).toContain("update_budget");
+    expect(selected).not.toContain("update_category_budget");
+    expect(selected).not.toContain("apply_budget_plan");
+    expect(selected).not.toContain("add_custom_category");
+    expect(selected).not.toContain("add_schedule_event");
+    expect(selected).not.toContain("update_venue");
+  });
+
+  it.each([
+    ["예산은 3천만 원이야", "update_budget"],
+    ["드레스 예산은 250만 원이야", "update_category_budget"],
+    ["드레스에 250만 원 썼어", "update_category_budget"],
+    ["내년 5월 5일에 결혼해", "update_wedding_date"],
+    ["토요일에 상견례야", "add_schedule_event"],
+    ["예식장 계약했어", "update_task_status"],
+  ])("treats a concrete first-person declaration as an executable %s intent", (text, toolName) => {
+    expect(names(text)).toContain(toolName);
+  });
+
+  it.each([
+    "친구는 예산이 3천만 원이래",
+    "예산을 3천만 원으로 하면 어떨까?",
+    "토요일에 상견례를 하면 좋을까?",
+    "내년 5월 5일 결혼식은 어때?",
+  ])("does not turn third-party or hypothetical language into a mutation: %s", (text) => {
+    const selected = names(text);
+    expect(selected).not.toContain("update_budget");
+    expect(selected).not.toContain("update_wedding_date");
+    expect(selected).not.toContain("add_schedule_event");
+    expect(selected).not.toContain("update_task_status");
+  });
+
+  it("does not treat read-oriented check or help wording as mutation consent", () => {
+    for (const text of [
+      "내 예산 체크해줘",
+      "드레스 견적 비교해줘",
+      "일정 좀 정리해줘",
+      "체크리스트 보여줘",
+    ]) {
+      const selected = names(text, "general");
+      expect(selected).not.toContain("update_budget");
+      expect(selected).not.toContain("update_category_budget");
+      expect(selected).not.toContain("add_schedule_event");
+      expect(selected).not.toContain("toggle_checklist_item");
+    }
+  });
+
+  it("exposes only the requested budget mutation family", () => {
+    expect(names("드레스 예산을 250만원으로 변경해줘")).toContain("update_category_budget");
+    expect(names("드레스 예산을 250만원으로 변경해줘")).not.toContain("update_budget");
+
+    expect(names("이 예산 배분 계획을 그대로 적용해줘")).toContain("apply_budget_plan");
+    expect(names("이 예산 배분 계획을 그대로 적용해줘")).not.toContain("update_budget");
+
+    expect(names("포토부스 예산 카테고리를 추가해줘")).toContain("add_custom_category");
+    expect(names("포토부스 예산 카테고리를 추가해줘")).not.toContain("apply_budget_plan");
+  });
+
+  it("routes document review to contract tools without destructive booking tools", () => {
+    const selected = selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "이 파일 검토해줘",
+      specialistType: "general",
+      attachmentKind: "document",
+    }).map((tool) => tool.name);
+    expect(selected).toEqual(expect.arrayContaining([
+      "analyze_contract_readiness",
+      "analyze_quote",
+      "get_market_price",
+    ]));
+    expect(selected).not.toContain("create_booking");
+    expect(selected).not.toContain("cancel_booking");
+    expect(selected).not.toContain("delete_schedule_event");
+  });
+
+  it("scopes pending proposals to the current domain instead of exposing every mutation", () => {
+    const budget = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "예산을 어떻게 나누면 좋을까?",
+      specialistType: "budget_optimizer",
+    }).map((tool) => tool.name);
+    expect(budget).toEqual(expect.arrayContaining([
+      "update_budget",
+      "update_category_budget",
+      "apply_budget_plan",
+    ]));
+    expect(budget).not.toContain("add_schedule_event");
+    expect(budget).not.toContain("update_venue");
+
+    const general = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "요즘 준비가 막막해",
+      specialistType: "general",
+    });
+    expect(general).toEqual([]);
+  });
+
+  it("does not authorize a mutation from assistant prose and a generic approval", () => {
+    const selected = selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "응, 그렇게 해줘",
+      specialistType: "general",
+      routingContext: [{
+        role: "assistant",
+        content: "총 예산을 4천만원으로 변경해드릴까요?",
+      }],
+    }).map((tool) => tool.name);
+
+    expect(selected).not.toContain("update_budget");
+    expect(selected).not.toContain("add_schedule_event");
+  });
+
+  it("does not turn a generic approval into a write from unrelated context", () => {
+    const selected = selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "응, 해줘",
+      specialistType: "general",
+      routingContext: [{
+        role: "assistant",
+        content: "현재 예산은 4천만원이고 다음 일정은 드레스 투어예요.",
+      }],
+    }).map((tool) => tool.name);
+
+    expect(selected).not.toContain("update_budget");
+    expect(selected).not.toContain("add_schedule_event");
+    expect(selected).not.toContain("update_venue");
+  });
+
+  it("does not let a specialist read hint authorize a generic write", () => {
+    const selected = selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "응, 해줘",
+      specialistType: "budget_optimizer",
+    }).map((tool) => tool.name);
+
+    expect(selected).toContain("get_budget_summary");
+    expect(selected).not.toContain("update_budget");
+    expect(selected).not.toContain("apply_budget_plan");
+  });
+
+  it("does not inherit an old proposal when it is not the immediate previous turn", () => {
+    const selected = selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "응, 그렇게 해줘",
+      specialistType: "general",
+      routingContext: [
+        { role: "assistant", content: "예산을 4천만원으로 바꿔드릴까요?" },
+        { role: "user", content: "그런데 오늘 날씨는 어때?" },
+      ],
+    }).map((tool) => tool.name);
+
+    expect(selected).not.toContain("update_budget");
+  });
+});

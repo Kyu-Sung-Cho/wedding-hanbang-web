@@ -1,5 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
@@ -79,16 +79,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "coupleId가 필요합니다." }, { status: 400 });
       }
 
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (!supabaseUrl || !serviceRoleKey) {
-        return NextResponse.json(
-          { error: "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요." },
-          { status: 503 }
-        );
-      }
-
-      const admin = createAdminClient(supabaseUrl, serviceRoleKey);
+      const admin = createAdminClient();
       const { data: me, error: profileError } = await admin
         .from("profiles")
         .select("id, couple_id, role")

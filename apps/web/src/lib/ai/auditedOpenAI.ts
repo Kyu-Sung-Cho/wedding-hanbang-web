@@ -16,9 +16,11 @@ import {
   getOpenAIClient,
   normalizeOpenAIProviderError,
   normalizeResponseUsage,
+  OpenAIInputTokenLimitError,
   OpenAIProviderError,
   OpenAIRefusalError,
   type NormalizedOpenAIUsage,
+  type OpenAIRequestStage,
   type OpenAIUsageStatus,
 } from "@/lib/ai/openai";
 import { createSafetyIdentifier } from "@/lib/ai/safetyIdentifier";
@@ -41,6 +43,7 @@ export interface AuditedOpenAIResponse {
   usageStatus: OpenAIUsageStatus;
   requestId?: string | null;
   responseId?: string | null;
+  inputCountRequestId?: string | null;
 }
 
 export interface AuditedOpenAIStructuredResponse<T> extends AuditedOpenAIResponse {
@@ -61,12 +64,21 @@ interface BaseAuditOptions {
   modelRole: AmoraModelRole;
   instructions: string;
   input: string | ResponseInput;
+  maxInputTokens: number;
   maxOutputTokens: number;
   audit: AuditBase;
   client?: OpenAI;
   startedAt?: number;
   signal?: AbortSignal;
   safetyIdentifierScope?: string;
+  /** Required atomic paid-call gate; no audited caller may opt out. */
+  beforeGeneration: () => void | Promise<void>;
+  /**
+   * A durable provider receipt may own the only cost/audit row. The default
+   * remains this wrapper's internal audit so unwrapped callers cannot silently
+   * lose accounting.
+   */
+  auditPersistence?: "internal" | "external_provider_receipt";
 }
 
 interface InternalAuditOptions<T> extends BaseAuditOptions {
@@ -92,7 +104,9 @@ function buildAuditMetadata(options: {
   structuredOutputName?: string;
   requestId?: string | null;
   responseId?: string | null;
+  inputCountRequestId?: string | null;
   usageStatus?: OpenAIUsageStatus;
+  requestStage?: OpenAIRequestStage | null;
   providerAttempted: boolean;
 }): Record<string, unknown> {
   const modelConfig = getAmoraModelConfig(options.modelRole);
@@ -104,13 +118,34 @@ function buildAuditMetadata(options: {
     audit_wrapper: options.auditWrapper,
     provider_request_id: options.requestId ?? null,
     provider_response_id: options.responseId ?? null,
+    input_count_request_id: options.inputCountRequestId ?? null,
+    provider_request_stage: options.requestStage ?? null,
     usage_status: options.usageStatus ?? "unknown",
-    unknown_paid_attempt: options.usageStatus === "unknown",
+    unknown_paid_attempt:
+      options.providerAttempted && options.usageStatus === "unknown",
     provider_attempted: options.providerAttempted,
     ...(options.structuredOutputName
       ? { structured_output: true, schema_name: options.structuredOutputName }
       : {}),
   };
+}
+
+function markInputCountFailure(
+  error: unknown,
+  context: { model: string; requestId?: string | null },
+): OpenAIProviderError {
+  const normalized = normalizeOpenAIProviderError(error, context);
+  if (normalized.requestStage) return normalized;
+  return new OpenAIProviderError(normalized.message, {
+    category: normalized.category,
+    model: normalized.model ?? context.model,
+    usage: normalized.usage,
+    usageStatus: normalized.usageStatus,
+    requestId: normalized.requestId,
+    responseId: normalized.responseId,
+    providerCode: normalized.providerCode,
+    requestStage: "input_count",
+  });
 }
 
 async function writeAudit(options: {
@@ -146,6 +181,10 @@ async function createOpenAIResponseWithAuditInternal<T>(
   options: InternalAuditOptions<T>
 ): Promise<AuditedOpenAIResponse & { data?: T }> {
   const startedAt = options.startedAt ?? startLatencyClock();
+  const writeOwnedAudit: typeof writeAudit =
+    options.auditPersistence === "external_provider_receipt"
+      ? async (): Promise<void> => undefined
+      : writeAudit;
   const modelConfig = getAmoraModelConfig(options.modelRole);
   const safetyIdentifier = createSafetyIdentifier(
     options.safetyIdentifierScope ??
@@ -154,13 +193,18 @@ async function createOpenAIResponseWithAuditInternal<T>(
       options.audit.sessionId
   );
   let requestId: string | null | undefined;
+  let inputCountRequestId: string | null | undefined;
   let response: OpenAIResponse | undefined;
   let providerAttempted = false;
+  let beforeGenerationFailed = false;
 
   try {
     // 주입된 클라이언트도 운영 kill switch를 우회하지 못한다.
     assertOpenAIProviderEnabled();
     assertAmoraOutputTokenLimit(options.maxOutputTokens);
+    if (!Number.isSafeInteger(options.maxInputTokens) || options.maxInputTokens < 1) {
+      throw new Error("[ai-config] maxInputTokens must be a positive integer");
+    }
     assertNoPromptCacheBreakpoints(options.input);
     options.signal?.throwIfAborted();
     const client = options.client ?? getOpenAIClient();
@@ -179,6 +223,55 @@ async function createOpenAIResponseWithAuditInternal<T>(
       prompt_cache_options: { mode: "explicit" },
       store: false,
     };
+
+    try {
+      const countPromise = client.responses.inputTokens.count(
+        {
+          model: request.model,
+          instructions: request.instructions,
+          input: request.input,
+          reasoning: request.reasoning,
+          text: request.text,
+        },
+        options.signal ? { signal: options.signal } : undefined,
+      );
+      const counted = await countPromise.withResponse();
+      inputCountRequestId = counted.request_id;
+      if (
+        !Number.isSafeInteger(counted.data.input_tokens)
+        || counted.data.input_tokens < 0
+      ) {
+        throw new OpenAIProviderError("[openai] invalid input token count", {
+          category: "response_invalid",
+          model: modelConfig.model,
+          requestId: counted.request_id,
+          providerCode: "invalid_input_token_count",
+          requestStage: "input_count",
+          usageStatus: "complete",
+        });
+      }
+      if (counted.data.input_tokens > options.maxInputTokens) {
+        throw new OpenAIInputTokenLimitError(
+          counted.data.input_tokens,
+          options.maxInputTokens,
+          { requestId: counted.request_id },
+        );
+      }
+    } catch (error) {
+      throw markInputCountFailure(error, {
+        model: modelConfig.model,
+        requestId: inputCountRequestId,
+      });
+    }
+
+    options.signal?.throwIfAborted();
+    try {
+      await options.beforeGeneration();
+    } catch (error) {
+      beforeGenerationFailed = true;
+      throw error;
+    }
+    options.signal?.throwIfAborted();
     providerAttempted = true;
     const apiPromise = client.responses.create(
       request,
@@ -217,11 +310,13 @@ async function createOpenAIResponseWithAuditInternal<T>(
       requestId,
       responseId: response?.id,
     });
-    await writeAudit({
+    await writeOwnedAudit({
       audit: options.audit,
       startedAt,
       success: false,
-      errorMessage: `openai_${normalized.category}`,
+      errorMessage: beforeGenerationFailed
+        ? "pre_generation_gate_failed"
+        : `openai_${normalized.category}`,
       model: normalized.model ?? modelConfig.model,
       usage: normalized.usage,
       metadata: buildAuditMetadata({
@@ -229,12 +324,21 @@ async function createOpenAIResponseWithAuditInternal<T>(
         auditWrapper: options.auditWrapper,
         metadata: options.audit.metadata,
         structuredOutputName: options.textFormat?.name,
-        requestId: normalized.requestId,
+        requestId:
+          normalized.requestStage === "input_count"
+            ? null
+            : normalized.requestId,
         responseId: normalized.responseId,
-        usageStatus: normalized.usageStatus,
+        inputCountRequestId:
+          normalized.requestStage === "input_count"
+            ? normalized.requestId
+            : inputCountRequestId,
+        usageStatus: providerAttempted ? normalized.usageStatus : "complete",
+        requestStage: normalized.requestStage,
         providerAttempted,
       }),
     });
+    if (beforeGenerationFailed) throw error;
     throw normalized;
   }
 
@@ -249,7 +353,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
       responseId: response.id,
       providerCode: "empty_response",
     });
-    await writeAudit({
+    await writeOwnedAudit({
       audit: options.audit,
       startedAt,
       success: false,
@@ -263,7 +367,9 @@ async function createOpenAIResponseWithAuditInternal<T>(
         structuredOutputName: options.textFormat?.name,
         requestId,
         responseId: response.id,
+        inputCountRequestId,
         usageStatus: usage ? "complete" : "unknown",
+        requestStage: "generation",
         providerAttempted,
       }),
     });
@@ -275,7 +381,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
     try {
       data = options.parseOutput(text);
     } catch (error) {
-      await writeAudit({
+      await writeOwnedAudit({
         audit: options.audit,
         startedAt,
         success: false,
@@ -289,7 +395,9 @@ async function createOpenAIResponseWithAuditInternal<T>(
           structuredOutputName: options.textFormat?.name,
           requestId,
           responseId: response.id,
+          inputCountRequestId,
           usageStatus: usage ? "complete" : "unknown",
+          requestStage: "generation",
           providerAttempted,
         }),
       });
@@ -298,7 +406,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
   }
 
   const usageStatus: OpenAIUsageStatus = usage ? "complete" : "unknown";
-  await writeAudit({
+  await writeOwnedAudit({
     audit: options.audit,
     startedAt,
     success: true,
@@ -312,7 +420,9 @@ async function createOpenAIResponseWithAuditInternal<T>(
       structuredOutputName: options.textFormat?.name,
       requestId,
       responseId: response.id,
+      inputCountRequestId,
       usageStatus,
+      requestStage: "generation",
       providerAttempted,
     }),
   });
@@ -324,6 +434,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
     usageStatus,
     requestId,
     responseId: response.id,
+    inputCountRequestId,
     ...(options.parseOutput ? { data } : {}),
   };
 }

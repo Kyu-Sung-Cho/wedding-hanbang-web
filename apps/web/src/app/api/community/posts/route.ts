@@ -1,5 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
@@ -45,10 +45,7 @@ async function generateAiPriceComment(priceData: PriceData): Promise<AiComment |
 }
 
 function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 function cleanOptionalText(value: unknown, maxLength: number): string | undefined {
@@ -59,7 +56,7 @@ function cleanOptionalText(value: unknown, maxLength: number): string | undefine
 
 function invalidCommunityMediaResponse() {
   return NextResponse.json(
-    { error: "커뮤니티 업로드로 등록된 이미지와 영상만 첨부할 수 있습니다." },
+    { error: "커뮤니티 업로드로 등록된 이미지만 첨부할 수 있습니다." },
     { status: 400 }
   );
 }
@@ -440,16 +437,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 카드 게시물(인스타 캐러셀) 슬라이드 검증.
-    // 최대 10장, 각 슬라이드는 { type: 'image'|'video', url: https:// } 필수.
+    // 최대 10장, 신규 슬라이드는 검증이 끝난 이미지 URL만 허용한다.
     // 잘못된 형식은 자동으로 제거. 결과 배열이 비면 null로 저장 (일반 글로 처리).
     let slides: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> | null = null;
     if (Array.isArray(rawSlides) && rawSlides.length > 0) {
       const cleaned: Array<{ type: "image" | "video"; url: string; width?: number; height?: number; thumbnail_url?: string }> = [];
       for (const s of rawSlides.slice(0, 10)) {
-        const type: "image" | "video" = s?.type === "video" ? "video" : "image";
+        if (s?.type === "video") return invalidCommunityMediaResponse();
+        const type = "image" as const;
         const mediaResult = validateCommunityMediaUrl(s?.url, {
           kind: type,
           ownerIds: user.id,
+          requireUploadSessionPath: true,
         });
         if (!mediaResult.ok) return invalidCommunityMediaResponse();
 
@@ -463,6 +462,7 @@ export async function POST(req: NextRequest) {
           const thumbnailResult = validateCommunityMediaUrl(s.thumbnail_url, {
             kind: "image",
             ownerIds: user.id,
+            requireUploadSessionPath: true,
           });
           if (!thumbnailResult.ok) return invalidCommunityMediaResponse();
           out.thumbnail_url = thumbnailResult.url;
@@ -501,6 +501,7 @@ export async function POST(req: NextRequest) {
           const imageResult = validateCommunityMediaUrl(option.image_url, {
             kind: "image",
             ownerIds: user.id,
+            requireUploadSessionPath: true,
           });
           if (!imageResult.ok) return invalidCommunityMediaResponse();
           imageUrl = imageResult.url;

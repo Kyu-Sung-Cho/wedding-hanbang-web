@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
-import { CATEGORY_ETIQUETTE_MAP, ETIQUETTE_PARTS } from "@/constants/etiquetteData";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -216,35 +215,19 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             </p>
           </div>
 
-          {/* 관련 예절 가이드 */}
-          {(() => {
-            const partNums = CATEGORY_ETIQUETTE_MAP[categoryKey] ?? [];
-            if (partNums.length === 0) return null;
-            return (
-              <div className="mt-3 flex flex-col gap-1.5">
-                {partNums.map((num) => {
-                  const part = ETIQUETTE_PARTS.find((p) => p.number === num);
-                  if (!part) return null;
-                  return (
-                    <Link
-                      key={num}
-                      {...weddingLinkProps(`/etiquette?part=${num}`)}
-                      className="flex items-center gap-2.5 px-3 py-3 rounded-xl bg-[#F6F3F2] hover:bg-[#795252]/5 transition-colors group"
-                    >
-                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${part.color} flex items-center justify-center flex-shrink-0`}>
-                        <BookOpen className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-serif-kr text-base font-normal text-[#1A1A1F] truncate">{part.title}</p>
-                        <p className="text-sm text-[#B5ADA3]">예절 가이드 보기</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-[#B5ADA3] group-hover:text-[#795252] transition-colors flex-shrink-0" />
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          <Link
+            {...weddingLinkProps("/etiquette")}
+            className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+              <BookOpen className="h-4 w-4 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-serif-kr truncate text-base font-normal text-[#1A1A1F]">가족 조율 원칙</p>
+              <p className="text-sm text-[#B5ADA3]">가족·문화마다 다른 준비 기준 보기</p>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#795252]" />
+          </Link>
         </div>
       </div>
     </>

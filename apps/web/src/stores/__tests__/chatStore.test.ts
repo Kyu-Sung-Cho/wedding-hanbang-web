@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatStore } from "../chatStore";
 import type { WeddingContext } from "@/types/chat.types";
 import { useAuthStore } from "../authStore";
+import { captureEvent } from "@/lib/analytics";
 
 const mockFetch = vi.fn();
 const mockInsertSingle = vi.fn();
+const mockStorageUpload = vi.fn();
 
 const mockSupabase = {
+  storage: {
+    from: vi.fn(() => ({ upload: mockStorageUpload })),
+  },
   from: vi.fn(() => ({
     insert: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -15,6 +20,23 @@ const mockSupabase = {
     })),
   })),
 };
+
+function completedChatResponse(content = "완료된 답변") {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(
+        `data: ${JSON.stringify({
+          type: "done",
+          fullContent: content,
+          metadata: { serverMessageId: "ai-message-retry-1" },
+        })}\n\n`
+      ));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => mockSupabase,
@@ -78,6 +100,83 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBeNull();
+  });
+
+  it("consumes CRLF SSE frames split across network chunks and keeps quota metadata", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode("da"));
+        controller.enqueue(encoder.encode('ta: {"type":"quota","remaining":7}\r'));
+        controller.enqueue(encoder.encode("\n\r\n"));
+        controller.enqueue(encoder.encode('data: {"type":"text_delta","content":"안녕"}\r\n\r'));
+        controller.enqueue(encoder.encode("\n"));
+        controller.enqueue(encoder.encode(
+          'data: {"type":"quota","remaining":-1}\r\n\r\n',
+        ));
+        controller.enqueue(encoder.encode(
+          'data: {"type":"done","fullContent":"안녕하세요","metadata":{}}\r\n\r\n',
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().sendMessage({
+      content: "안녕",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스트",
+      weddingContext: {} as WeddingContext,
+    });
+
+    expect(useChatStore.getState().quotaRemaining).toBe(7);
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sender_role: "ai", content: "안녕하세요" }),
+    ]));
+    expect(useChatStore.getState().error).toBeNull();
+  });
+
+  it("clears a partial draft immediately when the stream reports an error", async () => {
+    const encoder = new TextEncoder();
+    let streamController!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    const sendPromise = useChatStore.getState().sendMessage({
+      content: "질문",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스트",
+      weddingContext: {} as WeddingContext,
+    });
+
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    streamController.enqueue(encoder.encode(
+      'data: {"type":"text_delta","content":"확정되지 않은 초안"}\n\n',
+    ));
+    await vi.waitFor(() => {
+      expect(useChatStore.getState().streamingContent).toBe("확정되지 않은 초안");
+    });
+
+    streamController.enqueue(encoder.encode(
+      'data: {"type":"error","message":"답변을 만들지 못했어요."}\n\n',
+    ));
+    await vi.waitFor(() => {
+      expect(useChatStore.getState().error).toBe("답변을 만들지 못했어요.");
+    });
+    expect(useChatStore.getState().streamingContent).toBe("");
+
+    await sendPromise;
+    expect(useChatStore.getState().messages.some((message) =>
+      message.sender_role === "ai" && message.content.includes("초안")
+    )).toBe(false);
   });
 });
 
@@ -265,5 +364,447 @@ describe("useChatStore progress synchronization", () => {
 
     expect(useAuthStore.getState().journey?.total_budget).toBe(40_000_000);
     expect(mockFetch).toHaveBeenCalledWith("/api/auth/me", { cache: "no-store" });
+  });
+});
+
+describe("useChatStore failed provider retry", () => {
+  const insertedMessage = {
+    id: "user-message-1",
+    couple_id: "couple-1",
+    sender_id: "user-1",
+    sender_type: "bride",
+    role: "user",
+    content: "계약서를 봐줘",
+    metadata: null,
+    visibility: "bride_private",
+    created_at: "2026-07-17T00:00:00.000Z",
+  };
+
+  beforeEach(() => {
+    useChatStore.getState().reset();
+    mockFetch.mockReset();
+    mockInsertSingle.mockReset();
+    mockStorageUpload.mockReset();
+    mockSupabase.from.mockClear();
+    mockSupabase.storage.from.mockClear();
+    vi.mocked(captureEvent).mockClear();
+    mockInsertSingle.mockResolvedValue({ data: insertedMessage, error: null });
+    vi.stubGlobal("fetch", mockFetch);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    document.cookie = "demo_mode=; Max-Age=0; path=/";
+  });
+
+  it("admits only one persistence and provider request on an immediate double tap", async () => {
+    let releaseInsert!: (value: unknown) => void;
+    mockInsertSingle.mockImplementation(() => new Promise((resolve) => {
+      releaseInsert = resolve;
+    }));
+    mockFetch.mockResolvedValue(completedChatResponse());
+    const params = {
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride" as const,
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "bride_private" as const,
+    };
+
+    const first = useChatStore.getState().sendMessage(params);
+    expect(useChatStore.getState().isSending).toBe(true);
+    const second = useChatStore.getState().sendMessage(params);
+
+    await vi.waitFor(() => expect(mockInsertSingle).toHaveBeenCalledTimes(1));
+    releaseInsert({ data: insertedMessage, error: null });
+    await Promise.all([first, second]);
+
+    expect(mockInsertSingle).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(captureEvent).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().isSending).toBe(false);
+  });
+
+  it("rejects an oversized image before analytics, upload, message persistence, or provider work", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "이 이미지를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "a".repeat(3 * 1024 * 1024 + 4),
+        mediaType: "image/png",
+        previewUrl: "blob:image",
+        fileName: "large.png",
+      }],
+    });
+
+    expect(useChatStore.getState().error).toMatch(/첨부.*(크기|MB).*다시/);
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockInsertSingle).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("retries only the provider request with the exact original body and durable ids", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: { weddingDate: null, budget: 0, venue: null, progress: {} },
+      visibility: "bride_private",
+    });
+
+    const failed = useChatStore.getState().failedRequest;
+    expect(failed).toEqual(expect.objectContaining({
+      userMessageId: "user-message-1",
+      content: "계약서를 봐줘",
+      visibility: "bride_private",
+      canRetry: true,
+    }));
+    const firstBody = (mockFetch.mock.calls[0][1] as RequestInit).body;
+    const firstPayload = JSON.parse(String(firstBody));
+    expect(firstPayload).toEqual(expect.objectContaining({
+      clientRequestId: failed?.clientRequestId,
+      userMessageId: "user-message-1",
+      visibility: "bride_private",
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+
+    expect(mockInsertSingle).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "ai-message-retry-1", content: "완료된 답변" }),
+    ]));
+  });
+
+  it("keeps the exact explicit action confirmation id in the provider retry snapshot", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: "좋아요. 이 변경을 적용해 주세요.",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      confirmedActionId: "22222222-2222-4222-8222-222222222222",
+    });
+
+    const failed = useChatStore.getState().failedRequest;
+    expect(failed).toEqual(expect.objectContaining({
+      confirmedActionId: "22222222-2222-4222-8222-222222222222",
+    }));
+    const firstBody = (mockFetch.mock.calls[0][1] as RequestInit).body;
+    expect(JSON.parse(String(firstBody))).toEqual(expect.objectContaining({
+      confirmedActionId: "22222222-2222-4222-8222-222222222222",
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+
+    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+    expect(JSON.parse(String((mockFetch.mock.calls[1][1] as RequestInit).body))).toEqual(
+      expect.objectContaining({ confirmedActionId: "22222222-2222-4222-8222-222222222222" }),
+    );
+  });
+
+  it("rejects a malformed or private action confirmation before any durable side effect", async () => {
+    const base = {
+      content: "좋아요. 제안한 변경을 적용해 주세요.",
+      senderId: "user-1",
+      senderRole: "bride" as const,
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "ai" as const,
+    };
+
+    await useChatStore.getState().sendMessage({
+      ...base,
+      visibility: "shared",
+      confirmedActionId: "not-a-uuid",
+    });
+    await useChatStore.getState().sendMessage({
+      ...base,
+      visibility: "bride_private",
+      confirmedActionId: "22222222-2222-4222-8222-222222222222",
+    });
+
+    expect(useChatStore.getState().error).toContain("확인");
+    expect(mockInsertSingle).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(captureEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not offer an identical retry or retain payload bytes for a permanent 422", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({
+      error: "안전하지 않은 Word 파일이에요. 파일을 다시 저장한 뒤 첨부해주세요.",
+      code: "UNSAFE_DOCX_ARCHIVE",
+    }), {
+      status: 422,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    expect(useChatStore.getState().error).toContain("안전하지 않은 Word 파일");
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      attachmentCount: 0,
+      requestBody: "",
+      unavailableReason: expect.stringContaining("새 메시지"),
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a duplicate retry while the first retry is in flight", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    let releaseRetry!: (response: Response) => void;
+    mockFetch.mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      releaseRetry = resolve;
+    }));
+
+    const firstRetry = useChatStore.getState().retryFailedMessage();
+    const duplicateRetry = useChatStore.getState().retryFailedMessage();
+    await duplicateRetry;
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(useChatStore.getState().isRetrying).toBe(true);
+
+    releaseRetry(completedChatResponse());
+    await firstRetry;
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains a safe attachment as an immutable provider payload copy", async () => {
+    document.cookie = "demo_mode=true; path=/";
+    mockFetch
+      .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
+      .mockResolvedValueOnce(completedChatResponse("첨부 답변"));
+
+    await useChatStore.getState().sendMessage({
+      content: "이 파일을 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "Y29udHJhY3Q=",
+        mediaType: "application/pdf",
+        previewUrl: "blob:must-not-be-retained",
+        fileName: "contract.pdf",
+      }],
+    });
+
+    const firstBody = String((mockFetch.mock.calls[0][1] as RequestInit).body);
+    expect(JSON.parse(firstBody).attachments).toEqual([{
+      base64: "Y29udHJhY3Q=",
+      mediaType: "application/pdf",
+      fileName: "contract.pdf",
+    }]);
+    expect(firstBody).not.toContain("blob:must-not-be-retained");
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      attachmentCount: 1,
+      canRetry: true,
+    }));
+
+    await useChatStore.getState().retryFailedMessage();
+
+    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+  });
+
+  it("clears the old retry state as soon as a new message is accepted", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+    expect(useChatStore.getState().failedRequest).not.toBeNull();
+
+    await useChatStore.getState().sendMessage({
+      content: "새 메시지",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      target: "partner",
+    });
+
+    expect(useChatStore.getState().failedRequest).toBeNull();
+  });
+
+  it("clears retry material on store reset/logout", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+    expect(useChatStore.getState().failedRequest).not.toBeNull();
+
+    useChatStore.getState().reset();
+
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().isRetrying).toBe(false);
+  });
+
+  it("does not restore retry material when an in-flight retry settles after logout", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    let releaseRetry!: (response: Response) => void;
+    mockFetch.mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      releaseRetry = resolve;
+    }));
+    const retry = useChatStore.getState().retryFailedMessage();
+    useChatStore.getState().reset();
+
+    releaseRetry(new Response("late failure", { status: 503 }));
+    await retry;
+
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().error).toBeNull();
+    expect(useChatStore.getState().isStreaming).toBe(false);
+  });
+
+  it("discards retained retry material when the user closes the retry notice", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("temporary failure", { status: 503 }));
+    await useChatStore.getState().sendMessage({
+      content: "계약서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    useChatStore.getState().dismissFailedMessageRetry();
+
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().error).toBeNull();
+  });
+
+  it("rejects an oversized PDF before any upload, message, or provider request", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "이 파일을 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "a".repeat(3 * 1024 * 1024 + 4),
+        mediaType: "application/pdf",
+        previewUrl: "",
+        fileName: "large.pdf",
+      }],
+    });
+
+    expect(useChatStore.getState().error).toMatch(/첨부.*(크기|MB).*다시/);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized DOCX before any upload, message, or provider request", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "이 문서를 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "a".repeat(3 * 1024 * 1024 + 4),
+        mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        previewUrl: "",
+        fileName: "large.docx",
+      }],
+    });
+
+    expect(useChatStore.getState().error).toMatch(/첨부.*(크기|MB).*다시/);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an attachment that cannot form a safe snapshot before every side effect", async () => {
+    await useChatStore.getState().sendMessage({
+      content: "이 파일을 봐줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      images: [{
+        base64: "not-valid-base64",
+        mediaType: "application/pdf",
+        previewUrl: "",
+        fileName: "broken.pdf",
+      }],
+    });
+
+    expect(useChatStore.getState().error).toMatch(/안전하게.*다시 첨부/);
+    expect(useChatStore.getState().failedRequest).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

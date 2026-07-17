@@ -17,6 +17,10 @@
 
 import { recordDecision } from "@/lib/memory/record-decision";
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import {
+  AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
+  blockLegacyAuxiliaryProviderGeneration,
+} from "@/lib/ai/amoraRequestPolicy";
 import type { StageTag, DecisionType } from "@/types/moat.types";
 
 const CONTEXT_WINDOW_MESSAGES = 6;
@@ -226,7 +230,9 @@ async function extractWithOpenAI(
   try {
     const response = await createOpenAIStructuredResponseWithAudit({
       modelRole: "fast",
+      maxInputTokens: AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL,
       maxOutputTokens: 500,
+      beforeGeneration: blockLegacyAuxiliaryProviderGeneration,
       instructions: EXTRACT_SYSTEM_PROMPT,
       input: conversation,
       responseFormat: {
@@ -238,7 +244,7 @@ async function extractWithOpenAI(
       audit: {
         userId: audit.userId ?? null,
         coupleId: audit.coupleId,
-        interactionType: "chat_turn",
+        interactionType: "amora_director",
         userInput: null,
         metadata: {
           endpoint: "chat/extract-decision",

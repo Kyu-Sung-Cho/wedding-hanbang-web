@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { verifySupabaseServiceDestination } from "../../../scripts/lib/supabase-service-destination.mjs";
 
 const previewUrl = process.env.AMORA_PREVIEW_SUPABASE_URL;
 const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
@@ -20,6 +21,18 @@ invariant(
   !isProduction || process.env.AMORA_PRODUCTION_SYNTHETIC_CONFIRM === productionConfirmation,
   `Production synthetic fixtures require AMORA_PRODUCTION_SYNTHETIC_CONFIRM=${productionConfirmation}.`
 );
+verifySupabaseServiceDestination({
+  url: previewUrl,
+  serviceRoleKey,
+  expectedUrl: `https://${expectedRef}.supabase.co`,
+  expectedProjectRef: expectedRef,
+  productionProjectRef: productionRef,
+  productionWriteConfirmation:
+    process.env.AMORA_PRODUCTION_SYNTHETIC_CONFIRM === productionConfirmation
+      ? `OPERATOR_WRITE:${productionRef}`
+      : undefined,
+  access: "operator-write",
+});
 
 const admin = createClient(previewUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -160,6 +173,21 @@ async function testPartnerRetentionAndConcurrency() {
   );
   invariant(joined?.success === true && joined?.couple_id === couple.couple_id, "partner join failed");
 
+  const durableUserMessage = expectSuccess(
+    "insert tool freshness user message",
+    await bride.client.from("chat_messages").insert({
+      couple_id: couple.couple_id,
+      sender_id: bride.id,
+      sender_type: "bride",
+      role: "user",
+      content: "Apply the synthetic release-gate budget change.",
+      metadata: {},
+      stage_tag: "planning_0",
+      visibility: "shared",
+    }).select("id").single()
+  );
+  invariant(durableUserMessage?.id, "tool freshness user message was not persisted");
+
   const clientRequestId = randomUUID();
   const requestKey = `chat:${bride.id}:${clientRequestId}`;
   const chatClaims = await Promise.all(Array.from({ length: 12 }, () => admin.rpc(
@@ -168,7 +196,8 @@ async function testPartnerRetentionAndConcurrency() {
       p_couple_id: couple.couple_id,
       p_request_key: requestKey,
       p_user_id: bride.id,
-      p_visibility: "bride_private",
+      p_visibility: "shared",
+      p_user_message_id: durableUserMessage.id,
     }
   )));
   const chatActions = chatClaims.map((result) => expectSuccess("parallel chat claim", result)?.action);
@@ -185,6 +214,7 @@ async function testPartnerRetentionAndConcurrency() {
       p_operation_key: operationKey,
       p_tool_name: "update_budget",
       p_input_digest: inputDigest,
+      p_request_attempt_count: 1,
     }
   )));
   const toolActions = toolClaims.map((result) => expectSuccess("parallel tool claim", result)?.action);
@@ -193,7 +223,13 @@ async function testPartnerRetentionAndConcurrency() {
 
   const reservations = await Promise.all(Array.from({ length: 10 }, () => admin.rpc(
     "reserve_amora_turn",
-    { p_couple_id: couple.couple_id, p_couple_cap: 3, p_global_cap: 1000000 }
+    {
+      p_couple_id: couple.couple_id,
+      p_couple_cap: 3,
+      p_global_cap: 1000000,
+      p_reserve_cost_microusd: 254400,
+      p_global_cost_cap_microusd: 1000000000,
+    }
   )));
   const reservationRows = reservations.flatMap((result) => expectSuccess("parallel cost reservation", result) ?? []);
   invariant(reservationRows.filter((row) => row.allowed === true).length === 3, "cost reservation exceeded or underused the couple cap");

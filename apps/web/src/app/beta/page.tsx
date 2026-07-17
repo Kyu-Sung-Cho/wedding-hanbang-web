@@ -9,20 +9,20 @@ export const revalidate = 60;
 
 export const metadata = {
   title: "베타 신청 · 웨딩한방",
-  description: "6주간 함께해 주실 50쌍을 찾습니다. 실거래가 · Contract Diff 무료 Premium, 정식 출시 시 6개월 연장.",
+  description: "아모라의 운영 검증에 참여할 베타 이용자를 모집합니다. 제공 기능, 기간과 비용은 참여 확정 안내에서 확인합니다.",
 };
 
 const BENEFITS = [
-  "실거래가 · Contract Diff 무료 Premium",
-  "아모라 풀 기능 우선 사용",
-  "종료 후 6개월 무료 연장",
-  "정식 출시 시 선배 신부 인증",
+  "운영 검증을 마친 기능부터 먼저 사용",
+  "불편한 점과 필요한 기능을 제품팀에 전달",
+  "기능 변경과 정식 출시 소식 안내",
+  "제공 범위·기간·비용을 참여 전 확인",
 ];
 
 const CONDITIONS = [
-  "2026년 6~12월 결혼 예정",
-  "신부 · 신랑 모두 참여 가능",
-  "주 1회 짧은 피드백",
+  "현재 결혼을 준비 중인 본인",
+  "신부·신랑 또는 커플 모두 신청 가능",
+  "사용 중 발견한 불편이나 오류를 전달할 수 있는 분",
 ];
 
 export default async function BetaPage() {
@@ -50,14 +50,14 @@ export default async function BetaPage() {
             베타 모집
           </p>
           <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em] max-w-3xl">
-            6주간 함께해 주실
+            아모라의 운영 검증에
             <br />
-            <em className="not-italic text-rose-light">50쌍</em>을 찾습니다.
+            <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
-            아모라의 전 기능을 6주간 먼저 경험하고,
+            안전 검증을 마친 기능부터 사용해 보고,
             <br />
-            정식 출시 후에도 6개월 무료로 이어집니다.
+            참여 전 제공 범위와 이용 조건을 정확히 안내받으세요.
           </p>
         </div>
       </section>
@@ -114,15 +114,15 @@ export default async function BetaPage() {
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">02</span>
-                  이메일로 참여 확정 안내 (2~3일 이내)
+                  이메일로 참여 가능 여부와 이용 조건 안내
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">03</span>
-                  아모라 계정 생성 + 6주 동행
+                  안내에 동의한 뒤 계정 생성과 사용 시작
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">04</span>
-                  종료 후 6개월 무료 연장 + 선배 신부 인증
+                  사용 의견 전달 및 변경·종료 일정 확인
                 </li>
               </ul>
             </div>
@@ -134,15 +134,12 @@ export default async function BetaPage() {
               <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
                 <Check className="w-8 h-8 text-rose-light mb-6" />
                 <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-4">
-                  베타 50쌍 <em className="not-italic text-rose-light">모집 완료</em>
+                  현재 베타 신청이 <em className="not-italic text-rose-light">마감되었어요</em>
                 </h2>
                 <p className="text-white/70 text-[15px] leading-[1.8] font-light mb-6">
                   많은 관심 감사드립니다.
                   <br />
                   베타 종료 후 정식 출시 소식을 전해드릴게요.
-                </p>
-                <p className="text-white/50 text-[12px] tracking-[0.18em]">
-                  현재 {current} / {BETA_TOTAL}
                 </p>
               </div>
             ) : (

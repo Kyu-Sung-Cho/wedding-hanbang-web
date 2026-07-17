@@ -1,19 +1,27 @@
-import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { requestAccountDeletion } from "@/lib/accountDeletion/communityStorageSaga";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { checkRateLimitPersistent } from "@/utils/rateLimit";
 import { DELETE } from "../route";
 
-vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
+  AccountDeletionStorageError: class AccountDeletionStorageError extends Error {
+    code = "test_account_deletion_error";
+  },
+  requestAccountDeletion: vi.fn(),
+}));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: vi.fn() }));
 vi.mock("@/utils/rateLimit", () => ({
-  checkRateLimit: vi.fn(() => null),
+  checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn(() => "auth:delete:test-user"),
 }));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 
-function deletionRequest(reason = "not useful") {
+function deletionRequest(reason = "unsatisfied") {
   return new Request("http://localhost/api/auth/delete", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
@@ -21,52 +29,63 @@ function deletionRequest(reason = "not useful") {
   });
 }
 
-type TestError = { code: string; message: string };
-
-function setup({
-  authError = null,
-  auditError = null,
-}: {
-  authError?: TestError | null;
-  auditError?: TestError | null;
-} = {}) {
-  const sequence: string[] = [];
-  const auditInsert = vi.fn(async (payload: unknown) => {
-    void payload;
-    sequence.push("audit");
-    return { error: auditError };
-  });
-  const deleteUser = vi.fn(async () => {
-    sequence.push("auth");
-    return { error: authError };
-  });
-  const from = vi.fn((table: string) => {
-    if (table !== "account_deletions") {
-      throw new Error(`unexpected table access: ${table}`);
-    }
-    return { insert: auditInsert };
-  });
-
-  vi.mocked(createClientFromRequest).mockResolvedValue({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: USER_ID, email: "private@example.com" } },
-      }),
-    },
-  } as never);
-  vi.mocked(createClient).mockReturnValue({
-    auth: { admin: { deleteUser } },
-    from,
-  } as never);
-
-  return { sequence, auditInsert, deleteUser, from };
-}
-
 describe("/api/auth/delete DELETE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
+    process.env.ACCOUNT_DELETION_INTAKE_ENABLED = "true";
+    process.env.ACCOUNT_DELETION_CRON_ENABLED = "false";
+    vi.mocked(checkRateLimitPersistent).mockResolvedValue(null);
+    vi.mocked(createClientFromRequest).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: USER_ID, email: "private@example.com" } },
+        }),
+      },
+    } as never);
+    vi.mocked(createAdminClient).mockReturnValue({ admin: true } as never);
+  });
+
+  it("is a complete no-op unless deletion intake is explicitly enabled", async () => {
+    for (const disabledValue of [undefined, "false", "TRUE"]) {
+      vi.clearAllMocks();
+      if (disabledValue === undefined) {
+        delete process.env.ACCOUNT_DELETION_INTAKE_ENABLED;
+      } else {
+        process.env.ACCOUNT_DELETION_INTAKE_ENABLED = disabledValue;
+      }
+
+      const response = await DELETE(deletionRequest());
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(await response.json()).toEqual(expect.objectContaining({
+        code: "ACCOUNT_DELETION_INTAKE_DISABLED",
+        supportEmail: "support@hanbang.ai",
+        error: expect.stringContaining("support@hanbang.ai"),
+      }));
+      expect(createClientFromRequest).not.toHaveBeenCalled();
+      expect(checkRateLimitPersistent).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(requestAccountDeletion).not.toHaveBeenCalled();
+    }
+  });
+
+  it("uses the shared fail-closed limiter before creating a deletion job", async () => {
+    const limitedResponse = new Response(
+      JSON.stringify({ error: "too many requests" }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
+    vi.mocked(checkRateLimitPersistent).mockResolvedValueOnce(limitedResponse as never);
+
+    const response = await DELETE(deletionRequest());
+
+    expect(response.status).toBe(429);
+    expect(checkRateLimitPersistent).toHaveBeenCalledWith(
+      "auth:delete:test-user",
+      { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+    );
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
   });
 
   it("does not initialize an admin client for an unauthenticated request", async () => {
@@ -77,48 +96,76 @@ describe("/api/auth/delete DELETE", () => {
     const response = await DELETE(deletionRequest());
 
     expect(response.status).toBe(401);
-    expect(createClient).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(requestAccountDeletion).not.toHaveBeenCalled();
   });
 
-  it("performs no public-table deletion before the Auth deletion boundary", async () => {
-    const authError = { code: "database_error", message: "sensitive backend detail" };
-    const { sequence, auditInsert, deleteUser, from } = setup({ authError });
+  it("returns an honest pending response after creating the durable deletion job", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "pending" });
+
+    const response = await DELETE(deletionRequest("unsatisfied"));
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(body).toEqual(expect.objectContaining({
+      success: false,
+      pending: true,
+      code: "ACCOUNT_DELETION_PENDING",
+    }));
+    expect(requestAccountDeletion).toHaveBeenCalledWith(
+      { admin: true },
+      USER_ID,
+      "unsatisfied",
+      expect.any(Number),
+      { processImmediately: false },
+    );
+  });
+
+  it("does not persist free-text deletion feedback that may contain PII", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "pending" });
+
+    const response = await DELETE(deletionRequest("call me at 010-1234-5678"));
+
+    expect(response.status).toBe(202);
+    expect(requestAccountDeletion).toHaveBeenCalledWith(
+      { admin: true },
+      USER_ID,
+      "unknown",
+      expect.any(Number),
+      { processImmediately: false },
+    );
+  });
+
+  it("reports completion only after the saga has crossed and finalized Auth deletion", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "completed" });
+
+    const response = await DELETE(deletionRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true, pending: false });
+  });
+
+  it("stops at manual review for media without proven ownership", async () => {
+    vi.mocked(requestAccountDeletion).mockResolvedValue({ status: "manual_review" });
 
     const response = await DELETE(deletionRequest());
     const body = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(body).toEqual({ error: "계정 삭제에 실패했습니다." });
-    expect(JSON.stringify(body)).not.toContain(authError.message);
-    expect(deleteUser).toHaveBeenCalledWith(USER_ID);
-    expect(sequence).toEqual(["auth"]);
-    expect(from).not.toHaveBeenCalled();
-    expect(auditInsert).not.toHaveBeenCalled();
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("ACCOUNT_DELETION_REVIEW_REQUIRED");
+    expect(body.success).toBe(false);
   });
 
-  it("records only an anonymous reason after Auth deletion succeeds", async () => {
-    const { sequence, auditInsert } = setup();
-
-    const response = await DELETE(deletionRequest("too expensive"));
-    const payload = auditInsert.mock.calls[0]?.[0] as Record<string, unknown>;
-
-    expect(response.status).toBe(200);
-    expect(sequence).toEqual(["auth", "audit"]);
-    expect(payload.reason).toBe("too expensive");
-    expect(payload.deleted_at).toEqual(expect.any(String));
-    expect(payload).not.toHaveProperty("user_id");
-    expect(payload).not.toHaveProperty("email");
-  });
-
-  it("does not report a failed deletion when the anonymous audit insert fails", async () => {
-    const { auditInsert } = setup({
-      auditError: { code: "audit_unavailable", message: "temporary" },
-    });
+  it("does not expose backend details when durable job creation fails", async () => {
+    vi.mocked(requestAccountDeletion).mockRejectedValue(
+      new Error("private path and backend detail"),
+    );
 
     const response = await DELETE(deletionRequest());
+    const serialized = JSON.stringify(await response.json());
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true });
-    expect(auditInsert).toHaveBeenCalledOnce();
+    expect(response.status).toBe(503);
+    expect(serialized).not.toContain("private path");
   });
 });

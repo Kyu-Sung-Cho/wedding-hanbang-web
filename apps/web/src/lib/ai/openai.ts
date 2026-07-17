@@ -36,6 +36,7 @@ const FUNCTION_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_FUNCTION_CALL_ID_LENGTH = 128;
 
 export type OpenAIUsageStatus = "complete" | "unknown";
+export type OpenAIRequestStage = "input_count" | "generation";
 export type OpenAIErrorCategory =
   | "auth_config"
   | "rate_limit"
@@ -63,6 +64,7 @@ interface ProviderErrorDetails {
   requestId?: string | null;
   responseId?: string | null;
   providerCode?: string | null;
+  requestStage?: OpenAIRequestStage | null;
 }
 
 export class OpenAIProviderError extends Error {
@@ -73,6 +75,7 @@ export class OpenAIProviderError extends Error {
   readonly requestId?: string | null;
   readonly responseId?: string | null;
   readonly providerCode?: string | null;
+  readonly requestStage?: OpenAIRequestStage | null;
 
   constructor(message: string, details: ProviderErrorDetails) {
     super(message);
@@ -84,6 +87,7 @@ export class OpenAIProviderError extends Error {
     this.requestId = details.requestId;
     this.responseId = details.responseId;
     this.providerCode = details.providerCode;
+    this.requestStage = details.requestStage;
   }
 }
 
@@ -105,6 +109,7 @@ export class OpenAIInputTokenLimitError extends OpenAIProviderError {
       usageStatus: "complete",
       requestId: details.requestId,
       providerCode: "input_token_limit",
+      requestStage: "input_count",
     });
     this.name = "OpenAIInputTokenLimitError";
   }
@@ -162,16 +167,42 @@ export function normalizeOpenAIProviderError(
   });
 }
 
+function markOpenAIRequestStage(
+  error: unknown,
+  requestStage: OpenAIRequestStage,
+  context: Pick<
+    ProviderErrorDetails,
+    "model" | "usage" | "requestId" | "responseId"
+  >,
+): OpenAIProviderError {
+  const normalized = normalizeOpenAIProviderError(error, context);
+  if (normalized.requestStage) return normalized;
+  return new OpenAIProviderError(normalized.message, {
+    category: normalized.category,
+    model: normalized.model ?? context.model,
+    usage: normalized.usage,
+    usageStatus: normalized.usageStatus,
+    requestId: normalized.requestId,
+    responseId: normalized.responseId,
+    providerCode: normalized.providerCode,
+    requestStage,
+  });
+}
+
 export function getSafeOpenAIErrorMetadata(error: unknown): Record<string, unknown> {
   const normalized = normalizeOpenAIProviderError(error);
+  const isInputCountRequest = normalized.requestStage === "input_count";
   return {
     ai_provider: "openai",
     provider_error_category: normalized.category,
     provider_error_code: normalized.providerCode ?? null,
-    provider_request_id: normalized.requestId ?? null,
+    provider_request_id: isInputCountRequest ? null : (normalized.requestId ?? null),
+    input_count_request_id: isInputCountRequest ? (normalized.requestId ?? null) : null,
     provider_response_id: normalized.responseId ?? null,
+    provider_request_stage: normalized.requestStage ?? null,
     usage_status: normalized.usageStatus,
-    unknown_paid_attempt: normalized.usageStatus === "unknown",
+    unknown_paid_attempt:
+      !isInputCountRequest && normalized.usageStatus === "unknown",
   };
 }
 
@@ -476,10 +507,13 @@ export async function chatWithToolsStream(options: {
   tools: AiToolDefinition[];
   onTextDelta?: (text: string) => void;
   maxOutputTokens?: number;
-  maxInputTokens?: number;
+  /** Required exact provider-count ceiling; no generation may skip this gate. */
+  maxInputTokens: number;
   safetyIdentifierScope?: string;
   modelRole?: AmoraModelRole;
   signal?: AbortSignal;
+  /** Required atomic paid-call gate; callers cannot silently opt out. */
+  beforeGeneration: () => void | Promise<void>;
   client?: OpenAI;
 }): Promise<ChatWithToolsResult> {
   const {
@@ -492,6 +526,7 @@ export async function chatWithToolsStream(options: {
     safetyIdentifierScope,
     modelRole = "fast",
     signal,
+    beforeGeneration,
     client: providedClient,
   } = options;
   // 테스트/DI 클라이언트도 운영 kill switch와 설정 검증을 우회할 수 없다.
@@ -505,46 +540,47 @@ export async function chatWithToolsStream(options: {
   const openAITools = toOpenAITools(tools);
   let inputCountRequestId: string | null | undefined;
 
-  if (maxInputTokens !== undefined) {
-    if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
-      throw new Error("[ai-config] maxInputTokens must be a positive integer");
+  if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
+    throw new Error("[ai-config] maxInputTokens must be a positive integer");
+  }
+  try {
+    const countPromise = client.responses.inputTokens.count(
+      {
+        model: modelConfig.model,
+        instructions: systemPrompt,
+        input,
+        tools: openAITools,
+        parallel_tool_calls: false,
+        reasoning: { effort: modelConfig.reasoningEffort },
+        text: { verbosity: modelConfig.verbosity },
+      },
+      signal ? { signal } : undefined
+    );
+    const counted = await countPromise.withResponse();
+    inputCountRequestId = counted.request_id;
+    if (
+      !Number.isSafeInteger(counted.data.input_tokens) ||
+      counted.data.input_tokens < 0
+    ) {
+      throw new OpenAIProviderError("[openai] invalid input token count", {
+        category: "response_invalid",
+        requestId: counted.request_id,
+        providerCode: "invalid_input_token_count",
+        requestStage: "input_count",
+        usageStatus: "complete",
+      });
     }
-    try {
-      const countPromise = client.responses.inputTokens.count(
-        {
-          model: modelConfig.model,
-          instructions: systemPrompt,
-          input,
-          tools: openAITools,
-          parallel_tool_calls: false,
-          reasoning: { effort: modelConfig.reasoningEffort },
-          text: { verbosity: modelConfig.verbosity },
-        },
-        signal ? { signal } : undefined
+    if (counted.data.input_tokens > maxInputTokens) {
+      throw new OpenAIInputTokenLimitError(
+        counted.data.input_tokens,
+        maxInputTokens,
+        { requestId: counted.request_id }
       );
-      const counted = await countPromise.withResponse();
-      inputCountRequestId = counted.request_id;
-      if (
-        !Number.isSafeInteger(counted.data.input_tokens) ||
-        counted.data.input_tokens < 0
-      ) {
-        throw new OpenAIProviderError("[openai] invalid input token count", {
-          category: "response_invalid",
-          requestId: counted.request_id,
-          providerCode: "invalid_input_token_count",
-          usageStatus: "complete",
-        });
-      }
-      if (counted.data.input_tokens > maxInputTokens) {
-        throw new OpenAIInputTokenLimitError(
-          counted.data.input_tokens,
-          maxInputTokens,
-          { requestId: counted.request_id }
-        );
-      }
-    } catch (error) {
-      throw normalizeOpenAIProviderError(error, { model: modelConfig.model });
     }
+  } catch (error) {
+    throw markOpenAIRequestStage(error, "input_count", {
+      model: modelConfig.model,
+    });
   }
 
   const requestBody: ResponseCreateParamsStreaming = {
@@ -565,6 +601,13 @@ export async function chatWithToolsStream(options: {
     stream: true,
   };
 
+  // The hook is a final application-side gate (for example, an atomic quota
+  // reservation). It runs after any configured exact input validation and as
+  // close as possible to the first paid generation request.
+  signal?.throwIfAborted();
+  await beforeGeneration();
+  signal?.throwIfAborted();
+
   let stream: AsyncIterable<ResponseStreamEvent>;
   let requestId: string | null | undefined;
   try {
@@ -576,7 +619,18 @@ export async function chatWithToolsStream(options: {
     stream = withResponse.data;
     requestId = withResponse.request_id;
   } catch (error) {
-    throw normalizeOpenAIProviderError(error, { model: modelConfig.model });
+    const normalized = normalizeOpenAIProviderError(error, { model: modelConfig.model });
+    if (normalized.requestStage) throw normalized;
+    throw new OpenAIProviderError(normalized.message, {
+      category: normalized.category,
+      model: normalized.model ?? modelConfig.model,
+      usage: normalized.usage,
+      usageStatus: normalized.usageStatus,
+      requestId: normalized.requestId,
+      responseId: normalized.responseId,
+      providerCode: normalized.providerCode,
+      requestStage: "generation",
+    });
   }
 
   let fullText = "";
@@ -635,7 +689,7 @@ export async function chatWithToolsStream(options: {
       }
     }
   } catch (error) {
-    throw normalizeOpenAIProviderError(error, {
+    throw markOpenAIRequestStage(error, "generation", {
       model: finalResponse?.model ?? modelConfig.model,
       usage: finalResponse ? normalizeResponseUsage(finalResponse) : undefined,
       requestId,

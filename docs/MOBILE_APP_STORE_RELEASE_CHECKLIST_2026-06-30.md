@@ -1,9 +1,9 @@
 # Mobile App Store Release Checklist
 
-> Date: 2026-06-30, status updated 2026-07-15
+> Date: 2026-06-30, status updated 2026-07-17
 > Scope: `apps/mobile`, Expo SDK 54, EAS Build, App Store/TestFlight readiness  
-> Status: Android production AAB verified; iOS signing and physical-device/store
-> setup still required
+> Status: the current Engine V2 candidate has no signed Android/iOS build and no
+> physical-device receipt. Older Android AAB evidence below is historical only.
 
 ## 1. Current Repo Status
 
@@ -33,7 +33,7 @@ pnpm lint
 pnpm --filter @hanbang/web build
 ```
 
-Current result:
+Historical 2026-07-15 baseline result (not the current candidate):
 
 - Typecheck: pass.
 - Lint: pass.
@@ -42,6 +42,14 @@ Current result:
 - Expo Doctor: 18/18 pass.
 - Android production EAS build from the verified runtime baseline: pass. Build
   `e6cc6b8f-a377-4aba-8e83-5a9c509cd229`, `versionCode 2`.
+
+Current Engine V2 candidate local result on 2026-07-17:
+
+- Mobile tests: 69/69 pass.
+- Mobile typecheck and lint: pass.
+- Expo Web/iOS/Android export: pass.
+- Signed Android build, signed iOS build and physical-device verification:
+  `NOT RUN`. A local export is not a native-build receipt.
 
 Before every mobile release candidate, also run:
 
@@ -139,6 +147,8 @@ Before TestFlight:
 - Universal links for `https://hanbang.ai/app/*` open the app after install.
 - `apple-app-site-association` is configured on `hanbang.ai` if universal links are used.
 - Supabase OAuth redirect URLs include the app callback URL.
+- Mobile OAuth uses PKCE and the callback transports only a one-time `code`; access and refresh tokens never appear in an HTTPS URL, custom-scheme URL, fragment, log, or screenshot.
+- A negative test app that registers the same custom scheme cannot redeem an intercepted code without the initiating device's verifier.
 - Kakao, Google, and Apple login flows are tested on a physical iPhone.
 
 ## 8. Push Notification Checks

@@ -89,8 +89,8 @@ function mockSigner() {
 describe("POST /api/chat/image-urls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;
     persistentLimitSpy.mockResolvedValue(null);
   });
 
@@ -196,7 +196,7 @@ describe("POST /api/chat/image-urls", () => {
         metadata: {
           imagePaths: [legacyPath],
           imageUrls: [
-            `https://project.supabase.co/storage/v1/object/public/chat-image/${legacyUrlPath}`,
+            `https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/public/chat-image/${legacyUrlPath}`,
           ],
         },
       },

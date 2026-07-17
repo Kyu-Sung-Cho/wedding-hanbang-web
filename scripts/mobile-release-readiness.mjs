@@ -58,6 +58,7 @@ const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
+const sharedMobileOAuth = readText("packages/shared/src/utils/mobileOAuth.ts");
 
 const expectedAppName = "\uC6E8\uB529\uD55C\uBC29";
 expect(appConfig.name === expectedAppName, `Expo app name is ${expectedAppName}`);
@@ -183,8 +184,17 @@ expect(
   "Mobile OAuth waits for auth/callback deep link"
 );
 expect(
-  mobileCallback.includes("hanbang://auth/callback#"),
-  "Web mobile callback returns to hanbang://auth/callback"
+  mobileCallback.includes("buildMobileOAuthAppCallbackUrl(callbackUrl)")
+    && sharedMobileOAuth.includes('const DEFAULT_APP_CALLBACK_URL = "hanbang://auth/callback"')
+    && sharedMobileOAuth.includes("new URLSearchParams({ code })")
+    && sharedMobileOAuth.includes('appCallback.hash = ""'),
+  "Web mobile callback returns only a PKCE code to hanbang://auth/callback"
+);
+expect(
+  mobileAuth.includes("exchangeCodeForSession(code)")
+    && sharedMobileOAuth.includes('fragment.has("access_token")')
+    && sharedMobileOAuth.includes('fragment.has("refresh_token")'),
+  "Mobile OAuth exchanges PKCE and rejects session tokens in callback URLs"
 );
 
 const legacyPalette = [

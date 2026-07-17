@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import {
+  ExtendedReleaseContractError,
+  validateAmoraExtendedReleaseContracts,
+} from "./lib/amora-release-extended-contracts.mjs";
+import { analyzeReadOnlySqlEnvelope } from "./lib/sql-read-only-envelope.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -14,6 +20,27 @@ const manifestPath = join(
 );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const args = new Set(process.argv.slice(2));
+const SHA256 = /^[a-f0-9]{64}$/;
+const UPPER_SHA256 = /^[A-F0-9]{64}$/;
+const SAFE_ID = /^[a-z][a-z0-9-]{2,63}$/;
+const MIGRATION_FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
+const BASELINE_CONTRACT_ID = "pre-amora-current-remote-14-table-baseline";
+const EPHEMERAL_REBUILD_CONTRACT =
+  "production_release_lease_20260717=temporary-release-control-dropped-by-paired-write-fence-finalizer;rate_limit_buckets=empty-on-restore-recreated-by-public.check_rate_limit(text,integer,integer)";
+const HOSTED_RESTORE_REQUIRED_CHECKS = [
+  "authApiSmokeVerified",
+  "authUsersSchemaAndDataVerified",
+  "checkConstraintsVerified",
+  "columnDefaultsVerified",
+  "destructiveRestoreDrillCompleted",
+  "isolatedTargetConfirmed",
+  "logicalDataDigestsVerified",
+  "rowLevelSecurityPoliciesVerified",
+  "rpcDefinitionsAndAclVerified",
+  "storageMetadataRestoredVerified",
+  "triggersVerified",
+  "typedSchemaVerified",
+];
 
 function fail(message) {
   console.error(`SUPABASE_RELEASE_FENCE_BLOCKED: ${message}`);
@@ -28,17 +55,266 @@ function sha256(path) {
   return createHash("sha256").update(canonicalText, "utf8").digest("hex");
 }
 
+function inside(parent, child) {
+  const path = relative(resolve(parent), resolve(child));
+  return path === "" || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
+}
+
 function filesFor(section) {
   return manifest[section].map((entry) => entry.file);
 }
 
 function verifyHashPinnedArtifact(entry, label) {
-  const path = join(repoRoot, entry.file);
+  if (!entry
+      || typeof entry.file !== "string"
+      || entry.file.includes("\\")
+      || entry.file.includes("//")
+      || !SHA256.test(entry.sha256 ?? "")) {
+    fail(`${label} record is invalid`);
+  }
+  const path = resolve(repoRoot, entry.file);
+  if (!inside(repoRoot, path)) fail(`${label} path escapes the repository: ${entry.file}`);
   if (!existsSync(path)) fail(`${label} missing: ${entry.file}`);
+  const metadata = lstatSync(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    fail(`${label} must be a non-symlink regular file: ${entry.file}`);
+  }
   const actual = sha256(path);
   if (actual !== entry.sha256) {
     fail(`${label} hash mismatch for ${entry.file}; expected ${entry.sha256}, received ${actual}`);
   }
+}
+
+function assertReadOnlySqlEnvelope(entry, label) {
+  const sql = readFileSync(resolve(repoRoot, entry.file), "utf8");
+  const analysis = analyzeReadOnlySqlEnvelope(sql);
+  if (!analysis.ok && analysis.reason === "transaction-escape") {
+    fail(`${label} may not escape its read-only transaction`);
+  }
+  if (!analysis.ok) fail(`${label} must use an explicit read-only transaction`);
+}
+
+function verifyReleaseCheckList(section, allIds, allPaths, { allowEmpty = false } = {}) {
+  const checks = manifest[section];
+  if (!Array.isArray(checks) || (!allowEmpty && checks.length === 0)) {
+    fail(`${section} must be ${allowEmpty ? "an array" : "a non-empty array"}`);
+  }
+  for (const entry of checks) {
+    const evidenceEntries = entry?.expectedEvidence
+      && typeof entry.expectedEvidence === "object"
+      && !Array.isArray(entry.expectedEvidence)
+      ? Object.entries(entry.expectedEvidence)
+      : [];
+    const evidenceInvalid = evidenceEntries.length === 0
+      || evidenceEntries.some(([name, value]) =>
+        !/^[a-z][a-z0-9_]*_count$/.test(name)
+        || !Number.isSafeInteger(value)
+        || value < 0
+        || value > 1_000_000_000);
+    if (!SAFE_ID.test(entry?.id ?? "")
+        || allIds.has(entry.id)
+        || entry?.type !== "read-only-sql"
+        || typeof entry.file !== "string"
+        || !/^supabase\/release-checks\/[a-z0-9][a-z0-9_.-]*\.sql$/.test(entry.file)
+        || evidenceInvalid) {
+      fail(`${section} contains an invalid or duplicate check record`);
+    }
+    const artifactPath = resolve(repoRoot, entry.file);
+    if (allPaths.has(artifactPath)) fail(`${section} contains a duplicate check path`);
+    allIds.add(entry.id);
+    allPaths.add(artifactPath);
+    verifyHashPinnedArtifact(entry, `${section} check`);
+    assertReadOnlySqlEnvelope(entry, `${section} check`);
+  }
+}
+
+function verifyOperationList(
+  section,
+  allIds,
+  allPaths,
+  {
+    rollback = false,
+    preApplyCheckIds = new Set(),
+    postPushCheckIds = new Set(),
+    manualOperationIds = new Set(),
+    rollbackOperationIds = new Set(),
+  } = {},
+) {
+  const entries = manifest[section];
+  if (!Array.isArray(entries) || entries.length === 0) {
+    fail(`${section} must be a non-empty array`);
+  }
+  for (const entry of entries) {
+    const validPath = typeof entry?.file === "string"
+      && /^supabase\/platform-operations\/(?:security|storage)\/[a-z0-9][a-z0-9_.-]*\.sql$/.test(entry.file)
+      && (!rollback || /_rollback\.sql$/.test(entry.file));
+    if (!SAFE_ID.test(entry?.id ?? "")
+        || allIds.has(entry.id)
+        || !validPath
+        || allPaths.has(entry.file)) {
+      fail(`${section} contains an invalid or duplicate operation record`);
+    }
+    allIds.add(entry.id);
+    allPaths.add(entry.file);
+    if (!rollback) {
+      const phaseChecks = entry.phase === "pre-backup"
+        ? preApplyCheckIds
+        : entry.phase === "post-push-pre-deploy"
+          ? postPushCheckIds
+          : null;
+      if (!phaseChecks
+          || !SAFE_ID.test(entry.verificationCheckId ?? "")
+          || !phaseChecks.has(entry.verificationCheckId)) {
+        fail(`${section} operation is not bound to its exact release-phase read-only check`);
+      }
+      manualOperationIds.add(entry.id);
+    } else {
+      if (!SAFE_ID.test(entry.forOperationId ?? "")
+          || rollbackOperationIds.has(entry.forOperationId)) {
+        fail(`${section} rollback is not uniquely bound to a manual platform operation`);
+      }
+      rollbackOperationIds.add(entry.forOperationId);
+    }
+    verifyHashPinnedArtifact(entry, rollback ? "rollback artifact" : "manual platform operation");
+  }
+}
+
+function verifyManualControlEvidence() {
+  const postPushOperationCount = manifest.manualPlatformOperations.filter(
+    (operation) => operation.phase === "post-push-pre-deploy",
+  ).length;
+  const evidence = manifest.manualControlEvidence;
+  const expectedKeys = postPushOperationCount > 0
+    ? [
+      "maximumAgeMinutes",
+      "postPushReceiptFileName",
+      "receiptFileName",
+      "signedUploadGraceMinutes",
+      "signedUploadTokenTtlMinutes",
+      "storageDrainReceiptFileName",
+      "storageStabilityWindowMinutes",
+    ]
+    : [
+      "maximumAgeMinutes",
+      "receiptFileName",
+      "signedUploadGraceMinutes",
+      "signedUploadTokenTtlMinutes",
+      "storageDrainReceiptFileName",
+      "storageStabilityWindowMinutes",
+    ];
+  const actualKeys = evidence && typeof evidence === "object" && !Array.isArray(evidence)
+    ? Object.keys(evidence).sort()
+    : [];
+  if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)
+      || evidence.maximumAgeMinutes !== 30
+      || evidence.signedUploadTokenTtlMinutes !== 120
+      || evidence.signedUploadGraceMinutes !== 10
+      || evidence.storageStabilityWindowMinutes !== 5
+      || !/^[a-z0-9][a-z0-9_.-]{2,80}\.json$/.test(evidence.receiptFileName ?? "")
+      || !/^[a-z0-9][a-z0-9_.-]{2,80}\.json$/.test(
+        evidence.storageDrainReceiptFileName ?? "",
+      )
+      || evidence.storageDrainReceiptFileName === evidence.receiptFileName
+      || (postPushOperationCount > 0
+        && (!/^[a-z0-9][a-z0-9_.-]{2,80}\.json$/.test(
+          evidence.postPushReceiptFileName ?? "",
+        )
+          || evidence.postPushReceiptFileName === evidence.receiptFileName))
+      || (postPushOperationCount > 0) !== (manifest.postPushChecks.length > 0)) {
+    fail("manualControlEvidence does not match the exact pre-backup/post-push receipt contract");
+  }
+}
+
+function verifyBackupContract() {
+  const contract = manifest.backupContract;
+  if (contract?.id !== BASELINE_CONTRACT_ID
+      || contract.version !== 1
+      || contract.expectedTableCount !== 14
+      || contract.excludedEphemeralTables?.length !== 2
+      || contract.excludedEphemeralTables[0]
+        !== "production_release_lease_20260717"
+      || contract.excludedEphemeralTables[1] !== "rate_limit_buckets"
+      || contract.ephemeralRebuildContract !== EPHEMERAL_REBUILD_CONTRACT
+      || contract.expectedCommitBinding !== "release-expected-commit"
+      || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git$/.test(contract.expectedOrigin ?? "")
+      || contract.verifier?.file !== "scripts/amora-db-current-baseline-verify.ps1"
+      || contract.providerPhysicalBackup?.maximumAgeHours !== 26
+      || contract.providerPhysicalBackup?.requiredStatus !== "COMPLETED"
+      || contract.providerPhysicalBackup?.requirePhysicalBackup !== true
+      || contract.providerPhysicalBackup?.restoreCapability
+        !== "completed-physical-backup"
+      || contract.hostedRestoreEvidence?.receiptFileName
+        !== `${manifest.release}-hosted-restore-evidence.json`
+      || contract.hostedRestoreEvidence?.maximumAgeMinutes !== 1_440
+      || contract.hostedRestoreEvidence?.requiredTargetIsolation
+        !== "different-supabase-project"
+      || JSON.stringify(contract.hostedRestoreEvidence?.requiredChecks)
+        !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
+      || !/^\d+\.\d+\.\d+$/.test(contract.supabaseCli?.version ?? "")
+      || !UPPER_SHA256.test(contract.supabaseCli?.binarySha256 ?? "")) {
+    fail("current 14-table backup contract and ephemeral rebuild contract are missing or invalid");
+  }
+  verifyHashPinnedArtifact(contract.verifier, "current-baseline verifier");
+}
+
+function verifyExtendedReleaseContracts(
+  operationIds,
+  operationPaths,
+  preApplyCheckIds,
+) {
+  let contracts;
+  try {
+    contracts = validateAmoraExtendedReleaseContracts(manifest);
+  } catch (error) {
+    if (error instanceof ExtendedReleaseContractError) {
+      fail(`${error.code}: ${error.message}`);
+    }
+    throw error;
+  }
+
+  for (const operation of contracts.forwardOnlySecurityOperations) {
+    if (operationIds.has(operation.id)
+        || !preApplyCheckIds.has(operation.verificationCheckId)) {
+      fail("forward-only security operation id collides with another operation");
+    }
+    operationIds.add(operation.id);
+    for (const [kind, artifact] of Object.entries({
+      inventory: operation.inventory,
+      apply: operation.apply,
+      verify: operation.verify,
+    })) {
+      if (operationPaths.has(artifact.file)) {
+        fail("forward-only security operation path collides with another artifact");
+      }
+      operationPaths.add(artifact.file);
+      verifyHashPinnedArtifact(artifact, `forward-only ${kind} artifact`);
+      if (kind !== "apply") {
+        assertReadOnlySqlEnvelope(artifact, `forward-only ${kind} artifact`);
+      } else {
+        const sql = readFileSync(resolve(repoRoot, artifact.file), "utf8")
+          .replace(/\r\n?/g, "\n")
+          .trim();
+        if (!/^begin\s*;/i.test(sql) || !/commit\s*;\s*$/i.test(sql)) {
+          fail("forward-only apply artifact must use one explicit transaction");
+        }
+      }
+    }
+  }
+
+  const finalizer = contracts.finalizationContract.operation;
+  if (operationIds.has(finalizer.id) || operationPaths.has(finalizer.file)) {
+    fail("finalizer artifact collides with another release operation");
+  }
+  operationIds.add(finalizer.id);
+  operationPaths.add(finalizer.file);
+  verifyHashPinnedArtifact(finalizer, "exact-owner finalizer artifact");
+
+  const postExpandVerifier = contracts.postExpandBackupContract.verifier;
+  verifyHashPinnedArtifact(
+    contracts.postExpandBackupContract.capture,
+    "post-expand backup capture",
+  );
+  verifyHashPinnedArtifact(postExpandVerifier, "post-expand backup verifier");
 }
 
 function verifyPredecessorManifest() {
@@ -90,45 +366,112 @@ function verifyPredecessorManifest() {
 }
 
 function verifyStaticManifest() {
-  const appliedHotfixes = manifest.appliedHotfixes ?? [];
+  if (!/^\d{14}$/.test(manifest.migrationFloor ?? "")) {
+    fail("migration floor is missing or invalid");
+  }
+  if (!/^\d{14}$/.test(manifest.requiredRemoteHead ?? "")
+      || manifest.requiredRemoteHead >= manifest.migrationFloor) {
+    fail("required remote head is missing or invalid");
+  }
+  if (!Array.isArray(manifest.historicalReconciliation)
+      || !Array.isArray(manifest.expandMigrations)
+      || manifest.expandMigrations.length === 0
+      || !Array.isArray(manifest.appliedHotfixes)) {
+    fail("migration sections are missing or invalid");
+  }
+  const appliedHotfixes = manifest.appliedHotfixes;
   const declared = [
     ...manifest.historicalReconciliation,
     ...manifest.expandMigrations,
     ...appliedHotfixes,
   ];
-  const declaredNames = new Set(declared.map((entry) => entry.file));
+  const declaredNames = new Set();
   const migrationDir = join(repoRoot, "supabase", "migrations");
+  let previousExpandVersion = "";
 
   for (const entry of declared) {
-    const path = join(migrationDir, entry.file);
-    if (!existsSync(path)) fail(`manifest file missing: ${entry.file}`);
-    const actual = sha256(path);
-    if (actual !== entry.sha256) {
-      fail(`hash mismatch for ${entry.file}; expected ${entry.sha256}, received ${actual}`);
+    const match = typeof entry?.file === "string" ? entry.file.match(MIGRATION_FILE) : null;
+    if (!match || basename(entry.file) !== entry.file || !SHA256.test(entry.sha256 ?? "")) {
+      fail("manifest migration record is invalid");
     }
+    if (declaredNames.has(entry.file)) fail(`duplicate manifest migration: ${entry.file}`);
+    declaredNames.add(entry.file);
+    if (manifest.expandMigrations.includes(entry)) {
+      if (match[1] < manifest.migrationFloor || match[1] <= previousExpandVersion) {
+        fail("expand migration order is not strictly increasing from the migration floor");
+      }
+      previousExpandVersion = match[1];
+    }
+    const path = join(migrationDir, entry.file);
+    verifyHashPinnedArtifact(
+      { ...entry, file: relative(repoRoot, path).split(sep).join("/") },
+      "manifest migration",
+    );
   }
 
   const releaseEraFiles = readdirSync(migrationDir)
     .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+    .filter((name) => name.slice(0, 14) >= manifest.migrationFloor)
+    .sort();
+  const expectedReleaseEra = declared
+    .map((entry) => entry.file)
     .filter((name) => name.slice(0, 14) >= manifest.migrationFloor);
-  const unexpected = releaseEraFiles.filter((name) => !declaredNames.has(name));
-  const missing = [...declaredNames].filter((name) => !releaseEraFiles.includes(name));
-  if (unexpected.length || missing.length) {
-    fail(`release-era migration set drifted; unexpected=${unexpected.join(",") || "none"}; missing=${missing.join(",") || "none"}`);
+  if (releaseEraFiles.length !== expectedReleaseEra.length
+      || releaseEraFiles.some((name, index) => name !== expectedReleaseEra[index])) {
+    fail(`release-era migration set or order drifted; expected=${expectedReleaseEra.join(",") || "none"}; received=${releaseEraFiles.join(",") || "none"}`);
   }
 
   verifyHashPinnedArtifact(
     manifest.historicalEffectAudit,
     "historical effect audit"
   );
-  for (const entry of manifest.manualPlatformOperations) {
-    verifyHashPinnedArtifact(entry, "manual platform operation");
+  const checkIds = new Set();
+  const checkPaths = new Set();
+  verifyReleaseCheckList("preApplyChecks", checkIds, checkPaths);
+  verifyReleaseCheckList("postPushChecks", checkIds, checkPaths, { allowEmpty: true });
+  verifyReleaseCheckList("postApplyChecks", checkIds, checkPaths);
+  const operationIds = new Set();
+  const operationPaths = new Set();
+  const manualOperationIds = new Set();
+  const rollbackOperationIds = new Set();
+  const preApplyCheckIds = new Set(manifest.preApplyChecks.map((entry) => entry.id));
+  const postPushCheckIds = new Set(manifest.postPushChecks.map((entry) => entry.id));
+  verifyOperationList("manualPlatformOperations", operationIds, operationPaths, {
+    preApplyCheckIds,
+    postPushCheckIds,
+    manualOperationIds,
+    rollbackOperationIds,
+  });
+  verifyOperationList("rollbackArtifacts", operationIds, operationPaths, {
+    rollback: true,
+    preApplyCheckIds,
+    postPushCheckIds,
+    manualOperationIds,
+    rollbackOperationIds,
+  });
+  if (manualOperationIds.size !== rollbackOperationIds.size
+      || [...manualOperationIds].some((id) => !rollbackOperationIds.has(id))) {
+    fail("every manual platform operation requires exactly one rollback artifact");
   }
+  verifyExtendedReleaseContracts(operationIds, operationPaths, preApplyCheckIds);
+  verifyManualControlEvidence();
+  if (!Array.isArray(manifest.requiredDocuments) || manifest.requiredDocuments.length === 0) {
+    fail("requiredDocuments must be a non-empty array");
+  }
+  const documentPaths = new Set();
   for (const entry of manifest.requiredDocuments) {
+    if (typeof entry?.file !== "string"
+        || !/^docs\/[A-Za-z0-9][A-Za-z0-9_./-]*\.md$/.test(entry.file)
+        || entry.file.includes("..")
+        || documentPaths.has(entry.file)) {
+      fail("requiredDocuments contains an invalid or duplicate document record");
+    }
+    documentPaths.add(entry.file);
     verifyHashPinnedArtifact(entry, "required release document");
   }
+  verifyBackupContract();
 
-  console.log(`Static release manifest verified (${declared.length} migrations; applied-hotfix count ${appliedHotfixes.length}; ${manifest.manualPlatformOperations.length} platform operations; ${manifest.requiredDocuments.length} required documents).`);
+  console.log(`Static release manifest verified (${declared.length} migrations; applied-hotfix count ${appliedHotfixes.length}; ${manifest.manualPlatformOperations.length} platform operations; ${manifest.rollbackArtifacts.length} rollback artifacts; ${manifest.requiredDocuments.length} required documents).`);
 }
 
 function parsePending(output) {
@@ -192,6 +535,6 @@ verifyPredecessorManifest();
 verifyStaticManifest();
 
 if (args.has("--refuse-direct-push")) {
-  fail("direct push/history-repair entry points are disabled; follow docs/operations/AMORA_PRODUCTION_RELEASE.md");
+  fail("direct push/history-repair entry points are disabled; follow docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md");
 }
 if (args.has("--remote")) verifyRemotePending();

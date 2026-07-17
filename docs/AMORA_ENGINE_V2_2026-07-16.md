@@ -1,6 +1,10 @@
 # 아모라 엔진 V2 — 제품·기술 기준서
 
-> 상태: 2026-07-16 구현 기준. 이 문서가 아모라의 현재 설계 기준이며, 이전의
+> 상태: **코드·migration 후보 구현 및 로컬 검증, 운영 적용 NOT RUN.** 27개 운영
+> migration, 기능 플래그 활성화, 현재 후보 배포, signed EAS·실기기 검증은 완료되지
+> 않았다. 운영 상태는 `operations/CURRENT_WORKSPACE_HANDOFF_2026-07-17.md`와
+> `operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`를 우선한다. 이 문서가
+> 아모라의 현재 설계 기준이며, 이전의
 > `AMORA_LIFECYCLE_PARTNER_DESIGN`, `AMORA_WEDDING_OS_PLAYBOOK`,
 > `EONNI_OS_MASTERPLAN`, `MOMENT_CATALOG`은 아이디어 출처이자 역사 문서다.
 
@@ -164,8 +168,9 @@ OpenAI 요청은 Responses API와 `store:false`를 사용한다. 아모라의 �
 ## 기능 플래그와 운영 조건
 
 - `AMORA_OPENAI_ENABLED`: 주 상담 OpenAI 런타임. 기존 운영 게이트를 따른다.
-- `AMORA_AUXILIARY_MEMORY_ENABLED`: 장기기억 큐와 크론. DB 마이그레이션, 15개
-  테이블 백업, `CRON_SECRET`, 배포 후 비활성 카나리가 끝날 때까지 `false`다.
+- `AMORA_AUXILIARY_MEMORY_ENABLED`: 장기기억 큐와 크론. 변경 전 정확한 14-table
+  baseline 백업과 변경 후 27-table 백업·즉시 검증, DB 마이그레이션,
+  `CRON_SECRET`, 배포 후 비활성 카나리가 끝날 때까지 `false`다.
 - 기억 플래그를 켜도 사용자별 동의 기본값은 `false`다.
 - 웹과 네이티브 모바일 모두 기억 보기·수정·개별 삭제·전체 삭제·동의 제어를
   제공한다. 전역 플래그가 꺼진 동안 새 동의만 막고 기존 데이터 열람·삭제와

@@ -5,6 +5,8 @@ import {
   executeAddScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
+  executeLogWeddingEvent,
+  executeUpdateScheduleEvent,
 } from "../scheduleTools";
 import {
   executeGetAmoraActions,
@@ -68,7 +70,12 @@ function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
       const handler = tableHandlers[table]?.shift() ?? {};
       return new FakeQuery(handler);
     }),
-    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    rpc: vi.fn((name: string, args: Record<string, unknown>) => {
+      if (name === "apply_journey_progress_patch") {
+        return Promise.resolve({ data: args.p_patch, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }),
   };
   vi.mocked(createAdminClient).mockReturnValue(
     admin as unknown as ReturnType<typeof createAdminClient>
@@ -84,6 +91,16 @@ function createContext(progress: Record<string, unknown>): ToolExecutionContext 
       venue: null,
       progress: progress as unknown as ToolExecutionContext["weddingContext"]["progress"],
     },
+  };
+}
+
+function scheduleEvent(index: number) {
+  return {
+    id: `event-${index}`,
+    date: "2027-04-30",
+    title: `Event ${index}`,
+    createdAt: "2026-07-01T00:00:00.000Z",
+    updatedAt: "2026-07-01T00:00:00.000Z",
   };
 }
 
@@ -110,15 +127,7 @@ describe("scheduleTools", () => {
   });
 
   it("adds schedule events through the shared progress patch path", async () => {
-    let updatedProgress: Record<string, unknown> | null = null;
-    mockAdminClient({
-      wedding_journeys: [{
-        onUpdate: (payload) => {
-          updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-        },
-        updateResult: { error: null },
-      }],
-    });
+    mockAdminClient({});
 
     const ctx = createContext({});
     const result = await executeAddScheduleEvent(
@@ -131,7 +140,7 @@ describe("scheduleTools", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(updatedProgress).toMatchObject({
+    expect(ctx.weddingContext.progress).toMatchObject({
       __events: [expect.objectContaining({
         date: "2026-07-06",
         title: "Studio consult",
@@ -141,6 +150,139 @@ describe("scheduleTools", () => {
     });
     expect(executeGetScheduleEvents({ from_date: "2026-07-01", to_date: "2026-07-31" }, ctx).toolOutput)
       .toMatchObject({ count: 1 });
+  });
+
+  it.each(["2027-02-29", "2027-02-31", "2027-04-31"])(
+    "rejects the nonexistent add_schedule_event date %s before persistence",
+    async (date) => {
+      const result = await executeAddScheduleEvent(
+        { date, title: "Invalid calendar day" },
+        createContext({}),
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        toolOutput: { error: "invalid_date", received: date },
+      });
+      expect(createAdminClient).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [{ date: "2027-05-01", title: "   " }, "title"],
+    [{ date: "2027-05-01", title: "Valid", memo: "m".repeat(2_001) }, "memo"],
+  ] as const)("rejects an invalid add_schedule_event field: %s", async (input, field) => {
+    const result = await executeAddScheduleEvent(input, createContext({}));
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_schedule_event", field },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects a nonexistent update_schedule_event date before persistence", async () => {
+    const existing = {
+      id: "event-1",
+      date: "2027-04-30",
+      title: "Valid event",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    };
+    const result = await executeUpdateScheduleEvent(
+      { event_id: existing.id, date: "2027-04-31" },
+      createContext({ __events: [existing] }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_date", received: "2027-04-31" },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ title: "   " }, "title"],
+    [{ memo: "m".repeat(2_001) }, "memo"],
+  ] as const)("rejects an invalid update_schedule_event field: %s", async (updates, field) => {
+    const existing = scheduleEvent(1);
+    const result = await executeUpdateScheduleEvent(
+      { event_id: existing.id, ...updates },
+      createContext({ __events: [existing] }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_schedule_event", field },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects a nonexistent log_wedding_event date before persistence", async () => {
+    const result = await executeLogWeddingEvent(
+      { moment_type: "dress_tour", date: "2027-02-29" },
+      createContext({}),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_date", received: "2027-02-29" },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("reports only the persisted event without promising unavailable outbound care", async () => {
+    mockAdminClient({});
+
+    const result = await executeLogWeddingEvent(
+      { moment_type: "dress_tour", date: "2027-05-01", title: "드레스 투어" },
+      createContext({}),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.displayMessage).toBe('2027-05-01 "드레스 투어" 일정을 저장했어요.');
+    expect(result.displayMessage).not.toContain("먼저 챙길게요");
+    expect(result.displayMessage).not.toContain("3일 전");
+  });
+
+  it("returns an explicit capacity error instead of persisting event 501", async () => {
+    const events = Array.from({ length: 500 }, (_, index) => scheduleEvent(index));
+    const result = await executeAddScheduleEvent(
+      { date: "2027-05-01", title: "Event 501" },
+      createContext({ __events: events }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "schedule_capacity_exceeded", limit: 500 },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns the same capacity error when log_wedding_event would create event 501", async () => {
+    const events = Array.from({ length: 500 }, (_, index) => scheduleEvent(index));
+    const result = await executeLogWeddingEvent(
+      { moment_type: "dress_tour", date: "2027-05-01" },
+      createContext({ __events: events }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "schedule_capacity_exceeded", limit: 500 },
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects nonexistent get_schedule_events range dates without throwing", () => {
+    const result = executeGetScheduleEvents(
+      { from_date: "2027-02-29", to_date: "2027-04-31" },
+      createContext({}),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_date_range" },
+    });
   });
 });
 
@@ -179,18 +321,11 @@ describe("amoraActionTools", () => {
   });
 
   it("updates legacy actions when storage is unavailable", async () => {
-    let updatedProgress: Record<string, unknown> | null = null;
     mockAdminClient({
       amora_actions: [
         { awaitResult: { data: [], error: null } },
         { updateResult: { error: { code: "42P01", message: "relation missing" } } },
       ],
-      wedding_journeys: [{
-        onUpdate: (payload) => {
-          updatedProgress = (payload as { progress?: Record<string, unknown> }).progress ?? null;
-        },
-        updateResult: { error: null },
-      }],
     });
 
     const ctx = createContext({
@@ -216,7 +351,7 @@ describe("amoraActionTools", () => {
       id: "act_1",
       status: "done",
     });
-    expect(updatedProgress).toMatchObject({
+    expect(ctx.weddingContext.progress).toMatchObject({
       __amora_actions: [expect.objectContaining({ id: "act_1", status: "done" })],
     });
   });

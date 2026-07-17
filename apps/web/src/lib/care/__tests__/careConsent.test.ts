@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  canChangeCareConsent,
+  hasCareConsent,
   hasSameCareMemberRoster,
   hasUnanimousCareConsent,
+  parseCareAvailability,
 } from "@/lib/care/careConsent";
 
 describe("shared proactive-care consent", () => {
@@ -9,6 +12,18 @@ describe("shared proactive-care consent", () => {
     id,
     care_notifications_enabled: true,
     care_notifications_consented_at: "2026-07-16T00:00:00.000Z",
+  });
+
+  it("requires both the enabled flag and an explicit consent timestamp", () => {
+    expect(hasCareConsent(consented("bride"))).toBe(true);
+    expect(hasCareConsent({
+      ...consented("bride"),
+      care_notifications_consented_at: null,
+    })).toBe(false);
+    expect(hasCareConsent({
+      ...consented("bride"),
+      care_notifications_enabled: false,
+    })).toBe(false);
   });
 
   it("allows a one-member couple after that member explicitly opts in", () => {
@@ -39,5 +54,29 @@ describe("shared proactive-care consent", () => {
     expect(hasSameCareMemberRoster(["bride", "groom"], ["groom", "bride"])).toBe(true);
     expect(hasSameCareMemberRoster(["bride", "groom"], ["bride", "new-groom"])).toBe(false);
     expect(hasSameCareMemberRoster(["bride", "groom"], ["bride"])).toBe(false);
+  });
+
+  it("allows opt-out during an outbound pause but blocks a new opt-in", () => {
+    const paused = parseCareAvailability({
+      outboundEnabled: false,
+      emailVerified: true,
+    });
+
+    expect(paused).toEqual({ outboundEnabled: false, emailVerified: true });
+    expect(canChangeCareConsent(false, paused)).toBe(false);
+    expect(canChangeCareConsent(true, paused)).toBe(true);
+    expect(canChangeCareConsent(false, null)).toBe(false);
+    expect(canChangeCareConsent(false, {
+      outboundEnabled: true,
+      emailVerified: false,
+    })).toBe(true);
+  });
+
+  it("rejects malformed care availability instead of guessing delivery state", () => {
+    expect(parseCareAvailability({
+      outboundEnabled: "true",
+      emailVerified: true,
+    })).toBeNull();
+    expect(parseCareAvailability(null)).toBeNull();
   });
 });

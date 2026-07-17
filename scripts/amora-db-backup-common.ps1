@@ -479,6 +479,45 @@ function Get-HBAM2RelationContractSha256 {
   finally { [Array]::Clear($bytes, 0, $bytes.Length) }
 }
 
+function Get-HBAM2LogicalDataContractSha256 {
+  param(
+    [Parameter(Mandatory = $true)] $Tables,
+    [Parameter(Mandatory = $true)] [string[]] $ExpectedNames,
+    [Parameter(Mandatory = $true)] [string] $Label
+  )
+
+  $properties = @($Tables.PSObject.Properties | Sort-Object Name)
+  $actualNames = @($properties | ForEach-Object { [string]$_.Name })
+  $sortedExpected = @($ExpectedNames | Sort-Object)
+  if ($properties.Count -ne $sortedExpected.Count -or
+      @(Compare-Object -ReferenceObject $sortedExpected -DifferenceObject $actualNames).Count -ne 0) {
+    throw "$Label logical-data allowlist mismatch."
+  }
+
+  $contract = @($properties | ForEach-Object {
+    $table = $_.Value
+    if (-not $table.PSObject.Properties['row_count'] -or
+        -not $table.PSObject.Properties['canonical_sha256'] -or
+        [string]$table.row_count -notmatch '^(0|[1-9][0-9]{0,18})$' -or
+        [string]$table.canonical_sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
+      throw "$Label logical-data contract metadata is invalid for $($_.Name)."
+    }
+    try { $rowCount = [int64]$table.row_count }
+    catch { throw "$Label logical-data row count is outside int64 for $($_.Name)." }
+    if ($rowCount -lt 0) {
+      throw "$Label logical-data row count is negative for $($_.Name)."
+    }
+    [ordered]@{
+      name = [string]$_.Name
+      row_count = $rowCount
+      canonical_sha256 = ([string]$table.canonical_sha256).ToUpperInvariant()
+    }
+  })
+  $bytes = [Text.Encoding]::UTF8.GetBytes(($contract | ConvertTo-Json -Depth 5 -Compress))
+  try { return Get-HBAM2Sha256Hex -Bytes $bytes }
+  finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+}
+
 function Get-HBAM2StreamSha256Hex {
   param([Parameter(Mandatory = $true)] [IO.FileStream] $Stream)
 

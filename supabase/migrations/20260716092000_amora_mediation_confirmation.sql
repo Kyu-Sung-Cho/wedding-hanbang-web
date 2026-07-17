@@ -28,6 +28,46 @@ DELETE FROM public.amora_mediation_acceptances
 WHERE proposal_resolution IS NULL
    OR proposal_version IS NULL
    OR proposal_roster_fingerprint IS NULL;
+
+DO $not_null_contracts$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.amora_mediation_acceptances'::regclass
+      AND conname = 'amora_mediation_acceptances_proposal_resolution_not_null'
+  ) THEN
+    ALTER TABLE public.amora_mediation_acceptances
+      ADD CONSTRAINT amora_mediation_acceptances_proposal_resolution_not_null
+      CHECK (proposal_resolution IS NOT NULL) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.amora_mediation_acceptances'::regclass
+      AND conname = 'amora_mediation_acceptances_proposal_version_not_null'
+  ) THEN
+    ALTER TABLE public.amora_mediation_acceptances
+      ADD CONSTRAINT amora_mediation_acceptances_proposal_version_not_null
+      CHECK (proposal_version IS NOT NULL) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.amora_mediation_acceptances'::regclass
+      AND conname = 'amora_mediation_acceptances_roster_fingerprint_not_null'
+  ) THEN
+    ALTER TABLE public.amora_mediation_acceptances
+      ADD CONSTRAINT amora_mediation_acceptances_roster_fingerprint_not_null
+      CHECK (proposal_roster_fingerprint IS NOT NULL) NOT VALID;
+  END IF;
+END
+$not_null_contracts$;
+
+ALTER TABLE public.amora_mediation_acceptances
+  VALIDATE CONSTRAINT amora_mediation_acceptances_proposal_resolution_not_null;
+ALTER TABLE public.amora_mediation_acceptances
+  VALIDATE CONSTRAINT amora_mediation_acceptances_proposal_version_not_null;
+ALTER TABLE public.amora_mediation_acceptances
+  VALIDATE CONSTRAINT amora_mediation_acceptances_roster_fingerprint_not_null;
+
 ALTER TABLE public.amora_mediation_acceptances
   ALTER COLUMN proposal_resolution SET NOT NULL,
   ALTER COLUMN proposal_version SET NOT NULL,
@@ -43,7 +83,8 @@ BEGIN
   ) THEN
     ALTER TABLE public.amora_mediation_acceptances
       ADD CONSTRAINT amora_mediation_acceptances_proposal_resolution_check
-      CHECK (char_length(proposal_resolution) BETWEEN 1 AND 500);
+      CHECK (char_length(proposal_resolution) BETWEEN 1 AND 500)
+      NOT VALID;
   END IF;
 
   IF NOT EXISTS (
@@ -54,10 +95,16 @@ BEGIN
   ) THEN
     ALTER TABLE public.amora_mediation_acceptances
       ADD CONSTRAINT amora_mediation_acceptances_roster_fingerprint_check
-      CHECK (proposal_roster_fingerprint ~ '^[a-f0-9]{32}$');
+      CHECK (proposal_roster_fingerprint ~ '^[a-f0-9]{32}$')
+      NOT VALID;
   END IF;
 END
 $block$;
+
+ALTER TABLE public.amora_mediation_acceptances
+  VALIDATE CONSTRAINT amora_mediation_acceptances_proposal_resolution_check;
+ALTER TABLE public.amora_mediation_acceptances
+  VALIDATE CONSTRAINT amora_mediation_acceptances_roster_fingerprint_check;
 
 CREATE INDEX IF NOT EXISTS amora_mediation_acceptances_couple_idx
   ON public.amora_mediation_acceptances(couple_id, accepted_at DESC);

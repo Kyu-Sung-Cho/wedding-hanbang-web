@@ -1,3 +1,4 @@
+// CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 // 웨딩코드 미러 프로필 v0 결과 화면 콘텐츠 — 지시서 §2~§5.
 // 원칙: 채점·유형·판정 문장 금지. 팩트는 아래 목록 외 사용 금지, 출처+연도 병기,
 // 사용자의 어떤 선택에도 동일 문장·동일 톤(조건 분기 금지 — 지시서 §1-3).

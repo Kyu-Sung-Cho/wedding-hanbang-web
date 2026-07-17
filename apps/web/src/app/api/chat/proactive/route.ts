@@ -1,7 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {
   claimChatRequest,
@@ -9,8 +9,64 @@ import {
   failChatRequest,
 } from "@/lib/ai/chatRequestClaim";
 import { createHash } from "node:crypto";
+import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
-export async function GET(req: NextRequest) {
+const MUTATION_RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Origin, Sec-Fetch-Site",
+};
+
+export async function GET() {
+  return NextResponse.json(
+    { triggered: false, reason: "method_not_allowed" },
+    {
+      status: 405,
+      headers: {
+        ...MUTATION_RESPONSE_HEADERS,
+        Allow: "POST",
+      },
+    },
+  );
+}
+
+export async function POST(req: NextRequest) {
+  if (!isSameOriginMutation(req)) {
+    return NextResponse.json(
+      { triggered: false, reason: "invalid_origin" },
+      { status: 403, headers: MUTATION_RESPONSE_HEADERS },
+    );
+  }
+  const response = await handleProactiveRequest(req);
+  for (const [name, value] of Object.entries(MUTATION_RESPONSE_HEADERS)) {
+    response.headers.set(name, value);
+  }
+  return response;
+}
+
+function isSameOriginMutation(req: NextRequest): boolean {
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin") return false;
+
+  const origin = req.headers.get("origin");
+  if (origin) {
+    try {
+      return new URL(origin).origin === req.nextUrl.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  // Browsers supply Sec-Fetch-Site for fetch requests even when an older
+  // user agent or intermediary omits Origin. Requests with neither proof fail closed.
+  return fetchSite === "same-origin";
+}
+
+async function handleProactiveRequest(req: NextRequest) {
+  // This endpoint is user-triggered, but every outcome is outbound shared care.
+  // Fail closed before authentication, service-role construction, or user reads.
+  if (process.env.AMORA_CARE_OUTBOUND_ENABLED !== "true") {
+    return NextResponse.json({ triggered: false, reason: "outbound_disabled" });
+  }
   try {
     const supabase = await createClientFromRequest(req);
     const {
@@ -21,10 +77,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ triggered: false });
     }
 
-    const admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("chat:proactive", req, user.id),
+      { maxRequests: 6, windowMs: 10 * 60 * 1000 },
+      { failClosed: true },
     );
+    if (limited) return limited;
+
+    const admin = createAdminClient();
 
     // 프로필 + 커플 조회
     const { data: profile } = await admin
@@ -77,16 +137,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (nextCell) {
-      const { data: inserted, error: insertError } = await admin
-        .from("chat_messages")
-        .insert({
-          couple_id: profile.couple_id,
-          sender_id: null,
-          sender_type: "ai",
-          role: "assistant",
-          content: nextCell.message,
-          visibility: "shared",
-          metadata: {
+      const { data: insertedMessageId, error: insertError } = await admin.rpc(
+        "insert_amora_care_message",
+        {
+          p_couple_id: profile.couple_id,
+          p_content: nextCell.message,
+          p_metadata: {
             client_request_id: `moment:${nextCell.dedupeKey}`,
             moment: {
               dedupeKey: nextCell.dedupeKey,
@@ -96,9 +152,8 @@ export async function GET(req: NextRequest) {
               memoryKeys: nextCell.memoryKeys,
             },
           },
-        })
-        .select()
-        .single();
+        },
+      );
 
       // 23505 = 유니크 위반: 동시 요청이 먼저 발화함 — 중복 없이 조용히 종료
       if (insertError) {
@@ -111,11 +166,14 @@ export async function GET(req: NextRequest) {
           { status: 503 },
         );
       }
+      if (typeof insertedMessageId !== "string") {
+        return NextResponse.json({ triggered: false, reason: "consent_required" });
+      }
 
       return NextResponse.json({
         triggered: true,
         kind: "moment",
-        messageId: inserted?.id,
+        messageId: insertedMessageId,
       });
     }
 
@@ -181,16 +239,12 @@ export async function GET(req: NextRequest) {
     }
 
     // 프로액티브 메시지 저장 — shared 채널로만 발송 (양쪽 모두 봄)
-    const { data: inserted, error: insertError } = await admin
-      .from("chat_messages")
-      .insert({
-        couple_id: profile.couple_id,
-        sender_id: null,
-        sender_type: "ai",
-        role: "assistant",
-        content: proactiveMessage,
-        visibility: "shared",
-        metadata: {
+    const { data: rpcMessageId, error: insertError } = await admin.rpc(
+      "insert_amora_care_message",
+      {
+        p_couple_id: profile.couple_id,
+        p_content: proactiveMessage,
+        p_metadata: {
           client_request_id: claimParams.requestKey,
           suggestions: plan.guardrails.slice(0, 3).map((item) => item.cta),
           lifecycle: {
@@ -201,14 +255,35 @@ export async function GET(req: NextRequest) {
             href: plan.primaryAction.href,
           },
         },
-      })
-      .select()
-      .single();
+      },
+    );
+    let insertedMessageId = typeof rpcMessageId === "string" ? rpcMessageId : null;
+    let persistenceError = insertError;
+    let duplicateWithoutMessage = false;
+    if (insertError?.code === "23505") {
+      // A concurrent request may have persisted the same idempotency key after
+      // this request acquired its claim. Complete only after reading that real row.
+      const { data: existing, error: existingError } = await admin
+        .from("chat_messages")
+        .select("id")
+        .eq("couple_id", profile.couple_id)
+        .eq("metadata->>client_request_id", claimParams.requestKey)
+        .maybeSingle();
+      insertedMessageId = typeof existing?.id === "string" ? existing.id : null;
+      persistenceError = existingError;
+      duplicateWithoutMessage = !existingError && !insertedMessageId;
+    }
 
-    if (insertError || !inserted?.id) {
-      console.error("[chat/proactive] lifecycle persistence failed", insertError);
-      await failChatRequest({ ...claimParams, failureCode: "PERSISTENCE_FAILED" }, admin)
+    if (persistenceError || duplicateWithoutMessage || typeof insertedMessageId !== "string") {
+      console.error("[chat/proactive] lifecycle persistence failed", persistenceError);
+      const failureCode = persistenceError || duplicateWithoutMessage
+        ? "PERSISTENCE_FAILED"
+        : "CONSENT_REQUIRED";
+      await failChatRequest({ ...claimParams, failureCode }, admin)
         .catch((error) => console.error("[chat/proactive] claim failure marker failed", error));
+      if (!persistenceError && !duplicateWithoutMessage) {
+        return NextResponse.json({ triggered: false, reason: "consent_required" });
+      }
       return NextResponse.json(
         { triggered: false, reason: "persistence_failed" },
         { status: 503 },
@@ -216,7 +291,7 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      await completeChatRequest({ ...claimParams, messageId: inserted.id }, admin);
+      await completeChatRequest({ ...claimParams, messageId: insertedMessageId }, admin);
     } catch (error) {
       console.error("[chat/proactive] lifecycle claim completion failed", error);
       await failChatRequest({ ...claimParams, failureCode: "CLAIM_COMPLETION_FAILED" }, admin)
@@ -230,7 +305,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       triggered: true,
       kind: "lifecycle",
-      messageId: inserted.id,
+      messageId: insertedMessageId,
     });
   } catch (err) {
     console.error("프로액티브 체크 에러:", err);

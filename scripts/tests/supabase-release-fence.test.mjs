@@ -6,10 +6,27 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  AMORA_POST_EXPAND_TABLE_CONTRACT_SHA256,
+  AMORA_POST_EXPAND_TABLES,
+  AMORA_RELEASE_MIGRATION_CONTRACT_SHA256,
+  AMORA_RELEASE_MIGRATION_VERSIONS,
+  FINALIZER_EXTERNAL_EVIDENCE_CONTRACT,
+  FINALIZER_REQUIRED_CANARY_CHECKS,
+  POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
+} from "../lib/amora-release-extended-contracts.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(testDir, "../..");
 const fenceSource = join(repoRoot, "scripts", "supabase-release-fence.mjs");
+const extendedContractsSource = join(
+  repoRoot,
+  "scripts/lib/amora-release-extended-contracts.mjs",
+);
+const readOnlyEnvelopeSource = join(
+  repoRoot,
+  "scripts/lib/sql-read-only-envelope.mjs",
+);
 
 function sha256(content) {
   return createHash("sha256").update(content.replace(/\r\n?/g, "\n"), "utf8").digest("hex");
@@ -25,11 +42,45 @@ async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), "hanbang-release-fence-"));
   await mkdir(join(root, "scripts"), { recursive: true });
   await cp(fenceSource, join(root, "scripts", "supabase-release-fence.mjs"));
+  await mkdir(join(root, "scripts/lib"), { recursive: true });
+  await cp(
+    extendedContractsSource,
+    join(root, "scripts/lib/amora-release-extended-contracts.mjs"),
+  );
+  await cp(
+    readOnlyEnvelopeSource,
+    join(root, "scripts/lib/sql-read-only-envelope.mjs"),
+  );
 
   const historicalAudit = "select 'verified';\n";
   const previousMigration = "select 'previous';\n";
   const currentMigration = "select 'current';\n";
   const currentDocument = "# Current release\n";
+  const preApplyCheck = `-- fixture checks may start with comments
+BEGIN TRANSACTION READ ONLY;
+DO $check$
+BEGIN
+  IF false THEN
+    RAISE EXCEPTION 'ROLLBACK is not top-level here';
+  END IF;
+END
+$check$;
+select true as verified;
+ROLLBACK;
+`;
+  const postPushCheck = "BEGIN TRANSACTION READ ONLY;\nselect true as verified;\nROLLBACK;\n";
+  const postApplyCheck = "BEGIN TRANSACTION READ ONLY;\nselect true as verified;\nROLLBACK;\n";
+  const platformApply = "select 'platform apply';\n";
+  const postPushPlatformApply = "select 'post-push platform apply';\n";
+  const platformRollback = "select 'platform rollback';\n";
+  const postPushPlatformRollback = "select 'post-push platform rollback';\n";
+  const baselineVerifier = "# fixture baseline verifier\n";
+  const forwardInventory = "BEGIN TRANSACTION READ ONLY;\nselect 1 as ai_log_retention_exact_acl_verified;\nROLLBACK;\n";
+  const forwardApply = "BEGIN;\nselect 'forward apply';\nCOMMIT;\n";
+  const forwardVerify = "BEGIN TRANSACTION READ ONLY;\nselect 1 as ai_log_retention_exact_acl_verified;\nROLLBACK;\n";
+  const finalizer = "BEGIN;\nselect 'finalizer';\nCOMMIT;\n";
+  const postExpandCapture = "# fixture post-expand capture\n";
+  const postExpandVerifier = "# fixture post-expand verifier\n";
   const previousManifest = {
     release: "previous",
     projectRef: "test-project",
@@ -53,6 +104,7 @@ async function createFixture() {
       file: "supabase/release-manifests/amora-openai-20260714.json",
       sha256: sha256(`${JSON.stringify(previousManifest, null, 2)}\n`),
     },
+    requiredRemoteHead: "20260715000000",
     migrationFloor: "20260716000000",
     historicalReconciliation: [],
     expandMigrations: [
@@ -63,10 +115,209 @@ async function createFixture() {
       file: "supabase/contract-migrations/historical.sql",
       sha256: sha256(historicalAudit),
     },
-    manualPlatformOperations: [],
+    preApplyChecks: [
+      {
+        id: "fixture-pre-apply",
+        type: "read-only-sql",
+        file: "supabase/release-checks/fixture-pre.sql",
+        sha256: sha256(preApplyCheck),
+        expectedEvidence: {
+          exact_policy_count: 4,
+          staging_object_count: 0,
+        },
+      },
+    ],
+    postPushChecks: [
+      {
+        id: "fixture-post-push",
+        type: "read-only-sql",
+        file: "supabase/release-checks/fixture-post-push.sql",
+        sha256: sha256(postPushCheck),
+        expectedEvidence: {
+          exact_storage_policy_count: 1,
+        },
+      },
+    ],
+    postApplyChecks: [
+      {
+        id: "fixture-post-apply",
+        type: "read-only-sql",
+        file: "supabase/release-checks/fixture-post.sql",
+        sha256: sha256(postApplyCheck),
+        expectedEvidence: {
+          remaining_pending_count: 0,
+        },
+      },
+    ],
+    forwardOnlySecurityOperations: [{
+      id: "ai-log-retention-exact-acl-20260717141000",
+      phase: "pre-backup",
+      verificationCheckId: "fixture-pre-apply",
+      rollbackPolicy: "forward-fix-only-no-privilege-restoration",
+      supersedes: {
+        operationId: "ai-log-retention-acl-hotfix-20260717103000",
+        forbiddenFiles: [
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_inventory.sql",
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_apply.sql",
+          "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_verify.sql",
+        ],
+      },
+      inventory: {
+        file: "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_inventory.sql",
+        sha256: sha256(forwardInventory),
+      },
+      apply: {
+        file: "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_apply.sql",
+        sha256: sha256(forwardApply),
+      },
+      verify: {
+        file: "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_verify.sql",
+        sha256: sha256(forwardVerify),
+        expectedEvidence: { ai_log_retention_exact_acl_verified: 1 },
+      },
+    }],
+    postExpandBackupContract: {
+      id: "post-amora-engine-v2-27-table-backup",
+      version: 1,
+      phase: "post-push-pre-deployment-canary",
+      verificationReceiptFileName:
+        "current-post-expand-backup-verification.json",
+      maximumAgeMinutes: 1440,
+      expectedTableCount: AMORA_POST_EXPAND_TABLES.length,
+      expectedTables: [...AMORA_POST_EXPAND_TABLES],
+      expectedReleaseMigrationBaselineHead: "20260715210000",
+      expectedReleaseMigrationHead: "20260716117000",
+      expectedReleaseMigrationVersions: [...AMORA_RELEASE_MIGRATION_VERSIONS],
+      expectedTableContractSha256: AMORA_POST_EXPAND_TABLE_CONTRACT_SHA256,
+      expectedReleaseMigrationContractSha256:
+        AMORA_RELEASE_MIGRATION_CONTRACT_SHA256,
+      expectedCommitBinding: "release-expected-commit",
+      requiredLedgerEvidence:
+        "live-remote-ledger-and-encrypted-backup-contract",
+      requiredReceiptValues: {
+        Verified: true,
+        SourceCanonicalDigestsVerified: true,
+        PGliteJsonbRoundTripVerified: true,
+        PlaintextWrittenToDisk: false,
+      },
+      capture: {
+        file: "scripts/amora-db-backup.ps1",
+        sha256: sha256(postExpandCapture),
+      },
+      verifier: {
+        file: "scripts/amora-db-verify-backup.ps1",
+        sha256: sha256(postExpandVerifier),
+      },
+      hostedRestoreEvidence: {
+        receiptFileName: "current-post-expand-hosted-restore-evidence.json",
+        maximumAgeMinutes: 1440,
+        requiredTargetIsolation: "different-supabase-project",
+        requiredChecks: [...POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS],
+      },
+    },
+    finalizationContract: {
+      id: "production-write-fence-exact-owner-finalizer",
+      version: 1,
+      operation: {
+        id: "production-write-fence-finalize-20260717121000",
+        file: "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+        sha256: sha256(finalizer),
+      },
+      requiredLeasePhase: "deployment-canary",
+      canaryMaximumAgeMinutes: 15,
+      deploymentMaximumAgeMinutes: 1440,
+      requiredCanaryChecks: [...FINALIZER_REQUIRED_CANARY_CHECKS],
+      externalEvidence: structuredClone(FINALIZER_EXTERNAL_EVIDENCE_CONTRACT),
+      confirmationIncludesCanarySha256: true,
+    },
+    manualPlatformOperations: [
+      {
+        id: "fixture-platform-apply",
+        phase: "pre-backup",
+        verificationCheckId: "fixture-pre-apply",
+        file: "supabase/platform-operations/security/fixture-apply.sql",
+        sha256: sha256(platformApply),
+      },
+      {
+        id: "fixture-post-push-platform-apply",
+        phase: "post-push-pre-deploy",
+        verificationCheckId: "fixture-post-push",
+        file: "supabase/platform-operations/storage/fixture-post-push-apply.sql",
+        sha256: sha256(postPushPlatformApply),
+      },
+    ],
+    rollbackArtifacts: [
+      {
+        id: "fixture-platform-rollback",
+        forOperationId: "fixture-platform-apply",
+        file: "supabase/platform-operations/security/fixture_rollback.sql",
+        sha256: sha256(platformRollback),
+      },
+      {
+        id: "fixture-post-push-platform-rollback",
+        forOperationId: "fixture-post-push-platform-apply",
+        file: "supabase/platform-operations/storage/fixture-post-push_rollback.sql",
+        sha256: sha256(postPushPlatformRollback),
+      },
+    ],
+    manualControlEvidence: {
+      receiptFileName: "fixture-production-write-fence.json",
+      postPushReceiptFileName: "fixture-post-push-platform.json",
+      storageDrainReceiptFileName: "fixture-storage-signed-upload-drain.json",
+      maximumAgeMinutes: 30,
+      signedUploadTokenTtlMinutes: 120,
+      signedUploadGraceMinutes: 10,
+      storageStabilityWindowMinutes: 5,
+    },
     requiredDocuments: [
       { file: "docs/current.md", sha256: sha256(currentDocument) },
     ],
+    backupContract: {
+      id: "pre-amora-current-remote-14-table-baseline",
+      version: 1,
+      expectedTableCount: 14,
+      excludedEphemeralTables: [
+        "production_release_lease_20260717",
+        "rate_limit_buckets",
+      ],
+      ephemeralRebuildContract:
+        "production_release_lease_20260717=temporary-release-control-dropped-by-paired-write-fence-finalizer;rate_limit_buckets=empty-on-restore-recreated-by-public.check_rate_limit(text,integer,integer)",
+      expectedCommitBinding: "release-expected-commit",
+      expectedOrigin: "https://github.com/example/wedding.git",
+      verifier: {
+        file: "scripts/amora-db-current-baseline-verify.ps1",
+        sha256: sha256(baselineVerifier),
+      },
+      providerPhysicalBackup: {
+        maximumAgeHours: 26,
+        requiredStatus: "COMPLETED",
+        requirePhysicalBackup: true,
+        restoreCapability: "completed-physical-backup",
+      },
+      hostedRestoreEvidence: {
+        receiptFileName: "current-hosted-restore-evidence.json",
+        maximumAgeMinutes: 1440,
+        requiredTargetIsolation: "different-supabase-project",
+        requiredChecks: [
+          "authApiSmokeVerified",
+          "authUsersSchemaAndDataVerified",
+          "checkConstraintsVerified",
+          "columnDefaultsVerified",
+          "destructiveRestoreDrillCompleted",
+          "isolatedTargetConfirmed",
+          "logicalDataDigestsVerified",
+          "rowLevelSecurityPoliciesVerified",
+          "rpcDefinitionsAndAclVerified",
+          "storageMetadataRestoredVerified",
+          "triggersVerified",
+          "typedSchemaVerified",
+        ],
+      },
+      supabaseCli: {
+        version: "2.106.0",
+        binarySha256: "A".repeat(64),
+      },
+    },
   };
 
   await write(root, "supabase/release-manifests/amora-openai-20260714.json", `${JSON.stringify(previousManifest, null, 2)}\n`);
@@ -74,7 +325,43 @@ async function createFixture() {
   await write(root, "supabase/migrations/20260714000000_previous.sql", previousMigration);
   await write(root, "supabase/migrations/20260716000000_current.sql", currentMigration);
   await write(root, "supabase/contract-migrations/historical.sql", historicalAudit);
+  await write(root, "supabase/release-checks/fixture-pre.sql", preApplyCheck);
+  await write(root, "supabase/release-checks/fixture-post-push.sql", postPushCheck);
+  await write(root, "supabase/release-checks/fixture-post.sql", postApplyCheck);
+  await write(root, "supabase/platform-operations/security/fixture-apply.sql", platformApply);
+  await write(root, "supabase/platform-operations/security/fixture_rollback.sql", platformRollback);
+  await write(
+    root,
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_inventory.sql",
+    forwardInventory,
+  );
+  await write(
+    root,
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_apply.sql",
+    forwardApply,
+  );
+  await write(
+    root,
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_verify.sql",
+    forwardVerify,
+  );
+  await write(
+    root,
+    "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+    finalizer,
+  );
+  await write(root, "supabase/platform-operations/storage/fixture-post-push-apply.sql", postPushPlatformApply);
+  await write(root, "supabase/platform-operations/storage/fixture-post-push_rollback.sql", postPushPlatformRollback);
+  await write(root, "scripts/amora-db-current-baseline-verify.ps1", baselineVerifier);
+  await write(root, "scripts/amora-db-backup.ps1", postExpandCapture);
+  await write(root, "scripts/amora-db-verify-backup.ps1", postExpandVerifier);
   await write(root, "docs/current.md", currentDocument);
+  await write(root, "supabase/.temp/project-ref", "test-project\n");
+  await write(
+    root,
+    "node_modules/supabase/dist/supabase.js",
+    "console.log('DRY RUN: migrations will not be pushed\\n • 20260716000000_current.sql');\n",
+  );
   return root;
 }
 
@@ -92,6 +379,17 @@ test("이전 릴리스의 hash-pinned migration이 변조되면 정적 fence가 
     const result = runFence(root);
     assert.notEqual(result.status, 0, result.stdout);
     assert.match(result.stderr, /predecessor migration hash mismatch/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("remote dry-run의 bullet migration 목록을 정확한 순서로 인식한다", async () => {
+  const root = await createFixture();
+  try {
+    const result = runFence(root, ["--remote", "--expect=expand-only"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /expand-only \(1 migrations\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -118,6 +416,194 @@ test("이전 migration과 이전 manifest를 함께 바꿔도 현재 release pin
 
     assert.notEqual(result.status, 0, result.stdout);
     assert.match(result.stderr, /predecessor release manifest hash mismatch/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the static fence requires a valid remote head and non-empty pre/post checks", async () => {
+  const mutations = [
+    (manifest) => { delete manifest.requiredRemoteHead; },
+    (manifest) => { manifest.requiredRemoteHead = manifest.migrationFloor; },
+    (manifest) => { manifest.preApplyChecks = []; },
+    (manifest) => { manifest.postPushChecks = []; },
+    (manifest) => { manifest.postApplyChecks = []; },
+    (manifest) => { delete manifest.preApplyChecks[0].expectedEvidence; },
+    (manifest) => { manifest.postApplyChecks[0].expectedEvidence = { pending_total: 0 }; },
+  ];
+  for (const mutate of mutations) {
+    const root = await createFixture();
+    try {
+      const path = join(root, "supabase/release-manifests/amora-engine-v2-20260716.json");
+      const manifest = JSON.parse(await readFile(path, "utf8"));
+      mutate(manifest);
+      await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+      const result = runFence(root);
+      assert.notEqual(result.status, 0, result.stdout);
+      assert.match(result.stderr, /remote head|preApplyChecks|postPushChecks|postApplyChecks|manualControlEvidence|release-phase/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("the static fence hash-verifies checks, platform operations, rollbacks and documents", async () => {
+  const artifacts = [
+    "supabase/release-checks/fixture-pre.sql",
+    "supabase/release-checks/fixture-post-push.sql",
+    "supabase/release-checks/fixture-post.sql",
+    "supabase/platform-operations/security/fixture-apply.sql",
+    "supabase/platform-operations/security/fixture_rollback.sql",
+    "supabase/platform-operations/storage/fixture-post-push-apply.sql",
+    "supabase/platform-operations/storage/fixture-post-push_rollback.sql",
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_inventory.sql",
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_apply.sql",
+    "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_verify.sql",
+    "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+    "scripts/amora-db-backup.ps1",
+    "scripts/amora-db-verify-backup.ps1",
+    "docs/current.md",
+  ];
+  for (const artifact of artifacts) {
+    const root = await createFixture();
+    try {
+      await write(root, artifact, "tampered\n");
+      const result = runFence(root);
+      assert.notEqual(result.status, 0, `${artifact} was not fenced`);
+      assert.match(result.stderr, /hash mismatch/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("the static fence rejects drift in every extended release contract boundary", async () => {
+  const mutations = [
+    (manifest) => { manifest.forwardOnlySecurityOperations[0].phase = "post-push-pre-deploy"; },
+    (manifest) => { manifest.forwardOnlySecurityOperations[0].verificationCheckId = "missing-check"; },
+    (manifest) => { manifest.forwardOnlySecurityOperations[0].supersedes.forbiddenFiles = []; },
+    (manifest) => { manifest.postExpandBackupContract.maximumAgeMinutes = 30; },
+    (manifest) => { manifest.postExpandBackupContract.expectedTables.pop(); },
+    (manifest) => { manifest.postExpandBackupContract.expectedReleaseMigrationVersions.pop(); },
+    (manifest) => { manifest.postExpandBackupContract.expectedTableContractSha256 = "0".repeat(64); },
+    (manifest) => { manifest.postExpandBackupContract.hostedRestoreEvidence.requiredChecks.pop(); },
+    (manifest) => { manifest.finalizationContract.requiredCanaryChecks.pop(); },
+  ];
+  for (const mutate of mutations) {
+    const root = await createFixture();
+    try {
+      const path = join(
+        root,
+        "supabase/release-manifests/amora-engine-v2-20260716.json",
+      );
+      const manifest = JSON.parse(await readFile(path, "utf8"));
+      mutate(manifest);
+      await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      const result = runFence(root);
+      assert.notEqual(result.status, 0, "extended contract drift was not fenced");
+      assert.match(
+        result.stderr,
+        /FORWARD_ONLY|POST_EXPAND|FINALIZATION|forward-only|extended|finalization/i,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("the static fence rejects invalid operation records and mutating release checks", async () => {
+  const mutations = [
+    (manifest) => { manifest.manualPlatformOperations[0].id = "Invalid ID"; },
+    (manifest) => { manifest.rollbackArtifacts[0].file = "../escape.sql"; },
+    (manifest) => { manifest.preApplyChecks[0].id = manifest.postApplyChecks[0].id; },
+    (manifest) => { manifest.rollbackArtifacts[0].id = manifest.manualPlatformOperations[0].id; },
+    (manifest) => { delete manifest.manualPlatformOperations[0].phase; },
+    (manifest) => { manifest.manualPlatformOperations[0].verificationCheckId = "fixture-post-apply"; },
+    (manifest) => { manifest.manualPlatformOperations[1].verificationCheckId = "fixture-pre-apply"; },
+    (manifest) => { manifest.rollbackArtifacts[0].forOperationId = "missing-operation"; },
+    (manifest) => { delete manifest.manualControlEvidence.postPushReceiptFileName; },
+  ];
+  for (const mutate of mutations) {
+    const root = await createFixture();
+    try {
+      const path = join(root, "supabase/release-manifests/amora-engine-v2-20260716.json");
+      const manifest = JSON.parse(await readFile(path, "utf8"));
+      mutate(manifest);
+      await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      const result = runFence(root);
+      assert.notEqual(result.status, 0, result.stdout);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  const root = await createFixture();
+  try {
+    const path = join(root, "supabase/release-manifests/amora-engine-v2-20260716.json");
+    const manifest = JSON.parse(await readFile(path, "utf8"));
+    const mutatingSql = "BEGIN;\ndelete from public.profiles;\nCOMMIT;\n";
+    manifest.preApplyChecks[0].sha256 = sha256(mutatingSql);
+    await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    await write(root, manifest.preApplyChecks[0].file, mutatingSql);
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /read-only/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the static fence requires the manifest migration list to be strictly ordered", async () => {
+  const root = await createFixture();
+  try {
+    const path = join(root, "supabase/release-manifests/amora-engine-v2-20260716.json");
+    const manifest = JSON.parse(await readFile(path, "utf8"));
+    const second = "select 'second';\n";
+    manifest.expandMigrations.unshift({
+      file: "20260716001000_second.sql",
+      sha256: sha256(second),
+    });
+    await write(root, "supabase/migrations/20260716001000_second.sql", second);
+    await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /order/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the static fence pins the current-baseline verifier contract and content", async () => {
+  const mutations = [
+    (manifest) => { manifest.backupContract.expectedTableCount = 11; },
+    (manifest) => { delete manifest.backupContract.hostedRestoreEvidence; },
+    (manifest) => { manifest.backupContract.expectedCommitBinding = "literal"; },
+    (manifest) => { manifest.backupContract.expectedOrigin = "git@github.com:example/wedding.git"; },
+    (manifest) => { manifest.backupContract.supabaseCli.binarySha256 = "a".repeat(64); },
+  ];
+  for (const mutate of mutations) {
+    const root = await createFixture();
+    try {
+      const path = join(root, "supabase/release-manifests/amora-engine-v2-20260716.json");
+      const manifest = JSON.parse(await readFile(path, "utf8"));
+      mutate(manifest);
+      await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      const result = runFence(root);
+      assert.notEqual(result.status, 0, result.stdout);
+      assert.match(result.stderr, /backup contract/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  const root = await createFixture();
+  try {
+    await write(root, "scripts/amora-db-current-baseline-verify.ps1", "# tampered\n");
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /current-baseline verifier hash mismatch/i);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -30,6 +30,7 @@ export interface DueMomentCell {
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
+export const MAX_DUE_MOMENT_CELLS = 100;
 
 /** "YYYY-MM-DD" 또는 Date → KST 자정 Date. 유효하지 않으면 null */
 function toKstMidnight(value: string | Date): Date | null {
@@ -143,5 +144,14 @@ export function buildDueMomentCells(input: BuildMomentCellsInput): DueMomentCell
     }
   }
 
-  return cells.sort((a, b) => b.priority - a.priority);
+  const deduped = new Map<string, DueMomentCell>();
+  for (const cell of cells) {
+    const existing = deduped.get(cell.dedupeKey);
+    if (!existing || cell.priority > existing.priority) {
+      deduped.set(cell.dedupeKey, cell);
+    }
+  }
+  return [...deduped.values()]
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, MAX_DUE_MOMENT_CELLS);
 }

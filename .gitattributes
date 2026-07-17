@@ -1,0 +1,33 @@
+* text=auto
+
+# Keep source, configuration, documentation, and database artifacts stable
+# across Windows/macOS/Linux workstations and CI.
+*.cjs text eol=lf
+*.css text eol=lf
+*.env.example text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.jsx text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.ps1 text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.toml text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Never run line-ending conversion on binary assets or encrypted backups.
+*.gif binary
+*.hbam2 binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.key.dpapi binary
+*.pdf binary
+*.png binary
+*.ttf binary
+*.webp binary

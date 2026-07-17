@@ -1,5 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCommunityNicknameFallback,
@@ -13,10 +13,7 @@ import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { CommentWithAuthor, CreateCommentInput } from "@/types/community.types";
 
 function getServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 // 댓글 목록 조회 (트리 구조)

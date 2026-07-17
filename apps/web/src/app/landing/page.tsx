@@ -7,7 +7,6 @@ import {
   Building2,
   Calculator,
   CalendarCheck,
-  Check,
   ClipboardList,
   FileSearch,
   Heart,
@@ -15,21 +14,16 @@ import {
   LockKeyhole,
   MessageCircle,
   MoreHorizontal,
-  Search,
   Sparkles,
   Target,
 } from "lucide-react";
-import { BETA_TOTAL, getBetaCount } from "@/lib/beta-count";
 import { CONTACT } from "@/lib/constants/contact";
-import { shouldShowBetaCounter } from "@/constants/beta";
 import { weddingPath } from "@/lib/weddingPaths";
-
-export const revalidate = 60;
 
 export const metadata = {
   title: "웨딩한방 — 당신만의 AI 웨딩 플래너, 아모라",
   description:
-    "견적 검토, 업체 답변 분석, 예산 관리, 일정 저장까지 결혼 준비 흐름을 기억하는 AI 웨딩 플래너 아모라.",
+    "견적의 확인 질문, 예산과 일정 변경안을 먼저 보여주고 사용자가 승인한 내용만 반영하는 AI 도우미 아모라.",
 };
 
 const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1180px]";
@@ -45,34 +39,31 @@ const flowSteps: Array<{ icon: LucideIcon; title: string; desc: string }> = [
   {
     icon: Heart,
     title: "커뮤니티 인사이트",
-    desc: "실제 예비부부의 후기로 결혼을 먼저 확인해요.",
+    desc: "이용자가 남긴 경험 글과 질문에서 참고할 점을 찾아요.",
   },
   {
     icon: Target,
     title: "견적 검토",
-    desc: "받은 견적서를 분석해 비교하고 조율해요.",
+    desc: "받은 견적의 포함·제외 항목과 확인할 질문을 정리해요.",
   },
   {
     icon: MessageCircle,
-    title: "업체 답변 분석",
-    desc: "업체의 답변을 요약하고 맞춤형 질문을 제안해요.",
+    title: "업체 답변 정리",
+    desc: "업체 답변을 요약하고 불분명한 조건을 다시 물어보게 도와요.",
   },
   {
     icon: Calculator,
-    title: "예산 입력함",
-    desc: "항목별 비용을 분석해 예산을 잡아줘요.",
+    title: "예산 변경안 확인",
+    desc: "금액 변경안을 확인한 뒤 선택한 내용만 예산에 반영해요.",
   },
   {
     icon: CalendarCheck,
-    title: "다음 할 일 / 일정",
-    desc: "놓치기 쉬운 계약과 일정을 알려드려요.",
+    title: "다음 할 일과 일정",
+    desc: "제안된 할 일과 날짜를 확인한 뒤 일정에 저장해요.",
   },
 ];
 
-export default async function LandingPage() {
-  const betaCount = await getBetaCount();
-  const betaPct = getBetaProgressClass(betaCount);
-
+export default function LandingPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_54%,#fbf8ee_100%)] text-[#243044]">
       <SiteHeader />
@@ -80,30 +71,18 @@ export default async function LandingPage() {
       <FlowSection />
       <FeatureCards />
       <ConnectedSection />
-      <BetaBanner betaCount={betaCount} betaPct={betaPct} />
+      <BetaBanner />
       <OpenStrip />
       <SiteFooter />
     </main>
   );
 }
 
-function getBetaProgressClass(count: number) {
-  const percent = Math.round((Math.min(count, BETA_TOTAL) / BETA_TOTAL) * 100);
-  if (percent >= 100) return "w-full";
-  if (percent >= 80) return "w-[80%]";
-  if (percent >= 60) return "w-[60%]";
-  if (percent >= 40) return "w-[40%]";
-  if (percent >= 25) return "w-[25%]";
-  if (percent >= 15) return "w-[15%]";
-  if (percent >= 10) return "w-[10%]";
-  return "w-[6%]";
-}
-
 function SiteHeader() {
   const nav = [
     { href: weddingPath(), label: "커뮤니티" },
     { href: weddingPath("/market-prices"), label: "시세 정보" },
-    { href: weddingPath("/etiquette"), label: "꿀팁·체험" },
+    { href: weddingPath("/etiquette"), label: "가족 조율" },
     { href: "/about", label: "소개" },
     { href: "/beta", label: "베타 신청" },
   ];
@@ -125,6 +104,13 @@ function SiteHeader() {
           아모라 체험하기
         </Link>
       </nav>
+
+      <Link
+        href="/beta"
+        className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#061a34] px-4 text-[13px] font-extrabold text-white lg:hidden"
+      >
+        베타 안내
+      </Link>
     </header>
   );
 }
@@ -159,9 +145,9 @@ function HeroSection() {
         </h1>
 
         <p className="my-7 text-[16px] font-medium leading-[1.9] text-[#38475c]">
-          당신의 취향을 발견하고, 예산에 맞춤을 조율하며,
+          당신의 조건을 함께 정리하고, 예산과 일정을 연결하며,
           <br />
-          결정한 내용을 기억하고, 오래 사용할 정보로 안내해드려요.
+          바뀌는 내용은 확인을 받은 뒤 반영하도록 설계했어요.
         </p>
 
         <div className="mb-[26px] grid max-w-[500px] grid-cols-2 gap-1 sm:grid-cols-4">
@@ -183,7 +169,7 @@ function HeroSection() {
             href="/beta"
             className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#061a34] px-6 text-[15px] font-extrabold text-white shadow-[0_14px_28px_rgba(6,26,52,0.18)] transition-transform hover:-translate-y-0.5"
           >
-            빠른 시작하기
+            베타 안내 보기
             <ArrowRight className="ml-3 h-4 w-4" />
           </Link>
           <Link
@@ -195,7 +181,7 @@ function HeroSection() {
         </div>
       </div>
 
-      <div className="relative min-h-[400px] self-stretch overflow-hidden rounded-bl-[64px] bg-[url('/images/amora-hero-bouquet-custom.png')] bg-cover bg-[position:center_48%] shadow-[inset_24px_0_44px_rgba(255,253,247,0.82)] max-lg:rounded-[28px]">
+      <div className="relative min-h-[400px] self-stretch overflow-hidden rounded-bl-[64px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_48%] shadow-[inset_24px_0_44px_rgba(255,253,247,0.82)] max-lg:rounded-[28px]">
         <div className="absolute inset-y-0 left-0 w-[23%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
         <div className="absolute bottom-[68px] left-[44%] w-[280px] border border-[#e8dcc8] bg-[#f7efe2]/95 px-9 py-7 text-center shadow-[0_14px_34px_rgba(38,32,24,0.12)] max-sm:left-1/2 max-sm:w-[220px] max-sm:-translate-x-1/2">
           <p className="font-display text-[42px] leading-none text-[#9d6f36]">Amora</p>
@@ -262,18 +248,19 @@ function FeatureCards() {
             받은 견적 확인하기
           </h3>
           <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            업체에 받은 견적서를 분석해 비교하고,
+            입력한 견적에서 포함 여부를 확인하고,
             <br />
-            항목·시세의 기준을 드려요.
+            계약 전에 물어볼 질문을 정리해요.
           </p>
 
           <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-[13px] text-[14px] font-black text-[#061a34]">견적 요약</h4>
+            <h4 className="mb-1 text-[14px] font-black text-[#061a34]">견적 확인 예시</h4>
+            <p className="mb-3 text-[10px] font-semibold text-[#87909d]">사용자가 입력한 내용만 정리해요</p>
             {[
-              ["한복점", "25,000,000원", "+23%", "up"],
-              ["예식홀", "13,000,000원", "+10%", "up"],
-              ["드레스", "2,000,000원", "-5%", "down"],
-              ["메이크업", "3,000,000원", "+8%", "down"],
+              ["대관료", "견적 기재", "포함", "confirmed"],
+              ["꽃장식", "기본 범위", "질문", "question"],
+              ["보증 인원", "인원 기재", "조건", "question"],
+              ["부가세", "표기 없음", "확인", "question"],
             ].map(([name, amount, delta, tone]) => (
               <div
                 key={name}
@@ -283,7 +270,7 @@ function FeatureCards() {
                 <b className="text-[12px] font-extrabold text-[#30394a]">{amount}</b>
                 <em
                   className={`inline-flex min-w-[34px] justify-center rounded-full px-[7px] py-1 text-[11px] font-black not-italic ${
-                    tone === "up" ? "bg-[#fbefd6] text-[#956622]" : "bg-[#edf6ed] text-[#40724f]"
+                    tone === "confirmed" ? "bg-[#edf6ed] text-[#40724f]" : "bg-[#fbefd6] text-[#956622]"
                   }`}
                 >
                   {delta}
@@ -301,19 +288,19 @@ function FeatureCards() {
             업체 답변 같이 해석하기
           </h3>
           <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            업체 답변의 숨은 의미까지 도출하여
+            업체 답변을 짧게 정리하고,
             <br />
-            다시 물어볼 문장을 드려요.
+            불분명한 조건을 다시 물어보게 도와요.
           </p>
 
           <div className="relative min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
             <h4 className="mb-[13px] text-[14px] font-black text-[#061a34]">답변 요약</h4>
             <p className="rounded-xl bg-[#f8f4ec] p-3 text-[12px] font-semibold leading-[1.6] text-[#556274]">
-              실제 리허설 진행률이 최종 확정됩니다. 계약 전에 기준으로 묻기가 필요해요.
+              선택 옵션에 따라 최종 금액이 달라질 수 있다고 안내받았어요.
             </p>
             <div className="mt-3 rounded-[13px] bg-[linear-gradient(135deg,rgba(240,224,191,0.55),rgba(255,255,255,0.8))] p-[13px] text-[12px] font-semibold leading-[1.55] text-[#4b5665]">
-              <b className="mb-1 block text-[#b68a3a]">아모라의 해석</b>
-              10% 이상 답변을 고정해 계약 후 추가비를 줄일 수 있어요.
+              <b className="mb-1 block text-[#b68a3a]">다시 물어볼 질문</b>
+              옵션별 금액과 포함 범위를 서면으로 받을 수 있을까요?
             </div>
             <div className="absolute bottom-2 right-3 h-[46px] w-[46px] rounded-full border-[3px] border-white bg-[radial-gradient(circle_at_50%_28%,#f4c7aa_0_11px,transparent_12px),radial-gradient(circle_at_50%_46%,#33241d_0_20px,transparent_21px),radial-gradient(circle_at_50%_80%,#f4f0e8_0_18px,transparent_19px)] shadow-[0_8px_18px_rgba(38,32,24,0.12)]" />
           </div>
@@ -324,27 +311,23 @@ function FeatureCards() {
         <article className="min-h-[410px] rounded-[18px] border border-[#f2eadc] bg-[linear-gradient(180deg,rgba(252,255,248,0.96),rgba(255,251,242,0.9))] px-6 pb-[22px] pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
           <span className="mb-3 block text-[15px] font-black text-[#b68a3a]">03</span>
           <h3 className="mb-3 font-serif-kr text-[22px] font-semibold leading-[1.35] text-[#2a2118]">
-            예산에 바로 반영하기
+            예산 변경안 확인하기
           </h3>
           <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            항목별 비용을 예산에 바로 반영하여
+            아모라가 제안한 변경 내용을 먼저 보고,
             <br />
-            전체 흐름을 한눈에 볼 수 있어요.
+            승인한 항목만 예산에 반영해요.
           </p>
 
           <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-[13px] text-[14px] font-black text-[#061a34]">예산 현황</h4>
-            <div className="mb-2 flex items-center justify-between text-[12px] font-black text-[#061a34]">
-              <span>68%</span>
-              <span>45,000,000원</span>
-            </div>
-            <div className="mb-[14px] h-[9px] overflow-hidden rounded-full bg-[#ece7dc]">
-              <span className="block h-full w-[68%] rounded-full bg-[linear-gradient(90deg,#061a34,#b68a3a)]" />
+            <h4 className="mb-2 text-[14px] font-black text-[#061a34]">반영 전 확인</h4>
+            <div className="mb-[14px] rounded-full bg-[#fbefd6] px-3 py-2 text-center text-[11px] font-black text-[#956622]">
+              아직 저장된 예산은 바뀌지 않았어요
             </div>
             {[
-              ["예식 지출", "31,500,000원"],
-              ["확정 금액", "24,600,000원"],
-              ["남은 금액", "21,900,000원"],
+              ["변경 항목", "웨딩홀"],
+              ["현재 금액", "저장된 값"],
+              ["제안 금액", "사용자 입력값"],
             ].map(([label, amount]) => (
               <div key={label} className="flex items-center justify-between py-[5px] text-[12px] text-[#566172]">
                 <span>{label}</span>
@@ -362,17 +345,18 @@ function FeatureCards() {
             다음 할 일 놓치지 않기
           </h3>
           <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            우선순위 기준으로 다음 할 일을 정하고,
+            다음 할 일과 날짜 제안을 먼저 확인하고,
             <br />
-            일정별 알림을 설정해 드려요.
+            필요한 항목만 일정에 저장해요.
           </p>
 
           <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-[13px] text-[14px] font-black text-[#061a34]">다음 할 일</h4>
+            <h4 className="mb-1 text-[14px] font-black text-[#061a34]">다음 할 일 예시</h4>
+            <p className="mb-3 text-[10px] font-semibold text-[#87909d]">날짜는 결혼일과 선택에 따라 달라져요</p>
             {[
-              ["스드메 계약 완료", "D-3"],
-              ["촬영장 샘플 선택 완료", "D-7"],
-              ["예식 진행 확정", "D-12"],
+              ["견적 포함 항목 확인", "제안"],
+              ["업체 답변 기록", "제안"],
+              ["커플과 최종 확인", "제안"],
             ].map(([label, day]) => (
               <label
                 key={label}
@@ -408,18 +392,18 @@ function ConnectedSection() {
         <article className="grid min-h-[282px] grid-cols-1 gap-[22px] rounded-[18px] border border-[#f2eadc] bg-white/90 p-[26px] shadow-[0_10px_26px_rgba(8,22,38,0.06)] md:grid-cols-[1.05fr_0.85fr]">
           <div>
             <h2 className="mb-3 font-serif-kr text-[23px] font-semibold text-[#071629]">
-              실제 커뮤니티와 시세 정보가 연결돼요.
+              커뮤니티 글과 공식 자료를 구분해 봐요.
             </h2>
             <p className="text-[13px] font-semibold leading-[1.8] text-[#5d6879]">
-              한국소비자원 공공 시세와 검증된 준비 가이드를 기반으로
-              더 정확한 의사결정을 도와드려요.
+              원문 링크가 있는 공개 자료와 이용자가 남긴 경험을 구분하고,
+              지역·시점·조건을 함께 확인하도록 안내해요.
             </p>
 
             <div className="mt-[38px] grid grid-cols-3 gap-[14px] border-t border-[#eadfc9] pt-6">
               {[
-                { icon: FileSearch, label: "예절·준비 가이드", value: "25", suffix: "개 주제" },
-                { icon: Landmark, label: "숨은 추가금 체크", value: "48", suffix: "개 항목" },
-                { icon: Building2, label: "공공기관 시세", value: "14", suffix: "개 지역" },
+                { icon: FileSearch, label: "공식 자료", value: "원문", suffix: " 링크" },
+                { icon: Landmark, label: "견적 체크", value: "포함", suffix: " 질문" },
+                { icon: Building2, label: "커뮤니티", value: "경험", suffix: " 글" },
               ].map((metric, index) => (
                 <div
                   key={metric.label}
@@ -445,9 +429,9 @@ function ConnectedSection() {
               <span>한복</span>
             </div>
             {[
-              ["서울 평균?", "아모라웨딩홀 후기 67건 평균 시세 72,000원대"],
-              ["예물 2024 트렌드", "반지 디자인 TOP 5 공개"],
-              ["예산 공개", "예식홀 비용 26,800,000원"],
+              ["공식 시세 확인", "출처·기준일·지역을 함께 확인해요"],
+              ["견적 질문 만들기", "포함·제외와 변경 조건을 적어요"],
+              ["경험 글 참고", "개별 경험이며 일반 기준은 아니에요"],
             ].map(([title, desc]) => (
               <div key={title} className="mb-2 rounded-xl bg-[#f8f7f3] p-3 last:mb-0">
                 <b className="mb-1 block text-[12px] text-[#061a34]">{title}</b>
@@ -471,25 +455,25 @@ function ConnectedSection() {
 
           <div className="mt-[26px]">
             <div className="ml-auto max-w-[280px] rounded-[18px] rounded-br-md bg-[#061a34] px-[18px] py-4 text-[14px] font-extrabold leading-[1.55] text-white">
-              현재 150명 기준 예산을 45,000,000원으로 잡고 있어요.
+              이 견적에서 계약 전에 꼭 확인할 항목을 정리해줘.
             </div>
             <div className="mt-[18px] flex items-end gap-3">
               <div className="h-11 w-11 shrink-0 rounded-full border-[3px] border-white bg-[radial-gradient(circle_at_50%_28%,#f4c7aa_0_11px,transparent_12px),radial-gradient(circle_at_50%_46%,#33241d_0_20px,transparent_21px),radial-gradient(circle_at_50%_80%,#f4f0e8_0_18px,transparent_19px)] shadow-[0_8px_18px_rgba(38,32,24,0.12)]" />
               <div className="max-w-[280px] rounded-[18px] rounded-bl-md bg-[#f7f4ee] px-[18px] py-4 text-[14px] font-extrabold leading-[1.55] text-[#495465]">
-                예산이 맞는 항목별 추천과 우선순위를 정리해 드릴게요.
+                입력한 내용에서 포함 여부가 불분명한 항목과 확인 질문을 먼저 보여드릴게요.
               </div>
             </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-[10px]">
-            {["스드메 예산 추천", "예식 일정 확인", "촬영장 추천"].map((chip) => (
-              <button
+            {["견적 질문 정리", "예식 일정 확인", "예산 변경안 확인"].map((chip) => (
+              <Link
                 key={chip}
-                type="button"
+                href={weddingPath("/chat")}
                 className="h-9 rounded-full border border-[#d9e0ea] bg-white px-4 text-[12px] font-black text-[#061a34]"
               >
                 {chip}
-              </button>
+              </Link>
             ))}
           </div>
         </article>
@@ -498,30 +482,28 @@ function ConnectedSection() {
   );
 }
 
-function BetaBanner({ betaCount, betaPct }: { betaCount: number; betaPct: string }) {
-  const showCounter = shouldShowBetaCounter(betaCount);
-
+function BetaBanner() {
   return (
     <section className={`${shell} mt-[38px] grid min-h-[206px] grid-cols-1 items-center gap-7 rounded-[18px] bg-[radial-gradient(circle_at_91%_8%,rgba(236,215,164,0.22),transparent_18rem),linear-gradient(135deg,#07192f_0%,#0b2444_62%,#06172c_100%)] px-9 py-[30px] text-white shadow-[0_22px_52px_rgba(6,26,52,0.24)] lg:grid-cols-[1.18fr_1.1fr_1.1fr]`}>
       <div>
-        <span className="text-[13px] font-black text-[#d3af67]">함께 만들어가는 AI 스마트한 결혼 준비</span>
+        <span className="text-[13px] font-black text-[#d3af67]">함께 검증하는 결혼 준비 도구</span>
         <h2 className="my-3 font-serif-kr text-[32px] font-bold leading-[1.3]">
-          6주간 함께해 주실
+          운영 검증에 함께해 주실
           <br />
-          50쌍을 초대합니다
+          베타 이용자를 모집합니다
         </h2>
         <p className="text-[13px] font-semibold leading-[1.7] text-white/75">
-          웨딩한방의 새로운 추천을 가장 먼저 경험하고,
-          아모라의 예산·일정 안내를 사용해보세요.
+          현재 열린 기능을 사용하고 불편한 점을 알려주세요.
+          제공 범위와 기간은 신청 안내에서 확인할 수 있어요.
         </p>
       </div>
 
       <div className="grid grid-cols-3 gap-[18px] border-y border-[#ecd7a4]/25 py-6 lg:border-x lg:border-y-0 lg:px-[26px] lg:py-0">
         <h3 className="col-span-3 text-[14px] font-black text-[#d3af67]">베타 참여 혜택</h3>
         {[
-          { icon: CalendarCheck, title: "아모라 프리미엄", desc: "6주 무료 체험" },
-          { icon: Search, title: "견적 1:1", desc: "온라인 상담" },
-          { icon: Check, title: "우선 가입 혜택", desc: "베타 멤버 혜택" },
+          { icon: ClipboardList, title: "기능 안내", desc: "열린 범위 사용" },
+          { icon: MessageCircle, title: "의견 전달", desc: "불편·오류 제보" },
+          { icon: Bell, title: "출시 소식", desc: "변경 사항 안내" },
         ].map((benefit) => (
           <div key={benefit.title} className="text-center">
             <span className="mx-auto mb-[10px] inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-[#ecd7a4]/50 bg-white/[0.04] text-[#d3af67]">
@@ -533,26 +515,14 @@ function BetaBanner({ betaCount, betaPct }: { betaCount: number; betaPct: string
         ))}
       </div>
 
-      <div className="relative min-h-[140px]">
-        {showCounter ? (
-          <>
-            <span className="text-[13px] font-black text-[#d3af67]">현재 신청 현황</span>
-            <strong className="my-3 block text-[44px] font-bold leading-none">
-              {betaCount}
-              <em className="text-[20px] font-bold not-italic text-white/85"> / {BETA_TOTAL}쌍</em>
-            </strong>
-            <div className="mb-[10px] h-2 w-[170px] overflow-hidden rounded-full bg-white/15">
-              <span className={`block h-full rounded-full bg-[linear-gradient(90deg,#ffffff,#b68a3a)] ${betaPct}`} />
-            </div>
-          </>
-        ) : (
-          <span className="block text-[13px] font-black leading-relaxed text-[#d3af67]">
-            베타 신청 접수 중
-          </span>
-        )}
-        <p className="text-[12px] font-semibold text-white/70">베타 기간 | 6.25 - 8.07</p>
-
-        <div className="absolute bottom-1 right-2 h-24 w-[152px] rotate-[-10deg] rounded-[10px] border border-[#ecd7a4]/60 bg-[linear-gradient(145deg,#fffdf5,#eee2c9)] shadow-[0_18px_38px_rgba(0,0,0,0.26)] before:absolute before:inset-0 before:rounded-[inherit] before:bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(222,202,165,0.55))] before:[clip-path:polygon(0_0,50%_55%,100%_0)] after:absolute after:left-[62px] after:top-[38px] after:h-[27px] after:w-[27px] after:rounded-full after:bg-[linear-gradient(135deg,#d3af67,#b68a3a)] max-sm:relative max-sm:bottom-auto max-sm:right-auto max-sm:mt-5" />
+      <div className="flex min-h-[140px] flex-col justify-center rounded-2xl border border-[#ecd7a4]/30 bg-white/[0.04] p-6">
+        <span className="text-[13px] font-black text-[#d3af67]">신청 전에 확인해 주세요</span>
+        <p className="mt-3 text-[13px] font-semibold leading-[1.75] text-white/75">
+          베타는 정식 상품이 아니며 기능이 바뀌거나 일시 중단될 수 있어요. 비용·기간·제공 기능은 신청 화면과 개별 안내가 우선합니다.
+        </p>
+        <Link href="/beta" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-full bg-white px-5 text-[13px] font-black text-[#061a34]">
+          베타 안내 확인하기
+        </Link>
       </div>
     </section>
   );
@@ -565,10 +535,10 @@ function OpenStrip() {
         <LockKeyhole className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 text-[#fff8e8]" />
       </div>
       <div>
-        <h2 className="mb-[6px] text-[20px] font-black text-[#071629]">서비스는 곧 오픈됩니다</h2>
+        <h2 className="mb-[6px] text-[20px] font-black text-[#071629]">정식 운영 전 안전 검증 중입니다</h2>
         <p className="text-[13px] font-semibold leading-[1.6] text-[#5d6878]">
-          신청 후 오픈 알림을 받아보실 수 있어요.
-          가장 빠른 초대와 혜택을 놓치지 마세요.
+          신청 후 베타 제공 범위와 변경 사항을 안내받을 수 있어요.
+          운영 검증을 통과한 기능부터 순차적으로 열겠습니다.
         </p>
       </div>
       <div className="flex flex-wrap gap-3">
@@ -583,7 +553,7 @@ function OpenStrip() {
           href="/demo"
           className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#061a34] px-6 text-[15px] font-extrabold text-white"
         >
-          서비스 미리 사용하기
+          기능 원칙 미리 보기
           <ArrowRight className="ml-3 h-4 w-4" />
         </Link>
       </div>
@@ -597,23 +567,21 @@ function SiteFooter() {
       <div>
         <Brand muted />
         <p className="my-3 text-[13px] font-bold text-[#647083]">
-          AI가 기억하는 가장 든든한 결혼 준비
+          확인한 내용을 이어서 정리하는 결혼 준비
         </p>
-        <div className="flex gap-[10px]">
-          {["IG", "YT", "N"].map((item) => (
-            <Link
-              key={item}
-              href="/about"
-              className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#d8deea] text-[12px] font-black text-[#061a34]"
-            >
-              {item}
-            </Link>
-          ))}
-        </div>
       </div>
 
-      <FooterCol title="서비스" items={["커뮤니티", "시세 정보", "결혼 예절", "소개"]} />
-      <FooterCol title="정책" items={["이용약관", "개인정보처리방침", "위치기반서비스 이용약관", "환불 규정 안내"]} />
+      <FooterCol title="서비스" items={[
+        { label: "커뮤니티", href: weddingPath() },
+        { label: "시세 정보", href: weddingPath("/market-prices") },
+        { label: "가족 조율", href: weddingPath("/etiquette") },
+        { label: "소개", href: "/about" },
+      ]} />
+      <FooterCol title="정책" items={[
+        { label: "이용약관", href: "/terms" },
+        { label: "개인정보처리방침", href: "/privacy" },
+        { label: "AI 서비스 정책", href: "/ai-policy" },
+      ]} />
       <div className="flex flex-col gap-2">
         <h3 className="mb-2 text-[14px] font-black text-[#071629]">연락</h3>
         <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.email}</span>
@@ -635,13 +603,13 @@ function SiteFooter() {
   );
 }
 
-function FooterCol({ title, items }: { title: string; items: string[] }) {
+function FooterCol({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="mb-2 text-[14px] font-black text-[#071629]">{title}</h3>
       {items.map((item) => (
-        <Link key={item} href="/about" className="text-[13px] font-semibold text-[#5b6676]">
-          {item}
+        <Link key={item.href} href={item.href} className="text-[13px] font-semibold text-[#5b6676]">
+          {item.label}
         </Link>
       ))}
     </div>

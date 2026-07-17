@@ -12,14 +12,14 @@ import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
-function GlobalChatAssistant({ hasContextualAssistant }: { hasContextualAssistant: boolean }) {
+function GlobalChatAssistant() {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
 
   return (
     <>
       <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
 
-      {!chatPanelOpen && !hasContextualAssistant && (
+      {!chatPanelOpen && (
         <button
           type="button"
           onClick={() => setChatPanelOpen(true)}
@@ -39,7 +39,6 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
-  const hasContextualAssistant = appPathname.startsWith("/vendors");
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   usePageViewTracker(isInitialized && !isDemo);
@@ -88,7 +87,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
       </div>
 
       {!isChatPage && (
-        <GlobalChatAssistant hasContextualAssistant={hasContextualAssistant} />
+        <GlobalChatAssistant />
       )}
     </div>
   );

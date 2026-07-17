@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  AMORA_MEMORY_BATCH_THRESHOLD,
+  AMORA_MEMORY_CURSOR_SUMMARY,
   AMORA_MEMORY_MAX_BATCH,
   compileAmoraMemory,
+  extractTrustedMomentMemoryKeys,
+  prepareAmoraMemoryBatch,
+  shouldDeferAmoraMemoryBatch,
   type AmoraMemoryVisibility,
   type MemoryCompilerMessage,
 } from "@/lib/ai/amoraMemoryCompiler";
@@ -11,6 +14,11 @@ import {
   getAmoraMemoryEnablement,
   isAuxiliaryMemoryRuntimeEnabled,
 } from "@/lib/ai/amoraMemoryQueue";
+import {
+  AmoraMemoryBudgetDeferredError,
+  assertAmoraMemoryProviderBudget,
+  deferAmoraMemoryJobForBudget,
+} from "@/lib/ai/amoraMemoryCostGate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -25,16 +33,21 @@ type MemoryJob = {
   visibility: AmoraMemoryVisibility;
   to_message_id: string;
   attempt_count: number;
+  continuation_count: number;
 };
 
 type ChatRow = {
   id: string;
+  sender_id: string | null;
   sender_type: "bride" | "groom" | "ai";
   role: "user" | "assistant";
   content: string;
   metadata: {
+    client_request_id?: string;
     target?: string;
-    moment?: { memoryKeys?: unknown };
+    moment?: {
+      memoryKeys?: unknown;
+    };
   } | null;
   visibility: AmoraMemoryVisibility;
   created_at: string;
@@ -58,7 +71,9 @@ async function finishJob(jobId: string, attemptCount: number, success: boolean, 
   if (error) console.error("[amora-memory-cron] finish failed", error.code ?? "unknown");
 }
 
-async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "cancelled"> {
+async function processJob(
+  job: MemoryJob,
+): Promise<"compiled" | "deferred" | "budgetDeferred" | "cancelled"> {
   const admin = createAdminClient();
   const { data: setting, error: settingError } = await admin
     .from("amora_memory_settings")
@@ -91,12 +106,20 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
     .maybeSingle();
   if (targetError || !target) throw new Error("MEMORY_TARGET_NOT_FOUND");
 
+  const { data: couple, error: coupleError } = await admin
+    .from("couples")
+    .select("bride_id, groom_id")
+    .eq("id", job.couple_id)
+    .maybeSingle();
+  if (coupleError || !couple) throw new Error("MEMORY_COUPLE_LOOKUP_FAILED");
+
   const { data: previousSummary, error: summaryLookupError } = await admin
     .from("chat_summaries")
-    .select("to_message_id")
+    .select("id, to_message_id")
     .eq("couple_id", job.couple_id)
     .eq("visibility", job.visibility)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (summaryLookupError) throw new Error("MEMORY_CURSOR_LOOKUP_FAILED");
@@ -115,7 +138,7 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
 
   let messagesQuery = admin
     .from("chat_messages")
-    .select("id, sender_type, role, content, metadata, visibility, created_at")
+    .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
     .eq("couple_id", job.couple_id)
     .lte("created_at", target.created_at)
     .or("metadata->>target.is.null,metadata->>target.neq.partner")
@@ -129,8 +152,13 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
     // A reset is an exclusive privacy boundary. A message timestamp equal to
     // the reset instant must never be compiled again.
     messagesQuery = messagesQuery.gt("created_at", resetAt);
-  } else if (previousCreatedAt) {
-    messagesQuery = messagesQuery.gte("created_at", previousCreatedAt);
+  } else if (previousCreatedAt && previousMessageId) {
+    // Apply the compound cursor before LIMIT. A plain created_at >= filter can
+    // fill all 40 rows with already-consumed messages that share the cursor's
+    // timestamp, causing a false empty batch and skipped memory compilation.
+    messagesQuery = messagesQuery.or(
+      `created_at.gt.${previousCreatedAt},and(created_at.eq.${previousCreatedAt},id.gt.${previousMessageId})`,
+    );
   }
 
   const { data: rows, error: messagesError } = await messagesQuery;
@@ -145,27 +173,56 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
     return row.created_at < target.created_at
       || (row.created_at === target.created_at && row.id <= target.id);
   });
-  if (messages.length < AMORA_MEMORY_BATCH_THRESHOLD) {
+  // Only a fresh job waits for ten messages. A continuation must consume its
+  // final short remainder or the original target could never be completed.
+  if (shouldDeferAmoraMemoryBatch(messages.length, job.continuation_count)) {
     await finishJob(job.id, job.attempt_count, true);
     return "deferred";
   }
 
-  const compilerMessages: MemoryCompilerMessage[] = messages.map((row) => ({
-    id: row.id,
-    role: row.sender_type === "ai" || row.role === "assistant" ? "assistant" : "user",
-    content: row.content,
-    momentMemoryKeys: Array.isArray(row.metadata?.moment?.memoryKeys)
-      ? row.metadata?.moment?.memoryKeys.filter((value): value is string => typeof value === "string")
-      : [],
-  }));
-  const compilation = await compileAmoraMemory({
-    coupleId: job.couple_id,
-    userId: job.user_id,
-    visibility: job.visibility,
-    messages: compilerMessages,
+  const compilerMessages: MemoryCompilerMessage[] = messages.map((row) => {
+    const isAssistant = row.sender_type === "ai" || row.role === "assistant";
+    const sourceActorRole = isAssistant
+      ? null
+      : row.sender_id === couple.bride_id
+        ? "bride" as const
+        : row.sender_id === couple.groom_id
+          ? "groom" as const
+          : null;
+    return {
+      id: row.id,
+      role: isAssistant ? "assistant" : "user",
+      content: row.content,
+      sourceActorRole,
+      // Only a canonical AI/assistant row can carry a server-authored care
+      // taxonomy hint. Its text is still excluded from provider evidence.
+      trustedMomentMemoryKeys: row.sender_type === "ai" && row.role === "assistant"
+        ? extractTrustedMomentMemoryKeys(row.metadata)
+        : [],
+    };
   });
+  const batch = prepareAmoraMemoryBatch(compilerMessages);
+  if (batch.messages.length === 0) throw new Error("MEMORY_BATCH_EMPTY");
+  let compilation: Awaited<ReturnType<typeof compileAmoraMemory>>;
+  try {
+    compilation = await compileAmoraMemory({
+      coupleId: job.couple_id,
+      userId: job.user_id,
+      visibility: job.visibility,
+      messages: batch.messages,
+      beforeGeneration: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
+    });
+  } catch (error) {
+    if (!(error instanceof AmoraMemoryBudgetDeferredError)) throw error;
+    await deferAmoraMemoryJobForBudget(admin, {
+      jobId: job.id,
+      attemptCount: job.attempt_count,
+      reason: error.reason,
+    });
+    return "budgetDeferred";
+  }
 
-  const lastMessageId = messages[messages.length - 1]?.id;
+  const lastMessageId = batch.messages[batch.messages.length - 1]?.id;
   if (!lastMessageId) throw new Error("MEMORY_CURSOR_MISSING");
   const { data: committed, error: commitError } = await admin.rpc("commit_amora_memory_job", {
     p_job_id: job.id,
@@ -190,8 +247,8 @@ async function processJob(job: MemoryJob): Promise<"compiled" | "deferred" | "ca
         compiled_by: "openai_luna_v2",
       },
     })),
-    p_summary: compilation.summary,
-    p_message_count: messages.length,
+    p_summary: compilation.summary ?? AMORA_MEMORY_CURSOR_SUMMARY,
+    p_message_count: batch.messages.length,
     p_from_message_id: resetDominatesCursor ? null : previousMessageId ?? null,
     p_to_message_id: lastMessageId,
   });
@@ -210,7 +267,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, enabled: false, claimed: 0 });
   }
 
-  const stats = { claimed: 0, compiled: 0, deferred: 0, cancelled: 0, failed: 0 };
+  const stats = {
+    claimed: 0,
+    compiled: 0,
+    deferred: 0,
+    budgetDeferred: 0,
+    cancelled: 0,
+    failed: 0,
+  };
   for (let index = 0; index < MAX_JOBS_PER_RUN; index += 1) {
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("claim_amora_memory_job", { p_lease_seconds: 300 });

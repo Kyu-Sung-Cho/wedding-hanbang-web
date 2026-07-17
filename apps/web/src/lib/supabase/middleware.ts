@@ -10,7 +10,7 @@ const CUSTOMER_PATHS = [
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
 ];
-// /market-prices·/etiquette 는 의도적 공개 — SEO 유입 자산 (시세·예절 콘텐츠)
+// /market-prices는 공개 시세, /etiquette는 noindex 상태의 중립적 가족 조율 안내다.
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
 // "스드메 시세" 류 검색 유입의 유일한 입구다.
 function isProtectedPath(pathname: string): "customer" | "admin" | null {
