@@ -84,4 +84,7 @@ Thumbs.db
 apps/web/*.png
 apps/web/.screenshots/
 apps/web/.screenshots-test/
+test-results/
+apps/web/src/app/internal/wedding-code-research/page.tsx
+apps/web/.wedding-code-research.lock
 .env*

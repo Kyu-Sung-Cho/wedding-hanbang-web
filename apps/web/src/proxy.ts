@@ -4,6 +4,32 @@ import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
+  const isWeddingCodeResearchPath =
+    request.nextUrl.pathname === "/internal/wedding-code-research" ||
+    request.nextUrl.pathname.startsWith("/internal/wedding-code-research/");
+
+  if (isWeddingCodeResearchPath) {
+    const host = request.headers.get("host")?.toLowerCase() ?? "";
+    const hostname = host.startsWith("[") ? host.split("]")[0] + "]" : host.split(":")[0];
+    const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+    if (
+      process.env.NODE_ENV !== "development" ||
+      process.env.WEDDING_CODE_RESEARCH_PREVIEW !== "true" ||
+      !isLoopback
+    ) {
+      return new NextResponse(null, {
+        status: 404,
+        headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
+      });
+    }
+
+    const response = NextResponse.next({ request });
+    response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+    return response;
+  }
+
   const isApiPath =
     request.nextUrl.pathname === "/api" ||
     request.nextUrl.pathname.startsWith("/api/");

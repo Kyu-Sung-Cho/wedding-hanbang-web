@@ -208,16 +208,25 @@ describe("Amora atomic mutation coverage migration", () => {
   it("commits wedding fields and progress entries with CAS while preserving unrelated partner state", async () => {
     const db = await createDatabase();
     try {
+      await db.exec("BEGIN");
+      const dateFixture = await db.query<{ next_date: string; d_day: number }>(`
+        SELECT
+          ((now() AT TIME ZONE 'Asia/Seoul')::date + 400)::text AS next_date,
+          (((now() AT TIME ZONE 'Asia/Seoul')::date + 400)
+            - (now() AT TIME ZONE 'Asia/Seoul')::date)::integer AS d_day
+      `);
+      const { next_date: nextDate, d_day: dDay } = dateFixture.rows[0];
+
       await insertExecution(db, "update_wedding_date", "1".repeat(64), "a".repeat(64));
       await apply(
         db,
         "1".repeat(64),
         "a".repeat(64),
-        { wedding_date: "2027-06-01" },
-        { kind: "journey_wedding_date_cas", expected: "2027-05-01", value: "2027-06-01" },
+        { wedding_date: nextDate },
+        { kind: "journey_wedding_date_cas", expected: "2027-05-01", value: nextDate },
         {
           toolName: "update_wedding_date",
-          toolOutput: { wedding_date: "2027-06-01", previous_date: "2027-05-01", d_day: 319 },
+          toolOutput: { wedding_date: nextDate, previous_date: "2027-05-01", d_day: dDay },
           success: true,
           displayMessage: "결혼 예정일을 변경했어요.",
         },
@@ -259,7 +268,7 @@ describe("Amora atomic mutation coverage migration", () => {
         FROM public.wedding_journeys WHERE couple_id = $1::uuid
       `, [COUPLE_ID]);
       expect(state.rows[0]).toEqual({
-        wedding_date: "2027-06-01",
+        wedding_date: nextDate,
         venue_progress: nextVenue,
         partner_note: { kept: true },
       });

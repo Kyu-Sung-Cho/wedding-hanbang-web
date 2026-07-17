@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,7 +63,7 @@ jobs:
         run: pnpm --filter @hanbang/web exec vitest run
 
       - name: Web production build
-        run: pnpm --filter @hanbang/web exec next build
+        run: pnpm --filter @hanbang/web build
 
   mobile_quality:
     name: Mobile Quality

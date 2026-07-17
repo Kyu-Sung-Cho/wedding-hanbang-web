@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -252,19 +252,83 @@ describe("Candidate 5 documentation and isolation fences", () => {
     }
   });
 
-  it("blocks every non-research source file from importing the dormant Candidate 5 module", () => {
+  it("blocks every non-research import and keeps the prototype route generated-only", () => {
     const srcRoot = path.join(repoRoot, "apps/web/src");
     const researchRoot = path.join(srcRoot, "lib/weddingCode/research");
+    const forbiddenResearchImport = /(?:weddingCode\/research|(?:\.\.?\/)+research\/)/;
+    const generatedPrototypeRoute = path.join(
+      srcRoot,
+      "app/internal/wedding-code-research/page.tsx"
+    );
+    const localPrototypePage = path.join(researchRoot, "localPreviewPage.tsx");
     const outsideFiles = collectSourceFiles(srcRoot).filter(
       (file) => !path.resolve(file).startsWith(path.resolve(researchRoot))
     );
 
     for (const file of outsideFiles) {
       const source = readFileSync(file, "utf8");
-      expect(source, path.relative(repoRoot, file)).not.toMatch(
-        /(?:weddingCode\/research|research\/candidate5)/
-      );
+      expect(source, path.relative(repoRoot, file)).not.toMatch(forbiddenResearchImport);
     }
+    expect('from "@/lib/weddingCode/research/candidate6"').toMatch(forbiddenResearchImport);
+    expect('from "./research/candidate6"').toMatch(forbiddenResearchImport);
+    expect('from "../../research/candidate5"').toMatch(forbiddenResearchImport);
+
+    expect(existsSync(generatedPrototypeRoute)).toBe(false);
+
+    const routeSource = readFileSync(localPrototypePage, "utf8");
+    const nextConfig = readFileSync(path.join(repoRoot, "apps/web/next.config.ts"), "utf8");
+    const proxySource = readFileSync(path.join(repoRoot, "apps/web/src/proxy.ts"), "utf8");
+    const researchDevScript = readFileSync(
+      path.join(repoRoot, "scripts/wedding-code-candidate6-dev.mjs"),
+      "utf8"
+    );
+    const productionFence = readFileSync(
+      path.join(repoRoot, "scripts/check-wedding-code-research-route.mjs"),
+      "utf8"
+    );
+    const safeBuild = readFileSync(
+      path.join(repoRoot, "scripts/build-web-safely.mjs"),
+      "utf8"
+    );
+    const safeWebDev = readFileSync(
+      path.join(repoRoot, "scripts/web-dev-safely.mjs"),
+      "utf8"
+    );
+    const artifactFence = readFileSync(
+      path.join(repoRoot, "scripts/check-wedding-code-production-artifact.mjs"),
+      "utf8"
+    );
+    const webPackage = readFileSync(path.join(repoRoot, "apps/web/package.json"), "utf8");
+    expect(routeSource).toContain('process.env.NODE_ENV !== "development"');
+    expect(routeSource).toContain('process.env.WEDDING_CODE_RESEARCH_PREVIEW !== "true"');
+    expect(routeSource).toContain('["localhost", "127.0.0.1", "[::1]"]');
+    expect(routeSource).toContain("notFound()");
+    expect(routeSource).toContain("index: false");
+    expect(routeSource).toContain('dynamic = "force-dynamic"');
+    expect(routeSource).not.toMatch(/NEXT_PUBLIC_WEDDING_CODE_RESEARCH_PREVIEW/);
+    expect(nextConfig).toContain('source: "/internal/wedding-code-research"');
+    expect(nextConfig).toContain("private, no-store, max-age=0, must-revalidate");
+    expect(nextConfig).toContain("localResearchContentSecurityPolicy");
+    expect(proxySource).toContain('request.nextUrl.pathname === "/internal/wedding-code-research"');
+    expect(proxySource).toContain('process.env.WEDDING_CODE_RESEARCH_PREVIEW !== "true"');
+    expect(proxySource).toContain("private, no-store, max-age=0, must-revalidate");
+    expect(researchDevScript).toContain('"--hostname", "127.0.0.1"');
+    expect(researchDevScript).toContain('WEDDING_CODE_RESEARCH_PREVIEW: "true"');
+    expect(researchDevScript).toContain('NEXT_PUBLIC_SENTRY_DSN: ""');
+    expect(researchDevScript).toContain('SENTRY_DSN: ""');
+    expect(researchDevScript).toContain('NEXT_PUBLIC_POSTHOG_KEY: ""');
+    expect(researchDevScript).toContain("writeFile(generatedRoute");
+    expect(researchDevScript).toContain('flag: "wx"');
+    expect(productionFence).toContain("access(generatedRoute)");
+    expect(productionFence).toContain("process.exit(1)");
+    expect(safeBuild).toContain('acquireWeddingCodeResearchLock("production-build")');
+    expect(safeBuild).toContain("check-wedding-code-research-route.mjs");
+    expect(safeBuild).toContain("check-wedding-code-production-artifact.mjs");
+    expect(safeWebDev).toContain('acquireWeddingCodeResearchLock("standard-web-dev")');
+    expect(artifactFence).toContain("app-paths-manifest.json");
+    expect(artifactFence).toContain("candidateMarkers");
+    expect(webPackage).toContain("build-web-safely.mjs");
+    expect(webPackage).toContain("web-dev-safely.mjs");
   });
 
   it("keeps Candidate 4 implementation files visibly retired", () => {

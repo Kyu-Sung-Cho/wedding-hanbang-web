@@ -5,9 +5,10 @@
 > [!IMPORTANT]
 > **이 문서가 WeddingCode의 현재 출시 준비도·containment·재개 게이트에 대한 authoritative 기준이다.**
 > `44`, `46`, `47`, `52`, `53`, `54`의 통과·구현 기록과 충돌하면 이 문서가 우선한다.
-> [`56_candidate5_research_spec_2026-07-17.md`](./56_candidate5_research_spec_2026-07-17.md)는 이 감사의
-> 재개 게이트를 구체화한 **미검증 연구 설계안**일 뿐, runtime 구현, 응답 수집, DB/API 재활성화 또는
-> Production 출시 승인이 아니다. 실제 코드·운영 상태가 더 강하게 차단되어 있으면 그 차단을 유지한다.
+> Candidate 6.3 문서 `58`–`60`은 이 감사의 재개 게이트를 구체화한 **M0 next-research 제안**일 뿐,
+> runtime 구현, 응답 수집, DB/API 재활성화 또는 Production 출시 승인이 아니다. Candidate 5 문서
+> `56`, `57`은 superseded research lineage다. 실제 코드·운영 상태가 더 강하게 차단되어 있으면
+> 그 차단을 유지한다.
 
 이 문서는 기존 `44_v0.5_item_set_integrity_audit.md`의 “16개 문항 통과” 결론을 독립적으로 다시
 검토한 결과다. 현재 문항은 결혼 준비 대화를 위한 후보 세트이지, 사람의 웨딩 성향을 정확하게
@@ -125,17 +126,17 @@
 
 다음 순서를 모두 통과해야 한다.
 
-1. `candidate.5` 문서 초안에서 소비자 안전 문항과 성향 문항을 분리한다.
-2. 각 축을 3~4개 단일구인 문항으로 재구성하고 선택지 총 가중치/방향을 균형화한다.
-3. Production과 분리된 연구용 화면, 동의 문구, 보유 기간, 삭제 방법을 먼저 승인한다.
-4. n=5 인지면접을 수행하고 item-level 원문 메모가 아닌 익명 판정표를 남긴다.
-5. 반복된 정답감/낙인/무응답 문제를 수정한다.
-6. n=20을 10명씩 두 wave로 진행하고 첫 10명에서 중단 조건을 검사한다.
-7. 선택지 분포, 완주율, 공유 의향뿐 아니라 축 방향 편향과 문항 변별을 본다.
-8. 실제 커플 3쌍 이상에서 결과가 비난 도구가 아닌 대화 시작점으로 작동하는지 확인한다.
-9. 소비자/관계 연구 또는 측정 전문가에게 문항·점수·결과 카피 검토를 받는다.
-10. exact-version Preview, 모바일 320/390px, 접근성, API/DB privacy fence, rollback을 검증한 뒤에만
-    Production 재개를 별도 승인한다.
+1. 대상자 concept elicitation으로 빠진 준비·협업·지원 장면을 먼저 찾는다.
+2. `JI/OA/CP`, `ES/AS`, contextual `SI` 분리 가설과 문항의 relevance/comprehensiveness/comprehensibility를
+   소비자·관계/설문·개인정보 전문가가 각각 검토한다.
+3. 무저장·무네트워크 로컬 exact-version 화면에서 320/390px, 키보드, 스크린리더를 먼저 검증한다.
+4. 5~8명씩 반복 인지면접을 수행하고 중대한 새 문제가 포화될 때까지 개정한다.
+5. 중앙/상황 차이/경험 없음/넘김, 반복 정답감, 낙인, Form·위치·순서 문제를 분리해 기록한다.
+6. 범주 분포와 비교 구조 모형으로 simulation/power 계획을 만든 뒤 파일럿 규모를 정한다.
+7. 구조·local dependence·precision과 함께 준비 단계·예식 형태·접근성·Form의 공정성을 본다.
+8. 독립 동의한 실제 커플에서 결과가 비난·압박 도구가 아닌 대화 시작점으로 작동하는지 확인한다.
+9. consent/TTL/delete/tombstone/restore re-delete와 API/DB privacy fence를 구현·리허설한다.
+10. 별도 Production 재개 PR에서 exact-version 모바일·공유·rollback을 검증한 뒤에만 재개를 승인한다.
 
 ## 7. 현재 제품 표현
 
