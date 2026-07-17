@@ -14,10 +14,27 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    name: Quality Gate
+  web_quality:
+    name: Web Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+
+    env:
+      # Placeholder values keep CI focused on static verification and build integrity.
+      NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+      SUPABASE_SERVICE_ROLE_KEY: sb_secret_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      SUPABASE_EXPECTED_URL: https://abcdefghijklmnopqrst.supabase.co
+      SUPABASE_EXPECTED_PROJECT_REF: abcdefghijklmnopqrst
+      SUPABASE_PRODUCTION_PROJECT_REF: slrtobkksjmxgzatjyqb
+      # OpenAI adapter tests inject a fake client. Keep the production cutover off in CI.
+      AMORA_OPENAI_ENABLED: "false"
+      RESEND_API_KEY: placeholder
+      NEXT_PUBLIC_SITE_URL: https://hanbang.ai
+      ADMIN_PASSWORD: placeholder
+      DECART_API_KEY: placeholder
+      NAVER_CLIENT_ID: placeholder
+      NAVER_CLIENT_SECRET: placeholder
 
     steps:
       - name: Checkout
@@ -37,27 +54,114 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Local quality gate
-        run: pnpm qa:local
-        env:
-          # Placeholder values keep CI focused on static verification and build integrity.
-          NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
-          SUPABASE_SERVICE_ROLE_KEY: sb_secret_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          SUPABASE_EXPECTED_URL: https://abcdefghijklmnopqrst.supabase.co
-          SUPABASE_EXPECTED_PROJECT_REF: abcdefghijklmnopqrst
-          SUPABASE_PRODUCTION_PROJECT_REF: slrtobkksjmxgzatjyqb
-          # OpenAI adapter tests inject a fake client. Keep the production cutover off in CI.
-          AMORA_OPENAI_ENABLED: "false"
-          RESEND_API_KEY: placeholder
-          NEXT_PUBLIC_SITE_URL: https://hanbang.ai
-          ADMIN_PASSWORD: placeholder
-          DECART_API_KEY: placeholder
-          NAVER_CLIENT_ID: placeholder
-          NAVER_CLIENT_SECRET: placeholder
+      - name: Web typecheck
+        run: pnpm --filter @hanbang/web exec tsc --noEmit
+
+      - name: Web lint
+        run: pnpm --filter @hanbang/web exec eslint .
+
+      - name: Web tests
+        run: pnpm --filter @hanbang/web exec vitest run
+
+      - name: Web production build
+        run: pnpm --filter @hanbang/web exec next build
+
+  mobile_quality:
+    name: Mobile Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+      EXPO_PUBLIC_SITE_URL: https://hanbang.ai
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Mobile release readiness
+        run: pnpm mobile:release-check
+
+      - name: Mobile tests
+        run: pnpm --filter @hanbang/mobile test
+
+      - name: Mobile typecheck
+        run: pnpm --filter @hanbang/mobile typecheck
+
+      - name: Mobile lint
+        run: pnpm --filter @hanbang/mobile lint
+
+      - name: Mobile bundle export
+        run: pnpm --filter @hanbang/mobile build
+
+      - name: Shared package typecheck
+        run: pnpm --filter @hanbang/shared typecheck
+
+      - name: Design tokens typecheck
+        run: pnpm --filter @hanbang/design-tokens typecheck
+
+  release_safety:
+    name: Release Safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Supabase release manifest fence
         run: pnpm supabase:release:fence
 
       - name: Release controller and external evidence tests
         run: pnpm supabase:release:test
+
+  ci:
+    name: Quality Gate
+    if: ${{ always() }}
+    needs: [web_quality, mobile_quality, release_safety]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Verify all quality gates passed
+        env:
+          WEB_RESULT: ${{ needs.web_quality.result }}
+          MOBILE_RESULT: ${{ needs.mobile_quality.result }}
+          RELEASE_RESULT: ${{ needs.release_safety.result }}
+        run: |
+          echo "Web Quality: $WEB_RESULT"
+          echo "Mobile Quality: $MOBILE_RESULT"
+          echo "Release Safety: $RELEASE_RESULT"
+          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$RELEASE_RESULT" != "success" ]; then
+            echo "One or more required quality gates did not pass."
+            exit 1
+          fi
