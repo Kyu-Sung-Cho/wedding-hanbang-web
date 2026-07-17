@@ -1,6 +1,10 @@
 # WeddingCode candidate.5 연구 설계안 — 2026-07-17
 
-상태: **authoritative research draft / 미검증 / 구현·수집·출시 승인 아님**
+상태: **SUPERSEDED RESEARCH LINEAGE / 미검증 / 구현·수집·출시 승인 아님**
+
+> [!IMPORTANT]
+> 새 연구·제품 구현 기준은 Candidate 6 문서 `58`–`60`이다. 이 문서는 Candidate 5의
+> exact-version과 과거 판단을 재현하기 위해 보존하며 새 runtime·수집·결과의 근거로 쓰지 않는다.
 
 연구 exact-version: `wedding-code-candidate5-research.2`
 

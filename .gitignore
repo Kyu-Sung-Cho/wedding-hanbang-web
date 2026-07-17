@@ -84,6 +84,9 @@ Thumbs.db
 apps/web/*.png
 apps/web/.screenshots/
 apps/web/.screenshots-test/
+test-results/
+apps/web/src/app/internal/wedding-code-research/page.tsx
+apps/web/.wedding-code-research.lock
 .env*
 
 # 공시 원본 및 적재 파이프라인 로컬 산출물 (개인/업체 원문 커밋 금지)

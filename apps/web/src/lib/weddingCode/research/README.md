@@ -1,4 +1,4 @@
-# WeddingCode Candidate 5 research-only code
+# WeddingCode research-only code
 
 `candidate5.ts` is a pure, zero-I/O schema for document and static-prototype checks. It is **not** a runtime
 feature and does not authorize collection.
@@ -19,3 +19,28 @@ Forbidden:
 - score/type/overlap/confidence/rarity output
 
 The public notice-only page, result redirect, `410 Gone` APIs, and DB write fence must remain unchanged.
+
+## Candidate 6.3 successor prototype
+
+`candidate6.ts` and `Candidate6Prototype.tsx` are the current next-research proposal. They add explicit
+premises, a valid middle response, a balanced hinder-to-help impact scale, distinct
+`depends`/`not_applicable`/`no_experience`/`skip` states, separate joint involvement/ownership autonomy/
+checkpoint and emotional/action support hypotheses, and a user-selected neutral conversation card. Every
+item remains `M0`; research themes are not validated dimensions and no scoring function exists. Item-level
+source locators support scenario/concept elicitation only. Form A/B endpoint orientation and ES/AS pair order
+are independent factors, SI follows the core as a contextual block, and facilitated interviews use 8-10 item
+P1/P2/P3 panels instead of the full 19/21-item UI stress preview. R1 assignment requires an explicit eligibility
+screener for recording, vendor-assisted, and partner-collaboration contexts. Ineligible items may be replaced only
+by an eligible, unassigned item in the same theme; otherwise the plan is incompatible and exposes no items. The
+planner also emits item-level assigned/administered/eligible/non-applicable tracking rows without storing them.
+Each row keeps `eligibilityAtAssignment` separate from `responseDisposition`, so an eligible assignment can later
+record a `not_applicable` escape without losing the eligible denominator.
+
+`localPreviewPage.tsx` is imported only by an ignored route generated during the dedicated local dev command.
+It requires `NODE_ENV=development`, server-only `WEDDING_CODE_RESEARCH_PREVIEW=true`, and a loopback host,
+returns `notFound()` otherwise, and stays `noindex`; blocked responses are `no-store` while allowed Next dev
+HTML is framework-normalized to `no-cache` and never contains response state. The component may use React
+memory state only. The path must suppress global analytics/UTM, carry `ph-no-capture`, and reject external
+connections through its CSP. The research runner clears PostHog/Sentry variables, shares an exclusive lock
+with the safe production build, and removes the generated route on exit. Preview/Production exposure, browser
+persistence, answer sharing, inferred results, and product application remain forbidden.

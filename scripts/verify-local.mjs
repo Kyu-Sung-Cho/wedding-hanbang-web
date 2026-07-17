@@ -30,7 +30,7 @@ const checks = [
   },
   {
     name: "web production build",
-    args: ["pnpm", "--filter", "@hanbang/web", "exec", "next", "build"],
+    args: ["pnpm", "--filter", "@hanbang/web", "build"],
   },
   {
     name: "mobile release readiness",

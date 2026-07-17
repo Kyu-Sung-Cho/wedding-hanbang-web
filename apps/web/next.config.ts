@@ -39,6 +39,21 @@ const saiContentSecurityPolicy = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+const localResearchContentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'none'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:*",
+  "worker-src 'none'",
+  "manifest-src 'none'",
+].join("; ");
+
 const weddingAppRoutes = [
   "lounge",
   "chat",
@@ -55,6 +70,8 @@ const weddingAppRoutes = [
 ];
 
 const nextConfig: NextConfig = {
+  devIndicators: process.env.WEDDING_CODE_RESEARCH_PREVIEW === "true" ? false : undefined,
+
   turbopack: {
     root: repoRoot,
   },
@@ -204,6 +221,17 @@ const nextConfig: NextConfig = {
         source: "/sai",
         headers: [
           { key: "Content-Security-Policy", value: saiContentSecurityPolicy },
+        ],
+      },
+      {
+        source: "/internal/wedding-code-research",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+          { key: "Content-Security-Policy", value: localResearchContentSecurityPolicy },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
         ],
       },
       {

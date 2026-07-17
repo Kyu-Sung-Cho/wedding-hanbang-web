@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npx next dev",
-    "build": "node ../../scripts/check-amora-build-env.mjs && npx next build",
+    "dev": "node ../../scripts/web-dev-safely.mjs",
+    "dev:wedding-code-research": "node ../../scripts/wedding-code-candidate6-dev.mjs",
+    "qa:wedding-code-research-security": "node ../../scripts/wedding-code-candidate6-security-qa.mjs",
+    "build": "node ../../scripts/build-web-safely.mjs",
     "start": "npx next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

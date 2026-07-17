@@ -28,23 +28,6 @@ const USER_ID = "20000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "30000000-0000-4000-8000-000000000001";
 const REQUEST_KEY = `chat:${USER_ID}:${REQUEST_ID}`;
 const EXPECTED_WEDDING_DATE = "2099-05-01";
-const NEXT_WEDDING_DATE = "2099-06-01";
-
-function kstToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function calendarDaysBetween(from: string, to: string): number {
-  return Math.round(
-    (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`))
-      / 86_400_000,
-  );
-}
 
 async function createDatabase() {
   const db = await PGlite.create();
@@ -226,23 +209,32 @@ describe("Amora atomic mutation coverage migration", () => {
   it("commits wedding fields and progress entries with CAS while preserving unrelated partner state", async () => {
     const db = await createDatabase();
     try {
+      await db.exec("BEGIN");
+      const dateFixture = await db.query<{ next_date: string; d_day: number }>(`
+        SELECT
+          ((now() AT TIME ZONE 'Asia/Seoul')::date + 400)::text AS next_date,
+          (((now() AT TIME ZONE 'Asia/Seoul')::date + 400)
+            - (now() AT TIME ZONE 'Asia/Seoul')::date)::integer AS d_day
+      `);
+      const { next_date: nextDate, d_day: dDay } = dateFixture.rows[0];
+
       await insertExecution(db, "update_wedding_date", "1".repeat(64), "a".repeat(64));
       await apply(
         db,
         "1".repeat(64),
         "a".repeat(64),
-        { wedding_date: NEXT_WEDDING_DATE },
+        { wedding_date: nextDate },
         {
           kind: "journey_wedding_date_cas",
           expected: EXPECTED_WEDDING_DATE,
-          value: NEXT_WEDDING_DATE,
+          value: nextDate,
         },
         {
           toolName: "update_wedding_date",
           toolOutput: {
-            wedding_date: NEXT_WEDDING_DATE,
+            wedding_date: nextDate,
             previous_date: EXPECTED_WEDDING_DATE,
-            d_day: calendarDaysBetween(kstToday(), NEXT_WEDDING_DATE),
+            d_day: dDay,
           },
           success: true,
           displayMessage: "결혼 예정일을 변경했어요.",
@@ -285,7 +277,7 @@ describe("Amora atomic mutation coverage migration", () => {
         FROM public.wedding_journeys WHERE couple_id = $1::uuid
       `, [COUPLE_ID]);
       expect(state.rows[0]).toEqual({
-        wedding_date: NEXT_WEDDING_DATE,
+        wedding_date: nextDate,
         venue_progress: nextVenue,
         partner_note: { kept: true },
       });

@@ -6,6 +6,7 @@
 import { useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
+import { isAnalyticsSuppressedPath } from "@/lib/analyticsPrivacy";
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
@@ -26,7 +27,7 @@ function PageViewTracker() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!POSTHOG_KEY || !pathname) return;
+    if (!POSTHOG_KEY || !pathname || isAnalyticsSuppressedPath(pathname)) return;
     ensureInit();
     const qs = searchParams?.toString();
     posthog.capture("$pageview", {

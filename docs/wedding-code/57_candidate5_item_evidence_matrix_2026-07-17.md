@@ -1,6 +1,10 @@
 # WeddingCode Candidate 5 문항별 근거 매트릭스 — 2026-07-17
 
-상태: **authoritative research companion / 전 문항 측정 타당도 `M0` / 미검증**
+상태: **SUPERSEDED RESEARCH LINEAGE / 전 문항 측정 타당도 `M0` / 미검증**
+
+> [!IMPORTANT]
+> 새 연구·제품 구현 기준은 Candidate 6 문서 `58`–`60`이다. 이 표는 Candidate 5의
+> exact-version과 과거 한계를 재현하기 위해 보존한다.
 
 대상 exact-version: `wedding-code-candidate5-research.2`
 
