@@ -58,6 +58,10 @@ const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
 const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
+const mobileSentry = readText("apps/mobile/src/lib/sentry.ts");
+const mobileSentryPrivacy = readText("apps/mobile/src/lib/sentryPrivacy.ts");
+const mobileRootLayout = readText("apps/mobile/app/_layout.tsx");
+const mobileErrorBoundary = readText("apps/mobile/src/components/ErrorBoundary.tsx");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
 const sharedMobileOAuth = readText("packages/shared/src/utils/mobileOAuth.ts");
 
@@ -107,6 +111,7 @@ for (const pluginName of [
   "expo-apple-authentication",
   "expo-splash-screen",
   "expo-notifications",
+  "@sentry/react-native/expo",
 ]) {
   expectIncludes(pluginNames, pluginName, `${pluginName} plugin is configured`);
 }
@@ -142,6 +147,11 @@ expect(rootPackage.packageManager === "pnpm@11.7.0", "Root packageManager pins p
 expect(
   !mobileMetroConfig.includes('require("metro-cache")'),
   "Mobile Metro config uses Expo's declared default cache"
+);
+expect(
+  mobileMetroConfig.includes('require("@sentry/react-native/metro")')
+    && mobileMetroConfig.includes("getSentryExpoConfig(projectRoot, { getDefaultConfig })"),
+  "Mobile Metro config injects Sentry debug IDs without dropping Expo defaults",
 );
 
 for (const profileName of ["development", "preview", "production"]) {
@@ -192,9 +202,46 @@ for (const envName of [
   "EXPO_PUBLIC_SUPABASE_ANON_KEY",
   "EXPO_PUBLIC_SITE_URL=https://hanbang.ai",
   "EXPO_PUBLIC_SENTRY_DSN",
+  "SENTRY_ORG",
+  "SENTRY_PROJECT",
+  "SENTRY_AUTH_TOKEN",
 ]) {
   expect(mobileEnvExample.includes(envName), `.env.example documents ${envName}`);
 }
+
+expect(
+  mobileSentry.includes("sendDefaultPii: false")
+    && mobileSentry.includes("attachScreenshot: false")
+    && mobileSentry.includes("attachViewHierarchy: false")
+    && mobileSentry.includes("enableCaptureFailedRequests: false"),
+  "Mobile Sentry disables default PII and privacy-sensitive attachments",
+);
+expect(
+  mobileSentry.includes("beforeBreadcrumb: sanitizeSentryBreadcrumb")
+    && mobileSentry.includes("beforeSend: sanitizeSentryEvent")
+    && mobileSentry.includes("beforeSendTransaction: sanitizeSentryTransaction"),
+  "Mobile Sentry applies breadcrumb, error, and transaction privacy scrubbers",
+);
+expect(
+  mobileSentryPrivacy.includes("span.data = {}")
+    && mobileSentryPrivacy.includes("event.request = undefined")
+    && mobileSentryPrivacy.includes("event.user = undefined"),
+  "Mobile Sentry scrubbers remove private span, request, and user payloads",
+);
+expect(
+  mobileSentry.includes("tracesSampleRate: __DEV__ ? 1.0 : 0.03"),
+  "Mobile Sentry production tracing starts at a conservative three percent",
+);
+expect(
+  mobileRootLayout.includes("registerSentryNavigationContainer(navigationContainerRef)")
+    && mobileRootLayout.includes("export default Sentry.wrap(RootLayout)"),
+  "Mobile root registers navigation tracing and uses the Sentry root wrapper",
+);
+expect(
+  mobileErrorBoundary.includes("Sentry.captureException(error)")
+    && mobileErrorBoundary.includes("scope.setContext(\"react\""),
+  "Mobile error boundary reports caught React crashes with component context",
+);
 
 expect(
   mobileAuth.includes('const redirectTo = `${SITE_URL}/auth/mobile-callback`;'),

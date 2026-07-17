@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useNavigationContainerRef } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { useEffect } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
-import { initSentry } from "@/lib/sentry";
+import { initSentry, registerSentryNavigationContainer, Sentry } from "@/lib/sentry";
 import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -61,7 +61,8 @@ initSentry();
 // 스플래시 자동 숨김 방지
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
+  const navigationContainerRef = useNavigationContainerRef();
   const [fontsLoaded, fontError] = useFonts({
     // Paperlogy mapped through legacy aliases for existing screens.
     NotoSerifKR_300Light,
@@ -90,6 +91,10 @@ export default function RootLayout() {
     initAuthListener();
     return disposeAuthListener;
   }, []);
+
+  useEffect(() => {
+    registerSentryNavigationContainer(navigationContainerRef);
+  }, [navigationContainerRef]);
 
   if (!fontsLoaded && !fontError) {
     return (
@@ -129,3 +134,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

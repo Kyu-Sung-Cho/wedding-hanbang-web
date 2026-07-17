@@ -407,7 +407,7 @@ app/
 
 | 항목 | 설명 |
 |------|------|
-| Sentry 코드 연결 | DSN 입력 + source maps |
+| Sentry 운영 검증 | 코드 배선 완료; 전용 mobile project/EAS token 연결 + 실기기 source-map receipt 필요 |
 | PostHog 분석 | 유저 행동 추적 |
 | 오프라인 지원 | TanStack Query persist |
 | 드레스 피팅 (앱) | expo-camera + AI |

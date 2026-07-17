@@ -31,8 +31,17 @@
   Expo config fields.
 - EAS Production has `EXPO_PUBLIC_SUPABASE_URL`,
   `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
-- `EXPO_PUBLIC_SENTRY_DSN` is still absent in EAS Production. Add a reviewed
-  mobile Sentry DSN before the signed production build; never store its value in Git.
+- Mobile Sentry code now includes the Expo config plugin, Metro Debug IDs, root
+  and navigation instrumentation, caught React error reporting, and error,
+  breadcrumb, and performance-span privacy scrubbing. Production tracing starts
+  at 3%; screenshots, view hierarchy and failed-request capture remain disabled.
+- EAS Production still lacks `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`,
+  `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN`. Create a dedicated mobile Sentry
+  project and add those values before the signed production build. Never store
+  the auth token in Git, docs, shell arguments, or an `EXPO_PUBLIC_*` variable.
+- Expo Free usage observed on 2026-07-17 is Android 11/15 and iOS 0/15, with no
+  overage and a $0 estimate. One Android and one iOS build fit the remaining
+  quota, but failed builds may also consume quota.
 - Store-build helper scripts exist in `apps/mobile/package.json`.
 
 ## 2. Validation Already Passing Locally
@@ -57,10 +66,12 @@ Historical 2026-07-15 baseline result (not the current candidate):
 
 Current Engine V2 candidate local result on 2026-07-17:
 
-- Mobile tests: 69/69 pass.
+- Mobile tests: 71/71 pass, including executable Sentry privacy cases.
 - Mobile typecheck and lint: pass.
-- Mobile release readiness: 86/86 pass.
+- Mobile release readiness: 97/97 pass.
 - Expo Web/iOS/Android export: pass.
+- Sentry Metro Debug ID export: pass; real source-map upload and symbolication
+  remain `NOT RUN` until the dedicated project and build token are configured.
 - Signed Android build, signed iOS build and physical-device verification:
   `NOT RUN`. A local export is not a native-build receipt.
 

@@ -143,5 +143,6 @@ apps/mobile/
 - [ ] 체크리스트/일정 화면
 - [ ] TanStack Query 도입 (서버 상태)
 - [ ] Noto 폰트 로드
-- [ ] Sentry DSN 연결
+- [x] Sentry SDK·Expo plugin·Metro Debug ID·에러 경계 코드 연결
+- [ ] 전용 mobile Sentry project의 EAS DSN·org·project·auth token 연결 및 실기기 symbolication 검증
 - [ ] PostHog 연결

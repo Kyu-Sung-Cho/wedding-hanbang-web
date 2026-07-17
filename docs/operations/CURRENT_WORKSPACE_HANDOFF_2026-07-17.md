@@ -10,7 +10,7 @@
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - branch: `feat/amora-engine-v2-20260716`
 - pull request: `#61`
-- 이 문서 갱신 직전 로컬·원격 HEAD: `503220fe61e5b09259249104d8521978f8cb607e`
+- 모바일 Sentry 배선 변경 직전 로컬·원격 HEAD: `db5738eabdaccc987b3b9741ed55acca46c39a1d`
 - 운영 Supabase project: `slrtobkksjmxgzatjyqb`
 - 운영 Vercel project: `wedding-hanbang-web`, production alias `hanbang.ai`
 - 현재 릴리스 절차:
@@ -86,9 +86,17 @@ corepack pnpm install --frozen-lockfile
   된다. 로컬 `versionCode`와 `buildNumber`는 제거해 서명 바이너리와 Git commit 사이에
   추적되지 않은 로컬 version 변경이 생기지 않게 했다. 앱 프로필은
   `expo-application`의 실제 native version을 표시한다.
-- EAS Production에는 Supabase URL·anon key·site URL이 있다. 모바일 Sentry DSN은 아직
-  없으므로 signed production build 전 별도 모바일 Sentry project 또는 검토된 기존
-  project DSN을 연결해야 한다. 값은 Git이나 이 문서에 기록하지 않는다.
+- 모바일 Sentry SDK는 Expo config plugin, Metro Debug ID, root wrapper, navigation
+  tracing, caught React error capture, error·breadcrumb·performance span PII scrubber까지
+  코드에 연결했다. production trace sample은 3%이며 screenshot·view hierarchy·
+  failed-request body 수집은 껐다.
+- EAS Production에는 Supabase URL·anon key·site URL만 있다. 별도 mobile Sentry project의
+  `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`은 아직
+  없으므로 signed production build 전 연결해야 한다. 특히 auth token은 Git·문서·명령행
+  인자·클라이언트 번들에 기록하지 않는다.
+- Expo Free 사용량을 2026-07-17에 조회한 결과 Android 11/15, iOS 0/15, 초과 사용 0,
+  예상 청구액 $0였다. Android+iOS 각 1회 build는 현재 무료 한도 안이지만 실패한 build도
+  사용량에 포함될 수 있다.
 
 ## 2026-07-17 로컬 중간 검증
 
@@ -97,8 +105,8 @@ corepack pnpm install --frozen-lockfile
 않으며, 새 원격 SHA에서는 해당 gate를 다시 통과해야 한다.
 
 - Web: 186 files, 1,688 tests pass.
-- Mobile: 69/69 tests pass.
-- Mobile release readiness: 86/86 pass.
+- Mobile: 71/71 tests pass, including executable Sentry error/transaction privacy cases.
+- Mobile release readiness: 97/97 pass after Sentry wiring.
 - 전체 typecheck, lint: pass.
 - Next.js production build: pass, 100 routes.
 - Expo Web/iOS/Android export: pass. signed native build의 대체 증거는 아니다.

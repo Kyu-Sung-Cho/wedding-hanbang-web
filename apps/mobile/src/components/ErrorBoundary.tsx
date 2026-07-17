@@ -3,6 +3,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { Sentry } from "@/lib/sentry";
 
 interface Props {
   children: React.ReactNode;
@@ -24,9 +25,15 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // 콘솔 로깅 (추후 Sentry 연동)
-    console.error("[ErrorBoundary] 앱 크래시:", error);
-    console.error("[ErrorBoundary] 컴포넌트 스택:", errorInfo.componentStack);
+    Sentry.withScope((scope) => {
+      scope.setContext("react", { componentStack: errorInfo.componentStack });
+      Sentry.captureException(error);
+    });
+
+    if (__DEV__) {
+      console.error("[ErrorBoundary] 앱 크래시:", error);
+      console.error("[ErrorBoundary] 컴포넌트 스택:", errorInfo.componentStack);
+    }
   }
 
   private handleReset = () => {
