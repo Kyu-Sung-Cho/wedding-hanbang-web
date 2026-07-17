@@ -34,7 +34,7 @@ const CANARY_BROWSER_LATENCY_BUDGET_MS = 15_000;
 const HOSTED_RESTORE_LOGICAL_DATA_SQL_RELATIVE_PATH =
   "scripts/sql/amora-db-logical-backup.sql";
 export const HOSTED_RESTORE_LOGICAL_DATA_PROBE_SQL_SHA256 =
-  "dcbc72d1d048ff9bd546b35d7c4473507ad8ebf7e06de4ab229a5a835e1173a2";
+  "cfffa78c65306597f4d6ad39a303c7190b22d772a61d0715b4bf70cfbf2248e6";
 const COMMIT = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const UPPER_SHA256 = /^[A-F0-9]{64}$/;
@@ -146,6 +146,18 @@ function inside(parent, child) {
 
 export function externalGateSha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalPinnedSql(value) {
+  if (typeof value !== "string" || /\r(?!\n)/.test(value)) return null;
+  // Git stores this artifact as LF. Accept CRLF checkout transport only, then
+  // execute the exact canonical bytes represented by the pinned hash.
+  return value.replaceAll("\r\n", "\n");
+}
+
+function pinnedSqlSha256(value) {
+  const canonical = canonicalPinnedSql(value);
+  return canonical === null ? null : externalGateSha256(canonical);
 }
 
 function parseCanonicalInstant(value) {
@@ -2381,10 +2393,11 @@ export async function collectHostedRestoreEvidence({
     repoRoot,
     HOSTED_RESTORE_LOGICAL_DATA_SQL_RELATIVE_PATH,
   );
-  const logicalDataSql = await readFile(logicalDataSqlPath, "utf8")
+  const logicalDataSqlRaw = await readFile(logicalDataSqlPath, "utf8")
     .catch(() => null);
+  const logicalDataSql = canonicalPinnedSql(logicalDataSqlRaw);
   if (!logicalDataSql
-      || externalGateSha256(logicalDataSql)
+      || pinnedSqlSha256(logicalDataSql)
         !== HOSTED_RESTORE_LOGICAL_DATA_PROBE_SQL_SHA256
       || !/^begin transaction read only;/i.test(logicalDataSql.trimStart())
       || !/(?:rollback|commit);\s*$/i.test(logicalDataSql)) {
@@ -2749,6 +2762,7 @@ export const productionExternalGateProvenanceTestHooks = Object.freeze({
   CANARY_HTTP_PROBES,
   MAX_PROBE_RAW_BYTES,
   MAX_PROVIDER_RAW_BYTES,
+  pinnedSqlSha256,
   requiredChecksSha256,
   validateCanaryRawEvidence,
 });

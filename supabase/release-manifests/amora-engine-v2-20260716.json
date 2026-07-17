@@ -463,7 +463,7 @@
         "requiredProjectNamePattern": "^wedding-hanbang-restore-drill-\\d{8}(?:-[a-z0-9]{1,12})?$",
         "databaseTarget": "db.{targetProjectRef}.supabase.co:5432/postgres",
         "databaseProbeSqlSha256": "c173dc3467c1168df33052d39675b5864dc596d997123bb35a3b8f9c1c577080",
-        "logicalDataProbeSqlSha256": "dcbc72d1d048ff9bd546b35d7c4473507ad8ebf7e06de4ab229a5a835e1173a2",
+        "logicalDataProbeSqlSha256": "cfffa78c65306597f4d6ad39a303c7190b22d772a61d0715b4bf70cfbf2248e6",
         "transactionMode": "read-only"
       },
       "canary": {

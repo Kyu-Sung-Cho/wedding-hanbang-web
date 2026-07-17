@@ -58,6 +58,16 @@ const LIVE_SCHEMA_CONTRACT_SHA256 = "A".repeat(64);
 const EMPTY_CANONICAL_SHA256 =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
+test("pinned SQL hashing is cross-platform without accepting content drift", () => {
+  const canonical = "BEGIN TRANSACTION READ ONLY;\nSELECT 1;\nROLLBACK;\n";
+  const crlf = canonical.replaceAll("\n", "\r\n");
+  const { pinnedSqlSha256 } = productionExternalGateProvenanceTestHooks;
+
+  assert.equal(pinnedSqlSha256(crlf), pinnedSqlSha256(canonical));
+  assert.notEqual(pinnedSqlSha256(`${canonical} `), pinnedSqlSha256(canonical));
+  assert.equal(pinnedSqlSha256(canonical.replace("\n", "\r")), null);
+});
+
 function logicalDataPayload() {
   return {
     tables: Object.fromEntries(
