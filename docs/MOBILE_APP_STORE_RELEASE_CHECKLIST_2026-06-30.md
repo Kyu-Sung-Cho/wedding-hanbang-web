@@ -20,8 +20,20 @@
 - EAS build profiles explicitly select their matching environments: `development`, `preview`, and `production`.
 - Every EAS profile pins Node `22.13.0`, installs pnpm `11.7.0` exactly once,
   and uses the same-named EAS Update channel.
-- EAS preview environment has the required public mobile runtime variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
-- Store-build helper scripts now exist in `apps/mobile/package.json`.
+- EAS CLI and every store-build helper script are pinned to exact version `21.0.2`.
+- EAS requires a clean Git commit, and production build helpers run
+  non-interactively with signing credentials frozen. Configure credentials in a
+  separate reviewed step; a build must not create or rotate them implicitly.
+- EAS uses remote build versions with production auto-increment. The 2026-07-17
+  remote baseline is Android `4` and iOS `1`; the next builds are expected to be
+  `5` and `2`. Stale local `versionCode` and `buildNumber` fields are forbidden.
+  The in-app profile reads `expo-application` native versions instead of stale
+  Expo config fields.
+- EAS Production has `EXPO_PUBLIC_SUPABASE_URL`,
+  `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_SITE_URL`.
+- `EXPO_PUBLIC_SENTRY_DSN` is still absent in EAS Production. Add a reviewed
+  mobile Sentry DSN before the signed production build; never store its value in Git.
+- Store-build helper scripts exist in `apps/mobile/package.json`.
 
 ## 2. Validation Already Passing Locally
 
@@ -47,6 +59,7 @@ Current Engine V2 candidate local result on 2026-07-17:
 
 - Mobile tests: 69/69 pass.
 - Mobile typecheck and lint: pass.
+- Mobile release readiness: 86/86 pass.
 - Expo Web/iOS/Android export: pass.
 - Signed Android build, signed iOS build and physical-device verification:
   `NOT RUN`. A local export is not a native-build receipt.

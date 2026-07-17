@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as Application from "expo-application";
 import {
   ChevronRight,
   LogOut,
@@ -177,11 +178,9 @@ export default function ProfileScreen() {
         : null;
   const initial = profile?.name?.charAt(0) ?? "?";
 
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const buildNumber =
-    Constants.expoConfig?.ios?.buildNumber ??
-    Constants.expoConfig?.android?.versionCode?.toString() ??
-    "1";
+  const appVersion =
+    Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "1.0.0";
+  const buildNumber = Application.nativeBuildVersion ?? "개발";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

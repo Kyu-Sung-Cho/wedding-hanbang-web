@@ -16,7 +16,6 @@
     "ios": {
       "bundleIdentifier": "ai.hanbang.wedding",
       "supportsTablet": false,
-      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "후기와 커뮤니티에 선택한 사진을 올리려면 사진 접근이 필요해요."
@@ -28,7 +27,6 @@
     },
     "android": {
       "package": "ai.hanbang.wedding",
-      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FBF8F2"

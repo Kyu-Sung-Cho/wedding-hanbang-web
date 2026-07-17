@@ -10,7 +10,7 @@
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - branch: `feat/amora-engine-v2-20260716`
 - pull request: `#61`
-- 이번 checkpoint 직전 로컬·원격 HEAD: `122f3a75becd6eadf31162d68b8f97de6befce76`
+- 이 문서 갱신 직전 로컬·원격 HEAD: `503220fe61e5b09259249104d8521978f8cb607e`
 - 운영 Supabase project: `slrtobkksjmxgzatjyqb`
 - 운영 Vercel project: `wedding-hanbang-web`, production alias `hanbang.ai`
 - 현재 릴리스 절차:
@@ -75,14 +75,30 @@ corepack pnpm install --frozen-lockfile
 - 인지 인터뷰, 전문가 검토, 심리측정 검증 전에는 성향을 완벽히 측정하거나 과학적으로
   검증됐다고 홍보하지 않는다. 현재 후보는 production 수집 대상으로 승인되지 않았다.
 
+### 모바일 빌드
+
+- Expo 계정 `hanbang`과 EAS project `@hanbang/wedding-hanbang` 연결은 확인됐다.
+- EAS CLI는 `21.0.2`로 고정했고 모든 helper script도 같은 정확한 버전을 사용한다.
+  `requireCommit=true`와 non-interactive credential freeze 때문에 dirty worktree나 빌드
+  도중 자동 생성된 signing credential은 production candidate가 될 수 없다.
+- 앱 build version source는 EAS remote로 전환했다. 조회 시 원격 기준값은 Android `4`,
+  iOS `1`이며 production auto-increment를 적용한 다음 signed build는 각각 `5`, `2`가
+  된다. 로컬 `versionCode`와 `buildNumber`는 제거해 서명 바이너리와 Git commit 사이에
+  추적되지 않은 로컬 version 변경이 생기지 않게 했다. 앱 프로필은
+  `expo-application`의 실제 native version을 표시한다.
+- EAS Production에는 Supabase URL·anon key·site URL이 있다. 모바일 Sentry DSN은 아직
+  없으므로 signed production build 전 별도 모바일 Sentry project 또는 검토된 기존
+  project DSN을 연결해야 한다. 값은 Git이나 이 문서에 기록하지 않는다.
+
 ## 2026-07-17 로컬 중간 검증
 
 아래 결과는 누적 dirty working tree에서 영역별·전체 명령을 실행한 중간 증거다. 이
 문서를 포함한 final clean commit의 GitHub checks와 clean-checkout gate를 대신하지
 않으며, 새 원격 SHA에서는 해당 gate를 다시 통과해야 한다.
 
-- Web: 186 files, 1,685 tests pass.
+- Web: 186 files, 1,688 tests pass.
 - Mobile: 69/69 tests pass.
+- Mobile release readiness: 86/86 pass.
 - 전체 typecheck, lint: pass.
 - Next.js production build: pass, 100 routes.
 - Expo Web/iOS/Android export: pass. signed native build의 대체 증거는 아니다.
@@ -90,7 +106,7 @@ corepack pnpm install --frozen-lockfile
 - OpenAI/model/cost/env targeted suites: pass.
 - release static fence: 27 migrations, 3 platform operations, 3 rollback
   artifacts, 12 required documents verified.
-- release controller/finalizer/provenance tests: 121/121 pass.
+- release controller/finalizer/provenance tests: 122/122 pass.
 - encrypted backup synthetic E2E: 52/52 pass; fake CLI만 사용했고 운영 DB를 조회하지 않았다.
 - PGlite write-fence/finalizer tests: 44/44 pass.
 - SQL read-only/safety tests: 24/24 pass.

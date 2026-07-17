@@ -57,6 +57,7 @@ const rootPackage = readJson("package.json");
 const mobilePackage = readJson("apps/mobile/package.json");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
+const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
 const mobileCallback = readText("apps/web/src/app/auth/mobile-callback/page.tsx");
 const sharedMobileOAuth = readText("packages/shared/src/utils/mobileOAuth.ts");
 
@@ -125,7 +126,11 @@ if (typeof easProjectId === "string" && easProjectId.trim().length > 0) {
   warn("EAS projectId is empty; run eas:init after logging into the hanbang Expo account");
 }
 
-expect(easConfig.cli?.appVersionSource === "local", "EAS uses local app version source");
+expect(easConfig.cli?.appVersionSource === "remote", "EAS uses remote app version source");
+expect(easConfig.cli?.version === "21.0.2", "EAS CLI is pinned to 21.0.2");
+expect(easConfig.cli?.requireCommit === true, "EAS refuses to build a dirty worktree");
+expect(appConfig.ios?.buildNumber === undefined, "iOS build number is owned by EAS remote versioning");
+expect(appConfig.android?.versionCode === undefined, "Android version code is owned by EAS remote versioning");
 expect(easConfig.build?.development?.environment === "development", "EAS development profile uses development environment");
 expect(easConfig.build?.development?.developmentClient === true, "EAS development profile builds a dev client");
 expect(easConfig.build?.preview?.environment === "preview", "EAS preview profile uses preview environment");
@@ -151,6 +156,10 @@ expect(
   mobilePackage.dependencies?.["react-native-worklets"] === "0.5.1",
   "Mobile installs the Expo 54 compatible react-native-worklets peer"
 );
+expect(
+  mobilePackage.dependencies?.["expo-application"] === "~7.0.8",
+  "Mobile directly installs the Expo 54 compatible expo-application package",
+);
 
 for (const scriptName of [
   "eas:init",
@@ -161,6 +170,18 @@ for (const scriptName of [
   "eas:submit:android",
 ]) {
   expect(Boolean(mobilePackage.scripts?.[scriptName]), `Mobile package script ${scriptName} exists`);
+  expect(
+    mobilePackage.scripts?.[scriptName]?.includes("eas-cli@21.0.2"),
+    `Mobile package script ${scriptName} pins EAS CLI 21.0.2`,
+  );
+}
+
+for (const scriptName of ["eas:build:ios", "eas:build:android", "eas:build:all"]) {
+  const script = mobilePackage.scripts?.[scriptName] ?? "";
+  expect(
+    script.includes("--non-interactive") && script.includes("--freeze-credentials"),
+    `Mobile package script ${scriptName} freezes credentials non-interactively`,
+  );
 }
 
 expect(Boolean(rootPackage.scripts?.["mobile:release-check"]), "Root mobile:release-check script exists");
@@ -195,6 +216,13 @@ expect(
     && sharedMobileOAuth.includes('fragment.has("access_token")')
     && sharedMobileOAuth.includes('fragment.has("refresh_token")'),
   "Mobile OAuth exchanges PKCE and rejects session tokens in callback URLs"
+);
+expect(
+  mobileProfile.includes("Application.nativeApplicationVersion")
+    && mobileProfile.includes("Application.nativeBuildVersion")
+    && !mobileProfile.includes("Constants.expoConfig?.ios?.buildNumber")
+    && !mobileProfile.includes("Constants.expoConfig?.android?.versionCode"),
+  "Mobile profile displays the native remote-managed app and build versions",
 );
 
 const legacyPalette = [
