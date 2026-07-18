@@ -5,8 +5,8 @@
 > 확인한 결과이며 문항 타당도나 현재 출시 준비도 승인이 아닙니다. candidate.4의 문항·가중치·커플
 > 비교는 2026-07-15 재감사 이후 출시 불가 상태입니다. 현재 기준은
 > [`55_conservative_readiness_audit_2026-07-15.md`](./55_conservative_readiness_audit_2026-07-15.md)이고,
-> [`56_candidate5_research_spec_2026-07-17.md`](./56_candidate5_research_spec_2026-07-17.md)는 구현·수집을
-> 허가하지 않는 미검증 연구 초안입니다.
+> 현행 연구 계약과 실행 기준은 [`58`](./58_candidate6_product_research_contract_2026-07-17.md)–
+> [`61`](./61_candidate6_productization_roadmap_2026-07-18.md)입니다.
 > **문구·선택지·가중치·테스트 결과 재사용 금지.**
 
 Date: 2026-07-08

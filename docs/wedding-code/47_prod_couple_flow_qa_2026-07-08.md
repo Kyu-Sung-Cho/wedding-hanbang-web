@@ -6,6 +6,8 @@
 > 증명하지 않습니다. 현재 public/API/DB 수집 차단과 출시 판단은
 > [`55_conservative_readiness_audit_2026-07-15.md`](./55_conservative_readiness_audit_2026-07-15.md)가 우선합니다.
 > 아래 Production URL, 토큰, 응답 ID를 재사용하거나 이 절차를 다시 실행하지 마세요.
+> 2026-07-18 현재 파일에서는 해당 값을 redaction했다. 과거 Git 이력에는 값이 남을 수 있으며,
+> API `410 Gone`과 별개로 token 회수·폐기와 과거 QA 행 처리 여부를 별도 확인해야 한다.
 
 Date: 2026-07-08 KST
 Environment: production, `https://hanbang.ai`
@@ -20,10 +22,10 @@ The production two-person flow was verified with two real submitted responses. T
 ## Evidence
 
 - QA marker: `prod-2026-07-08T01-51-02-932Z`
-- Couple token: `35abc9ca-9c06-4217-bf85-5bddb31dc305`
-- Invite URL: `https://hanbang.ai/wedding-code?ct=35abc9ca-9c06-4217-bf85-5bddb31dc305`
-- Response A: `24ab1ab1-5e1d-4ad5-8a1c-aa564e07178f`
-- Response B: `5dcda455-6468-4d8d-9cef-39987ca575fa`
+- Couple token: `[REDACTED — historical production token; do not restore or reuse]`
+- Invite URL: `[REDACTED — historical production invite URL; do not restore or reuse]`
+- Response A: `[REDACTED — historical production response ID]`
+- Response B: `[REDACTED — historical production response ID]`
 - Waiting report status after A pairing: `waiting`
 - Ready report status after B submission: `ready`
 - Response count: `2`

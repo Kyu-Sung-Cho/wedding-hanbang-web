@@ -102,6 +102,14 @@ P2는 원형상 `recording` DS2와 `vendor-assisted` DS3를 함께 포함한다.
 
 item별 합계는 `summarizeCandidate6InterviewTracking`으로 계산하고, substitution ledger와 함께 보고한다.
 
+> [!CAUTION]
+> **2026-07-18 구현 공백:** 현재 planner request와 tracking row는 exact-version, Form/orientation,
+> support order, substitution 연결을 모두 보존하지 않으며, 같은 테마 대체의 전체 노출 균형도
+> 보장하지 않는다. 아래 원장 계약은 실제 수집 전 구현·테스트해야 하는 요구사항이다. 현재 template을
+> 사람 연구의 완성 원장으로 사용하지 않는다. 요청 원문항의 `unsure`와 최종 배정문항의 상태도 별도
+> ledger로 보존해야 한다. P1/P2/P3 동일 배정은 item별 동일 노출을 만들지 않으므로 배정 비율 또는
+> 의도적 과표집 이유를 사전등록한다.
+
 probe:
 
 - 이해: “이 질문이 무엇을 묻는다고 느꼈나요?”

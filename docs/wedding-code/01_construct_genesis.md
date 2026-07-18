@@ -1,5 +1,10 @@
 # WeddingCode Construct Genesis v0.2
 
+> [!CAUTION]
+> **HISTORICAL / NOT CURRENT SPEC.** 초기 설계·검토 계보이며 현재 문항·점수·유형·근거·수집·운영
+> 승인으로 사용하지 않는다. 현행 상태는 [`README.md`](./README.md)와
+> [`62`](./62_wedding_code_master_design_and_current_state_2026-07-18.md)를 따른다.
+
 WeddingCode starts from internal constructs, not from final 4-letter labels. B/D, C/O, P/M, and F/U are provisional public labels only. They may later become a presentation shorthand, but they are not the source of truth.
 
 Internal constructs are continuous scores. Each construct should be treated as a 0-100 signal with confidence, evidence, and validation status rather than a binary type assignment.

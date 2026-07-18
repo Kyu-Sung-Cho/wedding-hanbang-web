@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > **RETIRED / Candidate 4 생성 프로토콜 / 재사용 금지.** 이 프로토콜의 문항·유형·결과 생성
-> 규칙은 Candidate 5에 적용하지 않는다. 현재 판정과 연구안은 [`README.md`](./README.md), `55`, `56`, `57`을 따른다.
+> 규칙은 현행 Candidate 6.3이나 Production에 적용하지 않는다. 현재 판정과 연구안은 [`README.md`](./README.md), `55`, `58`–`61`을 따른다.
 
 작성일: 2026-07-07  
 출처: 사용자 데스크톱의 `fable-mode-v2.1.zip` 핵심 문서 검토 후, 웨딩코드 제품 개발에 맞게 이식.  

@@ -1,5 +1,10 @@
 # WeddingCode 문항×증거 크로스체크 v1 (2026-07-05)
 
+> [!CAUTION]
+> **HISTORICAL / NOT CURRENT SPEC.** 초기 설계·검토 계보이며 현재 문항·점수·유형·근거·수집·운영
+> 승인으로 사용하지 않는다. 현행 상태는 [`README.md`](./README.md)와
+> [`62`](./62_wedding_code_master_design_and_current_state_2026-07-18.md)를 따른다.
+
 > 질문: "모든 문항이 검증됐고 신뢰도 높은 출처를 토대로 했는가?"
 > 정직한 답을 층위로 나눈다. "검증"은 한 단어가 아니라 4개의 다른 것이다.
 
