@@ -39,6 +39,7 @@ function validEnv(overrides = {}) {
     ADMIN_PASSWORD: "admin-bootstrap-secret-longer-than-thirty-two-chars",
     CRON_SECRET: "cron-secret-longer-than-thirty-two-characters",
     RATE_LIMIT_KEY_SECRET: "rate-limit-secret-longer-than-thirty-two-chars",
+    PRICE_CATALOG_MIN_PUBLISHED_VENDORS: "1",
     ...overrides,
   };
 }
@@ -73,6 +74,19 @@ test("the production environment gate blocks a missing rate-limit HMAC secret", 
   const report = JSON.parse(result.stdout);
   assert.equal(report.pass, false);
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
+});
+
+test("the production environment gate requires a positive published-vendor floor", () => {
+  for (const unsafe of ["", "0", "-1", "1.5"]) {
+    const result = runChecker(validEnv({
+      PRICE_CATALOG_MIN_PUBLISHED_VENDORS: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["priceCatalogMinimumConfigured"],
+    );
+  }
 });
 
 test("the production environment gate blocks a weak admin bootstrap secret", () => {

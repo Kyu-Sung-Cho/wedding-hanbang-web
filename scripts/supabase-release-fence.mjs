@@ -9,6 +9,11 @@ import {
   validateAmoraExtendedReleaseContracts,
 } from "./lib/amora-release-extended-contracts.mjs";
 import { analyzeReadOnlySqlEnvelope } from "./lib/sql-read-only-envelope.mjs";
+import {
+  SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  SuccessorReleaseContractError,
+  validateSuccessorReleaseContract,
+} from "./lib/supabase-successor-release-contract.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -19,6 +24,7 @@ const manifestPath = join(
   "amora-engine-v2-20260716.json"
 );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const successorManifestPath = join(repoRoot, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
 const args = new Set(process.argv.slice(2));
 const SHA256 = /^[a-f0-9]{64}$/;
 const UPPER_SHA256 = /^[A-F0-9]{64}$/;
@@ -365,7 +371,7 @@ function verifyPredecessorManifest() {
   // migrations, audits and platform operations remain chained here.
 }
 
-function verifyStaticManifest() {
+function verifyStaticManifest({ migrationCeiling = null } = {}) {
   if (!/^\d{14}$/.test(manifest.migrationFloor ?? "")) {
     fail("migration floor is missing or invalid");
   }
@@ -412,6 +418,7 @@ function verifyStaticManifest() {
   const releaseEraFiles = readdirSync(migrationDir)
     .filter((name) => /^\d{14}_.+\.sql$/.test(name))
     .filter((name) => name.slice(0, 14) >= manifest.migrationFloor)
+    .filter((name) => !migrationCeiling || name.slice(0, 14) < migrationCeiling)
     .sort();
   const expectedReleaseEra = declared
     .map((entry) => entry.file)
@@ -531,10 +538,37 @@ function verifyRemotePending() {
   console.log(`Remote pending set verified for ${linkedRef}: ${expectedMode} (${pending.length} migrations).`);
 }
 
+let successorContract = null;
+if (existsSync(successorManifestPath)) {
+  try {
+    successorContract = validateSuccessorReleaseContract({ repoRoot });
+  } catch (error) {
+    if (error instanceof SuccessorReleaseContractError) {
+      fail(`${error.code}: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 verifyPredecessorManifest();
-verifyStaticManifest();
+verifyStaticManifest({
+  migrationCeiling: successorContract?.manifest.migrationFloor ?? null,
+});
+
+if (successorContract) {
+  console.log(
+    `Successor release manifest verified (${successorContract.manifest.release}; ${successorContract.manifest.status}; ${successorContract.migrationCount} migrations; predecessor head ${successorContract.predecessorHead}).`,
+  );
+}
 
 if (args.has("--refuse-direct-push")) {
   fail("direct push/history-repair entry points are disabled; follow docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md");
 }
-if (args.has("--remote")) verifyRemotePending();
+if (args.has("--remote")) {
+  if (successorContract?.manifest.status === "deployment_blocked") {
+    fail(
+      `successor release ${successorContract.manifest.release} is deployment_blocked until hosted staging, backup, restore, storage and finalizer evidence are pinned`,
+    );
+  }
+  verifyRemotePending();
+}

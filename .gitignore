@@ -85,3 +85,12 @@ apps/web/*.png
 apps/web/.screenshots/
 apps/web/.screenshots-test/
 .env*
+
+# 공시 원본 및 적재 파이프라인 로컬 산출물 (개인/업체 원문 커밋 금지)
+data/raw/
+scripts/ingest/.state/
+# 아래 항목은 이전 기본 state 위치를 사용한 로컬 작업물도 계속 차단한다.
+scripts/ingest/.converted/
+scripts/ingest/.cache/
+scripts/ingest/validated/
+scripts/ingest/manifest.json

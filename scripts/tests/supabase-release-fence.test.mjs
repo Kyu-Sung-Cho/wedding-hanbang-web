@@ -27,6 +27,10 @@ const readOnlyEnvelopeSource = join(
   repoRoot,
   "scripts/lib/sql-read-only-envelope.mjs",
 );
+const successorContractSource = join(
+  repoRoot,
+  "scripts/lib/supabase-successor-release-contract.mjs",
+);
 
 function sha256(content) {
   return createHash("sha256").update(content.replace(/\r\n?/g, "\n"), "utf8").digest("hex");
@@ -50,6 +54,10 @@ async function createFixture() {
   await cp(
     readOnlyEnvelopeSource,
     join(root, "scripts/lib/sql-read-only-envelope.mjs"),
+  );
+  await cp(
+    successorContractSource,
+    join(root, "scripts/lib/supabase-successor-release-contract.mjs"),
   );
 
   const historicalAudit = "select 'verified';\n";
@@ -371,6 +379,150 @@ function runFence(root, args = []) {
     encoding: "utf8",
   });
 }
+
+async function addSuccessorRelease(root, {
+  status = "deployment_blocked",
+} = {}) {
+  const predecessorFile = "supabase/release-manifests/amora-engine-v2-20260716.json";
+  const predecessorText = await readFile(join(root, predecessorFile), "utf8");
+  const migrationFile = "20260718120000_vendor_disclosure_foundation.sql";
+  const migrationSql = "select 'vendor disclosure successor';\n";
+  const successorManifest = {
+    release: "vendor-disclosure-v2-20260718",
+    projectRef: "test-project",
+    status,
+    predecessorManifest: {
+      file: predecessorFile,
+      sha256: sha256(predecessorText),
+    },
+    requiredRemoteHead: "20260716000000",
+    migrationFloor: "20260718120000",
+    expandMigrations: [
+      { file: migrationFile, sha256: sha256(migrationSql) },
+    ],
+    deploymentEvidence: {
+      hostedStaging: "missing",
+      backup: "missing",
+      hostedRestore: "missing",
+      storage: "missing",
+      finalizer: "missing",
+    },
+  };
+  await write(
+    root,
+    "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+    `${JSON.stringify(successorManifest, null, 2)}\n`,
+  );
+  await write(root, `supabase/migrations/${migrationFile}`, migrationSql);
+  return successorManifest;
+}
+
+test("deployment-blocked successor release statically verifies its predecessor and exact migration chain", async () => {
+  const root = await createFixture();
+  try {
+    await addSuccessorRelease(root);
+    const result = runFence(root);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /vendor-disclosure-v2-20260718/);
+    assert.match(result.stdout, /deployment_blocked/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("successor release rejects any drift in its pinned predecessor manifest", async () => {
+  const root = await createFixture();
+  try {
+    await addSuccessorRelease(root);
+    const predecessorPath = join(
+      root,
+      "supabase/release-manifests/amora-engine-v2-20260716.json",
+    );
+    const predecessor = JSON.parse(await readFile(predecessorPath, "utf8"));
+    predecessor.requiredDocuments = [];
+    await writeFile(predecessorPath, `${JSON.stringify(predecessor, null, 2)}\n`, "utf8");
+
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /predecessor release manifest hash mismatch/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("successor release rejects hash drift in every release-era migration", async () => {
+  const root = await createFixture();
+  try {
+    const successor = await addSuccessorRelease(root);
+    await write(
+      root,
+      `supabase/migrations/${successor.expandMigrations[0].file}`,
+      "select 'tampered successor migration';\n",
+    );
+
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /successor migration hash mismatch/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("successor release rejects an unmanifested migration at or after its floor", async () => {
+  const root = await createFixture();
+  try {
+    await addSuccessorRelease(root);
+    await write(
+      root,
+      "supabase/migrations/20260718130000_unmanifested.sql",
+      "select 'unmanifested';\n",
+    );
+
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /successor migration set or order drifted/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("successor release rejects a manifest whose migrations are not in strict version order", async () => {
+  const root = await createFixture();
+  try {
+    const successor = await addSuccessorRelease(root);
+    const laterFile = "20260718130000_later.sql";
+    const laterSql = "select 'later';\n";
+    await write(root, `supabase/migrations/${laterFile}`, laterSql);
+    successor.expandMigrations = [
+      { file: laterFile, sha256: sha256(laterSql) },
+      successor.expandMigrations[0],
+    ];
+    await write(
+      root,
+      "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+      `${JSON.stringify(successor, null, 2)}\n`,
+    );
+
+    const result = runFence(root);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /strictly ordered from migrationFloor/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("deployment-blocked successor refuses remote verification before invoking Supabase", async () => {
+  const root = await createFixture();
+  try {
+    await addSuccessorRelease(root);
+    const result = runFence(root, ["--remote", "--expect=expand-only"]);
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /vendor-disclosure-v2-20260718 is deployment_blocked/i);
+    assert.doesNotMatch(result.stdout, /Remote pending set verified/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("이전 릴리스의 hash-pinned migration이 변조되면 정적 fence가 차단한다", async () => {
   const root = await createFixture();

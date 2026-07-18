@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import {
   lstat,
   open,
@@ -25,6 +25,11 @@ import {
   resolvePinnedWindowsProductionToolchain,
 } from "./production-windows-toolchain.mjs";
 import { productionDatabaseSystemIdentifier } from "./production-database-identity.mjs";
+import {
+  SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  SuccessorReleaseContractError,
+  validateSuccessorReleaseContract,
+} from "./supabase-successor-release-contract.mjs";
 
 const MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
@@ -70,6 +75,27 @@ export class ReleaseBlockedError extends Error {
 
 function blocked(code, message) {
   throw new ReleaseBlockedError(code, message);
+}
+
+function assertSuccessorReleaseNotBlocked(repoRoot) {
+  const path = join(repoRoot, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
+  if (!existsSync(path)) return;
+  let successor;
+  try {
+    successor = validateSuccessorReleaseContract({ repoRoot });
+  } catch (error) {
+    if (error instanceof SuccessorReleaseContractError) {
+      blocked(
+        "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+        `successor release contract is invalid (${error.code}); production release remains blocked`,
+      );
+    }
+    throw error;
+  }
+  blocked(
+    "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+    `successor release ${successor.manifest.release} is ${successor.manifest.status}; use only the static release fence until hosted evidence and a reviewed successor controller exist`,
+  );
 }
 
 function assertSafeExecutionEnvironment(environment) {
@@ -2300,6 +2326,7 @@ export async function runProductionRelease({
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
   const options = parseArgs(argv ?? []);
   assertSafeExecutionEnvironment(process.env);
+  assertSuccessorReleaseNotBlocked(repoRoot);
   const {
     manifest,
     expectedMigrations,

@@ -83,6 +83,8 @@ const checks = {
   adminBootstrapSecretConfigured: isPlausibleSecret(env.ADMIN_PASSWORD),
   cronSecretConfigured: isPlausibleSecret(env.CRON_SECRET),
   rateLimitSecretConfigured: isPlausibleSecret(env.RATE_LIMIT_KEY_SECRET),
+  priceCatalogMinimumConfigured:
+    isPositiveInteger(env.PRICE_CATALOG_MIN_PUBLISHED_VENDORS),
 };
 
 const failed = Object.entries(checks)

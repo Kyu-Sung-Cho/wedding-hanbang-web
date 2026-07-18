@@ -1,0 +1,11 @@
+{
+  "contractVersion": 1,
+  "kind": "vendor-disclosure-hosted-staging-v2",
+  "release": "vendor-disclosure-v2-20260718",
+  "productionProjectRef": "slrtobkksjmxgzatjyqb",
+  "status": "blocked_pending_dedicated_staging",
+  "approved": false,
+  "projectRef": null,
+  "approvalEvidence": null,
+  "publicViewDefinitionSha256": null
+}

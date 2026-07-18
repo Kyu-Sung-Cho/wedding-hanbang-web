@@ -120,6 +120,40 @@ async function write(root, path, content) {
   await writeFile(target, content, "utf8");
 }
 
+async function addBlockedSuccessorRelease(fixture) {
+  const predecessorFile = "supabase/release-manifests/amora-engine-v2-20260716.json";
+  const predecessorText = await readFile(join(fixture.root, predecessorFile), "utf8");
+  const migrationFile = "20260718120000_vendor_disclosure_foundation.sql";
+  const migrationSql = "select 'blocked successor';\n";
+  const manifest = {
+    release: "vendor-disclosure-v2-20260718",
+    projectRef: PROJECT_REF,
+    status: "deployment_blocked",
+    predecessorManifest: {
+      file: predecessorFile,
+      sha256: sha256(predecessorText),
+    },
+    requiredRemoteHead: "20260716091000",
+    migrationFloor: "20260718120000",
+    expandMigrations: [
+      { file: migrationFile, sha256: sha256(migrationSql) },
+    ],
+    deploymentEvidence: {
+      hostedStaging: "missing",
+      backup: "missing",
+      hostedRestore: "missing",
+      storage: "missing",
+      finalizer: "missing",
+    },
+  };
+  await write(
+    fixture.root,
+    "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  await write(fixture.root, `supabase/migrations/${migrationFile}`, migrationSql);
+}
+
 async function createFixture({ withPostPushOperation = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "amora-production-release-"));
   const receiptRoot = await mkdtemp(join(tmpdir(), "amora-production-receipt-"));
@@ -680,6 +714,30 @@ async function createFixture({ withPostPushOperation = false } = {}) {
     outcomeReceiptPath: join(receiptRoot, "release.json"),
   };
 }
+
+test("production release controller refuses a deployment-blocked successor before any release action", async () => {
+  const fixture = await createFixture();
+  try {
+    await addBlockedSuccessorRelease(fixture);
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--check-only",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
+        ],
+      }),
+      (error) => error?.code === "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
 
 function successfulRunner(
   { backupSourceRepo, sourceCapturedAt, createdAtUtc },

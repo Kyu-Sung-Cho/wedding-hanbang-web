@@ -1,0 +1,88 @@
+{
+  "release": "vendor-disclosure-v2-20260718",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "status": "deployment_blocked",
+  "predecessorManifest": {
+    "file": "supabase/release-manifests/amora-engine-v2-20260716.json",
+    "sha256": "d31846bca3f3973870b5f48755a488adf578f178ee3c6fc55254d68393efd0d9"
+  },
+  "requiredRemoteHead": "20260716117000",
+  "migrationFloor": "20260718120000",
+  "expandMigrations": [
+    {
+      "file": "20260718120000_vendor_public_column_privilege_hotfix.sql",
+      "sha256": "1e68735a532f1455bd4e5bd7b761369701ef9e0de0d8101eaec330b7192dc657"
+    },
+    {
+      "file": "20260718130000_vendor_disclosure_foundation.sql",
+      "sha256": "ffb97c12322c2e1429b7cc301460ad4258cc69170ec907145a8f0513792d5a61"
+    },
+    {
+      "file": "20260718140000_disclosure_source_previews.sql",
+      "sha256": "d6cf3de605e2be12846b5462fd6e36c3743aa5093373bc1e75e025cef03623f9"
+    },
+    {
+      "file": "20260718150000_price_snapshot_promotion.sql",
+      "sha256": "681490288b02ae48af4f529e0987dda2c0b3da3d679fb302344bef5ec221306c"
+    },
+    {
+      "file": "20260718160000_vendor_alias_proposals.sql",
+      "sha256": "050246e31040a2b32a5c4732b6e6ad8cd8674a6bb7f0e89a8c732e32c27fadc6"
+    },
+    {
+      "file": "20260718170000_admin_review_optimistic_concurrency.sql",
+      "sha256": "95fa130bd6692c998fccd35977fbc5996a5941cc1d9972abc905e94d114ace83"
+    },
+    {
+      "file": "20260718180000_disclosure_storage_privacy_fence.sql",
+      "sha256": "2f143cdd041362802ea36697f65373a7b5f92a483cc5916cdbc32cbae4f1263e"
+    },
+    {
+      "file": "20260718190000_price_consumer_contract.sql",
+      "sha256": "279f89e05ab439cc0dc17f818d0db3f857f33d4c3d286681347fda026611fa2f"
+    },
+    {
+      "file": "20260718200000_price_publication_immutability.sql",
+      "sha256": "5a27574f7ba0da525c53cf0762e7272696fe2624bf7dc3a781eecf0fd17100fd"
+    },
+    {
+      "file": "20260718201000_admin_json_evidence.sql",
+      "sha256": "1cc0f89985171887dd36cb6f36255ebc4f63b156342cbbc4440347ad2874d79d"
+    },
+    {
+      "file": "20260718202000_price_upload_confirmation_queue.sql",
+      "sha256": "1f4b075760ab1707423d5b8bf90ebfd4f1073f20a8fa1d5b13b4c5e199eed35b"
+    },
+    {
+      "file": "20260718203000_price_consumer_cross_contract_hardening.sql",
+      "sha256": "a433b3c40fa1e7ea3be0e7d90876c83fc10740274ddd2ba5e033a4a69064fa3f"
+    },
+    {
+      "file": "20260718204000_price_combo_idempotency.sql",
+      "sha256": "c604e59f47541b53d99a89e1f019db7d94cce3646ce93c7d6031f06e51667011"
+    },
+    {
+      "file": "20260718205000_legacy_demo_vendor_retirement.sql",
+      "sha256": "dfe4e515ea7fb46faad98c63e2b1aa7d4de1db54311b633e7d96173cdcf68159"
+    },
+    {
+      "file": "20260718206000_unverified_contract_clause_safety_fence.sql",
+      "sha256": "11262c3e89b14e5786f1dbbd1293e4cd6e8b2761149d13f5bfa2434a674190ce"
+    },
+    {
+      "file": "20260718207000_public_disclosure_evidence_privacy.sql",
+      "sha256": "b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512"
+    },
+    {
+      "file": "20260718208000_atomic_weighted_rate_limit.sql",
+      "sha256": "f02cf92a2f6bc793a72e5d18d3cc39221a0edd93bf6f69967ee713d18145233a"
+    }
+  ],
+  "deploymentEvidence": {
+    "hostedStaging": "missing",
+    "backup": "missing",
+    "hostedRestore": "missing",
+    "storage": "missing",
+    "finalizer": "missing"
+  }
+}
