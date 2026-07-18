@@ -50,6 +50,14 @@ function getTitle(result: ToolExecutionResult) {
   switch (result.toolName) {
     case "update_budget":
       return "예산 변경";
+    case "apply_budget_plan":
+      return "예산안 적용";
+    case "add_custom_category":
+      return "예산 항목 추가";
+    case "delete_category":
+      return "예산 항목 삭제";
+    case "reset_category":
+      return "예산 항목 초기화";
     case "update_wedding_date":
       return "날짜 변경";
     case "update_task_status":
@@ -60,6 +68,20 @@ function getTitle(result: ToolExecutionResult) {
       return "예산 현황";
     case "get_schedule_summary":
       return "진행 현황";
+    case "add_schedule_event":
+      return "일정 추가";
+    case "update_schedule_event":
+      return "일정 변경";
+    case "delete_schedule_event":
+      return "일정 삭제";
+    case "get_schedule_events":
+      return "등록 일정";
+    case "log_wedding_event":
+      return "웨딩 일정 기록";
+    case "get_my_bookings":
+      return "예약 현황";
+    case "get_market_price":
+      return "결혼 비용 시세";
     case "get_wedding_info":
       return "웨딩 정보";
     case "toggle_checklist_item":
