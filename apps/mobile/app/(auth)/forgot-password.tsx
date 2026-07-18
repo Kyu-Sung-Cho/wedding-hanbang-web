@@ -3,14 +3,27 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
+  Animated, Linking,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { publicApiFetch } from "@/lib/api";
+import TurnstileModal from "@/components/auth/TurnstileModal";
+import { requestMobilePasswordReset } from "@/lib/mobileAuthRequests";
+import {
+  getTurnstileWebFallbackUrl,
+  hasValidTurnstileSiteKey,
+  isValidTurnstileToken,
+} from "@/lib/turnstile";
+
+const TURNSTILE_SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+const TURNSTILE_CONFIGURED = hasValidTurnstileSiteKey(TURNSTILE_SITE_KEY);
+const FORGOT_WEB_URL = getTurnstileWebFallbackUrl(
+  "forgot",
+  process.env.EXPO_PUBLIC_SITE_URL,
+);
 
 // 이메일 유효성 검사
 function isValidEmail(email: string): boolean {
@@ -58,6 +71,8 @@ export default function ForgotPasswordScreen() {
   const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [turnstileVisible, setTurnstileVisible] = useState(false);
+  const turnstileTokenRef = useRef("");
 
   // 로고 페이드인 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -111,15 +126,47 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
+    turnstileTokenRef.current = "";
+    if (!TURNSTILE_CONFIGURED) {
+      Alert.alert(
+        "안전 확인을 준비하지 못했어요",
+        "앱의 사람인지 확인 설정이 아직 완료되지 않았어요. 웹에서 안전하게 비밀번호 찾기를 계속할 수 있어요.",
+        [
+          { text: "나중에", style: "cancel" },
+          {
+            text: "웹에서 계속",
+            onPress: () => {
+              void Linking.openURL(FORGOT_WEB_URL).catch(() => {
+                Alert.alert("오류", "웹 비밀번호 찾기 화면을 열지 못했어요. 잠시 후 다시 시도해주세요.");
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    setTurnstileVisible(true);
+  }
+
+  async function submitResetWithTurnstile(turnstileToken: string) {
+    if (!isValidTurnstileToken(turnstileToken)) {
+      turnstileTokenRef.current = "";
+      setTurnstileVisible(false);
+      Alert.alert("안전 확인 실패", "사람인지 확인을 다시 완료해주세요.");
+      return;
+    }
+
+    turnstileTokenRef.current = turnstileToken;
+    setTurnstileVisible(false);
     setLoading(true);
     try {
-      // 웹 하드닝 라우트 경유 — rate limit + enumeration 마스킹을 서버가 처리한다.
-      // 라우트는 존재 여부와 무관하게 항상 success를 반환하므로(계정 열거 방지),
-      // 클라도 항상 "발송됨" 화면을 보여준다.
-      const res = await publicApiFetch("/api/auth/forgot-password", {
-        method: "POST",
-        body: JSON.stringify({ email: email.trim() }),
-      });
+      // 검증된 단일 사용 토큰만 보낸다. 서버 응답은 계정 열거 방지를 위해
+      // 존재 여부와 무관하게 동일한 성공 형태를 유지한다.
+      const res = await requestMobilePasswordReset(
+        email.trim(),
+        turnstileTokenRef.current,
+      );
 
       if (!res.ok) {
         Alert.alert("오류", "발송에 실패했어요. 다시 시도해주세요.");
@@ -130,6 +177,7 @@ export default function ForgotPasswordScreen() {
     } catch {
       Alert.alert("오류", "발송에 실패했어요. 다시 시도해주세요.");
     } finally {
+      turnstileTokenRef.current = "";
       setLoading(false);
     }
   }
@@ -222,7 +270,7 @@ export default function ForgotPasswordScreen() {
             <Pressable
               style={[styles.submitBtn, (!email.trim() || emailInvalid) && styles.submitBtnDisabled]}
               onPress={handleReset}
-              disabled={!email.trim() || loading || emailInvalid}
+              disabled={!email.trim() || loading || emailInvalid || turnstileVisible}
               accessibilityLabel="비밀번호 재설정 링크 보내기"
               accessibilityRole="button"
             >
@@ -245,6 +293,16 @@ export default function ForgotPasswordScreen() {
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
+      <TurnstileModal
+        visible={turnstileVisible}
+        siteKey={TURNSTILE_SITE_KEY}
+        action="forgot"
+        onVerify={submitResetWithTurnstile}
+        onCancel={() => {
+          turnstileTokenRef.current = "";
+          setTurnstileVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

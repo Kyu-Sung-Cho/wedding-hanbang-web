@@ -74,16 +74,16 @@ function HomeSlide({ mockWidth }: MockSlideProps) {
       <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* D-day 카드 */}
         <View style={styles.homeDdayCard}>
-          <Text style={styles.homeDdayLabel}>우리의 결혼식</Text>
-          <Text style={styles.homeDdayNumber}>D-127</Text>
-          <Text style={styles.homeDdayDate}>2026. 9. 15</Text>
+          <Text style={styles.homeDdayLabel}>예시 · 우리의 결혼식</Text>
+          <Text style={styles.homeDdayNumber}>일정 입력</Text>
+          <Text style={styles.homeDdayDate}>직접 저장한 날짜</Text>
 
           {/* 프로그레스 바 */}
           <View style={styles.homeProgressContainer}>
             <View style={styles.homeProgressBg}>
               <View style={styles.homeProgressFill} />
             </View>
-            <Text style={styles.homeProgressText}>35% 완료</Text>
+            <Text style={styles.homeProgressText}>준비 상태 동기화</Text>
           </View>
         </View>
 
@@ -153,7 +153,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.chatBubbleAi}>
               <Text style={styles.chatBubbleAiText}>
-                {"예산에 맞는 3곳을 찾아봤어요 ✨"}
+                {"말씀하신 조건으로 검수된 후보를 찾아봤어요 ✨"}
               </Text>
             </View>
           </View>
@@ -193,31 +193,31 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
             </View>
             <View style={styles.communityAuthorInfo}>
               <View style={styles.communityNameRow}>
-                <Text style={styles.communityNickname}>제주신부</Text>
+                <Text style={styles.communityNickname}>샘플 커플</Text>
                 <View style={styles.communityRankBadge}>
                   <Crown size={8} color={colors.gold.DEFAULT} />
-                  <Text style={styles.communityRankText}>Lv.4</Text>
+                  <Text style={styles.communityRankText}>예시</Text>
                 </View>
               </View>
-              <Text style={styles.communityTime}>3시간 전</Text>
+              <Text style={styles.communityTime}>샘플 게시글</Text>
             </View>
           </View>
 
           {/* 게시글 본문 */}
-          <Text style={styles.communityPostTitle}>스드메 비교 후기</Text>
+          <Text style={styles.communityPostTitle}>스드메 조건 비교 후기</Text>
           <Text style={styles.communityPostPreview}>
-            강남 3곳 다녀온 솔직 비교 리뷰입니다...
+            원본·보정본 포함 범위를 같은 기준으로 비교했어요...
           </Text>
 
           {/* 투표 + 댓글 */}
           <View style={styles.communityMetaRow}>
             <View style={styles.communityVote}>
               <ChevronUp size={14} color={colors.rose[500]} />
-              <Text style={styles.communityVoteText}>12</Text>
+              <Text style={styles.communityVoteText}>공감</Text>
             </View>
             <View style={styles.communityComment}>
               <MessageSquare size={12} color={colors.textSecondary} />
-              <Text style={styles.communityCommentText}>5</Text>
+              <Text style={styles.communityCommentText}>댓글</Text>
             </View>
           </View>
         </View>
@@ -228,9 +228,9 @@ function CommunitySlide({ mockWidth }: MockSlideProps) {
             <Users size={16} color={colors.rose[500]} />
             <View style={styles.communityCohortTextWrap}>
               <Text style={styles.communityCohortTitle}>
-                2026 2분기 동기방
+                샘플 동기방
               </Text>
-              <Text style={styles.communityCohortSub}>멤버 248명</Text>
+              <Text style={styles.communityCohortSub}>예시 화면</Text>
             </View>
           </View>
           <View style={styles.communityCohortJoin}>
@@ -256,19 +256,19 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
         {/* 예산 미니 */}
         <View style={styles.budgetCard}>
           <Text style={styles.budgetLabel}>총 예산</Text>
-          <Text style={styles.budgetTotal}>3,000만원</Text>
+          <Text style={styles.budgetTotal}>직접 입력</Text>
 
           {/* 예산 프로그레스 */}
           <View style={styles.budgetProgressBg}>
             <View style={styles.budgetProgressFill} />
           </View>
-          <Text style={styles.budgetUsed}>1,240만원 사용 (41%)</Text>
+          <Text style={styles.budgetUsed}>저장한 지출과 잔여 예산 확인</Text>
 
           {/* 카테고리 행 */}
           <View style={styles.budgetCategoryRow}>
             <View style={styles.budgetCatDot} />
             <Text style={styles.budgetCatName}>스드메</Text>
-            <Text style={styles.budgetCatAmount}>380만원</Text>
+            <Text style={styles.budgetCatAmount}>입력한 금액</Text>
           </View>
           <View style={styles.budgetCategoryRow}>
             <View
@@ -279,7 +279,7 @@ function BudgetScheduleSlide({ mockWidth }: MockSlideProps) {
             />
             <Text style={styles.budgetCatName}>예식장</Text>
             <View style={styles.budgetCatAmountRow}>
-              <Text style={styles.budgetCatAmount}>520만원</Text>
+              <Text style={styles.budgetCatAmount}>포함 항목 확인</Text>
               <View style={styles.budgetWarningBadge}>
                 <AlertTriangle size={10} color={colors.danger} />
               </View>

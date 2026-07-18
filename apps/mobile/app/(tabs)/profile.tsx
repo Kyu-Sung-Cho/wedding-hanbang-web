@@ -17,7 +17,6 @@ import {
   ChevronRight,
   LogOut,
   HelpCircle,
-  TrendingUp,
   BookOpen,
   Store,
   Settings,
@@ -286,11 +285,6 @@ export default function ProfileScreen() {
             <MenuItem
               icon={Store}
               label="업체 탐색"
-              onPress={() => router.push({ pathname: "/vendors" })}
-            />
-            <MenuItem
-              icon={TrendingUp}
-              label="시세 정보"
               onPress={() => router.push({ pathname: "/market-prices" })}
             />
             <MenuItem

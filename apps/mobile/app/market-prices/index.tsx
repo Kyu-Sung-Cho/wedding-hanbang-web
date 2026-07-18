@@ -1,8 +1,24 @@
 import { Redirect } from "expo-router";
+import {
+  buildMobileSiteUrl,
+  resolveMobileSiteOrigin,
+} from "@/lib/siteUrl.mjs";
 
-// 시세는 웹의 한국소비자원 참가격 데이터(격월 자동 갱신)를 단일 출처로 쓴다.
-// 하드코딩 사본은 실제 시세와 드리프트하고 "출처 있는 평균가만" 원칙에 어긋나
-// 예절과 동일하게 웹뷰로 위임한다.
+const siteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const priceExplorerUrl = buildMobileSiteUrl("/price/studio", siteOrigin);
+
+// 업체별 공시 가격은 승인된 공개 뷰를 읽는 웹 탐색 화면을 단일 출처로 쓴다.
+// 앱 안에 가격 사본을 두지 않아 공시 승격과 동시에 같은 근거를 보여준다.
 export default function MarketPricesScreen() {
-  return <Redirect href="/webview?url=https://hanbang.ai/market-prices" />;
+  return (
+    <Redirect
+      href={{
+        pathname: "/webview",
+        params: { url: priceExplorerUrl },
+      }}
+    />
+  );
 }

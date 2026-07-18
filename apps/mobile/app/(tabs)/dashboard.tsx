@@ -590,7 +590,7 @@ export default function DashboardScreen() {
       icon: Store,
       iconColor: colors.rose[500],
       iconBg: colors.ivory[200],
-      route: "/vendors" as const,
+      route: "/market-prices" as const,
     },
   ];
 

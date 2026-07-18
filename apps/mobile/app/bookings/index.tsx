@@ -592,7 +592,7 @@ export default function BookingsScreen() {
                 <PrimaryButton
                   tone="ghost"
                   icon={<Store size={18} color={colors.noir[800]} />}
-                  onPress={() => router.push("/vendors")}
+                  onPress={() => router.push("/market-prices")}
                 >
                   업체 탐색하기
                 </PrimaryButton>

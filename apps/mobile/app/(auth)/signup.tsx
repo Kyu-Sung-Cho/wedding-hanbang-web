@@ -1,5 +1,5 @@
 // 회원가입 — 이름 + 이메일 + 비밀번호 + 약관동의
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, ScrollView,
   Alert, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
@@ -10,7 +10,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { publicApiFetch } from "@/lib/api";
+import TurnstileModal from "@/components/auth/TurnstileModal";
+import { requestMobileSignup } from "@/lib/mobileAuthRequests";
+import {
+  getTurnstileWebFallbackUrl,
+  hasValidTurnstileSiteKey,
+  isValidTurnstileToken,
+} from "@/lib/turnstile";
 
 // Android LayoutAnimation 활성화
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -18,6 +24,12 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
+const TURNSTILE_SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+const TURNSTILE_CONFIGURED = hasValidTurnstileSiteKey(TURNSTILE_SITE_KEY);
+const SIGNUP_WEB_URL = getTurnstileWebFallbackUrl(
+  "signup",
+  process.env.EXPO_PUBLIC_SITE_URL,
+);
 
 // 이메일 유효성 검사
 function isValidEmail(email: string): boolean {
@@ -66,6 +78,8 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAgreements, setShowAgreements] = useState(true);
+  const [turnstileVisible, setTurnstileVisible] = useState(false);
+  const turnstileTokenRef = useRef("");
 
   // 약관 동의
   const [agreeAll, setAgreeAll] = useState(false);
@@ -115,20 +129,51 @@ export default function SignupScreen() {
       return;
     }
 
+    turnstileTokenRef.current = "";
+    if (!TURNSTILE_CONFIGURED) {
+      Alert.alert(
+        "안전 확인을 준비하지 못했어요",
+        "앱의 사람인지 확인 설정이 아직 완료되지 않았어요. 웹에서 안전하게 가입을 계속할 수 있어요.",
+        [
+          { text: "나중에", style: "cancel" },
+          {
+            text: "웹에서 계속",
+            onPress: () => {
+              void Linking.openURL(SIGNUP_WEB_URL).catch(() => {
+                Alert.alert("오류", "웹 가입 화면을 열지 못했어요. 잠시 후 다시 시도해주세요.");
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    setTurnstileVisible(true);
+  }
+
+  async function submitSignupWithTurnstile(turnstileToken: string) {
+    if (!isValidTurnstileToken(turnstileToken)) {
+      turnstileTokenRef.current = "";
+      setTurnstileVisible(false);
+      Alert.alert("안전 확인 실패", "사람인지 확인을 다시 완료해주세요.");
+      return;
+    }
+
+    turnstileTokenRef.current = turnstileToken;
+    setTurnstileVisible(false);
     setLoading(true);
     try {
-      // 웹과 동일한 하드닝 라우트 경유 — Turnstile(모바일 생략)·IP/이메일 rate limit·
-      // enumeration 마스킹·강한 비밀번호·브랜드 인증메일을 서버가 처리한다.
-      // 클라 SDK 직접 호출(우회)을 제거. 라우트는 세션을 만들지 않고 인증 메일만 보낸다.
-      const res = await publicApiFetch("/api/auth/signup", {
-        method: "POST",
-        body: JSON.stringify({
+      // WebView에서 검증된 단일 사용 토큰만 하드닝 라우트에 전달한다.
+      const res = await requestMobileSignup(
+        {
           email: email.trim(),
           password,
           name: name.trim(),
           marketingAgreed: agreeMarketing,
-        }),
-      });
+        },
+        turnstileTokenRef.current,
+      );
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
 
       if (!res.ok || !data.success) {
@@ -145,6 +190,7 @@ export default function SignupScreen() {
     } catch {
       Alert.alert("오류", "회원가입에 실패했어요. 다시 시도해주세요.");
     } finally {
+      turnstileTokenRef.current = "";
       setLoading(false);
     }
   }
@@ -339,7 +385,9 @@ export default function SignupScreen() {
           <Pressable
             style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
             onPress={handleSignup}
-            disabled={!canSubmit || loading}
+            disabled={!canSubmit || loading || turnstileVisible}
+            accessibilityRole="button"
+            accessibilityLabel="가입하기"
           >
             {loading
               ? <ActivityIndicator color="#FFF" />
@@ -356,6 +404,16 @@ export default function SignupScreen() {
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
+      <TurnstileModal
+        visible={turnstileVisible}
+        siteKey={TURNSTILE_SITE_KEY}
+        action="signup"
+        onVerify={submitSignupWithTurnstile}
+        onCancel={() => {
+          turnstileTokenRef.current = "";
+          setTurnstileVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

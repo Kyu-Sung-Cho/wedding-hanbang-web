@@ -9,29 +9,19 @@ import { useLocalSearchParams, router } from "expo-router";
 import { ArrowLeft, Share2 } from "lucide-react-native";
 import { WebView } from "react-native-webview";
 import { colors } from "@hanbang/design-tokens";
+import {
+  normalizeMobileSiteUrl,
+  resolveMobileSiteOrigin,
+} from "@/lib/siteUrl.mjs";
 
-const HANBANG_HOST = "hanbang.ai";
+const SITE_ORIGIN = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
 
 function firstParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
-}
-
-function normalizeHanbangUrl(value: string | null): string | null {
-  if (!value || value.length > 2048) return null;
-
-  try {
-    const parsed = new URL(value);
-    const host = parsed.hostname.toLowerCase();
-    const isAllowedHost = host === HANBANG_HOST || host.endsWith(`.${HANBANG_HOST}`);
-
-    if (parsed.protocol !== "https:" || !isAllowedHost) return null;
-    parsed.username = "";
-    parsed.password = "";
-    return parsed.toString();
-  } catch {
-    return null;
-  }
 }
 
 function canOpenExternally(value: string): boolean {
@@ -46,6 +36,7 @@ function canOpenExternally(value: string): boolean {
 function titleFromUrl(url: string): string {
   try {
     const pathname = new URL(url).pathname;
+    if (pathname === "/price" || pathname.startsWith("/price/")) return "업체 공시가";
     const segment = pathname.split("/").filter(Boolean).pop();
     const map: Record<string, string> = {
       etiquette: "예절 가이드",
@@ -65,7 +56,7 @@ function titleFromUrl(url: string): string {
 export default function WebViewScreen() {
   const params = useLocalSearchParams<{ url?: string | string[] }>();
   const url = firstParam(params.url);
-  const safeUrl = normalizeHanbangUrl(url);
+  const safeUrl = normalizeMobileSiteUrl(url, SITE_ORIGIN);
   const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [currentTitle, setCurrentTitle] = useState(titleFromUrl(safeUrl ?? ""));
@@ -79,9 +70,9 @@ export default function WebViewScreen() {
     }
   }, [safeUrl]);
 
-  // hanbang.ai 링크는 WebView에서, 외부 링크는 브라우저에서
+  // 설정된 동일 origin 링크는 WebView에서, 외부 링크는 브라우저에서 연다.
   const handleNavigation = useCallback((event: { url: string }) => {
-    const nextUrl = normalizeHanbangUrl(event.url);
+    const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);
     if (nextUrl) {
       setCurrentTitle(titleFromUrl(nextUrl));
       return true;

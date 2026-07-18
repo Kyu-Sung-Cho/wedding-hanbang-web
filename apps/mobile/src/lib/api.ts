@@ -61,9 +61,8 @@ export async function apiJson<T = unknown>(path: string, options: RequestInit = 
 
 /**
  * 무인증 공개 API 호출 (가입·비밀번호찾기 등 로그인 이전 표면).
- * Bearer 토큰이 없으므로 apiFetch 대신 이걸 쓴다. `x-hanbang-client: mobile`
- * 헤더로 서버가 모바일 요청을 식별한다 — 서버는 이 헤더가 있을 때만 Turnstile을
- * 생략하고, IP/이메일 rate limit·enumeration 마스킹·강한 비밀번호는 그대로 적용한다.
+ * 호출자가 임의로 붙일 수 있는 헤더는 클라이언트 신원의 증거가 아니다.
+ * 남용 방지가 필요한 라우트는 요청 본문의 검증 토큰을 서버에서 다시 확인한다.
  */
 export async function publicApiFetch(path: string, options: RequestInit = {}) {
   if (!path.startsWith("/") || path.startsWith("//")) {
@@ -73,7 +72,6 @@ export async function publicApiFetch(path: string, options: RequestInit = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-hanbang-client": "mobile",
       ...options.headers,
     },
   });

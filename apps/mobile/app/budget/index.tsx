@@ -24,18 +24,18 @@ const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
   { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
 ];
 
-// 숨겨진 추가 비용 경고 데이터 (웹과 동일)
-const HIDDEN_COSTS: Record<string, { warning: string; extra: string }> = {
-  studio: { warning: "원본 USB, 앨범 추가, 보정본 추가", extra: "+50~150만원" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈 별도", extra: "+30~80만원" },
-  makeup: { warning: "리허설, 어머니 메이크업, 피부관리", extra: "+30~100만원" },
-  venue: { warning: "사회자, 축가, 영상, 꽃장식, 폐백실", extra: "+100~300만원" },
-  honeymoon: { warning: "여행자보험, 쇼핑, 액티비티", extra: "+50~200만원" },
-  hanbok: { warning: "맞춤 수선, 소품, 세탁", extra: "+10~30만원" },
-  gift: { warning: "포장, 배송비, 추가 세트", extra: "+10~50만원" },
-  snap: { warning: "DVD 편집, 스냅 원본, 액자", extra: "+30~80만원" },
-  ham: { warning: "함진아비 비용, 이바지 포장", extra: "+20~50만원" },
-  bouquet: { warning: "부케 보존, 부토니에, 양가 꽃", extra: "+5~20만원" },
+// 업체·상품마다 다른 포함/별도 확인 항목. 금액은 공시가 또는 사용자 견적에서만 표시한다.
+const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
+  studio: { warning: "원본 파일, 앨범, 보정본의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  dress: { warning: "속옷, 글러브, 베일, 슈즈의 포함 범위", guidance: "업체 서면 안내 확인" },
+  makeup: { warning: "리허설, 혼주 메이크업, 피부 관리의 포함 범위", guidance: "업체 서면 안내 확인" },
+  venue: { warning: "사회, 축가, 영상, 꽃장식, 폐백실의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  honeymoon: { warning: "보험, 선택 일정, 현지 비용의 포함 범위", guidance: "예약 문서 기준 확인" },
+  hanbok: { warning: "수선, 소품, 세탁의 포함 범위", guidance: "업체 서면 안내 확인" },
+  gift: { warning: "포장, 배송, 추가 수량의 포함 범위", guidance: "업체 서면 안내 확인" },
+  snap: { warning: "편집본, 원본, 액자의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  ham: { warning: "장식, 운송, 주차의 포함 범위", guidance: "업체 서면 안내 확인" },
+  bouquet: { warning: "보존, 부토니에, 양가 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
 };
 
 // 웹과 동일한 카테고리 비율 상수
@@ -258,8 +258,8 @@ export default function BudgetScreen() {
       const hidden = HIDDEN_COSTS[cat.key]!;
       return {
         id: `hidden-${cat.key}`,
-        title: `${cat.label} 숨은 비용 체크`,
-        detail: `${hidden.warning} · 예상 ${hidden.extra}`,
+        title: `${cat.label} 포함·별도 항목 체크`,
+        detail: `${hidden.warning} · ${hidden.guidance}`,
         tone: "warning" as const,
         categoryKey: cat.key,
       };
@@ -332,8 +332,8 @@ export default function BudgetScreen() {
     if (!data) return;
     const label = CATEGORY_RATIOS.find((c) => c.key === key)?.label ?? key;
     Alert.alert(
-      `⚠️ ${label} 추가 비용 주의`,
-      `${data.warning}\n\n예상 추가금: ${data.extra}`,
+      `⚠️ ${label} 포함·별도 항목 확인`,
+      `${data.warning}\n\n${data.guidance}`,
       [{ text: "확인" }],
     );
   }
@@ -350,7 +350,7 @@ export default function BudgetScreen() {
     <SafeAreaView style={s.container} edges={["top"]}>
       <AppHeader
         title="예산 관리"
-        subtitle="지출, 분담, 숨은 비용을 함께 봐요"
+        subtitle="지출, 분담, 포함·별도 항목을 함께 봐요"
         onBack={() => router.back()}
       />
 
@@ -430,7 +430,7 @@ export default function BudgetScreen() {
               <Check size={18} color={colors.rose[500]} />
               <Text style={s.safeBudgetTitle}>현재 큰 예산 위험은 없어요</Text>
               <Text style={s.safeBudgetText}>
-                계약 전에는 카테고리별 숨은 비용과 시장가를 한 번 더 확인해두세요.
+                계약 전에는 카테고리별 포함·별도 항목과 검수된 공시가를 한 번 더 확인해두세요.
               </Text>
             </View>
           )}
@@ -439,7 +439,7 @@ export default function BudgetScreen() {
             style={({ pressed }) => [s.marketLink, pressed && { opacity: 0.7 }]}
             onPress={() => router.push("/market-prices")}
           >
-            <Text style={s.marketLinkText}>시장가 기준 확인하기</Text>
+            <Text style={s.marketLinkText}>검수된 공시가 확인하기</Text>
             <TrendingUp size={14} color={colors.rose[500]} />
           </Pressable>
         </Surface>
@@ -543,9 +543,9 @@ export default function BudgetScreen() {
               <View style={s.hiddenCostBanner}>
                 <AlertTriangle size={14} color="#D97706" />
                 <View style={s.hiddenCostBannerText}>
-                  <Text style={s.hiddenCostTitle}>추가 비용 주의</Text>
+                  <Text style={s.hiddenCostTitle}>포함·별도 항목 확인</Text>
                   <Text style={s.hiddenCostDesc}>{HIDDEN_COSTS[editingKey].warning}</Text>
-                  <Text style={s.hiddenCostExtra}>{HIDDEN_COSTS[editingKey].extra}</Text>
+                  <Text style={s.hiddenCostExtra}>{HIDDEN_COSTS[editingKey].guidance}</Text>
                 </View>
               </View>
             )}
