@@ -6,6 +6,9 @@
 > 최신 출시 상태와 비용·DB 게이트는
 > `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`와
 > `docs/operations/AMORA_PROVIDER_COST_LATENCY_POLICY_2026-07-16.md`를 진실원본으로 사용한다.
+> 이 문서의 참가격 “자동생성/갱신 파이프라인” 표현도 당시 상태다. 해당 명령과 스크립트는
+> 이후 폐기·삭제됐으며, 현재는 운영자가 직접 내려받은 로컬 원본만 `scripts/ingest/`로
+> 검증·승인한다. price.go.kr 자동 fetch는 허용하지 않는다.
 
 > **원칙**: "증명되기 전까지는 안 되는 것으로 간주한다."
 > 문서에 "완료"라고 적혀 있어도 실제로 빌드·실행·확인되지 않으면 미완으로 평가.
@@ -150,7 +153,7 @@
   **견고:** OAuth 브릿지 = Supabase 공식 Expo 패턴 — 웹 `auth/mobile-callback`이 해시 fragment 토큰(서버 미전송)을 `hanbang://` 딥링크로 전달, 앱이 setSession. kakao scope 필터(account_email 제거) 이중 방어. `apiFetch` = Bearer 토큰+내부 경로만 허용(`//` 차단)+401 시 강제 재로그인 — 인증 후 호출은 전부 웹 하드닝 API 경유. **I1(info):** 딥링크 커스텀 스킴 기반 토큰 전달은 플랫폼 고유 표면(스킴 선점 앱) — Android App Links/iOS Universal Links 검증 도입으로 완화 가능(출시 전 권장, 현 단계 비차단).
 - [x] **4.3 탭별 기능** — 완료 (2026-07-04, 인라인 Fable). **등급: ⚠️ 취약 (실구현 충실, 시세 데이터 드리프트 medium 1).**
   **실구현 vs 껍데기:** 껍데기 0 — 전 화면 실구현(총 17k 줄 네이티브). dashboard(1358)·schedule(1352)·bookings(1287)·community(1124)·settings(1123)·vendors(1018)·cohort(1002)·onboarding(965, 웹 /api/onboarding 경유)·budget(653)·chat(272, 웹 chat API+realtime) 전부 웹 API(Bearer) 또는 RLS 스코프 supabase 직접 조회로 배선. **모바일 budget 저장은 `progress_patch` 원자 경로 사용 — 웹(3.4 M1)보다 우수, 웹 수리의 실증 사례.**
-  **M2(medium, 신규):** `market-prices` 화면이 하드코딩 가격표+출처 라벨 "2024 기재부 기준" — 웹의 참가격(한국소비자원) 자동생성 데이터와 별개·불일치·격월 갱신 파이프라인 밖. "출처 있는 평균가만 노출" 제품 원칙(6/12)과 어긋나는 미검증 범위 표기. 수정 방향: 웹 데이터 소스 공유(packages/shared 결정과 병합) 또는 웹뷰 전환(예절과 동일 패턴), 최소한 출처 라벨 정정.
+  **M2(medium, 신규):** `market-prices` 화면이 하드코딩 가격표+출처 라벨 "2024 기재부 기준" — 당시 웹의 참가격(한국소비자원) 자동생성 스냅샷과 별개·불일치·갱신 경로 밖. "출처 있는 평균가만 노출" 제품 원칙(6/12)과 어긋나는 미검증 범위 표기. 수정 방향: 웹 데이터 소스 공유(packages/shared 결정과 병합) 또는 웹뷰 전환(예절과 동일 패턴), 최소한 출처 라벨 정정. 이 문장의 자동생성 경로는 현재 폐기됐다.
 - [x] **4.4 웹뷰 의존도** — 완료 (2026-07-04, 인라인 Fable). **등급: ✅ 견고.** 웹뷰 사용 1곳뿐(etiquette → `/webview?url=https://hanbang.ai/etiquette` 리다이렉트) — 나머지 전부 네이티브. webview.tsx는 https+hanbang.ai(서브도메인 포함) 허용목록·자격증명 제거·2048자 캡·외부 열기는 https/mailto/tel만 — 오픈 웹뷰 표면 없음.
 
 ## Phase 5 — 데이터·운영·공유 코드

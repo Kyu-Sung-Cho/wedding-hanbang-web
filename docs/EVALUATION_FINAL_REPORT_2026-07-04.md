@@ -3,6 +3,10 @@
 > 계획: `docs/EVALUATION_PLAN_2026-07-03.md` (26개 작업 전체 완료).
 > 원칙: "증명되기 전까지는 안 되는 것으로 간주한다" — 모든 등급은 코드 직접 검증 + 테스트 + (가능한 곳은) 프로덕션 라이브 프로빙 기준.
 > 서술 원칙: 방어적 — 리스크와 수정 방향만 기술, 재현 절차는 기록하지 않는다.
+>
+> **현재 정책 주의(2026-07-18):** 아래 참가격 “자동생성 데이터”는 2026-07-04 당시의
+> 레거시 스냅샷을 가리킨다. 그 자동 수집 명령과 스크립트는 이후 폐기·삭제됐다. 현재는
+> 운영자가 직접 내려받은 로컬 원본만 `scripts/ingest/`로 검증·승인하고 외부 자동 fetch를 금지한다.
 
 ## 1. 기능별 등급표
 
@@ -40,7 +44,7 @@
 | M-W1 | 웹 클라 progress 전체 덮어쓰기 13곳 (BudgetContent 8·ScheduleContent 2·CategoryChecklistModal·dashboard·EtiquetteClient) — journey Realtime 미구독이라 스테일 창=세션 전체. 커플 2인 동시 편집/AI 병행 시 상대 변경 통째 롤백 가능. 부수: __events 300개 초과 조용한 절단 | 데이터 유실(커플 코어 UX) | authStore.updateJourney를 diff→`progress_patch`/`progress_remove_keys`로 전환 — **API 이미 지원, 모바일 budget이 실증 사례.** 국소 수정 |
 | F-M3 | 모바일 동기방 입장 깨짐 — cohort_members 클라 직접 INSERT가 6/15 하드닝(REVOKE+트리거)에 차단돼 무반응 실패 + 미정의 RPC(increment_cohort_member_count) 호출 | 모바일 기능 깨짐(출시 차단급, 웹은 정상) | 웹 auto-assign API 경유로 전환, 유령 RPC 제거 |
 | M-M1 | 모바일 signup(`signup.tsx:117`)·forgot-password(`:124`) 직접 SDK — Turnstile·rate limit·enumeration 마스킹 우회 | 봇 가입 표면(모바일 출시 시) | 웹 하드닝 라우트 경유(anon 허용+모바일 Turnstile 키 배선) |
-| M-M2 | 모바일 시세 화면 하드코딩 + 출처 라벨 "2024 기재부" 부정확 — 참가격 자동생성 데이터와 불일치·갱신 밖 | 신뢰/표시 원칙(6/12) 위반 소지 | 데이터 소스 공유(packages/shared 결정과 병합) 또는 웹뷰 전환, 최소 출처 정정 |
+| M-M2 | 모바일 시세 화면 하드코딩 + 출처 라벨 "2024 기재부" 부정확 — 당시 참가격 자동생성 스냅샷과 불일치·갱신 밖. 그 자동 수집 경로는 현재 폐기됨 | 신뢰/표시 원칙(6/12) 위반 소지 | 데이터 소스 공유(packages/shared 결정과 병합) 또는 웹뷰 전환, 최소 출처 정정 |
 | C1~C3 | (2.1 기존) 시드 4종 환경게이트·멱등성 부재 / seed PUT 타임슬롯 개방 / onboarding 기존 커플 미검사 고아화 | 관리자 실수 표면 | 프로덕션 게이트+멱등성+소속 검사 |
 
 **낮음 (백로그, 전부 기록됨):** 3.2 L1~L3(미서명 demo쿠키 심층방어·에러원문 노출·reset 리다이렉트 `//` 가드) / 3.4 L1~L2(moneyStore 조용한 localMode·저장실패 무통보) / 3.5 L1(D-day UTC 파싱) / 3.8 L1(booking 카테고리 원문 키) / 4.2 I1(딥링크 스킴 — App Links 검증 권장) / 사용자 작업: **ADMIN_PASSWORD 회전**·Turnstile 키 확인.
