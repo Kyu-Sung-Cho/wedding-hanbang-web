@@ -8,6 +8,8 @@
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
+export type TurnstileAction = "signup" | "forgot" | "preregister" | "survey";
+
 export interface TurnstileVerifyResult {
   /** 검증 통과 여부. Production 시크릿 미설정은 false. */
   ok: boolean;
@@ -21,7 +23,8 @@ function requiresTurnstileSecret(): boolean {
 
 export async function verifyTurnstile(
   token: string | undefined | null,
-  remoteIp?: string | null
+  remoteIp?: string | null,
+  expectedAction?: TurnstileAction,
 ): Promise<TurnstileVerifyResult> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
@@ -45,8 +48,9 @@ export async function verifyTurnstile(
       // siteverify 지연으로 가입 표면이 무방비 통과 모드에 빠지지 않도록 타임아웃.
       signal: AbortSignal.timeout(5000),
     });
-    const data = (await res.json()) as { success?: boolean };
-    return { ok: data.success === true, skipped: false };
+    const data = (await res.json()) as { success?: boolean; action?: unknown };
+    const actionMatches = expectedAction === undefined || data.action === expectedAction;
+    return { ok: data.success === true && actionMatches, skipped: false };
   } catch {
     // fail-closed: 시크릿이 설정됐는데 검증을 못 했다면 가입을 거부한다.
     // (이메일 폭탄 방어가 목적인 표면이라, 장애 시 통과보다 거부가 안전.

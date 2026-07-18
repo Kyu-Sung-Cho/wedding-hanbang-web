@@ -89,10 +89,11 @@ export async function GET(
       rating: number | null;
     }> = [];
     if (post.vendor_tags && post.vendor_tags.length > 0) {
-      const { data: vendors } = await supabase
+      const { data: vendors } = await getServiceClient()
         .from("vendors")
         .select("id, name, category, thumbnail_url, rating")
-        .in("id", post.vendor_tags);
+        .in("id", post.vendor_tags)
+        .eq("status", "approved");
 
       vendorDetails = (vendors ?? []).map((v) => ({
         id: v.id,

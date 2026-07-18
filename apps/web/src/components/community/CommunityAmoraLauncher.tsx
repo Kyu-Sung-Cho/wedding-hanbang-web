@@ -1,21 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { ArrowRight, LogIn, Sparkles, X } from "lucide-react";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import { useAuthStore } from "@/stores/authStore";
 import { isPreviewStubMode } from "@/lib/previewStub";
+import { stripWeddingBasePath } from "@/lib/weddingPaths";
 
 const ChatSidePanel = dynamic(() => import("@/components/app/chat/ChatSidePanel"), {
   ssr: false,
 });
 
 export default function CommunityAmoraLauncher() {
+  const pathname = usePathname();
   const { initialize } = useAuthStore();
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(false);
+  const isCommunityWriteRoute = stripWeddingBasePath(pathname) === "/community/post/write";
+  const loginPromptRef = useAccessibleModal({
+    open: loginPromptOpen && !isCommunityWriteRoute,
+    onClose: () => setLoginPromptOpen(false),
+  });
+
+  useEffect(() => {
+    if (!isCommunityWriteRoute) return;
+    setChatPanelOpen(false);
+    setLoginPromptOpen(false);
+  }, [isCommunityWriteRoute]);
 
   async function handleOpenAmora() {
     if (checkingAuth) return;
@@ -56,6 +71,8 @@ export default function CommunityAmoraLauncher() {
     }
   }
 
+  if (isCommunityWriteRoute) return null;
+
   return (
     <>
       <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
@@ -75,7 +92,15 @@ export default function CommunityAmoraLauncher() {
 
       {loginPromptOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#071629]/35 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[420px] rounded-[22px] border border-[#eadfc9] bg-[#fffdf7] p-5 shadow-[0_24px_70px_rgba(8,22,38,0.18)]">
+          <div
+            ref={loginPromptRef}
+            className="w-full max-w-[420px] rounded-[22px] border border-[#eadfc9] bg-[#fffdf7] p-5 shadow-[0_24px_70px_rgba(8,22,38,0.18)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="community-amora-login-title"
+            aria-describedby="community-amora-login-description"
+            tabIndex={-1}
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4ef] text-[#36534E]">
@@ -83,7 +108,7 @@ export default function CommunityAmoraLauncher() {
                 </span>
                 <div>
                   <p className="text-[12px] font-semibold text-[#9d6f36]">아모라 상담</p>
-                  <h2 className="font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">
+                  <h2 id="community-amora-login-title" className="font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">
                     로그인 후 이용할 수 있어요.
                   </h2>
                 </div>
@@ -98,7 +123,7 @@ export default function CommunityAmoraLauncher() {
               </button>
             </div>
 
-            <p className="mt-4 text-[14px] font-medium leading-[1.75] text-[#5d6879]">
+            <p id="community-amora-login-description" className="mt-4 text-[14px] font-medium leading-[1.75] text-[#5d6879]">
               커뮤니티 글은 누구나 볼 수 있지만, 아모라 상담은 내 예식일과 준비 정보를 바탕으로 답해야 해서 로그인이 필요해요.
             </p>
 

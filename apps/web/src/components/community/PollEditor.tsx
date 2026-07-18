@@ -317,9 +317,9 @@ export default function PollEditor({ value, onChange }: PollEditorProps) {
                 onChange={(e) => setOptionLabel(idx, e.target.value)}
                 placeholder={
                   idx === 0
-                    ? "예: A 드레스 (라운드넥)"
+                    ? "예: 샘플 드레스 A (라운드넥)"
                     : idx === 1
-                      ? "예: B 드레스 (브이넥)"
+                      ? "예: 샘플 드레스 B (브이넥)"
                       : `선택지 ${idx + 1}`
                 }
                 maxLength={OPTION_MAX}

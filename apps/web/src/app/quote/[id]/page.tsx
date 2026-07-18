@@ -7,15 +7,18 @@ import {
   AMORA_QUOTE_CATEGORY_LABELS,
   AMORA_QUOTE_REGION_LABELS,
   type AmoraQuoteCategory,
-  type AmoraQuoteCheckResult,
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
+import {
+  normalizePublicQuoteAnalysis,
+  type PublicQuoteAnalysis,
+} from "@/lib/quoteCheck/publicResult";
 import ShareButtons from "@/components/quote/ShareButtons";
 import { weddingPath } from "@/lib/weddingPaths";
 
 // 카톡 공유 진단 결과 페이지 — 공개 (RLS service role 우회).
 // 캐논 v2 referral 루프 핵심: 공유 받은 친구가 → "나도 진단 받기" CTA 클릭
-// 원칙: 판정(점수·등급·안전/위험) 없음 — 빠진 항목 개수와 출처 있는 참고 시세만.
+// 원칙: 판정(점수·등급·안전/위험) 없음 — 입력 견적과 확인 안 된 항목만 공개한다.
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -25,19 +28,7 @@ interface PublicQuoteData {
   id: string;
   category: AmoraQuoteCategory;
   region: AmoraQuoteRegion;
-  analysis: Pick<
-    AmoraQuoteCheckResult,
-    | "category"
-    | "quotePriceManwon"
-    | "marketMedianManwon"
-    | "priceDiffPercent"
-    | "missingCriticalCount"
-    | "missingHighCount"
-    | "missingMediumCount"
-    | "summaryTitle"
-    | "summaryText"
-    | "sourceNote"
-  > & { marketComparatorLabel?: string };
+  analysis: PublicQuoteAnalysis;
   createdAt: string;
 }
 
@@ -51,25 +42,22 @@ async function fetchQuoteData(id: string): Promise<PublicQuoteData | null> {
 
   if (error || !data) return null;
 
-  const analysis = data.analysis as AmoraQuoteCheckResult;
+  if (
+    !Object.hasOwn(AMORA_QUOTE_CATEGORY_LABELS, data.category)
+    || !Object.hasOwn(AMORA_QUOTE_REGION_LABELS, data.region)
+  ) {
+    return null;
+  }
+
+  const category = data.category as AmoraQuoteCategory;
+  const analysis = normalizePublicQuoteAnalysis(data.analysis, category);
+  if (!analysis) return null;
 
   return {
     id: data.id,
-    category: data.category as AmoraQuoteCategory,
+    category,
     region: data.region as AmoraQuoteRegion,
-    analysis: {
-      category: analysis.category,
-      quotePriceManwon: analysis.quotePriceManwon,
-      marketMedianManwon: analysis.marketMedianManwon,
-      marketComparatorLabel: analysis.marketComparatorLabel,
-      priceDiffPercent: analysis.priceDiffPercent,
-      missingCriticalCount: analysis.missingCriticalCount,
-      missingHighCount: analysis.missingHighCount,
-      missingMediumCount: analysis.missingMediumCount,
-      summaryTitle: analysis.summaryTitle,
-      summaryText: analysis.summaryText,
-      sourceNote: analysis.sourceNote,
-    },
+    analysis,
     createdAt: data.created_at,
   };
 }
@@ -175,19 +163,30 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
 
           <p className="mt-5 text-sm leading-7 text-[#504444]">{analysis.summaryText}</p>
 
-          {/* 숫자 요약 — 참고 시세 + 빠진 항목 (전부 사실) */}
+          {/* 숫자 요약 — 연결된 공시가 또는 공시가 CTA + 빠진 항목 */}
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-lg bg-[#f6f3f2] p-3">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">
-                {analysis.marketComparatorLabel ?? "기준 시세"} (참고)
-              </div>
-              <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
-                {formatManwon(analysis.marketMedianManwon)}
-                <span className="ml-1.5 text-xs font-medium text-[#928980]">
-                  대비 {analysis.priceDiffPercent >= 0 ? "+" : ""}
-                  {analysis.priceDiffPercent}%
-                </span>
-              </div>
+              {analysis.marketMedianManwon > 0 ? (
+                <>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">
+                    {analysis.marketComparatorLabel ?? "기준 공시가"} (참고)
+                  </div>
+                  <div className="mt-1 text-base font-semibold text-[#1b1c1c]">
+                    {formatManwon(analysis.marketMedianManwon)}
+                    <span className="ml-1.5 text-xs font-medium text-[#928980]">
+                      대비 {analysis.priceDiffPercent >= 0 ? "+" : ""}
+                      {analysis.priceDiffPercent}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">업체별 최신 공시가</div>
+                  <Link href="/price" className="mt-1 inline-flex text-sm font-semibold text-[#36534E] underline underline-offset-4">
+                    출처와 기준 시점 확인하기
+                  </Link>
+                </>
+              )}
             </div>
             <div className="rounded-lg bg-[#f6f3f2] p-3">
               <div className="text-[11px] font-medium uppercase tracking-wide text-[#928980]">견적서에서 확인 안 된 항목</div>
@@ -215,7 +214,7 @@ export default async function PublicQuoteResultPage({ params }: PageProps) {
             <strong className="text-[#1b1c1c]">출처:</strong> {analysis.sourceNote}
           </p>
           <p>
-            견적의 좋고 나쁨을 평가하는 도구가 아닙니다. 결혼 처음 준비하면 빠뜨리기 쉬운 항목과 한국소비자원 같은 지역 중위가를 참고로 보여드릴 뿐이에요. 시세는 구성·시즌에 따라 크게 달라지니, 최종 판단은 본인이 직접 하시고 큰 의사결정은 전문가 검토를 권장합니다.
+            견적의 좋고 나쁨을 평가하는 도구가 아닙니다. 결혼 준비에서 빠뜨리기 쉬운 포함·불포함 항목을 확인하는 체크리스트예요. 최신 가격은 출처와 기준 시점이 표시된 업체별 공시가를 확인하고, 실제 계약 조건은 업체 서면 견적과 전문가 검토를 권장합니다.
           </p>
         </div>
 

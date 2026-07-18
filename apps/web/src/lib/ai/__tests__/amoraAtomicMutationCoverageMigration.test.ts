@@ -27,6 +27,24 @@ const COUPLE_ID = "10000000-0000-4000-8000-000000000001";
 const USER_ID = "20000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "30000000-0000-4000-8000-000000000001";
 const REQUEST_KEY = `chat:${USER_ID}:${REQUEST_ID}`;
+const EXPECTED_WEDDING_DATE = "2099-05-01";
+const NEXT_WEDDING_DATE = "2099-06-01";
+
+function kstToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function calendarDaysBetween(from: string, to: string): number {
+  return Math.round(
+    (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`))
+      / 86_400_000,
+  );
+}
 
 async function createDatabase() {
   const db = await PGlite.create();
@@ -140,7 +158,7 @@ async function createDatabase() {
     INSERT INTO public.wedding_journeys (
       couple_id, total_budget, wedding_date, venue, progress
     ) VALUES (
-      '${COUPLE_ID}', 50000000, '2027-05-01', '기존 예식장',
+      '${COUPLE_ID}', 50000000, '${EXPECTED_WEDDING_DATE}', '기존 예식장',
       '{"venue":{"category":"venue","status":"not_started","budget":10000000},"partner_note":{"kept":true}}'
     );
     INSERT INTO public.amora_chat_request_claims (
@@ -213,11 +231,19 @@ describe("Amora atomic mutation coverage migration", () => {
         db,
         "1".repeat(64),
         "a".repeat(64),
-        { wedding_date: "2027-06-01" },
-        { kind: "journey_wedding_date_cas", expected: "2027-05-01", value: "2027-06-01" },
+        { wedding_date: NEXT_WEDDING_DATE },
+        {
+          kind: "journey_wedding_date_cas",
+          expected: EXPECTED_WEDDING_DATE,
+          value: NEXT_WEDDING_DATE,
+        },
         {
           toolName: "update_wedding_date",
-          toolOutput: { wedding_date: "2027-06-01", previous_date: "2027-05-01", d_day: 319 },
+          toolOutput: {
+            wedding_date: NEXT_WEDDING_DATE,
+            previous_date: EXPECTED_WEDDING_DATE,
+            d_day: calendarDaysBetween(kstToday(), NEXT_WEDDING_DATE),
+          },
           success: true,
           displayMessage: "결혼 예정일을 변경했어요.",
         },
@@ -259,7 +285,7 @@ describe("Amora atomic mutation coverage migration", () => {
         FROM public.wedding_journeys WHERE couple_id = $1::uuid
       `, [COUPLE_ID]);
       expect(state.rows[0]).toEqual({
-        wedding_date: "2027-06-01",
+        wedding_date: NEXT_WEDDING_DATE,
         venue_progress: nextVenue,
         partner_note: { kept: true },
       });

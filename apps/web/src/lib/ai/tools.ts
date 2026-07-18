@@ -66,7 +66,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         venue: {
           type: "string",
-          description: "예식장 이름. 예: '더 리버사이드 호텔'",
+          description: "예식장 이름. 예: '샘플 예식장'",
         },
       },
       required: ["venue"],
@@ -515,7 +515,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "search_vendors",
     description:
-      "업체를 검색합니다. 고객이 '강남 스튜디오 찾아줘', '메이크업 업체 보여줘', '300만원 이하 드레스샵' 같은 요청을 할 때 사용합니다.",
+      "정확한 업체명을 직접 찾거나 공시 추천 미지원 카테고리를 탐색할 때만 사용합니다. 스튜디오·드레스·메이크업·예식장의 지역·예산·취향 비교 탐색은 반드시 recommend_vendors를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -537,7 +537,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         search: {
           type: "string",
-          description: "검색어 (업체명, 태그, 스타일 등)",
+          description: "정확히 찾으려는 업체명. 지원 카테고리에서 태그·스타일 탐색어로 사용하지 않습니다.",
         },
         limit: {
           type: "number",
@@ -573,7 +573,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "recommend_vendors",
     description:
-      "고객의 예산, 선호도, 분위기, 시간 등을 종합적으로 고려하여 맞춤 업체를 추천합니다. 고객이 '업체 추천해줘', '예산에 맞는 스튜디오 찾아줘', '어디가 좋을까?', '모던한 분위기 스튜디오', '토요일 오후에 가능한 업체' 같은 요청에 사용합니다.",
+      "고객이 업체를 비교·추천받으려 할 때 사용합니다. 스튜디오·드레스·메이크업·예식장은 검수된 공시 가격과 확인 조건만으로 설명 가능한 결과를 반환하며, 공식 데이터 장애 시 레거시 순위로 대체하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -584,6 +584,20 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         mood: {
           type: "string",
           description: "고객이 원하는 분위기/스타일. 예: '모던', '클래식', '내추럴', '로맨틱', '빈티지', '럭셔리', '심플', '화려한', '따뜻한', '감성적인'",
+        },
+        preferred_tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "고객이 직접 말한 선호 태그. 예: ['자연광', '필름감성']. 임의로 만들어 넣지 않습니다.",
+        },
+        required_attrs: {
+          type: "object",
+          description: "반드시 필요한 확인 조건. 예: 스튜디오 원본 포함은 { original_files_policy: 'included' }. 고객이 명시한 조건만 넣습니다.",
+          additionalProperties: true,
+        },
+        wedding_month: {
+          type: "string",
+          description: "고객이 특정한 결혼 예정 월(YYYY-MM). 예: 2026-11",
         },
         preferred_day: {
           type: "number",
@@ -613,7 +627,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_vendor_detail",
     description:
-      "특정 업체의 상품(패키지)과 스태프 목록을 조회합니다. 고객이 업체 추천 결과에서 특정 업체의 상세 정보를 요청할 때 사용합니다. 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
+      "특정 업체의 공시 근거·가격·태그를 우선 조회하고, 예약 상품·스태프는 보조 정보로만 조회합니다. 고객이 추천 결과의 상세를 요청할 때 사용하며, 메시지에 [vendor:ID] 태그가 있으면 해당 ID를 사용하세요.",
     input_schema: {
       type: "object" as const,
       properties: {

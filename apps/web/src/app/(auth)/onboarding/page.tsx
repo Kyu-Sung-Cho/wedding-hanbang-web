@@ -10,6 +10,7 @@ import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
 import WeddingStylePreferences from "@/components/onboarding/WeddingStylePreferences";
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
+import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -34,7 +35,10 @@ export default function OnboardingPage() {
         }
         if (data.profile.onboarding_completed) {
           document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
-          window.location.href = "/wedding/lounge";
+          window.location.href = getAuthRedirectPath(
+            window.location.search,
+            window.location.origin,
+          );
         }
       } catch {
         // 에러 시 온보딩 계속 진행
@@ -120,7 +124,10 @@ export default function OnboardingPage() {
         setShowInviteModal(true);
         // 리다이렉트 하지 않음 → 모달에서 사용자가 직접 이동
       } else {
-        window.location.href = "/wedding/lounge";
+        window.location.href = getAuthRedirectPath(
+          window.location.search,
+          window.location.origin,
+        );
       }
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -343,11 +350,14 @@ export default function OnboardingPage() {
 
               <button
                 onClick={() => {
-                  window.location.href = "/wedding/lounge";
+                  window.location.href = getAuthRedirectPath(
+                    window.location.search,
+                    window.location.origin,
+                  );
                 }}
                 className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
               >
-                대시보드로 이동
+                웨딩 준비 계속하기
               </button>
             </motion.div>
           </motion.div>

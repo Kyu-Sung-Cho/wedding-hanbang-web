@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 
 const rows = [
-  { label: "상담 가능 시간", old: "영업시간 내 전화/방문", new: "24시간 AI 즉시 상담" },
-  { label: "드레스 선택", old: "10곳 방문 · 하루종일 소요", new: "AI 가상 피팅 · 10분" },
-  { label: "비용 투명성", old: "최종 금액을 알 수 없는 구조", new: "100% 투명한 가격 공개" },
-  { label: "추가 비용 관리", old: "결제 후에야 알게 됨", new: "AI가 사전 경고" },
+  { label: "상담 시작", old: "전화·방문 일정을 맞춰 문의", new: "원할 때 AI 대화로 정리 시작" },
+  { label: "드레스 선택", old: "여러 곳을 직접 방문해 비교", new: "AI 이미지로 후보를 미리 비교" },
+  { label: "비용 투명성", old: "출처와 기준일이 흩어진 정보", new: "검수·발행된 공시가만 표시" },
+  { label: "추가 비용 관리", old: "포함·별도 항목을 따로 확인", new: "확인할 항목을 한곳에 정리" },
   { label: "커플 공유", old: "카톡으로 사진 주고받기", new: "실시간 자동 동기화" },
 ];
 
@@ -30,7 +30,7 @@ export default function Comparison() {
           기존 방식 vs 웨딩한방
         </h2>
         <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          웨딩 플래너에게 맡기거나, 직접 발품을 파는 것이 전부였던 시대는 끝났습니다.
+          직접 확인해야 할 근거는 그대로 보여주고, 흩어진 준비를 정리하는 선택지를 더합니다.
         </p>
       </motion.div>
 

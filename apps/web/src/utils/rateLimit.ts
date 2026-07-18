@@ -23,6 +23,8 @@ export interface RateLimitConfig {
   maxRequests: number;
   /** 윈도우 크기(ms) */
   windowMs: number;
+  /** 한 호출이 소비하는 원자적 단위. 배치가 아니면 1. */
+  cost?: number;
 }
 
 export interface PersistentRateLimitOptions {
@@ -66,18 +68,25 @@ export function checkRateLimit(
 
   const now = Date.now();
   const bucket = buckets.get(key);
+  const cost = Number.isSafeInteger(config.cost) && (config.cost ?? 0) > 0
+    ? config.cost!
+    : 1;
+
+  if (cost > config.maxRequests) {
+    return rateLimitResponse(Math.ceil(config.windowMs / 1000));
+  }
 
   if (!bucket || bucket.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + config.windowMs });
+    buckets.set(key, { count: cost, resetAt: now + config.windowMs });
     return null;
   }
 
-  bucket.count++;
-
-  if (bucket.count > config.maxRequests) {
+  if (bucket.count > config.maxRequests - cost) {
     const retryAfter = Math.ceil((bucket.resetAt - now) / 1000);
     return rateLimitResponse(retryAfter);
   }
+
+  bucket.count += cost;
 
   return null;
 }
@@ -108,10 +117,14 @@ export async function checkRateLimitPersistent(
   }
 
   try {
-    const { data, error } = await admin.rpc("check_rate_limit", {
+    const cost = Number.isSafeInteger(config.cost) && (config.cost ?? 0) > 0
+      ? config.cost!
+      : 1;
+    const { data, error } = await admin.rpc("check_rate_limit_cost", {
       p_key: key,
       p_max_requests: config.maxRequests,
       p_window_ms: config.windowMs,
+      p_cost: cost,
     });
     if (error) {
       console.error("[rateLimit] persistent check failed:", error.message);

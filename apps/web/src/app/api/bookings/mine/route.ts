@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { bookingRowToBooking } from "@/lib/utils/vendorMapper";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
@@ -35,7 +36,11 @@ export async function GET(req: NextRequest) {
     // 업체명 가져오기
     const vendorIds = [...new Set((bookingRows ?? []).map((b) => b.vendor_id))];
     const { data: vendors } = vendorIds.length > 0
-      ? await supabase.from("vendors").select("id, name").in("id", vendorIds)
+      ? await createAdminClient()
+          .from("vendors")
+          .select("id, name")
+          .in("id", vendorIds)
+          .eq("status", "approved")
       : { data: [] };
 
     const vendorMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));

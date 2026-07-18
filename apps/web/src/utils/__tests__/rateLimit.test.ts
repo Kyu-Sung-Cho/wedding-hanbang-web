@@ -39,6 +39,14 @@ describe("checkRateLimit", () => {
     expect(result).toBeNull(); // 3rd request still allowed
   });
 
+  it("charges weighted batches without allowing an overflowing partial debit", async () => {
+    const { checkRateLimit: check } = await import("../rateLimit");
+    expect(check("test:weighted", { maxRequests: 5, windowMs: 60_000, cost: 3 })).toBeNull();
+    const blocked = check("test:weighted", { maxRequests: 5, windowMs: 60_000, cost: 3 });
+    expect(blocked?.status).toBe(429);
+    expect(check("test:weighted", { maxRequests: 5, windowMs: 60_000, cost: 2 })).toBeNull();
+  });
+
   it("blocks request exceeding maxRequests", async () => {
     const { checkRateLimit: check } = await import("../rateLimit");
     const config = { maxRequests: 2, windowMs: 60_000 };
@@ -251,5 +259,26 @@ describe("checkRateLimitPersistent fail-closed mode", () => {
     );
 
     expect(response).toBeNull();
+  });
+
+  it("passes an atomic batch cost to the shared limiter RPC", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: [{ allowed: true, retry_after_seconds: 0 }],
+      error: null,
+    });
+    const { checkRateLimitPersistent } = await import("../rateLimit");
+
+    const response = await checkRateLimitPersistent(
+      "events:vendor:hmac-sha256:" + "a".repeat(64),
+      { maxRequests: 60, windowMs: 60_000, cost: 20 },
+    );
+
+    expect(response).toBeNull();
+    expect(mocks.rpc).toHaveBeenCalledWith("check_rate_limit_cost", {
+      p_key: "events:vendor:hmac-sha256:" + "a".repeat(64),
+      p_max_requests: 60,
+      p_window_ms: 60_000,
+      p_cost: 20,
+    });
   });
 });

@@ -692,7 +692,7 @@ export default function SettingsPage() {
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
-                    placeholder="예: 더 라움, 호텔 A"
+                    placeholder="예: 샘플 예식장, 샘플 호텔"
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
                     autoFocus
                   />

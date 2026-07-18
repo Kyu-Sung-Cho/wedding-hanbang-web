@@ -7,10 +7,13 @@ import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { loginModeFromSearch, type LoginMode } from "@/lib/auth/loginMode";
+import {
+  buildOAuthCallbackUrl,
+  getPostLoginRedirectPath,
+} from "@/lib/auth/safeRedirect";
 
 const TURNSTILE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
-
-type Mode = "login" | "signup" | "forgot";
 
 // 비밀번호 강도 체크
 interface PasswordCheck {
@@ -36,7 +39,7 @@ function isPasswordValid(checks: PasswordCheck): boolean {
 }
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<LoginMode>("login");
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,6 +58,7 @@ export default function LoginPage() {
   useEffect(() => {
     // 1. query params 에러 (우리 콜백에서 설정)
     const params = new URLSearchParams(window.location.search);
+    setMode(loginModeFromSearch(window.location.search));
     const callbackError = params.get("error");
 
     // 2. hash fragment 에러 (Supabase가 직접 설정 - OAuth 실패 시)
@@ -82,7 +86,10 @@ export default function LoginPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
+          redirectTo: buildOAuthCallbackUrl(
+            window.location.search,
+            window.location.origin,
+          ),
         },
       });
       if (oauthError) {
@@ -186,12 +193,24 @@ export default function LoginPage() {
 
             if (profile?.onboarding_completed) {
               document.cookie = "onboarding_complete=true; path=/; max-age=2592000";
-              window.location.href = "/wedding/lounge";
+              window.location.href = getPostLoginRedirectPath(
+                window.location.search,
+                window.location.origin,
+                true,
+              );
             } else {
-              window.location.href = "/wedding/onboarding";
+              window.location.href = getPostLoginRedirectPath(
+                window.location.search,
+                window.location.origin,
+                false,
+              );
             }
           } else {
-            window.location.href = "/wedding/lounge";
+            window.location.href = getPostLoginRedirectPath(
+              window.location.search,
+              window.location.origin,
+              true,
+            );
           }
         }
       }
@@ -392,7 +411,10 @@ export default function LoginPage() {
 
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
-                  <TurnstileWidget onVerify={setTurnstileToken} />
+                  <TurnstileWidget
+                    action={mode === "signup" ? "signup" : "forgot"}
+                    onVerify={setTurnstileToken}
+                  />
                 )}
 
                 {error && (

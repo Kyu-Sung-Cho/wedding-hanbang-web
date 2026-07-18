@@ -134,7 +134,7 @@ export default function WeddingDetails({
             value={venue ?? ""}
             onChange={(e) => onVenueChange(e.target.value || null)}
             disabled={venueUndecided}
-            placeholder="예: 더 라움, 호텔 A 등"
+            placeholder="예: 샘플 예식장, 샘플 호텔 등"
             className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 disabled:opacity-40"
           />
           <button

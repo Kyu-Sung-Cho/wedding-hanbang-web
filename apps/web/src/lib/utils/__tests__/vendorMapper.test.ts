@@ -17,7 +17,7 @@ import type { VendorRow, VendorTimeslotRow, VendorBookingRow } from "@/types/ven
 const baseVendorRow: VendorRow = {
   id: "v1",
   owner_id: "owner1",
-  name: "청담 스튜디오",
+  name: "샘플 청담 스튜디오",
   category: "studio",
   location: "강남구",
   region: "서울",
@@ -154,7 +154,7 @@ describe("vendorRowToVendor", () => {
   it("maps all base fields correctly", () => {
     const vendor = vendorRowToVendor(baseVendorRow);
     expect(vendor.id).toBe("v1");
-    expect(vendor.name).toBe("청담 스튜디오");
+    expect(vendor.name).toBe("샘플 청담 스튜디오");
     expect(vendor.category).toBe("스튜디오");
     expect(vendor.location).toBe("강남구");
     expect(vendor.rating).toBe(4.8);
@@ -217,18 +217,14 @@ describe("vendorRowToVendor", () => {
     expect(vendor.timeSlots).toEqual([]);
   });
 
-  it("redacts owner and verification fields for public responses", () => {
+  it("omits private owner, identity, document, and settings fields from public responses", () => {
     const vendor = vendorToPublicVendor(vendorRowToVendor(baseVendorRow));
-    expect(vendor.ownerId).toBeNull();
-    expect(vendor.ownerName).toBe("");
-    expect(vendor.email).toBe("");
-    expect(vendor.businessNumber).toBe("");
-    expect(vendor.businessLicenseUrl).toBe("");
-    expect(vendor.notificationSettings).toEqual({
-      booking: false,
-      message: false,
-      marketing: false,
-    });
+    expect(vendor).not.toHaveProperty("ownerId");
+    expect(vendor).not.toHaveProperty("ownerName");
+    expect(vendor).not.toHaveProperty("email");
+    expect(vendor).not.toHaveProperty("businessNumber");
+    expect(vendor).not.toHaveProperty("businessLicenseUrl");
+    expect(vendor).not.toHaveProperty("notificationSettings");
   });
 });
 

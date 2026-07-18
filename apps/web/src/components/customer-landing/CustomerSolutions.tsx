@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 const solutions = [
   {
     title: "24시간 AI 웨딩 플래너",
-    desc: "단순한 챗봇이 아닙니다. 결혼일, 예산, 선호도를 기억하고 실제 웨딩 플래너처럼 맞춤 조언을 제공합니다. 커플이 같은 채팅방에서 AI와 함께 상담하니 따로 공유할 필요 없이, 시간날 때 언제든 상담하세요.",
+    desc: "결혼일, 직접 저장한 예산과 선호를 대화 맥락에 이어서 상담합니다. 커플이 같은 채팅방에서 확인하니 따로 옮겨 적지 않고, 필요한 시간에 함께 정리할 수 있어요.",
     tags: ["AI 웨딩 플래너", "커플 동시 상담"],
     visual: (
       <div className="bg-gradient-to-br from-noir-800 to-noir-soft rounded-2xl p-6 h-full flex flex-col justify-center">
@@ -24,9 +24,9 @@ const solutions = [
             스튜디오 선택 기준이 뭐야? 유명한 곳이 좋을까?
           </div>
           <div className="self-start max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 text-[13px] leading-[1.7]">
-            지은님, 민수님! D-120일 남으셨네요 😊
+            예시 커플님, 저장한 일정에 맞춰 함께 확인해볼게요 😊
             <br /><br />
-            유명세보다 중요한 4가지를 체크해보세요:
+            유명세보다 먼저 확인할 기준이에요:
           </div>
           <div className="self-start flex gap-2 flex-wrap">
             {["촬영 스타일", "보정 퀄리티", "패키지 구성", "추가비용"].map((tag) => (
@@ -41,19 +41,19 @@ const solutions = [
   },
   {
     title: "AI 맞춤 업체 추천",
-    desc: "예산, 지역, 스타일 선호도를 AI가 분석해서 나에게 딱 맞는 업체를 추천합니다. 발품 팔 필요 없이 최적의 업체를 만나보세요. 업체 탐색하면서 취향이 바뀌면 AI가 바로 반영해서 추천을 업데이트합니다.",
-    tags: ["AI 매칭", "예산·스타일 분석"],
+    desc: "사용자가 말한 지역·예산·스타일 조건과 운영자가 검수한 공시가 범위 안에서 후보를 정리합니다. 결과는 품질 보증이 아니며, 최신 가격과 제공 범위는 업체 서면으로 다시 확인해요.",
+    tags: ["조건 기반 탐색", "검수된 공시가"],
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-5">
           <span className="font-serif-kr text-[13px] font-medium text-noir-soft">AI 맞춤 추천</span>
-          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">매칭 완료</span>
+          <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full font-medium">예시 화면</span>
         </div>
         <div className="flex flex-col gap-3">
           {[
-            { name: "A 스튜디오", match: "98%", tags: ["야외촬영", "자연광"], price: "280만원~" },
-            { name: "B 드레스", match: "95%", tags: ["머메이드", "프리미엄"], price: "200만원~" },
-            { name: "C 메이크업", match: "92%", tags: ["내추럴", "본식전문"], price: "80만원~" },
+            { name: "샘플 스튜디오 A", match: "조건", tags: ["야외촬영", "자연광"], price: "공시가 확인" },
+            { name: "샘플 드레스 B", match: "조건", tags: ["머메이드", "대여 조건"], price: "공시가 확인" },
+            { name: "샘플 메이크업 C", match: "조건", tags: ["내추럴", "본식 안내"], price: "공시가 확인" },
           ].map((vendor) => (
             <div key={vendor.name} className="bg-white rounded-xl p-3.5 border border-black/[0.04] flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500/20 to-gold/20 flex items-center justify-center text-[11px] font-medium text-rose-500 shrink-0">
@@ -76,19 +76,19 @@ const solutions = [
   },
   {
     title: "AI D-day 플래닝",
-    desc: "결혼일만 입력하면 끝. AI가 D-day 기준으로 뭘 먼저 해야 하는지 자동으로 플랜을 짜줍니다. 20개 카테고리 체크리스트로 빠짐없이 관리하고, 적절한 시점에 알림까지 보내드려요. 따라가기만 하면 됩니다.",
-    tags: ["D-day 맞춤 자동 플래닝", "20개 카테고리"],
+    desc: "결혼일과 저장한 준비 상태를 기준으로 다음 할 일을 정리합니다. 항목별 체크리스트와 알림은 두 분의 실제 일정에 맞게 직접 수정할 수 있어요.",
+    tags: ["D-day 일정 정리", "항목별 체크리스트"],
     visual: (
       <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-5">
-          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">D-120 · 웨딩 타임라인</span>
-          <span className="text-[11px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">2/4 완료</span>
+          <span className="font-serif-kr text-[13px] font-medium text-noir-soft">예시 · 웨딩 타임라인</span>
+          <span className="text-[11px] text-[#2E7D5A] bg-[#2E7D5A]/10 px-2 py-0.5 rounded-full font-medium">직접 수정 가능</span>
         </div>
         <div className="flex flex-col relative pl-6">
           <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
           {[
-            { dday: "D-150", title: "스튜디오 계약 완료", desc: "A 스튜디오 · 280만원", done: true },
-            { dday: "D-120", title: "드레스 투어 시작", desc: "맞춤 추천 3곳 · 가상 피팅 완료", done: true },
+            { dday: "완료", title: "스튜디오 계약", desc: "샘플 스튜디오 · 입력한 금액 저장", done: true },
+            { dday: "진행", title: "드레스 투어", desc: "저장한 후보와 일정 확인", done: true },
             { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", done: false },
             { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", done: false },
           ].map((item) => (
@@ -110,29 +110,29 @@ const solutions = [
   },
   {
     title: "커플 공유 예산 관리",
-    desc: "카테고리별 예산 배분부터 실시간 지출 추적까지. AI가 추가금이 얼마나 붙을지 미리 계산해서 알려드리고, 예산 초과 전에 경고합니다. 커플이 함께 실시간으로 확인할 수 있어요.",
-    tags: ["추가비용 사전 알림", "커플 실시간 공유"],
+    desc: "직접 입력한 카테고리별 예산과 지출을 커플이 함께 확인합니다. 포함·별도 여부를 확인할 항목과 저장한 예산 초과도 한 화면에서 점검할 수 있어요.",
+    tags: ["포함 항목 확인", "커플 실시간 공유"],
     visual: (
       <div className="bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] rounded-2xl p-6 h-full flex flex-col justify-center">
         <div className="flex items-center justify-between mb-4">
           <span className="font-serif-kr text-[13px] font-medium text-noir-soft">커플 예산 현황</span>
           <span className="text-[11px] text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">실시간</span>
         </div>
-        <div className="font-display text-[28px] font-light text-noir-800 mb-1">₩12,500,000</div>
-        <div className="text-[12px] text-taupe-500 mb-5">예산 대비 68% 사용 · 잔여 ₩4,000,000</div>
+        <div className="font-serif-kr text-[24px] font-light text-noir-800 mb-1">직접 입력한 예산</div>
+        <div className="text-[12px] text-taupe-500 mb-5">저장한 지출과 잔여 예산을 함께 확인</div>
         <div className="flex flex-col gap-3">
           {[
-            { label: "스튜디오", width: "75%", color: "bg-rose-500", amt: "280만" },
-            { label: "드레스", width: "50%", color: "bg-gold", amt: "200만" },
-            { label: "메이크업", width: "35%", color: "bg-taupe-500", amt: "120만" },
-            { label: "예비비", width: "20%", color: "bg-noir-soft", amt: "60만" },
+            { label: "스튜디오", width: "75%", color: "bg-rose-500", amt: "저장됨" },
+            { label: "드레스", width: "50%", color: "bg-gold", amt: "저장됨" },
+            { label: "메이크업", width: "35%", color: "bg-taupe-500", amt: "확인 전" },
+            { label: "예비비", width: "20%", color: "bg-noir-soft", amt: "입력 전" },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-3">
               <span className="text-[11px] font-medium w-[55px] text-right text-noir-soft">{item.label}</span>
               <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${item.color}`} style={{ width: item.width }} />
               </div>
-              <span className="text-[11px] text-taupe-500 w-9 font-medium">{item.amt}</span>
+                  <span className="text-[11px] text-taupe-500 w-12 font-medium">{item.amt}</span>
             </div>
           ))}
         </div>

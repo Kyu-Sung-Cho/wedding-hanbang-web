@@ -6,38 +6,31 @@ const painPoints = [
   {
     emoji: "😵‍💫",
     title: "뭐부터 해야 할지 모르겠어요",
-    desc: "블로그, 카페, 인스타 정보는 넘치는데 다 달라요. 어떤 순서로, 뭘 먼저 해야 하는지 아무도 안 알려줍니다. 처음이라 기준 자체가 없어요.",
-    stat: "50여 개",
-    statLabel: "결혼 준비 중 선택해야 할 옵션 항목 수¹",
+    desc: "블로그, 카페, 인스타 정보는 넘치는데 기준이 제각각이에요. 우리 일정에서 무엇을 먼저 해야 하는지 한곳에 정리하기 어렵습니다.",
+    signal: "준비 순서",
+    signalLabel: "우리 일정에서 지금 할 일",
   },
   {
     emoji: "🔍",
     title: "어떤 업체가 좋은지 모르겠어요",
-    desc: "내 취향이 뭔지도 모르겠고, 업체마다 가격도 다르고 후기도 믿기 어려워요. 전국 업체의 64%는 가격조차 공개하지 않습니다.",
-    stat: "36.1%",
-    statLabel: "가격을 공개하는 업체 비율²",
+    desc: "내 취향이 뭔지도 모르겠고, 업체마다 가격 구성도 달라요. 출처와 기준일이 확인된 정보만 같은 조건으로 비교해야 합니다.",
+    signal: "검수된 공시가",
+    signalLabel: "원문·기준일이 확인된 가격",
   },
   {
     emoji: "💸",
     title: "예산을 어떻게 짜야 할지 모르겠어요",
-    desc: "어떤 항목에 얼마를 써야 하는지 감이 안 와요. 기본금 364만원으로 계약했는데 끝나면 540만원. 추가금이 붙으면 어떻게 조정해야 할지 막막합니다.",
-    stat: "+174만원",
-    statLabel: "스드메 평균 추가비용³",
+    desc: "어떤 항목에 얼마를 둘지, 기본가에 무엇이 포함되는지 감이 안 와요. 우리 예산과 실제 견적을 직접 넣어 조정할 기준이 필요합니다.",
+    signal: "우리 견적",
+    signalLabel: "포함·별도 항목을 직접 비교",
   },
   {
     emoji: "🕐",
     title: "시간은 없는데, 방문할 곳은 많고, 의견 조율은 어렵고",
     desc: "맞벌이 커플이 주말마다 상담 다니는 건 현실적으로 힘들어요. 각자 알아본 정보는 제각각이고, 카톡으로 공유하다 보면 뭘 결정한 건지 헷갈립니다.",
-    stat: "1,505건",
-    statLabel: "결혼 준비 관련 소비자 불만 접수 (2023)⁴",
+    signal: "한곳에 정리",
+    signalLabel: "커플이 함께 보는 결정 기록",
   },
-];
-
-const sources = [
-  "¹ 한국소비자원, 결혼서비스 가격 동향 조사, 2025",
-  "² 한국소비자원, 결혼서비스 가격 동향 조사 (515개 업체), 2025",
-  "³ 정부 「결혼서비스 발전 지원방안」 실태조사, 2024",
-  "⁴ 1372 소비자상담센터, 2021~2023",
 ];
 
 export default function CustomerPainPoints() {
@@ -96,23 +89,12 @@ export default function CustomerPainPoints() {
 
             <div className="pt-5 border-t border-white/[0.06] flex items-center gap-3">
               <span className="font-display text-[24px] font-light bg-gradient-to-r from-rose-500 to-gold bg-clip-text text-transparent">
-                {pain.stat}
+                {pain.signal}
               </span>
-              <span className="text-[12px] text-white/30 font-light">{pain.statLabel}</span>
+              <span className="text-[12px] text-white/30 font-light">{pain.signalLabel}</span>
             </div>
           </motion.div>
         ))}
-      </div>
-
-      {/* 출처 */}
-      <div className="max-w-[1100px] mx-auto mt-10 relative z-10">
-        <div className="flex flex-wrap gap-x-6 gap-y-1 justify-center">
-          {sources.map((src) => (
-            <span key={src} className="text-[11px] text-white/25 font-light">
-              {src}
-            </span>
-          ))}
-        </div>
       </div>
     </section>
   );

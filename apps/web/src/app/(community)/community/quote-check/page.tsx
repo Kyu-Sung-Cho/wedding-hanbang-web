@@ -71,7 +71,7 @@ function formatManwon(value: number) {
 export default function AmoraQuoteCheckPage() {
   const [category, setCategory] = useState<AmoraQuoteCategory>("sdm_package");
   const [region, setRegion] = useState<AmoraQuoteRegion>("seoul");
-  const [quotePrice, setQuotePrice] = useState("320");
+  const [quotePrice, setQuotePrice] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [memo, setMemo] = useState("");
   const [bookingChannel, setBookingChannel] = useState("unknown");
@@ -81,6 +81,11 @@ export default function AmoraQuoteCheckPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const parsedQuotePrice = Number(quotePrice);
+  const quotePriceValid = quotePrice.trim().length > 0
+    && Number.isFinite(parsedQuotePrice)
+    && parsedQuotePrice >= 1
+    && parsedQuotePrice <= 10_000;
 
   const items = useMemo(() => getQuoteCheckItems(category, region), [category, region]);
   const requiredItems = items.filter((item) => item.severity === "critical");
@@ -108,6 +113,11 @@ export default function AmoraQuoteCheckPage() {
   };
 
   const submit = async () => {
+    if (!quotePriceValid) {
+      setError("견적 금액을 1만원 이상 1억원 이하로 입력해 주세요.");
+      return;
+    }
+
     setError(null);
     setLoading(true);
     setResult(null);
@@ -121,7 +131,7 @@ export default function AmoraQuoteCheckPage() {
         body: JSON.stringify({
           category,
           region,
-          quotePriceManwon: Number(quotePrice),
+          quotePriceManwon: parsedQuotePrice,
           vendorName,
           memo,
           includedItemIds: [...includedItemIds],
@@ -163,7 +173,7 @@ export default function AmoraQuoteCheckPage() {
                   견적에 빠진 게 없는지 같이 봐드려요
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#635b51] sm:text-base">
-                  결혼 처음 준비하면 놓치기 쉬운 항목 + 한국소비자원 평균 가격 + 계약 전 업체에 물어볼 질문을 정리해 드려요.
+                  결혼 처음 준비하면 놓치기 쉬운 포함 항목과 계약 전 업체에 물어볼 질문을 정리해 드려요.
                   견적이 좋다·나쁘다를 판단하는 게 아니라, 빠진 게 없는지 확인하는 체크리스트입니다.
                 </p>
               </div>
@@ -220,9 +230,11 @@ export default function AmoraQuoteCheckPage() {
                     max="10000"
                     value={quotePrice}
                     onChange={(event) => {
-                      setQuotePrice(event.target.value);
-                      setResult(null);
-                    }}
+                     setQuotePrice(event.target.value);
+                     setResult(null);
+                     setError(null);
+                   }}
+                   aria-invalid={quotePrice.length > 0 && !quotePriceValid}
                     className="w-full rounded-lg border border-[#e5d8ca] bg-white px-3 py-3 pr-12 text-sm text-[#263832] outline-none transition-colors focus:border-[#36534E]"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#928980]">
@@ -309,8 +321,8 @@ export default function AmoraQuoteCheckPage() {
 
             <button
               type="button"
-              onClick={() => submit()}
-              disabled={loading}
+               onClick={() => submit()}
+               disabled={loading || !quotePriceValid}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#36534E] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(6,26,52,0.18)] transition-colors hover:bg-[#2B423E] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
@@ -328,17 +340,17 @@ export default function AmoraQuoteCheckPage() {
               <p>
                 견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 결혼 처음 준비하면 모르고 빠뜨릴 수 있는 항목들을 한 번에 보여주는 체크리스트예요.
               </p>
-              <p>
-                가격 비교는 한국소비자원 평균을 참고로만 표시해요. 예산·우선순위·하객 규모에 따라 같은 가격도 적정선이 달라지니, 판단은 본인이 하세요.
+               <p>
+                 가격 비교값은 이 결과에 고정하지 않아요. 업체별 최신 공시가에서 출처·기준 시점·구성 범위를 확인한 뒤 받은 견적과 직접 대조해 주세요.
               </p>
               <p>
                 계약 전 빠진 항목을 업체에 한 번이라도 묻고 답변을 받으면 — 그게 가장 큰 안전장치예요.
               </p>
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-              <Metric label="확인" value="항목" />
-              <Metric label="참고" value="평균" />
-              <Metric label="준비" value="질문" />
+               <Metric label="확인" value="항목" />
+               <Metric label="가격" value="공시가" />
+               <Metric label="준비" value="질문" />
             </div>
           </section>
         </aside>
@@ -572,20 +584,32 @@ function ResultPanel({
         </div>
       </div>
 
-      {/* 메트릭 카드 — 전부 사실: 입력가 · 참고 시세(비교 기준 명시) · 빠진 항목 */}
+      {/* 메트릭 카드 — 입력값과 확인된 체크리스트 사실만 표시 */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <ResultMetric label="입력한 견적가" value={formatManwon(result.quotePriceManwon)} />
-        <ResultMetric
-          label={`${result.marketComparatorLabel} (참고)`}
-          value={formatManwon(result.marketMedianManwon)}
-        />
+        {result.marketMedianManwon > 0 ? (
+          <ResultMetric
+            label={`${result.marketComparatorLabel} (참고)`}
+            value={formatManwon(result.marketMedianManwon)}
+          />
+        ) : (
+          <div className="rounded-lg bg-white p-4">
+            <p className="text-xs font-medium text-[#928980]">업체별 최신 공시가</p>
+            <Link
+              href="/price"
+              className="mt-2 inline-flex text-sm font-semibold text-[#36534E] underline decoration-[#36534E]/35 underline-offset-4"
+            >
+              출처와 기준 시점 확인하기
+            </Link>
+          </div>
+        )}
         <ResultMetric
           label="견적서에서 확인 안 된 항목"
           value={`${missingTotal}개 (핵심 확인 ${result.missingCriticalCount})`}
         />
       </div>
       <p className="mt-2 text-xs leading-5 text-[#928980]">
-        시세는 공공 통계 참고값이에요. 구성·시즌에 따라 크게 달라져서, 가격이 좋다·나쁘다는 판정은 하지 않아요.
+        이 결과는 가격이 좋다·나쁘다는 판정이 아니라, 견적서에서 확인되지 않은 항목을 찾는 체크리스트예요.
       </p>
 
       {result.contractQuestions.length > 0 && (

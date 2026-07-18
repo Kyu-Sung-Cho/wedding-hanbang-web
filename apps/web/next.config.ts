@@ -2,10 +2,13 @@ import type { NextConfig } from "next";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertPreviewStubDeployment } from "./previewStubConfig";
+import { assertVendorDisclosureProductionBuild } from "./vendorDisclosureProductionBuildFence";
 
 assertPreviewStubDeployment();
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+assertVendorDisclosureProductionBuild({ repoRoot });
 
 const contentSecurityPolicy = [
   "default-src 'self'",

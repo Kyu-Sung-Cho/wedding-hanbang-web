@@ -20,6 +20,68 @@ export function isBodyTooLarge(request: Request, maxBytes: number): boolean {
   return Number.isFinite(size) && size > maxBytes;
 }
 
+export type BoundedUtf8TextResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: "too_large" | "read_error" };
+
+/**
+ * Read at most maxBytes from a request body. Content-Length is only an early
+ * rejection hint; the stream itself is counted so chunked or dishonest
+ * requests cannot make the route buffer an unbounded body before rejecting it.
+ */
+export async function readBoundedUtf8Text(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedUtf8TextResult> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    return { ok: false, reason: "read_error" };
+  }
+  if (isBodyTooLarge(request, maxBytes)) {
+    return { ok: false, reason: "too_large" };
+  }
+  if (!request.body) return { ok: true, text: "" };
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        try {
+          await reader.cancel("request body exceeds the configured limit");
+        } catch {
+          // Cancellation is best effort; the response still fails closed.
+        }
+        return { ok: false, reason: "too_large" };
+      }
+      chunks.push(value);
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return {
+      ok: true,
+      text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    };
+  } catch {
+    try {
+      await reader.cancel("request body could not be read");
+    } catch {
+      // Cancellation is best effort; callers receive a generic read failure.
+    }
+    return { ok: false, reason: "read_error" };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function normalizeEmail(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const email = raw.trim().toLowerCase();

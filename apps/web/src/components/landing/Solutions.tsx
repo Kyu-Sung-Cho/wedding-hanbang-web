@@ -19,13 +19,13 @@ export default function Solutions() {
           Solution
         </div>
         <h2 className="font-serif-kr text-[clamp(28px,3.5vw,44px)] font-light leading-[1.35] tracking-tight mb-5">
-          AI가 바꾸는
+          흩어진 준비를
           <br />
-          결혼 준비의 모든 것
+          한곳에서 이어가세요
         </h2>
         <p className="text-[16px] leading-relaxed text-charcoal font-light mx-auto max-w-[520px]">
-          웨딩한방은 AI 기술로 결혼 준비의 본질적 문제를 해결합니다.
-          더 이상 정보 부족으로 고민하지 마세요.
+          저장한 일정과 예산, 검수된 공시가, 커플의 결정 기록을
+          필요한 순간에 함께 확인할 수 있습니다.
         </p>
       </motion.div>
 
@@ -39,10 +39,9 @@ export default function Solutions() {
                 스튜디오 어떻게 골라야 해? 🤔
               </div>
               <div className="self-start max-w-[80%] px-[18px] py-3.5 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/85 text-[13.5px] leading-relaxed">
-                D-120일 남으셨네요! 지금 시작하시면 딱 좋은 타이밍이에요 😊
+                저장한 일정과 두 분의 조건부터 확인해볼게요 😊
                 <br /><br />
-                스튜디오 선택 시 가장 중요한 4가지 포인트를 알려드릴게요.
-                촬영 스타일, 보정 퀄리티, 패키지 구성, 그리고 추가 비용이에요.
+                촬영 스타일, 보정 범위, 패키지 구성과 포함·별도 항목을 같은 기준으로 볼게요.
               </div>
               <div className="self-start max-w-[80%] px-[18px] py-3.5 rounded-2xl rounded-bl-md bg-white/[0.08] text-white/85 text-[13.5px]">
                 <div className="inline-flex gap-1">
@@ -59,12 +58,12 @@ export default function Solutions() {
               24시간 AI 웨딩 플래너
             </h3>
             <p className="text-[14px] leading-relaxed text-charcoal font-light">
-              단순한 챗봇이 아닙니다. 당신의 결혼일, 예산, 선호도를 기억하고
-              실제 웨딩 플래너처럼 상황에 맞는 맞춤 조언을 제공합니다.
-              새벽 2시에 갑자기 든 고민도 바로 해결하세요.
+              두 분이 직접 저장한 결혼일, 예산, 선호를 대화 맥락에 이어서
+              다음 확인 질문과 준비 항목을 정리합니다.
+              중요한 가격과 계약 조건은 원문과 업체 서면 안내를 기준으로 확인해요.
             </p>
             <div className="inline-flex items-center gap-[5px] mt-5 px-3.5 py-1.5 bg-[var(--rose-glow)] rounded-full text-[12px] text-rose-500 font-medium w-fit">
-              ✦ OpenAI GPT-5.6 기반 맞춤 상담
+              ✦ OpenAI 기반 대화형 준비 도우미
             </div>
           </div>
         </motion.div>
@@ -86,11 +85,11 @@ export default function Solutions() {
               AI 가상 드레스 피팅
             </h3>
             <p className="text-[14px] leading-relaxed text-charcoal font-light">
-              집에서 10분 만에 10벌의 드레스를 입어보세요.
-              AI가 체형을 분석하고 드레스를 합성합니다.
+              업로드한 사진으로 드레스 이미지를 미리 비교해보세요.
+              생성 결과는 실제 색감·핏과 다를 수 있어 참고용으로 사용합니다.
             </p>
             <div className="inline-flex items-center gap-[5px] mt-5 px-3.5 py-1.5 bg-[var(--rose-glow)] rounded-full text-[12px] text-rose-500 font-medium w-fit">
-              ✦ 업계 최초 AI 피팅
+              ✦ 참고용 AI 이미지
             </div>
           </div>
         </motion.div>
@@ -99,20 +98,20 @@ export default function Solutions() {
         <motion.div {...fadeInUp} className="bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(27,28,28,0.08)] transition-all duration-500">
           <div className="h-80 max-md:h-auto max-md:min-h-[260px] bg-gradient-to-br from-[#F0E8DD] to-[#E8DFD2] p-8 max-md:p-6 flex flex-col justify-center gap-4">
             <div className="font-serif-kr text-[13px] font-medium text-noir-soft mb-2">스마트 예산 관리</div>
-            <div className="font-display text-[36px] max-md:text-[28px] font-light text-noir-800 mb-5">₩10,000,000</div>
+            <div className="font-serif-kr text-[28px] max-md:text-[24px] font-light text-noir-800 mb-5">직접 입력한 예산</div>
             <div className="flex flex-col gap-3">
               {[
-                { label: "스튜디오", width: "75%", color: "bg-rose-500", pct: "75%" },
-                { label: "드레스", width: "45%", color: "bg-gold", pct: "45%" },
-                { label: "메이크업", width: "60%", color: "bg-taupe-500", pct: "60%" },
-                { label: "스냅/DVD", width: "30%", color: "bg-noir-soft", pct: "30%" },
+                { label: "스튜디오", width: "75%", color: "bg-rose-500", pct: "저장됨" },
+                { label: "드레스", width: "45%", color: "bg-gold", pct: "저장됨" },
+                { label: "메이크업", width: "60%", color: "bg-taupe-500", pct: "확인 전" },
+                { label: "스냅/DVD", width: "30%", color: "bg-noir-soft", pct: "입력 전" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
                   <span className="text-[12px] font-medium w-[70px] text-right text-noir-soft">{item.label}</span>
                   <div className="flex-1 h-2 bg-white/60 rounded overflow-hidden">
                     <div className={`h-full rounded ${item.color}`} style={{ width: item.width }} />
                   </div>
-                  <span className="text-[12px] text-taupe-500 w-9 font-medium">{item.pct}</span>
+                  <span className="text-[12px] text-taupe-500 w-12 font-medium">{item.pct}</span>
                 </div>
               ))}
             </div>
@@ -123,11 +122,11 @@ export default function Solutions() {
               스마트 예산 관리
             </h3>
             <p className="text-[14px] leading-relaxed text-charcoal font-light">
-              카테고리별 예산 배분, 실시간 지출 추적,
-              AI가 추가 비용을 미리 경고해드립니다.
+              카테고리별 예산과 실제 지출을 함께 보고,
+              포함·별도 여부를 확인할 항목을 놓치지 않게 정리합니다.
             </p>
             <div className="inline-flex items-center gap-[5px] mt-5 px-3.5 py-1.5 bg-[var(--rose-glow)] rounded-full text-[12px] text-rose-500 font-medium w-fit">
-              ✦ 숨겨진 비용 사전 알림
+              ✦ 포함·별도 항목 확인
             </div>
           </div>
         </motion.div>
@@ -135,12 +134,12 @@ export default function Solutions() {
         {/* 일정 관리 - 큰 카드 */}
         <motion.div {...fadeInUp} className="col-span-2 max-lg:col-span-1 bg-white rounded-3xl overflow-hidden border border-black/[0.04] hover:-translate-y-2 hover:shadow-[0_24px_64px_rgba(27,28,28,0.08)] transition-all duration-500 grid grid-cols-2 max-lg:grid-cols-1">
           <div className="bg-gradient-to-br from-ivory-50 to-ivory-deep p-10 flex flex-col justify-center">
-            <div className="font-serif-kr text-[13px] font-medium text-noir-soft mb-6">D-120 · 웨딩 타임라인</div>
+            <div className="font-serif-kr text-[13px] font-medium text-noir-soft mb-6">예시 · 웨딩 타임라인</div>
             <div className="flex flex-col relative pl-6">
               <div className="absolute left-[6px] top-2 bottom-2 w-[1.5px] bg-gradient-to-b from-rose-500 via-gold-light to-platinum" />
               {[
-                { dday: "D-150", title: "스튜디오 계약 완료 ✓", desc: "A 스튜디오 · 280만원", active: true },
-                { dday: "D-120", title: "드레스 투어 시작", desc: "맞춤 추천 3곳 · 가상 피팅 완료", active: true },
+                { dday: "완료", title: "스튜디오 계약 ✓", desc: "샘플 스튜디오 · 입력한 금액 저장", active: true },
+                { dday: "진행", title: "드레스 투어", desc: "저장한 후보와 일정 확인", active: true },
                 { dday: "D-90", title: "메이크업 리허설", desc: "예약 필요 · AI가 알림 예정", active: false },
                 { dday: "D-60", title: "본식 최종 리허설", desc: "모든 업체 연락 · 최종 확인", active: false },
               ].map((item) => (
@@ -161,9 +160,8 @@ export default function Solutions() {
               AI 일정 관리 & D-day 가이드
             </h3>
             <p className="text-[14px] leading-relaxed text-charcoal font-light">
-              결혼일 기준으로 해야 할 일을 자동으로 제안하고,
-              적절한 시점에 알림을 보내드립니다.
-              20개 카테고리, 127개 체크리스트 항목을 체계적으로 관리하세요.
+              결혼일과 저장한 준비 상태를 기준으로 다음 할 일을 제안하고,
+              두 분의 실제 일정에 맞게 항목과 알림을 직접 수정할 수 있습니다.
             </p>
             <div className="inline-flex items-center gap-[5px] mt-5 px-3.5 py-1.5 bg-[var(--rose-glow)] rounded-full text-[12px] text-rose-500 font-medium w-fit">
               ✦ D-day 맞춤 자동 플래닝

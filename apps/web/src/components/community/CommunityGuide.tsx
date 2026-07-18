@@ -35,7 +35,7 @@ function SlideEmpathy() {
         {[
           { text: "스드메 가격이 적정한 건지 모르겠어요...", align: "left" as const },
           { text: "다른 신부들은 어디서 예약했어요?", align: "right" as const },
-          { text: "예식장 추가금이 이렇게 많은 줄 몰랐어요 😢", align: "left" as const },
+          { text: "예식장 견적에서 별도 항목을 놓칠 뻔했어요 😢", align: "left" as const },
         ].map((bubble, i) => (
           <div
             key={i}
@@ -97,31 +97,31 @@ function SlideRealReview() {
         </div>
         <div className="px-4 pb-2">
           <div className="text-[17px] text-[#263832] font-semibold mb-1 text-left">
-            강남 스튜디오 3곳 가격 솔직 비교 💍
+            샘플 게시글 · 스튜디오 조건 비교 💍
           </div>
           <p className="text-base text-[#635b51] font-light leading-relaxed text-left">
-            기본가 280만원인데 추가금이 130만원... 총 410만원이었어요.
-            다른 곳은 패키지 350만원에 추가금 거의 없었어요. 사진 비교해볼게요
+            같은 패키지 이름이어도 원본·보정본 포함 범위가 달랐어요.
+            받은 견적의 기준일과 별도 항목을 함께 비교해볼게요.
           </p>
         </div>
-        {/* 실제 가격 비교 테이블 */}
+        {/* 샘플 조건 비교 테이블 */}
         <div className="px-4 pb-3">
           <div className="bg-[#fbf8f2] rounded-xl p-3 border border-[#f6efe5]">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">A 스튜디오</div>
-                <div className="text-base font-semibold text-[#263832]">410만</div>
-                <div className="text-sm text-red-500">추가금 多</div>
+                <div className="text-sm text-[#B5ADA3] mb-1">샘플 A</div>
+                <div className="text-base font-semibold text-[#263832]">총액 확인</div>
+                <div className="text-sm text-red-500">별도 확인</div>
               </div>
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">B 스튜디오</div>
-                <div className="text-base font-semibold text-sage-500">350만</div>
-                <div className="text-sm text-sage-500">추천 ✓</div>
+                <div className="text-sm text-[#B5ADA3] mb-1">샘플 B</div>
+                <div className="text-base font-semibold text-sage-500">구성 공개</div>
+                <div className="text-sm text-sage-500">원문 확인</div>
               </div>
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">C 스튜디오</div>
-                <div className="text-base font-semibold text-[#263832]">380만</div>
-                <div className="text-sm text-[#B5ADA3]">보통</div>
+                <div className="text-sm text-[#B5ADA3] mb-1">샘플 C</div>
+                <div className="text-base font-semibold text-[#263832]">기준일 확인</div>
+                <div className="text-sm text-[#B5ADA3]">서면 확인</div>
               </div>
             </div>
           </div>
@@ -142,12 +142,12 @@ function SlideRealReview() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 text-sage-500">
               <ChevronUp className="w-5 h-5" />
-              <span className="text-base font-semibold">47</span>
+              <span className="text-base font-semibold">공감</span>
               <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
             </div>
             <div className="flex items-center gap-1 text-[#B5ADA3]">
               <MessageCircle className="w-4 h-4" />
-              <span className="text-sm">23</span>
+              <span className="text-sm">댓글</span>
             </div>
           </div>
           <Bookmark className="w-4 h-4 text-[#B5ADA3]" />
@@ -183,11 +183,11 @@ function SlideCohort() {
       <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-[17px] text-[#263832] font-semibold">2026 2분기 동기방</div>
-            <div className="text-sm text-[#7a8290] font-light mt-0.5">4~6월 결혼 예정 커플</div>
+            <div className="text-[17px] text-[#263832] font-semibold">샘플 동기방</div>
+            <div className="text-sm text-[#7a8290] font-light mt-0.5">비슷한 시기 결혼 예정 커플</div>
           </div>
           <div className="px-2.5 py-1 rounded-full bg-[#36534E]/10 text-sm text-[#36534E] font-medium">
-            248명 활동 중
+            예시 화면
           </div>
         </div>
         <div className="flex items-center mb-3">
@@ -204,7 +204,7 @@ function SlideCohort() {
               style={{ zIndex: 5 - i }}
             />
           ))}
-          <span className="text-sm text-[#7a8290] ml-2">+243</span>
+          <span className="text-sm text-[#7a8290] ml-2">예시 멤버</span>
         </div>
       </div>
 
@@ -216,7 +216,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">행복한예비맘</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                강남 스튜디오 다들 얼마에 계약하셨어요? 380만원 견적이 적정한지 모르겠어요 💭
+                스튜디오 견적의 원본·보정본 포함 범위가 달라서 비교하기 어렵네요 💭
               </span>
             </div>
           </div>
@@ -227,7 +227,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">민트초코신부</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                저는 340만원에 했어요! 추가금 거의 없어서 가성비 좋았어요
+                저는 같은 구성표로 맞춰봤어요. 별도 항목과 기준일도 함께 확인해보세요.
               </span>
             </div>
           </div>
@@ -354,7 +354,7 @@ function SlideHowToUse() {
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">검색으로 빠르게</div>
             <div className="text-sm text-[#635b51] font-light leading-relaxed">
-              &quot;강남 스튜디오&quot; &quot;300만원대 스드메&quot; 검색하면
+              &quot;강남 스튜디오&quot; &quot;원본 포함 스드메&quot; 검색하면
               <br />관련 후기가 바로 나와요
             </div>
           </div>

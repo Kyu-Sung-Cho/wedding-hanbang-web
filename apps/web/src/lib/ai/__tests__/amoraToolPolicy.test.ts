@@ -44,6 +44,22 @@ describe("selectAmoraTools", () => {
     expect(selected).not.toContain("apply_budget_plan");
   });
 
+  it("routes nearby search only to non-vendor local places", () => {
+    expect(names("강남역 근처 상견례 식당 찾아줘")).toContain("search_nearby_places");
+    for (const query of [
+      "강남 근처 웨딩 스튜디오 찾아줘",
+      "서울 근처 결혼식장 찾아줘",
+      "근처 결혼 준비 업체 찾아줘",
+      "근처 혼주 메이크업 찾아줘",
+      "근처 웨딩 촬영 업체 찾아줘",
+      "근처 웨딩 사진 업체 찾아줘",
+      "근처 본식 업체 찾아줘",
+      "근처 예식 업체 찾아줘",
+    ]) {
+      expect(names(query)).not.toContain("search_nearby_places");
+    }
+  });
+
   it("unlocks only matching mutations when write intent is explicit", () => {
     const selected = names("총 예산을 4천만원으로 변경해줘", "budget_optimizer");
     expect(selected).toContain("update_budget");

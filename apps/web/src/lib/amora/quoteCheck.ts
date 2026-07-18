@@ -1,10 +1,4 @@
 import { HIDDEN_COSTS, type HiddenCostItem } from "@/constants/hiddenCosts";
-import {
-  PRICE_PERIODS,
-  SDM_PACKAGES,
-  getCategoryMarketPrice,
-  getLatestPeriodId,
-} from "@/constants/marketPrices";
 
 export type AmoraQuoteCategory = "sdm_package" | "studio" | "dress" | "makeup";
 export type AmoraQuoteRegion = "seoul" | "gyeonggi" | "busan" | "daegu" | "other";
@@ -14,7 +8,7 @@ export type AmoraQuoteScope = "national" | "seoul";
 // 점수·등급·안전/위험·가격대 분류는 견적 구성을 모르는 채로는 정확할 수 없고,
 // 틀린 판정 한 번이 신뢰를 끝낸다(+ 표시광고 리스크). 남기는 것은 사실뿐이다:
 //   ① 견적서에서 확인된/안 된 항목 (사용자 입력 기반)
-//   ② 같은 지역 중위가 (공식 참가격, 참고 표시 전용 — 비교 기준을 라벨로 명시)
+//   ② 사용자가 입력한 견적 금액(가격 적정성 판정에는 사용하지 않음)
 //   ③ 계약 전 확인 질문 (절차 — 항상 유효)
 
 export interface AmoraQuoteCheckInput {
@@ -102,60 +96,17 @@ function toCheckItem(item: HiddenCostItem): AmoraQuoteCheckItem {
   };
 }
 
-// 한국소비자원 스드메 패키지 통계의 지역 구분에 입력 지역을 매핑.
-// 서울(350만원대)과 경기/인천(240만원대, 2026-05)은 중위가가 40%대 후반 차이나므로
-// scope(서울/전국) 2분법으로 뭉개면 참고치가 정반대로 읽힐 수 있다 — 지역별 비교가 필수.
-const SDM_REGION_BY_QUOTE_REGION: Record<AmoraQuoteRegion, string> = {
-  seoul: "서울",
-  gyeonggi: "경기/인천",
-  busan: "5대광역시",
-  daegu: "5대광역시",
-  other: "기타지역",
-};
-
-function findSdmPackageRow(region: AmoraQuoteRegion) {
-  const pid = getLatestPeriodId();
-  const sdmRegion = SDM_REGION_BY_QUOTE_REGION[region];
-  return (
-    SDM_PACKAGES.find((row) => row.periodId === pid && row.region === sdmRegion) ??
-    SDM_PACKAGES.find((row) => row.periodId === pid && row.region === "전체")
-  );
-}
-
 function getMarketMedian(
   category: AmoraQuoteCategory,
   region: AmoraQuoteRegion,
-  scope: AmoraQuoteScope
+  scope: AmoraQuoteScope,
 ): { median: number; comparatorLabel: string } {
-  const scopeLabel = scope === "seoul" ? "서울" : "전국";
-
-  // 스드메 패키지·스튜디오는 지역별 패키지 통계가 있으므로 그것과 비교 —
-  // "패키지 견적 vs 패키지 중위가"로 비교 단위를 일치시킨다.
-  if (category === "sdm_package") {
-    const row = findSdmPackageRow(region);
-    return {
-      median: row?.packageMedian ?? 0,
-      comparatorLabel: `${row?.region ?? scopeLabel} 스드메 패키지 중위가`,
-    };
-  }
-  if (category === "studio") {
-    const row = findSdmPackageRow(region);
-    return {
-      median: row?.studioBasic ?? getCategoryMarketPrice("studio", scope) ?? 0,
-      comparatorLabel: `${row?.region ?? scopeLabel} 스튜디오 기본촬영 중위가`,
-    };
-  }
-
-  // 드레스·메이크업은 전국/서울 2단계 통계만 존재 — 비교 기준 항목을 명시한다.
-  if (category === "dress") {
-    return {
-      median: getCategoryMarketPrice("dress", scope) ?? 0,
-      comparatorLabel: `${scopeLabel} 본식 드레스 대여 중위가`,
-    };
-  }
+  void category;
+  void region;
+  void scope;
   return {
-    median: getCategoryMarketPrice("makeup", scope) ?? 0,
-    comparatorLabel: `${scopeLabel} 촬영 메이크업 중위가`,
+    median: 0,
+    comparatorLabel: "업체별 최신 공시가 확인 필요",
   };
 }
 
@@ -225,8 +176,6 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     .slice(0, 6)
     .map((item) => item.checkQuestion);
 
-  const period = PRICE_PERIODS.find((item) => item.id === getLatestPeriodId());
-
   return {
     category: input.category,
     scope,
@@ -246,6 +195,7 @@ export function analyzeAmoraQuoteCheck(input: AmoraQuoteCheckInput): AmoraQuoteC
     contractQuestions,
     negotiationScript:
       "안녕하세요. 계약 전 확인차 문의드립니다. 아래 항목들이 견적에 포함인지, 미포함이면 항목별 추가금과 최대 상한이 얼마인지 문자로 남겨주실 수 있을까요?",
-    sourceNote: `가격 비교는 한국소비자원 참가격 결혼서비스 통계 ${period?.label ?? ""} 기준(https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do)이며, 확인 항목은 웨딩한방 계약 전 체크리스트입니다. 항목별 실제 추가 비용은 업체 서면 견적을 확인해야 합니다.`,
+    sourceNote:
+      "이 결과는 웨딩한방 계약 전 체크리스트만 확인하며 가격의 적정성을 판정하지 않습니다. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인하고, 실제 추가 비용은 업체 서면 견적을 확인하세요.",
   };
 }

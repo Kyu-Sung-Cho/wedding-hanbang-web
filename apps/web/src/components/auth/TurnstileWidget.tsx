@@ -5,6 +5,7 @@
 // 토큰이 발급되면 onVerify(token)로 전달, 만료 시 onVerify("")로 초기화.
 
 import { useEffect, useRef } from "react";
+import type { TurnstileAction } from "@/lib/turnstile";
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js";
@@ -17,6 +18,7 @@ interface TurnstileApi {
       callback: (token: string) => void;
       "expired-callback"?: () => void;
       "error-callback"?: () => void;
+      action?: TurnstileAction;
       theme?: "light" | "dark" | "auto";
     }
   ) => string;
@@ -29,7 +31,13 @@ declare global {
   }
 }
 
-export default function TurnstileWidget({ onVerify }: { onVerify: (token: string) => void }) {
+export default function TurnstileWidget({
+  action,
+  onVerify,
+}: {
+  action: TurnstileAction;
+  onVerify: (token: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
@@ -37,12 +45,14 @@ export default function TurnstileWidget({ onVerify }: { onVerify: (token: string
     if (!SITE_KEY || typeof window === "undefined") return;
 
     let cancelled = false;
+    let readinessInterval: ReturnType<typeof setInterval> | null = null;
 
     const renderWidget = () => {
       if (cancelled || !containerRef.current || !window.turnstile) return;
       if (widgetIdRef.current) return; // 중복 렌더 방지
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: SITE_KEY,
+        action,
         callback: (token) => onVerify(token),
         "expired-callback": () => onVerify(""),
         "error-callback": () => onVerify(""),
@@ -61,17 +71,18 @@ export default function TurnstileWidget({ onVerify }: { onVerify: (token: string
       document.head.appendChild(script);
     } else {
       // 스크립트는 로드 중 — 짧게 폴링해 turnstile 준비되면 렌더
-      const interval = setInterval(() => {
+      readinessInterval = setInterval(() => {
         if (window.turnstile) {
-          clearInterval(interval);
+          if (readinessInterval) clearInterval(readinessInterval);
+          readinessInterval = null;
           renderWidget();
         }
       }, 200);
-      return () => clearInterval(interval);
     }
 
     return () => {
       cancelled = true;
+      if (readinessInterval) clearInterval(readinessInterval);
       if (widgetIdRef.current && window.turnstile) {
         try {
           window.turnstile.remove(widgetIdRef.current);
@@ -81,7 +92,7 @@ export default function TurnstileWidget({ onVerify }: { onVerify: (token: string
         widgetIdRef.current = null;
       }
     };
-  }, [onVerify]);
+  }, [action, onVerify]);
 
   if (!SITE_KEY) return null;
   return <div ref={containerRef} className="flex justify-center" />;

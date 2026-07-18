@@ -210,10 +210,11 @@ export async function POST(req: Request) {
     if (booking && profile.couple_id) {
       void (async () => {
         try {
-          const { data: vendor } = await supabase
+          const { data: vendor } = await admin
             .from("vendors")
             .select("name, category")
             .eq("id", vendorId)
+            .eq("status", "approved")
             .maybeSingle();
           const v = vendor as { name: string; category: string } | null;
 

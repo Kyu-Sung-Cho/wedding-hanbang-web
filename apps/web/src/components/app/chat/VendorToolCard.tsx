@@ -16,6 +16,7 @@ import {
   Phone,
   ExternalLink,
   MessageSquareText,
+  FileCheck2,
   X,
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
@@ -85,20 +86,47 @@ function VendorRecommendCards({
   disabled?: boolean;
 }) {
   const output = result.toolOutput as {
+    recommendationPolicy?: string;
+    coverageNote?: string;
+    disclaimer?: string;
     vendors?: {
       id: string;
       name: string;
-      location: string;
-      priceRange: string;
-      rating: number;
-      reviewCount: number;
-      tags: string[];
+      location?: string | null;
+      priceRange?: string | null;
+      rating?: number | null;
+      reviewCount?: number | null;
+      tags?: string[];
       reasons?: string[];
+      dataBadges?: string[];
       link: string;
     }[];
   };
 
   const vendors = output.vendors ?? [];
+  const isOfficial = output.recommendationPolicy === "official_price_explainable_v1";
+  const hasRating = (rating: number | null | undefined, reviewCount: number | null | undefined) =>
+    Number.isFinite(rating) && Number.isFinite(reviewCount);
+
+  if (vendors.length === 0 && isOfficial) {
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div className="max-w-[440px] rounded-xl border border-[#DDE8E1] bg-[#F8FBF9] px-5 py-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E4EFE8]">
+              <FileCheck2 className="h-5 w-5 text-[#52715D]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[#1A1A1F]">조건에 맞는 공시 업체를 찾지 못했어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#5D6861]">
+                지역이나 예산, 필수 조건 중 하나를 조금 넓혀서 다시 찾아볼게요. 확인되지 않은 가격을 임의로 추천하지는 않을게요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // DB에 매칭 업체가 0건일 때 — "AI 웨딩플래너인데 빈 카드/실패 X 표시가 줄줄이"
   // 라는 인상 대신, 베타 안내 카드 1개로 깔끔하게 노출.
@@ -137,19 +165,38 @@ function VendorRecommendCards({
                 <p className="text-lg font-semibold text-[#1A1A1F] truncate">
                   {v.name}
                 </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Star className="w-4 h-4 text-[#C9A96E] fill-[#C9A96E]" />
-                  <span className="text-sm text-[#928980]">
-                    {v.rating} ({v.reviewCount})
-                  </span>
-                  <span className="text-sm text-[#B5ADA3]">·</span>
-                  <MapPin className="w-4 h-4 text-[#B5ADA3]" />
-                  <span className="text-sm text-[#928980]">{v.location}</span>
-                  <span className="text-sm text-[#B5ADA3]">·</span>
-                  <span className="text-sm text-[#928980]">{v.priceRange}</span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  {hasRating(v.rating, v.reviewCount) && (
+                    <>
+                      <Star className="h-4 w-4 fill-[#C9A96E] text-[#C9A96E]" />
+                      <span className="text-sm text-[#928980]">{v.rating} ({v.reviewCount})</span>
+                    </>
+                  )}
+                  {v.location && (
+                    <span className="flex items-center gap-1 text-sm text-[#68726C]">
+                      <MapPin className="h-4 w-4 text-[#8A958E]" />
+                      {v.location}
+                    </span>
+                  )}
+                  {v.priceRange && (
+                    <span className="text-sm font-medium text-[#52715D]">{v.priceRange}</span>
+                  )}
                 </div>
               </div>
             </div>
+
+            {isOfficial && v.dataBadges && v.dataBadges.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {v.dataBadges.slice(0, 3).map((badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-full border border-[#CFE0D4] bg-[#F1F7F3] px-2.5 py-0.5 text-xs font-medium text-[#52715D]"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* 태그 */}
             {v.tags && v.tags.length > 0 && (
@@ -167,34 +214,71 @@ function VendorRecommendCards({
 
             {/* 추천 이유 */}
             {v.reasons && v.reasons.length > 0 && (
-              <p className="text-sm text-[#C4967E] mt-2 truncate">
-                {v.reasons.slice(0, 3).join(" · ")}
-              </p>
+              isOfficial ? (
+                <ul className="mt-2.5 space-y-1 text-sm leading-5 text-[#52715D]">
+                  {v.reasons.slice(0, 3).map((reason) => (
+                    <li key={reason} className="flex gap-2">
+                      <span aria-hidden="true" className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-[#7F9A87]" />
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 truncate text-sm text-[#C4967E]">
+                  {v.reasons.slice(0, 3).join(" · ")}
+                </p>
+              )
             )}
 
             {/* 버튼 */}
-            <div className="flex items-center gap-2 mt-3">
-              <button
-                onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
-                disabled={disabled}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                  bg-[#795252] text-white text-sm font-medium
-                  hover:bg-[#946a6a] active:scale-[0.98]
-                  disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Package className="w-4 h-4" />
-                상품·스태프 보기
-              </button>
-              <Link
-                href={v.link}
-                className="flex items-center justify-center w-10 h-10 rounded-lg border border-black/[0.06]
-                  text-[#B5ADA3] hover:text-[#C4967E] hover:border-[#C4967E]/30 transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {isOfficial ? (
+                <>
+                  <Link
+                    href={v.link}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#52715D] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#405D4A]"
+                  >
+                    <FileCheck2 className="h-4 w-4" />
+                    공시 가격·근거 보기
+                  </Link>
+                  {onSend && (
+                    <button
+                      type="button"
+                      onClick={() => onSend(`${v.name} 추천 이유와 확인할 점을 더 알려줘 [vendor:${v.id}]`)}
+                      disabled={disabled}
+                      className="flex h-10 items-center justify-center rounded-lg border border-[#DDE8E1] px-3 text-sm text-[#52715D] transition-colors hover:bg-[#F1F7F3] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      더 물어보기
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
+                    disabled={disabled}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#946a6a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Package className="h-4 w-4" />
+                    상품·스태프 보기
+                  </button>
+                  <Link
+                    href={v.link}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-black/[0.06] text-[#B5ADA3] transition-colors hover:border-[#C4967E]/30 hover:text-[#C4967E]"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         ))}
+        {isOfficial && (output.coverageNote || output.disclaimer) && (
+          <div className="rounded-xl border border-[#E3E9E5] bg-[#FAFCFA] px-4 py-3 text-xs leading-relaxed text-[#68726C]">
+            {output.coverageNote && <p>{output.coverageNote}</p>}
+            {output.disclaimer && <p className={output.coverageNote ? "mt-1" : undefined}>{output.disclaimer}</p>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -212,8 +296,12 @@ function VendorDetailCard({
   disabled?: boolean;
 }) {
   const output = result.toolOutput as {
+    profilePolicy?: string;
+    dataStatus?: string;
     vendorId: string;
     vendorName: string;
+    location?: string | null;
+    profileLink?: string;
     products: {
       id: string;
       name: string;
@@ -230,15 +318,63 @@ function VendorDetailCard({
       role: string | null;
       description: string;
     }[];
+    officialProfile?: {
+      tags?: { slug: string; label: string; tag_group: string }[];
+      official_prices?: {
+        id: string;
+        item_name: string;
+        price_min_krw: number | null;
+        price_max_krw: number | null;
+        period_label: string;
+        source: string;
+      }[];
+      data_badges?: string[];
+      sources?: string[];
+    };
+    bookingData?: {
+      policy: string;
+      auxiliary: boolean;
+      notice?: string;
+      products?: {
+        id: string;
+        name: string;
+        description: string;
+        price: number;
+        discountPrice: number | null;
+        duration: number | null;
+        isPopular: boolean;
+        includes: string[];
+      }[];
+      staff?: {
+        id: string;
+        name: string;
+        role: string | null;
+        description: string;
+      }[];
+    };
   };
 
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  const products = useMemo(() => output.products ?? [], [output.products]);
-  const staff = useMemo(() => output.staff ?? [], [output.staff]);
+  const products = useMemo(
+    () => output.bookingData?.products ?? output.products ?? [],
+    [output.bookingData?.products, output.products],
+  );
+  const staff = useMemo(
+    () => output.bookingData?.staff ?? output.staff ?? [],
+    [output.bookingData?.staff, output.staff],
+  );
   const hasStaff = staff.length > 0;
+  const isOfficial = output.profilePolicy === "official_disclosure_profile_v1";
+  const officialPrices = output.officialProfile?.official_prices ?? [];
+  const officialMoneyRange = (min: number | null, max: number | null) => {
+    if (min === null && max === null) return "금액 별도 확인";
+    if (min === null) return `${formatPrice(max!)} 이하`;
+    if (max === null || min === max) return formatPrice(min);
+    return `${formatPrice(min)} ~ ${formatPrice(max)}`;
+  };
 
   const handleConfirm = useCallback((productId: string, staffId: string | null) => {
     if (confirmed) return;
@@ -272,18 +408,92 @@ function VendorDetailCard({
         {/* 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <p className="text-lg font-semibold text-[#1A1A1F]">{output.vendorName}</p>
-          <p className="text-sm text-[#928980] mt-1">{hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}</p>
+          <p className="text-sm text-[#928980] mt-1">
+            {isOfficial
+              ? "공시 근거를 먼저 확인하고, 필요하면 예약 보조 정보를 이어서 보세요"
+              : hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 바로 예약 가능 시간을 확인할 수 있어요"}
+          </p>
         </div>
+
+        {isOfficial && (
+          <section className="border-b border-[#E3E9E5] bg-[#FAFCFA] px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileCheck2 className="h-5 w-5 text-[#52715D]" />
+                <h3 className="text-base font-semibold text-[#263A2D]">확인된 공시 정보</h3>
+              </div>
+              {output.profileLink && (
+                <Link
+                  href={output.profileLink}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[#52715D] underline-offset-2 hover:underline"
+                >
+                  전체 근거 보기
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              )}
+            </div>
+            {output.location && (
+              <p className="mt-2 flex items-center gap-1 text-sm text-[#68726C]">
+                <MapPin className="h-4 w-4" />
+                {output.location}
+              </p>
+            )}
+            {(output.officialProfile?.data_badges?.length ?? 0) > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {output.officialProfile!.data_badges!.slice(0, 4).map((badge) => (
+                  <span key={badge} className="rounded-full border border-[#CFE0D4] bg-white px-2.5 py-0.5 text-xs font-medium text-[#52715D]">
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 space-y-2.5">
+              {officialPrices.slice(0, 3).map((price) => (
+                <article key={price.id} className="rounded-lg border border-[#E3E9E5] bg-white px-3.5 py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold text-[#263A2D]">{price.item_name}</p>
+                    <p className="text-sm font-semibold text-[#52715D]">
+                      {officialMoneyRange(price.price_min_krw, price.price_max_krw)}
+                    </p>
+                  </div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#68726C]">{price.source}</p>
+                </article>
+              ))}
+              {officialPrices.length === 0 && (
+                <p className="text-sm text-[#68726C]">공개 가능한 공시 가격 항목이 아직 없어요.</p>
+              )}
+            </div>
+            {(output.officialProfile?.tags?.length ?? 0) > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {output.officialProfile!.tags!.slice(0, 6).map((tag) => (
+                  <span key={tag.slug} className="rounded-full bg-[#EEF4F0] px-2.5 py-1 text-xs text-[#52715D]">
+                    {tag.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 상품 선택 */}
         <div className="px-5 pt-4 pb-2">
           <div className="flex items-center gap-2 mb-2.5">
             <Package className="w-5 h-5 text-[#C4967E]" />
-            <span className="text-base font-semibold text-[#1A1A1F]">상품 선택</span>
+            <span className="text-base font-semibold text-[#1A1A1F]">
+              {isOfficial ? "예약 보조 정보" : "상품 선택"}
+            </span>
           </div>
 
+          {isOfficial && output.bookingData?.notice && (
+            <p className="mb-3 rounded-lg bg-[#FFF8F1] px-3 py-2 text-xs leading-relaxed text-[#7A6656]">
+              {output.bookingData.notice}
+            </p>
+          )}
+
           {products.length === 0 ? (
-            <p className="text-sm text-[#B5ADA3] py-2">등록된 상품이 없습니다</p>
+            <p className="text-sm text-[#B5ADA3] py-2">
+              {isOfficial ? "등록된 예약 보조 상품이 없습니다" : "등록된 상품이 없습니다"}
+            </p>
           ) : (
             <div className="flex flex-col gap-2">
               {products.map((p) => {

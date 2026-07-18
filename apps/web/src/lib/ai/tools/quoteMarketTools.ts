@@ -26,6 +26,21 @@ import {
 const MARKET_PRICE_SOURCE_URL = "https://www.price.go.kr/tprice/portal/wedding/areaStatistic.do";
 
 export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
+  if (PRICE_PERIODS.length === 0) {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        status: "migrated_to_published_disclosures",
+        publicPath: "/price",
+        sourcePolicy: "reviewed_published_vendor_disclosures_only",
+      },
+      success: true,
+      displayMessage:
+        "과거 고정 시세표는 종료했어요. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 함께 확인해 주세요.",
+    };
+  }
+
   const category = input.category as string;
   const scope = (input.scope as "national" | "seoul") ?? "national";
   const pid = getLatestPeriodId();
@@ -234,7 +249,9 @@ export function executeAnalyzeQuoteWithTrustEngine(input: Record<string, unknown
     vendorName,
     marketMedian: analysis.marketMedianManwon,
     marketComparatorLabel: analysis.marketComparatorLabel,
-    priceDiff: analysis.quotePriceManwon - analysis.marketMedianManwon,
+    priceDiff: analysis.marketMedianManwon > 0
+      ? analysis.quotePriceManwon - analysis.marketMedianManwon
+      : null,
     priceDiffPercent: analysis.priceDiffPercent,
     dataSource: analysis.sourceNote,
     missingItems: analysis.missingItems.map((item) => ({

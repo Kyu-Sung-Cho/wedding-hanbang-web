@@ -11,7 +11,7 @@ const BASE_URL = process.env.SCREENSHOT_BASE_URL || "https://www.hanbang.ai";
 const PAGES = [
   { name: "01-community", path: "/community" },
   { name: "02-quote-check", path: "/community/quote-check" },
-  { name: "03-vendor-A-studio", path: `/community/vendor/${encodeURIComponent("A 스튜디오")}` },
+  { name: "03-vendor-sample-studio", path: `/community/vendor/${encodeURIComponent("샘플 스튜디오 A")}` },
   { name: "04-chat", path: "/chat" },
   { name: "05-landing", path: "/landing" },
   { name: "06-vendors", path: "/vendors" },

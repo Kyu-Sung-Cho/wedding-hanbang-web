@@ -6,8 +6,16 @@ import {
   executeSearchVendors,
 } from "../vendorTools";
 
+const vendorProfileMocks = vi.hoisted(() => ({
+  loadVendorProfile: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(),
+}));
+
+vi.mock("@/lib/vendors/vendorProfileData", () => ({
+  loadVendorProfile: vendorProfileMocks.loadVendorProfile,
 }));
 
 type QueryResult = {
@@ -77,6 +85,7 @@ function mockAdminClient(tableHandlers: Record<string, TableHandler[]>) {
 describe("vendorTools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vendorProfileMocks.loadVendorProfile.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -98,14 +107,14 @@ describe("vendorTools", () => {
     });
   });
 
-  it("maps vendor products and staff into the existing detail shape", async () => {
+  it("keeps legacy products and staff available only for an unsupported category", async () => {
     mockAdminClient({
       vendors: [{
         singleResult: {
           data: {
             id: "vendor-1",
-            name: "한방스튜디오",
-            category: "studio",
+            name: "한방한복",
+            category: "hanbok",
             location: "서울 강남",
             price_range: "150만원대",
           },
@@ -144,11 +153,13 @@ describe("vendorTools", () => {
 
     expect(result.toolName).toBe("get_vendor_detail");
     expect(result.success).toBe(true);
-    expect(result.displayMessage).toBe("한방스튜디오의 상품 1개, 스태프 1명");
+    expect(result.displayMessage).toBe("한방한복의 상품 1개, 스태프 1명");
     expect(result.toolOutput).toMatchObject({
+      profilePolicy: "legacy_unsupported_category_v1",
+      dataStatus: "auxiliary_only",
       vendorId: "vendor-1",
-      vendorName: "한방스튜디오",
-      category: "studio",
+      vendorName: "한방한복",
+      category: "hanbok",
       location: "서울 강남",
       priceRange: "150만원대",
       products: [{
@@ -174,8 +185,8 @@ describe("vendorTools", () => {
         awaitResult: {
           data: [{
             id: "vendor-1",
-            name: "한방드레스",
-            category: "dress",
+            name: "한방한복",
+            category: "hanbok",
             location: "서울",
             region: "강남",
             price_range: "200만원대",
@@ -192,7 +203,7 @@ describe("vendorTools", () => {
     });
 
     const result = await executeSearchVendors(
-      { category: "드레스", search: "실크", limit: 5 },
+      { category: "한복", limit: 5 },
       {
         coupleId: "couple-1",
         weddingContext: {
@@ -204,13 +215,13 @@ describe("vendorTools", () => {
 
     expect(result.toolName).toBe("search_vendors");
     expect(result.success).toBe(true);
-    expect(result.displayMessage).toBe("1개 업체를 찾았습니다: 한방드레스(200만원대)");
+    expect(result.displayMessage).toBe("1개 업체를 찾았습니다: 한방한복(200만원대)");
     expect(result.toolOutput).toMatchObject({
       count: 1,
       vendors: [{
         id: "vendor-1",
-        name: "한방드레스",
-        category: "dress",
+        name: "한방한복",
+        category: "hanbok",
         location: "서울",
         priceRange: "200만원대",
         rating: 4.8,
@@ -222,8 +233,8 @@ describe("vendorTools", () => {
     });
     expect(insertedLogs).toEqual([{
       user_id: "profile-1",
-      query: "실크",
-      category: "드레스",
+      query: "한복",
+      category: "한복",
       result_count: 1,
     }]);
   });

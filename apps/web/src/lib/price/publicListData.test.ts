@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { loadPublicPriceCatalog } from "./publicListData";
+
+function fakePublicClient(fixtures: Record<string, Array<Record<string, unknown>>>) {
+  const client = {
+    from(table: string) {
+      let rows = [...(fixtures[table] ?? [])];
+      const query: Record<string, unknown> = {};
+      query.select = () => query;
+      query.eq = (column: string, value: unknown) => {
+        rows = rows.filter((row) => row[column] === value);
+        return query;
+      };
+      query.not = (column: string, operator: string, value: unknown) => {
+        if (operator === "is" && value === null) rows = rows.filter((row) => row[column] !== null);
+        return query;
+      };
+      query.in = (column: string, values: unknown[]) => {
+        rows = rows.filter((row) => values.includes(row[column]));
+        return query;
+      };
+      query.order = () => query;
+      query.range = (from: number, to: number) => Promise.resolve({
+        data: rows.slice(from, to + 1),
+        error: null,
+      });
+      return query;
+    },
+  } as unknown as SupabaseClient;
+  return client;
+}
+
+describe("loadPublicPriceCatalog", () => {
+  it("groups current prices with approved raw option text but no source quotes", async () => {
+    const base = {
+      snapshot_id: "snapshot-current",
+      period_label: "2026Q3",
+      source: "kca_tprice",
+      published_at: "2026-07-01",
+      is_current: true,
+      region_code: "seoul_etc",
+      price_max_krw: 1_200_000,
+      price_note: null,
+      base_spec: "샘플 기본 구성",
+    };
+    const client = fakePublicClient({
+      v_public_official_prices: [
+        {
+          ...base,
+          id: "price-studio",
+          vendor_id: "vendor-studio",
+          vendor_slug: "sample-studio",
+          vendor_name: "샘플 스튜디오",
+          vendor_aliases: ["샘플 옛 상호"],
+          vendor_category: "studio",
+          agency_id: "agency-1",
+          agency_name: "샘플 대행사 주식회사",
+          agency_display_name: "샘플 대행사",
+          price_category: "studio",
+          item_name: "샘플 기본 촬영",
+          price_min_krw: 1_000_000,
+        },
+        {
+          ...base,
+          id: "price-dress",
+          vendor_id: "vendor-dress",
+          vendor_slug: "sample-dress",
+          vendor_name: "샘플 드레스",
+          vendor_category: "dress",
+          agency_id: null,
+          agency_name: null,
+          price_category: "dress",
+          item_name: "샘플 기본 드레스",
+          price_min_krw: 800_000,
+        },
+        {
+          ...base,
+          id: "price-draft",
+          snapshot_id: "snapshot-draft",
+          is_current: false,
+          vendor_id: "vendor-draft",
+          vendor_slug: "sample-draft",
+          vendor_name: "샘플 미발행",
+          vendor_category: "studio",
+          agency_id: null,
+          agency_name: null,
+          price_category: "studio",
+          item_name: "샘플 미발행 가격",
+          price_min_krw: 500_000,
+        },
+      ],
+      v_public_official_price_options: [
+        {
+          id: "option-1",
+          official_price_id: "price-studio",
+          name: "샘플 원본 제공",
+          price_min_krw: 100_000,
+          price_max_krw: 100_000,
+          unit: null,
+          condition: null,
+          raw_text: "샘플 원본 제공 10만원",
+          source_quote: "샘플 원본 제공 10만원",
+          is_effectively_mandatory: true,
+          sort_order: 2,
+        },
+        {
+          id: "option-0",
+          official_price_id: "price-studio",
+          name: "샘플 선행 옵션",
+          price_min_krw: 200_000,
+          price_max_krw: 200_000,
+          unit: null,
+          condition: null,
+          raw_text: "샘플 선행 옵션 20만원",
+          source_quote: "샘플 선행 옵션 20만원",
+          is_effectively_mandatory: false,
+          sort_order: 1,
+        },
+        {
+          id: "option-dress",
+          official_price_id: "price-dress",
+          name: "샘플 드레스 옵션",
+          price_min_krw: 300_000,
+          price_max_krw: 300_000,
+          unit: null,
+          condition: null,
+          raw_text: "샘플 드레스 옵션 30만원",
+          source_quote: "샘플 드레스 옵션 30만원",
+          is_effectively_mandatory: false,
+          sort_order: 1,
+        },
+      ],
+    });
+
+    const catalog = await loadPublicPriceCatalog(client, { optionCategories: ["studio"] });
+
+    expect(catalog.periodLabel).toBe("2026Q3");
+    expect(catalog.counts).toEqual({ studio: 1, dress: 1, makeup: 0, hall: 0 });
+    expect(catalog.categories.studio[0].offers[0].options[1].rawText)
+      .toBe("샘플 원본 제공 10만원");
+    expect(catalog.categories.studio[0].aliases).toEqual(["샘플 옛 상호"]);
+    expect(catalog.categories.studio[0].offers[0].options[1].isEffectivelyMandatory)
+      .toBe(true);
+    expect(catalog.categories.studio[0].offers[0].options.map(({ name }) => name))
+      .toEqual(["샘플 선행 옵션", "샘플 원본 제공"]);
+    expect(catalog.categories.dress[0].offers[0].options).toEqual([]);
+    expect(JSON.stringify(catalog)).not.toContain("샘플 미발행");
+    expect(JSON.stringify(catalog)).not.toContain("source_quote");
+    expect(catalog.agencies).toEqual([{ id: "agency-1", name: "샘플 대행사" }]);
+  });
+});

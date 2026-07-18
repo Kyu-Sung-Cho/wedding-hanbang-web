@@ -1,6 +1,8 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { messageRowToMessage } from "@/lib/utils/vendorMapper";
+import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalText,
@@ -46,12 +48,11 @@ export async function GET(req: Request) {
 
     if (customerId) {
       // customerId 지정 시 해당 vendor의 owner만 조회 가능
-      const { data: vendorOwner } = await supabase
-        .from("vendors")
-        .select("id")
-        .eq("id", vendorId)
-        .eq("owner_id", user.id)
-        .single();
+      const vendorOwner = await loadOwnedVendorWithServiceRole(
+        createAdminClient(),
+        user.id,
+        vendorId,
+      );
 
       if (!vendorOwner) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
@@ -126,12 +127,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "customerId가 올바르지 않습니다." }, { status: 400 });
     }
 
-    const { data: vendorOwnership } = await supabase
-      .from("vendors")
-      .select("id")
-      .eq("id", vendorId)
-      .eq("owner_id", user.id)
-      .single();
+    const vendorOwnership = await loadOwnedVendorWithServiceRole(
+      createAdminClient(),
+      user.id,
+      vendorId,
+    );
 
     const resolvedSenderType = vendorOwnership ? "vendor" : "customer";
     const resolvedCustomerId = vendorOwnership && customerId ? customerId : user.id;

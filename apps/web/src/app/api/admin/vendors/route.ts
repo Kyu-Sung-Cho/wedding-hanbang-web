@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (status && ["pending", "approved", "rejected"].includes(status)) {
+  if (status && ["draft", "pending", "approved", "rejected"].includes(status)) {
     query = query.eq("status", status);
   }
 
@@ -28,11 +28,12 @@ export async function GET(request: NextRequest) {
 
   const vendors = (vendorRows ?? []).map((row) => vendorRowToVendor(row));
   const pending = (vendorRows ?? []).filter((v) => v.status === "pending").length;
+  const draft = (vendorRows ?? []).filter((v) => v.status === "draft").length;
   const approved = (vendorRows ?? []).filter((v) => v.status === "approved").length;
   const rejected = (vendorRows ?? []).filter((v) => v.status === "rejected").length;
 
   return NextResponse.json({
     vendors,
-    counts: { pending, approved, rejected, total: (vendorRows ?? []).length },
+    counts: { draft, pending, approved, rejected, total: (vendorRows ?? []).length },
   });
 }

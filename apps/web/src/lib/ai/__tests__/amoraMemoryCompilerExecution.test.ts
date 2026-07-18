@@ -28,7 +28,7 @@ describe("Amora durable memory compiler execution boundary", () => {
         {
           id: "20000000-0000-4000-8000-000000000001",
           role: "assistant",
-          content: "신라호텔을 가장 선호한다고 기억할게.",
+          content: "샘플 호텔을 가장 선호한다고 기억할게.",
           sourceActorRole: null,
         },
       ],

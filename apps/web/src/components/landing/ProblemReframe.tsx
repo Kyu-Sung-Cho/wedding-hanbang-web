@@ -7,41 +7,40 @@ interface ReframeCard {
   misconception: string;
   truth: string;
   body: React.ReactNode;
-  source: string;
+  check: string;
 }
 
 const CARDS: ReframeCard[] = [
   {
-    misconception: "정보가 부족해서",
-    truth: "정보 과부하 + 처리 능력 부족",
+    misconception: "업체를 많이 보면 답이 나와서",
+    truth: "먼저 우리 기준을 정해야 해서",
     body: (
       <>
-        스드메 업체 500개 중 무엇을 골라야 할지.
-        선택지가 24개를 넘으면 결정률이 3%로 급락합니다.
+        후보를 늘리기 전에 지역, 일정, 포함 항목과 포기할 수 없는 조건을 먼저 정리하세요.
       </>
     ),
-    source: "Schwartz, 2004",
+    check: "필수 조건부터 정리",
   },
   {
     misconception: "좋은 업체를 못 찾아서",
-    truth: "내 선호를 모르는 게 진짜 문제",
+    truth: "우리에게 맞는 조건을 아직 정리하지 못해서",
     body: (
       <>
         &ldquo;예쁘게 하고 싶어&rdquo; &middot; &ldquo;부모님 마음에 들게&rdquo;
-        당신도 자기 선호를 정확히 모릅니다.
+        막연한 표현을 사진 분위기, 동선, 제공 범위처럼 확인 가능한 조건으로 바꿔보세요.
       </>
     ),
-    source: "Nisbett & Wilson, 1977",
+    check: "취향을 비교 조건으로 변환",
   },
   {
     misconception: "가격이 비싸서",
-    truth: "가격을 예측 못 해서",
+    truth: "최종 금액의 조건을 알기 어려워서",
     body: (
       <>
-        평균 추가금 174만원. 83.2%가 추가비용을 경험합니다.
+        기본가만 보지 말고 포함·별도 항목과 변경·취소 조건을 같은 기준으로 확인하세요.
       </>
     ),
-    source: "한국소비자원, 2024",
+    check: "검수된 공시가와 서면 견적 비교",
   },
 ];
 
@@ -91,9 +90,9 @@ export default function ProblemReframe() {
                 {card.body}
               </p>
 
-              {/* 출처 */}
+              {/* 확인 기준 */}
               <p className="text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium">
-                출처 &nbsp; {card.source}
+                확인 &nbsp; {card.check}
               </p>
             </motion.article>
           ))}

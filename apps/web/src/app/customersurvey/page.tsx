@@ -204,7 +204,7 @@ export default function CustomerSurveyPage() {
         {/* 네비게이션 */}
         {TURNSTILE_ENABLED && (
           <div className="mt-6">
-            <TurnstileWidget onVerify={setTurnstileToken} />
+            <TurnstileWidget action="survey" onVerify={setTurnstileToken} />
           </div>
         )}
 

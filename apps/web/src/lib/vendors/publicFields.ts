@@ -7,7 +7,7 @@
  */
 // These remain string literals so Supabase's query parser also type-checks the
 // selected result shape at compile time.
-export const PUBLIC_VENDOR_COLUMNS = "id,name,category,location,region,address,phone,description,price_range,price_min,price_max,rating,review_count,tags,style_tags,ai_recommend,status,business_hours,website,instagram,thumbnail_url,created_at,updated_at";
+export const PUBLIC_VENDOR_COLUMNS = "id,name,category,location,region,address,phone,description,price_range,price_min,price_max,rating,review_count,tags,style_tags,ai_recommend,is_verified,status,business_hours,website,instagram,thumbnail_url,created_at,updated_at";
 
 export const PUBLIC_VENDOR_PRODUCT_COLUMNS = "id,vendor_id,name,description,price,discount_price,original_price,duration,duration_minutes,is_active,is_popular,sort_order,category_fields,includes,excludes,images,created_at,updated_at";
 

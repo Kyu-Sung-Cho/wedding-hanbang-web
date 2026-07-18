@@ -8,7 +8,7 @@ import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
-import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
@@ -120,7 +120,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
           <button
             type="button"
-            onClick={() => router.push(weddingPath("/vendors"))}
+            onClick={() => router.push("/price/studio")}
             className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
             aria-label="업체 검색"
             title="업체 검색"

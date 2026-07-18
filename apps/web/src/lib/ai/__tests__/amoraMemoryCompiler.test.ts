@@ -54,7 +54,7 @@ describe("Amora memory compiler boundary", () => {
       {
         id: OTHER_MESSAGE_ID,
         role: "assistant" as const,
-        content: "그럼 신라호텔을 선호한다고 기억할게",
+        content: "그럼 샘플 호텔을 선호한다고 기억할게",
         sourceActorRole: null,
         momentMemoryKeys: ["venue:preferred_hotel"],
       },
@@ -67,7 +67,7 @@ describe("Amora memory compiler boundary", () => {
       OTHER_MESSAGE_ID,
     ]);
     expect(batch.input).toContain("강남 지역을 우선 보고 싶어");
-    expect(batch.input).not.toContain("신라호텔");
+    expect(batch.input).not.toContain("샘플 호텔");
     expect(batch.input).not.toContain("venue:preferred_area");
     expect(batch.input).not.toContain("venue:preferred_hotel");
   });
@@ -107,7 +107,7 @@ describe("Amora memory compiler boundary", () => {
       {
         id: USER_MESSAGE_ID,
         role: "user",
-        content: "라온홀이 채광이 좋아서 제일 마음에 들었어",
+        content: "샘플 예식장 가가 채광이 좋아서 제일 마음에 들었어",
         sourceActorRole: "bride",
       },
       {
@@ -120,7 +120,7 @@ describe("Amora memory compiler boundary", () => {
 
     const lines = batch.input.split("\n");
     expect(lines[0]).toContain("후보 기억 주제: moment:venue_candidates, moment:venue_quotes");
-    expect(lines[0]).toContain("라온홀이 채광이 좋아서 제일 마음에 들었어");
+    expect(lines[0]).toContain("샘플 예식장 가가 채광이 좋아서 제일 마음에 들었어");
     expect(lines[1]).not.toContain("후보 기억 주제");
     expect(batch.input).not.toContain("오늘 본 예식장");
   });
@@ -142,7 +142,7 @@ describe("Amora memory compiler boundary", () => {
     const reply = {
       id: "70000000-0000-4000-8000-000000000002",
       role: "user" as const,
-      content: `라온홀이 제일 마음에 들었어 ${"나".repeat(800)}`,
+      content: `샘플 예식장 가가 제일 마음에 들었어 ${"나".repeat(800)}`,
       sourceActorRole: "bride" as const,
     };
 
@@ -219,7 +219,7 @@ describe("Amora memory compiler boundary", () => {
 
   it("ignores provider-authored summary text and derives a deterministic summary from accepted memories only", () => {
     const result = validateAmoraMemoryCompilation({
-      summary: "사용자는 신라호텔을 가장 선호한다.",
+      summary: "사용자는 샘플 호텔을 가장 선호한다.",
       memories: [validMemory()],
     }, USER_SOURCES);
 
@@ -230,8 +230,8 @@ describe("Amora memory compiler boundary", () => {
   it("rejects a memory whose evidence is not an exact substring of its user source", () => {
     const result = validateAmoraMemoryCompilation({
       memories: [validMemory({
-        value: "신라호텔",
-        evidence: "신라호텔을 가장 선호해",
+        value: "샘플 호텔",
+        evidence: "샘플 호텔을 가장 선호해",
       })],
     }, USER_SOURCES);
 
@@ -243,7 +243,7 @@ describe("Amora memory compiler boundary", () => {
     (acknowledgement) => {
       const result = validateAmoraMemoryCompilation({
         memories: [validMemory({
-          value: "신라호텔 선호",
+          value: "샘플 호텔 선호",
           evidence: acknowledgement,
         })],
       }, sourceMap([[USER_MESSAGE_ID, acknowledgement, "bride"]]));
@@ -258,7 +258,7 @@ describe("Amora memory compiler boundary", () => {
       memories: [validMemory({
         memory_key: "venue:preferred_hotel",
         title: "선호 호텔",
-        value: "신라호텔",
+        value: "샘플 호텔",
         evidence: budgetSource,
       })],
     }, sourceMap([[USER_MESSAGE_ID, budgetSource, "bride"]]));

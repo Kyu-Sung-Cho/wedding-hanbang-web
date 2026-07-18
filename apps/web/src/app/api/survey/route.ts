@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
 
     const turnstile = await verifyTurnstile(
       typeof body.turnstileToken === "string" ? body.turnstileToken : null,
-      getClientIp(request)
+      getClientIp(request),
+      "survey",
     );
     if (!turnstile.ok) {
       return NextResponse.json(

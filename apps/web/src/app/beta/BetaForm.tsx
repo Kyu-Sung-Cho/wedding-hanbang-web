@@ -223,7 +223,9 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
           />
         </Field>
 
-        {TURNSTILE_ENABLED && <TurnstileWidget onVerify={setTurnstileToken} />}
+        {TURNSTILE_ENABLED && (
+          <TurnstileWidget action="preregister" onVerify={setTurnstileToken} />
+        )}
 
         {error && (
           <p className="text-[13px] text-rose-light leading-relaxed">{error}</p>

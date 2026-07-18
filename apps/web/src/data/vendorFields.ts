@@ -57,7 +57,7 @@ export const CATEGORY_PRODUCT_FIELDS: Record<VendorCategory, CategoryProductConf
       { key: "dressType", label: "드레스 유형", type: "select", options: ["웨딩 드레스", "미니 드레스", "컬러 드레스", "예복 (턱시도)", "어머니 드레스"], required: true, group: "기본" },
       { key: "dressLine", label: "드레스 라인", type: "multiselect", options: ["A라인", "머메이드", "볼가운", "엠파이어", "슬림라인", "프린세스"], group: "기본" },
       { key: "grade", label: "등급", type: "select", options: ["기본", "프리미엄", "럭셔리", "디자이너", "수입 오리지널"], required: true, group: "기본" },
-      { key: "brand", label: "브랜드/디자이너", type: "text", placeholder: "예: Vera Wang, Rosa Clara", group: "기본" },
+      { key: "brand", label: "브랜드/디자이너", type: "text", placeholder: "예: 샘플 브랜드 A, 샘플 디자이너 B", group: "기본" },
       { key: "rentalPeriod", label: "대여 기간", type: "select", options: ["당일", "1박2일", "2박3일", "3박4일", "1주일"], required: true, group: "대여 조건" },
       { key: "fittingCount", label: "피팅 횟수", type: "select", options: ["1회", "2회", "3회", "무제한"], group: "대여 조건" },
       { key: "alterationIncluded", label: "수선 포함", type: "boolean", group: "대여 조건" },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
   Check, X, Eye, Store, Users, Shield, ShieldCheck, ShieldX,
@@ -33,7 +34,7 @@ interface AdminVendor {
   priceRange: string;
   description: string;
   tags: string[];
-  status: "pending" | "approved" | "rejected";
+  status: "draft" | "pending" | "approved" | "rejected";
   createdAt: string;
 }
 
@@ -511,6 +512,7 @@ export default function AdminPage() {
 
   const filteredVendors = vendorFilter === "all" ? vendors : vendors.filter((v) => v.status === vendorFilter);
   const pendingVendors = vendors.filter((v) => v.status === "pending").length;
+  const draftVendors = vendors.filter((v) => v.status === "draft").length;
   const approvedVendors = vendors.filter((v) => v.status === "approved").length;
   const rejectedVendors = vendors.filter((v) => v.status === "rejected").length;
 
@@ -535,7 +537,7 @@ export default function AdminPage() {
 
   const TAB_ITEMS: { key: TabKey; label: string; icon: typeof Users; badge?: number }[] = [
     { key: "registrations", label: "사전등록", icon: Users, badge: totalCount },
-    { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors || undefined },
+    { key: "vendors", label: "업체 심사", icon: Store, badge: pendingVendors + draftVendors || undefined },
     { key: "customers", label: "고객 현황", icon: UserCheck, badge: customerStats.total },
     { key: "bookings", label: "예약 현황", icon: CalendarCheck, badge: bookingStats.total },
     { key: "insights", label: "인사이트", icon: BarChart3 },
@@ -552,7 +554,13 @@ export default function AdminPage() {
             <h1 className="font-serif-kr text-2xl font-light">관리자 대시보드</h1>
             <p className="text-sm text-taupe-500 mt-1">{adminEmail}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3 max-md:justify-center">
+            <Link href="/admin/price" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#36534E] border border-[#C7D1C2] rounded-lg hover:bg-[#F7F1E8] transition-colors">
+              공시 가격 검수
+            </Link>
+            <Link href="/admin/enrich" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#36534E] border border-[#C7D1C2] rounded-lg hover:bg-[#F7F1E8] transition-colors">
+              업체 정보 보강
+            </Link>
             <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-taupe-500 border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
@@ -661,8 +669,8 @@ export default function AdminPage() {
           <>
             <div className="grid grid-cols-3 gap-6 mb-8 max-md:grid-cols-1">
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
-                <div className="flex items-center gap-2 mb-2"><Shield className="w-4 h-4 text-taupe-400" /><p className="text-sm text-taupe-500">대기중</p></div>
-                <p className="font-display text-4xl font-light text-gold">{pendingVendors}</p>
+                <div className="flex items-center gap-2 mb-2"><Shield className="w-4 h-4 text-taupe-400" /><p className="text-sm text-taupe-500">검토 대기</p></div>
+                <p className="font-display text-4xl font-light text-gold">{pendingVendors + draftVendors}</p>
               </div>
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
                 <div className="flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#2E7D5A]" /><p className="text-sm text-taupe-500">승인됨</p></div>
@@ -677,6 +685,7 @@ export default function AdminPage() {
             <div className="flex gap-2 mb-6">
               {([
                 { key: "all" as const, label: "전체" },
+                { key: "draft" as const, label: "공시 업로드 초안" },
                 { key: "pending" as const, label: "대기중" },
                 { key: "approved" as const, label: "승인됨" },
                 { key: "rejected" as const, label: "반려됨" },
@@ -727,15 +736,16 @@ export default function AdminPage() {
                           <td className="px-6 py-4">
                             <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${
                               v.status === "approved" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
+                              v.status === "draft" ? "bg-sky-500/10 text-sky-700" :
                               v.status === "pending" ? "bg-gold/10 text-gold" : "bg-red-500/10 text-red-500"
-                            }`}>{v.status === "approved" ? "승인" : v.status === "pending" ? "대기" : "반려"}</span>
+                            }`}>{v.status === "approved" ? "승인" : v.status === "draft" ? "공시 초안" : v.status === "pending" ? "대기" : "반려"}</span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
                               <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors" title="상세 보기">
                                 <Eye className="w-4 h-4 text-taupe-400" />
                               </button>
-                              {v.status === "pending" && (
+                              {(v.status === "draft" || v.status === "pending") && (
                                 <>
                                   <button onClick={() => handleApprove(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50" title="승인">
                                     <Check className="w-4 h-4 text-[#2E7D5A]" />

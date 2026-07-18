@@ -35,7 +35,6 @@ import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
-import { getCategoryMarketPrice, getLatestPeriodId } from "@/constants/marketPrices";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -1278,97 +1277,49 @@ function AmoraSidebarPanel() {
 }
 
 function MarketSnapshotPanel() {
-  const latestPeriodId = getLatestPeriodId();
-  const periodLabel = `${latestPeriodId.slice(0, 4)}년 ${Number(latestPeriodId.slice(4))}월`;
-  const featuredItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
-    {
-      label: "웨딩홀",
-      value: getCategoryMarketPrice("venue"),
-      note: "식대+대관 기준",
-      icon: Building2,
-    },
+  const categories = [
+    { label: "웨딩홀", href: "/price/venue", icon: Building2 },
+    { label: "스튜디오", href: "/price/studio", icon: Camera },
+    { label: "드레스", href: "/price/dress", icon: Shirt },
+    { label: "메이크업", href: "/price/makeup", icon: Palette },
   ];
-  const detailItems: Array<{ label: string; value: number | null; note: string; icon: LucideIcon }> = [
-    {
-      label: "스튜디오",
-      value: getCategoryMarketPrice("studio"),
-      note: "기본가",
-      icon: Camera,
-    },
-    {
-      label: "드레스",
-      value: getCategoryMarketPrice("dress"),
-      note: "본식",
-      icon: Shirt,
-    },
-    {
-      label: "메이크업",
-      value: getCategoryMarketPrice("makeup"),
-      note: "촬영",
-      icon: Palette,
-    },
-  ];
-  const marketItems = [...featuredItems, ...detailItems];
 
   return (
     <article className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
-            {periodLabel} 기준
-          </span>
-          <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
-            요즘 시세
-          </h2>
-          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#7a8290]">
-            전국 평균으로 대략 감만 먼저 잡아보세요.
-          </p>
-        </div>
-        <Link
-          {...weddingLinkProps("/market-prices")}
-          className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#eadfc9] bg-white px-3 text-[12px] font-semibold text-[#9d6f36]"
-        >
-          자세히
-          <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
-        </Link>
-      </div>
+      <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+        출처·기준 시점 공개
+      </span>
+      <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+        업체별 공시가 비교
+      </h2>
+      <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#7a8290]">
+        코드에 고정된 평균가 대신, 검수·발행된 업체별 기본금과 선택품목을 확인하세요.
+      </p>
 
-      <div className="divide-y divide-[#eadfc9] rounded-[14px] border border-[#eadfc9] bg-white/72">
-        {marketItems.map((item) => (
-          <MarketPriceRow key={item.label} item={item} />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {categories.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={label}
+            href={href}
+            className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[#eadfc9] bg-white/80 px-3 text-[13px] font-semibold text-[#071629] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
+          >
+            <span className="flex items-center gap-2">
+              <Icon className="h-4 w-4 text-[#b68a3a]" />
+              {label}
+            </span>
+            <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+          </Link>
         ))}
       </div>
+
+      <Link
+        href="/price"
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
+      >
+        전체 공시가 보기
+      </Link>
     </article>
   );
-}
-
-function MarketPriceRow({
-  item,
-}: {
-  item: { label: string; value: number | null; note: string; icon: LucideIcon };
-}) {
-  return (
-    <Link {...weddingLinkProps("/market-prices")} className="group flex min-h-[54px] items-center justify-between gap-3 px-3 py-2.5">
-      <span className="flex min-w-0 items-center gap-3">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#b68a3a]">
-          <item.icon className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0">
-          <b className="block truncate text-[13px] font-semibold text-[#071629]">{item.label}</b>
-          <span className="mt-0.5 block truncate text-[11px] font-medium text-[#7a8290]">{item.note}</span>
-        </span>
-      </span>
-      <span className="shrink-0 text-[13px] font-semibold text-[#34445a] group-hover:text-[#9d6f36]">
-        약 {formatMarketPrice(item.value)}
-      </span>
-    </Link>
-  );
-}
-
-function formatMarketPrice(value: number | null): string {
-  if (!value) return "-";
-  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
-  return `${rounded.toLocaleString()}만원`;
 }
 
 function CohortPreviewPanel() {
@@ -1552,4 +1503,3 @@ function CohortPreviewPanel() {
     </article>
   );
 }
-

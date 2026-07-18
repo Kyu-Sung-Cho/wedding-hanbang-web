@@ -1,5 +1,6 @@
 // 견적 체크 리포트 카드 — 1080×1920 PNG, 웨딩코드 카드와 같은 디자인 언어(팔레트·폰트).
-// 원칙: 사실만 그린다 — 입력가·참고 중위가(비교 기준 명시)·확인 안 된 항목·출처.
+// 원칙: 사실만 그린다 — 입력가·확인 안 된 항목·출처. 런타임 공시가가
+// 연결된 경우에만 참고값을 표시한다.
 // 판정 언어(바가지/위험/안전/등급) 금지 — summaryTitle 자체가 사실 서술이어야 한다(엔진 보장).
 // 측정·랩핑은 웨딩코드 shareCard의 검증된 유틸을 재사용한다.
 
@@ -119,11 +120,13 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
   ctx.font = fontStack("700", 120);
   ctx.fillText(formatReportManwon(input.quotePriceManwon), REPORT_PAD, 344);
 
-  // 참고 중위가 (비교 기준 명시 — 판정 아님)
+  // 런타임 공시가가 연결됐을 때만 참고값 표시. 0을 가격처럼 그리지 않는다.
   ctx.fillStyle = MUTED;
   ctx.font = fontStack("500", 34);
   const compareLines = wrapText(
-    `참고 중위가 · ${input.marketComparatorLabel}: ${formatReportManwon(input.marketMedianManwon)}`,
+    input.marketMedianManwon > 0
+      ? `참고 공시가 · ${input.marketComparatorLabel}: ${formatReportManwon(input.marketMedianManwon)}`
+      : "최신 업체별 공시가는 웨딩한방 ‘업체 공시가’에서 확인하세요.",
     MAX_W,
     34,
     measure

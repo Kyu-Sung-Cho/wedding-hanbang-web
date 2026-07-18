@@ -11,6 +11,7 @@ import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 
 const mocks = vi.hoisted(() => ({
   createBrowserClient: vi.fn(),
+  usePathname: vi.fn(() => "/wedding"),
 }));
 
 vi.mock("@supabase/ssr", () => ({
@@ -19,6 +20,10 @@ vi.mock("@supabase/ssr", () => ({
 
 vi.mock("next/dynamic", () => ({
   default: () => () => null,
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: mocks.usePathname,
 }));
 
 vi.mock("@/components/common/AuthInitializer", () => ({
@@ -39,6 +44,8 @@ describe("public landing preview stub", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://production.example.test");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "accidental-production-key");
     mocks.createBrowserClient.mockReset();
+    mocks.usePathname.mockReset();
+    mocks.usePathname.mockReturnValue("/wedding");
     mocks.createBrowserClient.mockImplementation(() => {
       throw new Error("preview stub must not create a Supabase client");
     });
@@ -82,5 +89,75 @@ describe("public landing preview stub", () => {
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(container.querySelector('a[href="/login"]')).not.toBeNull();
+  });
+
+  it("does not cover the mobile write action bar with a second floating action", async () => {
+    mocks.usePathname.mockReturnValue("/wedding/community/post/write");
+
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("button[title]")).toBeNull();
+  });
+
+  it("keeps keyboard focus inside the login prompt and restores the launcher", async () => {
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    const launcher = container.querySelector<HTMLButtonElement>("button[title]");
+    launcher?.focus();
+    await act(async () => {
+      launcher?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    const focusable = Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    expect(document.activeElement).toBe(first);
+
+    last?.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(first);
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(launcher);
+  });
+
+  it("releases an open login prompt when navigation enters the write route", async () => {
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    const launcher = container.querySelector<HTMLButtonElement>("button[title]");
+    await act(async () => {
+      launcher?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    mocks.usePathname.mockReturnValue("/wedding/community/post/write");
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.style.overflow).toBe("");
   });
 });

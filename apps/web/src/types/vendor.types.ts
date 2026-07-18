@@ -1,7 +1,7 @@
 // DB 스네이크_케이스 → 프론트엔드 camelCase 타입
 
 export type VendorCategory = "스튜디오" | "드레스" | "메이크업" | "예식장" | "한복" | "예물" | "신혼여행" | "기타";
-export type VendorStatus = "pending" | "approved" | "rejected";
+export type VendorStatus = "draft" | "pending" | "approved" | "rejected";
 export type BookingStatus =
   | "pending"
   | "confirmed"
@@ -204,6 +204,7 @@ export interface VendorProduct {
   name: string;
   description: string;
   price: number;
+  originalPrice?: number;
   discountPrice?: number;
   duration: number;
   isActive: boolean;

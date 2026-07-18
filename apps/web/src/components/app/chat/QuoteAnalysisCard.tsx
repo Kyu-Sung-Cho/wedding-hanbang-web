@@ -25,8 +25,8 @@ const ITEM_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const SEVERITY_STYLES = {
-  critical: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", badge: "bg-red-100 text-red-700", label: "필수" },
-  high: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", badge: "bg-amber-100 text-amber-700", label: "높음" },
+  critical: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", badge: "bg-red-100 text-red-700", label: "핵심" },
+  high: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", badge: "bg-amber-100 text-amber-700", label: "추가" },
   medium: { bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", badge: "bg-slate-100 text-slate-600", label: "선택" },
 };
 
@@ -35,8 +35,6 @@ interface ChecklistItem {
   name: string;
   category: string;
   severity: "critical" | "high" | "medium";
-  price: number;
-  usageRate: number;
   checkQuestion: string;
 }
 
@@ -44,8 +42,6 @@ interface MissingItem {
   name: string;
   category: string;
   severity: "critical" | "high" | "medium";
-  price: number;
-  usageRate: number;
   reason: string;
   checkQuestion: string;
   disguise: string;
@@ -159,7 +155,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
               </div>
             )}
 
-            {/* ⚠️ 높은 이용률 항목 (high) — 카테고리별 그룹 */}
+            {/* 추가 확인 항목(high) — 카테고리별 그룹 */}
             {Object.entries(highGrouped).map(([cat, items]) => (
               <div key={cat} className="border-b border-black/[0.04]">
                 <div className="px-5 pt-3.5 pb-1.5">
@@ -255,10 +251,6 @@ function ChecklistItemRow({ item, state, onToggle }: { item: ChecklistItem; stat
           <span className="text-base text-[#1A1A1F] truncate">{item.name}</span>
         </div>
       </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-medium text-[#1A1A1F]">~{item.price}만</p>
-        <p className="text-xs text-[#B5ADA3]">이용률 {item.usageRate}%</p>
-      </div>
     </button>
   );
 }
@@ -269,13 +261,9 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
   const quotePrice = (data.quotePrice as number) || 0;
   const category = (data.category as string) || "sdm_package";
-  const marketMedian = (data.marketMedian as number) || 0;
-  const marketComparatorLabel = (data.marketComparatorLabel as string) || "기준 시세 중위가";
-  const priceDiffPercent = (data.priceDiffPercent as number) || 0;
   const missingItems = (data.missingItems as MissingItem[]) || [];
   const includedItems = (data.includedItems as { name: string; category: string; severity: string }[]) || [];
-  const dataSource = (data.dataSource as string) || "";
-  const statsNote = (data.statsNote as string) || "";
+  const statsNote = "가격 적정성을 판정하지 않습니다. 계약 항목 확인용 체크리스트입니다.";
   const vendorName = (data.vendorName as string) || "";
 
   const missingCritical = missingItems.filter((i) => i.severity === "critical");
@@ -311,25 +299,21 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{quotePrice}만</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">참고 중위가</p>
-          <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{marketMedian}만</p>
+          <p className="text-sm text-[#B5ADA3]">업체 공시가</p>
+          <p className="text-sm font-semibold text-[#1A1A1F] mt-1">별도 확인</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">필수 누락</p>
+          <p className="text-sm text-[#B5ADA3]">핵심 확인</p>
           <p className={`text-lg font-semibold mt-1 ${missingCritical.length > 0 ? "text-amber-700" : "text-[#1A1A1F]"}`}>
             {missingCritical.length}개
           </p>
         </div>
       </div>
 
-      {/* 시세 참고 — 비교 기준을 명시, 판정 없음 */}
+      {/* 가격 참고 — 과거 고정 평균가가 저장된 채팅에서도 수치를 재노출하지 않는다. */}
       <div className="px-5 py-3.5 border-b border-black/[0.06]">
         <p className="text-sm text-[#1A1A1F]">
-          {marketComparatorLabel} {marketMedian}만원 대비{" "}
-          <b>{priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent}%</b>
-        </p>
-        <p className="text-xs text-[#B5ADA3] mt-1.5">
-          {dataSource} · 구성·시즌에 따라 달라지는 참고값이에요
+          최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인해 주세요.
         </p>
       </div>
 
@@ -343,7 +327,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             <AlertTriangle className="w-5 h-5 text-amber-500" />
             <span className="text-base font-semibold text-[#1A1A1F]">빠진 항목 {missingItems.length}개</span>
             {missingCritical.length > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">필수 {missingCritical.length}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">핵심 {missingCritical.length}</span>
             )}
           </div>
           {expandedSection === "missing" ? <ChevronUp className="w-5 h-5 text-[#B5ADA3]" /> : <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />}
@@ -352,9 +336,9 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         {expandedSection === "missing" && (
           <div className="px-5 pb-3.5 space-y-2">
             {[
-              { label: "필수급 — 미포함 시 거의 확실히 추가", items: missingCritical },
-              { label: "높은 이용률 — 대부분 추가하게 됨", items: missingHigh },
-              { label: "선택적", items: missingMedium },
+              { label: "핵심 확인 항목", items: missingCritical },
+              { label: "추가 확인 항목", items: missingHigh },
+              { label: "선택 확인 항목", items: missingMedium },
             ].map(({ label, items }) =>
               items.length > 0 ? (
                 <div key={label}>
@@ -425,8 +409,6 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`text-base font-semibold ${style.text}`}>~{item.price}만</span>
-          <span className="text-xs text-[#B5ADA3]">{item.usageRate}%</span>
           {expanded ? <ChevronUp className="w-4 h-4 text-[#B5ADA3]" /> : <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />}
         </div>
       </button>

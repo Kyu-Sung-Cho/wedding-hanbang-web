@@ -1,5 +1,20 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 
+const WEDDING_VENDOR_QUERY_PATTERN =
+  /웨딩\s*(?:홀|스튜디오|드레스|메이크업|플래너|업체|촬영|사진)|결혼\s*(?:식장|준비\s*업체)|예식\s*(?:장|업체)|웨딩홀|스드메|스튜디오|드레스|(?:혼주\s*)?메이크업|본식(?:\s*(?:스냅|영상))?/i;
+
+interface NaverLocalItem {
+  title: string;
+  link: string;
+  category: string;
+  description: string;
+  telephone: string;
+  address: string;
+  roadAddress: string;
+  mapx: string;
+  mapy: string;
+}
+
 function stripHtmlTags(html: string): string {
   return html
     .replace(/<[^>]*>/g, "")
@@ -18,44 +33,6 @@ function parseCategory(raw: string): { main: string; sub: string | null; full: s
   return { main: parts[0], sub: null, full: raw };
 }
 
-function extractPriceRange(texts: string[]): string | null {
-  const combined = texts.join(" ");
-  const perPersonPatterns = [
-    /인당\s*(\d[\d,]*)\s*원/,
-    /1인\s*(\d[\d,]*)\s*원/,
-    /인당\s*(\d+)\s*만\s*원?/,
-    /1인\s*(\d+)\s*만\s*원?/,
-    /인당\s*약?\s*(\d+)\s*만/,
-  ];
-  for (const pattern of perPersonPatterns) {
-    const match = combined.match(pattern);
-    if (match) {
-      const raw = match[1].replace(/,/g, "");
-      const num = parseInt(raw, 10);
-      if (num >= 10000) return `인당 약 ${(num / 10000).toFixed(0)}만원`;
-      if (num > 0 && num <= 100) return `인당 약 ${num}만원`;
-      if (num > 100) return `인당 약 ${num.toLocaleString()}원`;
-    }
-  }
-
-  const rangeMatch = combined.match(/(\d+)\s*[~\-]\s*(\d+)\s*만\s*원/);
-  if (rangeMatch) {
-    return `인당 ${rangeMatch[1]}~${rangeMatch[2]}만원`;
-  }
-
-  const courseMatch = combined.match(/코스[요리]?\s*(\d+)\s*만\s*원?/);
-  if (courseMatch) {
-    return `코스 ${courseMatch[1]}만원`;
-  }
-  return null;
-}
-
-function detectPrivateRoom(texts: string[]): boolean {
-  const combined = texts.join(" ").toLowerCase();
-  const roomKeywords = ["룸", "개별룸", "프라이빗", "private", "개인실", "독립공간", "단체석", "별실", "개인공간", "단독룸"];
-  return roomKeywords.some((keyword) => combined.includes(keyword));
-}
-
 function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -65,7 +42,18 @@ function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): 
 export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
-  const query = input.query as string;
+  const query = typeof input.query === "string" ? input.query.trim() : "";
+
+  if (WEDDING_VENDOR_QUERY_PATTERN.test(query)) {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: input,
+      toolOutput: { query, reason: "wedding_vendor_query_blocked" },
+      success: false,
+      displayMessage: "웨딩 업체 검색은 검수된 공시가 탐색을 이용해주세요.",
+    };
+  }
+
   const clientId = process.env.NAVER_CLIENT_ID ?? process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
@@ -97,7 +85,7 @@ export async function executeSearchNearbyPlaces(
     }
 
     const localData = await localResponse.json();
-    const items = localData.items || [];
+    const items: NaverLocalItem[] = Array.isArray(localData.items) ? localData.items : [];
 
     if (items.length === 0) {
       return {
@@ -109,18 +97,14 @@ export async function executeSearchNearbyPlaces(
       };
     }
 
-    const basePlaces = items.map(
-      (item: {
-        title: string;
-        link: string;
-        category: string;
-        description: string;
-        telephone: string;
-        address: string;
-        roadAddress: string;
-        mapx: string;
-        mapy: string;
-      }, idx: number) => {
+    const generalPlaceItems = items.filter((item) => !WEDDING_VENDOR_QUERY_PATTERN.test([
+      stripHtmlTags(item.title || ""),
+      item.category || "",
+      stripHtmlTags(item.description || ""),
+    ].join(" ")));
+
+    const basePlaces = generalPlaceItems.map(
+      (item, idx: number) => {
         const name = stripHtmlTags(item.title);
         const roadAddr = item.roadAddress || item.address;
         const category = parseCategory(item.category);
@@ -149,35 +133,17 @@ export async function executeSearchNearbyPlaces(
       }
     );
 
-    const blogResults = await Promise.allSettled(
-      basePlaces.map(async (place: { name: string; address: string }) => {
-        const blogResponse = await fetchWithTimeout(
-          `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(`"${place.name}" 후기`)}&display=3&sort=sim`,
-          { headers: naverHeaders },
-          3000
-        );
-        if (!blogResponse.ok) return null;
-        return await blogResponse.json();
-      })
-    );
+    const places = basePlaces;
 
-    const places = basePlaces.map((place: typeof basePlaces[number], idx: number) => {
-      const blogResult = blogResults[idx];
-      if (blogResult.status === "fulfilled" && blogResult.value) {
-        const blogData = blogResult.value;
-        place.blogReviewCount = blogData.total || 0;
-        const blogItems = blogData.items || [];
-        const allSnippets: string[] = blogItems.map(
-          (blogItem: { description: string }) => stripHtmlTags(blogItem.description || "")
-        );
-        if (allSnippets.length > 0) {
-          place.blogSnippet = allSnippets[0].slice(0, 100);
-        }
-        place.priceRange = extractPriceRange(allSnippets);
-        place.hasPrivateRoom = detectPrivateRoom(allSnippets);
-      }
-      return place;
-    });
+    if (places.length === 0) {
+      return {
+        toolName: "search_nearby_places",
+        toolInput: input,
+        toolOutput: { places: [], query },
+        success: true,
+        displayMessage: `'${query}'에서 일반 장소 검색 결과를 찾지 못했습니다.`,
+      };
+    }
 
     return {
       toolName: "search_nearby_places",

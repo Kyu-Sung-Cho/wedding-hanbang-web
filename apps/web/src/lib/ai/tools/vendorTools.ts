@@ -7,6 +7,14 @@ import {
 } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
 import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
+import { rankVendorRecommendations } from "@/lib/vendors/recommendation";
+import {
+  loadRecommendationCandidates,
+  logRecommendationImpressions,
+} from "@/lib/vendors/recommendationData";
+import { parseVendorRecommendationRequest } from "@/lib/vendors/recommendationRequest";
+import type { VendorAttributeCategory } from "@/lib/vendors/attributeSchemas";
+import { loadVendorProfile } from "@/lib/vendors/vendorProfileData";
 
 type VendorToolExecutionContext = {
   coupleId: string;
@@ -27,28 +35,109 @@ const VENDOR_CATEGORY_MAP: Record<string, string> = {
   "기타": "other",
 };
 
-const VENDOR_CATEGORY_RATIOS: Record<string, number> = {
-  meeting: 0.01,
-  venue: 0.20,
-  studio: 0.09,
-  dress: 0.07,
-  makeup: 0.04,
-  ring: 0.10,
-  hanbok: 0.03,
-  yedan: 0.04,
-  honeymoon: 0.10,
-  houseware: 0.05,
-  housing: 0.20,
-  invitation: 0.01,
-  snap: 0.02,
-  shoes: 0.01,
-  bouquet: 0.01,
-  gift: 0.01,
-  mc: 0.005,
-  ham: 0.005,
-  pyebaek: 0.005,
-  jewelry: 0.10,
+const OFFICIAL_RECOMMENDATION_CATEGORIES: Record<string, VendorAttributeCategory> = {
+  "스튜디오": "studio",
+  studio: "studio",
+  "드레스": "dress",
+  dress: "dress",
+  "메이크업": "makeup",
+  makeup: "makeup",
+  "예식장": "hall",
+  venue: "hall",
+  hall: "hall",
 };
+
+function resolveOfficialRecommendationCategory(value: unknown): VendorAttributeCategory | null {
+  if (typeof value !== "string") return null;
+  return OFFICIAL_RECOMMENDATION_CATEGORIES[value.trim().toLocaleLowerCase("en-US")] ?? null;
+}
+
+function officialCategoryDbName(category: VendorAttributeCategory): string {
+  return category === "hall" ? "venue" : category;
+}
+
+const RECOMMENDATION_REGION_LABELS: Array<[string, string]> = [
+  ["경기", "gyeonggi"],
+  ["인천", "incheon"],
+  ["강원", "gangwon"],
+  ["충청", "chungcheong"],
+  ["충남", "chungcheong"],
+  ["충북", "chungcheong"],
+  ["대전", "daejeon"],
+  ["경상", "gyeongsang"],
+  ["경남", "gyeongsang"],
+  ["경북", "gyeongsang"],
+  ["부산", "busan"],
+  ["울산", "ulsan"],
+  ["대구", "daegu"],
+  ["전라", "jeolla"],
+  ["전남", "jeolla"],
+  ["전북", "jeolla"],
+  ["광주", "gwangju"],
+  ["제주", "jeju"],
+];
+
+const RECOMMENDATION_REGION_CODE_LABELS: Record<string, string> = {
+  seoul_gangnam3: "서울 강남권",
+  seoul_etc: "서울 기타 지역",
+  gyeonggi: "경기도",
+  incheon: "인천",
+  gangwon: "강원도",
+  chungcheong: "충청도",
+  daejeon: "대전",
+  gyeongsang: "경상도",
+  busan: "부산",
+  ulsan: "울산",
+  daegu: "대구",
+  jeolla: "전라도",
+  gwangju: "광주",
+  jeju: "제주",
+};
+
+function recommendationRegions(location: unknown): string[] {
+  if (typeof location !== "string") return [];
+  const normalized = location.trim();
+  if (normalized in RECOMMENDATION_REGION_CODE_LABELS) return [normalized];
+
+  const regions = new Set<string>();
+  if (/강남\s*외|서울\s*(?:기타|강북)/.test(normalized)) {
+    regions.add("seoul_etc");
+  } else if (/(?:강남|서초|송파|잠실|청담|압구정|논현|역삼|삼성|대치|도곡|반포|양재|방배)/.test(normalized)) {
+    regions.add("seoul_gangnam3");
+  } else if (/(?:홍대|마포|합정|연남|성수|건대|광진|종로|용산|여의도|영등포|노원|은평|서대문|동대문|성북|중랑|구로|금천|관악|동작|목동|양천)/.test(normalized)) {
+    regions.add("seoul_etc");
+  } else if (normalized.includes("서울")) {
+    regions.add("seoul_gangnam3");
+    regions.add("seoul_etc");
+  }
+  for (const [label, code] of RECOMMENDATION_REGION_LABELS) {
+    if (normalized.includes(label)) regions.add(code);
+  }
+  return [...regions];
+}
+
+function recommendationTags(input: Record<string, unknown>): string[] {
+  if (Array.isArray(input.preferred_tags)) {
+    return input.preferred_tags.filter((value): value is string =>
+      typeof value === "string" && value.trim().length > 0
+    );
+  }
+  if (typeof input.mood !== "string") return [];
+  return input.mood.split(/[,/·\s]+/).map((value) => value.trim()).filter(Boolean);
+}
+
+function plainRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function recommendationPriceRange(minKrw: number, maxKrw: number | null): string {
+  const money = (value: number) => `${value.toLocaleString("ko-KR")}원`;
+  return maxKrw === null || maxKrw === minKrw
+    ? money(minKrw)
+    : `${money(minKrw)} ~ ${money(maxKrw)}`;
+}
 
 function getAdminClient() {
   return createAdminClient();
@@ -65,55 +154,97 @@ export async function executeSearchVendors(
   input: Record<string, unknown>,
   ctx: VendorToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  const category = typeof input.category === "string" ? input.category.trim() : "";
+  const exactName = cleanPostgrestSearchTerm(input.search);
+  const officialCategory = resolveOfficialRecommendationCategory(category);
+  const isExactNameLookup = Boolean(exactName);
+  if (officialCategory && !exactName) {
+    const recommendation = await executeRecommendVendors({
+      category,
+      ...(typeof input.location === "string" ? { location: input.location } : {}),
+      ...(typeof input.price_max === "number" ? { price_max: input.price_max } : {}),
+      ...(typeof input.limit === "number" ? { limit: input.limit } : {}),
+    }, ctx);
+    return {
+      ...recommendation,
+      toolName: "search_vendors",
+      toolInput: input,
+    };
+  }
+  if (!category && !exactName) {
+    return {
+      toolName: "search_vendors",
+      toolInput: input,
+      toolOutput: { error: "vendor_search_scope_required" },
+      success: false,
+      displayMessage: "찾을 업체명이나 카테고리를 알려주세요. 비교 추천은 공시 데이터 기준으로 확인해드릴게요.",
+    };
+  }
+
   const admin = getAdminClient();
   let query = admin
     .from("vendors")
-    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
+    .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
     .eq("status", "approved")
     .limit((input.limit as number) || 5);
 
   if (input.category) {
-    const dbCat = VENDOR_CATEGORY_MAP[input.category as string] || (input.category as string);
+    const dbCat = officialCategory
+      ? officialCategoryDbName(officialCategory)
+      : VENDOR_CATEGORY_MAP[category] || category;
     query = query.eq("category", dbCat);
   }
-  if (input.location) {
+  if (!isExactNameLookup && input.location) {
     const location = cleanPostgrestSearchTerm(input.location);
     if (location) {
       const escapedLocation = escapePostgrestLikePattern(location);
       query = query.or(`location.ilike.%${escapedLocation}%,region.ilike.%${escapedLocation}%`);
     }
   }
-  if (input.price_max) {
+  if (!isExactNameLookup && input.price_max) {
     query = query.lte("price_min", input.price_max as number);
   }
-  if (input.price_min) {
+  if (!isExactNameLookup && input.price_min) {
     query = query.gte("price_max", input.price_min as number);
   }
-  if (input.search) {
-    const search = cleanPostgrestSearchTerm(input.search);
-    if (search) {
-      const escapedSearch = escapePostgrestLikePattern(search);
+  if (exactName) {
+    if (isExactNameLookup) {
+      query = query.eq("name", exactName);
+    } else {
+      const escapedSearch = escapePostgrestLikePattern(exactName);
       query = query.or(`name.ilike.%${escapedSearch}%`);
     }
   }
 
-  query = query.order("rating", { ascending: false });
+  query = isExactNameLookup
+    ? query.order("name", { ascending: true })
+    : query.order("rating", { ascending: false });
 
   const { data: vendors, error } = await query;
   if (error) throw error;
 
-  const results = (vendors ?? []).map((vendor) => ({
-    id: vendor.id,
-    name: vendor.name,
-    category: vendor.category,
-    location: vendor.location || vendor.region,
-    priceRange: vendor.price_range,
-    rating: vendor.rating,
-    reviewCount: vendor.review_count,
-    tags: vendor.tags,
-    aiRecommend: vendor.ai_recommend,
-    link: weddingPath(`/vendors/${vendor.id}`),
-  }));
+  const results = (vendors ?? []).map((vendor) => isExactNameLookup
+    ? {
+      id: vendor.id,
+      name: vendor.name,
+      category: vendor.category,
+      location: vendor.location || vendor.region,
+      link: officialCategory && typeof vendor.slug === "string" && vendor.slug.trim().length > 0
+        ? `/price/vendor/${encodeURIComponent(vendor.slug)}`
+        : weddingPath(`/vendors/${vendor.id}`),
+    }
+    : {
+      id: vendor.id,
+      name: vendor.name,
+      category: vendor.category,
+      location: vendor.location || vendor.region,
+      priceRange: vendor.price_range,
+      rating: vendor.rating,
+      reviewCount: vendor.review_count,
+      tags: vendor.tags,
+      aiRecommend: vendor.ai_recommend,
+      link: weddingPath(`/vendors/${vendor.id}`),
+    });
 
   if (ctx.coupleId) {
     const { data: profile } = await admin
@@ -135,10 +266,21 @@ export async function executeSearchVendors(
   return {
     toolName: "search_vendors",
     toolInput: input,
-    toolOutput: { vendors: results, count: results.length },
+    toolOutput: {
+      ...(isExactNameLookup
+        ? {
+          lookupPolicy: "exact_name_lookup_v1",
+          dataNotice: "업체명 확인 결과이며 가격·추천 근거는 공시 상세에서 확인합니다.",
+        }
+        : {}),
+      vendors: results,
+      count: results.length,
+    },
     success: true,
     displayMessage: results.length > 0
-      ? `${results.length}개 업체를 찾았습니다: ${results.map((vendor) => `${vendor.name}(${vendor.priceRange})`).join(", ")}`
+      ? isExactNameLookup
+        ? `${results.length}개 업체명을 확인했어요: ${results.map((vendor) => vendor.name).join(", ")}. 가격과 추천 근거는 공시 상세에서 확인할게요.`
+        : `${results.length}개 업체를 찾았습니다: ${results.map((vendor) => `${vendor.name}(${vendor.priceRange})`).join(", ")}`
       : "조건에 맞는 업체가 없습니다.",
   };
 }
@@ -284,20 +426,150 @@ export async function executeRecommendVendors(
   ctx: VendorToolExecutionContext
 ): Promise<ToolExecutionResult> {
   const admin = getAdminClient();
-  const category = input.category as string;
+  const category = typeof input.category === "string" ? input.category.trim() : "";
   const limit = (input.limit as number) || 3;
-  const dbCat = VENDOR_CATEGORY_MAP[category] || category;
+  const officialCategory = resolveOfficialRecommendationCategory(category);
+  const dbCat = officialCategory
+    ? officialCategoryDbName(officialCategory)
+    : VENDOR_CATEGORY_MAP[category] || category;
   const mood = input.mood as string | undefined;
   const preferredDay = input.preferred_day as number | undefined;
   const preferredTime = input.preferred_time as string | undefined;
-  const priceMax = input.price_max as number | undefined;
   const location = input.location as string | undefined;
 
   const categoryProgress = ctx.weddingContext.progress[dbCat];
   const categoryBudget = (categoryProgress as Record<string, unknown>)?.budget as number | undefined;
-  const totalBudget = ctx.weddingContext.budget;
-  const ratio = VENDOR_CATEGORY_RATIOS[dbCat] ?? 0.05;
-  const estimatedBudget = priceMax || categoryBudget || Math.round(totalBudget * ratio);
+  const validStoredCategoryBudget = [categoryBudget].find(
+    (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0,
+  );
+  const requestedCategoryBudget = input.price_max !== undefined
+    ? input.price_max
+    : validStoredCategoryBudget;
+  const explicitCategoryBudget = typeof requestedCategoryBudget === "number"
+    && Number.isFinite(requestedCategoryBudget)
+    && requestedCategoryBudget > 0
+    ? requestedCategoryBudget
+    : undefined;
+
+  if (officialCategory) {
+    const regionCodes = recommendationRegions(location);
+    if (typeof location === "string" && location.trim().length > 0 && regionCodes.length === 0) {
+      return {
+        toolName: "recommend_vendors",
+        toolInput: input,
+        toolOutput: {
+          recommendationPolicy: "official_price_explainable_v1",
+          dataStatus: "clarification_required",
+          error: "unrecognized_recommendation_location",
+        },
+        success: false,
+        displayMessage: "말씀하신 지역 범위를 정확히 확인하고 싶어요. 시·도나 서울 권역(예: 홍대, 서초, 송파)으로 한 번만 알려주세요.",
+      };
+    }
+    const parsedRequest = parseVendorRecommendationRequest({
+      category: officialCategory,
+      region_codes: regionCodes,
+      ...(requestedCategoryBudget !== undefined
+        ? { budget_max_krw: requestedCategoryBudget }
+        : {}),
+      preferred_tags: recommendationTags(input),
+      required_attrs: plainRecord(input.required_attrs),
+      ...(typeof input.wedding_month === "string"
+        ? { wedding_month: input.wedding_month }
+        : {}),
+      limit: Math.min(20, Math.max(1, Number.isInteger(limit) ? limit : 3)),
+    });
+    if (!parsedRequest.success) {
+      return {
+        toolName: "recommend_vendors",
+        toolInput: input,
+        toolOutput: { error: "invalid_official_recommendation_filters" },
+        success: false,
+        displayMessage: "추천 조건 중 확인이 필요한 항목이 있어요. 원하는 조건을 한 번만 더 구체적으로 알려주세요.",
+      };
+    }
+
+    try {
+      const officialCandidates = await loadRecommendationCandidates(admin, officialCategory);
+      {
+        const recommendation = rankVendorRecommendations(
+          parsedRequest.data,
+          officialCandidates,
+        );
+        try {
+          const logged = await logRecommendationImpressions(
+            admin,
+            parsedRequest.data,
+            recommendation,
+          );
+          if (!logged) console.warn("Amora vendor recommendation impression logging failed");
+        } catch {
+          console.warn("Amora vendor recommendation impression logging failed");
+        }
+
+        const vendors = recommendation.results.map((result) => {
+          const sourceCandidate = officialCandidates.find(
+            (candidate) => candidate.id === result.vendor.id,
+          );
+          return {
+            id: result.vendor.id,
+            slug: result.vendor.slug,
+            name: result.vendor.name,
+            category: result.vendor.category,
+            regionCode: result.vendor.region_code,
+            location: result.vendor.region_code
+              ? RECOMMENDATION_REGION_CODE_LABELS[result.vendor.region_code]
+                ?? result.vendor.region_code
+              : null,
+            priceRange: recommendationPriceRange(
+              result.price_summary.min_krw,
+              result.price_summary.max_krw,
+            ),
+            rating: null,
+            reviewCount: null,
+            tags: sourceCandidate?.tags.map(({ label }) => label) ?? [],
+            score: result.score,
+            reasons: result.match_reasons,
+            priceSummary: result.price_summary,
+            dataBadges: result.data_badges,
+            link: result.detail_url,
+          };
+        });
+        return {
+          toolName: "recommend_vendors",
+          toolInput: input,
+          toolOutput: {
+            recommendationPolicy: "official_price_explainable_v1",
+            dataStatus: "available",
+            vendors,
+            count: vendors.length,
+            ...(parsedRequest.data.budget_max_krw !== undefined
+              ? { estimatedBudget: parsedRequest.data.budget_max_krw }
+              : {}),
+            coverageNote: recommendation.coverage_note,
+            disclaimer: recommendation.disclaimer,
+          },
+          success: true,
+          displayMessage: vendors.length > 0
+            ? `공시 가격과 확인된 조건을 기준으로 ${vendors.length}곳을 찾았어요.\n${vendors.map((vendor, index) => `${index + 1}. ${vendor.name} — ${vendor.reasons.join(", ")}`).join("\n")}\n${recommendation.disclaimer}`
+            : `공시 가격과 확인된 조건을 모두 만족하는 업체를 아직 찾지 못했어요. 원하시면 지역·예산·필수 조건 중 하나를 넓혀 다시 확인할 수 있어요. ${recommendation.disclaimer}`,
+        };
+      }
+    } catch {
+      console.warn("Official vendor recommendation data unavailable");
+      return {
+        toolName: "recommend_vendors",
+        toolInput: input,
+        toolOutput: {
+          recommendationPolicy: "official_price_explainable_v1",
+          dataStatus: "unavailable",
+          error: "official_recommendation_unavailable",
+        },
+        success: false,
+        displayMessage: "공식 업체 정보를 불러오지 못했어요. 확인되지 않은 업체로 대신 추천하지 않고, 잠시 뒤 다시 확인해드릴게요.",
+      };
+    }
+  }
 
   let viewedVendorIds: string[] = [];
   if (ctx.coupleId) {
@@ -328,8 +600,8 @@ export async function executeRecommendVendors(
     .order("rating", { ascending: false })
     .limit((limit + viewedVendorIds.length) * 2);
 
-  if (estimatedBudget > 0) {
-    query = query.lte("price_min", Math.round(estimatedBudget * 1.3));
+  if (explicitCategoryBudget !== undefined) {
+    query = query.lte("price_min", Math.round(explicitCategoryBudget * 1.3));
   }
 
   if (location) {
@@ -431,7 +703,9 @@ export async function executeRecommendVendors(
       reasons.push(`${dayLabel} ${timeLabel} 예약 가능`.trim());
     }
     if (vendor.rating >= 4.5) reasons.push(`높은 평점 ${vendor.rating}점`);
-    if (estimatedBudget > 0 && vendor.price_min <= estimatedBudget) reasons.push("예산 범위 내");
+    if (explicitCategoryBudget !== undefined && vendor.price_min <= explicitCategoryBudget) {
+      reasons.push("예산 범위 내");
+    }
     if (location && ((vendor.location ?? "").includes(location) || (vendor.region ?? "").includes(location))) {
       reasons.push(`${location} 지역`);
     }
@@ -465,7 +739,9 @@ export async function executeRecommendVendors(
     toolOutput: {
       vendors: results,
       count: results.length,
-      estimatedBudget,
+      ...(explicitCategoryBudget !== undefined
+        ? { estimatedBudget: explicitCategoryBudget }
+        : {}),
       category,
       filters: filterDesc || undefined,
     },
@@ -482,6 +758,113 @@ export async function executeGetVendorDetail(
   const admin = getAdminClient();
   const vendorId = input.vendor_id as string;
 
+  let officialProfile: Awaited<ReturnType<typeof loadVendorProfile>>;
+  try {
+    officialProfile = await loadVendorProfile(admin, vendorId);
+  } catch {
+    console.warn("Official vendor profile data unavailable");
+    return {
+      toolName: "get_vendor_detail",
+      toolInput: input,
+      toolOutput: {
+        profilePolicy: "official_disclosure_profile_v1",
+        dataStatus: "unavailable",
+        error: "official_vendor_profile_unavailable",
+      },
+      success: false,
+      displayMessage: "공식 업체 상세 정보를 불러오지 못했어요. 확인되지 않은 정보로 대신 채우지 않고 잠시 뒤 다시 확인해드릴게요.",
+    };
+  }
+
+  if (officialProfile) {
+    let bookingDataStatus: "available" | "unavailable" = "available";
+    let productList: Array<{
+      id: string;
+      name: string;
+      description: string;
+      price: number;
+      discountPrice: number | null;
+      duration: number | null;
+      isPopular: boolean;
+      includes: string[];
+    }> = [];
+    let staffList: Array<{
+      id: string;
+      name: string;
+      role: string | null;
+      description: string;
+    }> = [];
+    try {
+      const [productResult, staffResult] = await Promise.all([
+        admin
+          .from("vendor_products")
+          .select("id, name, description, price, discount_price, duration_minutes, is_popular, includes")
+          .eq("vendor_id", vendorId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        admin
+          .from("vendor_staff")
+          .select("id, name, role, description")
+          .eq("vendor_id", vendorId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+      ]);
+      if (productResult.error || staffResult.error) {
+        throw new Error("AUXILIARY_BOOKING_DATA_UNAVAILABLE");
+      }
+      productList = (productResult.data ?? []).map((product) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description?.slice(0, 80) || "",
+        price: product.price,
+        discountPrice: product.discount_price || null,
+        duration: product.duration_minutes || null,
+        isPopular: product.is_popular || false,
+        includes: product.includes || [],
+      }));
+      staffList = (staffResult.data ?? []).map((staffMember) => ({
+        id: staffMember.id,
+        name: staffMember.name,
+        role: staffMember.role || null,
+        description: staffMember.description?.slice(0, 60) || "",
+      }));
+    } catch {
+      bookingDataStatus = "unavailable";
+      console.warn("Auxiliary vendor booking data unavailable");
+    }
+    const vendor = officialProfile.vendor;
+    return {
+      toolName: "get_vendor_detail",
+      toolInput: input,
+      toolOutput: {
+        profilePolicy: "official_disclosure_profile_v1",
+        dataStatus: "available",
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        category: vendor.category,
+        location: vendor.region_code
+          ? RECOMMENDATION_REGION_CODE_LABELS[vendor.region_code] ?? vendor.region_code
+          : null,
+        profileLink: `/price/vendor/${encodeURIComponent(vendor.slug)}`,
+        officialProfile,
+        bookingData: {
+          policy: "legacy_booking_auxiliary_v1",
+          dataStatus: bookingDataStatus,
+          auxiliary: true,
+          notice: bookingDataStatus === "available"
+            ? "예약용 등록 정보이며 공시 가격의 근거 또는 추천 순위로 사용하지 않습니다."
+            : "공시 상세는 정상적으로 확인했지만 예약 보조 정보는 현재 불러오지 못했어요.",
+          products: productList,
+          staff: staffList,
+        },
+      },
+      success: true,
+      displayMessage: bookingDataStatus === "available"
+        ? `${vendor.name}의 공시 가격 ${officialProfile.official_prices.length}건과 예약 보조 상품 ${productList.length}개를 확인했어요.`
+        : `${vendor.name}의 공시 가격 ${officialProfile.official_prices.length}건을 확인했어요. 예약 보조 정보는 현재 불러오지 못했어요.`,
+    };
+  }
+
   const { data: vendor } = await admin
     .from("vendors")
     .select("id, name, category, location, price_range")
@@ -496,6 +879,19 @@ export async function executeGetVendorDetail(
       toolOutput: {},
       success: false,
       displayMessage: "업체를 찾을 수 없습니다.",
+    };
+  }
+  if (resolveOfficialRecommendationCategory(vendor.category)) {
+    return {
+      toolName: "get_vendor_detail",
+      toolInput: input,
+      toolOutput: {
+        profilePolicy: "official_disclosure_profile_v1",
+        dataStatus: "unavailable",
+        error: "official_vendor_profile_not_available",
+      },
+      success: false,
+      displayMessage: "이 업체의 공시 상세가 아직 준비되지 않았어요. 기존 등록 정보로 대신 채우지 않고, 확인 가능한 공시가 준비되면 보여드릴게요.",
     };
   }
 
@@ -535,6 +931,9 @@ export async function executeGetVendorDetail(
     toolName: "get_vendor_detail",
     toolInput: input,
     toolOutput: {
+      profilePolicy: "legacy_unsupported_category_v1",
+      dataStatus: "auxiliary_only",
+      legacyDataNotice: "현재 공시 프로필 지원 밖의 카테고리에서 제공하는 예약 보조 등록 정보입니다.",
       vendorId: vendor.id,
       vendorName: vendor.name,
       category: vendor.category,

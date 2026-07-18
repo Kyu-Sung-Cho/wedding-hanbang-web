@@ -762,7 +762,7 @@ export async function POST(request: Request) {
       .eq("couple_id", dataCoupleId),
     // 3. 예약 내역 (취소 제외)
     supabase.from("vendor_bookings")
-      .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo, vendors(name, category)")
+      .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo")
       .eq("couple_id", dataCoupleId)
       .neq("status", "cancelled")
       .order("booking_date", { ascending: true }),
@@ -880,6 +880,32 @@ export async function POST(request: Request) {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
+  const bookingVendorIds = [
+    ...new Set((bookingsResult.data ?? []).map((booking) => booking.vendor_id)),
+  ];
+  const bookingVendorResult = bookingVendorIds.length > 0
+    ? await getServiceClient()
+        .from("vendors")
+        .select("id, name, category")
+        .in("id", bookingVendorIds)
+        .eq("status", "approved")
+    : { data: [], error: null };
+  if (bookingVendorResult.error) {
+    console.error("[chat] booking vendor context lookup failed", {
+      providerCode: bookingVendorResult.error.code ?? null,
+    });
+    await releaseClaimBeforeStream("BOOKINGS_CONTEXT_UNAVAILABLE");
+    return NextResponse.json(
+      {
+        error: "예약·계약 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+        code: "BOOKINGS_CONTEXT_UNAVAILABLE",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const bookingVendorMap = new Map(
+    (bookingVendorResult.data ?? []).map((vendor) => [vendor.id, vendor]),
+  );
   const resolvedWeddingContext = resolveAmoraWeddingContext({
     canonicalJourney: journey,
     clientContext: weddingContext,
@@ -930,7 +956,7 @@ export async function POST(request: Request) {
   };
 
   const bookings = (bookingsResult.data ?? []).map((b) => {
-    const vendor = b.vendors as unknown as { name: string; category: string } | null;
+    const vendor = bookingVendorMap.get(b.vendor_id);
     return {
       vendorName: vendor?.name ?? "알 수 없는 업체",
       category: vendor?.category ?? "",

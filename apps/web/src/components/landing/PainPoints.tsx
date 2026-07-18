@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 
 const painCards = [
-  { icon: "⏰", title: "시간 부족", desc: "직장인 커플은 업체 방문할 시간이 절대적으로 부족합니다" },
-  { icon: "💸", title: "불투명한 비용", desc: "숨겨진 추가 비용과 20~30% 커미션이 가격에 포함됩니다" },
+  { icon: "⏰", title: "시간 부족", desc: "일과 준비를 병행하면 여러 업체를 직접 방문할 시간이 제한적입니다" },
+  { icon: "💸", title: "불투명한 비용", desc: "포함·별도 항목과 중개 구조가 한눈에 보이지 않을 수 있습니다" },
   { icon: "😰", title: "정보의 바다", desc: "어디서부터 시작해야 할지, 무엇이 적정 가격인지 모릅니다" },
-  { icon: "👗", title: "드레스 선택 지옥", desc: "10곳 이상 방문해도 마음에 드는 드레스를 찾기 어렵습니다" },
+  { icon: "👗", title: "선택 기준의 부재", desc: "여러 곳을 둘러봐도 우리에게 중요한 조건이 정리되지 않으면 비교하기 어렵습니다" },
 ];
 
 export default function PainPoints() {
@@ -26,8 +26,8 @@ export default function PainPoints() {
             왜 이렇게 힘들까요?
           </h2>
           <p className="text-[16px] leading-relaxed text-white/60 font-light max-w-[520px]">
-            평균 결혼 준비 기간 10개월. 그 시간 동안 수십 곳의 업체를 비교하고,
-            불투명한 가격에 지치고, 추가 비용에 놀라는 일의 연속입니다.
+            준비 일정 동안 여러 업체와 조건을 비교하고,
+            흩어진 견적과 약속을 정리하는 과정이 반복됩니다.
           </p>
         </div>
 

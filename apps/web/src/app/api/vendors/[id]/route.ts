@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
@@ -9,6 +10,12 @@ import {
   PUBLIC_VENDOR_TIMESLOT_COLUMNS,
 } from "@/lib/vendors/publicFields";
 import { isUuid } from "@/utils/requestValidation";
+import {
+  bookingCountAt,
+  buildKstDateWindow,
+  loadPublicBookingAvailability,
+  type BookingOccupancyCount,
+} from "@/lib/vendors/bookingAvailability";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,10 +23,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!isUuid(id)) {
       return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
     }
-    const supabase = await createClientFromRequest(req);
+    const admin = createAdminClient();
+    const userClient = await createClientFromRequest(req);
 
     // 업체 정보
-    const { data: vendorRow, error } = await supabase
+    const { data: vendorRow, error } = await admin
       .from("vendors")
       .select(PUBLIC_VENDOR_COLUMNS)
       .eq("id", id)
@@ -31,13 +39,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // 타임슬롯
-    const { data: timeslots } = await supabase
+    const { data: timeslots } = await admin
       .from("vendor_timeslots")
       .select(PUBLIC_VENDOR_TIMESLOT_COLUMNS)
       .eq("vendor_id", id);
 
     // 상품
-    const { data: productRows } = await supabase
+    const { data: productRows } = await admin
       .from("vendor_products")
       .select(PUBLIC_VENDOR_PRODUCT_COLUMNS)
       .eq("vendor_id", id)
@@ -47,60 +55,55 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 상품별 타임슬롯
     const productIds = (productRows ?? []).map((p) => p.id);
     const { data: productTimeslots } = productIds.length > 0
-      ? await supabase.from("product_timeslots").select(PUBLIC_PRODUCT_TIMESLOT_COLUMNS).in("product_id", productIds)
+      ? await admin.from("product_timeslots").select(PUBLIC_PRODUCT_TIMESLOT_COLUMNS).in("product_id", productIds)
       : { data: [] };
 
-    // 향후 7일간 예약 수 조회 (잔여 슬롯 계산용)
-    const today = new Date();
-    const nextWeekDates: { date: string; day: number }[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      nextWeekDates.push({
-        date: d.toISOString().split("T")[0],
-        day: (d.getDay() + 6) % 7, // 0=월 ~ 6=일
+    // 향후 7일간 예약 수는 서비스 권한 경계에서 모든 고객을 포함해 집계한다.
+    // 원시 예약 행과 고객/예약 ID는 이 API 응답으로 전달하지 않는다.
+    const nextWeekDates = buildKstDateWindow(new Date(), 7);
+    let occupancy: BookingOccupancyCount[];
+    try {
+      occupancy = await loadPublicBookingAvailability(admin, id, {
+        from: nextWeekDates[0].date,
+        to: nextWeekDates[nextWeekDates.length - 1].date,
       });
+    } catch {
+      console.error("[vendor-detail] booking availability unavailable");
+      return NextResponse.json(
+        {
+          error: "예약 가능 시간을 확인할 수 없습니다.",
+          code: "BOOKING_AVAILABILITY_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
     }
-
-    const dateStrings = nextWeekDates.map((d) => d.date);
-    const { data: upcomingBookings } = await supabase
-      .from("vendor_bookings")
-      .select("booking_date, booking_time, product_id")
-      .eq("vendor_id", id)
-      .in("booking_date", dateStrings)
-      .neq("status", "cancelled");
-
-    // 요일/시간별 예약 수 집계
-    const bookingCountMap = new Map<string, number>();
-    for (const b of upcomingBookings ?? []) {
-      const bDate = nextWeekDates.find((d) => d.date === b.booking_date);
-      if (!bDate) continue;
-      const hour = parseInt(b.booking_time.split(":")[0], 10);
-      const globalKey = `${bDate.day}:${hour}`;
-      bookingCountMap.set(globalKey, (bookingCountMap.get(globalKey) ?? 0) + 1);
-      if (b.product_id) {
-        const productKey = `${b.product_id}:${bDate.day}:${hour}`;
-        bookingCountMap.set(productKey, (bookingCountMap.get(productKey) ?? 0) + 1);
-      }
-    }
+    const dateForDay = new Map(nextWeekDates.map(({ date, day }) => [day, date]));
 
     // 타임슬롯에 현재 예약 수 주입
     const enrichedTimeslots = (timeslots ?? []).map((s) => ({
       ...s,
-      current_bookings: bookingCountMap.get(`${s.day}:${s.hour}`) ?? 0,
+      current_bookings: dateForDay.has(s.day)
+        ? bookingCountAt(occupancy, { date: dateForDay.get(s.day)!, hour: s.hour })
+        : s.max_bookings,
     }));
 
     const products = (productRows ?? []).map((row) => {
       const pts = (productTimeslots ?? []).filter((pt) => pt.product_id === row.id);
       const enrichedPts = pts.map((s) => ({
         ...s,
-        current_bookings: bookingCountMap.get(`${row.id}:${s.day}:${s.hour}`) ?? 0,
+        current_bookings: dateForDay.has(s.day)
+          ? bookingCountAt(occupancy, {
+              date: dateForDay.get(s.day)!,
+              hour: s.hour,
+              productId: row.id,
+            })
+          : s.max_bookings,
       }));
       return productRowToProduct(row, enrichedPts as typeof pts);
     });
 
     // 리뷰
-    const { data: reviews } = await supabase
+    const { data: reviews } = await admin
       .from("vendor_reviews")
       .select(PUBLIC_VENDOR_REVIEW_COLUMNS)
       .eq("vendor_id", id)
@@ -108,12 +111,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const vendor = vendorToPublicVendor(vendorRowToVendor(vendorRow, enrichedTimeslots, products));
+    const vendor = {
+      ...vendorToPublicVendor(vendorRowToVendor(vendorRow, enrichedTimeslots, products)),
+      isVerified: Boolean(vendorRow.is_verified),
+    };
 
     // 조회수 기록
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await userClient.auth.getUser();
     if (user) {
-      await supabase.from("vendor_views").insert({
+      await userClient.from("vendor_views").insert({
         vendor_id: id,
         viewer_id: user.id,
       });
@@ -122,7 +128,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 찜 여부 확인
     let isFavorite = false;
     if (user) {
-      const { data: fav } = await supabase
+      const { data: fav } = await userClient
         .from("vendor_favorites")
         .select("id")
         .eq("vendor_id", id)

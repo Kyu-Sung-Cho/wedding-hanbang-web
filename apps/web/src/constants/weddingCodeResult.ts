@@ -1,8 +1,8 @@
 // CANDIDATE4_RETIRED: containment-only legacy; never import from Candidate 5 research code.
 // 웨딩코드 미러 프로필 v0 결과 화면 콘텐츠 — 지시서 §2~§5.
-// 원칙: 채점·유형·판정 문장 금지. 팩트는 아래 목록 외 사용 금지, 출처+연도 병기,
+// 원칙: 채점·유형·판정 문장 금지. 가격은 검수된 공시가나 사용자 견적에서만 표시하고,
 // 사용자의 어떤 선택에도 동일 문장·동일 톤(조건 분기 금지 — 지시서 §1-3).
-// 팩트 검증 기록: docs/wedding-code/02a 소스 노트 (2026-07-06 독립 재검증 완료).
+// 고정 시장 수치 대신 사용자가 직접 확인할 비교 기준을 제시한다.
 
 // ── 헤더 카피 (§2-A) ─────────────────────────────────────────
 
@@ -10,10 +10,10 @@
 export function wcResultTitle(answeredCount: number): string {
   return `3분 동안 당신이 한 ${answeredCount}개의 선택`;
 }
-export const WC_RESULT_SUBTITLE = "점수도 유형도 없어요. 당신이 고른 문장과, 시장의 실제 숫자만 있어요.";
+export const WC_RESULT_SUBTITLE = "점수도 유형도 없어요. 당신이 고른 문장과, 가격을 확인할 기준이 있어요.";
 export const WC_RESULT_PROTO_NOTICE = "정답도 점수도 없는 프로토타입이에요.";
 
-// ── 시장 팩트 (§4 — 이 목록 외 사용 금지, 전부 검증 완료) ────
+// ── 가격·계약 확인 기준 ─────────────────────────────────────
 
 export interface WcFact {
   id: "F1" | "F2" | "F3" | "F4";
@@ -24,26 +24,23 @@ export interface WcFact {
 export const WC_FACTS: Record<string, WcFact> = {
   F1: {
     id: "F1",
-    text: "2024년 정부 첫 실태조사 기준, 스드메 기본금 평균 346만원 — 실제 지불 평균은 520만원 (추가금 평균 174만원)",
-    source: "정부 결혼서비스 실태조사, 2024 (기획재정부 발표)",
+    text: "기본가와 최종 결제액은 다를 수 있어요. 포함 항목과 별도 옵션을 같은 기준으로 확인하세요.",
+    source: "검수된 업체 공시가·사용자 견적 기준",
   },
   F2: {
     id: "F2",
-    text: "2024년 정부 첫 실태조사에서, 패키지 이용자 중 개별 가격을 고지받은 경우는 34.3%",
-    source: "정부 결혼서비스 실태조사, 2024 (기획재정부 발표)",
+    text: "패키지 총액만으로는 구성별 가격을 알 수 없어요. 스튜디오·드레스·메이크업의 포함 범위를 따로 확인하세요.",
+    source: "검수된 업체 공시가·사용자 견적 기준",
   },
   F3: {
-    // 2026-05 참가격 (2026-07-06 수집 파이프라인 복구 후 자동 수집분 — 02a 소스 노트).
-    // ⚠️ 패키지 통계의 "서울"은 강남/강남외 미구분 단일 권역 중위가.
-    //    갱신 절차: npm run update:market-prices 후 이 텍스트의 수치·기준월 동기.
     id: "F3",
-    text: "같은 스드메 패키지, 서울 중위가 약 350만원 — 경기·인천은 약 240만원 (2026년 5월 기준)",
-    source: "한국소비자원 참가격, 2026년 5월",
+    text: "같은 이름의 패키지도 지역·시기·구성에 따라 조건이 달라요. 기준일과 구성 범위를 맞춰 비교하세요.",
+    source: "웨딩한방 검수 공시가 비교 원칙",
   },
   F4: {
     id: "F4",
-    text: "결혼서비스 이용자 1,000명 중 78.1%가 현금 결제 유도를 경험",
-    source: "한국소비자원 2024 소비자 시장평가지표 (2025년 6월 발표)",
+    text: "결제 수단·현금영수증·부가세 포함 여부를 계약 전에 서면으로 확인하세요.",
+    source: "계약서·업체 서면 안내 확인",
   },
 };
 
@@ -61,9 +58,9 @@ export interface WcCardDef {
 }
 
 export const WC_CARD_DEFS: WcCardDef[] = [
-  { cardId: 1, questionKey: "q01", factId: "F1", bridge: "그 '더 나올 것 같은 돈', 기분 탓이 아니에요" },
-  { cardId: 2, questionKey: "q05", factId: "F2", bridge: "가격조차 다 알려주지 않는 시장이라서요" },
-  { cardId: 3, questionKey: "q13", factId: "F3", bridge: "'300만 원 차이'가 이상하지 않은 시장이에요", fallback: { questionKey: "q11", factId: null } },
+  { cardId: 1, questionKey: "q01", factId: "F1", bridge: "포함과 별도를 나누면 예상 밖 지출을 줄일 수 있어요" },
+  { cardId: 2, questionKey: "q05", factId: "F2", bridge: "총액보다 구성별 공개 범위를 먼저 확인해요" },
+  { cardId: 3, questionKey: "q13", factId: "F3", bridge: "지역·시기·구성 기준을 맞춰 비교해요", fallback: { questionKey: "q11", factId: null } },
 ];
 
 // ── 1인칭 인용 문장 (카드 후보 4문항 × 4옵션 = 16종, 뜻 변경 없이 다듬기만) ──
@@ -112,7 +109,7 @@ export const WC_SCENARIO_SUMMARIES: Record<string, string> = {
   q10: "본식 직전 할 일이 쏟아질 때",
   q11: "당장 계약하고 싶은 마음이 들 때",
   q12: "견적서가 낯선 항목투성이일 때",
-  q13: "마음에 드는 곳이 예산보다 300만 원 비쌀 때",
+  q13: "마음에 드는 곳이 우리 예산보다 많이 비쌀 때",
   q14: "서로 잘 보는 눈이 다를 때",
   q15: "느낌은 좋은데 후기가 적을 때",
   q16: "전통 절차를 줄이고 싶을 때",

@@ -66,7 +66,7 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
 
 const BUDGET_INTENT = /예산|비용|금액|가격|견적|시세|돈|식대|지출|썼|결제|budget|price|quote/i;
 const SCHEDULE_INTENT = /일정|스케줄|날짜|체크리스트|할\s*일|준비\s*목록|schedule|date|task/i;
-const VENDOR_INTENT = /업체|웨딩홀|예식장|스튜디오|드레스|메이크업|스드메|플래너|예약|vendor|venue|booking/i;
+const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
 const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
 const NEARBY_INTENT = /근처|주변|가까운|인근|nearby/i;
@@ -162,7 +162,9 @@ export function selectAmoraTools({
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
   if (hasContractIntent) addAll(selected, CONTRACT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
-  if (NEARBY_INTENT.test(userText)) selected.add("search_nearby_places");
+  if (NEARBY_INTENT.test(userText) && !hasVendorIntent) {
+    selected.add("search_nearby_places");
+  }
 
   // Each mutation family requires current-turn, domain-specific language.
   // Assistant prose and generic approvals are never authority to write.

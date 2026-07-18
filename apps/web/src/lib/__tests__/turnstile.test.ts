@@ -3,6 +3,7 @@ import { normalizeEmailForRateLimit, verifyTurnstile } from "../turnstile";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("normalizeEmailForRateLimit — 이메일 폭탄 우회 방어", () => {
@@ -69,4 +70,33 @@ describe("verifyTurnstile — production guard", () => {
       skipped: false,
     });
   });
+
+  it("requires the verified token action to match the requested auth operation", async () => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: "forgot",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    await expect(verifyTurnstile("sample-token", null, "signup")).resolves.toEqual({
+      ok: false,
+      skipped: false,
+    });
+  });
+
+  it.each(["signup", "forgot", "preregister", "survey"] as const)(
+    "accepts a successful verification only for the exact %s action",
+    async (action) => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "sample-secret");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action,
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    await expect(verifyTurnstile("sample-token", null, action)).resolves.toEqual({
+      ok: true,
+      skipped: false,
+    });
+    },
+  );
 });

@@ -13,10 +13,10 @@ interface AnchorCard {
 }
 
 const CARDS: AnchorCard[] = [
-  { label: "전국 평균 결혼서비스", value: "₩21,010,000", source: "한국소비자원, 2025" },
-  { label: "스드메 추가금 평균", value: "+₩1,740,000", source: "정부 결혼서비스 실태조사, 2024" },
-  { label: "가격 정보 어려움", value: "85.4%", source: "한국소비자원, 2024" },
-  { label: "추가비용 경험률", value: "83.2%", source: "한국소비자원, 2024" },
+  { label: "가격 근거", value: "검수된 공시가", source: "원문과 기준일 확인" },
+  { label: "비교 기준", value: "같은 구성", source: "포함·별도 항목 구분" },
+  { label: "우리 예산", value: "직접 입력", source: "저장한 예산·지출 기준" },
+  { label: "최종 확인", value: "업체 서면", source: "계약 전 최신 조건 확인" },
 ];
 
 export default function NumbersAnchor() {
@@ -33,12 +33,12 @@ export default function NumbersAnchor() {
         >
           <SectionLabel label="숫자로 먼저" />
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
-            숫자 뒤에는
+            가격 앞에는
             <br />
-            언제나 <em className="not-italic text-rose-500">출처</em>가 있습니다.
+            확인 가능한 <em className="not-italic text-rose-500">근거</em>가 있어야 합니다.
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
-            자체 집계가 아닌, 검증 가능한 정부 공식 수치만 인용합니다.
+            고정 평균을 단정하지 않고, 검수된 공시가와 두 분이 입력한 견적을 같은 조건으로 비교합니다.
           </p>
         </motion.div>
 
@@ -58,14 +58,14 @@ export default function NumbersAnchor() {
                 {card.label}
               </p>
 
-              {/* 거대 serif */}
+              {/* 핵심 원칙 */}
               <p className="font-display text-rose-500 text-[clamp(40px,5.5vw,72px)] leading-none font-light tracking-[-0.02em] mb-auto">
                 {card.value}
               </p>
 
-              {/* 출처 */}
+              {/* 확인 기준 */}
               <p className="mt-12 text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium pt-5 border-t border-platinum/60">
-                출처 &nbsp; {card.source}
+                기준 &nbsp; {card.source}
               </p>
             </motion.div>
           ))}
@@ -83,7 +83,7 @@ export default function NumbersAnchor() {
             href={weddingPath("/market-prices")}
             className="group inline-flex items-center gap-2 text-[14px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
           >
-            지역별 · 항목별 시세 전체 보기
+            지역별 · 항목별 공시가 보기
             <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
         </motion.div>

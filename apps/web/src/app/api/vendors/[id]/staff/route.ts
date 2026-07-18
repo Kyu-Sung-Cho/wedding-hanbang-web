@@ -1,13 +1,23 @@
-import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  bookingCountAt,
+  buildKstDateWindow,
+  loadPublicBookingAvailability,
+  type BookingOccupancyCount,
+} from "@/lib/vendors/bookingAvailability";
+import { isUuid } from "@/utils/requestValidation";
 import { NextResponse } from "next/server";
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = await createClientFromRequest(req);
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "잘못된 업체 ID입니다." }, { status: 400 });
+    }
+    const admin = createAdminClient();
 
     // 업체 확인
-    const { data: vendor } = await supabase
+    const { data: vendor } = await admin
       .from("vendors")
       .select("id")
       .eq("id", id)
@@ -19,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // 활성 스태프만 조회
-    const { data: staff } = await supabase
+    const { data: staff } = await admin
       .from("vendor_staff")
       .select("id, name, role, description")
       .eq("vendor_id", id)
@@ -29,43 +39,31 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 스태프별 타임슬롯
     const staffIds = (staff ?? []).map((s) => s.id);
     const { data: timeslots } = staffIds.length > 0
-      ? await supabase
+      ? await admin
           .from("staff_timeslots")
           .select("staff_id, day, hour, max_bookings")
           .in("staff_id", staffIds)
           .eq("available", true)
       : { data: [] };
 
-    // 향후 7일 예약 수 조회
-    const today = new Date();
-    const dateStrings: string[] = [];
-    const dayToDate = new Map<number, string>();
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
-      dateStrings.push(dateStr);
-      const day = (d.getDay() + 6) % 7;
-      if (!dayToDate.has(day)) dayToDate.set(day, dateStr);
+    const nextWeekDates = buildKstDateWindow(new Date(), 7);
+    let occupancy: BookingOccupancyCount[];
+    try {
+      occupancy = await loadPublicBookingAvailability(admin, id, {
+        from: nextWeekDates[0].date,
+        to: nextWeekDates[nextWeekDates.length - 1].date,
+      });
+    } catch {
+      console.error("[vendor-staff] booking availability unavailable");
+      return NextResponse.json(
+        {
+          error: "예약 가능 시간을 확인할 수 없습니다.",
+          code: "BOOKING_AVAILABILITY_UNAVAILABLE",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
     }
-
-    const { data: bookings } = await supabase
-      .from("vendor_bookings")
-      .select("booking_date, booking_time, staff_id")
-      .eq("vendor_id", id)
-      .in("booking_date", dateStrings)
-      .neq("status", "cancelled")
-      .not("staff_id", "is", null);
-
-    const bookingCountMap = new Map<string, number>();
-    for (const b of bookings ?? []) {
-      if (!b.staff_id) continue;
-      const bDay = Array.from(dayToDate.entries()).find(([, date]) => date === b.booking_date)?.[0];
-      if (bDay === undefined) continue;
-      const hour = parseInt(b.booking_time.split(":")[0], 10);
-      const key = `${b.staff_id}:${bDay}:${hour}`;
-      bookingCountMap.set(key, (bookingCountMap.get(key) ?? 0) + 1);
-    }
+    const dateForDay = new Map(nextWeekDates.map(({ date, day }) => [day, date]));
 
     const result = (staff ?? []).map((s) => {
       const slots = (timeslots ?? [])
@@ -74,7 +72,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           day: t.day,
           hour: t.hour,
           maxBookings: t.max_bookings,
-          currentBookings: bookingCountMap.get(`${s.id}:${t.day}:${t.hour}`) ?? 0,
+          currentBookings: dateForDay.has(t.day)
+            ? bookingCountAt(occupancy, {
+                date: dateForDay.get(t.day)!,
+                hour: t.hour,
+                staffId: s.id,
+              })
+            : t.max_bookings,
         }));
 
       return {

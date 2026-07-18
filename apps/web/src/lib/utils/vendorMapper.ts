@@ -31,6 +31,16 @@ type VendorMapperRow = Omit<VendorRow, PrivateVendorColumn>
 type VendorProductMapperRow = Omit<VendorProductRow, "notes">
   & Partial<Pick<VendorProductRow, "notes">>;
 
+export type PublicVendor = Omit<
+  Vendor,
+  | "ownerId"
+  | "ownerName"
+  | "email"
+  | "businessNumber"
+  | "businessLicenseUrl"
+  | "notificationSettings"
+>;
+
 // 카테고리 매핑 (DB 영문 → 프론트엔드 한글)
 const CATEGORY_MAP: Record<string, VendorCategory> = {
   studio: "스튜디오",
@@ -139,16 +149,15 @@ export function vendorRowToVendor(
   };
 }
 
-export function vendorToPublicVendor(vendor: Vendor): Vendor {
-  return {
-    ...vendor,
-    ownerId: null,
-    ownerName: "",
-    email: "",
-    businessNumber: "",
-    businessLicenseUrl: "",
-    notificationSettings: { booking: false, message: false, marketing: false },
-  };
+export function vendorToPublicVendor(vendor: Vendor): PublicVendor {
+  const publicVendor: Partial<Vendor> = { ...vendor };
+  delete publicVendor.ownerId;
+  delete publicVendor.ownerName;
+  delete publicVendor.email;
+  delete publicVendor.businessNumber;
+  delete publicVendor.businessLicenseUrl;
+  delete publicVendor.notificationSettings;
+  return publicVendor as PublicVendor;
 }
 
 export function vendorToInsertRow(vendor: Partial<Vendor> & { ownerId: string }): Record<string, unknown> {
@@ -204,6 +213,7 @@ export function productRowToProduct(row: VendorProductMapperRow, timeslots?: Pro
     name: row.name,
     description: row.description ?? "",
     price: row.price,
+    originalPrice: row.original_price ?? undefined,
     discountPrice: row.discount_price ?? undefined,
     duration: row.duration_minutes ?? row.duration ?? 60,
     isActive: row.is_active,

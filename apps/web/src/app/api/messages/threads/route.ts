@@ -1,4 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -11,11 +13,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 내가 업체 소유자인지 확인
-    const { data: myVendor } = await supabase
-      .from("vendors")
-      .select("id, name")
-      .eq("owner_id", user.id)
-      .single();
+    const admin = createAdminClient();
+    const myVendor = await loadOwnedVendorWithServiceRole(
+      admin,
+      user.id,
+    );
 
     const threads: Array<{
       vendorId: string;
@@ -86,7 +88,11 @@ export async function GET(req: NextRequest) {
       // 업체명 조회
       const vendorIds = [...vendorMap.keys()];
       const { data: vendors } = vendorIds.length > 0
-        ? await supabase.from("vendors").select("id, name").in("id", vendorIds)
+        ? await admin
+            .from("vendors")
+            .select("id, name")
+            .in("id", vendorIds)
+            .eq("status", "approved")
         : { data: [] };
 
       const vendorNameMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));

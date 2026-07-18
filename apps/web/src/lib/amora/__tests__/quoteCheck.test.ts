@@ -14,42 +14,23 @@ function analyze(category: AmoraQuoteCategory, region: AmoraQuoteRegion, price: 
   });
 }
 
-describe("지역별 중위가 비교 (정밀도 핵심)", () => {
-  it("모든 카테고리×지역 조합에서 중위가가 0보다 크다", () => {
+describe("런타임 공시가 경계", () => {
+  it("소스에 고정한 중위가로 가격을 판정하지 않는다", () => {
     for (const category of CATEGORIES) {
       for (const region of REGIONS) {
         const result = analyze(category, region, 300);
-        expect(result.marketMedianManwon, `${category}/${region}`).toBeGreaterThan(0);
-        expect(result.marketComparatorLabel, `${category}/${region}`).toBeTruthy();
+        expect(result.marketMedianManwon, `${category}/${region}`).toBe(0);
+        expect(result.priceDiffPercent, `${category}/${region}`).toBe(0);
+        expect(result.marketComparatorLabel).toContain("최신 공시가 확인 필요");
       }
     }
   });
 
-  it("스드메 패키지: 서울과 경기/인천은 서로 다른 지역 중위가와 비교한다", () => {
-    const seoul = analyze("sdm_package", "seoul", 300);
-    const gyeonggi = analyze("sdm_package", "gyeonggi", 300);
-    expect(seoul.marketComparatorLabel).toContain("서울");
-    expect(gyeonggi.marketComparatorLabel).toContain("경기/인천");
-    // 참가격 통계상 서울 패키지 중위가가 경기/인천보다 뚜렷이 높다
-    expect(seoul.marketMedianManwon).toBeGreaterThan(gyeonggi.marketMedianManwon);
-  });
-
-  it("회귀: 경기/인천 정상 견적의 중위가 대비 %가 서울 기준으로 왜곡되지 않는다", () => {
-    // 경기/인천 패키지 중위가(230만원대) 근처 견적 200만원 —
-    // 과거 서울 합산치(380만원대)와 비교하면 -47%로 '현저히 낮음'으로 읽혔다.
-    const result = analyze("sdm_package", "gyeonggi", 200);
-    expect(result.priceDiffPercent).toBeGreaterThan(-30);
-  });
-
-  it("부산/대구는 5대광역시, 기타는 기타지역 통계와 비교한다", () => {
-    expect(analyze("sdm_package", "busan", 300).marketComparatorLabel).toContain("5대광역시");
-    expect(analyze("sdm_package", "daegu", 300).marketComparatorLabel).toContain("5대광역시");
-    expect(analyze("sdm_package", "other", 300).marketComparatorLabel).toContain("기타지역");
-  });
-
-  it("드레스/메이크업은 비교 기준 항목을 라벨에 명시한다", () => {
-    expect(analyze("dress", "seoul", 150).marketComparatorLabel).toContain("드레스");
-    expect(analyze("makeup", "busan", 70).marketComparatorLabel).toContain("메이크업");
+  it("체크리스트 출처 문구가 가격 비교를 하지 않았음을 명시한다", () => {
+    const result = analyze("sdm_package", "seoul", 300);
+    expect(result.sourceNote).toContain("가격의 적정성을 판정하지 않습니다");
+    expect(result.sourceNote).toContain("업체별 공시가");
+    expect(result.sourceNote).not.toContain("price.go.kr");
   });
 });
 
@@ -88,7 +69,7 @@ describe("판정 없음 — 사실만 노출", () => {
     }
     expect(result.summaryText).not.toContain("174만원");
     expect(result.sourceNote).not.toContain("숨은비용");
-    expect(result.sourceNote).toContain("https://www.price.go.kr/");
+    expect(result.sourceNote).toContain("업체별 공시가");
   });
 });
 
