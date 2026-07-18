@@ -225,7 +225,10 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
     );
   }
 
-  if (result.toolName !== "update_category_budget") return null;
+  if (
+    result.toolName !== "update_category_budget"
+    && result.toolName !== "add_custom_category"
+  ) return null;
 
   const category = typeof result.toolOutput.category === "string"
     ? result.toolOutput.category
@@ -234,7 +237,9 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
       : "";
   const outputLabel = typeof result.toolOutput.label === "string"
     ? result.toolOutput.label
-    : null;
+    : typeof result.toolInput.label === "string"
+      ? result.toolInput.label
+      : null;
   const categoryLabel = CATEGORY_LABELS[category] ?? outputLabel ?? "카테고리";
   const changedBudget = Object.prototype.hasOwnProperty.call(result.toolInput, "budget")
     ? readWonAmount(result.toolInput.budget)
@@ -276,6 +281,87 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+interface BudgetAllocation {
+  category: string;
+  budget: number;
+}
+
+function readBudgetAllocations(value: unknown): BudgetAllocation[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return [];
+    const allocation = candidate as Record<string, unknown>;
+    const budget = readWonAmount(allocation.budget);
+    if (typeof allocation.category !== "string" || budget === null) return [];
+    return [{ category: allocation.category, budget }];
+  });
+}
+
+function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
+  const totalBudget = readWonAmount(
+    result.toolOutput.total_budget ?? result.toolInput.total_budget,
+  );
+  const previousBudget = readWonAmount(result.toolOutput.previous_budget);
+  const outputAllocations = readBudgetAllocations(result.toolOutput.allocations);
+  const allocations = outputAllocations.length > 0
+    ? outputAllocations
+    : readBudgetAllocations(result.toolInput.allocations);
+
+  if (outputAllocations.length === 0) {
+    const remainder = readWonAmount(result.toolOutput.remainder_to_reserve) ?? 0;
+    if (remainder > 0) {
+      const reserve = allocations.find((allocation) => allocation.category === "reserve");
+      if (reserve) reserve.budget += remainder;
+      else allocations.push({ category: "reserve", budget: remainder });
+    }
+  }
+
+  if (totalBudget === null && allocations.length === 0) return null;
+
+  return (
+    <div
+      aria-label="예산안 적용 결과"
+      className="mt-3 border-t border-black/[0.06] pt-3"
+    >
+      {totalBudget !== null && (
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-sm text-[#928980]">적용된 총 예산</span>
+          <div className="flex items-center gap-2 text-right tabular-nums">
+            {previousBudget !== null && previousBudget !== totalBudget && (
+              <>
+                <span className="text-xs text-[#B5ADA3] line-through">
+                  {formatWon(previousBudget)}
+                </span>
+                <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+              </>
+            )}
+            <strong className="text-sm font-semibold text-[#36534E]">
+              {formatWon(totalBudget)}
+            </strong>
+          </div>
+        </div>
+      )}
+      {allocations.length > 0 && (
+        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {allocations.map((allocation) => (
+            <div
+              key={allocation.category}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="truncate text-[#504444]">
+                {CATEGORY_LABELS[allocation.category] ?? allocation.category}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums text-[#36534E]">
+                {formatWon(allocation.budget)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -481,7 +567,12 @@ export default function ActionCard({ result }: ActionCardProps) {
   const accentColor = getAccentColor(result.toolName);
 
   const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
-  const isBudgetChange = result.success && (result.toolName === "update_budget" || result.toolName === "update_category_budget");
+  const isBudgetChange = result.success && (
+    result.toolName === "update_budget"
+    || result.toolName === "update_category_budget"
+    || result.toolName === "add_custom_category"
+  );
+  const isBudgetPlan = result.success && result.toolName === "apply_budget_plan";
   const isScheduleSummary = result.success && result.toolName === "get_schedule_summary";
   const isScheduleChange = result.success && (
     result.toolName === "update_task_status"
@@ -509,6 +600,7 @@ export default function ActionCard({ result }: ActionCardProps) {
 
         {isBudgetSummary && <BudgetMiniCard />}
         {isBudgetChange && <BudgetChangeMiniCard result={result} />}
+        {isBudgetPlan && <BudgetPlanMiniCard result={result} />}
         {isScheduleSummary && <ScheduleMiniCard />}
         {isScheduleChange && <ScheduleChangeMiniCard result={result} />}
         {isAmoraActionTool && <ActionItemsMiniCard result={result} />}
