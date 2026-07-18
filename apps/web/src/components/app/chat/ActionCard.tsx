@@ -107,6 +107,12 @@ const CATEGORY_RATIOS: Record<string, number> = {
   invitation: 0.02, gift: 0.02, mc: 0.01, ham: 0.01, pyebaek: 0.01, reserve: 0.05,
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  not_started: "예정",
+  in_progress: "진행 중",
+  completed: "완료",
+};
+
 function formatWon(n: number): string {
   return `${Math.round(n / 10000).toLocaleString()}만원`;
 }
@@ -252,6 +258,75 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
   );
 }
 
+function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
+  const category = typeof result.toolOutput.category === "string"
+    ? result.toolOutput.category
+    : result.toolInput.category;
+  const categoryLabel = typeof category === "string"
+    ? CATEGORY_LABELS[category] ?? category
+    : "준비 항목";
+
+  if (result.toolName === "update_task_status") {
+    const status = typeof result.toolOutput.status === "string"
+      ? result.toolOutput.status
+      : result.toolInput.status;
+    const statusLabel = typeof result.toolOutput.statusLabel === "string"
+      ? result.toolOutput.statusLabel
+      : typeof status === "string"
+        ? STATUS_LABELS[status] ?? status
+        : null;
+    if (!statusLabel) return null;
+
+    return (
+      <div
+        aria-label={`${categoryLabel} 상태 변경 결과`}
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <div className="flex items-center gap-2 text-right">
+          <span className="text-xs text-[#928980]">변경된 상태</span>
+          <strong className="rounded-full bg-[#2E7D5A]/10 px-2 py-0.5 text-sm font-semibold text-[#2E7D5A]">
+            {statusLabel}
+          </strong>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.toolName === "toggle_checklist_item") {
+    const itemLabel = typeof result.toolOutput.item_label === "string"
+      ? result.toolOutput.item_label
+      : typeof result.toolInput.item_id === "string"
+        ? result.toolInput.item_id
+        : null;
+    const done = typeof result.toolOutput.done === "boolean"
+      ? result.toolOutput.done
+      : result.toolInput.done;
+    if (!itemLabel || typeof done !== "boolean") return null;
+
+    return (
+      <div
+        aria-label={`${categoryLabel} 체크리스트 변경 결과`}
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <div className="min-w-0">
+          <p className="text-xs text-[#928980]">{categoryLabel}</p>
+          <p className="truncate text-sm font-medium text-[#504444]">{itemLabel}</p>
+        </div>
+        <strong className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-semibold ${
+          done
+            ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
+            : "bg-black/[0.04] text-[#928980]"
+        }`}>
+          {done ? "완료" : "미완료"}
+        </strong>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
   const single = result.toolOutput.action as AmoraActionItem | undefined;
   const list = (result.toolOutput.actions as AmoraActionItem[] | undefined) ?? [];
@@ -385,7 +460,11 @@ export default function ActionCard({ result }: ActionCardProps) {
 
   const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
   const isBudgetChange = result.success && (result.toolName === "update_budget" || result.toolName === "update_category_budget");
-  const isScheduleTool = result.toolName === "get_schedule_summary" || result.toolName === "update_task_status" || result.toolName === "toggle_checklist_item";
+  const isScheduleSummary = result.success && result.toolName === "get_schedule_summary";
+  const isScheduleChange = result.success && (
+    result.toolName === "update_task_status"
+    || result.toolName === "toggle_checklist_item"
+  );
   const isAmoraActionTool = result.toolName === "add_amora_action" || result.toolName === "get_amora_actions" || result.toolName === "update_amora_action";
 
   return (
@@ -408,7 +487,8 @@ export default function ActionCard({ result }: ActionCardProps) {
 
         {isBudgetSummary && <BudgetMiniCard />}
         {isBudgetChange && <BudgetChangeMiniCard result={result} />}
-        {isScheduleTool && <ScheduleMiniCard />}
+        {isScheduleSummary && <ScheduleMiniCard />}
+        {isScheduleChange && <ScheduleChangeMiniCard result={result} />}
         {isAmoraActionTool && <ActionItemsMiniCard result={result} />}
       </div>
     </div>
