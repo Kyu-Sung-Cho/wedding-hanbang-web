@@ -864,13 +864,18 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         />
                       )}
                       {hasToolResults &&
-                        // 같은 메시지 안에서 동일 (toolName, success, displayMessage)
-                        // 중복 카드 1개만 표시 — DB 부족 등으로 반복 실패 시 X 카드
-                        // 줄줄이 나오는 문제 방어.
+                        // 같은 메시지 안에서 내용까지 동일한 도구 결과만 1개로 줄인다.
+                        // 문구가 같아도 입력/출력이 다른 정상 작업 카드는 모두 보존한다.
                         (() => {
                           const seen = new Set<string>();
                           return msg.metadata!.toolResults!.filter((result) => {
-                            const key = `${result.toolName}::${result.success}::${(result.displayMessage ?? "").trim()}`;
+                            const key = JSON.stringify([
+                              result.toolName,
+                              result.success,
+                              (result.displayMessage ?? "").trim(),
+                              result.toolInput,
+                              result.toolOutput,
+                            ]);
                             if (seen.has(key)) return false;
                             seen.add(key);
                             return true;
