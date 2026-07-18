@@ -76,7 +76,7 @@ exact wording 이해, 구조, 공정성, 실제 도움과 공유 후회를 검�
 | 단계 | 할 일 | 다음 단계로 가기 위한 증거 | 아직 금지 |
 |---|---|---|---|
 | `R0` | 실제 장면 concept elicitation | 빠진 P0/P1 장면과 subgroup 공백 기록 | 문항 정확성 주장 |
-| `R1` | 적격성 screener를 거친 `P1/P2/P3` 반복 인지면접 | exact item별 assigned/administered/eligible/non-applicable, 대체, 이해·대안 해석·응답과정 ledger | 점수·유형·공유 |
+| `R1` | 적격성 screener를 거친 `P1/P2/P3` 반복 인지면접 | exact item별 requested/assigned/administered/eligible/not_applicable/unsure, 대체, 이해·대안 해석·응답과정 ledger | 점수·유형·공유 |
 | `R1-UX` | 실제 320/390 기기, screen reader, 200% zoom | 첫 행동·스크롤·오탭·중도이탈·불편 관찰 | 완료시간 마케팅 |
 | `R2` | 사전등록 파일럿 | category 기능, 구조, local dependence, subgroup 공백 | 규준·cutoff·4글자 코드 |
 | `R3` | 직접 선택 카드와 답 없는 초대 실험 | 실제 사용, 오해·후회·압박·철회 결과 | 원응답 공개 viral loop |

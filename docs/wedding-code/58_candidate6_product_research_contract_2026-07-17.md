@@ -148,7 +148,9 @@ R1 배정 전에는 코드의 적격성 screener로 `recording`, `vendor-assiste
 
 추가 경계:
 
-- PostHog·UTM 경로 suppression, `autocapture:false`, session recording off
+- 전용 실행기가 PostHog·Sentry 환경변수를 비우고 연구 경로에서 PostHog 초기화·pageview와 UTM
+  capture를 건너뛴다. 경로 전용 CSP와 QA로 외부 전송 0건을 확인한다. 일반 제품 경로의 전역
+  PostHog 설정을 끈다는 뜻은 아니다.
 - 연구 실행기에서 PostHog·Sentry DSN·Sentry auth token을 명시적으로 비우고 Next telemetry를 끔
 - `ph-no-capture`
 - 외부 `connect-src`를 허용하지 않는 경로 전용 CSP

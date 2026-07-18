@@ -1,5 +1,10 @@
 # WeddingCode No-Code Form Build Guide v0.1
 
+> [!CAUTION]
+> **HISTORICAL / NOT CURRENT SPEC.** 초기 설계·검토 계보이며 현재 문항·점수·유형·근거·수집·운영
+> 승인으로 사용하지 않는다. 현행 상태는 [`README.md`](./README.md)와
+> [`62`](./62_wedding_code_master_design_and_current_state_2026-07-18.md)를 따른다.
+
 ## 0. Scope
 
 This guide explains how to build the 3-minute WeddingCode smoke test in a no-code form tool such as Typeform, Tally, or Google Forms.
