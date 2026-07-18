@@ -46,8 +46,8 @@ function getIcon(toolName: string) {
   }
 }
 
-function getTitle(toolName: string) {
-  switch (toolName) {
+function getTitle(result: ToolExecutionResult) {
+  switch (result.toolName) {
     case "update_budget":
       return "예산 변경";
     case "update_wedding_date":
@@ -64,8 +64,13 @@ function getTitle(toolName: string) {
       return "웨딩 정보";
     case "toggle_checklist_item":
       return "체크리스트 변경";
-    case "update_category_budget":
+    case "update_category_budget": {
+      const hasBudget = result.toolInput.budget !== undefined;
+      const hasSpent = result.toolInput.spent !== undefined;
+      if (hasBudget && hasSpent) return "카테고리 예산·지출 변경";
+      if (hasSpent) return "카테고리 지출 변경";
       return "카테고리 예산 변경";
+    }
     case "add_amora_action":
       return "아모라 행동 저장";
     case "get_amora_actions":
@@ -150,6 +155,98 @@ function BudgetMiniCard() {
             <span className={`w-[36px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function readWonAmount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
+}
+
+function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
+  if (result.toolName === "update_budget") {
+    const nextBudget = readWonAmount(
+      result.toolOutput.total_budget ?? result.toolInput.total_budget,
+    );
+    const previousBudget = readWonAmount(result.toolOutput.previous_budget);
+    if (nextBudget === null) return null;
+
+    return (
+      <div
+        aria-label="총 예산 변경 결과"
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <span className="text-sm text-[#928980]">총 예산</span>
+        <div className="flex items-center gap-2 text-right tabular-nums">
+          {previousBudget !== null && previousBudget !== nextBudget && (
+            <>
+              <span className="text-xs text-[#B5ADA3] line-through">
+                {formatWon(previousBudget)}
+              </span>
+              <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+            </>
+          )}
+          <strong className="text-sm font-semibold text-[#36534E]">
+            {formatWon(nextBudget)}
+          </strong>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.toolName !== "update_category_budget") return null;
+
+  const category = typeof result.toolOutput.category === "string"
+    ? result.toolOutput.category
+    : typeof result.toolInput.category === "string"
+      ? result.toolInput.category
+      : "";
+  const outputLabel = typeof result.toolOutput.label === "string"
+    ? result.toolOutput.label
+    : null;
+  const categoryLabel = CATEGORY_LABELS[category] ?? outputLabel ?? "카테고리";
+  const changedBudget = Object.prototype.hasOwnProperty.call(result.toolInput, "budget")
+    ? readWonAmount(result.toolInput.budget)
+    : null;
+  const changedSpent = Object.prototype.hasOwnProperty.call(result.toolInput, "spent")
+    ? readWonAmount(result.toolInput.spent)
+    : null;
+
+  if (changedBudget === null && changedSpent === null) return null;
+  const changeLabel = changedBudget !== null && changedSpent !== null
+    ? "예산·지출"
+    : changedSpent !== null
+      ? "지출"
+      : "예산";
+
+  return (
+    <div
+      aria-label={`${categoryLabel} ${changeLabel} 변경 결과`}
+      className="mt-3 border-t border-black/[0.06] pt-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <div className="space-y-1 text-right tabular-nums">
+          {changedBudget !== null && (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-[#928980]">변경된 예산</span>
+              <strong className="text-sm font-semibold text-[#36534E]">
+                {formatWon(changedBudget)}
+              </strong>
+            </div>
+          )}
+          {changedSpent !== null && (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-[#928980]">변경된 지출</span>
+              <strong className="text-sm font-semibold text-[#36534E]">
+                {formatWon(changedSpent)}
+              </strong>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -283,10 +380,11 @@ export default function ActionCard({ result }: ActionCardProps) {
   if (!result.success && (msg === "" || outputEmpty)) return null;
 
   const icon = getIcon(result.toolName);
-  const title = getTitle(result.toolName);
+  const title = getTitle(result);
   const accentColor = getAccentColor(result.toolName);
 
-  const isBudgetTool = result.toolName === "get_budget_summary" || result.toolName === "update_budget" || result.toolName === "update_category_budget";
+  const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
+  const isBudgetChange = result.success && (result.toolName === "update_budget" || result.toolName === "update_category_budget");
   const isScheduleTool = result.toolName === "get_schedule_summary" || result.toolName === "update_task_status" || result.toolName === "toggle_checklist_item";
   const isAmoraActionTool = result.toolName === "add_amora_action" || result.toolName === "get_amora_actions" || result.toolName === "update_amora_action";
 
@@ -308,7 +406,8 @@ export default function ActionCard({ result }: ActionCardProps) {
           {result.displayMessage}
         </p>
 
-        {isBudgetTool && <BudgetMiniCard />}
+        {isBudgetSummary && <BudgetMiniCard />}
+        {isBudgetChange && <BudgetChangeMiniCard result={result} />}
         {isScheduleTool && <ScheduleMiniCard />}
         {isAmoraActionTool && <ActionItemsMiniCard result={result} />}
       </div>
