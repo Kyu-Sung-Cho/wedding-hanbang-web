@@ -594,7 +594,7 @@ export default function ActionCard({ result }: ActionCardProps) {
             <XCircle className="w-4 h-4 text-red-400 ml-auto" />
           )}
         </div>
-        <p className="text-xs text-[#928980] leading-relaxed">
+        <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[#928980]">
           {result.displayMessage}
         </p>
 
