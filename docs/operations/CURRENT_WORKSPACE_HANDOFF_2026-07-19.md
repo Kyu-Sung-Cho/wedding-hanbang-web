@@ -13,6 +13,7 @@
 - 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
 - 통합 작업 시작 HEAD: `4d2d60804caea8e9a8c493779a248eaa2575d041`
 - 문서 직전 코드 HEAD: `7bfda364` (`fix(release): fail closed across CI and mobile commands`)
+- 통합 Draft PR: [#64](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/64), base `main`
 - 원격 기준: 이 문서를 포함한 최신 브랜치 HEAD를 `origin`에서 fetch한 뒤 사용한다.
 - 통합 브랜치는 시작 시점에 `origin/main`보다 23 commits 앞서 있었다.
 - 기존 소스 PR: Amora `#61`, WeddingCode `#63`; 통합 브랜치 PR이 최종 검토 단위다.
