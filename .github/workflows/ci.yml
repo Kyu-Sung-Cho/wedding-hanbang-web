@@ -166,6 +166,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test runtime and handoff contracts (no deploy)
+        run: >-
+          node --test
+          ./scripts/tests/amora-conversation-eval.test.mjs
+          ./scripts/tests/amora-production-env.test.mjs
+          ./scripts/tests/amora-runtime-env-contract.test.mjs
+          ./scripts/tests/repository-handoff-docs.test.mjs
+          ./scripts/tests/wedding-code-research-safety.test.mjs
+
       - name: Verify local manifest and migration pins (no deploy)
         run: pnpm supabase:release:fence
 
@@ -180,18 +189,19 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Report non-deploy status without failing code CI
+      - name: Fail closed while hosted deployment evidence is missing
         run: |
-          echo "::warning title=Production readiness blocked::Static contracts are not deployment evidence. A commit-bound hosted-staging RLS receipt, backup/restore evidence, storage evidence, and finalizer evidence are still required."
+          echo "::error title=Production readiness blocked::Static contracts are not deployment evidence. A commit-bound hosted-staging RLS receipt, backup/restore evidence, storage evidence, and finalizer evidence are still required."
           echo "## Production readiness: BLOCKED" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "This CI workflow performs code and static-contract verification only. It does not deploy and does not authorize production release." >> "$GITHUB_STEP_SUMMARY"
           echo "A clean-commit hosted-staging RLS receipt plus the remaining backup, restore, storage, and finalizer evidence must be independently pinned before production." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
   ci:
     name: Quality Gate
     if: ${{ always() }}
-    needs: [web_quality, mobile_quality, vendor_disclosure_quality, static_release_contracts]
+    needs: [web_quality, mobile_quality, vendor_disclosure_quality, static_release_contracts, production_readiness]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -202,12 +212,14 @@ jobs:
           MOBILE_RESULT: ${{ needs.mobile_quality.result }}
           VENDOR_DISCLOSURE_RESULT: ${{ needs.vendor_disclosure_quality.result }}
           STATIC_RELEASE_RESULT: ${{ needs.static_release_contracts.result }}
+          PRODUCTION_READINESS_RESULT: ${{ needs.production_readiness.result }}
         run: |
           echo "Web Quality: $WEB_RESULT"
           echo "Mobile Quality: $MOBILE_RESULT"
           echo "Vendor Disclosure Quality: $VENDOR_DISCLOSURE_RESULT"
           echo "Static Release Contracts (Non-Deploy): $STATIC_RELEASE_RESULT"
-          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ]; then
+          echo "Production Readiness: $PRODUCTION_READINESS_RESULT"
+          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ] || [ "$PRODUCTION_READINESS_RESULT" != "success" ]; then
             echo "One or more required quality gates did not pass."
             exit 1
           fi

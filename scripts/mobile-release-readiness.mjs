@@ -1,6 +1,15 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  EAS_CLI_PACKAGE,
+  MOBILE_EAS_WORKING_DIRECTORY,
+  MOBILE_EAS_COMMAND_INVALID,
+  MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED,
+  PNPM_REQUIRES_SHELL,
+  runMobileEasCommand,
+} from "./mobile-eas-release-gate.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
@@ -55,6 +64,7 @@ const easConfig = readJson("apps/mobile/eas.json");
 const mobileMetroConfig = readText("apps/mobile/metro.config.js");
 const rootPackage = readJson("package.json");
 const mobilePackage = readJson("apps/mobile/package.json");
+const mobileEasGatePath = path.join(root, "scripts/mobile-eas-release-gate.mjs");
 const mobileEnvExample = readText("apps/mobile/.env.example");
 const mobileAuth = readText("apps/mobile/src/lib/auth.ts");
 const mobileProfile = readText("apps/mobile/app/(tabs)/profile.tsx");
@@ -133,6 +143,10 @@ if (typeof easProjectId === "string" && easProjectId.trim().length > 0) {
 
 expect(easConfig.cli?.appVersionSource === "remote", "EAS uses remote app version source");
 expect(easConfig.cli?.version === "21.0.2", "EAS CLI is pinned to 21.0.2");
+expect(
+  EAS_CLI_PACKAGE === `eas-cli@${easConfig.cli?.version}`,
+  "Mobile EAS wrapper and eas.json pin the same CLI version",
+);
 expect(easConfig.cli?.requireCommit === true, "EAS refuses to build a dirty worktree");
 expect(appConfig.ios?.buildNumber === undefined, "iOS build number is owned by EAS remote versioning");
 expect(appConfig.android?.versionCode === undefined, "Android version code is owned by EAS remote versioning");
@@ -171,26 +185,227 @@ expect(
   "Mobile directly installs the Expo 54 compatible expo-application package",
 );
 
-for (const scriptName of [
-  "eas:init",
-  "eas:build:ios",
-  "eas:build:android",
-  "eas:build:all",
-  "eas:submit:ios",
-  "eas:submit:android",
-]) {
-  expect(Boolean(mobilePackage.scripts?.[scriptName]), `Mobile package script ${scriptName} exists`);
-  expect(
-    mobilePackage.scripts?.[scriptName]?.includes("eas-cli@21.0.2"),
-    `Mobile package script ${scriptName} pins EAS CLI 21.0.2`,
-  );
-}
+expect(existsSync(mobileEasGatePath), "Mobile production EAS commands have a shared release gate");
 
-for (const scriptName of ["eas:build:ios", "eas:build:android", "eas:build:all"]) {
-  const script = mobilePackage.scripts?.[scriptName] ?? "";
+const pnpmExecutionProbe = PNPM_REQUIRES_SHELL
+  ? spawnSync("corepack pnpm --version", { encoding: "utf8", shell: true })
+  : spawnSync("corepack", ["pnpm", "--version"], { encoding: "utf8" });
+expect(
+  pnpmExecutionProbe.status === 0 && /^11\.7\.0\s*$/.test(pnpmExecutionProbe.stdout),
+  "Mobile EAS gate can execute the pinned pnpm command on this operating system",
+);
+
+let productionProviderCalled = false;
+let productionBlockCode = null;
+try {
+  runMobileEasCommand(
+    [
+      "build",
+      "--platform",
+      "ios",
+      "--profile",
+      "production",
+      "--non-interactive",
+      "--freeze-credentials",
+    ],
+    {
+      runProvider() {
+        productionProviderCalled = true;
+        return 0;
+      },
+    },
+  );
+} catch (error) {
+  productionBlockCode = error?.code ?? null;
+}
+expect(
+  productionBlockCode === MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED
+    && productionProviderCalled === false,
+  "Mobile production EAS build is blocked before the provider runs",
+);
+
+const previewArgs = [
+  "build",
+  "--platform",
+  "all",
+  "--profile",
+  "preview",
+  "--non-interactive",
+  "--freeze-credentials",
+];
+let previewInvocation = null;
+const previewStatus = runMobileEasCommand(previewArgs, {
+  runProvider(invocation) {
+    previewInvocation = invocation;
+    return 0;
+  },
+});
+expect(
+  previewStatus === 0
+    && previewInvocation?.command === "corepack"
+    && previewInvocation?.cwd === MOBILE_EAS_WORKING_DIRECTORY
+    && JSON.stringify(previewInvocation?.args) === JSON.stringify([
+      "pnpm",
+      "dlx",
+      EAS_CLI_PACKAGE,
+      ...previewArgs,
+    ]),
+  "Mobile preview/internal EAS build reaches the pinned provider with frozen credentials",
+);
+
+const productionCli = spawnSync(
+  process.execPath,
+  [
+    mobileEasGatePath,
+    "build",
+    "--platform",
+    "ios",
+    "--profile",
+    "production",
+    "--non-interactive",
+    "--freeze-credentials",
+  ],
+  { encoding: "utf8" },
+);
+expect(
+  productionCli.status !== 0
+    && `${productionCli.stdout}${productionCli.stderr}`.includes(
+      MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED,
+    ),
+  "Mobile production EAS CLI exits fail-closed before provider execution",
+);
+
+let equalsSyntaxProviderCalled = false;
+let equalsSyntaxBlockCode = null;
+try {
+  runMobileEasCommand(
+    [
+      "build",
+      "--platform=ios",
+      "--profile=production",
+      "--non-interactive",
+      "--freeze-credentials",
+    ],
+    {
+      runProvider() {
+        equalsSyntaxProviderCalled = true;
+        return 0;
+      },
+    },
+  );
+} catch (error) {
+  equalsSyntaxBlockCode = error?.code ?? null;
+}
+expect(
+  equalsSyntaxBlockCode === MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED
+    && equalsSyntaxProviderCalled === false,
+  "Mobile production EAS gate cannot be bypassed with equals-style CLI options",
+);
+
+const ambiguousCommands = [
+  ["build", "--platform", "ios", "--non-interactive", "--freeze-credentials"],
+  [
+    "build",
+    "--platform",
+    "ios",
+    "--profile",
+    "preview",
+    "--profile",
+    "development",
+    "--non-interactive",
+    "--freeze-credentials",
+  ],
+  [
+    "build",
+    "--platform",
+    "ios",
+    "--profile",
+    "preview",
+    "--non-interactive",
+    "--freeze-credentials",
+    "--refresh-ad-hoc-provisioning-profile",
+  ],
+  [
+    "build",
+    "--platform",
+    "ios",
+    "--profile",
+    "preview",
+    "--non-interactive",
+    "--freeze-credentials",
+    "--auto-submit-with-profile",
+    "production",
+  ],
+  ["submit", "--platform", "ios", "--profile", "preview"],
+];
+let ambiguousCommandsFailClosed = true;
+for (const args of ambiguousCommands) {
+  let providerCalled = false;
+  let blockCode = null;
+  try {
+    runMobileEasCommand(args, {
+      runProvider() {
+        providerCalled = true;
+        return 0;
+      },
+    });
+  } catch (error) {
+    blockCode = error?.code ?? null;
+  }
+  ambiguousCommandsFailClosed = ambiguousCommandsFailClosed
+    && blockCode === MOBILE_EAS_COMMAND_INVALID
+    && providerCalled === false;
+}
+expect(
+  ambiguousCommandsFailClosed,
+  "Mobile EAS gate rejects missing, ambiguous, submit, or extra provider arguments before execution",
+);
+
+expect(
+  mobilePackage.scripts?.["eas:init"] === "pnpm dlx eas-cli@21.0.2 init",
+  "Mobile EAS initialization remains directly available with the pinned CLI",
+);
+
+const productionEasScripts = {
+  "eas:build:ios": [
+    "build", "--platform", "ios", "--profile", "production",
+    "--non-interactive", "--freeze-credentials",
+  ],
+  "eas:build:android": [
+    "build", "--platform", "android", "--profile", "production",
+    "--non-interactive", "--freeze-credentials",
+  ],
+  "eas:build:all": [
+    "build", "--platform", "all", "--profile", "production",
+    "--non-interactive", "--freeze-credentials",
+  ],
+  "eas:submit:ios": ["submit", "--platform", "ios", "--profile", "production"],
+  "eas:submit:android": ["submit", "--platform", "android", "--profile", "production"],
+};
+
+for (const [scriptName, args] of Object.entries(productionEasScripts)) {
   expect(
-    script.includes("--non-interactive") && script.includes("--freeze-credentials"),
-    `Mobile package script ${scriptName} freezes credentials non-interactively`,
+    mobilePackage.scripts?.[scriptName]
+      === `node ../../scripts/mobile-eas-release-gate.mjs ${args.join(" ")}`,
+    `Mobile package script ${scriptName} uses the exact shared production release gate`,
+  );
+
+  let providerCalled = false;
+  let blockCode = null;
+  try {
+    runMobileEasCommand(args, {
+      runProvider() {
+        providerCalled = true;
+        return 0;
+      },
+    });
+  } catch (error) {
+    blockCode = error?.code ?? null;
+  }
+  expect(
+    blockCode === MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED
+      && providerCalled === false,
+    `Mobile package script ${scriptName} is blocked before provider execution`,
   );
 }
 

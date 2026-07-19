@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -16,6 +17,16 @@ function scenario(id) {
   assert.ok(found, `missing scenario ${id}`);
   return found;
 }
+
+test("the live package shortcut never pre-authorizes production evaluation", () => {
+  const rootPackage = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(
+    rootPackage.scripts?.["amora:eval:live"],
+    "node ./scripts/amora-conversation-eval.mjs --base-url=https://hanbang.ai --samples=1",
+  );
+});
 
 test("requires an explicit target and explicit production permission", () => {
   const env = { AMORA_EVAL_SECRET: "s".repeat(32) };

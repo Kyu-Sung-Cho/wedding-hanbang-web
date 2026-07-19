@@ -179,5 +179,21 @@ test("the Vercel build gate skips preview but enforces the production environmen
   const webPackage = JSON.parse(
     await readFile(resolve(REPO_ROOT, "apps/web/package.json"), "utf8"),
   );
-  assert.match(webPackage.scripts.build, /check-amora-build-env\.mjs/);
+  assert.equal(
+    webPackage.scripts.build,
+    "node ../../scripts/build-web-safely.mjs",
+  );
+
+  const safeBuildSource = await readFile(
+    resolve(REPO_ROOT, "scripts/build-web-safely.mjs"),
+    "utf8",
+  );
+  const amoraGateIndex = safeBuildSource.indexOf("check-amora-build-env.mjs");
+  const nextBuildIndex = safeBuildSource.indexOf('await runNode(nextCli, ["build"])');
+  assert.ok(amoraGateIndex >= 0, "safe build wrapper must invoke the Amora environment gate");
+  assert.ok(nextBuildIndex >= 0, "safe build wrapper must invoke Next.js production build");
+  assert.ok(
+    amoraGateIndex < nextBuildIndex,
+    "Amora environment gate must run before the Next.js production build",
+  );
 });
