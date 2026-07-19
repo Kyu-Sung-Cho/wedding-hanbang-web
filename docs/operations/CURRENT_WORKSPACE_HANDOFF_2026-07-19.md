@@ -13,6 +13,7 @@
 - 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
 - 통합 작업 시작 HEAD: `4d2d60804caea8e9a8c493779a248eaa2575d041`
 - 후속 CI 복구 코드 HEAD: `681663a6` (`fix(ci): stabilize Linux mobile and sitemap checks`)
+- 현재 공시 변환 코드 HEAD: `f5b35390` (`fix(ingest): recover sparse PDFs on Windows`)
 - 통합 Draft PR: [#64](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/64), base `main`
 - 원격 기준: 이 문서를 포함한 최신 브랜치 HEAD를 `origin`에서 fetch한 뒤 사용한다.
 - 통합 브랜치는 시작 시점에 `origin/main`보다 23 commits 앞서 있었다.
@@ -59,6 +60,33 @@
 - 내부 가격 lookup 수요 이벤트는 best-effort다. 분석 저장 실패가 이미 검증된 공개 가격
   응답을 500으로 바꾸지 않으며 DB weighted limiter가 오염 상한을 별도로 강제한다.
 
+### 공시 원본 재처리
+
+- 읽기 전용 raw 253 files를 새 격리 state에서 다시 scan했다. 249 units의 현재 변환 상태는
+  `converted=241`, `needs_manual_conversion=8`, `error=0`이다.
+- 초기 수동 큐의 저텍스트 PDF 6 units는 Windows/Poppler 장경로 때문에 성공 exit 뒤 페이지가
+  생성되지 않는 문제였다. 짧은 same-volume scratch에서 렌더링·검사한 뒤 content-addressed
+  최종 경로로 원자 게시하도록 수정했다.
+- 새로 생성된 PDF 8페이지를 직접 확인해 빈 페이지·잘림·회전·식별 불가가 없음을 확인했다.
+  raw 253/253 hash가 manifest와 일치하고 conversion artifact 291/291개가 존재한다.
+- 남은 8개는 전부 동일 stem PDF 대체본이 없는 전통 OLE HWP다. 이 PC에는 한컴 연결
+  프로그램이 없으며 비공식 파서나 온라인 업로드로 성공 처리하지 않았다.
+- 수동 변환 대상은 아래 8개 상대경로다. PDF는 각각 HWP와 같은 디렉터리·같은 stem으로
+  저장해야 하며 HWP 원본은 삭제하거나 덮어쓰지 않는다.
+  - `결혼준비대행서비스/강원도/(강원)_산과바다 베키니아호텔 주문진리조트_결혼준비대행.hwp`
+  - `예식장/강원도/(강원)_산과바다 베키니아호텔 주문진리조트_예식장.hwp`
+  - `예식장/광주/(광주)_웨딩그룹위더스 광주.hwp`
+  - `예식장/대구/(대구)_MH컨벤션.hwp`
+  - `예식장/부산/(부산)_목장원((주)푸드웨이).hwp`
+  - `결혼준비대행서비스/전라도/(전라도)_모니카블랑.hwp`
+  - `결혼준비대행서비스/충청도/(충청도)_오드 스튜디오.hwp`
+  - `예식장/서울(강남 외)/[서울(강남 외)]_국방컨벤션센터.hwp`
+- 실제 OpenAI·Supabase 호출은 아직 0이다. 로컬 OpenAI key와 별도 non-production staging
+  자격증명이 없으며 production 자격증명으로 우회하지 않는다.
+- OpenAI key는 채팅·문서·Git에 기록하지 않고 추출을 실행하는 단일 process 환경에만
+  주입한다. 첫 유료 실행은 반드시 Luna의 `extract --limit 5`이며 ledger와 원본 대조 후에만
+  전체 범위로 확대한다.
+
 ### 릴리스 안전장치
 
 - successor manifest는 predecessor와 `20260718120000`~`20260718210000` 19개 migration을
@@ -83,8 +111,10 @@
   `/price/vendor/[slug]` page-data 수집 중 `Supabase public environment variables are not configured`
   로 실패했다. 이는 승인된 hosted staging과 최소 발행 업체 증거가 없는 preview를 실패시키는
   현재 계약과 일치한다. 운영 Supabase 연결, CI placeholder 주입, 정적 fallback으로 우회하지 않았다.
-- `681663a6` 이후의 새 GitHub Linux run이 Web/Mobile을 통과하기 전까지 원격 CI 복구는 완료로
-  간주하지 않는다. Production Readiness sentinel과 final Quality Gate의 red는 계속 의도된 차단이다.
+- GitHub Actions run `29671209112`는 Web Quality, Mobile Quality, Vendor Disclosure Quality,
+  Static Release Contracts를 모두 통과해 `681663a6`의 Linux 복구를 원격 검증했다.
+- `f5b35390`의 새 run `29682195263`도 코드 관련 job을 끝까지 확인해야 한다. Production
+  Readiness sentinel과 final Quality Gate의 red는 계속 의도된 차단이다.
 
 ## 최종 로컬 검증
 
@@ -92,7 +122,8 @@
 |---|---|
 | 웹 전체 Vitest | GitHub와 동일한 `CI=true`에서 `296 files / 2,536 tests PASS` |
 | 모바일 Node tests | `96/96 PASS` |
-| ingest | `113/113 PASS`, typecheck PASS |
+| ingest | `114/114 PASS`, typecheck PASS |
+| 실제 공시 변환 재검증 | 249 units, 241 converted, 8 HWP manual, error 0; raw hash 253/253, artifact 291/291 |
 | repo release/fail-closed Node tests | PASS |
 | Supabase release tests | `165/165 PASS` |
 | Supabase static fence | predecessor 27 + successor 19 PASS |
@@ -135,13 +166,14 @@ NOT_VERIFIED 5 / FAIL 2`다. 상세 근거는
 
 1. 전용 non-production Supabase에 clean migration 적용, remote ledger 대조, DB 타입 재생성
 2. hosted 두 사용자 RLS·own delete·service RPC·Storage signed download·admin E2E 영수증
-3. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 5-unit 파일럿 원본 대조·비용 ledger
-4. 대표 승인 데이터로 가격 목록·조합·아모라 추천 브라우저 E2E와 모바일 Lighthouse 90+
-5. `pg_cron` 집계 job의 안전한 활성화와 비활성화 rollback 증거
-6. 운영 DB backup, 다른 project restore rehearsal, Storage 원본 복구 증거
-7. 외부 issuer·signature·expiry·replay·commit/project/migration binding을 검증하는 단기 배포 승인
-8. EAS preview/internal iOS·Android 실제 binary와 320/390 실기기 smoke
-9. 법적 검토가 필요한 legacy 업체 데이터 예외와 운영 공개 결정
+3. HWP 8개를 로컬 한컴에서 동일 stem PDF로 저장하고 새 state에서 scan부터 재실행
+4. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 5-unit 파일럿 원본 대조·비용 ledger
+5. 대표 승인 데이터로 가격 목록·조합·아모라 추천 브라우저 E2E와 모바일 Lighthouse 90+
+6. `pg_cron` 집계 job의 안전한 활성화와 비활성화 rollback 증거
+7. 운영 DB backup, 다른 project restore rehearsal, Storage 원본 복구 증거
+8. 외부 issuer·signature·expiry·replay·commit/project/migration binding을 검증하는 단기 배포 승인
+9. EAS preview/internal iOS·Android 실제 binary와 320/390 실기기 smoke
+10. 법적 검토가 필요한 legacy 업체 데이터 예외와 운영 공개 결정
 
 위 항목이 실제 receipt로 채워지고 모든 안전 게이트가 통과하기 전에는 Draft PR을 병합하거나
 운영 배포·카나리를 시작하지 않는다.
@@ -159,3 +191,5 @@ corepack pnpm --filter @hanbang/web typecheck
 
 그 다음 GitHub의 통합 Draft PR 설명과 checks를 읽는다. 의도된 production-readiness red
 sentinel을 삭제하거나 녹색으로 위장하지 말고, 별도의 실제 기능/보안 CI 실패만 수정한다.
+raw 공시 파일과 `scripts/ingest/.state/`는 의도적으로 Git에 올라가지 않으므로 다른 PC에서
+파일럿을 계속하려면 승인된 raw 사본을 별도로 전달하고 새 state에서 scan부터 시작한다.
