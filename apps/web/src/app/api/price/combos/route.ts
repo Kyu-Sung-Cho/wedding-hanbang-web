@@ -9,6 +9,7 @@ import {
   type PublicComboOption,
   type PublicComboPrice,
 } from "@/lib/priceCombo/serverValidation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isUuid } from "@/utils/requestValidation";
@@ -26,6 +27,7 @@ const SAVED_COMBO_COLUMNS = [
 ].join(", ");
 
 type SavedComboRow = Record<string, unknown> & { request_hash: string };
+type SavedComboServiceRow = SavedComboRow & { replayed: boolean };
 
 function comboRequestHash(body: NonNullable<ReturnType<typeof parseComboSaveBody>>) {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
@@ -34,6 +36,7 @@ function comboRequestHash(body: NonNullable<ReturnType<typeof parseComboSaveBody
 function publicCombo(row: SavedComboRow) {
   const combo: Record<string, unknown> = { ...row };
   delete combo.request_hash;
+  delete combo.replayed;
   return combo;
 }
 
@@ -181,11 +184,26 @@ export async function POST(request: Request) {
     selections: repriced.selections,
     total_krw: repriced.totalKrw,
   };
-  const { data, error } = await supabase
-    .from("combos")
-    .insert(insertPayload)
-    .select("id, name, selections, total_krw, created_at, updated_at")
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return NextResponse.json(
+      { error: "조합 저장 경로를 안전하게 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      { status: 503 },
+    );
+  }
+  const { data: serviceData, error } = await admin
+    .rpc("save_price_combo_service_v1", {
+      p_user_id: insertPayload.user_id,
+      p_name: insertPayload.name,
+      p_selections: insertPayload.selections,
+      p_total_krw: insertPayload.total_krw,
+      p_idempotency_key: insertPayload.idempotency_key,
+      p_request_hash: insertPayload.request_hash,
+    })
     .single();
+  const data = serviceData as unknown as SavedComboServiceRow | null;
   if (error?.code === "23505") {
     const { data: raceWinnerData, error: raceWinnerError } = await supabase
       .from("combos")
@@ -219,6 +237,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    combo: publicCombo({ ...data, ...insertPayload } as SavedComboRow),
-  }, { status: 201 });
+    combo: publicCombo(data),
+    ...(data.replayed ? { replayed: true } : {}),
+  }, { status: data.replayed ? 200 : 201 });
 }

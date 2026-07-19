@@ -147,20 +147,26 @@ function repricedSelection(
   const vendorPrices = prices.filter((price) => (
     price.vendor_id === selection.vendor_id
     && price.category === category
-    && (selection.agency_id === null || price.agency_id === selection.agency_id)
+    && price.agency_id === selection.agency_id
     && isMoney(price.price_min_krw)
   ));
 
   const selectedPrice = selection.custom_krw === null
-    ? vendorPrices.find((price) => price.price_min_krw === selection.base_krw)
-    : vendorPrices.toSorted((left, right) => left.price_min_krw! - right.price_min_krw!)[0];
+    ? vendorPrices
+      .filter((price) => price.price_min_krw === selection.base_krw)
+      .toSorted((left, right) => (
+        left.official_price_id.localeCompare(right.official_price_id)
+      ))[0]
+    : vendorPrices.toSorted((left, right) => (
+      left.price_min_krw! - right.price_min_krw!
+      || left.official_price_id.localeCompare(right.official_price_id)
+    ))[0];
   if (!selectedPrice) throw new Error("COMBO_PUBLIC_PRICE_NOT_FOUND");
 
-  const allowedPriceIds = new Set(vendorPrices.map((price) => price.official_price_id));
   const selectedOptions = selection.selected_options.map(({ name }) => {
     const publicOption = options
       .filter((option) => (
-        allowedPriceIds.has(option.official_price_id)
+        option.official_price_id === selectedPrice.official_price_id
         && option.name === name
         && isMoney(option.price_min_krw)
       ))

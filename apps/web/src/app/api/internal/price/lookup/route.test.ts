@@ -139,7 +139,8 @@ describe("GET /api/internal/price/lookup", () => {
     }));
   });
 
-  it("fails the request instead of returning prices when event persistence fails", async () => {
+  it("returns verified prices when optional event persistence fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const insert = vi.fn().mockResolvedValue({ error: { code: "42501" } });
     mocks.createAdminClient.mockReturnValue({
       from: vi.fn(() => ({ insert })),
@@ -162,10 +163,16 @@ describe("GET /api/internal/price/lookup", () => {
 
     const response = await GET(request());
 
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toStrictEqual({
-      error: "Price lookup unavailable",
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      matches: [expect.objectContaining({
+        vendor: expect.objectContaining({ slug: "sample-studio-a" }),
+      })],
     });
     expect(insert).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalledWith(
+      "[internal price lookup] analytics event unavailable",
+    );
+    warning.mockRestore();
   });
 });

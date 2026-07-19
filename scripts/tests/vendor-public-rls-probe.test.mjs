@@ -453,6 +453,10 @@ function successfulHostedFetch(env, requests) {
       );
       if (method === "GET") return jsonResponse(visible);
 
+      if (relation === "combos" && ["POST", "PATCH"].includes(method)) {
+        return jsonResponse({ message: "permission denied" }, 403);
+      }
+
       if (method === "POST") {
         const row = JSON.parse(init.body);
         if (row.user_id !== observer.id) {
@@ -691,10 +695,12 @@ test("a passing receipt binds staging, commit, and the exact successor migration
     receipt.checks.anonymousOwnedTableOperationsDenied,
     OWNED_APPLICATION_TABLES.length * 4,
   );
-  assert.equal(receipt.checks.ownerPolicyInsertsAllowed, 4);
-  assert.equal(receipt.checks.ownerPolicyUpdatesAllowed, 2);
-  assert.equal(receipt.checks.ownerPolicyUpdateDeniedByContract, 2);
-  assert.equal(receipt.checks.ownerPolicyDeletesAllowed, 4);
+  assert.equal(receipt.checks.ownerPolicyInsertsAllowed, 3);
+  assert.equal(receipt.checks.ownerDirectComboInsertsDenied, 1);
+  assert.equal(receipt.checks.ownerPolicyUpdatesAllowed, 1);
+  assert.equal(receipt.checks.ownerPolicyUpdateDeniedByContract, 3);
+  assert.equal(receipt.checks.ownerPolicyDeletesAllowed, 3);
+  assert.equal(receipt.checks.ownerComboDeleteTransportAllowed, 1);
   assert.equal(receipt.checks.crossUserPolicyInsertsDenied, 4);
   assert.equal(receipt.checks.crossUserPolicyUpdatesAffectedRows, 0);
   assert.equal(receipt.checks.crossUserPolicyDeletesAffectedRows, 0);
@@ -1139,7 +1145,7 @@ test("every live owned-table column is denied to anon, not only an id sample", a
   );
 });
 
-test("an owner PATCH must return the changed mutable field, not an identity-only no-op", async (t) => {
+test("a combo owner PATCH returning success fails the direct-write fence", async (t) => {
   const fixture = await createReleaseFixture(t);
   const env = validFixtureEnv(fixture);
   const baseFetch = successfulHostedFetch(env, []);
@@ -1169,9 +1175,40 @@ test("an owner PATCH must return the changed mutable field, not an identity-only
       persistReceipt: false,
     }),
     (error) => error instanceof ProbeFailure
-      && error.code === "OWNER_POLICY_UPDATE_FAILED",
+      && error.code === "OWNER_POLICY_UPDATE_CONTRACT_BROKEN",
   );
   assert.equal(injectedNoOp, true);
+});
+
+test("a combo owner POST returning success fails the direct-write fence", async (t) => {
+  const fixture = await createReleaseFixture(t);
+  const env = validFixtureEnv(fixture);
+  const baseFetch = successfulHostedFetch(env, []);
+  let injectedExposure = false;
+  const fetchImpl = async (input, init) => {
+    const url = new URL(input);
+    const bearer = init?.headers?.Authorization?.replace("Bearer ", "");
+    if (!injectedExposure
+        && url.pathname.endsWith("/combos")
+        && init?.method === "POST"
+        && bearer === "fixture-access-token-user-a") {
+      injectedExposure = true;
+      return jsonResponse([JSON.parse(init.body)], 201);
+    }
+    return baseFetch(input, init);
+  };
+
+  await assert.rejects(
+    executeHostedStagingRlsProbe({
+      env,
+      repoRoot: fixture.repoRoot,
+      fetchImpl,
+      persistReceipt: false,
+    }),
+    (error) => error instanceof ProbeFailure
+      && error.code === "OWNER_COMBO_DIRECT_INSERT_EXPOSED",
+  );
+  assert.equal(injectedExposure, true);
 });
 
 test("cross-user DELETE exposure fails and deterministic policy rows are cleaned", async (t) => {
@@ -1351,7 +1388,7 @@ test("commit and migration-set mismatches fail before authentication", async (t)
   }
 });
 
-test("CI names static release checks as non-deploy and reports readiness blocked without failing quality", async () => {
+test("CI fails the final quality gate while production readiness is blocked", async () => {
   const repoRoot = new URL("../..", import.meta.url);
   const [workflow, packageText, stagingContractText] = await Promise.all([
     readFile(new URL(".github/workflows/ci.yml", repoRoot), "utf8"),
@@ -1368,8 +1405,19 @@ test("CI names static release checks as non-deploy and reports readiness blocked
   assert.match(workflow, /static_release_contracts:\n\s+name: Static Release Contracts \(Non-Deploy\)/);
   assert.match(workflow, /production_readiness:\n\s+name: "Production Readiness: BLOCKED \(Hosted Evidence Required\)"/);
   assert.match(workflow, /Static contracts are not deployment evidence/);
+  assert.match(workflow, /Fail closed while hosted deployment evidence is missing/);
   assert.match(workflow, /ci:\n\s+name: Quality Gate/);
-  assert.doesNotMatch(workflow, /needs: \[[^\]]*production_readiness[^\]]*\]/);
+  assert.match(workflow, /needs: \[[^\]]*production_readiness[^\]]*\]/);
+  assert.match(workflow, /PRODUCTION_READINESS_RESULT: \$\{\{ needs\.production_readiness\.result \}\}/);
+  assert.match(workflow, /\[ "\$PRODUCTION_READINESS_RESULT" != "success" \]/);
+  const readinessJob = workflow.slice(
+    workflow.indexOf("\n  production_readiness:"),
+    workflow.indexOf("\n  ci:"),
+  );
+  const finalGateJob = workflow.slice(workflow.indexOf("\n  ci:"));
+  assert.match(readinessJob, /if: \$\{\{ always\(\) \}\}/);
+  assert.match(readinessJob, /\n\s+exit 1\s*$/m);
+  assert.match(finalGateJob, /if: \$\{\{ always\(\) \}\}/);
   assert.match(
     packageJson.scripts["supabase:release:test"],
     /vendor-public-rls-probe\.test\.mjs/,

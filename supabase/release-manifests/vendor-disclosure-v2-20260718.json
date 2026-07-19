@@ -76,6 +76,14 @@
     {
       "file": "20260718208000_atomic_weighted_rate_limit.sql",
       "sha256": "f02cf92a2f6bc793a72e5d18d3cc39221a0edd93bf6f69967ee713d18145233a"
+    },
+    {
+      "file": "20260718209000_price_combo_direct_write_fence.sql",
+      "sha256": "41f990258d2167bf6403657abc3fa863c18898b85439ce7e71f85bf08cd25335"
+    },
+    {
+      "file": "20260718210000_wedding_budget_product_contract.sql",
+      "sha256": "91f2f16ed6f5efc3c02b6266e73254d306e0d824659bd77bc8ab03b06673d105"
     }
   ],
   "deploymentEvidence": {

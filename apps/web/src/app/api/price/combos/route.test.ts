@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createAdminClient: vi.fn(),
   createClientFromRequest: vi.fn(),
   pricesIn: vi.fn(),
   pricesEq: vi.fn(),
@@ -11,12 +12,15 @@ const mocks = vi.hoisted(() => ({
   comboUserEq: vi.fn(),
   comboKeyEq: vi.fn(),
   maybeSingle: vi.fn(),
-  insert: vi.fn(),
-  single: vi.fn(),
+  rpc: vi.fn(),
+  rpcSingle: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: mocks.createAdminClient,
 }));
 
 import { POST } from "./route";
@@ -87,13 +91,19 @@ describe("POST /api/price/combos", () => {
     mocks.comboKeyEq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.comboUserEq.mockReturnValue({ eq: mocks.comboKeyEq });
     mocks.comboSelect.mockReturnValue({ eq: mocks.comboUserEq });
-    mocks.single.mockResolvedValue({
-      data: { id: "50000000-0000-4000-8000-000000000001" },
+    mocks.rpcSingle.mockResolvedValue({
+      data: {
+        id: "50000000-0000-4000-8000-000000000001",
+        name: "우리 조합",
+        selections: validBody().selections,
+        total_krw: 1_440_000,
+        request_hash: normalizedRequestHash(),
+        replayed: false,
+      },
       error: null,
     });
-    mocks.insert.mockReturnValue({
-      select: vi.fn(() => ({ single: mocks.single })),
-    });
+    mocks.rpc.mockReturnValue({ single: mocks.rpcSingle });
+    mocks.createAdminClient.mockReturnValue({ rpc: mocks.rpc });
     mocks.createClientFromRequest.mockResolvedValue({
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }),
@@ -106,7 +116,7 @@ describe("POST /api/price/combos", () => {
           return { select: vi.fn(() => ({ in: mocks.optionsIn })) };
         }
         if (table === "combos") {
-          return { insert: mocks.insert, select: mocks.comboSelect };
+          return { select: mocks.comboSelect };
         }
         throw new Error(`unexpected table: ${table}`);
       }),
@@ -128,7 +138,7 @@ describe("POST /api/price/combos", () => {
     const response = await POST(comboRequest(validBody(), null));
     expect(response.status).toBe(400);
     expect(mocks.pricesIn).not.toHaveBeenCalled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("stores the authenticated owner and server-repriced total", async () => {
@@ -140,18 +150,21 @@ describe("POST /api/price/combos", () => {
         total_krw: 1_440_000,
       }),
     });
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
-      idempotency_key: IDEMPOTENCY_KEY,
-      user_id: USER_ID,
-      name: "우리 조합",
-      request_hash: normalizedRequestHash(),
-      total_krw: 1_440_000,
-      selections: expect.objectContaining({
-        studio: expect.objectContaining({
-          selected_options: [{ name: "담당자 지정", krw: 200_000 }],
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "save_price_combo_service_v1",
+      expect.objectContaining({
+        p_idempotency_key: IDEMPOTENCY_KEY,
+        p_user_id: USER_ID,
+        p_name: "우리 조합",
+        p_request_hash: normalizedRequestHash(),
+        p_total_krw: 1_440_000,
+        p_selections: expect.objectContaining({
+          studio: expect.objectContaining({
+            selected_options: [{ name: "담당자 지정", krw: 200_000 }],
+          }),
         }),
       }),
-    }));
+    );
   });
 
   it("returns the existing row for an exact replay without repricing or inserting", async () => {
@@ -176,7 +189,7 @@ describe("POST /api/price/combos", () => {
       replayed: true,
     });
     expect(mocks.pricesIn).not.toHaveBeenCalled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("rejects reuse of one idempotency key for different content", async () => {
@@ -190,7 +203,7 @@ describe("POST /api/price/combos", () => {
     const response = await POST(comboRequest(validBody()));
     expect(response.status).toBe(409);
     expect(mocks.pricesIn).not.toHaveBeenCalled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("recovers the winner when concurrent inserts race on the unique key", async () => {
@@ -206,7 +219,7 @@ describe("POST /api/price/combos", () => {
     mocks.maybeSingle
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: winner, error: null });
-    mocks.single.mockResolvedValue({ data: null, error: { code: "23505" } });
+    mocks.rpcSingle.mockResolvedValue({ data: null, error: { code: "23505" } });
 
     const response = await POST(comboRequest(validBody()));
     expect(response.status).toBe(200);
@@ -220,7 +233,7 @@ describe("POST /api/price/combos", () => {
     mocks.pricesEq.mockResolvedValue({ data: [], error: null });
     const response = await POST(comboRequest(validBody()));
     expect(response.status).toBe(409);
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("rejects unknown keys and an empty combination", async () => {
@@ -230,5 +243,23 @@ describe("POST /api/price/combos", () => {
     }));
     expect(response.status).toBe(400);
     expect(mocks.pricesIn).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the destination-fenced service client is unavailable", async () => {
+    mocks.createAdminClient.mockImplementation(() => {
+      throw new Error("SUPABASE_SERVICE_DESTINATION_INVALID");
+    });
+
+    const response = await POST(comboRequest(validBody()));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the service RPC returns no row without an error", async () => {
+    mocks.rpcSingle.mockResolvedValue({ data: null, error: null });
+
+    const response = await POST(comboRequest(validBody()));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
 });

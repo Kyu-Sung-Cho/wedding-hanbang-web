@@ -1663,16 +1663,24 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         body: rows.owner,
         label: `${table} owner INSERT`,
       });
-      if (ownerInsert.status !== 201) {
-        fail("OWNER_POLICY_INSERT_FAILED", `Owner INSERT failed: ${table}`);
+      if (table === "combos") {
+        assertDeniedResponse(
+          ownerInsert,
+          "OWNER_COMBO_DIRECT_INSERT_EXPOSED",
+          "Combo owner INSERT must use the server-only save boundary",
+        );
+      } else {
+        if (ownerInsert.status !== 201) {
+          fail("OWNER_POLICY_INSERT_FAILED", `Owner INSERT failed: ${table}`);
+        }
+        await assertRepresentedPolicyRow(
+          ownerInsert,
+          table,
+          rows.owner,
+          "OWNER_POLICY_INSERT_FAILED",
+          `${table} owner INSERT`,
+        );
       }
-      await assertRepresentedPolicyRow(
-        ownerInsert,
-        table,
-        rows.owner,
-        "OWNER_POLICY_INSERT_FAILED",
-        `${table} owner INSERT`,
-      );
 
       for (const [method, row, body] of [
         ["POST", rows.cross, rows.cross],
@@ -1722,11 +1730,11 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         body: policyUpdateBody(table, "cross-user"),
         label: `${table} cross-user UPDATE`,
       });
-      if (["vendor_favorites", "wishlists"].includes(table)) {
+      if (["vendor_favorites", "wishlists", "combos"].includes(table)) {
         assertDeniedResponse(
           crossUpdate,
           "CROSS_USER_POLICY_UPDATE_EXPOSED",
-          "Wishlist UPDATE must remain revoked",
+          "Direct UPDATE must remain revoked for wishlist and combo boundaries",
         );
       } else {
         await assertCrossPolicyAffectedNoRows(
@@ -1761,11 +1769,11 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         body: policyUpdateBody(table, "owner"),
         label: `${table} owner UPDATE`,
       });
-      if (["vendor_favorites", "wishlists"].includes(table)) {
+      if (["vendor_favorites", "wishlists", "combos"].includes(table)) {
         assertDeniedResponse(
           ownerUpdate,
           "OWNER_POLICY_UPDATE_CONTRACT_BROKEN",
-          "Wishlist owner UPDATE must remain revoked",
+          "Wishlist and combo owner UPDATE must remain revoked",
         );
       } else {
         const expectedMutation = policyUpdateBody(table, "owner");
@@ -1788,13 +1796,21 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         row: rows.owner,
         label: `${table} owner DELETE`,
       });
-      await assertRepresentedPolicyRow(
-        ownerDelete,
-        table,
-        rows.owner,
-        "OWNER_POLICY_DELETE_FAILED",
-        `${table} owner DELETE`,
-      );
+      if (table === "combos") {
+        await assertCrossPolicyAffectedNoRows(
+          ownerDelete,
+          "OWNER_POLICY_DELETE_FAILED",
+          `${table} owner DELETE transport`,
+        );
+      } else {
+        await assertRepresentedPolicyRow(
+          ownerDelete,
+          table,
+          rows.owner,
+          "OWNER_POLICY_DELETE_FAILED",
+          `${table} owner DELETE`,
+        );
+      }
     } catch (error) {
       primaryFailure = error;
     }
@@ -1824,10 +1840,12 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
     if (primaryFailure) throw primaryFailure;
   }
   return {
-    ownerInsertsAllowed: 4,
-    ownerUpdatesAllowed: 2,
-    ownerUpdateDeniedByContract: 2,
-    ownerDeletesAllowed: 4,
+    ownerInsertsAllowed: 3,
+    ownerDirectComboInsertsDenied: 1,
+    ownerUpdatesAllowed: 1,
+    ownerUpdateDeniedByContract: 3,
+    ownerDeletesAllowed: 3,
+    ownerComboDeleteTransportAllowed: 1,
     crossUserInsertsDenied: 4,
     crossUserUpdatesAffectedRows: 0,
     crossUserDeletesAffectedRows: 0,
@@ -1894,10 +1912,14 @@ function buildReceipt({
       anonymousOwnedTableOperationsDenied:
         OWNED_APPLICATION_TABLES.length * 4,
       ownerPolicyInsertsAllowed: policyProbe.ownerInsertsAllowed,
+      ownerDirectComboInsertsDenied:
+        policyProbe.ownerDirectComboInsertsDenied,
       ownerPolicyUpdatesAllowed: policyProbe.ownerUpdatesAllowed,
       ownerPolicyUpdateDeniedByContract:
         policyProbe.ownerUpdateDeniedByContract,
       ownerPolicyDeletesAllowed: policyProbe.ownerDeletesAllowed,
+      ownerComboDeleteTransportAllowed:
+        policyProbe.ownerComboDeleteTransportAllowed,
       crossUserPolicyInsertsDenied: policyProbe.crossUserInsertsDenied,
       crossUserPolicyUpdatesAffectedRows:
         policyProbe.crossUserUpdatesAffectedRows,
