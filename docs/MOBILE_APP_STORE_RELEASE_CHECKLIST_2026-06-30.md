@@ -1,6 +1,6 @@
 # Mobile App Store Release Checklist
 
-> Date: 2026-06-30, status updated 2026-07-17
+> Date: 2026-06-30, status updated 2026-07-19
 > Scope: `apps/mobile`, Expo SDK 54, EAS Build, App Store/TestFlight readiness  
 > Status: the current Engine V2 candidate has no signed Android/iOS build and no
 > physical-device receipt. Older Android AAB evidence below is historical only.
@@ -43,6 +43,11 @@
   overage and a $0 estimate. One Android and one iOS build fit the remaining
   quota, but failed builds may also consume quota.
 - Store-build helper scripts exist in `apps/mobile/package.json`.
+- The production helpers now invoke `scripts/mobile-eas-release-gate.mjs` and
+  intentionally stop with `EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED` before EAS.
+  Hosted receipts alone cannot open this gate until the external signed
+  authorization verifier is implemented and shared with the web/DB release
+  controller. Preview/internal builds remain the correct next native proof.
 
 ## 2. Validation Already Passing Locally
 

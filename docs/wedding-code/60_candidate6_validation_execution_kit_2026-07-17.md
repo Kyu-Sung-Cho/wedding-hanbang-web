@@ -90,11 +90,13 @@ P2는 원형상 `recording` DS2와 `vendor-assisted` DS3를 함께 포함한다.
 - `eligibilityAtAssignment`: 배정 당시 screener 상태인 `eligible/not_applicable/unsure`.
 - `responseDisposition`: `not_administered`, substantive 답을 고른 `answered`, 또는 escape인
   `depends/not_applicable/no_experience/skip`. 사전 적격성과 덮어쓰거나 합치지 않는다.
+- `requested`와 `requestedEligible/requestedNotApplicable/requestedUnsure`: 원래 panel이 요청한
+  `requestedItemId` 기준 수와 `originalEligibility`별 수. 대체되거나 최종 미배정이어도 원문항에 남긴다.
 - `assigned`: 대체가 끝난 최종 투여안에 포함됨. 원래 panel target만으로 세지 않는다.
 - `administered`: `assigned`된 문항을 실제로 화면에 제시함. assigned 없이 administered일 수 없다.
-- `eligible`: `eligibilityAtAssignment=eligible`인 assigned row 수.
+- `eligible`: 대체 후 `eligibilityAtAssignment=eligible`인 assigned row 수. planner는 unsure/non-applicable
+  문항을 최종 배정하지 않으므로 별도 assigned-`unsure` 수는 두지 않는다.
 - `not_applicable`: `responseDisposition=not_applicable`인 administered row 수. neutral/0으로 바꾸지 않는다.
-- `unsure`: `eligibilityAtAssignment=unsure`인 assigned row 수. `not_applicable`과 합치지 않는다.
 
 따라서 배정 때 eligible이었지만 문항을 본 뒤 구조적 비해당을 고른 동일 row는 `eligible=1`과
 `not_applicable=1`에 모두 기여한다. `administered=false`이면 `responseDisposition=not_administered`여야 하고,
@@ -103,12 +105,15 @@ P2는 원형상 `recording` DS2와 `vendor-assisted` DS3를 함께 포함한다.
 item별 합계는 `summarizeCandidate6InterviewTracking`으로 계산하고, substitution ledger와 함께 보고한다.
 
 > [!CAUTION]
-> **2026-07-18 구현 공백:** 현재 planner request와 tracking row는 exact-version, Form/orientation,
-> support order, substitution 연결을 모두 보존하지 않으며, 같은 테마 대체의 전체 노출 균형도
-> 보장하지 않는다. 아래 원장 계약은 실제 수집 전 구현·테스트해야 하는 요구사항이다. 현재 template을
-> 사람 연구의 완성 원장으로 사용하지 않는다. 요청 원문항의 `unsure`와 최종 배정문항의 상태도 별도
-> ledger로 보존해야 한다. P1/P2/P3 동일 배정은 item별 동일 노출을 만들지 않으므로 배정 비율 또는
-> 의도적 과표집 이유를 사전등록한다.
+> **2026-07-18 구현 상태와 남은 공백:** planner와 tracking row는 opaque RFC 4122 assignment UUID,
+> exact-version, Form/orientation, support order, rotation, panel, 전체 eligibility screener snapshot,
+> stakeholder applicability, 요청 원문항, 최종 배정문항, 대체문항, 원문항 적격성을 각각 보존한다.
+> summarizer는 row 버전, enum, 응답 상태, panel membership, screener에서 파생한 적격성, same-theme
+> substitution lineage, assignment별 metadata 일관성, 요청 문항과 최종 문항의 중복을
+> fail-closed로 검증한다. 그러나 현재 template은 어디에도 저장하지 않고, 동의·TTL·삭제·철회·실제
+> 연구 수집 흐름도 없다. deterministic same-theme rotation은 단일 배정의 편향을 줄일 뿐 전체 표본의
+> item별 동일 노출을 보장하지 않는다. 따라서 사람 연구의 완성 원장으로 사용하기 전에 저장·동의
+> 설계와 패널 배정 비율 또는 의도적 과표집 이유를 사전등록하고 검증해야 한다.
 
 probe:
 
@@ -254,7 +259,7 @@ share rate만 최적화하지 않는다. 공유 증가와 함께 regret, deletio
 ## 12. 라운드별 산출물
 
 - exact-version item disposition: KEEP / REWRITE / SPLIT / DROP
-- item별 assigned/administered/eligible/not_applicable/unsure, substitution, orientation exposure,
+- item별 requested/requested eligibility/assigned/administered/eligible/not_applicable, substitution, orientation exposure,
   이해·대안 해석·비서열 응답
 - source ledger 변경과 supported/not-supported claim
 - 추가·삭제된 장면과 이유

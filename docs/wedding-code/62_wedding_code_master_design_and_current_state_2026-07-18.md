@@ -3,11 +3,11 @@
 상태: **PRODUCT + RESEARCH MASTER OVERVIEW / 운영 출시 승인 아님**
 최종 확인: **2026-07-18**
 현재 연구 exact-version: **`wedding-code-candidate6-research.3`**
-검토 기준 브랜치/HEAD: **`feat/wedding-code-next-20260717` / `2372a21341f5c9a548c8acb33eb8b41fe95305f9`**
-현재 PR: **[#63 Draft](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/63)**, base `feat/amora-engine-v2-20260716`
+통합 검토 브랜치: **`feat/vendor-disclosure-pipeline-v2-20260718`**
+역사적 원본 PR: **[#63 Draft](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/63)**
 
-PR #63의 CI와 Vercel Preview는 성공했지만 리뷰·승인 0건, 미병합, 미운영 배포 상태다. 상위 의존
-PR #61이 먼저 통합되어야 하는 stacked PR이며, Preview 성공은 운영 출시 증거가 아니다.
+Candidate 6.3의 원본 작업은 #63에 남아 있고 현재 구현은 Amora·업체 공시 변경과 함께 위 통합 브랜치에서
+재검증한다. PR 또는 Preview 성공은 운영 출시나 사람 타당도 증거가 아니다.
 
 > [!IMPORTANT]
 > 이 문서는 WeddingCode의 생각, 역사, 현재 구현, 연구 수준, 제품화 방향을 한 번에 이해하기 위한
@@ -285,24 +285,25 @@ R1 인지면접 전 다음 세 장면을 각각 `eligible/not_applicable/unsure`
 곳에, 일부는 두 곳에 들어 있다. 의도적인 과표집이라면 이유와 패널 배정 비율을 사전등록하고, 아니라면
 item별 목표 노출량을 기준으로 패널 비율을 조정해야 한다.
 
-### 7.7 현재 연구 배정 원장의 구현 공백
+### 7.7 현재 연구 배정 원장 계약과 남은 공백
 
-설계 문서는 exact-version, Form/orientation, support order, substitution, item별 노출을 함께 추적하도록
-요구한다. 현재 `planCandidate6InterviewAssignment`는 panel, eligibility, stakeholder applicability,
-support order를 받아 같은 테마 대체와 기본 item count를 만들지만 다음은 아직 row에 보존하지 않는다.
+`planCandidate6InterviewAssignment`와 tracking row는 다음을 각각 보존한다.
 
-- exact-version
-- Form/orientation
-- support order
-- 원문항→대체문항 ledger 연결
-- 요청된 원문항의 `eligible/not_applicable/unsure`와 최종 배정 문항의 상태를 분리한 ledger
-- 전체 참여자에서 대체문항 노출을 균형 있게 배정하는 규칙
+- opaque RFC 4122 assignment UUID와 exact-version
+- Form/orientation, support order, rotation, panel
+- 전체 eligibility screener snapshot과 stakeholder applicability
+- 요청 원문항, 최종 배정문항, replacement item, 원문항 적격성
+- assigned/administered/eligibility-at-assignment/response-disposition의 서로 다른 상태
 
-따라서 현재 planner와 tracking template은 **수집 가능한 완성 연구 원장**이 아니다. R1 실제 수집 전
-위 필드를 추가하고, deterministic 첫 대체가 특정 문항 노출을 편향시키지 않는지 테스트해야 한다.
-현재 ready plan은 `unsure`인 원문항을 적격 대체문항으로 바꾸거나 전체를 `incompatible`로 막은 뒤 최종
-row를 `eligible`로 만든다. 따라서 최종 row의 `unsure` 집계만으로는 실제 screener 불확실성을 복원할 수
-없다.
+summarizer는 runtime에서 잘못된 enum·버전·응답 조합, panel 불일치, screener에서 파생한 적격성 불일치,
+cross-theme/누락 substitution lineage, assignment metadata 혼합, 중복
+`(exactVersion, assignmentId, itemId)` row를 거부한다. 이로써 과거의 중앙 원장 P1은 코드 수준에서
+해소됐다.
+
+그러나 template은 **저장하지 않으며 수집 가능한 완성 연구 원장이 아니다.** 동의, 최소 수집,
+TTL·삭제·철회·backup re-delete, 실제 연구 도구 연동이 아직 없다. 또한 rotation은 한 배정 안의
+결정적 대체 규칙일 뿐 전체 표본의 item별 노출 균형을 보장하지 않으므로 패널 배정 비율과 과표집
+이유를 사전등록해야 한다.
 
 ---
 
@@ -387,8 +388,8 @@ Candidate 6.3의 마지막 보상은 알고리즘 결과가 아니라 사용자�
   그 선택이 대화 카드로 이어지는 투명한 다리를 검증한다. 알고리즘 추론은 하지 않는다.
 - 답 없는 초대 카드는 안전하지만 자기표현성이 약한 일반 광고 카드로 느껴질 수 있다.
 - 실제 완료시간, 재미, 공유 의향, 공유 후회 데이터는 아직 없다.
-- 영향 응답의 canonical 중앙 문구는 “도움도 방해도 거의 없어요”인데 현재 5칸 UI의 짧은 가시 문구는
-  “영향 없음”이다. 스크린리더 문구와 시각 문구의 의미 강도가 달라 실제 인지면접 전에 통일해야 한다.
+- 영향 응답의 시각 문구와 접근성 라벨은 모두 canonical 문구 “도움도 방해도 거의 없어요”로 통일했다.
+  실제 사람이 이를 중립 영향으로 이해하는지는 인지면접에서 계속 확인한다.
 - `depends/not_applicable/no_experience/skip`은 데이터 의미상 분리돼 있지만 현재 화면에서는 기본으로
   접힌 `<details>` 안에 있다. 핵심 다섯 답으로 사용자를 밀지 않는지 R1에서 발견률을 측정하거나 처음부터
   노출하는 안을 비교해야 한다.
@@ -762,7 +763,8 @@ write-fence probe는 현재 운영에서 `404`였으므로 전역 fence 활성 �
 
 ## 19. 자동 검증과 그 한계
 
-검토 기준 HEAD `2372a213`의 CI와 로컬 재감사에서 기록된 엔지니어링 증거는 다음과 같다.
+아래 표의 수치는 원본 Candidate 6.3 브랜치의 역사적 기준이며, 통합 브랜치의 최신 전체 수치는
+`docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-19.md`를 source of truth로 삼는다.
 
 | 검증 | 결과 |
 |---|---|
@@ -779,21 +781,20 @@ write-fence probe는 현재 운영에서 `404`였으므로 전역 fence 활성 �
 | 안전 Production build | 100 static pages |
 | Production artifact scan | 1,713개 검사, Candidate marker 0 |
 | 로컬 Production-mode smoke | `/wedding-code` 200, 연구 route 404 |
-| 독립 구현 재감사 | 로컬 격리·무저장·artifact fence는 통과; 연구 원장·중앙 라벨 P1은 재개방 |
+| 독립 구현 재감사 | 로컬 격리·무저장·artifact fence 통과; 원장 metadata·중앙 라벨·same-origin I/O·lock race 보강 완료 |
 
-### 현재 열린 구현 P1
+### 현재 열린 구현·외부 P1
 
-1. 연구 원장에 exact-version/Form/orientation/support order/substitution 연결이 없음
-2. deterministic same-theme 대체가 전체 노출 균형을 보장하지 않음
-3. 영향 중앙 응답의 시각 문구와 접근성 canonical 문구가 완전히 같지 않음
-4. retired Production QA 문서에 있던 실 token/response ID는 현재 파일에서 redaction했지만, 과거 Git
+1. deterministic same-theme rotation은 전체 표본의 노출 균형을 보장하지 않으므로 연구 운영에서
+   패널 비율·과표집 이유를 사전등록해야 함
+2. consent/TTL/delete/tombstone/backup re-delete를 포함한 승인된 연구 저장소와 수집 UI가 없음
+3. retired Production QA 문서에 있던 실 token/response ID는 현재 파일에서 redaction했지만, 과거 Git
    이력의 식별자 회수·폐기 확인은 별도 보안 후속이 필요함
 
 ### 현재 열린 연구 운영 P2
 
-1. 요청 원문항과 최종 배정문항 ledger가 분리되지 않아 ready plan의 `unsure` 집계가 사실상 도달 불가함
-2. 네 비서열 응답이 기본 접힘 상태라 발견 가능성과 응답 유도가 사람 검증 전임
-3. P1/P2/P3를 같은 수로 배정하면 item별 노출이 같지 않으므로 배정 비율 또는 과표집 이유 사전등록이 필요함
+1. 네 비서열 응답이 기본 접힘 상태라 발견 가능성과 응답 유도가 사람 검증 전임
+2. P1/P2/P3를 같은 수로 배정하면 item별 노출이 같지 않으므로 배정 비율 또는 과표집 이유 사전등록이 필요함
 
 문서 정합성 P2였던 과거 `01`–`20` 직접 열기 위험과 retired 문서의 Candidate 5 현행 참조는 이번 문서
 릴리스에서 역사 상태 배너와 `58`–`61` 참조로 정리했다.
@@ -825,8 +826,9 @@ write-fence probe는 현재 운영에서 `404`였으므로 전역 fence 활성 �
 
 ### 연구
 
-- item별 requested/assigned/administered/eligible/not_applicable/unsure — 완성 원장 구현 후 측정
-- substitution과 orientation exposure — exact-version·Form·순서와 연결한 뒤 측정
+- item별 requested와 원문항 eligibility, 대체 후 assigned/administered/eligible, 응답
+  not_applicable — 승인된 저장·동의 흐름 구현 후 측정
+- substitution과 orientation exposure — 현재 metadata 계약을 승인된 연구 원장에 연결한 뒤 측정
 - 이해 실패, 대안 해석, 모범답안, 결측 이유
 - exact-version별 KEEP/REWRITE/SPLIT/DROP
 
@@ -916,6 +918,7 @@ write-fence probe는 현재 운영에서 `404`였으므로 전역 fence 활성 �
 | [`59`](./59_candidate6_item_evidence_matrix_2026-07-17.md) | 문항별 근거·편향·폐기 기준 |
 | [`60`](./60_candidate6_validation_execution_kit_2026-07-17.md) | 사람 검증 실행 키트 |
 | [`61`](./61_candidate6_productization_roadmap_2026-07-18.md) | 안전한 제품화 순서 |
+| [`현재 workspace 인수인계`](../operations/CURRENT_WORKSPACE_HANDOFF_2026-07-19.md) | 통합 브랜치·검증·운영 차단 상태 |
 
 ### 역사·참고 문서
 
@@ -941,7 +944,7 @@ WeddingCode는 이제 “문항을 많이 만들어 둔 테스트”가 아니�
 - 21개 exact-version 문항 후보
 - 문항별 출처·대안 해석·폐기 기준
 - 유효 중앙과 네 별도 비서열 응답
-- Form·순서·적격성·노출 추적 계약과 기본 tracker — 완성 연구 원장은 아직 미구현
+- Form·순서·적격성·substitution lineage를 보존·검증하는 tracker — 저장·동의 연구 원장은 아직 미구현
 - 편안한 모바일 로컬 프로토타입
 - 직접 선택 대화 카드
 - 무저장·무전송·운영 artifact 격리
@@ -956,7 +959,7 @@ WeddingCode는 이제 “문항을 많이 만들어 둔 테스트”가 아니�
 따라서 현재 평가는 다음과 같다.
 
 - **제품 철학과 안전 경계:** 잘 갖춰짐
-- **연구 후보 문항과 코드 품질:** 정적 계약·격리 테스트는 통과했지만 사람 타당도는 없고 연구 원장은 미완성
+- **연구 후보 문항과 코드 품질:** 정적 계약·격리·원장 metadata 검증은 통과했지만 사람 타당도와 승인된 저장 원장은 없음
 - **로컬 연구·운영 artifact 격리:** 검증됨. live DB drift와 과거 Git 식별자 후속은 미완료
 - **소비자용 검사 신뢰도·타당도:** 아직 없음
 - **4글자·형용사+동물·궁합·커플 결과:** 아직 만들면 안 됨

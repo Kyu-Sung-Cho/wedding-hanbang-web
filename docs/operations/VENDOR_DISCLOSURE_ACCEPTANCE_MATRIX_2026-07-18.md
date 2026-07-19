@@ -1,7 +1,7 @@
 # 웨딩한방 공시가·업체탐색 수용 판정표
 
 - 기준 문서: `CODEX 통합 개발 프롬프트 — 웨딩한방 공시가·업체탐색 모듈 (최종본)` §18
-- 판정 시점: 2026-07-18 KST
+- 판정 시점: 2026-07-19 KST
 - 검토 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
 - 검토 시작 HEAD: `3ab26298414d`
 - 범위: 최종 수용 기준 24개와 운영 배포 선행 게이트
@@ -33,7 +33,7 @@
 
 | ID | 수용 기준 | 상태 | 직접 증거와 보수적 판정 |
 |---|---|---|---|
-| A1 | 마이그레이션 클린 DB 적용 + 타입 재생성 | `FAIL` | 로컬 PGlite의 개별·순서 계약 테스트와 20800까지의 정적 release manifest 검증은 통과한다. 그러나 `apps/web/src/types/database.types.ts`에 `agencies`, `price_snapshots`, `official_prices`, `official_price_options`, `v_public_official_prices`가 모두 0건이다. 실제 clean Supabase 전체 적용과 타입 재생성이 완료되지 않았다. |
+| A1 | 마이그레이션 클린 DB 적용 + 타입 재생성 | `FAIL` | 로컬 PGlite의 개별·순서 계약 테스트와 21000까지의 정적 release manifest 검증은 통과한다. 그러나 `apps/web/src/types/database.types.ts`에 `agencies`, `price_snapshots`, `official_prices`, `official_price_options`, `v_public_official_prices`가 모두 0건이다. 실제 clean Supabase 전체 적용과 타입 재생성이 완료되지 않았다. |
 | A2 | anon base select 차단, 공개 뷰 허용, 타 사용자 wishlist 차단 | `BLOCKED_EXTERNAL` | fail-closed probe는 base/public/owned-table 전 컬럼, 두 사용자 격리, 실제 `vendor_favorites`, view column·security option·definition hash, cleanup을 검증한다. Git `skip-worktree`·`assume-unchanged`로 숨긴 변경도 외부 요청 전에 거부한다. 다만 승인된 전용 hosted staging ref와 실제 두 세션 실행 영수증은 아직 없다. |
 | A3 | 더미 시드 `/price/studio` 렌더와 검색·지역·대행사·가격·정렬 필터 | `NOT_VERIFIED` | `catalog.test.ts`가 이름/alias, 지역, 대행사, 기본가, wishlist, 최저가 정렬 조합을 검증한다. 실제 더미 DB를 연결한 `/price/studio` 브라우저 렌더와 조작은 실행하지 않았다. |
 | A4 | 라운지 `업체 탐색`이 가격 리스트로 연결 | `PASS` | `Sidebar.tsx`와 `TopNav.tsx`가 `/price/studio`를 사용하며 기존 `/vendors`는 `/price/studio`로 redirect한다. |
@@ -71,15 +71,15 @@
 |---|---|---|
 | `corepack pnpm test:ingest` | `113/113 PASS` | scan/convert/extract cache/검증/money/dedupe/load·Storage 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
 | `corepack pnpm ingest:typecheck` | `PASS` | ingest TypeScript 계약 통과. |
-| `corepack pnpm --filter @hanbang/web test -- --reporter=dot` | `282/282 files, 2,277/2,277 tests PASS` | streaming body bound, favorites hydration/error retry, visible JSON-LD FAQ parity, profile 출처, Zod registry까지 포함한 최신 전체 회귀다. |
+| `corepack pnpm --filter @hanbang/web test -- --reporter=dot` | `296/296 files, 2,535/2,535 tests PASS` | streaming body bound, 위기 안전 조기 경계, 예산 계약, combo 직접쓰기 차단, WeddingCode 연구 격리와 원장 완결성까지 포함한 2026-07-19 전체 회귀다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/constants/__tests__/runtimeDisclosureDataBoundary.test.ts" "src/lib/vendors/__tests__/publicDisclosureEvidencePrivacyMigration.test.ts" --reporter=verbose` | `2 files / 8 tests PASS` | 최신 `zero_result`, public `raw_text`, private `source_quote`, PII/길이 DB fence를 검증한다. |
 | `corepack pnpm --filter @hanbang/web typecheck` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web lint` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/lib/price/catalog.test.ts" "src/components/price/PricePresentation.test.tsx" --reporter=verbose` | `2 files / 9 tests PASS` | 필터 조합, empty state, 공시 원문, 로그인 경계, 조합 표시를 검증한다. |
 | GitHub CI와 동일한 placeholder 환경의 `next build` | `PASS`, 109 static pages | `CI=true`, production이 아닌 정확한 CI 조건에서 성공했다. 데이터가 연결되지 않아 발행 업체 slug의 실제 SSG 산출은 증명하지 않는다. `VERCEL_ENV=preview`에서 placeholder만 넣은 build는 공개 slug를 증명할 수 없어 의도대로 실패한다. |
 | `corepack pnpm ingest status` | 249 total, 235 converted, 14 manual, 0 error, 0 loaded, AI tokens 0 | 변환 현황만 증명하며 추출 품질·DB load·공개를 증명하지 않는다. |
-| `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 17개 migration hash/order 고정 | 20800을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
-| `corepack pnpm supabase:release:test` | `164/164 PASS` | backup·restore·write fence·release controller·SQL read-only·service destination·successor contract·hosted probe의 로컬 fail-closed 계약을 검증한다. 실제 hosted probe·backup·restore 영수증은 아니다. |
+| `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 19개 migration hash/order 고정 | 20900의 combo direct-write fence와 21000의 0~10억원 웨딩 예산 계약을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
+| `corepack pnpm supabase:release:test` | `165/165 PASS` | backup·restore·write fence·release controller·SQL read-only·service destination·successor contract·combo direct-write deny를 포함한 hosted probe의 로컬 fail-closed 계약을 검증한다. 실제 hosted probe·backup·restore 영수증은 아니다. |
 | `corepack pnpm supabase:release:fence:remote` | 예상된 차단 | hosted staging, backup, restore, Storage, finalizer가 `missing`이므로 DB 명령 전에 차단되는 것이 안전한 동작이다. |
 
 ### 타입 재생성 확인 명령
@@ -119,9 +119,10 @@ received: 20260718120000 ... 20260718206000, 20260718207000
 재검증 working tree 기준 시작 HEAD: 3ab26298414d
 당시 manifest 마지막 migration: 20260718207000_public_disclosure_evidence_privacy.sql
 당시 normalized SHA-256: b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512
-현재 manifest 마지막 migration: 20260718208000_atomic_weighted_rate_limit.sql
-정적 fence 결과: PASS — predecessor 27개, successor 17개 migration 검증
-관련 release 전체 테스트: PASS — 164/164
+현재 manifest 마지막 migration: 20260718210000_wedding_budget_product_contract.sql
+현재 마지막 migration normalized SHA-256: 91f2f16ed6f5efc3c02b6266e73254d306e0d824659bd77bc8ab03b06673d105
+정적 fence 결과: PASS — predecessor 27개, successor 19개 migration 검증
+관련 release 전체 테스트: PASS — 165/165
 remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 증거 전에는 DB 명령 전에 차단되어야 함
 ```
 

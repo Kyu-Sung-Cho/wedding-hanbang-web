@@ -224,6 +224,8 @@ The local contract test is:
 node --test scripts/tests/vendor-public-rls-probe.test.mjs
 ```
 
-Normal CI runs only this local contract test. The informational CI job named
-`Production Readiness: BLOCKED (Hosted Evidence Required)` does not claim that
-the hosted probe ran.
+Normal CI runs only this local contract test. The CI job named
+`Production Readiness: BLOCKED (Hosted Evidence Required)` is an intentionally
+failing release sentinel, not an informational success and not evidence that
+the hosted probe ran. The final Quality Gate must remain red while this sentinel
+is active.

@@ -1,6 +1,6 @@
 # 업체 공시 적재·속성·아모라 추천 V2
 
-최종 갱신: 2026-07-18  
+최종 갱신: 2026-07-19
 상태: 구현 및 로컬 검증 중. 운영 DB 미적용, 운영 배포 미실행.
 
 ## 이 문서의 지위
@@ -57,6 +57,8 @@ flowchart LR
   - `20260718206000_unverified_contract_clause_safety_fence.sql`: 법무 미검수 계약 조항 비활성화
   - `20260718207000_public_disclosure_evidence_privacy.sql`: 공개 근거 필드에서 원문 인용을 제거하고 공개 옵션 원문에 PII·연락처·길이 검증을 강제
   - `20260718208000_atomic_weighted_rate_limit.sql`: 이벤트 배치 크기를 DB 공유 버킷에서 원자적으로 차감해 수요 지표 오염 상한을 강제
+  - `20260718209000_price_combo_direct_write_fence.sql`: 인증 사용자의 `combos` 직접 INSERT/UPDATE를 제거하고 null-safe agency 및 단일 `official_price_id` 옵션 귀속·합계·멱등성을 재검증하는 service-only 저장 RPC로 단일화
+  - `20260718210000_wedding_budget_product_contract.sql`: 아모라·설정·여정·DB가 공유하는 결혼 총예산을 0~10억원 정수 원 단위로 통일하고 범위 밖 기존 값을 0으로 보수적으로 정리
 - 가격 검수: `/admin/price`
 - 업체 보강: `/admin/enrich`
 - 내부 추천: `POST /api/internal/vendors/recommend`
@@ -202,7 +204,7 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 내부 API는 32자 이상 별도 `INTERNAL_API_TOKEN`을 canonical secret으로 사용해 `X-Internal-Token`과 비교한다. 기존 배포의 `VENDOR_INTERNAL_TOKEN`은 canonical 값이 없을 때만 호환 fallback으로 사용한다. 두 변수가 모두 설정되어 값이 다르면 어느 쪽도 허용하지 않고 fail closed한다. 토큰이 없거나 짧아도 fail closed한다.
 
-`GET /api/internal/price/lookup`은 `v_public_official_prices`와 `v_public_official_price_options`만 읽고 최신 발행 스냅샷의 공개 최소 필드만 반환한다. `source_quote`, 내부 row ID, alias, similarity, 원문 query는 응답에 포함하지 않는다. 조회가 성공하려면 같은 service-role client로 `events`에 `anon_id='amora'`, `surface='amora'`, `event_type='vendor_detail_view'`, 서버 고정 weight `2`인 행이 정확히 1건 저장되어야 하며, 이벤트 저장 실패 시 가격 응답 대신 500으로 fail closed한다.
+`GET /api/internal/price/lookup`은 `v_public_official_prices`와 `v_public_official_price_options`만 읽고 최신 발행 스냅샷의 공개 최소 필드만 반환한다. `source_quote`, 내부 row ID, alias, similarity, 원문 query는 응답에 포함하지 않는다. 성공한 조회 뒤 같은 service-role client로 `events`에 `anon_id='amora'`, `surface='amora'`, `event_type='vendor_detail_view'`, 서버 고정 weight `2`인 수요 이벤트를 best-effort로 기록한다. 이벤트 저장 실패는 서버 로그에 남기되 이미 검증된 공개 가격 응답을 500으로 바꾸지 않는다. 이 경계는 분석 장애가 소비자 추천 가용성을 깨뜨리지 않게 하며, 이벤트 오염 상한은 서버 고정 weight와 DB 원자적 weighted limiter가 별도로 강제한다.
 
 추천은 category·active/approved 상태·공식 가격·요청 지역·명시적 필수 속성·명시적 카테고리 예산으로 hard filter한다. 속성이 unknown/null이면 탈락시키지 않고 `확인 필요` 이유를 붙인다. 지역 결과가 3개 미만이면 전국으로 한 번만 넓히고 응답에 범위 완화를 명시한다.
 
@@ -244,9 +246,9 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 로컬 게이트는 `corepack pnpm test:ingest`, `corepack pnpm ingest:typecheck`, 웹·모바일 전체 test/typecheck/lint/build와 정적 release fence를 모두 다시 실행해 PR CI에 고정한다. 로컬 fixture 통과는 아래 실제 provider·staging·운영 게이트를 대체하지 않는다.
 
-현재 successor manifest는 `supabase/release-manifests/vendor-disclosure-v2-20260718.json`이다. 기존 아모라 manifest를 해시로 연결하고 12000~20800 migration 전체를 정확한 순서·정규화 SHA-256으로 고정한다. hosted staging, backup, restore, Storage, finalizer 증거가 아직 없으므로 `status=deployment_blocked`다. 이 상태에서 정적 fence는 무결성 검증을 통과하지만 `--remote`와 실제 release controller는 DB 명령 실행 전에 실패해야 정상이다.
+현재 successor manifest는 `supabase/release-manifests/vendor-disclosure-v2-20260718.json`이다. 기존 아모라 manifest를 해시로 연결하고 12000~21000 migration 19개 전체를 정확한 순서·정규화 SHA-256으로 고정한다. hosted staging, backup, restore, Storage, finalizer 증거가 아직 없으므로 `status=deployment_blocked`다. 이 상태에서 정적 fence는 무결성 검증을 통과하지만 `--remote`와 실제 release controller는 DB 명령 실행 전에 실패해야 정상이다.
 
-실제 Vercel production Next 빌드도 `apps/web/next.config.ts`에서 같은 상태를 확인한다. manifest가 명시적 `deployment_authorized`가 아니거나 hosted staging·backup·hosted restore·Storage·finalizer 증거 중 하나라도 `missing`이면 `VENDOR_DISCLOSURE_PRODUCTION_BUILD_BLOCKED`로 artifact 생성을 중단한다. CI의 일반 `next build`는 `VERCEL_ENV=production`이 아니므로 코드·정적 빌드 검증만 수행하며 배포 승인을 뜻하지 않는다.
+실제 Vercel production Next 빌드도 `apps/web/next.config.ts`에서 같은 상태를 확인한다. 현재는 manifest 증거 값과 무관하게 외부 서명 승인 verifier·공유 successor controller 연동이 구현되지 않았으므로 `VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED`로 artifact 생성을 중단한다. 단순히 manifest 상태나 `missing` 값을 바꿔서는 게이트가 열리지 않는다. CI의 일반 `next build`는 `VERCEL_ENV=production`이 아니므로 코드·정적 빌드 검증만 수행하며 배포 승인을 뜻하지 않는다.
 
 ### 아직 하지 않은 일
 
