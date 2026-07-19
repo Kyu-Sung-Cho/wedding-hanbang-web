@@ -103,7 +103,7 @@ describe("chat attachment storage migration", () => {
       SET ROLE authenticated;
       SET "request.jwt.claim.sub" = '${USER_ID}';
     `);
-  });
+  }, 30_000);
 
   afterEach(async () => {
     await db.close();

@@ -113,8 +113,16 @@
   현재 계약과 일치한다. 운영 Supabase 연결, CI placeholder 주입, 정적 fallback으로 우회하지 않았다.
 - GitHub Actions run `29671209112`는 Web Quality, Mobile Quality, Vendor Disclosure Quality,
   Static Release Contracts를 모두 통과해 `681663a6`의 Linux 복구를 원격 검증했다.
-- `f5b35390`의 새 run `29682195263`도 코드 관련 job을 끝까지 확인해야 한다. Production
-  Readiness sentinel과 final Quality Gate의 red는 계속 의도된 차단이다.
+- `f5b35390`의 run `29682195263`에서는 Mobile Quality, Vendor Disclosure Quality,
+  Static Release Contracts가 통과했다. Web Quality는 296개 파일 중
+  `attachmentStorageMigrationIntegration.test.ts`의 첫 PGlite `beforeEach` 하나만 기본 10초
+  hook 제한을 넘겨 실패했고, 나머지 2,535개 테스트는 통과했다. 직전 run에서 같은 웹 전체
+  스위트가 통과했고 ingest·문서만 바뀐 commit이므로 제품 회귀가 아니라 전체 병렬 부하에서의
+  테스트 준비 시간 변동으로 판단했다.
+- 해당 보안 검증의 assertion이나 실패 조건은 바꾸지 않고, 저장소의 다른 PGlite migration
+  테스트와 동일하게 DB 생성 hook에만 30초 제한을 명시했다. 수정 후 파일 단독 실행을 새
+  프로세스로 3회 반복해 매회 3/3 통과했다. push 뒤 새 GitHub 전체 run에서 최종 확인한다.
+- Production Readiness sentinel과 final Quality Gate의 red는 계속 의도된 차단이다.
 
 ## 최종 로컬 검증
 
