@@ -1,5 +1,7 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 
+export { formatWon } from "@/lib/formatWon";
+
 export interface ToolExecutionContext {
   coupleId: string;
   /**
@@ -66,8 +68,4 @@ export function subjectParticle(value: string) {
 
 export function objectParticle(value: string) {
   return hasFinalConsonant(value) ? "을" : "를";
-}
-
-export function formatWon(amount: number): string {
-  return `${Math.round(amount / 10000).toLocaleString()}만원`;
 }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatWon } from "@/lib/formatWon";
 import type { ScheduleEvent } from "@/types/database.types";
 import { getEvents } from "@/utils/scheduleEvents";
 import { isRecord } from "@/utils/requestValidation";
@@ -306,8 +307,7 @@ function isBookingEvent(event: ScheduleEvent, bookingId: string): boolean {
 
 function wonMemo(amount: number): string {
   if (amount <= 0) return "";
-  if (amount >= 10_000) return ` · ${Math.floor(amount / 10_000).toLocaleString()}만원`;
-  return ` · ${amount.toLocaleString()}원`;
+  return ` · ${formatWon(amount)}`;
 }
 
 function readBookingCostContributions(
@@ -534,7 +534,7 @@ export function buildBookingCreatedProgressPatch(
     id: existingEvent?.id ?? eventId,
     date: input.booking.date,
     title: buildEventTitle(input),
-    memo: `예약 자동 등록 · booking ${input.booking.id.slice(0, 8)}${wonMemo(amount)}`,
+    memo: `예약 자동 등록${wonMemo(amount)}`,
     categoryKey: categoryKey ?? existingEvent?.categoryKey,
     sourceKey,
     createdAt: existingEvent?.createdAt ?? now,

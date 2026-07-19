@@ -99,6 +99,47 @@ describe("Amora GPT-5.6 model policy", () => {
     })).toBe("primary");
   });
 
+  it.each([
+    "목숨을 끊고 싶어",
+    "죽어버릴래",
+    "협박하고 있어",
+    "계속 협박하고 있어",
+    "성범죄를 당하고 있어",
+    "나 그냥 죽을래",
+    "죽어야겠어",
+    "죽어 버리고 싶어",
+    "목숨을 끊어버리고 싶어",
+    "법적 도움 받고 싶은데 남편이 지금 나를 때리고 있어",
+    "예방 교육도 들었는데 오늘 남편이 나를 때리고 있어",
+    "자살 예방 글을 읽다가 오히려 죽고 싶어졌어",
+    "성범죄 피해를 입었어",
+    "남편이 위협 중이야",
+    "친구가 지금 죽으려고 약을 먹었어. 어떻게 도와?",
+    "친구가 목숨을 끊고 싶어해. 어떻게 도와야 할까?",
+    "제가 방금 수면제를 한 통 먹었어요",
+    "친구가 방금 수면제를 한 통 먹었어요",
+    "목을 맸다가 풀었어",
+    "죽고 싶지 않지만 자해할 생각이 들어",
+    "남편이 협박하고 있지 않지만 폭력을 쓰고 있어",
+  ])("routes every deterministically classified crisis to Terra: %s", (userText) => {
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText,
+      correctionCount: 0,
+    })).toBe("primary");
+  });
+
+  it.each([
+    "협\u2066박당하고 있어",
+    "갈\u034F등이 너무 심해",
+  ])("uses the full safety normalizer for Terra risk routing: %s", (userText) => {
+    expect(chooseAmoraChatModelRole({
+      specialistType: "general",
+      userText,
+      correctionCount: 0,
+    })).toBe("primary");
+  });
+
   it("enforces the shared 800-token output ceiling", () => {
     expect(() => assertAmoraOutputTokenLimit(800)).not.toThrow();
     expect(() => assertAmoraOutputTokenLimit(801)).toThrow("between 1 and 800");

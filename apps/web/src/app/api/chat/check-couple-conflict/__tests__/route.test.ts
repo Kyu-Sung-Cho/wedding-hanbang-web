@@ -780,7 +780,33 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(mocks.auditedResponse).not.toHaveBeenCalled();
   });
 
-  it("returns a persistent limiter outage response before any provider or database work", async () => {
+  it("delegates crisis disclosures before rate limiting or either provider", async () => {
+    mocks.rawMessages[0] = {
+      ...mocks.rawMessages[0],
+      content: "지금 죽고 싶어",
+    };
+    mocks.persistentLimit.mockResolvedValue(
+      new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "crisis_safety_delegated",
+    });
+    expect(mocks.persistentLimit).not.toHaveBeenCalled();
+    expect(mocks.reserveTurn).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("returns a persistent limiter outage after the deterministic crisis boundary", async () => {
     mocks.persistentLimit.mockResolvedValue(
       new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
         status: 503,
@@ -796,7 +822,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       { maxRequests: 30, windowMs: 60 * 60 * 1000 },
       { failClosed: true },
     );
-    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.from).toHaveBeenCalled();
     expect(mocks.reserveTurn).not.toHaveBeenCalled();
     expect(mocks.structuredResponse).not.toHaveBeenCalled();
     expect(mocks.auditedResponse).not.toHaveBeenCalled();

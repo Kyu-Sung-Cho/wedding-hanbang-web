@@ -12,9 +12,10 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
 
 const MAX_BODY_BYTES = 8 * 1024;
-const MAX_BUDGET_WON = 1_000_000_000;
+const MAX_BUDGET_WON = MAX_WEDDING_BUDGET_WON;
 const MAX_EXISTING_BUDGET_WON = 1_000_000_000_000;
 const PATCH_FIELDS = [
   "name",

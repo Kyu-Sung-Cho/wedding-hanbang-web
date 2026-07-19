@@ -267,6 +267,7 @@ describe("Amora atomic mutation coverage migration", () => {
         },
       );
 
+      await db.exec("COMMIT");
       const state = await db.query<{
         wedding_date: string;
         venue_progress: unknown;

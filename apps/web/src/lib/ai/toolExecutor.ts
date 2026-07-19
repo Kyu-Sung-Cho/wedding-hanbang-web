@@ -63,16 +63,18 @@ import {
   applyAmoraAtomicToolResultToContext,
   buildAmoraAtomicToolOperation,
 } from "@/lib/ai/amoraAtomicToolOperation";
+import {
+  MAX_WEDDING_BUDGET_WON,
+  isValidWeddingWonAmount,
+} from "@/lib/weddingBudget";
 
 export { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 
-const MAX_WEDDING_AMOUNT_WON = 1_000_000_000_000;
+const MAX_WEDDING_AMOUNT_WON = MAX_WEDDING_BUDGET_WON;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidWonAmount(value: unknown): value is number {
-  return Number.isSafeInteger(value)
-    && (value as number) >= 0
-    && (value as number) <= MAX_WEDDING_AMOUNT_WON;
+  return isValidWeddingWonAmount(value);
 }
 
 function getAdminClient() {
@@ -1087,7 +1089,9 @@ async function executeUpdateVenue(
 }
 
 function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
-  const total = ctx.weddingContext.budget;
+  const total = isValidWonAmount(ctx.weddingContext.budget)
+    ? ctx.weddingContext.budget
+    : 0;
   const progress = ctx.weddingContext.progress;
 
   // 실데이터만 보고한다 — 배정은 progress[key].budget(미설정 시 평균 비율 "참고치"로 표시),
@@ -1095,12 +1099,12 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   // 대시보드 실값과 모순되는 숫자를 아모라가 말하게 된다(출처 원칙 위반).
   const categories = Object.entries(CATEGORY_RATIOS).map(([key, ratio]) => {
     const p = (progress[key] ?? {}) as Record<string, unknown>;
-    const hasSetBudget = typeof p.budget === "number" && Number.isFinite(p.budget as number);
+    const hasSetBudget = isValidWonAmount(p.budget);
     const allocated = hasSetBudget ? (p.budget as number) : Math.round(total * ratio);
     const spent =
-      typeof p.spent === "number" && Number.isFinite(p.spent as number)
+      isValidWonAmount(p.spent)
         ? (p.spent as number)
-        : typeof p.cost === "number" && Number.isFinite(p.cost as number)
+        : isValidWonAmount(p.cost)
           ? (p.cost as number)
           : 0;
 
@@ -1116,6 +1120,9 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
 
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
   const remaining = total - totalSpent;
+  const balanceLabel = remaining >= 0
+    ? `잔여 ${formatWon(remaining)}`
+    : `예산 ${formatWon(Math.abs(remaining))} 초과`;
   const estimateNote = categories.some((c) => c.allocated_is_estimate)
     ? " (예산 미설정 카테고리는 평균 비율 참고치)"
     : "";
@@ -1130,12 +1137,15 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       categories,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / 잔여 ${formatWon(remaining)}${estimateNote}`,
+    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${estimateNote}`,
   };
 }
 
 function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
-  const { weddingDate, budget, venue, progress } = ctx.weddingContext;
+  const { weddingDate, venue, progress } = ctx.weddingContext;
+  const budget = isValidWonAmount(ctx.weddingContext.budget)
+    ? ctx.weddingContext.budget
+    : 0;
 
   let dDay: number | null = null;
   if (weddingDate) {

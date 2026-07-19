@@ -42,6 +42,7 @@ import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { hasOpenAIConfig } from "@/lib/ai/modelConfig";
 import { getAmoraMemoryEnablement } from "@/lib/ai/amoraMemoryQueue";
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
+import { classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
 import {
   claimChatRequest,
   failChatRequest,
@@ -103,18 +104,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
 
-    // Rate limit — 이 라우트는 중재 시 OpenAI 모델을 호출하므로, 메인 채팅과
-    // 별개로 호출 빈도를 제한해 borderline 구간 반복 호출로 인한 LLM 폭주를 막는다.
-    const limited = await checkRateLimitPersistent(
-      rateLimitKey("conflict-check", req, user.id),
-      {
-        maxRequests: 30,
-        windowMs: 60 * 60 * 1000,
-      },
-      { failClosed: true },
-    );
-    if (limited) return limited;
-
     const body = (await req.json().catch(() => ({}))) as { coupleId?: string };
     const requestCoupleId = body.coupleId;
 
@@ -166,6 +155,33 @@ export async function POST(req: NextRequest) {
     if (!rawMessages || rawMessages.length < 2) {
       return NextResponse.json({ triggered: false, reason: "insufficient_messages" });
     }
+
+    // Never send a crisis disclosure through conflict detection or mediation.
+    // The main chat route owns the fixed 109/112/119/1366 response; this
+    // fire-and-forget route only guarantees that every provider path is closed.
+    const containsCrisisDisclosure = rawMessages.some((message) =>
+      message.sender_type !== "ai"
+      && typeof message.content === "string"
+      && classifyAmoraCrisis(message.content) !== null
+    );
+    if (containsCrisisDisclosure) {
+      return NextResponse.json({
+        triggered: false,
+        reason: "crisis_safety_delegated",
+      });
+    }
+
+    // Rate-limit only the ordinary provider-capable path. Crisis messages have
+    // already been delegated to the deterministic boundary above.
+    const limited = await checkRateLimitPersistent(
+      rateLimitKey("conflict-check", req, user.id),
+      {
+        maxRequests: 30,
+        windowMs: 60 * 60 * 1000,
+      },
+      { failClosed: true },
+    );
+    if (limited) return limited;
 
     // Partner-addressed messages are private correspondence. Until both people
     // explicitly opt in to provider processing, fail closed before either the

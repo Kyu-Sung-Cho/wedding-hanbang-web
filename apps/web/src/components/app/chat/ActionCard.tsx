@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
+import { formatWon } from "@/lib/formatWon";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -135,32 +136,83 @@ const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
 };
 
-function formatWon(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
+const INTERNAL_ID_FAILURE_COPY: Record<string, string> = {
+  update_schedule_event:
+    "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  delete_schedule_event:
+    "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+  toggle_checklist_item:
+    "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
+};
+const GENERIC_INTERNAL_ID_FAILURE_COPY =
+  "요청한 항목을 찾지 못했어요. 목록을 새로 불러온 뒤 다시 시도해 주세요.";
+const GENERIC_INTERNAL_ID_SUCCESS_COPY = "요청한 작업을 완료했어요.";
+
+function containsInternalIdentifier(result: ToolExecutionResult, message: string): boolean {
+  const inputIdentifiers = Object.entries(result.toolInput)
+    .filter(([key, value]) =>
+      /(?:^|_)(?:id|uuid)$/i.test(key)
+      && typeof value === "string"
+      && value.length > 0
+    )
+    .map(([, value]) => value as string);
+  return /\b(?:ID|UUID)\s*:/i.test(message)
+    || /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(message)
+    || /\b(?:act|booking|evt|msg|req|request|action)[_-][A-Za-z0-9_-]{6,}\b/i.test(message)
+    || inputIdentifiers.some((identifier) => message.includes(identifier));
+}
+
+function getUserFacingDisplayMessage(result: ToolExecutionResult): string {
+  const message = (result.displayMessage ?? "").trim();
+  if (!message) return message;
+  const exposesInternalId = containsInternalIdentifier(result, message);
+  if (!exposesInternalId) return message;
+
+  return result.success
+    ? GENERIC_INTERNAL_ID_SUCCESS_COPY
+    : INTERNAL_ID_FAILURE_COPY[result.toolName] ?? GENERIC_INTERNAL_ID_FAILURE_COPY;
+}
+
+function readLegacyProgressSpent(item: ProgressItem | undefined): number {
+  const spent = readWonAmount(item?.spent);
+  if (spent !== null) return spent;
+
+  const legacyCost = readWonAmount(item?.cost);
+  if (legacyCost === null) return 0;
+  const normalized = legacyCost > 0 && legacyCost < 100_000
+    ? legacyCost * 10_000
+    : legacyCost;
+  return readWonAmount(normalized) ?? 0;
 }
 
 // 예산 현황 미니 카드
 function BudgetMiniCard() {
   const { journey } = useAuthStore();
-  const totalBudget = journey?.total_budget ?? 0;
-  const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+  const totalBudget = readWonAmount(journey?.total_budget) ?? 0;
+  const rawProgress = journey?.progress;
+  const progress = (
+    rawProgress
+    && typeof rawProgress === "object"
+    && !Array.isArray(rawProgress)
+  ) ? rawProgress as Record<string, ProgressItem> : {};
 
   if (!totalBudget) return null;
 
   const topCategories = ["venue", "studio", "dress", "makeup", "ring", "honeymoon"];
   const items = topCategories.map((key) => {
     const item = progress[key];
-    const budget = item?.budget ?? Math.round(totalBudget * (CATEGORY_RATIOS[key] ?? 0));
-    const spent = item?.spent ?? (item?.cost ? (item.cost < 100000 ? item.cost * 10000 : item.cost) : 0);
+    const budget = readWonAmount(item?.budget)
+      ?? Math.round(totalBudget * (CATEGORY_RATIOS[key] ?? 0));
+    const spent = readLegacyProgressSpent(item);
     const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
     return { key, label: CATEGORY_LABELS[key], budget, spent, pct };
   });
 
-  const totalSpent = Object.keys(CATEGORY_LABELS).reduce((s, key) => {
-    const item = progress[key];
-    const spent = item?.spent ?? (item?.cost ? (item.cost < 100000 ? item.cost * 10000 : item.cost) : 0);
-    return s + spent;
-  }, 0);
+  let totalSpent = 0;
+  for (const key of Object.keys(CATEGORY_LABELS)) {
+    totalSpent += readLegacyProgressSpent(progress[key]);
+    if (!Number.isSafeInteger(totalSpent)) return null;
+  }
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
@@ -404,9 +456,7 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
   if (result.toolName === "toggle_checklist_item") {
     const itemLabel = typeof result.toolOutput.item_label === "string"
       ? result.toolOutput.item_label
-      : typeof result.toolInput.item_id === "string"
-        ? result.toolInput.item_id
-        : null;
+      : "체크리스트 항목";
     const done = typeof result.toolOutput.done === "boolean"
       ? result.toolOutput.done
       : result.toolInput.done;
@@ -556,7 +606,7 @@ export default function ActionCard({ result }: ActionCardProps) {
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
   // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
   // 동일 결과 반복은 ChatSidePanel에서 내용 기준으로 한 번만 표시한다.
-  const msg = (result.displayMessage ?? "").trim();
+  const msg = getUserFacingDisplayMessage(result);
   if (!result.success && msg === "") return null;
 
   const icon = getIcon(result.toolName);
@@ -592,7 +642,7 @@ export default function ActionCard({ result }: ActionCardProps) {
           )}
         </div>
         <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[#928980]">
-          {result.displayMessage}
+          {msg}
         </p>
 
         {isBudgetSummary && <BudgetMiniCard />}

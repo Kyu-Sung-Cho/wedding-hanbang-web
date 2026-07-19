@@ -79,6 +79,7 @@ import {
   AMORA_CRISIS_CONTACT_POLICY_VERSION,
   buildAmoraCrisisResponse,
   classifyAmoraCrisis,
+  type AmoraCrisisKind,
 } from "@/lib/ai/amoraCrisisSafety";
 import {
   AiMessagePersistenceError,
@@ -206,6 +207,27 @@ function replayPersistedMessage(message: PersistedAiMessage): Response {
     metadata: getDoneMetadata(message),
   });
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  return new Response(payload, { headers: SSE_HEADERS });
+}
+
+function replayEphemeralCrisisMessage(
+  content: string,
+  kind: AmoraCrisisKind,
+): Response {
+  const payload = `data: ${JSON.stringify({
+    type: "done",
+    fullContent: content,
+    metadata: {
+      response_origin: "deterministic_crisis_safety",
+      safety_classification: kind,
+      safety_contact_policy: AMORA_CRISIS_CONTACT_POLICY_VERSION,
+      memory_eligible: false,
+      persistence_status: "unconfirmed_ephemeral_fallback",
+      stageTag: null,
+      specialistType: null,
+      replayed: false,
+    },
+  })}\n\n`;
   return new Response(payload, { headers: SSE_HEADERS });
 }
 
@@ -420,19 +442,6 @@ export async function POST(request: Request) {
 
   const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
   const evalLimit = isEvaluation ? getEvalRequestLimit(request) : null;
-  const limited = await checkRateLimitPersistent(
-    evalLimit
-      ? evalLimit.key
-      : isDemo
-      ? rateLimitKey("chat-demo", request)
-      : rateLimitKey("chat", request, actorId),
-    {
-      maxRequests: evalLimit?.maxRequests ?? 60,
-      windowMs: evalLimit ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
-    },
-    { failClosed: true },
-  );
-  if (limited) return limited;
 
   if (
     !isValidChatMessages(messages) ||
@@ -472,18 +481,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "중재 맥락 형식이 올바르지 않습니다." }, { status: 400 });
   }
   const attachmentInput = attachments ?? body.images ?? [];
-  let validatedAttachments: ValidatedAmoraAttachment[];
-  try {
-    validatedAttachments = validateAmoraAttachments(attachmentInput);
-  } catch (error) {
-    if (error instanceof AmoraAttachmentValidationError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 400, headers: { "Cache-Control": "no-store" } },
-      );
-    }
-    throw error;
-  }
   if (bodyClientRequestId !== undefined &&
       (typeof bodyClientRequestId !== "string" || !CLIENT_REQUEST_ID_RE.test(bodyClientRequestId))) {
     return NextResponse.json(
@@ -584,6 +581,90 @@ export async function POST(request: Request) {
         .update(demoSessionToken ?? rawClientRequestId)
         .digest("hex")}`
     : actorId;
+
+  // This deterministic boundary intentionally runs before the ordinary chat
+  // limiter, attachment parsing, durable claim, auxiliary context reads, and
+  // every provider call. An infrastructure or malformed-attachment failure
+  // must never hide time-critical contact guidance.
+  let earlyCrisisUserText: string | null = null;
+  if (requestKind === "mediation") {
+    earlyCrisisUserText = String(conflictContext).trim();
+  } else if (requestKind === "chat") {
+    const latestClientUserText = [
+      ...(messages as Array<{ role: "user" | "assistant"; content: string }>),
+    ].reverse().find((message) => message.role === "user")?.content ?? null;
+
+    if (isDemo) {
+      earlyCrisisUserText = latestClientUserText;
+    } else {
+      try {
+        let query = supabase
+          .from("chat_messages")
+          .select("id, content, sender_id, sender_type, role, metadata, visibility")
+          .eq("couple_id", coupleId)
+          .eq("sender_id", actorId)
+          .eq("role", "user")
+          .eq("visibility", visibility)
+          .or("metadata->>target.is.null,metadata->>target.neq.partner");
+        query = typeof bodyUserMessageId === "string"
+          ? query.eq("id", bodyUserMessageId)
+          : query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1);
+        const canonicalCrisisRow = await query.maybeSingle();
+        if (
+          canonicalCrisisRow.data
+          && canonicalCrisisRow.data.sender_type !== "ai"
+          && canonicalCrisisRow.data.sender_id === actorId
+          && canonicalCrisisRow.data.role === "user"
+        ) {
+          earlyCrisisUserText = canonicalCrisisRow.data.content;
+        } else {
+          // Returning fixed emergency guidance is safe even if the focused
+          // canonical read is unavailable; never send this fallback to a model
+          // and never persist it as a durable reply.
+          earlyCrisisUserText = latestClientUserText;
+        }
+      } catch {
+        earlyCrisisUserText = latestClientUserText;
+      }
+    }
+  }
+
+  const earlyCrisisClassification = earlyCrisisUserText === null
+    ? null
+    : classifyAmoraCrisis(earlyCrisisUserText);
+  if (earlyCrisisClassification) {
+    return replayEphemeralCrisisMessage(
+      buildAmoraCrisisResponse(earlyCrisisClassification.kind),
+      earlyCrisisClassification.kind,
+    );
+  }
+
+  const limited = await checkRateLimitPersistent(
+    evalLimit
+      ? evalLimit.key
+      : isDemo
+      ? rateLimitKey("chat-demo", request)
+      : rateLimitKey("chat", request, actorId),
+    {
+      maxRequests: evalLimit?.maxRequests ?? 60,
+      windowMs: evalLimit ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
+    },
+    { failClosed: true },
+  );
+  if (limited) return limited;
+
+  let validatedAttachments: ValidatedAmoraAttachment[];
+  try {
+    validatedAttachments = validateAmoraAttachments(attachmentInput);
+  } catch (error) {
+    if (error instanceof AmoraAttachmentValidationError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 400, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    throw error;
+  }
 
   // A completed retry must not reserve cost, rerun the model, or replay tools.
   if (!isDemo) {
@@ -1196,79 +1277,6 @@ export async function POST(request: Request) {
       );
     }
     lastUserText = latestUserRow.content;
-  }
-
-  // Crisis handling is a deterministic server safety boundary, not a model
-  // routing hint. Evaluate only the canonical latest user text (the signed
-  // demo has no durable history), before pending actions, tools, cost ledger,
-  // provider selection, feedback logging, or memory-job enqueueing.
-  const latestCanonicalRow = canonicalRows[canonicalRows.length - 1];
-  const crisisUserText = isDemo
-    ? lastUserText
-    : requestKind === "chat"
-      && latestCanonicalRow?.role === "user"
-      && latestCanonicalRow.sender_type !== "ai"
-      && latestCanonicalRow.sender_id === actorId
-        ? latestCanonicalRow.content
-        : null;
-  const crisisClassification = crisisUserText === null
-    ? null
-    : classifyAmoraCrisis(crisisUserText);
-  if (crisisClassification) {
-    const crisisText = buildAmoraCrisisResponse(crisisClassification.kind);
-    try {
-      const crisisMessage = await persistAiMessage({
-        isDemo,
-        coupleId,
-        cleanText: crisisText,
-        clientRequestId,
-        metadata: {
-          response_origin: "deterministic_crisis_safety",
-          safety_classification: crisisClassification.kind,
-          safety_contact_policy: AMORA_CRISIS_CONTACT_POLICY_VERSION,
-          memory_eligible: false,
-          ...(visibleClientRequestKey !== clientRequestId
-            ? { client_visible_request_id: visibleClientRequestKey }
-            : {}),
-        },
-        stageTag: null,
-        specialistType: null,
-        visibility,
-      });
-
-      if (!isDemo) {
-        if (!crisisMessage.id) {
-          throw new AiMessagePersistenceError(
-            "Deterministic crisis response returned no durable message",
-          );
-        }
-        const reconciled = await reconcileChatRequest({
-          ...claimParams,
-          messageId: crisisMessage.id,
-        });
-        if (!reconciled) {
-          throw new ChatRequestClaimError(
-            "Deterministic crisis response claim reconciliation failed",
-          );
-        }
-        requestClaimAcquired = false;
-        requestClaimAttemptCount = null;
-      }
-
-      return replayPersistedMessage(crisisMessage);
-    } catch {
-      // Never log the disclosure or response body. Correlation remains in the
-      // durable claim; this log is intentionally content-free.
-      console.error("[chat] deterministic crisis response commit failed");
-      await releaseClaimBeforeStream("CRISIS_RESPONSE_COMMIT_FAILED");
-      return NextResponse.json(
-        {
-          error: "안전 안내를 저장하지 못했어요. 잠시 후 같은 요청으로 다시 시도해주세요.",
-          code: "CRISIS_RESPONSE_COMMIT_FAILED",
-        },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
-      );
-    }
   }
 
   const previousCanonicalRow = canonicalRows.length >= 2

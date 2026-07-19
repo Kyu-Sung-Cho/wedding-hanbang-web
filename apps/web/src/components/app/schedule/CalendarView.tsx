@@ -16,6 +16,7 @@ import {
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { ScheduleEvent } from "@/types/database.types";
+import { sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -192,7 +193,7 @@ export default function CalendarView({
             <div className="flex flex-col gap-2">
               {/* 이벤트 */}
               {selectedEvents.map((evt) => {
-                const memoText = evt.memo?.trim();
+                const memoText = sanitizeUserFacingScheduleMemo(evt.memo)?.trim();
                 const shouldShowMemo =
                   Boolean(memoText) && memoText !== evt.title.trim();
 

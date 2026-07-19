@@ -9,6 +9,7 @@ import {
   isRecord,
   sanitizeJsonObject,
 } from "@/utils/requestValidation";
+import { MAX_WEDDING_BUDGET_WON } from "@/lib/weddingBudget";
 
 const MAX_BODY_BYTES = 128 * 1024;
 const PROGRESS_REMOVE_KEY_RE = /^[a-zA-Z0-9_.:-]{1,80}$/;
@@ -71,7 +72,11 @@ export async function PATCH(request: Request) {
     }
 
     if (body.total_budget !== undefined) {
-      const totalBudget = cleanIntegerInRange(body.total_budget, 0, 1_000_000_000);
+      const totalBudget = cleanIntegerInRange(
+        body.total_budget,
+        0,
+        MAX_WEDDING_BUDGET_WON,
+      );
       if (totalBudget === undefined) {
         return NextResponse.json(
           { error: "예산은 0원 이상 10억원 이하의 정수여야 합니다." },

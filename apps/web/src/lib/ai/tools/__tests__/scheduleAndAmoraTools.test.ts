@@ -3,9 +3,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionContext } from "../toolTypes";
 import {
   executeAddScheduleEvent,
+  executeDeleteScheduleEvent,
   executeGetScheduleEvents,
   executeGetScheduleSummary,
   executeLogWeddingEvent,
+  executeToggleChecklistItem,
   executeUpdateScheduleEvent,
 } from "../scheduleTools";
 import {
@@ -198,6 +200,36 @@ describe("scheduleTools", () => {
       success: false,
       toolOutput: { error: "invalid_date", received: "2027-04-31" },
     });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns actionable not-found copy without internal schedule or checklist IDs", async () => {
+    const internalId = "018f4dc8-3ac1-7f31-9c45-1b8b46bf6e89";
+    const results = await Promise.all([
+      executeUpdateScheduleEvent(
+        { event_id: internalId, title: "수정" },
+        createContext({}),
+      ),
+      executeDeleteScheduleEvent(
+        { event_id: internalId, confirmed: true },
+        createContext({}),
+      ),
+      executeToggleChecklistItem(
+        { category: "venue", item_id: internalId, done: true },
+        createContext({}),
+      ),
+    ]);
+
+    expect(results.map((result) => result.displayMessage)).toEqual([
+      "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+      "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
+      "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
+    ]);
+    for (const result of results) {
+      expect(result.success).toBe(false);
+      expect(result.displayMessage).not.toContain(internalId);
+      expect(result.displayMessage).not.toContain("ID:");
+    }
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 

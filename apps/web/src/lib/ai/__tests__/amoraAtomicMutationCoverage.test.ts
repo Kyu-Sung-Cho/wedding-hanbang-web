@@ -99,6 +99,24 @@ describe("Amora atomic mutation coverage", () => {
     vi.useRealTimers();
   });
 
+  it("fails closed on a corrupt legacy total budget until the cleanup migration runs", () => {
+    const ctx = context();
+    ctx.weddingContext.budget = -1;
+
+    const operation = buildAmoraAtomicToolOperation(
+      "update_budget",
+      { total_budget: 30_000_000 },
+      ctx,
+    );
+
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(operation.result).toMatchObject({
+      success: false,
+      toolOutput: { error: "invalid_existing_budget" },
+    });
+    expect(operation.result.displayMessage).not.toContain("-1");
+  });
+
   it("applies a budget plan without retaining the private intake summary", () => {
     const operation = buildAmoraAtomicToolOperation(
       "apply_budget_plan",

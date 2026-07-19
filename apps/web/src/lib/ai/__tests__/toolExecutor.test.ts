@@ -100,6 +100,45 @@ describe("get_budget_summary — 실데이터 원칙 (상태 기반 추정 금�
     const result = await executeTool("get_budget_summary", {}, makeCtx());
     expect(result.displayMessage).toContain("참고치");
   });
+
+  it("예산을 초과해도 실패하지 않고 초과액을 정확히 안내한다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { budget: 20_000_000, spent: 60_000_000 },
+    }));
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput).toMatchObject({
+      total_budget: 50_000_000,
+      total_spent: 60_000_000,
+      remaining: -10_000_000,
+    });
+    expect(result.displayMessage).toContain("예산 1,000만원 초과");
+  });
+
+  it("손상된 음수·소수 지출값은 금액으로 보고하지 않는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { spent: -1 },
+      studio: { spent: 1.5 },
+    }));
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput.total_spent).toBe(0);
+    expect(result.displayMessage).toContain("기록된 지출 0원");
+  });
+});
+
+describe("get_wedding_info — 손상된 기존 예산 방어", () => {
+  it("음수 기존 예산을 사용자나 모델에게 금액으로 노출하지 않는다", async () => {
+    const ctx = makeCtx();
+    ctx.weddingContext.budget = -1;
+
+    const result = await executeTool("get_wedding_info", {}, ctx);
+
+    expect(result.success).toBe(true);
+    expect(result.toolOutput.total_budget).toBe(0);
+    expect(result.displayMessage).toContain("예산: 0원");
+    expect(result.displayMessage).not.toContain("-1");
+  });
 });
 
 describe("read tool error boundary", () => {
@@ -232,7 +271,7 @@ describe("예산 변경 write fence", () => {
   it.each([
     -1,
     1.5,
-    1_000_000_000_001,
+    1_000_000_001,
     "3000만원",
   ])("총예산의 비정상 금액 %s를 DB 전에 거부한다", async (totalBudget) => {
     const result = await executeTool(
@@ -265,7 +304,7 @@ describe("예산 변경 write fence", () => {
     { category: "__proto__", budget: 100_000 },
     { category: "dress", budget: -1 },
     { category: "dress", spent: 1.5 },
-    { category: "dress", budget: 1_000_000_000_001 },
+    { category: "dress", budget: 1_000_000_001 },
     { category: "dress" },
   ])("카테고리 예산의 비정상 입력을 거부한다: %j", async (input) => {
     const result = await executeTool("update_category_budget", input, makeCtx());
@@ -282,7 +321,7 @@ describe("예산 변경 write fence", () => {
   it("커스텀 카테고리에도 동일한 상한과 정수 규칙을 적용한다", async () => {
     const result = await executeTool(
       "add_custom_category",
-      { label: "포토부스", budget: 1_000_000_000_001 },
+      { label: "포토부스", budget: 1_000_000_001 },
       makeCtx(),
     );
 

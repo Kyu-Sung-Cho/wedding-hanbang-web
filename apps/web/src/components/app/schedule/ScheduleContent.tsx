@@ -6,7 +6,12 @@ import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles, X } from 
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
-import { findCategoryScheduleEvent, getEvents, upsertCategoryEvent } from "@/utils/scheduleEvents";
+import {
+  findCategoryScheduleEvent,
+  getEvents,
+  sanitizeUserFacingScheduleMemo,
+  upsertCategoryEvent,
+} from "@/utils/scheduleEvents";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
@@ -192,7 +197,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           {
             date: data.date,
             title: pendingChecklistSchedule.categoryLabel,
-            memo: data.memo?.trim() || pendingChecklistSchedule.itemLabel,
+            memo:
+              sanitizeUserFacingScheduleMemo(data.memo)?.trim()
+              || pendingChecklistSchedule.itemLabel,
             categoryKey: pendingChecklistSchedule.categoryKey,
           },
           pendingChecklistSchedule.categoryLabel
@@ -597,7 +604,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   );
 }
 
-function ChecklistSchedulePrompt({
+export function ChecklistSchedulePrompt({
   pending,
   onClose,
   onComplete,
@@ -613,7 +620,10 @@ function ChecklistSchedulePrompt({
   useEffect(() => {
     if (!pending) return;
     setDate(pending.existingEvent?.date ?? "");
-    setMemo(pending.existingEvent?.memo ?? pending.itemLabel);
+    setMemo(
+      sanitizeUserFacingScheduleMemo(pending.existingEvent?.memo)
+      ?? pending.itemLabel,
+    );
   }, [pending]);
 
   if (!pending) return null;
@@ -622,7 +632,10 @@ function ChecklistSchedulePrompt({
     if (!date || saving) return;
     setSaving(true);
     try {
-      await onComplete({ date, memo });
+      await onComplete({
+        date,
+        memo: sanitizeUserFacingScheduleMemo(memo),
+      });
     } finally {
       setSaving(false);
     }

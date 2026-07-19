@@ -1,3 +1,8 @@
+import {
+  classifyAmoraCrisis,
+  normalizeAmoraSafetyText,
+} from "@/lib/ai/amoraCrisisSafety";
+
 export type AmoraModelRole = "primary" | "fast";
 
 export type OpenAIReasoningEffort =
@@ -110,9 +115,8 @@ export function chooseAmoraChatModelRole(input: {
 }): AmoraModelRole {
   if (input.specialistType === "contract_reviewer") return "primary";
   if (input.correctionCount >= 2) return "primary";
-  const normalizedUserText = input.userText
-    .normalize("NFKC")
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+  if (classifyAmoraCrisis(input.userText)) return "primary";
+  const normalizedUserText = normalizeAmoraSafetyText(input.userText);
   if (TERRA_RISK_PATTERN.test(normalizedUserText)) return "primary";
   return "fast";
 }

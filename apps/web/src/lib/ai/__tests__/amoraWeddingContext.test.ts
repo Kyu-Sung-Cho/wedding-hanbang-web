@@ -106,4 +106,37 @@ describe("resolveAmoraWeddingContext", () => {
     expect(Object.keys(result.progress)).toHaveLength(100);
     expect((result.progress.category_0 as { memo: string }).memo).toHaveLength(1_000);
   });
+
+  it("does not send a legacy booking id from schedule memos into the model context", () => {
+    const result = resolveAmoraWeddingContext({
+      canonicalJourney: {
+        progress: {
+          __events: [{
+            date: "2027-05-03",
+            title: "드레스 피팅",
+            memo: "예약 자동 등록 · booking 018f4dc8 · 15,000원",
+          }],
+        },
+      },
+      clientContext: null,
+      allowClientContext: false,
+    });
+
+    expect(result.scheduleEvents[0]?.memo).toBe("예약 자동 등록 · 15,000원");
+    expect(JSON.stringify(result.scheduleEvents)).not.toContain("018f4dc8");
+  });
+
+  it("uses the same 10억원 product ceiling as every wedding budget write path", () => {
+    expect(resolveAmoraWeddingContext({
+      canonicalJourney: { total_budget: 1_000_000_000, progress: {} },
+      clientContext: null,
+      allowClientContext: false,
+    }).budget).toBe(1_000_000_000);
+
+    expect(resolveAmoraWeddingContext({
+      canonicalJourney: { total_budget: 1_000_000_001, progress: {} },
+      clientContext: null,
+      allowClientContext: false,
+    }).budget).toBe(0);
+  });
 });

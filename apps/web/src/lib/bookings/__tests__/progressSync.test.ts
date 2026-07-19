@@ -166,11 +166,24 @@ describe("booking progress sync", () => {
     expect(result.syncedEvent.id).toBe(`evt_booking_${booking.id}`);
     expect(result.syncedEvent.sourceKey).toBe(`booking:${booking.id}`);
     expect(result.syncedEvent.title).toContain("B드레스");
+    expect(result.syncedEvent.memo).toBe("예약 자동 등록 · 150만원");
+    expect(result.syncedEvent.memo).not.toContain(booking.id.slice(0, 8));
     expect(result.patch).toHaveProperty("__events");
     expect(result.patch.__booking_costs).toMatchObject({
       [booking.id]: { amount: booking.amount, categoryKey: "dress" },
     });
     expect(result.patch).toHaveProperty("dress");
+  });
+
+  it("keeps a non-whole 만원 booking amount exact in the user-visible memo", () => {
+    const result = buildBookingCreatedProgressPatch({
+      progress: {},
+      booking: { ...booking, amount: 15_000 },
+      vendor,
+    });
+
+    expect(result.syncedEvent.memo).toBe("예약 자동 등록 · 15,000원");
+    expect(result.syncedEvent.memo).not.toContain(booking.id.slice(0, 8));
   });
 
   it("updates an existing booking event without charging the budget twice", () => {

@@ -6,6 +6,7 @@ import {
   MAX_SCHEDULE_EVENTS,
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
+  sanitizeUserFacingScheduleMemo,
   upsertMomentEvent,
 } from "../scheduleEvents";
 
@@ -111,5 +112,28 @@ describe("getEvents", () => {
     expect(() => addEvent({}, draft)).toThrow(
       expect.objectContaining<Partial<ScheduleEventValidationError>>({ field }),
     );
+  });
+});
+
+describe("sanitizeUserFacingScheduleMemo", () => {
+  it("removes a legacy booking id while preserving the useful amount", () => {
+    expect(sanitizeUserFacingScheduleMemo(
+      "예약 자동 등록 · booking 018f4dc8 · 15,000원",
+    )).toBe("예약 자동 등록 · 15,000원");
+  });
+
+  it("removes a full legacy UUID when there is no suffix", () => {
+    expect(sanitizeUserFacingScheduleMemo(
+      "예약 자동 등록 · booking 018f4dc8-0ac2-7df5-9f5d-2e8fd1c43b21",
+    )).toBe("예약 자동 등록");
+  });
+
+  it.each([
+    undefined,
+    "예약 자동 등록 · 담당자에게 확인",
+    "booking 018f4dc8 관련 메모",
+    "예약 자동 등록 · booking reference 확인",
+  ])("does not rewrite unrelated memo text: %s", (memo) => {
+    expect(sanitizeUserFacingScheduleMemo(memo)).toBe(memo);
   });
 });

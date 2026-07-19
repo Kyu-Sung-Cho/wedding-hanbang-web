@@ -12,6 +12,7 @@ import {
   Plus, X, CalendarDays, Clock, Trash2, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -162,6 +163,7 @@ function normalizeScheduleEvent(event: ScheduleEvent): ScheduleEvent {
   const now = new Date().toISOString();
   return {
     ...event,
+    memo: sanitizeUserFacingScheduleMemo(event.memo),
     id: event.id ?? createEventId(),
     createdAt: event.createdAt ?? now,
     updatedAt: event.updatedAt ?? now,
@@ -479,7 +481,7 @@ export default function ScheduleScreen() {
     setFormDate(evt.date);
     setFormTime(evt.time ?? "");
     setFormCategoryKey(evt.categoryKey ?? "");
-    setFormMemo(evt.memo ?? "");
+    setFormMemo(sanitizeUserFacingScheduleMemo(evt.memo) ?? "");
     setModalVisible(true);
   }
 

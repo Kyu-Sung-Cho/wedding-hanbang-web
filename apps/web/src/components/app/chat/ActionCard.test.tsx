@@ -69,7 +69,7 @@ describe("ActionCard budget results", () => {
     expect(container.querySelector('[aria-label="예물 예산 변경 결과"]')).not.toBeNull();
     expect(container.textContent).toContain("예산");
     expect(container.textContent).toContain("300만원");
-    expect(container.textContent).not.toContain("총 0만원 / 2,700만원");
+    expect(container.textContent).not.toContain("총 0원 / 2,700만원");
     expect(container.textContent).not.toContain("0%");
   });
 
@@ -111,7 +111,7 @@ describe("ActionCard budget results", () => {
     expect(container.querySelector('[aria-label="예물 지출 변경 결과"]')).not.toBeNull();
     expect(container.textContent).toContain("변경된 지출");
     expect(container.textContent).toContain("50만원");
-    expect(container.textContent).not.toContain("총 0만원 / 2,700만원");
+    expect(container.textContent).not.toContain("총 0원 / 2,700만원");
   });
 
   it("keeps the spending summary for an explicit budget-summary result", async () => {
@@ -128,7 +128,7 @@ describe("ActionCard budget results", () => {
       );
     });
 
-    expect(container.textContent).toContain("총 0만원 / 2,700만원");
+    expect(container.textContent).toContain("총 0원 / 2,700만원");
     expect(container.textContent).toContain("0%");
   });
 });

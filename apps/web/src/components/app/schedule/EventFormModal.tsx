@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Trash2, CalendarDays } from "lucide-react";
 import type { ScheduleEvent } from "@/types/database.types";
+import { sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
 
 const CATEGORY_OPTIONS = [
   { key: "", label: "카테고리 선택 (선택사항)" },
@@ -64,7 +65,7 @@ export default function EventFormModal({
     if (mode === "edit" && event) {
       setTitle(event.title);
       setDate(event.date);
-      setMemo(event.memo ?? "");
+      setMemo(sanitizeUserFacingScheduleMemo(event.memo) ?? "");
       setCategoryKey(event.categoryKey ?? "");
     } else {
       setTitle("");

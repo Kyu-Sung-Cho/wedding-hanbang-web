@@ -198,6 +198,10 @@ function queryResult(data: unknown, hooks: {
     return query;
   });
   query.single = vi.fn(async () => result);
+  query.maybeSingle = vi.fn(async () => ({
+    data: Array.isArray(result.data) ? (result.data[0] ?? null) : result.data,
+    error: result.error,
+  }));
   query.then = (
     resolve: (value: typeof result) => unknown,
     reject?: (reason: unknown) => unknown
@@ -528,7 +532,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
-  it("persists and reconciles a canonical crisis response before model, cost, tools, pending actions, or memory", async () => {
+  it("returns canonical crisis guidance before limiter, attachments, persistence, model, cost, tools, or memory", async () => {
     const disclosure = "지금 죽\u200B고 싶어요";
     const actionId = "11111111-1111-4111-8111-111111111111";
     const now = Date.now();
@@ -565,14 +569,6 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         created_at: "2026-07-16T00:00:00.000Z",
       },
     );
-    mocks.persist.mockImplementation(async ({
-      cleanText,
-      metadata,
-    }: {
-      cleanText: string;
-      metadata: Record<string, unknown>;
-    }) => ({ ...persisted(cleanText), metadata }));
-
     const response = await POST(request({
       // A forged benign client copy must not override the canonical DB row.
       messages: [{ role: "user", content: "예산 변경을 계속해줘" }],
@@ -583,22 +579,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
     expect(body).toContain("자살예방상담전화 109");
     expect(body).toContain("경찰 112");
-    expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
-      isDemo: false,
-      cleanText: expect.stringContaining("자살예방상담전화 109"),
-      metadata: expect.objectContaining({
-        response_origin: "deterministic_crisis_safety",
-        safety_classification: "self_harm",
-        memory_eligible: false,
-      }),
-    }));
-    expect(mocks.reconcile).toHaveBeenCalledWith(expect.objectContaining({
-      coupleId: COUPLE_ID,
-      messageId: "20000000-0000-4000-8000-000000000001",
-      userMessageId: "30000000-0000-4000-8000-000000000001",
-    }));
-    const persistedMetadata = mocks.persist.mock.calls[0]?.[0]?.metadata;
-    expect(JSON.stringify(persistedMetadata)).not.toContain(disclosure);
+    expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(body).not.toContain(disclosure);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.chooseModelRole).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
@@ -608,26 +594,26 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.log).not.toHaveBeenCalled();
   });
 
-  it("fails closed without provider work when the deterministic crisis response cannot be persisted", async () => {
+  it("still emits fixed crisis guidance when the ordinary limiter and attachment path would reject", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
       content: "자해할 생각이 들어",
     };
-    mocks.persist.mockRejectedValue(new Error("database unavailable"));
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.rateLimit.mockResolvedValue(new Response("limited", { status: 429 }));
 
     const response = await POST(request({
       messages: [{ role: "user", content: "자해할 생각이 들어" }],
+      attachments: [{ kind: "image", fileName: "remote.png", url: "https://example.test/private.png" }],
     }));
 
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "CRISIS_RESPONSE_COMMIT_FAILED",
-    });
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("자살예방상담전화 109");
+    expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
-    expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
-      failureCode: "CRISIS_RESPONSE_COMMIT_FAILED",
-    }));
+    expect(mocks.failClaim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
@@ -635,7 +621,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
   });
 
-  it("fails closed without emitting the crisis SSE when claim reconciliation is not confirmed", async () => {
+  it("returns fixed violence guidance without entering durable claim reconciliation", async () => {
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
       content: "지금 배우자에게 맞았어",
@@ -647,20 +633,35 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       messages: [{ role: "user", content: "지금 배우자에게 맞았어" }],
     }));
 
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "CRISIS_RESPONSE_COMMIT_FAILED",
-    });
-    expect(mocks.persist).toHaveBeenCalled();
-    expect(mocks.reconcile).toHaveBeenCalled();
-    expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
-      failureCode: "CRISIS_RESPONSE_COMMIT_FAILED",
-    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("여성긴급전화 1366");
+    expect(body).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.failClaim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
     expect(mocks.provider).not.toHaveBeenCalled();
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.executeTool).not.toHaveBeenCalled();
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("applies the same deterministic safety boundary to authenticated mediation", async () => {
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext: "남편이 지금 제 목을 조르고 있어요",
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("returns the same deterministic safety boundary in the signed demo without durable writes or paid work", async () => {
@@ -696,10 +697,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const firstBody = await response.text();
     expect(firstBody).toContain("여성긴급전화 1366");
     expect(firstBody).toContain("365일 24시간");
-    expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({
-      isDemo: true,
-      cleanText: expect.stringContaining("여성긴급전화 1366"),
-    }));
+    expect(firstBody).toContain('"persistence_status":"unconfirmed_ephemeral_fallback"');
+    expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();
@@ -709,7 +708,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
   });
 
-  it("reconciles and replays an already persisted crisis response without regenerating or enqueueing memory", async () => {
+  it("returns the early fixed boundary even if an older crisis response exists", async () => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "지금 죽고 싶어요",
+    };
     mocks.findPersisted.mockResolvedValue({
       ...persisted("한국의 자살예방상담전화 109는 24시간 연결돼요."),
       metadata: {
@@ -726,7 +729,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("자살예방상담전화 109");
-    expect(mocks.reconcile).toHaveBeenCalledTimes(1);
+    expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.providerLedger).not.toHaveBeenCalled();

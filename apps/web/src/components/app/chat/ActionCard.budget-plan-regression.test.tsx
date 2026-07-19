@@ -93,4 +93,26 @@ describe("ActionCard remaining budget mutation results", () => {
     expect(change?.textContent).toContain("변경된 지출");
     expect(change?.textContent).toContain("10만원");
   });
+
+  it.each([
+    [4_999, "4,999원"],
+    [5_000, "5,000원"],
+    [15_000, "15,000원"],
+  ] as const)("shows an exact won amount when %i is not a whole 만원", async (amount, expected) => {
+    await act(async () => {
+      root.render(
+        <ActionCard
+          result={result({
+            toolName: "add_custom_category",
+            toolInput: { label: "소액 항목", budget: amount },
+            toolOutput: { key: "custom_small", label: "소액 항목", created: true },
+            displayMessage: '새 예산 항목 "소액 항목"을 추가했어요.',
+          })}
+        />,
+      );
+    });
+
+    const change = container.querySelector('[aria-label="소액 항목 예산 변경 결과"]');
+    expect(change?.textContent).toContain(expected);
+  });
 });

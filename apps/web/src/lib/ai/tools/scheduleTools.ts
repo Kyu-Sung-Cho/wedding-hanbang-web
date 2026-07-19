@@ -155,7 +155,7 @@ export async function executeUpdateScheduleEvent(
     return {
       toolName: "update_schedule_event", toolInput: input,
       toolOutput: {}, success: false,
-      displayMessage: `일정을 찾을 수 없습니다 (ID: ${eventId})`,
+      displayMessage: "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
     };
   }
 
@@ -222,7 +222,7 @@ export async function executeDeleteScheduleEvent(
     return {
       toolName: "delete_schedule_event", toolInput: input,
       toolOutput: {}, success: false,
-      displayMessage: `일정을 찾을 수 없습니다 (ID: ${eventId})`,
+      displayMessage: "삭제할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",
     };
   }
 
@@ -268,7 +268,7 @@ export async function executeToggleChecklistItem(
     return {
       toolName: "toggle_checklist_item", toolInput: input,
       toolOutput: {}, success: false,
-      displayMessage: `항목을 찾을 수 없습니다 (ID: ${itemId})`,
+      displayMessage: "변경할 체크리스트 항목을 찾지 못했어요. 진행 현황을 새로 불러온 뒤 다시 선택해 주세요.",
     };
   }
 

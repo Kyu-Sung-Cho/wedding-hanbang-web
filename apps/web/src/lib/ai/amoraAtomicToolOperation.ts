@@ -27,8 +27,7 @@ import {
   ymdInKst,
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
-
-const MAX_WEDDING_AMOUNT_WON = 1_000_000_000_000;
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 const MAX_VENUE_CHARS = 200;
 const MAX_ACTION_TITLE_CHARS = 120;
 const MAX_ACTION_DESCRIPTION_CHARS = 500;
@@ -176,9 +175,7 @@ function noOpFailure(
 }
 
 function isValidWonAmount(value: unknown): value is number {
-  return Number.isSafeInteger(value)
-    && (value as number) >= 0
-    && (value as number) <= MAX_WEDDING_AMOUNT_WON;
+  return isValidWeddingWonAmount(value);
 }
 
 function unsupportedOperation(
@@ -1417,6 +1414,18 @@ export function buildAmoraAtomicToolOperation(
   }
 
   const previousBudget = context.weddingContext.budget;
+  if (!isValidWonAmount(previousBudget)) {
+    return {
+      domainMutation: { kind: "none" },
+      result: {
+        toolName,
+        toolInput,
+        toolOutput: { error: "invalid_existing_budget" },
+        success: false,
+        displayMessage: "저장된 예산 값의 안전한 정리가 먼저 필요해요. 잠시 후 다시 시도해주세요.",
+      },
+    };
+  }
   if (previousBudget === nextBudget) {
     return noOpFailure(
       toolName,
@@ -1453,14 +1462,14 @@ export function applyAmoraAtomicToolResultToContext(
   if (
     result.toolName === "update_budget"
     && typeof result.toolOutput.total_budget === "number"
-    && Number.isSafeInteger(result.toolOutput.total_budget)
+    && isValidWeddingWonAmount(result.toolOutput.total_budget)
   ) {
     context.weddingContext.budget = result.toolOutput.total_budget;
   }
   if (
     result.toolName === "apply_budget_plan"
     && typeof result.toolOutput.total_budget === "number"
-    && Number.isSafeInteger(result.toolOutput.total_budget)
+    && isValidWeddingWonAmount(result.toolOutput.total_budget)
   ) {
     context.weddingContext.budget = result.toolOutput.total_budget;
     const allocations = result.toolOutput.allocations;

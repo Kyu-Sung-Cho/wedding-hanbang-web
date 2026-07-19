@@ -1,3 +1,6 @@
+import { sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
+import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+
 const MAX_PROGRESS_KEYS = 100;
 const MAX_PROGRESS_ARRAY_ITEMS = 100;
 const MAX_PROGRESS_DEPTH = 4;
@@ -73,8 +76,8 @@ function normalizeBudget(value: unknown): number {
     : typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value)
       ? Number(value)
       : 0;
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100_000_000_000) return 0;
-  return Math.round(parsed);
+  const rounded = Math.round(parsed);
+  return isValidWeddingWonAmount(rounded) ? rounded : 0;
 }
 
 function sanitizeProgressValue(value: unknown, depth: number): unknown {
@@ -115,7 +118,7 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
     const date = normalizeWeddingDate(rawEvent.date);
     const title = boundedString(rawEvent.title, 300);
     if (!date || !title) continue;
-    const memo = boundedString(rawEvent.memo, 500);
+    const memo = sanitizeUserFacingScheduleMemo(boundedString(rawEvent.memo, 500));
     const categoryKey = boundedString(rawEvent.categoryKey, 80);
     events.push({
       date,

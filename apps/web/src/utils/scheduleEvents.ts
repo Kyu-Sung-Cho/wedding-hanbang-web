@@ -1,4 +1,5 @@
 import type { ScheduleEvent } from "@/types/database.types";
+export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
 const EVENTS_KEY = "__events";
 const CATEGORY_EVENT_SOURCE_PREFIX = "category:";

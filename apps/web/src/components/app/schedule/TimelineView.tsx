@@ -22,7 +22,10 @@ import {
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
-import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
+import {
+  findCategoryScheduleEvent,
+  sanitizeUserFacingScheduleMemo,
+} from "@/utils/scheduleEvents";
 import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -382,7 +385,12 @@ export default function TimelineView({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-serif-kr text-base font-normal text-[#1A1A1F]">{evt.title}</p>
-                        <p className="text-sm text-[#B5ADA3]">{evt.date}{evt.memo ? ` · ${evt.memo}` : ""}</p>
+                        <p className="text-sm text-[#B5ADA3]">
+                          {evt.date}
+                          {sanitizeUserFacingScheduleMemo(evt.memo)
+                            ? ` · ${sanitizeUserFacingScheduleMemo(evt.memo)}`
+                            : ""}
+                        </p>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {onEditEvent && <button onClick={() => onEditEvent(evt)} className="w-7 h-7 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252]"><Pencil className="w-4 h-4" /></button>}
