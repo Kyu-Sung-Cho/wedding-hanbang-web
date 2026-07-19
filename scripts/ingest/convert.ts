@@ -580,7 +580,8 @@ export type PdfRasterCommandRunner = (
 
 async function runPdfRasterCommand(request: PdfRasterCommandRequest): Promise<PdfRasterCommandResult> {
   return new Promise<PdfRasterCommandResult>((resolve) => {
-    const child = spawn("pdftoppm", [
+    const executable = process.env.INGEST_PDFTOPPM_PATH?.trim() || "pdftoppm";
+    const child = spawn(executable, [
       "-png",
       "-r",
       "180",
@@ -627,7 +628,10 @@ async function runPdfRasterCommand(request: PdfRasterCommandRequest): Promise<Pd
       stderr: error instanceof Error ? error.name : "spawn_error",
       timedOut,
     }));
-    child.once("exit", (code) => finish({ exitCode: code, stderr: "", timedOut }));
+    // `exit` can fire before Windows has closed the child stdio handles and
+    // published every generated page. `close` is the safe point for reading
+    // the raster output directory.
+    child.once("close", (code) => finish({ exitCode: code, stderr: "", timedOut }));
     timer = setTimeout(() => {
       timedOut = true;
       const signalled = child.kill("SIGKILL");
@@ -657,6 +661,17 @@ async function rasterPageEntries(outputDirectory: string): Promise<Array<{ name:
   return withSizes;
 }
 
+function pdfRasterTemporaryRoot(outputDirectory: string): string {
+  let cursor = path.dirname(path.resolve(outputDirectory));
+  while (path.dirname(cursor) !== cursor) {
+    if (path.basename(cursor) === ".converted") {
+      return path.join(cursor, ".pdf-raster-tmp");
+    }
+    cursor = path.dirname(cursor);
+  }
+  return path.dirname(outputDirectory);
+}
+
 export async function rasterizePdfSafely(
   sourcePath: string,
   outputDirectory: string,
@@ -669,8 +684,16 @@ export async function rasterizePdfSafely(
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
   }
   const parentDirectory = path.dirname(outputDirectory);
-  await mkdir(parentDirectory, { recursive: true });
-  const temporaryDirectory = await mkdtemp(path.join(parentDirectory, `.${path.basename(outputDirectory)}.tmp-`));
+  const temporaryRoot = pdfRasterTemporaryRoot(outputDirectory);
+  await Promise.all([
+    mkdir(parentDirectory, { recursive: true }),
+    mkdir(temporaryRoot, { recursive: true }),
+  ]);
+  // Poppler on Windows can exit successfully without output when the deeply
+  // content-addressed destination exceeds its path limit. Render under the
+  // short, same-volume state scratch directory and atomically publish only
+  // after every page has passed the size/count checks.
+  const temporaryDirectory = await mkdtemp(path.join(temporaryRoot, "pdf-"));
   let published = false;
   try {
     const result = await runner({

@@ -224,7 +224,7 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 ## 실제 로컬 파일럿 증거
 
 2026-07-18에 원본을 변경하지 않고 새 기본 state
-`scripts/ingest/.state/default/`에서 `scan → convert → status`를 다시 실행했다.
+`scripts/ingest/.state/default/`에서 `scan → convert → status`를 실행한 뒤, 2026-07-19에 Windows/Poppler 장경로 문제를 수정하고 새 격리 state `scripts/ingest/.state/reprocess-20260719-poppler5/`에서 원본부터 다시 실행했다. 아래는 최신 재검증 결과다.
 
 | 항목 | 결과 |
 |---|---:|
@@ -233,14 +233,14 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 | bytes | 23,767,447 |
 | 대행사 units | 54 |
 | 예식장 units | 195 |
-| 변환 성공 | 235 |
+| 변환 성공 | 241 |
 | HWP 수동 변환 | 8 |
-| PDF 래스터 수동 변환 | 6 |
+| PDF 래스터 수동 변환 | 0 |
 | 변환 오류 | 0 |
 | OpenAI/Supabase 호출 | 0 |
 | token/추정 비용 | 0 |
 
-수동 변환 14건은 실패를 성공으로 숨긴 것이 아니라 명시적 작업 큐다. HWP 8건은 같은 위치에 PDF 대체본을 만들고, 텍스트가 부족한 PDF 6건은 Poppler 설치 또는 페이지 PNG 내보내기 후 scan부터 다시 실행해야 한다. 이 결과는 변환 단계 증거이며 AI 추출 품질, staging 쓰기, 관리자 실제 승인, 운영 공개를 검증했다는 뜻이 아니다.
+초기 14건 중 텍스트가 부족한 PDF 6건은 짧은 same-volume scratch에서 렌더링·검사 후 content-addressed 최종 경로로 원자 게시하도록 보강해 전부 회수했다. 생성된 6개 unit의 8페이지는 사람이 직접 확인해 빈 페이지·잘림·회전·식별 불가 문제가 없었다. 남은 수동 변환 8건은 동일 stem PDF 대체본이 없는 HWP이며 실패를 성공으로 숨기지 않는다. 한컴오피스에서 같은 위치·같은 stem의 PDF 대체본을 만든 뒤 새 state에서 scan부터 다시 실행해야 한다. 이 결과는 변환 단계 증거이며 AI 추출 품질, staging 쓰기, 관리자 실제 승인, 운영 공개를 검증했다는 뜻이 아니다.
 
 ## 배포 게이트와 롤백
 

@@ -31,7 +31,7 @@ pnpm ingest load --snapshot 2026Q3
 - 지원 형식은 XLSX, DOCX, HWP, PDF, PNG이다. 변환 전에 개별 원본 50MB 상한을 검사한다.
 - XLSX는 병합 셀을 좌상단 값으로 풀고 `시트명!A1: 값` 좌표 line과 sheet markdown table을 함께 기록한다. archive 전체는 최대 10,000 entries, 개별 uncompressed 50MB, 합계 250MB이고, workbook은 최대 100 sheets, sheet range 250,000 cells, non-empty 100,000 cells, merge 10,000개, 두 표현을 합친 직렬화 텍스트 300,000자다. `xl/media/`에는 더 엄격하게 최대 100개, 개별 10MB, 합계 50MB를 적용한 뒤 희박한 이미지형 표일 때만 vision 입력으로 꺼낸다.
 - DOCX는 ZIP entry 2,048개, 압축 해제 합계 32MB, 압축비 200배를 넘으면 변환하지 않는다.
-- PDF는 200페이지·추출 텍스트 600,000자 상한을 둔다. 텍스트가 300자 미만이면 `pdftoppm`으로 180dpi PNG를 만들며, 페이지당 20MB·전체 100MB·실행 120초·stderr 16KiB 한도를 적용한다. rasterizer가 없거나 실패하면 unit을 수동 변환 상태로 남긴다.
+- PDF는 200페이지·추출 텍스트 600,000자 상한을 둔다. 텍스트가 300자 미만이면 `pdftoppm`으로 180dpi PNG를 만들며, 페이지당 20MB·전체 100MB·실행 120초·stderr 16KiB 한도를 적용한다. rasterizer가 없거나 실패하면 unit을 수동 변환 상태로 남긴다. Windows에서는 깊은 content-addressed 최종 경로를 Poppler에 직접 넘기지 않고 같은 `.converted/` 볼륨의 짧은 임시 경로에서 렌더링·검사한 뒤 원자적으로 게시한다. PATH 탐색이 불안정한 환경은 검증된 실행 파일을 `INGEST_PDFTOPPM_PATH` 절대경로로 지정할 수 있다.
 - 이미지 추출 요청은 이미지당 20MB, 요청당 원본 합계 40MB, base64 payload 50MiB, 한 요청 5장, unit당 최대 20회로 제한한다. 파일 확인과 실제 읽기 사이에 크기나 경로가 바뀌면 중단한다.
 - HWP는 자동 해석하지 않는다. 같은 디렉터리·동일 stem의 PDF가 있을 때만 그 PDF를 대체본으로 인정한다. HWP와 다른 형식이 섞여 있어도 대체 PDF가 없는 HWP가 하나라도 있으면 unit 전체를 `needs_manual_conversion`으로 막는다. 대체 PDF가 있어도 HWP와 PDF 양쪽의 원본 provenance와 Storage object를 보존한다.
 - 지원되지 않는 지역 폴더는 `unknown_region` 오류로 막으며 vendor 생성까지 진행하지 않는다. scan과 extract는 심볼릭 링크까지 실제 경로로 해석해 raw/artifact root 밖 파일을 읽지 않는다.
@@ -98,8 +98,10 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role key>
 
 원본과 생성물은 `.gitignore` 대상이다. 테스트는 `scripts/ingest/__tests__/`가 실행 중 생성한 dummy fixture만 사용하며 실제 공시 파일·OpenAI·Supabase에 접근하지 않는다.
 
-## 2026-07-18 로컬 변환 파일럿
+## 2026-07-18~19 로컬 변환 파일럿
 
 실제 다운로드 폴더를 읽기 전용으로 두고 새 default state에서 `scan → convert → status`를 다시 실행했다. 원본 249 units(253 files, 23,767,447 bytes) 중 대행사 54 units, 예식장 195 units였고, 235 units가 변환됐다. HWP 8개와 텍스트가 부족한 PDF 6개는 의도대로 `needs_manual_conversion` 큐에 남았으며 변환 오류는 0개였다. 이 파일럿에서는 OpenAI·Supabase 호출을 하지 않아 token과 추정 비용은 모두 0이다.
+
+2026-07-19에는 Windows/Poppler 장경로 재현을 통해 성공 exit 뒤 페이지가 생성되지 않는 원인을 확인하고, 짧은 same-volume scratch에서 검증 후 게시하도록 보강했다. 새 격리 state `reprocess-20260719-poppler5`로 원본부터 다시 실행한 결과 `converted=241`, `needs_manual_conversion=8`, `error=0`이었고 PDF 수동 큐 6개는 전부 해소됐다. 새로 래스터화된 6개 unit의 8페이지는 사람이 직접 확인해 빈 페이지·잘림·회전·식별 불가 문제가 없음을 확인했다. 남은 8개는 동일 stem PDF 대체본이 없는 HWP이며 자동 성공 처리하지 않는다. 이 재검증도 OpenAI·Supabase 호출은 0이다.
 
 다음 운영 단계는 유료 호출 전에 코드·테스트·보안 게이트를 통과한 commit에서 `extract --limit 5`를 실행하고, 서로 다른 포맷의 추출 결과와 원본을 관리자 화면에서 사람이 대조하는 것이다. 그 확인 전에는 전체 추출, staging `--apply`, 승인·공개, 운영 배포를 진행하지 않는다.

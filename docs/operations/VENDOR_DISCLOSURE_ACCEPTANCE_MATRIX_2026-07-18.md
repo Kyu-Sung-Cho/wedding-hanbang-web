@@ -52,7 +52,7 @@
 
 | ID | 수용 기준 | 상태 | 직접 증거와 보수적 판정 |
 |---|---|---|---|
-| B1 | 혼합 포맷 scan manifest와 HWP 수동 큐 | `PASS` | 실제 default state는 249 units, `converted=235`, `needs_manual_conversion=14`, `error=0`이다. source 파일은 xlsx 219, docx 3, pdf 22, png 1, hwp 8이다. HWP 8개와 텍스트가 부족한 PDF 6개가 수동 큐이며 실패를 성공으로 숨기지 않는다. |
+| B1 | 혼합 포맷 scan manifest와 HWP 수동 큐 | `PASS` | 2026-07-18 default baseline은 249 units, `converted=235`, `needs_manual_conversion=14`, `error=0`이었다. 2026-07-19 Windows/Poppler 장경로 처리를 보강한 새 격리 state 전수 재처리는 `converted=241`, `needs_manual_conversion=8`, `error=0`이다. source 파일은 xlsx 219, docx 3, pdf 22, png 1, hwp 8이며 PDF 6개는 회수됐고 동일 stem PDF가 없는 HWP 8개만 수동 큐다. |
 | B2 | 지정 구조·파일명 파서 테스트 | `PASS` | `scripts/ingest/__tests__/scan.test.ts`의 지정 구조 대응 테스트가 모두 통과한다. §3을 지키기 위해 실제 업체명 대신 동일 구조의 명시적 샘플명이 사용된다. |
 | B3 | extract cache hit 무호출과 실패 상태 표시 | `PASS` | ingest 테스트가 cache hit 시 OpenAI API 미호출, 실패 unit 상태 표 노출을 검증한다. 이는 실제 OpenAI 파일럿 품질 검증을 대신하지 않는다. |
 | B4 | 만원·소수 표기를 원 단위 정수로 변환 | `PASS` | money parsing fixture 테스트가 통과한다. |
@@ -77,7 +77,7 @@
 | `corepack pnpm --filter @hanbang/web lint` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/lib/price/catalog.test.ts" "src/components/price/PricePresentation.test.tsx" --reporter=verbose` | `2 files / 9 tests PASS` | 필터 조합, empty state, 공시 원문, 로그인 경계, 조합 표시를 검증한다. |
 | GitHub CI와 동일한 placeholder 환경의 `next build` | `PASS`, 109 static pages | `CI=true`, production이 아닌 정확한 CI 조건에서 성공했다. 데이터가 연결되지 않아 발행 업체 slug의 실제 SSG 산출은 증명하지 않는다. `VERCEL_ENV=preview`에서 placeholder만 넣은 build는 공개 slug를 증명할 수 없어 의도대로 실패한다. |
-| `corepack pnpm ingest status` | 249 total, 235 converted, 14 manual, 0 error, 0 loaded, AI tokens 0 | 변환 현황만 증명하며 추출 품질·DB load·공개를 증명하지 않는다. |
+| `corepack pnpm ingest status --state-dir reprocess-20260719-poppler5` | 249 total, 241 converted, 8 manual, 0 error, 0 loaded, AI tokens 0 | 변환 현황과 PDF 8페이지 시각 대조만 증명하며 추출 품질·DB load·공개를 증명하지 않는다. |
 | `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 19개 migration hash/order 고정 | 20900의 combo direct-write fence와 21000의 0~10억원 웨딩 예산 계약을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
 | `corepack pnpm supabase:release:test` | `165/165 PASS` | backup·restore·write fence·release controller·SQL read-only·service destination·successor contract·combo direct-write deny를 포함한 hosted probe의 로컬 fail-closed 계약을 검증한다. 실제 hosted probe·backup·restore 영수증은 아니다. |
 | `corepack pnpm supabase:release:fence:remote` | 예상된 차단 | hosted staging, backup, restore, Storage, finalizer가 `missing`이므로 DB 명령 전에 차단되는 것이 안전한 동작이다. |

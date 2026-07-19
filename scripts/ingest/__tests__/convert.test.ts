@@ -331,6 +331,31 @@ test("PDF rasterization publishes a checked temp directory atomically and remove
   assert.ok(rejection.message.length < 20_000);
 });
 
+test("PDF rasterization uses a short state scratch path before publishing a deep artifact", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-pdf-long-path-"));
+  t.after(async () => rm(rootDir, { recursive: true, force: true }));
+  const sourcePath = path.join(rootDir, "generated.pdf");
+  const convertedRoot = path.join(rootDir, ".converted");
+  const outputDirectory = path.join(
+    convertedRoot,
+    "u".repeat(64),
+    "f".repeat(64),
+    "1-pdf-pages",
+  );
+  await writeFile(sourcePath, "%PDF generated fixture");
+  let temporaryPrefix = "";
+
+  const pages = await rasterizePdfSafely(sourcePath, outputDirectory, async ({ outputPrefix }) => {
+    temporaryPrefix = outputPrefix;
+    await writeFile(`${outputPrefix}-1.png`, "generated page");
+    return { exitCode: 0, stderr: "", timedOut: false };
+  });
+
+  assert.ok(temporaryPrefix.includes(`${path.sep}.converted${path.sep}.pdf-raster-tmp${path.sep}`));
+  assert.ok(temporaryPrefix.length < path.join(outputDirectory, "page").length);
+  assert.deepEqual(pages, [path.join(outputDirectory, "page-1.png")]);
+});
+
 test("convert reports an actionable manual step when sparse PDF rasterization is unavailable", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-pdf-manual-"));
   const stateDir = `${rootDir}-state`;
