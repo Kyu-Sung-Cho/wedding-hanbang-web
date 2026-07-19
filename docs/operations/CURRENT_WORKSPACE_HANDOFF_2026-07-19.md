@@ -12,7 +12,7 @@
 - 저장소: `wedding-vendor-disclosure-v2`
 - 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
 - 통합 작업 시작 HEAD: `4d2d60804caea8e9a8c493779a248eaa2575d041`
-- 문서 직전 코드 HEAD: `7bfda364` (`fix(release): fail closed across CI and mobile commands`)
+- 후속 CI 복구 코드 HEAD: `681663a6` (`fix(ci): stabilize Linux mobile and sitemap checks`)
 - 통합 Draft PR: [#64](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/64), base `main`
 - 원격 기준: 이 문서를 포함한 최신 브랜치 HEAD를 `origin`에서 fetch한 뒤 사용한다.
 - 통합 브랜치는 시작 시점에 `origin/main`보다 23 commits 앞서 있었다.
@@ -68,11 +68,29 @@
 - Vercel production build와 EAS production build/submit은 외부 서명 승인 verifier가 없어서
   각각 fail closed한다. repo JSON·환경변수만으로 우회할 수 없다.
 
+## GitHub·Vercel 후속 검증
+
+- GitHub Actions run `29670451798`에서 Web Quality와 Mobile Quality가 의도하지 않게 실패했다.
+- Web Quality는 제품 코드 2,532개 테스트가 통과한 뒤 `sitemap.test.ts` 3개만 실패했다. 원인은
+  GitHub의 자동 `CI=true`가 테스트에 누출되어 exact placeholder 분기를 타고 DB mock 조회를
+  건너뛴 것이었다. 각 테스트가 `CI`와 Supabase 공개 환경을 명시적으로 소유·복구하도록 고쳤고,
+  exact placeholder 전용 회귀 테스트도 추가했다.
+- Mobile Quality는 101개 중 `corepack pnpm --version` 검사 하나만 Ubuntu에서 실패했다. Linux는
+  `pnpm/action-setup` 또는 EAS profile이 설치한 정확한 pnpm 11.7.0을 직접 사용하고, Windows만
+  `.cmd` 실행 제약 때문에 Corepack을 사용하도록 분리했다. provider 실행 직전에도 정확히
+  11.7.0인지 다시 확인하며 production EAS 명령의 fail-closed 차단은 그대로다.
+- Vercel preview deployment `dpl_H5UsrzunoqSt3Cim2mhTpGSVnamG`의 실제 로그는
+  `/price/vendor/[slug]` page-data 수집 중 `Supabase public environment variables are not configured`
+  로 실패했다. 이는 승인된 hosted staging과 최소 발행 업체 증거가 없는 preview를 실패시키는
+  현재 계약과 일치한다. 운영 Supabase 연결, CI placeholder 주입, 정적 fallback으로 우회하지 않았다.
+- `681663a6` 이후의 새 GitHub Linux run이 Web/Mobile을 통과하기 전까지 원격 CI 복구는 완료로
+  간주하지 않는다. Production Readiness sentinel과 final Quality Gate의 red는 계속 의도된 차단이다.
+
 ## 최종 로컬 검증
 
 | 검증 | 결과 |
 |---|---|
-| 웹 전체 Vitest | `296 files / 2,535 tests PASS` |
+| 웹 전체 Vitest | GitHub와 동일한 `CI=true`에서 `296 files / 2,536 tests PASS` |
 | 모바일 Node tests | `96/96 PASS` |
 | ingest | `113/113 PASS`, typecheck PASS |
 | repo release/fail-closed Node tests | PASS |
@@ -82,7 +100,7 @@
 | 전체 workspace lint | 0 errors, 0 warnings |
 | Next production-shape local build | PASS, 109 static pages |
 | Expo web/iOS/Android export | PASS |
-| mobile release readiness | `101/101 PASS` |
+| mobile release readiness | `103/103 PASS` |
 | Candidate 6 visual QA | 320px·390px, 48px targets, overflow/console/network/persistence failures 0 |
 | Candidate 6 security QA | external request 0, inherited telemetry 0, persistence 0, route/lock cleanup PASS |
 | production dependency audit | known vulnerability 0 |

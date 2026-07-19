@@ -71,7 +71,7 @@
 |---|---|---|
 | `corepack pnpm test:ingest` | `113/113 PASS` | scan/convert/extract cache/검증/money/dedupe/load·Storage 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
 | `corepack pnpm ingest:typecheck` | `PASS` | ingest TypeScript 계약 통과. |
-| `corepack pnpm --filter @hanbang/web test -- --reporter=dot` | `296/296 files, 2,535/2,535 tests PASS` | streaming body bound, 위기 안전 조기 경계, 예산 계약, combo 직접쓰기 차단, WeddingCode 연구 격리와 원장 완결성까지 포함한 2026-07-19 전체 회귀다. |
+| GitHub와 동일한 `CI=true`에서 `corepack pnpm --filter @hanbang/web exec vitest run` | `296/296 files, 2,536/2,536 tests PASS` | streaming body bound, 위기 안전 조기 경계, 예산 계약, combo 직접쓰기 차단, WeddingCode 연구 격리와 원장 완결성, sitemap 환경 격리까지 포함한 2026-07-19 전체 회귀다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/constants/__tests__/runtimeDisclosureDataBoundary.test.ts" "src/lib/vendors/__tests__/publicDisclosureEvidencePrivacyMigration.test.ts" --reporter=verbose` | `2 files / 8 tests PASS` | 최신 `zero_result`, public `raw_text`, private `source_quote`, PII/길이 DB fence를 검증한다. |
 | `corepack pnpm --filter @hanbang/web typecheck` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web lint` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
