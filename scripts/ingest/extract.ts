@@ -91,7 +91,9 @@ export class ExtractionProviderResponseError extends Error {
 
 export interface ExtractOptions {
   stateDir: string;
+  /** Deprecated name retained for callers; selection is stratified, never sequential. */
   limit?: number;
+  unitIds?: string[];
 }
 
 export interface ExtractDependencies {
@@ -112,6 +114,64 @@ export function resolveExtractionModel(env: NodeJS.ProcessEnv = process.env): Ex
     );
   }
   return configured;
+}
+
+function isExtractableUnit(unit: ManifestUnit): boolean {
+  return Boolean(unit.conversion)
+    && unit.stage !== "needs_manual_conversion"
+    && unit.stage !== "scanned"
+    && unit.stage !== "validated"
+    && unit.stage !== "loaded";
+}
+
+function extractionStratum(unit: ManifestUnit): number {
+  const extensions = new Set(unit.source_files.map((source) => source.ext));
+  const isImageEvidence = extensions.has("png")
+    || (extensions.has("pdf")
+      && (unit.conversion?.text_characters ?? 0) < 300
+      && (unit.conversion?.image_artifacts.length ?? 0) > 0);
+  if (isImageEvidence) return 0;
+  if (extensions.has("docx")) return 1;
+  if (extensions.has("pdf")) return 2;
+  if (extensions.has("xlsx") && unit.parsed.kind_hint === "hall") return 3;
+  if (extensions.has("xlsx") && unit.parsed.kind_hint === "agency") return 4;
+  return 5;
+}
+
+export function selectExtractionUnits(
+  manifest: IngestManifest,
+  options: { unitIds?: string[]; sampleSize?: number } = {},
+): ManifestUnit[] {
+  const eligible = manifest.units.filter(isExtractableUnit);
+  if (options.unitIds) {
+    if (options.unitIds.length === 0) throw new Error("units_empty");
+    if (new Set(options.unitIds).size !== options.unitIds.length) throw new Error("duplicate_unit_id");
+    const byId = new Map(manifest.units.map((unit) => [unit.unit_id, unit]));
+    return options.unitIds.map((unitId) => {
+      if (!/^[a-f0-9]{64}$/u.test(unitId)) throw new Error(`invalid_unit_id:${unitId}`);
+      const unit = byId.get(unitId);
+      if (!unit) throw new Error(`unknown_unit_id:${unitId}`);
+      if (!isExtractableUnit(unit)) throw new Error(`unit_not_extractable:${unitId}:${unit.stage}`);
+      return unit;
+    });
+  }
+
+  const sampleSize = options.sampleSize ?? 8;
+  if (!Number.isSafeInteger(sampleSize) || sampleSize < 1 || sampleSize > 25) {
+    throw new Error("sample_size_must_be_between_1_and_25");
+  }
+  const buckets = Array.from({ length: 6 }, () => [] as ManifestUnit[]);
+  for (const unit of eligible) buckets[extractionStratum(unit)].push(unit);
+  for (const bucket of buckets) bucket.sort((left, right) => left.unit_id.localeCompare(right.unit_id, "en"));
+  const selected: ManifestUnit[] = [];
+  while (selected.length < sampleSize && buckets.some((bucket) => bucket.length > 0)) {
+    for (const bucket of buckets) {
+      const unit = bucket.shift();
+      if (unit) selected.push(unit);
+      if (selected.length === sampleSize) break;
+    }
+  }
+  return selected;
 }
 
 function mimeTypeForImage(filePath: string): string {
@@ -219,6 +279,7 @@ export async function buildOpenAIResponseRequest(
     instructions: EXTRACTION_INSTRUCTIONS,
     input: [{ role: "user", content }],
     max_output_tokens: MAX_OUTPUT_TOKENS,
+    temperature: 0,
     reasoning: { effort: "medium" },
     text: {
       format: zodTextFormat(DisclosureExtractionSchema, "vendor_disclosure_v2"),
@@ -876,6 +937,110 @@ function extractionMetadata(
   };
 }
 
+export interface ExtractionPlanUnit {
+  unit_id: string;
+  display_name: string;
+  source_paths: string[];
+  formats: string[];
+  kind_hint: "agency" | "hall";
+  region_code: string;
+  text_characters: number;
+  image_count: number;
+  requests: number;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  maximum_output_tokens: number;
+  estimated_cost_usd: number;
+  maximum_cost_usd: number;
+}
+
+export interface ExtractionPlan {
+  provider: "openai_responses_api";
+  configured_model_env: string | null;
+  resolved_model: ExtractionModel;
+  luna_semantics: string;
+  estimation_basis: string;
+  units: ExtractionPlanUnit[];
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  maximum_output_tokens: number;
+  estimated_cost_usd: number;
+  maximum_cost_usd: number;
+}
+
+function estimatedRequestInputTokens(request: ExtractionRequest): number {
+  const framing = [
+    EXTRACTION_INSTRUCTIONS,
+    request.canonicalName,
+    request.regionCode,
+    request.kindHint,
+    request.text,
+  ].join("\n");
+  // Korean text is conservatively approximated from UTF-8 bytes. Vision tokens
+  // vary by model/image dimensions, so planning reserves 4,096 per image.
+  return Math.ceil(Buffer.byteLength(framing, "utf8") / 3)
+    + 2_000
+    + (request.imagePaths.length * 4_096);
+}
+
+export async function planExtraction(
+  options: ExtractOptions,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ExtractionPlan> {
+  const model = resolveExtractionModel(env);
+  const manifest = await loadManifest(options.stateDir);
+  const selected = selectExtractionUnits(manifest, {
+    ...(options.unitIds ? { unitIds: options.unitIds } : {}),
+    ...(!options.unitIds && options.limit !== undefined ? { sampleSize: options.limit } : {}),
+  });
+  const units: ExtractionPlanUnit[] = [];
+  for (const unit of selected) {
+    await verifyProvenance(unit, manifest);
+    const requests = await buildRequests(unit, model);
+    const estimatedInputTokens = requests.reduce(
+      (sum, request) => sum + estimatedRequestInputTokens(request),
+      0,
+    );
+    const estimatedOutputTokens = requests.reduce((sum, request) => {
+      const input = estimatedRequestInputTokens(request);
+      return sum + Math.min(MAX_OUTPUT_TOKENS, Math.max(1_200, Math.ceil(input * 0.2)));
+    }, 0);
+    const maximumOutputTokens = requests.length * MAX_OUTPUT_TOKENS;
+    units.push({
+      unit_id: unit.unit_id,
+      display_name: unit.display_name,
+      source_paths: unit.source_files.map((source) => source.path),
+      formats: [...new Set(unit.source_files.map((source) => source.ext))],
+      kind_hint: unit.parsed.kind_hint,
+      region_code: unit.parsed.region_code,
+      text_characters: unit.conversion?.text_characters ?? 0,
+      image_count: unit.conversion?.image_artifacts.length ?? 0,
+      requests: requests.length,
+      estimated_input_tokens: estimatedInputTokens,
+      estimated_output_tokens: estimatedOutputTokens,
+      maximum_output_tokens: maximumOutputTokens,
+      estimated_cost_usd: estimateExtractionCostUsd(model, estimatedInputTokens, estimatedOutputTokens),
+      maximum_cost_usd: estimateExtractionCostUsd(model, estimatedInputTokens, maximumOutputTokens),
+    });
+  }
+  const estimatedInputTokens = units.reduce((sum, unit) => sum + unit.estimated_input_tokens, 0);
+  const estimatedOutputTokens = units.reduce((sum, unit) => sum + unit.estimated_output_tokens, 0);
+  const maximumOutputTokens = units.reduce((sum, unit) => sum + unit.maximum_output_tokens, 0);
+  return {
+    provider: "openai_responses_api",
+    configured_model_env: env.EXTRACTION_MODEL?.trim() || null,
+    resolved_model: model,
+    luna_semantics: "gpt-5.6-luna is the literal OpenAI API model identifier used by this repository, not an alias mapping; the repository labels it as the lower-cost tier.",
+    estimation_basis: "UTF-8 bytes/3 + 2,000 request overhead + 4,096 per image; expected output=max(1,200, 20% input), capped at 8,000; maximum uses 8,000 per request. Repository planning rates, not a provider quote.",
+    units,
+    estimated_input_tokens: estimatedInputTokens,
+    estimated_output_tokens: estimatedOutputTokens,
+    maximum_output_tokens: maximumOutputTokens,
+    estimated_cost_usd: estimateExtractionCostUsd(model, estimatedInputTokens, estimatedOutputTokens),
+    maximum_cost_usd: estimateExtractionCostUsd(model, estimatedInputTokens, maximumOutputTokens),
+  };
+}
+
 interface ExtractionLockMetadata {
   schema_version: 1;
   lock_id: string;
@@ -1008,15 +1173,21 @@ async function extractManifestUnlocked(
   const env = dependencies.env ?? process.env;
   const model = resolveExtractionModel(env);
   const manifest = await loadManifest(options.stateDir);
+  const selectedUnits = selectExtractionUnits(manifest, {
+    ...(options.unitIds ? { unitIds: options.unitIds } : {}),
+    ...(!options.unitIds && options.limit !== undefined ? { sampleSize: options.limit } : {}),
+  });
+  if (selectedUnits.length > 8) {
+    throw new Error("pilot_gate_required_before_more_than_8_units");
+  }
   const sleep = dependencies.sleep ?? ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   const runId = randomUUID();
-  let paidUnits = 0;
   let provider = dependencies.provider;
 
-  for (const unit of manifest.units) {
-    if (!unit.conversion || unit.stage === "needs_manual_conversion" || unit.stage === "scanned") continue;
-    if (unit.stage === "validated" || unit.stage === "loaded") continue;
+  for (const unit of selectedUnits) {
     try {
+      const conversion = unit.conversion;
+      if (!conversion) throw new Error("conversion_missing_after_selection");
       await verifyProvenance(unit, manifest);
       const fingerprint = sha256Text([
         EXTRACTION_PROMPT_VERSION,
@@ -1026,7 +1197,7 @@ async function extractManifestUnlocked(
         unit.parsed.region_code,
         unit.parsed.kind_hint,
         unit.source_fingerprint,
-        unit.conversion.artifact_fingerprint,
+        conversion.artifact_fingerprint,
       ].join("\0"));
       const cachePath = path.join(path.resolve(options.stateDir), ".cache", "extract", `${fingerprint}.json`);
       const cached = await readCache(cachePath);
@@ -1048,7 +1219,7 @@ async function extractManifestUnlocked(
           batchIndex,
           model,
           canonicalIdentity,
-          artifactFingerprint: unit.conversion!.artifact_fingerprint,
+          artifactFingerprint: conversion.artifact_fingerprint,
           requestHash,
         };
         const checkpointFingerprint = batchCheckpointFingerprint(checkpointIdentity);
@@ -1069,9 +1240,7 @@ async function extractManifestUnlocked(
         };
       }));
       const requiresProvider = preparedBatches.some((batch) => batch.checkpoint === null);
-      if (requiresProvider && options.limit !== undefined && paidUnits >= options.limit) continue;
       if (requiresProvider) {
-        paidUnits += 1;
         provider ??= createOpenAIExtractionProvider(env);
       }
       const responses: DisclosureExtraction[] = [];
@@ -1118,7 +1287,7 @@ async function extractManifestUnlocked(
           prompt_hash: EXTRACTION_PROMPT_HASH,
           model,
           canonical_identity: canonicalIdentity,
-          artifact_fingerprint: unit.conversion.artifact_fingerprint,
+          artifact_fingerprint: conversion.artifact_fingerprint,
           request_hash: batch.requestHash,
           result_hash: batchCheckpointResultHash({
             data: extracted.result.data,
@@ -1145,7 +1314,7 @@ async function extractManifestUnlocked(
         schema_version: 1,
         fingerprint,
         source_fingerprint: unit.source_fingerprint,
-        artifact_fingerprint: unit.conversion.artifact_fingerprint,
+        artifact_fingerprint: conversion.artifact_fingerprint,
         prompt_version: EXTRACTION_PROMPT_VERSION,
         model,
         data,

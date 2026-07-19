@@ -620,6 +620,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       parsed.data.extraction_fingerprint,
       parsed.data.data,
       parsed.data.issues,
+      parsed.data.coverage_gaps,
     );
     if (recomputedValidationFingerprint !== parsed.data.fingerprint) {
       throw new Error(`검증 artifact 내용 hash가 일치하지 않습니다: ${unit.display_name}`);

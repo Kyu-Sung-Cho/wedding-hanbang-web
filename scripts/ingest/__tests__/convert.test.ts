@@ -80,6 +80,34 @@ test("convert preserves merged XLSX values and extracts embedded media for spars
   assert.match(conversion.image_artifacts[0], /1-media[\\/]image1\.png$/u);
 });
 
+test("convert preserves bounded embedded XLSX media even when the workbook is text-rich", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-rich-media-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "[서울(강남)]_텍스트풍부.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet(Array.from({ length: 60 }, (_, index) => [`상품 ${index}`, `${index}만원`])),
+    "가격표",
+  );
+  XLSX.writeFile(workbook, sourcePath);
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file("xl/media/image1.png", Buffer.from("generated-image"));
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir });
+
+  const result = await convertManifest({ stateDir });
+
+  assert.ok((result.units[0].conversion?.cell_count ?? 0) >= 100);
+  assert.equal(result.units[0].conversion?.image_artifacts.length, 1);
+});
+
 test("convert keeps embedded XLSX media source-scoped when one unit has multiple workbooks", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-multi-xlsx-media-"));
   const stateDir = `${rootDir}-state`;
@@ -309,6 +337,14 @@ test("PDF rasterization publishes a checked temp directory atomically and remove
 
   assert.deepEqual(pages, [path.join(outputDirectory, "page-1.png")]);
   assert.deepEqual((await readdir(rootDir)).filter((name) => name.includes(".tmp-")), []);
+
+  let rerendered = false;
+  const reused = await rasterizePdfSafely(sourcePath, outputDirectory, async () => {
+    rerendered = true;
+    return { exitCode: 0, stderr: "", timedOut: false };
+  });
+  assert.equal(rerendered, false);
+  assert.deepEqual(reused, pages);
 
   const failedOutput = path.join(rootDir, "failed-pages");
   await assert.rejects(

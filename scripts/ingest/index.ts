@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { convertManifest } from "./convert.js";
-import { extractManifest } from "./extract.js";
+import { extractManifest, planExtraction } from "./extract.js";
 import { resolveIngestStateDirectory } from "./io.js";
 import { loadValidated } from "./load.js";
 import { scanSources } from "./scan.js";
@@ -59,7 +59,21 @@ async function main(): Promise<void> {
   }
   if (command === "extract") {
     const limit = positiveInteger(optionValue(args, "--limit"), "--limit");
-    await extractManifest({ stateDir, ...(limit ? { limit } : {}) });
+    const units = optionValue(args, "--units")
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (units && limit) throw new Error("--units와 --limit은 함께 사용할 수 없습니다.");
+    const extractOptions = {
+      stateDir,
+      ...(limit ? { limit } : {}),
+      ...(units ? { unitIds: units } : {}),
+    };
+    if (hasFlag(args, "--plan")) {
+      print({ command: "extract-plan", ...(await planExtraction(extractOptions)) });
+      return;
+    }
+    await extractManifest(extractOptions);
     print({ command, status: await getIngestStatus({ stateDir }) });
     return;
   }
@@ -100,7 +114,7 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "사용법: pnpm ingest <scan|convert|extract|validate|load|status> [옵션]",
+    "사용법: pnpm ingest <scan|convert|extract|validate|load|status> [옵션] (extract: --units id1,id2 또는 형식별 층화 --limit N; 기본 8)",
   );
 }
 

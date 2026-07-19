@@ -13,6 +13,7 @@ import { scanSources } from "../scan.js";
 import type { DisclosureExtraction } from "../schemas.js";
 import type { ManifestUnit } from "../types.js";
 import {
+  findCoverageGaps,
   normalizeEvidenceText,
   parseKoreanMoneyAmounts,
   validateExtractionForUnit,
@@ -155,6 +156,142 @@ test("Korean money parsing keeps decimal 만원 units exact", () => {
 
 test("Korean money parsing expands shared range units and accepts omitted won suffixes", () => {
   assert.deepEqual(parseKoreanMoneyAmounts("range 100~120만원 / upper 124만"), [1_000_000, 1_200_000, 1_240_000]);
+});
+
+test("coverage self-check finds source money omitted from every extracted KRW field", () => {
+  const data = extraction("generated");
+  data.agency_packages[0].price_min_krw = 1_240_000;
+  data.agency_packages[0].price_max_krw = 1_240_000;
+  data.agency_packages[0].source_quote = "기본 124만원";
+
+  const gaps = findCoverageGaps(
+    "기본 124만원\n추가 옵션 33,000원\n전화 02-1234-5678\n사업자등록번호 123-45-67890",
+    data,
+  );
+
+  assert.deepEqual(gaps, [{
+    raw: "33,000원",
+    krw: 33_000,
+    line_context: "추가 옵션 33,000원",
+    source_locator: "line:2",
+  }]);
+});
+
+test("coverage self-check understands header-declared 만원 cells in compressed tables", () => {
+  const data = extraction("generated");
+  data.agency_packages[0].price_min_krw = 1_240_000;
+  data.agency_packages[0].price_max_krw = 1_240_000;
+  data.agency_packages[0].source_quote = "기본 | 124";
+
+  const gaps = findCoverageGaps(
+    "금액 단위: 만원\n상품 | 기본가 | 옵션가\n기본 | 124 | 3.3",
+    data,
+  );
+
+  assert.deepEqual(gaps, [{
+    raw: "3.3",
+    krw: 33_000,
+    line_context: "기본 | 124 | 3.3",
+    source_locator: "line:3",
+  }]);
+});
+
+test("coverage self-check finds inline option prices under a declared unit without treating quantities as money", () => {
+  const data = extraction("generated");
+  data.agency_packages = [];
+
+  const gaps = findCoverageGaps(
+    "금액 단위: 만원\n스튜디오!E6: 촬영의상추가 1벌당11~33 / 앨범 1페이지당3.3",
+    data,
+  );
+
+  assert.deepEqual(gaps.map((gap) => gap.krw), [110_000, 330_000, 33_000]);
+});
+
+test("coverage self-check counts repeated equal amounts by source occurrence", () => {
+  const data = extraction("generated");
+  data.agency_packages[0].price_min_krw = 1_000_000;
+  data.agency_packages[0].price_max_krw = 1_000_000;
+  data.agency_packages[0].source_quote = "A 패키지 100만원";
+
+  const gaps = findCoverageGaps(
+    "A 패키지 100만원\nB 패키지 100만원",
+    data,
+  );
+
+  assert.deepEqual(gaps, [{
+    raw: "100만원",
+    krw: 1_000_000,
+    line_context: "B 패키지 100만원",
+    source_locator: "line:2",
+  }]);
+});
+
+test("coverage self-check does not double count canonical XLSX cells and rendered table rows", () => {
+  const data = extraction("generated");
+  data.agency_packages[0].price_min_krw = 1_000_000;
+  data.agency_packages[0].price_max_krw = 1_000_000;
+  data.agency_packages[0].source_quote = "가격표!B2: 100";
+
+  const gaps = findCoverageGaps(
+    [
+      "## 시트: 가격표",
+      "가격표!A1: 금액 단위: 만원",
+      "가격표!B2: 100",
+      "| 셀 | 값 |",
+      "| --- | --- |",
+      "| A1 | 금액 단위: 만원 |",
+      "| B2 | 100 |",
+    ].join("\n"),
+    data,
+  );
+
+  assert.deepEqual(gaps, []);
+});
+
+test("coverage self-check excludes percentages and quantities from declared-unit cells", () => {
+  const data = extraction("generated");
+  data.agency_packages = [];
+
+  const gaps = findCoverageGaps(
+    [
+      "## 시트: 가격표",
+      "가격표!A1: 금액 단위: 만원",
+      "가격표!A2: 취소 위약금 10% / 앨범 2권 / 촬영 3시간 / 성수기 4~6월·9월~10월",
+    ].join("\n"),
+    data,
+  );
+
+  assert.deepEqual(gaps, []);
+});
+
+test("coverage self-check applies a declared XLSX unit to price columns and price-like inline options only", () => {
+  const data = extraction("generated");
+  data.agency_packages = [];
+
+  const gaps = findCoverageGaps(
+    [
+      "## 시트: 가격표",
+      "가격표!A1: 금액 단위: 만원",
+      "가격표!C1: 주요선택품목가격",
+      "가격표!D1: 기본가격",
+      "가격표!D2: 124",
+      "가격표!E2: 22",
+      "가격표!F2: 촬영영상추가 1벌당11~33 / 앨범 1페이지당3.3",
+      "가격표!G2: 2",
+      "병합 범위 C1:E1 · 좌상단 C1",
+      "| D2 | 124 |",
+      "| E2 | 22 |",
+      "| F2 | 촬영영상추가 1벌당11~33 / 앨범 1페이지당3.3 |",
+      "| G2 | 2 |",
+    ].join("\n"),
+    data,
+  );
+
+  assert.deepEqual(
+    gaps.map((gap) => gap.krw),
+    [1_240_000, 220_000, 110_000, 330_000, 33_000],
+  );
 });
 
 test("every non-null extracted bound must be supported by the source quote", () => {

@@ -14,13 +14,54 @@ import {
   extractManifest,
   mergeExtractionChunks,
   parseOpenAIExtractionResponse,
+  planExtraction,
   resolveExtractionModel,
+  selectExtractionUnits,
   validateImageRequestPayloadLimits,
   type ExtractionProvider,
 } from "../extract.js";
 import { scanSources } from "../scan.js";
 import type { DisclosureExtraction } from "../schemas.js";
 import { DisclosureExtractionSchema, ExtractionBatchCheckpointSchema } from "../schemas.js";
+import type { IngestManifest, ManifestUnit, SourceExtension } from "../types.js";
+
+function selectionUnit(
+  id: string,
+  ext: SourceExtension,
+  kind: "agency" | "hall",
+  options: { textCharacters?: number; images?: number } = {},
+): ManifestUnit {
+  return {
+    unit_id: id.repeat(64),
+    display_name: `${id}.${ext}`,
+    parsed: {
+      region_code: "seoul_gangnam",
+      raw_name: id,
+      normalized_name: id,
+      corporate_name: null,
+      kind_hint: kind,
+    },
+    source_files: [{
+      path: `${kind}/${id}.${ext}`,
+      absolute_path: `C:/${kind}/${id}.${ext}`,
+      ext,
+      sha256: id.repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: id.repeat(64),
+    stage: "converted",
+    notices: [],
+    conversion: {
+      source_fingerprint: id.repeat(64),
+      text_artifacts: options.textCharacters === 0 ? [] : [`C:/${id}.txt`],
+      image_artifacts: Array.from({ length: options.images ?? 0 }, (_, index) => `C:/${id}-${index}.png`),
+      text_characters: options.textCharacters ?? 1_000,
+      cell_count: 1,
+      artifact_fingerprint: id.repeat(64),
+      converted_at: new Date(0).toISOString(),
+    },
+  };
+}
 
 function dummyExtraction(businessName: string): DisclosureExtraction {
   return {
@@ -55,6 +96,72 @@ function dummyExtraction(businessName: string): DisclosureExtraction {
     extraction_notes: "더미 테스트 결과",
   };
 }
+
+test("fixed --units selection preserves the requested order and rejects unknown ids", () => {
+  const units = [
+    selectionUnit("a", "xlsx", "agency"),
+    selectionUnit("b", "pdf", "hall"),
+    selectionUnit("c", "docx", "agency"),
+  ];
+  const manifest = { units } as IngestManifest;
+
+  assert.deepEqual(
+    selectExtractionUnits(manifest, { unitIds: ["c".repeat(64), "a".repeat(64)] })
+      .map((unit) => unit.unit_id),
+    ["c".repeat(64), "a".repeat(64)],
+  );
+  assert.throws(
+    () => selectExtractionUnits(manifest, { unitIds: ["d".repeat(64)] }),
+    /unknown_unit_id/u,
+  );
+});
+
+test("automatic pilot selection is deterministic and stratifies formats instead of taking manifest order", () => {
+  const units = [
+    selectionUnit("a", "xlsx", "agency"),
+    selectionUnit("b", "xlsx", "agency"),
+    selectionUnit("c", "xlsx", "agency"),
+    selectionUnit("d", "xlsx", "hall"),
+    selectionUnit("e", "pdf", "agency", { textCharacters: 2_000 }),
+    selectionUnit("f", "docx", "agency"),
+    selectionUnit("1", "png", "agency", { textCharacters: 0, images: 1 }),
+  ];
+  const selected = selectExtractionUnits({ units } as IngestManifest, { sampleSize: 5 });
+
+  assert.deepEqual(
+    selected.map((unit) => `${unit.source_files[0].ext}:${unit.parsed.kind_hint}`),
+    ["png:agency", "docx:agency", "pdf:agency", "xlsx:hall", "xlsx:agency"],
+  );
+  assert.deepEqual(
+    selectExtractionUnits({ units } as IngestManifest, { sampleSize: 5 }).map((unit) => unit.unit_id),
+    selected.map((unit) => unit.unit_id),
+  );
+});
+
+test("extraction plan estimates selected work without requiring an API key or paid-call enable flag", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-plan-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
+  await mkdir(regionDir, { recursive: true });
+  await writeDummyDocx(path.join(regionDir, "(제주)_계획테스트.docx"));
+  const scanned = await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+
+  const plan = await planExtraction({ stateDir, unitIds: [scanned.units[0].unit_id] }, {});
+
+  assert.equal(plan.provider, "openai_responses_api");
+  assert.equal(plan.configured_model_env, null);
+  assert.equal(plan.resolved_model, "gpt-5.6-luna");
+  assert.match(plan.luna_semantics, /literal.*not an alias/iu);
+  assert.equal(plan.units.length, 1);
+  assert.ok(plan.estimated_input_tokens > 0);
+  assert.ok(plan.estimated_cost_usd > 0);
+  assert.ok(plan.maximum_cost_usd >= plan.estimated_cost_usd);
+});
 
 async function writeDummyDocx(filePath: string): Promise<void> {
   const docx = new JSZip();
@@ -162,6 +269,7 @@ test("OpenAI extraction request uses Responses structured output and never store
   assert.equal(request.store, false);
   assert.equal(request.model, "gpt-5.6-terra");
   assert.equal(request.max_output_tokens, 8_000);
+  assert.equal(request.temperature, 0);
   assert.equal(request.text?.format?.type, "json_schema");
   assert.equal(request.tools, undefined);
   assert.match(JSON.stringify(request.input), /data:image\/png;base64/u);

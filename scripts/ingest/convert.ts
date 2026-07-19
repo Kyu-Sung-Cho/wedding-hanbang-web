@@ -10,7 +10,7 @@ import { sha256File, sha256Text, writeJsonFile } from "./io.js";
 import { loadManifest, saveManifest } from "./manifest.js";
 import type { IngestManifest } from "./types.js";
 
-export const CONVERTER_VERSION = "v2-source-scoped-xlsx-media";
+export const CONVERTER_VERSION = "v3-complete-source-scoped-xlsx-media";
 
 const HWP_GUIDANCE =
   "HWP는 자동 변환하지 않습니다. 한컴오피스 뷰어에서 열어 PDF로 같은 위치에 저장한 뒤 scan부터 다시 실행하세요.";
@@ -435,13 +435,12 @@ async function extractXlsxMedia(
   sourcePath: string,
   outputDirectory: string,
   sourceIndex: number,
-  shouldExtract: (mediaCount: number) => boolean,
 ): Promise<string[]> {
   const zip = await JSZip.loadAsync(await readFile(sourcePath));
   const mediaEntries = Object.values(zip.files).filter(
     (entry) => !entry.dir && /^xl\/media\/[^/]+$/i.test(entry.name),
   );
-  if (!shouldExtract(mediaEntries.length)) return [];
+  if (mediaEntries.length === 0) return [];
 
   // XLSX archives commonly reuse names such as xl/media/image1.png. Keep the
   // extracted directory tied to the manifest source-file index so a later
@@ -470,7 +469,6 @@ async function extractXlsxMedia(
 
 async function convertXlsx(
   sourcePath: string,
-  sourceBytes: number,
   outputDirectory: string,
   index: number,
 ): Promise<XlsxConversion> {
@@ -483,8 +481,6 @@ async function convertXlsx(
     sourcePath,
     outputDirectory,
     index,
-    (mediaCount) =>
-      (markdown.length < 500 && sourceBytes > 300 * 1024) || (mediaCount > 0 && cellCount < 50),
   );
   return { textPath, textCharacters: markdown.length, cellCount, imagePaths };
 }
@@ -679,7 +675,11 @@ export async function rasterizePdfSafely(
 ): Promise<string[]> {
   try {
     await access(outputDirectory);
-    throw new IngestConversionLimitError("pdf_raster_publish_destination_exists");
+    const existingPages = await rasterPageEntries(outputDirectory);
+    if (existingPages.length === 0) {
+      throw new IngestConversionLimitError("pdf_raster_publish_destination_exists");
+    }
+    return existingPages.map((page) => page.path);
   } catch (error) {
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
   }
@@ -787,7 +787,7 @@ export async function convertManifest(
       try {
         await assertSourceSizeLimit(source.absolute_path, source.bytes);
         if (source.ext === "xlsx") {
-          const converted = await convertXlsx(source.absolute_path, source.bytes, outputDirectory, index);
+          const converted = await convertXlsx(source.absolute_path, outputDirectory, index);
           textArtifacts.push(converted.textPath);
           imageArtifacts.push(...converted.imagePaths);
           textCharacters += converted.textCharacters;

@@ -36,7 +36,7 @@
 | A1 | 마이그레이션 클린 DB 적용 + 타입 재생성 | `FAIL` | 로컬 PGlite의 개별·순서 계약 테스트와 21000까지의 정적 release manifest 검증은 통과한다. 그러나 `apps/web/src/types/database.types.ts`에 `agencies`, `price_snapshots`, `official_prices`, `official_price_options`, `v_public_official_prices`가 모두 0건이다. 실제 clean Supabase 전체 적용과 타입 재생성이 완료되지 않았다. |
 | A2 | anon base select 차단, 공개 뷰 허용, 타 사용자 wishlist 차단 | `BLOCKED_EXTERNAL` | fail-closed probe는 base/public/owned-table 전 컬럼, 두 사용자 격리, 실제 `vendor_favorites`, view column·security option·definition hash, cleanup을 검증한다. Git `skip-worktree`·`assume-unchanged`로 숨긴 변경도 외부 요청 전에 거부한다. 다만 승인된 전용 hosted staging ref와 실제 두 세션 실행 영수증은 아직 없다. |
 | A3 | 더미 시드 `/price/studio` 렌더와 검색·지역·대행사·가격·정렬 필터 | `NOT_VERIFIED` | `catalog.test.ts`가 이름/alias, 지역, 대행사, 기본가, wishlist, 최저가 정렬 조합을 검증한다. 실제 더미 DB를 연결한 `/price/studio` 브라우저 렌더와 조작은 실행하지 않았다. |
-| A4 | 라운지 `업체 탐색`이 가격 리스트로 연결 | `PASS` | `Sidebar.tsx`와 `TopNav.tsx`가 `/price/studio`를 사용하며 기존 `/vendors`는 `/price/studio`로 redirect한다. |
+| A4 | 라운지 `업체 탐색`이 가격 리스트로 연결 | `PASS` | `Sidebar.tsx`는 canonical `/wedding/vendors` 여정을 유지한다. rewrite 대상 `/vendors`는 인증·데모 가드를 공유하는 앱 화면을 렌더하고, 선택 카테고리를 `/wedding/vendors?category=...` 안에서 이동한다. 모바일의 legacy UUID 상세는 같은 origin `/vendors/{uuid}`를 WebView로 열며, 찜·조합·알림 요청만 네이티브 세션의 폐쇄형 API bridge를 사용한다. |
 | A5 | 0건 empty state, 견적 공유 CTA, `zero_result` 로깅 | `PASS` | `PricePresentation.test.tsx`가 지정 카피와 CTA를 검증한다. `runtimeDisclosureDataBoundary.test.ts`와 `PriceExplorer.tsx`가 전체 필터 결과인 `filtered.length`를 `zero_result`에 사용하는 것을 고정한다. |
 | A6 | 조합 담기→추가금→합계→비로그인 저장 게이트 | `NOT_VERIFIED` | 옵션 범위/합계, session store, 세 슬롯, 로그인 게이트, 중복 저장 방지 컴포넌트·단위 테스트는 통과했다. 실제 브라우저 클릭 기반 전체 플로우는 실행하지 않았다. |
 | A7 | 카테고리별 200개 업체에서 예산 역산 200ms 미만 | `PASS` | `budgetFinder.test.ts`가 카테고리별 200개 fixture, 최대 20개 반환, 200ms 제한을 검증했고 로컬 실행은 1ms였다. |
@@ -54,8 +54,8 @@
 |---|---|---|---|
 | B1 | 혼합 포맷 scan manifest와 HWP 수동 큐 | `PASS` | 2026-07-18 default baseline은 249 units, `converted=235`, `needs_manual_conversion=14`, `error=0`이었다. 2026-07-19 Windows/Poppler 장경로 처리를 보강한 새 격리 state 전수 재처리는 `converted=241`, `needs_manual_conversion=8`, `error=0`이다. source 파일은 xlsx 219, docx 3, pdf 22, png 1, hwp 8이며 PDF 6개는 회수됐고 동일 stem PDF가 없는 HWP 8개만 수동 큐다. |
 | B2 | 지정 구조·파일명 파서 테스트 | `PASS` | `scripts/ingest/__tests__/scan.test.ts`의 지정 구조 대응 테스트가 모두 통과한다. §3을 지키기 위해 실제 업체명 대신 동일 구조의 명시적 샘플명이 사용된다. |
-| B3 | extract cache hit 무호출과 실패 상태 표시 | `PASS` | ingest 테스트가 cache hit 시 OpenAI API 미호출, 실패 unit 상태 표 노출을 검증한다. 이는 실제 OpenAI 파일럿 품질 검증을 대신하지 않는다. |
-| B4 | 만원·소수 표기를 원 단위 정수로 변환 | `PASS` | money parsing fixture 테스트가 통과한다. |
+| B3 | extract cache hit 무호출과 실패 상태 표시 | `PASS` | ingest 테스트가 cache hit 시 OpenAI API 미호출, 실패 unit 상태 표 노출을 검증한다. 고정 8건 무료 수동 감사는 했지만 실제 OpenAI 추출은 0건이므로 provider 품질 검증을 대신하지 않는다. |
+| B4 | 만원·소수 표기를 원 단위 정수로 변환 | `PASS` | money parsing fixture와 발생 위치 단위 양방향 coverage 테스트가 통과한다. 같은 금액의 다른 행, XLSX 중복 렌더링, 병합 가격 열, 수량·월 범위 제외를 회귀 검증한다. |
 | B5 | 동일 지역 중복 업체 후보 탐지 | `PASS` | 동일 지역의 정확한 더미 쌍 `샘플정우웨딩`/`광주샘플정우웨딩`을 자동 병합하지 않고 dedupe 후보 1건으로 내보내는 테스트가 통과한다. |
 | B6 | load provenance와 원본 Storage 보존 | `BLOCKED_EXTERNAL` | source file/quote/object key/hash 계약 테스트는 있다. 실제 ingest 상태는 `loaded=0`이며 staging Storage 업로드·보존·signed download 증거가 없다. |
 | B7 | 검수 UI 근거·원본·수정 승인·중복 병합 | `BLOCKED_EXTERNAL` | preview route, signed URL 계약, 검수/병합 API·컴포넌트 테스트는 있다. 실제 Storage와 관리자 계정을 사용한 브라우저 E2E는 없다. |
@@ -69,13 +69,15 @@
 
 | 명령 | 결과 | 의미와 한계 |
 |---|---|---|
-| `corepack pnpm test:ingest` | `113/113 PASS` | scan/convert/extract cache/검증/money/dedupe/load·Storage 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
+| `corepack pnpm test:ingest` | `125/125 PASS` | scan/convert/extract cache/발생 위치 coverage/money/dedupe/load·Storage 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
 | `corepack pnpm ingest:typecheck` | `PASS` | ingest TypeScript 계약 통과. |
-| GitHub와 동일한 `CI=true`에서 `corepack pnpm --filter @hanbang/web exec vitest run` | `296/296 files, 2,536/2,536 tests PASS` | streaming body bound, 위기 안전 조기 경계, 예산 계약, combo 직접쓰기 차단, WeddingCode 연구 격리와 원장 완결성, sitemap 환경 격리까지 포함한 2026-07-19 전체 회귀다. |
+| GitHub와 동일한 `CI=true`에서 `corepack pnpm --filter @hanbang/web exec vitest run` | `297/297 files, 2,549/2,549 tests PASS` | 업체 네이티브 인증 bridge, 앱 내 공식 업체 여정, 예산 outlier 무변형 계약, 아모라 상세 상한을 포함한 2026-07-19 최신 전체 회귀다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/constants/__tests__/runtimeDisclosureDataBoundary.test.ts" "src/lib/vendors/__tests__/publicDisclosureEvidencePrivacyMigration.test.ts" --reporter=verbose` | `2 files / 8 tests PASS` | 최신 `zero_result`, public `raw_text`, private `source_quote`, PII/길이 DB fence를 검증한다. |
 | `corepack pnpm --filter @hanbang/web typecheck` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web lint` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/lib/price/catalog.test.ts" "src/components/price/PricePresentation.test.tsx" --reporter=verbose` | `2 files / 9 tests PASS` | 필터 조합, empty state, 공시 원문, 로그인 경계, 조합 표시를 검증한다. |
+| 업체 앱 여정·인증 bridge·쓰기 경계·예산 migration·아모라 업체 도구 대상 회귀 | `11 files / 74 tests PASS` | 웹/네이티브 bridge allowlist·크기 제한·401 전달, cookie CSRF와 native Bearer 분리, 앱 내 업체 화면, 옵션 없는 wishlist 적재, 추천·상세 상한, 예산 outlier 무변형 실패를 검증한다. 실제 기기·hosted DB 증거는 아니다. |
+| `corepack pnpm --filter @hanbang/mobile test` | `101/101 PASS` | legacy UUID 상세, WebView same-origin navigation, 폐쇄형 업체 API bridge를 포함한 현재 모바일 전체 Node 회귀다. |
 | GitHub CI와 동일한 placeholder 환경의 `next build` | `PASS`, 109 static pages | `CI=true`, production이 아닌 정확한 CI 조건에서 성공했다. 데이터가 연결되지 않아 발행 업체 slug의 실제 SSG 산출은 증명하지 않는다. `VERCEL_ENV=preview`에서 placeholder만 넣은 build는 공개 slug를 증명할 수 없어 의도대로 실패한다. |
 | `corepack pnpm ingest status --state-dir reprocess-20260719-poppler5` | 249 total, 241 converted, 8 manual, 0 error, 0 loaded, AI tokens 0 | 변환 현황과 PDF 8페이지 시각 대조만 증명하며 추출 품질·DB load·공개를 증명하지 않는다. |
 | `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 19개 migration hash/order 고정 | 20900의 combo direct-write fence와 21000의 0~10억원 웨딩 예산 계약을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
@@ -120,7 +122,7 @@ received: 20260718120000 ... 20260718206000, 20260718207000
 당시 manifest 마지막 migration: 20260718207000_public_disclosure_evidence_privacy.sql
 당시 normalized SHA-256: b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512
 현재 manifest 마지막 migration: 20260718210000_wedding_budget_product_contract.sql
-현재 마지막 migration normalized SHA-256: 91f2f16ed6f5efc3c02b6266e73254d306e0d824659bd77bc8ab03b06673d105
+현재 마지막 migration normalized SHA-256: 8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac
 정적 fence 결과: PASS — predecessor 27개, successor 19개 migration 검증
 관련 release 전체 테스트: PASS — 165/165
 remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 증거 전에는 DB 명령 전에 차단되어야 함
@@ -130,10 +132,11 @@ remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 �
 
 `docs/operations/VENDOR_DISCLOSURE_PIPELINE_V2_2026-07-18.md`와 successor release manifest가 다음 항목을 아직 미완료로 기록한다.
 
-- 실제 OpenAI 5-unit 파일럿과 원본 대조, token·비용 ledger
+- 실제 OpenAI 고정 8건 추출과 2,342건 발생 위치 ground truth 자동 채점, token·비용 ledger. 현재 문서는 파일럿 결과가 아닌 채점표 제작 기록이며 prompt v6는 미검증이다. `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md` 참조
 - hosted staging 전체 migration 및 dry-run 대조
 - staging private Storage 업로드와 signed download
 - hosted 두 세션 alias 경쟁·재조회·deadlock 부재
+- destination-fenced 서버 저장으로 combo를 실제 생성한 뒤 같은 소유자 세션으로 삭제하고 재조회 0건을 확인한 hosted 양성 경로
 - 실제 관리자 계정의 수정·승인·중복 결정
 - 승인 데이터의 공개 페이지·아모라 end-to-end
 - 집계 `pg_cron` job의 안전한 활성화·검증·비활성화 rollback 경로(현재 job은 의도적으로 `active=false`)

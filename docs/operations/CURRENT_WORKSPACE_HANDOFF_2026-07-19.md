@@ -84,8 +84,13 @@
 - 실제 OpenAI·Supabase 호출은 아직 0이다. 로컬 OpenAI key와 별도 non-production staging
   자격증명이 없으며 production 자격증명으로 우회하지 않는다.
 - OpenAI key는 채팅·문서·Git에 기록하지 않고 추출을 실행하는 단일 process 환경에만
-  주입한다. 첫 유료 실행은 반드시 Luna의 `extract --limit 5`이며 ledger와 원본 대조 후에만
-  전체 범위로 확대한다.
+  주입한다. 첫 유료 실행은 반드시 승인된 고정 8개 unit ID를 `--units`로 지정하며 ledger와
+  원본 대조 후에만 전체 범위로 확대한다.
+- 고정 8건 파일럿의 자동 채점표를 만들었고, 값 집합이 아닌 `시트!셀`/줄 발생 위치 단위
+  커버리지 검증을 추가했다. 텍스트 원본 금액 2,342건은 해시로 고정한 ground truth다. 실제
+  OpenAI 추출은 0건이므로 prompt v6는 미검증이며, 메이브라이드 저해상도 PNG의 판독 불가
+  셀은 별도 검토 대상으로 남겼다. 25건 배치·load·발행은 실행하지 않았다. 상세 근거는
+  `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`다.
 
 ### 릴리스 안전장치
 
@@ -128,9 +133,9 @@
 
 | 검증 | 결과 |
 |---|---|
-| 웹 전체 Vitest | GitHub와 동일한 `CI=true`에서 `296 files / 2,536 tests PASS` |
-| 모바일 Node tests | `96/96 PASS` |
-| ingest | `114/114 PASS`, typecheck PASS |
+| 웹 전체 Vitest | GitHub와 동일한 `CI=true`에서 `297 files / 2,549 tests PASS` |
+| 모바일 Node tests | `101/101 PASS` |
+| ingest | `125/125 PASS`, typecheck PASS |
 | 실제 공시 변환 재검증 | 249 units, 241 converted, 8 HWP manual, error 0; raw hash 253/253, artifact 291/291 |
 | repo release/fail-closed Node tests | PASS |
 | Supabase release tests | `165/165 PASS` |
@@ -148,6 +153,33 @@
 이 검증은 실제 signed IPA/AAB, 실제 기기 smoke, hosted DB, production provider access 또는
 배포 영수증을 대신하지 않는다. 이 PC의 전역 `pnpm`은 9.15.0이므로 저장소 명령은 반드시
 `corepack pnpm`으로 실행한다.
+
+## 후속 업체 모듈 보강 (현재 working tree)
+
+- `/wedding/vendors`를 공개 가격 페이지 redirect가 아닌 인증 앱 shell의 공식 공시가 탐색으로
+  복원했다. 앱 안에서 카테고리를 바꿔도 같은 웨딩 여정을 유지한다.
+- 모바일 legacy 업체 UUID 상세는 정확한 same-origin `/vendors/{uuid}`를 연다. 찜·조합·알림은
+  토큰을 WebView에 노출하지 않는 폐쇄형 네이티브 bridge를 사용하며 경로·메서드·헤더·본문·응답
+  크기를 모두 제한한다.
+- cookie mutation은 same-origin metadata가 있어야 하고, 모바일은 실제 Bearer 자격증명이 있을
+  때만 이 CSRF 경계를 통과한다. 각 route의 Supabase 인증·소유권 검증은 그대로 유지한다.
+- wishlist 페이지는 카드에 사용하지 않는 옵션을 읽지 않는다. 아모라 legacy 검색 결과는 10개,
+  업체 상세 상품은 25개, 담당자는 20개가 서버 최대치다.
+- 웨딩 예산 migration은 범위 밖 기존 값을 0원으로 덮어쓰지 않는다. outlier가 하나라도 있으면
+  전체 transaction을 실패시키고 명시적 검토를 요구한 뒤에만 constraint를 검증한다.
+- 현재 로컬 증거는 웹 전체 `297 files / 2,549 tests`, 모바일 전체 `101/101`, ingest
+  `125/125`, Supabase release `165/165`, 웹·모바일 typecheck/lint, successor static release
+  fence, CI placeholder Next build 109 pages, Expo web/iOS/Android export, mobile readiness
+  `103/103`, `git diff --check` 통과다. 첫 병렬 전체 회귀는 5분 명령 제한, 첫 Next build는
+  환경값 부재로 실패했으며 각각 단독 전체 회귀와 GitHub CI의 정확한 placeholder 환경으로
+  재실행해 통과했다.
+- raw 원본의 최신 상태는 249 units 중 `converted=241`, `needs_manual_conversion=8`,
+  `extracted=0`, `validated=0`, `loaded=0`이다. 남은 8개는 동일 stem PDF가 없는 HWP이며,
+  이번 채점표 제작에서는 환경 key를 읽거나 사용하지 않았다. 첫 유료 실행은 key를 process에만
+  주입한 Luna 고정 8건 추출과 비용 ledger·ground truth 자동 채점 뒤에만 확대한다.
+- hosted RLS probe는 combo 직접 INSERT/UPDATE 차단은 증명하도록 설계됐지만, 서버 RPC로 실제
+  저장한 combo를 소유자가 삭제하고 0건을 재조회하는 양성 경로는 아직 증명하지 못한다. 이
+  증거와 전용 staging 승인 전에는 완료로 표시하지 않는다.
 
 ## 수용 판정
 
@@ -175,7 +207,7 @@ NOT_VERIFIED 5 / FAIL 2`다. 상세 근거는
 1. 전용 non-production Supabase에 clean migration 적용, remote ledger 대조, DB 타입 재생성
 2. hosted 두 사용자 RLS·own delete·service RPC·Storage signed download·admin E2E 영수증
 3. HWP 8개를 로컬 한컴에서 동일 stem PDF로 저장하고 새 state에서 scan부터 재실행
-4. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 5-unit 파일럿 원본 대조·비용 ledger
+4. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 고정 8건 파일럿 원본 대조·비용 ledger
 5. 대표 승인 데이터로 가격 목록·조합·아모라 추천 브라우저 E2E와 모바일 Lighthouse 90+
 6. `pg_cron` 집계 job의 안전한 활성화와 비활성화 rollback 증거
 7. 운영 DB backup, 다른 project restore rehearsal, Storage 원본 복구 증거

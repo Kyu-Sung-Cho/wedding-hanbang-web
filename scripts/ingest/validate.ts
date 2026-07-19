@@ -15,7 +15,7 @@ import { DisclosureExtractionSchema, ExtractionArtifactSchema } from "./schemas.
 import type { DisclosureExtraction } from "./schemas.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
 
-const VALIDATOR_VERSION = "v4-row-source-provenance";
+const VALIDATOR_VERSION = "v6-occurrence-money-coverage";
 const BASE_PRICE_MIN_KRW = 100_000;
 const BASE_PRICE_MAX_KRW = 30_000_000;
 const PUBLIC_CONTACT_PATTERN = /(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}|0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu;
@@ -26,6 +26,15 @@ const ValidationIssueSchema = z.object({
   path: z.string().min(1),
   message: z.string().min(1),
 });
+
+export const CoverageGapSchema = z.object({
+  raw: z.string().min(1).max(200),
+  krw: z.number().int().nonnegative(),
+  line_context: z.string().min(1).max(1_000),
+  source_locator: z.string().min(1).max(200),
+}).strict();
+
+export type CoverageGap = z.infer<typeof CoverageGapSchema>;
 
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;
 
@@ -73,6 +82,7 @@ export const ValidatedArtifactSchema = z.object({
   extraction_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   data: DisclosureExtractionSchema,
   issues: z.array(ValidationIssueSchema),
+  coverage_gaps: z.array(CoverageGapSchema).max(5_000),
   review_status: z.literal("pending"),
   validated_at: z.string().datetime(),
 });
@@ -106,9 +116,331 @@ export function validatedArtifactFingerprint(
   extractionFingerprint: string,
   data: DisclosureExtraction,
   issues: ValidationIssue[],
+  coverageGaps: CoverageGap[] = [],
 ): string {
-  const payloadHash = sha256Text(JSON.stringify({ data, issues }));
+  const payloadHash = sha256Text(JSON.stringify({ data, issues, coverage_gaps: coverageGaps }));
   return sha256Text(`${VALIDATOR_VERSION}\0${extractionFingerprint}\0${payloadHash}`);
+}
+
+interface ExtractedMoneyEvidence {
+  values: number[];
+  quote: string | null;
+}
+
+function validMoneyValues(...values: Array<number | null>): number[] {
+  return [...new Set(values.filter((value): value is number =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+  ))];
+}
+
+function extractedMoneyEvidence(data: DisclosureExtraction): ExtractedMoneyEvidence[] {
+  const evidence: ExtractedMoneyEvidence[] = [];
+  const add = (quote: string | null, ...values: Array<number | null>): void => {
+    const normalizedValues = validMoneyValues(...values);
+    if (normalizedValues.length > 0) evidence.push({ values: normalizedValues, quote });
+  };
+  for (const item of data.agency_packages) {
+    add(item.source_quote, item.price_min_krw, item.price_max_krw);
+    for (const option of item.options) {
+      add(option.source_quote, option.price_min_krw, option.price_max_krw);
+    }
+  }
+  for (const item of data.partner_vendors) {
+    add(item.source_quote, item.price_min_krw, item.price_max_krw);
+    for (const option of item.options) {
+      add(option.source_quote, option.price_min_krw, option.price_max_krw);
+    }
+  }
+  add(data.hall.venue_fee_source_quote, data.hall.venue_fee_krw);
+  add(
+    data.hall.meal_price_source_quote,
+    data.hall.meal_price_min_krw,
+    data.hall.meal_price_max_krw,
+  );
+  for (const item of data.hall.items) {
+    add(item.source_quote, item.price_min_krw, item.price_max_krw);
+  }
+  return evidence;
+}
+
+function declaredMoneyMultiplier(line: string): number | null {
+  const match = line.match(/(?:금액\s*)?단위\s*[:：]?\s*(억|천만|백만|만|천)?\s*원/u);
+  if (!match) return null;
+  if (match[1] === "억") return 100_000_000;
+  if (match[1] === "천만") return 10_000_000;
+  if (match[1] === "백만") return 1_000_000;
+  if (match[1] === "만") return 10_000;
+  if (match[1] === "천") return 1_000;
+  return 1;
+}
+
+function excludedMoneyContext(line: string): boolean {
+  return /(?:전화|연락처|tel|fax|사업자\s*등록|계좌|은행|예금주|작성일|날짜)/iu.test(line);
+}
+
+interface MoneyMatchSpan {
+  start: number;
+  end: number;
+}
+
+function overlapsSpan(start: number, end: number, spans: MoneyMatchSpan[]): boolean {
+  return spans.some((span) => start < span.end && end > span.start);
+}
+
+function moneyMultiplier(unit: string): number {
+  if (unit === "억") return 100_000_000;
+  if (unit === "천만") return 10_000_000;
+  if (unit === "백만") return 1_000_000;
+  if (unit === "만") return 10_000;
+  if (unit === "천") return 1_000;
+  return 1;
+}
+
+function numericMoney(value: string, multiplier: number): number | null {
+  const numeric = Number(value.replace(/,/g, ""));
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  const amount = Math.round(numeric * multiplier);
+  return Number.isSafeInteger(amount) ? amount : null;
+}
+
+function sourceMoneyOccurrences(
+  payload: string,
+  multiplier: number | null,
+  lineContext: string,
+  sourceLocator: string,
+): CoverageGap[] {
+  const occurrences: CoverageGap[] = [];
+  const occupied: MoneyMatchSpan[] = [];
+  const push = (raw: string, krw: number | null): void => {
+    if (krw === null) return;
+    occurrences.push({
+      raw: raw.trim().slice(0, 200),
+      krw,
+      line_context: lineContext.slice(0, 1_000),
+      source_locator: sourceLocator.slice(0, 200),
+    });
+  };
+
+  const explicitRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)\s*원?/gu;
+  for (const match of payload.matchAll(explicitRange)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    occupied.push({ start, end });
+    const unitMultiplier = moneyMultiplier(match[3]);
+    push(match[0], numericMoney(match[1], unitMultiplier));
+    push(match[0], numericMoney(match[2], unitMultiplier));
+  }
+
+  const explicitSingle = /(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)(?:\s*원)?|(\d[\d,]*(?:\.\d+)?)\s*원/gu;
+  for (const match of payload.matchAll(explicitSingle)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (overlapsSpan(start, end, occupied)) continue;
+    occupied.push({ start, end });
+    if (match[1] && match[2]) {
+      push(match[0], numericMoney(match[1], moneyMultiplier(match[2])));
+    } else if (match[3]) {
+      push(match[0], numericMoney(match[3], 1));
+    }
+  }
+
+  if (multiplier === null) return occurrences;
+
+  const bareRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(\d[\d,]*(?:\.\d+)?)/gu;
+  for (const match of payload.matchAll(bareRange)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (overlapsSpan(start, end, occupied)) continue;
+    const after = payload.slice(end).trimStart();
+    if (/^(?:%|년|개월|월|일|시간|분|시|회|벌|장|개|명|부|권|페이지|컷)/u.test(after)) {
+      occupied.push({ start, end });
+      continue;
+    }
+    occupied.push({ start, end });
+    push(match[0], numericMoney(match[1], multiplier));
+    push(match[0], numericMoney(match[2], multiplier));
+  }
+
+  for (const match of payload.matchAll(/\d[\d,]*(?:\.\d+)?/gu)) {
+    const raw = match[0];
+    const start = match.index ?? 0;
+    const end = start + raw.length;
+    if (overlapsSpan(start, end, occupied)) continue;
+    const after = payload.slice(end).trimStart();
+    const before = payload.slice(0, start);
+    if (/^(?:%|p\b|r\b|벌|회|장|개|명|시간|분|시|부|권|페이지|컷|일|개월|월|년|조)/iu.test(after)) continue;
+    if (/[\d,.-]$/u.test(before)) continue;
+    push(raw, numericMoney(raw, multiplier));
+  }
+  return occurrences;
+}
+
+function evidenceMatchScore(candidate: CoverageGap, normalizedQuote: string): number {
+  const context = normalizeEvidenceText(candidate.line_context);
+  const raw = normalizeEvidenceText(candidate.raw);
+  if (context.includes(normalizedQuote) || normalizedQuote.includes(context)) return 3;
+  if (raw && normalizedQuote.includes(raw)) return 2;
+  return 1;
+}
+
+function xlsxColumnNumber(column: string): number {
+  let result = 0;
+  for (const character of column) result = result * 26 + character.charCodeAt(0) - 64;
+  return result;
+}
+
+function xlsxColumnName(columnNumber: number): string {
+  let value = columnNumber;
+  let result = "";
+  while (value > 0) {
+    value -= 1;
+    result = String.fromCharCode(65 + (value % 26)) + result;
+    value = Math.floor(value / 26);
+  }
+  return result;
+}
+
+function priceHeaderContext(payload: string): boolean {
+  return /(?:가격|금액|비용|요금|대관료|식대|보증금|추가금|헬퍼|퍼스트웨어|추가대여|헤어피스|선택품목|옵션)/u.test(payload);
+}
+
+export function findCoverageGaps(
+  fullText: string,
+  data: DisclosureExtraction,
+): CoverageGap[] {
+  const normalizedFullText = normalizeEvidenceText(fullText);
+  const candidates: CoverageGap[] = [];
+  const lines = fullText.normalize("NFKC").split(/\r?\n/u);
+  const workbookMultipliers = new Map<string, Set<number>>();
+  const workbookPriceColumns = new Map<string, Set<string>>();
+  const workbookCellPayloads = new Map<string, string>();
+  const workbookSheets = new Set<string>();
+  for (const rawLine of lines) {
+    const cellMatch = rawLine.trim().match(/^(.+)!([A-Z]+\d+):\s*(.*)$/u);
+    if (!cellMatch) continue;
+    workbookSheets.add(cellMatch[1]);
+    workbookCellPayloads.set(`${cellMatch[1]}\0${cellMatch[2]}`, cellMatch[3]);
+    const declared = declaredMoneyMultiplier(cellMatch[3]);
+    if (declared !== null) {
+      const values = workbookMultipliers.get(cellMatch[1]) ?? new Set<number>();
+      values.add(declared);
+      workbookMultipliers.set(cellMatch[1], values);
+    }
+    const row = Number(cellMatch[2].match(/\d+$/u)?.[0]);
+    const column = cellMatch[2].match(/^[A-Z]+/u)?.[0];
+    if (
+      declared === null
+      && column
+      && Number.isSafeInteger(row)
+      && row <= 20
+      && priceHeaderContext(cellMatch[3])
+    ) {
+      const priceColumns = workbookPriceColumns.get(cellMatch[1]) ?? new Set<string>();
+      priceColumns.add(column);
+      workbookPriceColumns.set(cellMatch[1], priceColumns);
+    }
+  }
+  let prepassSheet: string | null = null;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const heading = line.match(/^##\s*시트:\s*(.+)$/u);
+    if (heading) {
+      prepassSheet = heading[1].trim();
+      continue;
+    }
+    if (!prepassSheet) continue;
+    const merge = line.match(/^병합 범위\s+([A-Z]+\d+):([A-Z]+\d+)\s*·\s*좌상단\s+([A-Z]+\d+)$/u);
+    if (!merge) continue;
+    const anchorPayload = workbookCellPayloads.get(`${prepassSheet}\0${merge[3]}`);
+    if (!anchorPayload || !priceHeaderContext(anchorPayload)) continue;
+    const startColumn = merge[1].match(/^[A-Z]+/u)?.[0];
+    const endColumn = merge[2].match(/^[A-Z]+/u)?.[0];
+    if (!startColumn || !endColumn) continue;
+    const priceColumns = workbookPriceColumns.get(prepassSheet) ?? new Set<string>();
+    for (
+      let column = xlsxColumnNumber(startColumn);
+      column <= xlsxColumnNumber(endColumn);
+      column += 1
+    ) {
+      priceColumns.add(xlsxColumnName(column));
+    }
+    workbookPriceColumns.set(prepassSheet, priceColumns);
+  }
+
+  let tableMultiplier: number | null = null;
+  let currentSheet: string | null = null;
+  for (const [lineIndex, rawLine] of lines.entries()) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const sheetHeading = line.match(/^##\s*시트:\s*(.+)$/u);
+    if (sheetHeading) {
+      currentSheet = sheetHeading[1].trim();
+      const declared = workbookMultipliers.get(currentSheet);
+      tableMultiplier = declared?.size === 1 ? [...declared][0] : null;
+      continue;
+    }
+    const canonicalCell = line.match(/^(.+)!([A-Z]+\d+):\s*(.*)$/u);
+    if (canonicalCell) {
+      const sheetName = canonicalCell[1];
+      const sheetMultipliers = workbookMultipliers.get(sheetName);
+      const sheetMultiplier = sheetMultipliers?.size === 1 ? [...sheetMultipliers][0] : tableMultiplier;
+      const payload = canonicalCell[3];
+      if (excludedMoneyContext(payload) || declaredMoneyMultiplier(payload) !== null) continue;
+      const column = canonicalCell[2].match(/^[A-Z]+/u)?.[0];
+      const hasInlinePriceSemantics = /(?:가격|금액|비용|추가|옵션|할인|할증|당|업그레이드|제작|변경|대관|식대|사용료|보증금|원본|수정|앨범|액자)/u.test(payload);
+      const isPriceColumn = Boolean(column && workbookPriceColumns.get(sheetName)?.has(column));
+      const cellMultiplier = isPriceColumn || hasInlinePriceSemantics ? sheetMultiplier : null;
+      candidates.push(...sourceMoneyOccurrences(
+        payload,
+        cellMultiplier,
+        line,
+        `${sheetName}!${canonicalCell[2]}`,
+      ));
+      continue;
+    }
+    if (
+      currentSheet
+      && workbookSheets.has(currentSheet)
+      && /^\|\s*(?:[A-Z]+\d+|셀|---)\s*\|/u.test(line)
+    ) {
+      // workbookToMarkdown emits every real cell twice: once as Sheet!A1 and
+      // once in this rendering table. Only the canonical cell is source evidence.
+      continue;
+    }
+    if (/^병합 범위\s/u.test(line)) continue;
+    const declared = declaredMoneyMultiplier(line);
+    if (declared !== null) {
+      tableMultiplier = declared;
+      continue;
+    }
+    if (excludedMoneyContext(line)) continue;
+    candidates.push(...sourceMoneyOccurrences(
+      line,
+      tableMultiplier,
+      line,
+      `line:${lineIndex + 1}`,
+    ));
+  }
+
+  const matched = new Set<number>();
+  for (const evidence of extractedMoneyEvidence(data)) {
+    if (!evidence.quote) continue;
+    const normalizedQuote = normalizeEvidenceText(evidence.quote);
+    if (!normalizedQuote || !normalizedFullText.includes(normalizedQuote)) continue;
+    for (const value of evidence.values) {
+      const matchingIndices = candidates
+        .map((candidate, index) => ({ candidate, index }))
+        .filter(({ candidate, index }) => !matched.has(index) && candidate.krw === value)
+        .sort((left, right) =>
+          evidenceMatchScore(right.candidate, normalizedQuote)
+          - evidenceMatchScore(left.candidate, normalizedQuote)
+          || left.index - right.index
+        );
+      const match = matchingIndices[0];
+      if (match) matched.add(match.index);
+    }
+  }
+  return candidates.filter((_, index) => !matched.has(index)).slice(0, 5_000);
 }
 
 export function parseKoreanMoneyAmounts(text: string): number[] {
@@ -563,6 +895,7 @@ async function readExistingValidated(
       artifact.extraction_fingerprint,
       artifact.data,
       artifact.issues,
+      artifact.coverage_gaps,
     );
     return artifact.fingerprint === expected.fingerprint
         && contentFingerprint === expected.fingerprint
@@ -627,10 +960,20 @@ export async function validateManifest(options: ValidateOptions): Promise<Ingest
       ])),
     };
     const issues = validateExtractionForUnit(unit, extractionParsed.data.data, evidence);
+    const coverageGaps = findCoverageGaps(sourceText, extractionParsed.data.data);
+    if (coverageGaps.length > 0) {
+      issues.push({
+        severity: "warning",
+        code: "coverage_gap",
+        path: "coverage_gaps",
+        message: `원문 금액 후보 ${coverageGaps.length}건이 추출 KRW 값과 연결되지 않아 사람 검토가 필요합니다.`,
+      });
+    }
     const fingerprint = validatedArtifactFingerprint(
       unit.extraction.fingerprint,
       extractionParsed.data.data,
       issues,
+      coverageGaps,
     );
     const artifactPath = path.join(validatedDirectory, `${unit.unit_id}.json`);
     const sourceFiles = unit.source_files.map((source) => ({
@@ -655,6 +998,7 @@ export async function validateManifest(options: ValidateOptions): Promise<Ingest
       extraction_fingerprint: unit.extraction.fingerprint,
       data: extractionParsed.data.data,
       issues,
+      coverage_gaps: coverageGaps,
       review_status: "pending",
       validated_at: new Date().toISOString(),
     };
@@ -698,8 +1042,9 @@ export async function validateManifest(options: ValidateOptions): Promise<Ingest
       });
       artifact.fingerprint = validatedArtifactFingerprint(
         artifact.extraction_fingerprint,
-        artifact.data,
-        artifact.issues,
+      artifact.data,
+      artifact.issues,
+      artifact.coverage_gaps,
       );
       await writeJsonFile(unit.validation.artifact_path, artifact);
       unit.validation.fingerprint = artifact.fingerprint;

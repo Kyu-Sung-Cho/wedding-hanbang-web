@@ -58,7 +58,7 @@ flowchart LR
   - `20260718207000_public_disclosure_evidence_privacy.sql`: 공개 근거 필드에서 원문 인용을 제거하고 공개 옵션 원문에 PII·연락처·길이 검증을 강제
   - `20260718208000_atomic_weighted_rate_limit.sql`: 이벤트 배치 크기를 DB 공유 버킷에서 원자적으로 차감해 수요 지표 오염 상한을 강제
   - `20260718209000_price_combo_direct_write_fence.sql`: 인증 사용자의 `combos` 직접 INSERT/UPDATE를 제거하고 null-safe agency 및 단일 `official_price_id` 옵션 귀속·합계·멱등성을 재검증하는 service-only 저장 RPC로 단일화
-  - `20260718210000_wedding_budget_product_contract.sql`: 아모라·설정·여정·DB가 공유하는 결혼 총예산을 0~10억원 정수 원 단위로 통일하고 범위 밖 기존 값을 0으로 보수적으로 정리
+  - `20260718210000_wedding_budget_product_contract.sql`: 아모라·설정·여정·DB가 공유하는 결혼 총예산을 0~10억원 정수 원 단위로 통일한다. 범위 밖 기존 행은 자동 수정하지 않고 migration 전체를 실패시켜 명시적 고객 데이터 검토를 요구한다.
 - 가격 검수: `/admin/price`
 - 업체 보강: `/admin/enrich`
 - 내부 추천: `POST /api/internal/vendors/recommend`
@@ -100,7 +100,8 @@ flowchart LR
 ```powershell
 corepack pnpm ingest scan data/raw
 corepack pnpm ingest convert
-corepack pnpm ingest extract --limit 5
+corepack pnpm ingest extract --plan
+corepack pnpm ingest extract --units <id1,id2,id3,id4,id5,id6,id7,id8> --plan
 corepack pnpm ingest validate
 corepack pnpm ingest status
 corepack pnpm ingest load --snapshot 2026Q3
@@ -145,6 +146,7 @@ extract는 state별 `.cache/locks/extract.lock`을 exclusive create해 별도 �
 - 문서 종류와 루트 종류가 모순됨. `mixed`도 실제 payload를 검사해 agency 루트의 hall 내용과 hall 루트의 agency/partner 내용을 차단한다.
 - scan에서 정한 canonical 업체명과 AI가 읽은 상호가 다름
 - 가격·min/max·예식장 대관료·식대의 근거 문구가 없거나 숫자와 일치하지 않음
+- 원문 금액을 `시트!셀`/줄 발생 위치별로 역스캔했을 때 대응 추출 행이 없는 `coverage_gaps`. 같은 금액의 다른 행은 별도 발생으로 세고 XLSX canonical/렌더링 중복은 한 번만 센다.
 - 비정상 가격 범위, `min > max`, 빈 가격 payload
 - 같은 대행사 패키지 identity에 서로 다른 값이 존재함
 - 같은 snapshot/source identity의 기존 행과 staged 값이 다름
@@ -221,6 +223,10 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 아모라는 사용자의 전체 결혼 예산에서 카테고리 예산을 임의 추정해 hard filter하지 않는다. 사용자가 스튜디오·드레스·메이크업·예식장 예산을 명시했을 때만 해당 필터를 쓴다. 홍대·서초·송파처럼 지원 지역으로 해석 가능한 표현은 매핑하고, 모르는 지역은 전국으로 넓히지 않고 되묻는다. 공식 데이터 조회 장애나 pagination 상한 초과 시 레거시 추천으로 우회하지 않는다.
 
+아모라가 legacy 업체 검색을 사용해야 하는 지원 밖 카테고리에서도 한 번에 최대 10개만 반환한다. 업체 상세의 상품은 최대 25개, 담당자는 최대 20개로 제한하고 `sort_order`, ID 순의 안정적인 결과만 모델에 전달한다. 모델이 비정상적으로 큰 `limit`을 제안해도 이 서버 상한을 넘을 수 없다.
+
+인증된 앱의 `/wedding/vendors`는 공개 페이지로 이탈하지 않고 앱 shell 안에서 공식 카탈로그를 렌더한다. 모바일 WebView는 세션 토큰을 URL이나 JavaScript에 전달하지 않는다. 찜·조합·알림의 정확한 경로·메서드만 네이티브 API 계층이 Bearer 세션으로 대리하고 요청 64 KiB, 응답 256 KiB를 넘기지 않는다. wishlist 서버 페이지는 카드에 사용하지 않는 공시 옵션을 조회하지 않아 최대 20,000개 옵션 직렬화를 피한다. 목록의 현재 `더 보기`는 이미 내려받은 카탈로그의 렌더 수만 늘리는 UI pagination이며 DB cursor pagination 증거로 해석하지 않는다.
+
 ## 실제 로컬 파일럿 증거
 
 2026-07-18에 원본을 변경하지 않고 새 기본 state
@@ -252,10 +258,11 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 ### 아직 하지 않은 일
 
-- 실제 OpenAI 5-unit 파일럿
+- 실제 OpenAI 고정 8건 추출과 ground truth 자동 채점
 - staging DB migration과 dry-run 대조
 - staging Storage 업로드·signed download 검증
 - hosted staging 2-session alias 경쟁·재조회·deadlock 부재 검증
+- destination-fenced 서버 combo 저장 성공 후 실제 소유자 삭제·0건 재조회 hosted 양성 경로
 - 실제 관리자 계정으로 수정·승인·중복 결정 검증
 - 승인 데이터의 공개 페이지·아모라 end-to-end 검증
 - 운영 DB backup/restore rehearsal, migration 적용, 운영 배포, canary
@@ -264,7 +271,7 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 1. 코드 전체 test·typecheck·lint·build·보안 검토를 통과하고 commit을 고정한다.
 2. staging DB를 백업하고 project ref를 대조한 뒤 migration dry-run/apply를 수행한다.
-3. OpenAI 5-unit 파일럿을 실행하고 token·비용 ledger와 원본 대조 결과를 남긴다.
+3. OpenAI 고정 8건의 계획을 다시 출력하고 예상 비용이 $20 이하이면 실행한다. token·비용 ledger와 2,342건 발생 위치 ground truth 자동 채점 결과를 남긴다. 현재 수동 감사 문서는 파일럿 결과가 아니라 채점표 제작 기록이며 prompt v6는 미검증이다.
 4. staging `load` dry-run 결과를 승인한 뒤 `--apply`한다.
 5. 관리자 검수, public view, 공개 가격 페이지, 아모라 추천을 staging에서 검증한다.
 6. 운영 backup과 복구 리허설, exact migration hash, write fence, rollback 담당자가 준비된 경우에만 운영 릴리스 절차로 넘긴다.
