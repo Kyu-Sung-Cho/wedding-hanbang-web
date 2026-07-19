@@ -3,18 +3,77 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isPreviewStubMode } from "@/lib/previewStub";
 import { updateSession } from "@/lib/supabase/middleware";
 
+function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
+  const { pathname } = request.nextUrl;
+
+  if (
+    pathname.startsWith("/_next/static/")
+    || pathname === "/_next/webpack-hmr"
+    || pathname.startsWith("/fonts/paperlogy/")
+    || pathname === "/favicon.ico"
+    || pathname === "/images/favicon.png"
+  ) {
+    return true;
+  }
+
+  if (pathname !== "/_next/image") return false;
+
+  const imageSource = request.nextUrl.searchParams.get("url");
+  if (!imageSource) return false;
+
+  try {
+    const sourceUrl = new URL(imageSource, request.nextUrl.origin);
+    return sourceUrl.origin === request.nextUrl.origin
+      && (
+        sourceUrl.pathname.startsWith("/images/")
+        || sourceUrl.pathname === "/favicon.ico"
+      );
+  } catch {
+    return false;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const isWeddingCodeResearchPath =
     request.nextUrl.pathname === "/internal/wedding-code-research" ||
     request.nextUrl.pathname.startsWith("/internal/wedding-code-research/");
+  const isWeddingCodeResearchPreview =
+    process.env.WEDDING_CODE_RESEARCH_PREVIEW === "true";
+
+  if (isWeddingCodeResearchPreview) {
+    const hostname = request.nextUrl.hostname.toLowerCase();
+    const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+    const isReadOnlyMethod = ["GET", "HEAD"].includes(request.method.toUpperCase());
+    const isAllowedStaticPath = isAllowedWeddingCodePreviewAsset(request);
+    if (
+      process.env.NODE_ENV === "development"
+      && isLoopback
+      && isReadOnlyMethod
+      && (isWeddingCodeResearchPath || isAllowedStaticPath)
+    ) {
+      const response = NextResponse.next({ request });
+      response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+      response.headers.set("Pragma", "no-cache");
+      if (isWeddingCodeResearchPath) {
+        response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+      }
+      return response;
+    }
+
+    return NextResponse.json(
+      { error: "wedding_code_research_preview_io_disabled" },
+      {
+        status: 503,
+        headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
+      },
+    );
+  }
 
   if (isWeddingCodeResearchPath) {
-    const host = request.headers.get("host")?.toLowerCase() ?? "";
-    const hostname = host.startsWith("[") ? host.split("]")[0] + "]" : host.split(":")[0];
+    const hostname = request.nextUrl.hostname.toLowerCase();
     const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
     if (
       process.env.NODE_ENV !== "development" ||
-      process.env.WEDDING_CODE_RESEARCH_PREVIEW !== "true" ||
       !isLoopback
     ) {
       return new NextResponse(null, {
@@ -118,6 +177,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/api/:path*",
+    "/_next/image",
+    "/((?!_next/static|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

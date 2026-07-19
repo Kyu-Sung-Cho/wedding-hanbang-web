@@ -7,7 +7,7 @@ const middlewareMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/middleware", () => middlewareMock);
 
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 describe("proxy WeddingCode capability-token containment", () => {
   beforeEach(() => {
@@ -112,6 +112,72 @@ describe("proxy preview stub write fence", () => {
 
     expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
     expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+});
+
+describe("proxy WeddingCode research zero-I/O fence", () => {
+  beforeEach(() => {
+    middlewareMock.updateSession.mockClear();
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("WEDDING_CODE_RESEARCH_PREVIEW", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("allows only a loopback read of the dedicated research document", async () => {
+    const response = await proxy(new NextRequest(
+      "http://127.0.0.1:3106/internal/wedding-code-research?form=A",
+      { method: "GET" },
+    ));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the image optimizer inside the deployed middleware matcher", () => {
+    expect(config.matcher).toContain("/_next/image");
+  });
+
+  it("keeps every API path inside the matcher even when it ends like an image", () => {
+    expect(config.matcher).toContain("/api/:path*");
+  });
+
+  it.each([
+    ["GET", "/api/wedding-code/answers"],
+    ["GET", "/api/community/vendor-tags/foo.png"],
+    ["POST", "/api/auth/me"],
+    ["POST", "/internal/wedding-code-research"],
+    ["POST", "/ingest/collect"],
+    ["GET", "/wedding/lounge"],
+    ["GET", "/_next/data/build-id/wedding-code.json"],
+    ["GET", "/_next/image?w=64&q=75"],
+    ["GET", "/_next/image?url=https%3A%2F%2Fleak.supabase.co%2Fprivate.png&w=64&q=75"],
+    ["GET", "/_next/image?url=%2F%2Fleak.supabase.co%2Fprivate.png&w=64&q=75"],
+  ])("blocks %s %s before any application handler", async (method, pathname) => {
+    const response = await proxy(new NextRequest(`http://127.0.0.1:3106${pathname}`, {
+      method,
+    }));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toEqual({
+      error: "wedding_code_research_preview_io_disabled",
+    });
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("allows only an approved same-origin optimized image source", async () => {
+    const response = await proxy(new NextRequest(
+      "http://127.0.0.1:3106/_next/image?url=%2Fimages%2Ffavicon.png&w=64&q=75",
+    ));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
   });
 });
 

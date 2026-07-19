@@ -36,6 +36,14 @@ planner also emits item-level assigned/administered/eligible/non-applicable trac
 Each row keeps `eligibilityAtAssignment` separate from `responseDisposition`, so an eligible assignment can later
 record a `not_applicable` escape without losing the eligible denominator.
 
+Every assignment uses an opaque RFC 4122 UUID and preserves exact version, Form, support-pair order, rotation,
+panel, the complete eligibility screener snapshot, stakeholder applicability, requested item, assigned item,
+replacement item, and original eligibility. Runtime validation rejects invalid enums, mixed assignment metadata,
+duplicate `(exactVersion, assignmentId, itemId)` rows, impossible response flags, panel mismatches, screener drift,
+and invalid or cross-theme replacement lineage. This is still an in-memory template, not an approved persistence,
+consent, or research collection system; deterministic rotation does not by itself guarantee sample-wide exposure
+balance.
+
 `localPreviewPage.tsx` is imported only by an ignored route generated during the dedicated local dev command.
 It requires `NODE_ENV=development`, server-only `WEDDING_CODE_RESEARCH_PREVIEW=true`, and a loopback host,
 returns `notFound()` otherwise, and stays `noindex`; blocked responses are `no-store` while allowed Next dev
@@ -44,3 +52,8 @@ memory state only. The path must suppress global analytics/UTM, carry `ph-no-cap
 connections through its CSP. The research runner clears PostHog/Sentry variables, shares an exclusive lock
 with the safe production build, and removes the generated route on exit. Preview/Production exposure, browser
 persistence, answer sharing, inferred results, and product application remain forbidden.
+
+The dedicated research proxy also permits only loopback development `GET`/`HEAD` traffic for the exact research
+page and required `/_next/` assets. Same-origin API/ingest paths, state-changing methods, external requests, and
+telemetry remain blocked. The exclusive lock never auto-reclaims a stale-looking lock: a human must verify and
+remove stale state so two runners cannot acquire ownership concurrently.

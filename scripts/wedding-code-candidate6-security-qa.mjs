@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { resolveChromeExecutablePath } from "./resolve-chrome-executable.mjs";
 import { weddingCodeResearchLockPath } from "./wedding-code-research-lock.mjs";
+import { isAllowedWeddingCodeResearchRequest } from "./wedding-code-research-safety.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, "..");
@@ -15,6 +16,7 @@ const generatedRoute = path.join(
   repoRoot,
   "apps/web/src/app/internal/wedding-code-research/page.tsx"
 );
+const generatedRouteDirectory = path.dirname(generatedRoute);
 const appPort = 3108;
 const sinkPort = 3110;
 const appOrigin = `http://127.0.0.1:${appPort}`;
@@ -96,7 +98,11 @@ try {
   const context = await browser.newContext({ viewport: { width: 320, height: 568 } });
   const page = await context.newPage();
   const browserRequests = [];
-  page.on("request", (request) => browserRequests.push(request.url()));
+  page.on("request", (request) => browserRequests.push({
+    url: request.url(),
+    method: request.method(),
+    resourceType: request.resourceType(),
+  }));
 
   const response = await page.goto(appUrl, { waitUntil: "networkidle" });
   assert(response?.status() === 200, "research route must load with fake telemetry env");
@@ -112,13 +118,13 @@ try {
     sessionStorageKeys: Object.keys(window.sessionStorage),
   }));
   const unexpectedBrowserRequests = browserRequests.filter(
-    (url) => !url.startsWith(appOrigin) && !url.startsWith("data:") && !url.startsWith("blob:")
+    (request) => !isAllowedWeddingCodeResearchRequest(request, appOrigin)
   );
 
   assert(sinkRequests.length === 0, `telemetry sink received ${sinkRequests.join(", ")}`);
   assert(
     unexpectedBrowserRequests.length === 0,
-    `browser made external requests: ${unexpectedBrowserRequests.join(", ")}`
+    `browser made disallowed requests: ${JSON.stringify(unexpectedBrowserRequests)}`
   );
   assert(
     persistence.cookie === "" &&
@@ -138,6 +144,10 @@ try {
 }
 
 assert(!(await pathExists(generatedRoute)), "generated route must be removed after QA");
+assert(
+  !(await pathExists(generatedRouteDirectory)),
+  "generated route directory must be removed after QA"
+);
 assert(!(await pathExists(weddingCodeResearchLockPath)), "research lock must be released after QA");
 
 console.log(
@@ -147,6 +157,7 @@ console.log(
       externalBrowserRequests: 0,
       inheritedTelemetrySinkRequests: sinkRequests.length,
       routeCleaned: true,
+      routeDirectoryCleaned: true,
       lockReleased: true,
     },
     null,

@@ -35,7 +35,7 @@ const IMPACT_LABELS: Record<Candidate6ImpactLevel, string> = {
 const IMPACT_SHORT_LABELS: Record<Candidate6ImpactLevel, string> = {
   strongly_hinders: "많이 방해",
   slightly_hinders: "조금 방해",
-  neutral_impact: "영향 없음",
+  neutral_impact: "거의 없음",
   slightly_helps: "조금 도움",
   strongly_helps: "많이 도움",
 };
@@ -580,10 +580,10 @@ function ImpactChoices({
 }) {
   return (
     <div>
-      <p className="w-full rounded-[16px] bg-[#F7F1E8] px-4 py-3.5 text-[16px] font-semibold leading-[1.55] text-[#243832] sm:px-5 sm:py-5 sm:text-[17px] sm:leading-[1.65]">
+      <p className="w-full rounded-[16px] bg-[#F7F1E8] px-4 py-3 text-[16px] font-semibold leading-[1.55] text-[#243832] sm:px-5 sm:py-5 sm:text-[17px] sm:leading-[1.65]">
         {behavior}
       </p>
-      <div className="mt-3 grid grid-cols-5 gap-1.5" aria-label="영향 정도 다섯 답">
+      <div className="mt-2 grid grid-cols-5 gap-1.5" aria-label="영향 정도 다섯 답">
         {CANDIDATE6_IMPACT_LEVELS.map((level) => (
           <ScaleChoice
             key={level}

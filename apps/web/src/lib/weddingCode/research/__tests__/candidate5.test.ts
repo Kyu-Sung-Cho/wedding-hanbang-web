@@ -26,7 +26,7 @@ function collectSourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) return collectSourceFiles(fullPath);
-    return /\.(?:ts|tsx)$/.test(entry.name) ? [fullPath] : [];
+    return /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name) ? [fullPath] : [];
   });
 }
 
@@ -237,12 +237,38 @@ describe("Candidate 5 documentation and isolation fences", () => {
       /from\s+["'][^"']*weddingCodeResult/,
       /from\s+["'][^"']*(?:\/|\.\.)(?:score|report|coupleReport|answers|shareCard|validate)["']/,
       /\bfetch\s*\(/,
+      /\bXMLHttpRequest\b/,
+      /\bsendBeacon\s*\(/,
+      /\baxios\b/i,
+      /from\s+["']@\//,
+      /from\s+["']\.\.\//,
+      /\bapiClient\b/,
       /\blocalStorage\b/,
       /\bsessionStorage\b/,
       /\bindexedDB\b/,
+      /\bnavigator\.serviceWorker\b/,
+      /\bcaches\b/,
       /\bsupabase\b/i,
       /\bposthog\b/i,
+      /(?:from\s+|require\s*\(|import\s*\()\s*["'](?:node:)?(?:http|https|net|tls|dns|fs|fs\/promises|child_process|dgram|worker_threads)["']/,
+      /from\s+["']next\/image["']/,
+      /\bWebSocket\b/,
+      /\bEventSource\b/,
     ];
+
+    for (const attackFixture of [
+      'import https from "node:https";',
+      'const fs = require("node:fs");',
+      'const child = await import("child_process");',
+      'import Image from "next/image";',
+      'new WebSocket("wss://external.example")',
+      'new EventSource("/api/stream")',
+    ]) {
+      expect(
+        forbidden.some((pattern) => pattern.test(attackFixture)),
+        `missing research I/O fence for ${attackFixture}`,
+      ).toBe(true);
+    }
 
     for (const file of sourceFiles) {
       const source = readFileSync(file, "utf8");
@@ -282,8 +308,16 @@ describe("Candidate 5 documentation and isolation fences", () => {
       path.join(repoRoot, "scripts/wedding-code-candidate6-dev.mjs"),
       "utf8"
     );
+    const researchEnvironment = readFileSync(
+      path.join(repoRoot, "scripts/wedding-code-research-env.mjs"),
+      "utf8"
+    );
     const productionFence = readFileSync(
       path.join(repoRoot, "scripts/check-wedding-code-research-route.mjs"),
+      "utf8"
+    );
+    const researchSafety = readFileSync(
+      path.join(repoRoot, "scripts/wedding-code-research-safety.mjs"),
       "utf8"
     );
     const safeBuild = readFileSync(
@@ -310,17 +344,25 @@ describe("Candidate 5 documentation and isolation fences", () => {
     expect(nextConfig).toContain("private, no-store, max-age=0, must-revalidate");
     expect(nextConfig).toContain("localResearchContentSecurityPolicy");
     expect(proxySource).toContain('request.nextUrl.pathname === "/internal/wedding-code-research"');
-    expect(proxySource).toContain('process.env.WEDDING_CODE_RESEARCH_PREVIEW !== "true"');
+    expect(proxySource).toContain('process.env.WEDDING_CODE_RESEARCH_PREVIEW === "true"');
+    expect(proxySource).toContain("wedding_code_research_preview_io_disabled");
     expect(proxySource).toContain("private, no-store, max-age=0, must-revalidate");
     expect(researchDevScript).toContain('"--hostname", "127.0.0.1"');
-    expect(researchDevScript).toContain('WEDDING_CODE_RESEARCH_PREVIEW: "true"');
-    expect(researchDevScript).toContain('NEXT_PUBLIC_SENTRY_DSN: ""');
-    expect(researchDevScript).toContain('SENTRY_DSN: ""');
-    expect(researchDevScript).toContain('NEXT_PUBLIC_POSTHOG_KEY: ""');
+    expect(researchDevScript).toContain("buildWeddingCodeResearchEnvironment()");
+    expect(researchEnvironment).toContain('WEDDING_CODE_RESEARCH_PREVIEW: "true"');
+    expect(researchEnvironment).toContain('NEXT_PUBLIC_SENTRY_DSN: ""');
+    expect(researchEnvironment).toContain('SENTRY_DSN: ""');
+    expect(researchEnvironment).toContain('NEXT_PUBLIC_POSTHOG_KEY: ""');
+    expect(researchEnvironment).not.toContain("...source");
     expect(researchDevScript).toContain("writeFile(generatedRoute");
     expect(researchDevScript).toContain('flag: "wx"');
-    expect(productionFence).toContain("access(generatedRoute)");
-    expect(productionFence).toContain("process.exit(1)");
+    expect(researchDevScript).toContain("cleanupPromise ??=");
+    expect(researchDevScript).toContain("finishPromise ??=");
+    expect(productionFence).toContain("assertWeddingCodeResearchRouteAbsent");
+    expect(productionFence).not.toMatch(/\brm\s*\(/);
+    expect(researchSafety).toContain("await access(routeDirectory)");
+    expect(researchSafety).toContain("production build blocked");
+    expect(researchSafety).not.toMatch(/\brm\s*\(/);
     expect(safeBuild).toContain('acquireWeddingCodeResearchLock("production-build")');
     expect(safeBuild).toContain("check-wedding-code-research-route.mjs");
     expect(safeBuild).toContain("check-wedding-code-production-artifact.mjs");

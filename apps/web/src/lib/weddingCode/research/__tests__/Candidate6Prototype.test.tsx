@@ -93,6 +93,26 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     expect(container.textContent).toContain("첫 후보 목록을 둘이 함께 만든다");
   });
 
+  it("presents the neutral impact response with the same meaning visually and to assistive tech", async () => {
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+    await act(async () =>
+      (
+        container.querySelector(
+          'input[name="candidate6-C6-DS1"][value="bipolar-0"]'
+        ) as HTMLInputElement
+      ).click()
+    );
+    await act(async () => buttonByText(container, "선택 확인하고 다음").click());
+
+    const neutral = container.querySelector(
+      'input[name="candidate6-C6-JI1"][value="impact-neutral_impact"]'
+    );
+    expect(neutral).toBeInstanceOf(HTMLInputElement);
+    expect(neutral?.getAttribute("aria-label")).toBe("도움도 방해도 거의 없어요");
+    expect(neutral?.closest("label")?.textContent).toContain("거의 없음");
+  });
+
   it("adds exactly two stakeholder scenes only when explicitly applicable", async () => {
     await act(async () => radioInsideLabel(container, "의견을 들을 사람이 있어요").click());
     await act(async () => buttonByText(container, "장면 시작하기").click());

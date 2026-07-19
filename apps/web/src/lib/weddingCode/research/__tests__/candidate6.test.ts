@@ -21,10 +21,55 @@ import {
   normalizeCandidate6BipolarVisualChoice,
   planCandidate6InterviewAssignment,
   summarizeCandidate6InterviewTracking,
+  type Candidate6InterviewTrackingRow,
 } from "../candidate6";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../../../../../../..");
+const TEST_ASSIGNMENT_IDENTITY = {
+  assignmentId: "00000000-0000-4000-8000-000000000001",
+  form: "A",
+  rotationIndex: 0,
+} as const;
+
+let trackingAssignmentSequence = 100;
+
+function readyAssignment(overrides: Partial<Parameters<
+  typeof planCandidate6InterviewAssignment
+>[0]> = {}) {
+  trackingAssignmentSequence += 1;
+  const assignment = planCandidate6InterviewAssignment({
+    assignmentId: `00000000-0000-4000-8000-${String(trackingAssignmentSequence).padStart(12, "0")}`,
+    form: "A",
+    rotationIndex: 0,
+    panel: "P2",
+    eligibility: {
+      recording: "eligible",
+      "vendor-assisted": "eligible",
+      "partner-collaboration": "eligible",
+    },
+    stakeholderApplicability: "not_applicable",
+    supportPairOrder: "ES_FIRST",
+    ...overrides,
+  });
+  if (assignment.status !== "ready") {
+    throw new Error("Expected a ready Candidate 6 test assignment.");
+  }
+  return assignment;
+}
+
+function observeAssignmentRow(
+  assignment: ReturnType<typeof readyAssignment>,
+  requestedItemId: Candidate6InterviewTrackingRow["requestedItemId"],
+  observation: Partial<Pick<
+    Candidate6InterviewTrackingRow,
+    "assigned" | "administered" | "eligibilityAtAssignment" | "responseDisposition"
+  >>,
+) {
+  return assignment.trackingTemplate.map((row) =>
+    row.requestedItemId === requestedItemId ? { ...row, ...observation } : row
+  );
+}
 
 describe("Candidate 6.3 M0 research contract", () => {
   it("keeps a unique, non-score-eligible item pool grouped only by research themes", () => {
@@ -136,12 +181,14 @@ describe("Candidate 6.3 M0 research contract", () => {
       keyof typeof CANDIDATE6_INTERVIEW_PANELS
     >) {
       const withoutContext = planCandidate6InterviewAssignment({
+        ...TEST_ASSIGNMENT_IDENTITY,
         panel,
         eligibility,
         stakeholderApplicability: "not_applicable",
         supportPairOrder: "ES_FIRST",
       });
       const withContext = planCandidate6InterviewAssignment({
+        ...TEST_ASSIGNMENT_IDENTITY,
         panel,
         eligibility,
         stakeholderApplicability: "applicable",
@@ -170,6 +217,7 @@ describe("Candidate 6.3 M0 research contract", () => {
 
   it("replaces ineligible recording and vendor items only with eligible same-theme items", () => {
     const assignment = planCandidate6InterviewAssignment({
+      ...TEST_ASSIGNMENT_IDENTITY,
       panel: "P2",
       eligibility: {
         recording: "not_applicable",
@@ -181,6 +229,15 @@ describe("Candidate 6.3 M0 research contract", () => {
     });
 
     expect(assignment.status).toBe("ready");
+    expect(assignment).toMatchObject({
+      panel: "P2",
+      stakeholderApplicability: "not_applicable",
+      eligibilitySnapshot: {
+        recording: "not_applicable",
+        "vendor-assisted": "not_applicable",
+        "partner-collaboration": "eligible",
+      },
+    });
     expect(assignment.items).toHaveLength(8);
     expect(assignment.items.map((item) => item.id)).not.toContain("C6-DS2");
     expect(assignment.items.map((item) => item.id)).not.toContain("C6-DS3");
@@ -200,8 +257,199 @@ describe("Candidate 6.3 M0 research contract", () => {
     ]);
   });
 
+  it("preserves a reproducible assignment identity and original-to-substitute lineage in every ledger row", () => {
+    const assignment = planCandidate6InterviewAssignment({
+      assignmentId: "00000000-0000-4000-8000-000000000002",
+      form: "B",
+      rotationIndex: 0,
+      panel: "P2",
+      eligibility: {
+        recording: "not_applicable",
+        "vendor-assisted": "not_applicable",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "applicable",
+      supportPairOrder: "AS_FIRST",
+    });
+
+    expect(assignment.status).toBe("ready");
+    expect(assignment.trackingTemplate).toHaveLength(assignment.items.length);
+    expect(assignment.trackingTemplate).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          assignmentId: "00000000-0000-4000-8000-000000000002",
+          exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+          form: "B",
+          supportPairOrder: "AS_FIRST",
+          rotationIndex: 0,
+          panel: "P2",
+          stakeholderApplicability: "applicable",
+          requestedItemId: "C6-DS2",
+          itemId: "C6-DS1",
+          replacementItemId: "C6-DS1",
+          originalEligibility: "not_applicable",
+        }),
+        expect.objectContaining({
+          assignmentId: "00000000-0000-4000-8000-000000000002",
+          exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+          form: "B",
+          supportPairOrder: "AS_FIRST",
+          rotationIndex: 0,
+          requestedItemId: "C6-SI2",
+          itemId: "C6-SI2",
+          replacementItemId: null,
+          originalEligibility: "eligible",
+        }),
+      ])
+    );
+  });
+
+  it("rotates eligible same-theme substitutes reproducibly instead of favoring declaration order", () => {
+    const request = {
+      form: "A",
+      panel: "P2",
+      eligibility: {
+        recording: "not_applicable",
+        "vendor-assisted": "not_applicable",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "not_applicable",
+      supportPairOrder: "ES_FIRST",
+    } as const;
+    const first = planCandidate6InterviewAssignment({
+      ...request,
+      assignmentId: "00000000-0000-4000-8000-000000000010",
+      rotationIndex: 0,
+    });
+    const firstRepeat = planCandidate6InterviewAssignment({
+      ...request,
+      assignmentId: "00000000-0000-4000-8000-000000000011",
+      rotationIndex: 0,
+    });
+    const second = planCandidate6InterviewAssignment({
+      ...request,
+      assignmentId: "00000000-0000-4000-8000-000000000012",
+      rotationIndex: 1,
+    });
+
+    expect(first.substitutions.map((entry) => entry.replacementItemId)).toEqual([
+      "C6-DS1",
+      "C6-DS4",
+    ]);
+    expect(firstRepeat.substitutions.map((entry) => entry.replacementItemId)).toEqual([
+      "C6-DS1",
+      "C6-DS4",
+    ]);
+    expect(second.substitutions.map((entry) => entry.replacementItemId)).toEqual([
+      "C6-DS4",
+      "C6-DS1",
+    ]);
+  });
+
+  it("rejects assignment identities that cannot be reproduced safely", () => {
+    const request = {
+      form: "A",
+      rotationIndex: 0,
+      panel: "P1",
+      eligibility: {
+        recording: "eligible",
+        "vendor-assisted": "eligible",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "not_applicable",
+      supportPairOrder: "ES_FIRST",
+    } as const;
+
+    expect(() =>
+      planCandidate6InterviewAssignment({ ...request, assignmentId: "  " })
+    ).toThrow("assignmentId");
+    for (const assignmentId of [
+      "ab",
+      "a".repeat(81),
+      "c6-control\nline",
+      "웨딩코드-r1-001",
+      "c6 id with spaces",
+    ]) {
+      expect(() => planCandidate6InterviewAssignment({ ...request, assignmentId })).toThrow(
+        "assignmentId"
+      );
+    }
+    expect(() =>
+      planCandidate6InterviewAssignment({
+        ...request,
+        assignmentId: "00000000-0000-4000-8000-000000000013",
+        rotationIndex: -1,
+      })
+    ).toThrow("rotationIndex");
+  });
+
+  it("rejects every invalid runtime enum instead of silently changing assignment semantics", () => {
+    const request = {
+      ...TEST_ASSIGNMENT_IDENTITY,
+      panel: "P1",
+      eligibility: {
+        recording: "eligible",
+        "vendor-assisted": "eligible",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "not_applicable",
+      supportPairOrder: "ES_FIRST",
+    } as const;
+
+    expect(() => planCandidate6InterviewAssignment({ ...request, form: "C" } as never))
+      .toThrow("form");
+    expect(() => planCandidate6InterviewAssignment({
+      ...request,
+      supportPairOrder: "BROKEN",
+    } as never)).toThrow("supportPairOrder");
+    expect(() => planCandidate6InterviewAssignment({
+      ...request,
+      stakeholderApplicability: "BROKEN",
+    } as never)).toThrow("stakeholderApplicability");
+    expect(() => planCandidate6InterviewAssignment({ ...request, panel: "P9" } as never))
+      .toThrow("panel");
+    expect(() => planCandidate6InterviewAssignment({
+      ...request,
+      eligibility: { ...request.eligibility, recording: "BROKEN" },
+    } as never)).toThrow("eligibility.recording");
+  });
+
+  it("keeps not-applicable and unsure stakeholder assignments distinct in the ledger", () => {
+    const base = {
+      ...TEST_ASSIGNMENT_IDENTITY,
+      panel: "P1",
+      eligibility: {
+        recording: "eligible",
+        "vendor-assisted": "eligible",
+        "partner-collaboration": "eligible",
+      },
+      supportPairOrder: "ES_FIRST",
+    } as const;
+    const notApplicable = planCandidate6InterviewAssignment({
+      ...base,
+      stakeholderApplicability: "not_applicable",
+    });
+    const unsure = planCandidate6InterviewAssignment({
+      ...base,
+      stakeholderApplicability: "unsure",
+    });
+
+    expect(notApplicable.items.map((item) => item.id)).toEqual(
+      unsure.items.map((item) => item.id),
+    );
+    expect(notApplicable.stakeholderApplicability).toBe("not_applicable");
+    expect(unsure.stakeholderApplicability).toBe("unsure");
+    expect(notApplicable.trackingTemplate.every((row) =>
+      row.stakeholderApplicability === "not_applicable"
+    )).toBe(true);
+    expect(unsure.trackingTemplate.every((row) =>
+      row.stakeholderApplicability === "unsure"
+    )).toBe(true);
+  });
+
   it("blocks R1 assignment when partner-collaboration eligibility is unresolved", () => {
     const assignment = planCandidate6InterviewAssignment({
+      ...TEST_ASSIGNMENT_IDENTITY,
       panel: "P1",
       eligibility: {
         recording: "eligible",
@@ -224,117 +472,176 @@ describe("Candidate 6.3 M0 research contract", () => {
   });
 
   it("summarizes assigned, administered, eligible, and non-applicable counts per item", () => {
-    const counts = summarizeCandidate6InterviewTracking([
-      {
-        itemId: "C6-DS2",
-        assigned: true,
+    const answered = readyAssignment();
+    const laterNotApplicable = readyAssignment();
+    const substituted = readyAssignment({
+      eligibility: {
+        recording: "unsure",
+        "vendor-assisted": "eligible",
+        "partner-collaboration": "eligible",
+      },
+      rotationIndex: 1,
+    });
+    const rows = [
+      ...observeAssignmentRow(answered, "C6-DS2", {
         administered: true,
-        eligibilityAtAssignment: "eligible",
         responseDisposition: "answered",
-      },
-      {
-        itemId: "C6-DS2",
-        assigned: true,
+      }),
+      ...observeAssignmentRow(laterNotApplicable, "C6-DS2", {
         administered: true,
-        eligibilityAtAssignment: "eligible",
         responseDisposition: "not_applicable",
-      },
-      {
-        itemId: "C6-DS2",
-        assigned: false,
-        administered: false,
-        eligibilityAtAssignment: "unsure",
-        responseDisposition: "not_administered",
-      },
-      {
-        itemId: "C6-DS3",
-        assigned: true,
-        administered: false,
-        eligibilityAtAssignment: "eligible",
-        responseDisposition: "not_administered",
-      },
-    ]);
+      }),
+      ...substituted.trackingTemplate,
+    ];
+    const counts = summarizeCandidate6InterviewTracking(
+      rows,
+      [answered, laterNotApplicable, substituted],
+    );
 
     expect(counts["C6-DS2"]).toEqual({
+      requested: 3,
+      requestedEligible: 2,
+      requestedNotApplicable: 0,
+      requestedUnsure: 1,
       assigned: 2,
       administered: 2,
       eligible: 2,
       notApplicable: 1,
-      unsure: 0,
-    });
-    expect(counts["C6-DS3"]).toEqual({
-      assigned: 1,
-      administered: 0,
-      eligible: 1,
-      notApplicable: 0,
-      unsure: 0,
-    });
-    expect(counts["C6-DS1"]).toEqual({
-      assigned: 0,
-      administered: 0,
-      eligible: 0,
-      notApplicable: 0,
-      unsure: 0,
     });
   });
 
   it("counts assignment eligibility independently from a later non-applicable response", () => {
-    const counts = summarizeCandidate6InterviewTracking([
-      {
-        itemId: "C6-DS2",
-        assigned: true,
+    const assignment = readyAssignment();
+    const counts = summarizeCandidate6InterviewTracking(
+      observeAssignmentRow(assignment, "C6-DS2", {
         administered: true,
-        eligibilityAtAssignment: "eligible",
         responseDisposition: "not_applicable",
-      },
-    ]);
+      }),
+      [assignment],
+    );
 
     expect(counts["C6-DS2"].eligible).toBe(1);
     expect(counts["C6-DS2"].notApplicable).toBe(1);
   });
 
+  it("counts unresolved original requests separately from eligible substitutions", () => {
+    const assignment = planCandidate6InterviewAssignment({
+      ...TEST_ASSIGNMENT_IDENTITY,
+      panel: "P2",
+      eligibility: {
+        recording: "not_applicable",
+        "vendor-assisted": "not_applicable",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "not_applicable",
+      supportPairOrder: "ES_FIRST",
+    });
+    expect(assignment.status).toBe("ready");
+    if (assignment.status !== "ready") throw new Error("Expected a ready assignment.");
+    const substitution = assignment.substitutions[0];
+    if (!substitution) throw new Error("Expected a same-theme substitution fixture.");
+    const replacementRow = assignment.trackingTemplate.find(
+      (row) => row.requestedItemId === substitution.originalItemId,
+    );
+    expect(replacementRow).toBeDefined();
+
+    const counts = summarizeCandidate6InterviewTracking(
+      assignment.trackingTemplate,
+      [assignment],
+    );
+
+    expect(counts[substitution.originalItemId].requested).toBe(1);
+    expect(counts[substitution.originalItemId].requestedNotApplicable).toBe(1);
+    expect(counts[substitution.replacementItemId].assigned).toBe(1);
+    expect(counts[substitution.replacementItemId].eligible).toBe(1);
+  });
+
+  it("rejects duplicate, mixed-version, mixed-metadata, and invalid-lineage ledger rows", () => {
+    const assignment = planCandidate6InterviewAssignment({
+      ...TEST_ASSIGNMENT_IDENTITY,
+      panel: "P2",
+      eligibility: {
+        recording: "not_applicable",
+        "vendor-assisted": "not_applicable",
+        "partner-collaboration": "eligible",
+      },
+      stakeholderApplicability: "applicable",
+      supportPairOrder: "ES_FIRST",
+    });
+    expect(assignment.status).toBe("ready");
+    if (assignment.status !== "ready") throw new Error("Expected a ready assignment.");
+    const [first, second] = assignment.trackingTemplate;
+
+    expect(() => summarizeCandidate6InterviewTracking([first, first], [assignment]))
+      .toThrow("Duplicate Candidate 6 tracking row");
+    expect(() => summarizeCandidate6InterviewTracking([{
+      ...first,
+      exactVersion: "wedding-code-candidate6-research.2",
+    } as unknown as Candidate6InterviewTrackingRow], [assignment])).toThrow("unsupported exactVersion");
+    expect(() => summarizeCandidate6InterviewTracking([
+      first,
+      { ...second, form: "B" },
+    ], [assignment])).toThrow("mixes incompatible metadata");
+    expect(() => summarizeCandidate6InterviewTracking([{
+      ...first,
+      replacementItemId: "C6-JI1",
+    } as Candidate6InterviewTrackingRow], [assignment])).toThrow("replacement lineage");
+  });
+
+  it("rejects an incomplete ledger even when every supplied row is individually valid", () => {
+    const assignment = readyAssignment();
+
+    expect(() => summarizeCandidate6InterviewTracking(
+      [assignment.trackingTemplate[0]],
+      [assignment],
+    )).toThrow(`Candidate 6 assignment ${assignment.assignmentId} has an incomplete tracking ledger`);
+  });
+
   it("rejects tracking rows that claim administration without assignment", () => {
+    const assignment = readyAssignment();
     expect(() =>
       summarizeCandidate6InterviewTracking([
         {
-          itemId: "C6-DS1",
+          ...assignment.trackingTemplate[0],
           assigned: false,
           administered: true,
           eligibilityAtAssignment: "eligible",
           responseDisposition: "answered",
         },
-      ])
+      ], [assignment])
     ).toThrow("cannot be administered before assignment");
   });
 
   it("keeps administration and response disposition synchronized", () => {
+    const assignment = readyAssignment();
     expect(() =>
       summarizeCandidate6InterviewTracking([
         {
-          itemId: "C6-DS1",
+          ...assignment.trackingTemplate[0],
           assigned: true,
           administered: true,
           eligibilityAtAssignment: "eligible",
           responseDisposition: "not_administered",
         },
-      ])
+      ], [assignment])
     ).toThrow("needs a response disposition after administration");
 
     expect(() =>
       summarizeCandidate6InterviewTracking([
         {
-          itemId: "C6-DS1",
+          ...assignment.trackingTemplate[0],
           assigned: true,
           administered: false,
           eligibilityAtAssignment: "eligible",
           responseDisposition: "answered",
         },
-      ])
+      ], [assignment])
     ).toThrow("cannot have a response before administration");
   });
 
   it("emits an assigned tracking template only for a ready interview plan", () => {
     const assignment = planCandidate6InterviewAssignment({
+      ...TEST_ASSIGNMENT_IDENTITY,
       panel: "P3",
       eligibility: {
         recording: "eligible",
@@ -346,15 +653,22 @@ describe("Candidate 6.3 M0 research contract", () => {
     });
 
     expect(assignment.status).toBe("ready");
-    expect(assignment.trackingTemplate).toEqual(
-      assignment.items.map((item) => ({
-        itemId: item.id,
+    expect(assignment.trackingTemplate.map((row) => row.itemId)).toEqual(
+      assignment.items.map((item) => item.id)
+    );
+    for (const row of assignment.trackingTemplate) {
+      expect(row).toMatchObject({
+        assignmentId: TEST_ASSIGNMENT_IDENTITY.assignmentId,
+        exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+        form: TEST_ASSIGNMENT_IDENTITY.form,
+        supportPairOrder: "AS_FIRST",
+        rotationIndex: TEST_ASSIGNMENT_IDENTITY.rotationIndex,
         assigned: true,
         administered: false,
         eligibilityAtAssignment: "eligible",
         responseDisposition: "not_administered",
-      }))
-    );
+      });
+    }
   });
 
   it("uses balanced named categories and keeps four non-ordinal escape meanings distinct", () => {

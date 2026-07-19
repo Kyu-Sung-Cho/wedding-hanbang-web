@@ -816,6 +816,13 @@ export type Candidate6InterviewUnresolvedItem = Readonly<{
   reason: "NO_ELIGIBLE_SAME_THEME_SUBSTITUTE";
 }>;
 
+type Candidate6InterviewLineage = Readonly<{
+  requestedItemId: Candidate6ItemId;
+  itemId: Candidate6ItemId;
+  replacementItemId: Candidate6ItemId | null;
+  originalEligibility: Candidate6EligibilityStatus;
+}>;
+
 export const CANDIDATE6_INTERVIEW_ELIGIBILITY_SCREENER = {
   recording: {
     prompt: "결혼식 사진·영상 등 기록 옵션을 실제로 비교하거나 결정했거나, 곧 결정할 예정인가요?",
@@ -862,23 +869,98 @@ function coreEligibility(
   return eligibility[item.applicability];
 }
 
+const CANDIDATE6_ASSIGNMENT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CANDIDATE6_FORM_VALUES = new Set<Candidate6Form>(["A", "B"]);
+const CANDIDATE6_SUPPORT_ORDER_VALUES = new Set<Candidate6SupportPairOrder>([
+  "ES_FIRST",
+  "AS_FIRST",
+]);
+const CANDIDATE6_STAKEHOLDER_VALUES = new Set<Candidate6StakeholderApplicability>([
+  "applicable",
+  "not_applicable",
+  "unsure",
+]);
+const CANDIDATE6_ELIGIBILITY_VALUES = new Set<Candidate6EligibilityStatus>([
+  "eligible",
+  "not_applicable",
+  "unsure",
+]);
+const CANDIDATE6_RESPONSE_DISPOSITIONS = new Set<Candidate6InterviewResponseDisposition>([
+  "not_administered",
+  "answered",
+  ...CANDIDATE6_ESCAPE_RESPONSES.map((response) => response.value),
+]);
+
+function assertCandidate6AssignmentId(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !CANDIDATE6_ASSIGNMENT_ID_PATTERN.test(value)) {
+    throw new Error("Candidate 6 assignmentId must be an opaque RFC 4122 UUID.");
+  }
+}
+
+function assertCandidate6EligibilitySnapshot(
+  value: unknown
+): asserts value is Candidate6InterviewEligibility {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Candidate 6 eligibility must be a complete screener snapshot.");
+  }
+  const snapshot = value as Record<string, unknown>;
+  for (const key of ["recording", "vendor-assisted", "partner-collaboration"] as const) {
+    if (!CANDIDATE6_ELIGIBILITY_VALUES.has(snapshot[key] as Candidate6EligibilityStatus)) {
+      throw new Error(`Candidate 6 eligibility.${key} is invalid.`);
+    }
+  }
+}
+
+export type Candidate6InterviewAssignmentRequest = Readonly<{
+  assignmentId: string;
+  form: Candidate6Form;
+  rotationIndex: number;
+  panel: Candidate6InterviewPanel;
+  eligibility: Candidate6InterviewEligibility;
+  stakeholderApplicability: Candidate6StakeholderApplicability;
+  supportPairOrder: Candidate6SupportPairOrder;
+}>;
+
+function assertCandidate6AssignmentRequest(
+  request: Candidate6InterviewAssignmentRequest
+): void {
+  assertCandidate6AssignmentId(request.assignmentId);
+  if (!CANDIDATE6_FORM_VALUES.has(request.form)) {
+    throw new Error("Candidate 6 form must be A or B.");
+  }
+  if (!Number.isSafeInteger(request.rotationIndex) || request.rotationIndex < 0) {
+    throw new Error("Candidate 6 rotationIndex must be a non-negative safe integer.");
+  }
+  if (!Object.prototype.hasOwnProperty.call(CANDIDATE6_INTERVIEW_PANELS, request.panel)) {
+    throw new Error("Candidate 6 panel is invalid.");
+  }
+  assertCandidate6EligibilitySnapshot(request.eligibility);
+  if (!CANDIDATE6_STAKEHOLDER_VALUES.has(request.stakeholderApplicability)) {
+    throw new Error("Candidate 6 stakeholderApplicability is invalid.");
+  }
+  if (!CANDIDATE6_SUPPORT_ORDER_VALUES.has(request.supportPairOrder)) {
+    throw new Error("Candidate 6 supportPairOrder is invalid.");
+  }
+}
+
 /**
  * Plans a facilitated 8-10 item cognitive interview. An incompatible plan has
  * no administrable items so a facilitator cannot silently run an ineligible
  * fixed panel. The full journey remains a UI stress preview only.
  */
-export function planCandidate6InterviewAssignment(request: Readonly<{
-  panel: Candidate6InterviewPanel;
-  eligibility: Candidate6InterviewEligibility;
-  stakeholderApplicability: Candidate6StakeholderApplicability;
-  supportPairOrder: Candidate6SupportPairOrder;
-}>) {
+export function planCandidate6InterviewAssignment(
+  request: Candidate6InterviewAssignmentRequest
+) {
+  assertCandidate6AssignmentRequest(request);
+
   const requestedCoreItemIds = orderSupportPairs(
     CANDIDATE6_INTERVIEW_PANELS[request.panel],
     request.supportPairOrder
   );
   const reservedItemIds = new Set<Candidate6ItemId>(requestedCoreItemIds);
   const coreItems: Candidate6ResearchItemLiteral[] = [];
+  const coreLineage: Candidate6InterviewLineage[] = [];
   const substitutions: Candidate6InterviewSubstitution[] = [];
   const unresolved: Candidate6InterviewUnresolvedItem[] = [];
 
@@ -887,16 +969,26 @@ export function planCandidate6InterviewAssignment(request: Readonly<{
     const eligibility = coreEligibility(requestedItem, request.eligibility);
     if (eligibility === "eligible") {
       coreItems.push(requestedItem);
+      coreLineage.push({
+        requestedItemId: requestedItem.id,
+        itemId: requestedItem.id,
+        replacementItemId: null,
+        originalEligibility: eligibility,
+      });
       continue;
     }
 
-    const replacement = CANDIDATE6_RESEARCH_ITEMS.find(
+    const replacementCandidates = CANDIDATE6_RESEARCH_ITEMS.filter(
       (candidate) =>
         candidate.module === "core" &&
         candidate.theme === requestedItem.theme &&
         !reservedItemIds.has(candidate.id) &&
         coreEligibility(candidate, request.eligibility) === "eligible"
-    );
+    ).sort((left, right) => left.id.localeCompare(right.id, "en"));
+    const replacement =
+      replacementCandidates.length === 0
+        ? undefined
+        : replacementCandidates[request.rotationIndex % replacementCandidates.length];
     if (!replacement) {
       unresolved.push({
         itemId: requestedItem.id,
@@ -908,6 +1000,12 @@ export function planCandidate6InterviewAssignment(request: Readonly<{
 
     reservedItemIds.add(replacement.id);
     coreItems.push(replacement);
+    coreLineage.push({
+      requestedItemId: requestedItem.id,
+      itemId: replacement.id,
+      replacementItemId: replacement.id,
+      originalEligibility: eligibility,
+    });
     substitutions.push({
       originalItemId: requestedItem.id,
       replacementItemId: replacement.id,
@@ -919,7 +1017,14 @@ export function planCandidate6InterviewAssignment(request: Readonly<{
   if (unresolved.length > 0) {
     return {
       status: "incompatible" as const,
+      assignmentId: request.assignmentId,
+      exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+      form: request.form,
+      supportPairOrder: request.supportPairOrder,
+      rotationIndex: request.rotationIndex,
       panel: request.panel,
+      eligibilitySnapshot: { ...request.eligibility },
+      stakeholderApplicability: request.stakeholderApplicability,
       requestedCoreItemIds,
       coreItems: [] as Candidate6ResearchItemLiteral[],
       contextItems: [] as Candidate6ResearchItemLiteral[],
@@ -935,17 +1040,44 @@ export function planCandidate6InterviewAssignment(request: Readonly<{
       ? INTERVIEW_PANEL_CONTEXT_ITEMS[request.panel].map(itemById)
       : [];
   const items = [...coreItems, ...contextItems];
+  const lineage = [
+    ...coreLineage,
+    ...contextItems.map((item) => ({
+      requestedItemId: item.id,
+      itemId: item.id,
+      replacementItemId: null,
+      originalEligibility: "eligible" as const,
+    })),
+  ];
   return {
     status: "ready" as const,
+    assignmentId: request.assignmentId,
+    exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+    form: request.form,
+    supportPairOrder: request.supportPairOrder,
+    rotationIndex: request.rotationIndex,
     panel: request.panel,
+    eligibilitySnapshot: { ...request.eligibility },
+    stakeholderApplicability: request.stakeholderApplicability,
     requestedCoreItemIds,
     coreItems,
     contextItems,
     items,
     substitutions,
     unresolved: [],
-    trackingTemplate: items.map((item) => ({
-      itemId: item.id,
+    trackingTemplate: lineage.map((entry) => ({
+      assignmentId: request.assignmentId,
+      exactVersion: CANDIDATE6_RESEARCH_EXACT_VERSION,
+      form: request.form,
+      supportPairOrder: request.supportPairOrder,
+      rotationIndex: request.rotationIndex,
+      panel: request.panel,
+      eligibilitySnapshot: { ...request.eligibility },
+      stakeholderApplicability: request.stakeholderApplicability,
+      requestedItemId: entry.requestedItemId,
+      itemId: entry.itemId,
+      replacementItemId: entry.replacementItemId,
+      originalEligibility: entry.originalEligibility,
       assigned: true,
       administered: false,
       eligibilityAtAssignment: "eligible" as const,
@@ -954,13 +1086,29 @@ export function planCandidate6InterviewAssignment(request: Readonly<{
   };
 }
 
+export type Candidate6ReadyInterviewAssignment = Extract<
+  ReturnType<typeof planCandidate6InterviewAssignment>,
+  { status: "ready" }
+>;
+
 export type Candidate6InterviewResponseDisposition =
   | "not_administered"
   | "answered"
   | Candidate6EscapeResponse;
 
 export type Candidate6InterviewTrackingRow = Readonly<{
+  assignmentId: string;
+  exactVersion: typeof CANDIDATE6_RESEARCH_EXACT_VERSION;
+  form: Candidate6Form;
+  supportPairOrder: Candidate6SupportPairOrder;
+  rotationIndex: number;
+  panel: Candidate6InterviewPanel;
+  eligibilitySnapshot: Candidate6InterviewEligibility;
+  stakeholderApplicability: Candidate6StakeholderApplicability;
+  requestedItemId: Candidate6ItemId;
   itemId: Candidate6ItemId;
+  replacementItemId: Candidate6ItemId | null;
+  originalEligibility: Candidate6EligibilityStatus;
   assigned: boolean;
   administered: boolean;
   eligibilityAtAssignment: Candidate6EligibilityStatus;
@@ -968,24 +1116,259 @@ export type Candidate6InterviewTrackingRow = Readonly<{
 }>;
 
 export type Candidate6InterviewItemCounts = Readonly<{
+  requested: number;
+  requestedEligible: number;
+  requestedNotApplicable: number;
+  requestedUnsure: number;
   assigned: number;
   administered: number;
   eligible: number;
   notApplicable: number;
-  unsure: number;
 }>;
 
+function trackingEligibility(
+  item: Candidate6ResearchItemLiteral,
+  snapshot: Candidate6InterviewEligibility,
+  stakeholderApplicability: Candidate6StakeholderApplicability
+): Candidate6EligibilityStatus {
+  if (item.applicability === "universal") return "eligible";
+  if (item.applicability === "stakeholder-context") {
+    return stakeholderApplicability === "applicable"
+      ? "eligible"
+      : stakeholderApplicability;
+  }
+  return snapshot[item.applicability];
+}
+
+function validateCandidate6TrackingRow(
+  row: Candidate6InterviewTrackingRow,
+  rowIndex: number
+): void {
+  assertCandidate6AssignmentId(row.assignmentId);
+  if (row.exactVersion !== CANDIDATE6_RESEARCH_EXACT_VERSION) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an unsupported exactVersion.`);
+  }
+  if (!CANDIDATE6_FORM_VALUES.has(row.form)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an invalid form.`);
+  }
+  if (!CANDIDATE6_SUPPORT_ORDER_VALUES.has(row.supportPairOrder)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an invalid supportPairOrder.`);
+  }
+  if (!Number.isSafeInteger(row.rotationIndex) || row.rotationIndex < 0) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an invalid rotationIndex.`);
+  }
+  if (!Object.prototype.hasOwnProperty.call(CANDIDATE6_INTERVIEW_PANELS, row.panel)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an invalid panel.`);
+  }
+  assertCandidate6EligibilitySnapshot(row.eligibilitySnapshot);
+  if (!CANDIDATE6_STAKEHOLDER_VALUES.has(row.stakeholderApplicability)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has invalid stakeholder applicability.`);
+  }
+  if (!CANDIDATE6_ELIGIBILITY_VALUES.has(row.originalEligibility)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has invalid original eligibility.`);
+  }
+  if (!CANDIDATE6_ELIGIBILITY_VALUES.has(row.eligibilityAtAssignment)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has invalid assignment eligibility.`);
+  }
+  if (!CANDIDATE6_RESPONSE_DISPOSITIONS.has(row.responseDisposition)) {
+    throw new Error(`Candidate 6 row ${rowIndex} has an invalid response disposition.`);
+  }
+  if (typeof row.assigned !== "boolean" || typeof row.administered !== "boolean") {
+    throw new Error(`Candidate 6 row ${rowIndex} has invalid assignment flags.`);
+  }
+
+  const requestedItem = itemById(row.requestedItemId);
+  const assignedItem = itemById(row.itemId);
+  const allowedRequestedItems = new Set<Candidate6ItemId>([
+    ...orderSupportPairs(CANDIDATE6_INTERVIEW_PANELS[row.panel], row.supportPairOrder),
+    ...(row.stakeholderApplicability === "applicable"
+      ? INTERVIEW_PANEL_CONTEXT_ITEMS[row.panel]
+      : []),
+  ]);
+  if (!allowedRequestedItems.has(row.requestedItemId)) {
+    throw new Error(`${row.requestedItemId} is not part of the recorded Candidate 6 panel.`);
+  }
+
+  const expectedOriginalEligibility = trackingEligibility(
+    requestedItem,
+    row.eligibilitySnapshot,
+    row.stakeholderApplicability,
+  );
+  const expectedAssignedEligibility = trackingEligibility(
+    assignedItem,
+    row.eligibilitySnapshot,
+    row.stakeholderApplicability,
+  );
+  if (row.originalEligibility !== expectedOriginalEligibility) {
+    throw new Error(`${row.requestedItemId} original eligibility does not match the screener.`);
+  }
+  if (row.eligibilityAtAssignment !== expectedAssignedEligibility) {
+    throw new Error(`${row.itemId} assignment eligibility does not match the screener.`);
+  }
+
+  if (row.replacementItemId === null) {
+    if (row.itemId !== row.requestedItemId) {
+      throw new Error(`${row.itemId} is missing its replacement lineage.`);
+    }
+  } else if (
+    row.replacementItemId !== row.itemId
+    || row.itemId === row.requestedItemId
+    || row.originalEligibility === "eligible"
+    || requestedItem.theme !== assignedItem.theme
+  ) {
+    throw new Error(`${row.itemId} has invalid same-theme replacement lineage.`);
+  }
+  if (row.assigned && row.eligibilityAtAssignment !== "eligible") {
+    throw new Error(`${row.itemId} cannot be assigned while ineligible or unresolved.`);
+  }
+  if (row.assigned) {
+    const expectedPlan = planCandidate6InterviewAssignment({
+      assignmentId: row.assignmentId,
+      form: row.form,
+      rotationIndex: row.rotationIndex,
+      panel: row.panel,
+      eligibility: row.eligibilitySnapshot,
+      stakeholderApplicability: row.stakeholderApplicability,
+      supportPairOrder: row.supportPairOrder,
+    });
+    const expectedRow = expectedPlan.status === "ready"
+      ? expectedPlan.trackingTemplate.find(
+          (candidate) => candidate.requestedItemId === row.requestedItemId,
+        )
+      : undefined;
+    if (
+      !expectedRow
+      || expectedRow.itemId !== row.itemId
+      || expectedRow.replacementItemId !== row.replacementItemId
+      || expectedRow.originalEligibility !== row.originalEligibility
+    ) {
+      throw new Error(`${row.itemId} does not match the deterministic Candidate 6 assignment plan.`);
+    }
+  }
+}
+
 export function summarizeCandidate6InterviewTracking(
-  rows: readonly Candidate6InterviewTrackingRow[]
+  rows: readonly Candidate6InterviewTrackingRow[],
+  expectedAssignments: readonly Candidate6ReadyInterviewAssignment[]
 ): Record<Candidate6ItemId, Candidate6InterviewItemCounts> {
   const counts = Object.fromEntries(
     CANDIDATE6_RESEARCH_ITEMS.map((item) => [
       item.id,
-      { assigned: 0, administered: 0, eligible: 0, notApplicable: 0, unsure: 0 },
+      {
+        requested: 0,
+        requestedEligible: 0,
+        requestedNotApplicable: 0,
+        requestedUnsure: 0,
+        assigned: 0,
+        administered: 0,
+        eligible: 0,
+        notApplicable: 0,
+      },
     ])
   ) as Record<Candidate6ItemId, Candidate6InterviewItemCounts>;
 
-  for (const row of rows) {
+  const rowKeys = new Set<string>();
+  const requestedRowKeys = new Set<string>();
+  const assignmentMetadata = new Map<string, string>();
+  const expectedRowsByAssignment = new Map<
+    string,
+    Map<Candidate6ItemId, Candidate6InterviewTrackingRow>
+  >();
+  const seenRequestedItemsByAssignment = new Map<string, Set<Candidate6ItemId>>();
+
+  for (const assignment of expectedAssignments) {
+    if (assignment.status !== "ready") {
+      throw new Error("Candidate 6 summary manifest contains a non-ready assignment.");
+    }
+    if (expectedRowsByAssignment.has(assignment.assignmentId)) {
+      throw new Error(
+        `Duplicate Candidate 6 summary assignment: ${assignment.assignmentId}.`
+      );
+    }
+    const canonicalAssignment = planCandidate6InterviewAssignment({
+      assignmentId: assignment.assignmentId,
+      form: assignment.form,
+      rotationIndex: assignment.rotationIndex,
+      panel: assignment.panel,
+      eligibility: assignment.eligibilitySnapshot,
+      stakeholderApplicability: assignment.stakeholderApplicability,
+      supportPairOrder: assignment.supportPairOrder,
+    });
+    if (canonicalAssignment.status !== "ready") {
+      throw new Error(
+        `Candidate 6 summary assignment ${assignment.assignmentId} is no longer compatible.`
+      );
+    }
+    const expectedRows = new Map(
+      canonicalAssignment.trackingTemplate.map((row) => [row.requestedItemId, row])
+    );
+    if (
+      expectedRows.size !== assignment.trackingTemplate.length
+      || assignment.trackingTemplate.some((row) => {
+        const expected = expectedRows.get(row.requestedItemId);
+        return !expected
+          || expected.itemId !== row.itemId
+          || expected.replacementItemId !== row.replacementItemId
+          || expected.originalEligibility !== row.originalEligibility;
+      })
+    ) {
+      throw new Error(
+        `Candidate 6 summary assignment ${assignment.assignmentId} has a non-canonical manifest.`
+      );
+    }
+    expectedRowsByAssignment.set(assignment.assignmentId, expectedRows);
+    seenRequestedItemsByAssignment.set(assignment.assignmentId, new Set());
+  }
+
+  if (rows.length > 0 && expectedRowsByAssignment.size === 0) {
+    throw new Error("Candidate 6 summary requires an expected assignment manifest.");
+  }
+
+  for (const [rowIndex, row] of rows.entries()) {
+    validateCandidate6TrackingRow(row, rowIndex);
+    const expectedRows = expectedRowsByAssignment.get(row.assignmentId);
+    const expectedRow = expectedRows?.get(row.requestedItemId);
+    if (!expectedRows || !expectedRow) {
+      throw new Error(
+        `Unexpected Candidate 6 assignment or requested item: ${row.assignmentId}:${row.requestedItemId}.`
+      );
+    }
+    if (
+      expectedRow.itemId !== row.itemId
+      || expectedRow.replacementItemId !== row.replacementItemId
+      || expectedRow.originalEligibility !== row.originalEligibility
+    ) {
+      throw new Error(`${row.itemId} does not match the expected Candidate 6 summary manifest.`);
+    }
+    const rowKey = `${row.exactVersion}:${row.assignmentId}:${row.itemId}`;
+    if (rowKeys.has(rowKey)) {
+      throw new Error(`Duplicate Candidate 6 tracking row: ${rowKey}.`);
+    }
+    rowKeys.add(rowKey);
+    const requestedRowKey = `${row.exactVersion}:${row.assignmentId}:${row.requestedItemId}`;
+    if (requestedRowKeys.has(requestedRowKey)) {
+      throw new Error(`Duplicate Candidate 6 requested-item row: ${requestedRowKey}.`);
+    }
+    requestedRowKeys.add(requestedRowKey);
+    seenRequestedItemsByAssignment.get(row.assignmentId)?.add(row.requestedItemId);
+
+    const metadata = JSON.stringify([
+      row.exactVersion,
+      row.form,
+      row.supportPairOrder,
+      row.rotationIndex,
+      row.panel,
+      row.stakeholderApplicability,
+      row.eligibilitySnapshot.recording,
+      row.eligibilitySnapshot["vendor-assisted"],
+      row.eligibilitySnapshot["partner-collaboration"],
+    ]);
+    const existingMetadata = assignmentMetadata.get(row.assignmentId);
+    if (existingMetadata !== undefined && existingMetadata !== metadata) {
+      throw new Error(`Candidate 6 assignment ${row.assignmentId} mixes incompatible metadata.`);
+    }
+    assignmentMetadata.set(row.assignmentId, metadata);
+
     if (row.administered && !row.assigned) {
       throw new Error(`${row.itemId} cannot be administered before assignment.`);
     }
@@ -995,16 +1378,43 @@ export function summarizeCandidate6InterviewTracking(
     if (!row.administered && row.responseDisposition !== "not_administered") {
       throw new Error(`${row.itemId} cannot have a response before administration.`);
     }
+
+    const requested = counts[row.requestedItemId];
+    counts[row.requestedItemId] = {
+      ...requested,
+      requested: requested.requested + 1,
+      requestedEligible:
+        requested.requestedEligible + Number(row.originalEligibility === "eligible"),
+      requestedNotApplicable:
+        requested.requestedNotApplicable
+        + Number(row.originalEligibility === "not_applicable"),
+      requestedUnsure:
+        requested.requestedUnsure + Number(row.originalEligibility === "unsure"),
+    };
+
     if (!row.assigned) continue;
     const current = counts[row.itemId];
     counts[row.itemId] = {
+      ...current,
       assigned: current.assigned + 1,
       administered: current.administered + Number(row.administered),
       eligible: current.eligible + Number(row.eligibilityAtAssignment === "eligible"),
       notApplicable:
         current.notApplicable + Number(row.responseDisposition === "not_applicable"),
-      unsure: current.unsure + Number(row.eligibilityAtAssignment === "unsure"),
     };
+  }
+
+  for (const [assignmentId, expectedRows] of expectedRowsByAssignment) {
+    const seenRequestedItems = seenRequestedItemsByAssignment.get(assignmentId);
+    if (
+      !seenRequestedItems
+      || seenRequestedItems.size !== expectedRows.size
+      || [...expectedRows.keys()].some((itemId) => !seenRequestedItems.has(itemId))
+    ) {
+      throw new Error(
+        `Candidate 6 assignment ${assignmentId} has an incomplete tracking ledger.`
+      );
+    }
   }
 
   return counts;

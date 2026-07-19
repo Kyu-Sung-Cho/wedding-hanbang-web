@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { chromium } from "playwright-core";
 import { resolveChromeExecutablePath } from "./resolve-chrome-executable.mjs";
+import { isAllowedWeddingCodeResearchRequest } from "./wedding-code-research-safety.mjs";
 
 const baseUrl = process.env.WEDDING_CODE_RESEARCH_URL ??
   "http://127.0.0.1:3106/internal/wedding-code-research?form=A";
@@ -95,14 +96,18 @@ async function runViewport(browser, viewport) {
   const page = await context.newPage();
   const consoleErrors = [];
   const failedRequests = [];
-  const requestUrls = [];
+  const browserRequests = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
   page.on("requestfailed", (request) => {
     failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ""}`);
   });
-  page.on("request", (request) => requestUrls.push(request.url()));
+  page.on("request", (request) => browserRequests.push({
+    url: request.url(),
+    method: request.method(),
+    resourceType: request.resourceType(),
+  }));
 
   const researchUrl = new URL(baseUrl);
   researchUrl.searchParams.set("form", viewport.form);
@@ -196,6 +201,28 @@ async function runViewport(browser, viewport) {
   }));
   assert(focused.tag === "H1", `${viewport.name}: next question heading must receive focus`);
 
+  const initialImpactScaleVisibility = await page.locator(
+    'input[value^="impact-"]'
+  ).evaluateAll((inputs) => {
+    const region = document.querySelector('[role="region"]')?.getBoundingClientRect();
+    return {
+      count: inputs.length,
+      region: region ? { top: region.top, bottom: region.bottom } : null,
+      bounds: inputs.map((input) => {
+        const rect = input.closest("label")?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom } : null;
+      }),
+      allVisible: Boolean(region) && inputs.every((input) => {
+        const rect = input.closest("label")?.getBoundingClientRect();
+        return Boolean(rect && rect.top >= region.top - 1 && rect.bottom <= region.bottom + 1);
+      }),
+    };
+  });
+  assert(
+    initialImpactScaleVisibility.count === 5 && initialImpactScaleVisibility.allVisible,
+    `${viewport.name}: all five initial impact responses must be fully visible above the action dock: ${JSON.stringify(initialImpactScaleVisibility)}`
+  );
+
   for (let question = 2; question <= viewport.expectedJourneyLength; question += 1) {
     await selectFirstResearchResponse(page);
     const buttonName = question === viewport.expectedJourneyLength
@@ -243,13 +270,12 @@ async function runViewport(browser, viewport) {
   assert(browserCookies.length === 0, `${viewport.name}: browser cookies must stay empty`);
 
   const pageOrigin = new URL(researchUrl).origin;
-  const unexpectedRequests = requestUrls.filter((url) => {
-    const parsed = new URL(url);
-    return parsed.origin !== pageOrigin || parsed.pathname.startsWith("/api/");
-  });
+  const unexpectedRequests = browserRequests.filter(
+    (request) => !isAllowedWeddingCodeResearchRequest(request, pageOrigin)
+  );
   assert(
     unexpectedRequests.length === 0,
-    `${viewport.name}: unexpected external/API requests: ${unexpectedRequests.join(" | ")}`
+    `${viewport.name}: disallowed requests: ${JSON.stringify(unexpectedRequests)}`
   );
   assert(consoleErrors.length === 0, `${viewport.name}: console errors: ${consoleErrors.join(" | ")}`);
   assert(failedRequests.length === 0, `${viewport.name}: request failures: ${failedRequests.join(" | ")}`);
