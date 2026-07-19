@@ -9,22 +9,53 @@ export const MOBILE_EAS_COMMAND_INVALID = "MOBILE_EAS_COMMAND_INVALID";
 export const MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED =
   "MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED";
 
+export const MOBILE_PINNED_PNPM_UNAVAILABLE = "MOBILE_PINNED_PNPM_UNAVAILABLE";
+
 const NON_PRODUCTION_PROFILES = new Set(["development", "preview"]);
 const MOBILE_PLATFORMS = new Set(["ios", "android", "all"]);
 
-export const PNPM_REQUIRES_SHELL = process.platform === "win32";
+export function createPinnedPnpmInvocation(platform = process.platform) {
+  if (platform === "win32") {
+    return { command: "corepack", argsPrefix: ["pnpm"], shell: true };
+  }
+  return { command: "pnpm", argsPrefix: [], shell: false };
+}
+
 export const MOBILE_EAS_WORKING_DIRECTORY = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../apps/mobile",
 );
 
-function runPinnedProvider({ command, args, cwd }) {
+function spawnPinnedCommand({ command, args, cwd, shell, stdio }) {
   // Node cannot execute a Windows .cmd shim directly with shell:false. Every
   // forwarded token has already passed the closed allowlist below, so using
   // the Windows command shell here does not expose arbitrary EAS arguments.
-  const result = PNPM_REQUIRES_SHELL
-    ? spawnSync([command, ...args].join(" "), { cwd, shell: true, stdio: "inherit" })
-    : spawnSync(command, args, { cwd, stdio: "inherit" });
+  return shell
+    ? spawnSync([command, ...args].join(" "), { cwd, shell: true, stdio })
+    : spawnSync(command, args, { cwd, stdio });
+}
+
+function runPinnedProvider({ command, args, cwd, shell, versionArgs }) {
+  const versionProbe = spawnPinnedCommand({
+    command,
+    args: versionArgs,
+    cwd,
+    shell,
+    stdio: "pipe",
+  });
+  if (
+    versionProbe.error
+    || versionProbe.status !== 0
+    || !/^11\.7\.0\s*$/.test(versionProbe.stdout?.toString() ?? "")
+  ) {
+    const error = new Error(
+      `${MOBILE_PINNED_PNPM_UNAVAILABLE}: pnpm 11.7.0 is required before invoking EAS`,
+    );
+    error.code = MOBILE_PINNED_PNPM_UNAVAILABLE;
+    throw error;
+  }
+
+  const result = spawnPinnedCommand({ command, args, cwd, shell, stdio: "inherit" });
   if (result.error) throw result.error;
   return result.status ?? 1;
 }
@@ -94,9 +125,12 @@ export function runMobileEasCommand(argv, { runProvider = runPinnedProvider } = 
     error.code = MOBILE_EAS_COMMAND_INVALID;
     throw error;
   }
+  const pnpmInvocation = createPinnedPnpmInvocation();
   return runProvider({
-    command: "corepack",
-    args: ["pnpm", "dlx", EAS_CLI_PACKAGE, ...argv],
+    command: pnpmInvocation.command,
+    args: [...pnpmInvocation.argsPrefix, "dlx", EAS_CLI_PACKAGE, ...argv],
+    versionArgs: [...pnpmInvocation.argsPrefix, "--version"],
+    shell: pnpmInvocation.shell,
     cwd: MOBILE_EAS_WORKING_DIRECTORY,
   });
 }

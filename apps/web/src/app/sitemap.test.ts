@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   vendorRows: [] as Array<{
@@ -59,8 +59,22 @@ describe("vendor sitemap", () => {
     mocks.failVendorPageStartingAt = null;
     mocks.vendorRanges.mockClear();
     mocks.vendorOrders.mockClear();
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+    vi.stubEnv("CI", "false");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test-anon-key");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("uses static-only output for the exact CI placeholder environment", async () => {
+    vi.stubEnv("CI", "true");
+
+    const result = await sitemap();
+
+    expect(result.some(({ url }) => url.includes("/price/vendor/"))).toBe(false);
+    expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
 
   it("publishes every unique vendor beyond one page with its latest real publication time", async () => {

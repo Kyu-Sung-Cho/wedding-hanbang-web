@@ -7,7 +7,7 @@ import {
   MOBILE_EAS_WORKING_DIRECTORY,
   MOBILE_EAS_COMMAND_INVALID,
   MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED,
-  PNPM_REQUIRES_SHELL,
+  createPinnedPnpmInvocation,
   runMobileEasCommand,
 } from "./mobile-eas-release-gate.mjs";
 
@@ -187,9 +187,32 @@ expect(
 
 expect(existsSync(mobileEasGatePath), "Mobile production EAS commands have a shared release gate");
 
-const pnpmExecutionProbe = PNPM_REQUIRES_SHELL
-  ? spawnSync("corepack pnpm --version", { encoding: "utf8", shell: true })
-  : spawnSync("corepack", ["pnpm", "--version"], { encoding: "utf8" });
+const linuxPnpmInvocation = createPinnedPnpmInvocation("linux");
+expect(
+  linuxPnpmInvocation.command === "pnpm"
+    && linuxPnpmInvocation.argsPrefix.length === 0
+    && linuxPnpmInvocation.shell === false,
+  "Linux EAS execution uses the pnpm installed by the pinned CI/EAS setup",
+);
+const windowsPnpmInvocation = createPinnedPnpmInvocation("win32");
+expect(
+  windowsPnpmInvocation.command === "corepack"
+    && JSON.stringify(windowsPnpmInvocation.argsPrefix) === JSON.stringify(["pnpm"])
+    && windowsPnpmInvocation.shell === true,
+  "Windows EAS execution uses Corepack because Node cannot execute the pnpm.cmd shim directly",
+);
+
+const currentPnpmInvocation = createPinnedPnpmInvocation();
+const pnpmExecutionProbe = currentPnpmInvocation.shell
+  ? spawnSync(
+    [currentPnpmInvocation.command, ...currentPnpmInvocation.argsPrefix, "--version"].join(" "),
+    { encoding: "utf8", shell: true },
+  )
+  : spawnSync(
+    currentPnpmInvocation.command,
+    [...currentPnpmInvocation.argsPrefix, "--version"],
+    { encoding: "utf8" },
+  );
 expect(
   pnpmExecutionProbe.status === 0 && /^11\.7\.0\s*$/.test(pnpmExecutionProbe.stdout),
   "Mobile EAS gate can execute the pinned pnpm command on this operating system",
@@ -242,10 +265,15 @@ const previewStatus = runMobileEasCommand(previewArgs, {
 });
 expect(
   previewStatus === 0
-    && previewInvocation?.command === "corepack"
+    && previewInvocation?.command === currentPnpmInvocation.command
+    && previewInvocation?.shell === currentPnpmInvocation.shell
     && previewInvocation?.cwd === MOBILE_EAS_WORKING_DIRECTORY
+    && JSON.stringify(previewInvocation?.versionArgs) === JSON.stringify([
+      ...currentPnpmInvocation.argsPrefix,
+      "--version",
+    ])
     && JSON.stringify(previewInvocation?.args) === JSON.stringify([
-      "pnpm",
+      ...currentPnpmInvocation.argsPrefix,
       "dlx",
       EAS_CLI_PACKAGE,
       ...previewArgs,
