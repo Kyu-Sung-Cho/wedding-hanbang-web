@@ -170,6 +170,10 @@ expect(
   mobilePackage.dependencies?.["expo-application"] === "~7.0.8",
   "Mobile directly installs the Expo 54 compatible expo-application package",
 );
+expect(
+  mobilePackage.devDependencies?.["@sentry/cli"] === "2.55.0",
+  "Mobile directly installs the Sentry CLI version required by @sentry/react-native",
+);
 
 for (const scriptName of [
   "eas:init",
