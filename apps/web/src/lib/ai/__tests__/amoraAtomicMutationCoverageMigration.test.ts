@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   applyAmoraAtomicToolResultToContext,
   buildAmoraAtomicToolOperation,
@@ -206,6 +206,8 @@ describe("Amora atomic mutation coverage migration", () => {
   });
 
   it("commits wedding fields and progress entries with CAS while preserving unrelated partner state", async () => {
+    // Keep the SQL's Seoul-date validation aligned with the explicit d_day fixture below.
+    vi.setSystemTime(new Date("2026-07-17T00:00:00.000Z"));
     const db = await createDatabase();
     try {
       await insertExecution(db, "update_wedding_date", "1".repeat(64), "a".repeat(64));
@@ -266,6 +268,7 @@ describe("Amora atomic mutation coverage migration", () => {
     } finally {
       await db.exec("RESET ROLE").catch(() => undefined);
       await db.close();
+      vi.useRealTimers();
     }
   }, 30_000);
 
