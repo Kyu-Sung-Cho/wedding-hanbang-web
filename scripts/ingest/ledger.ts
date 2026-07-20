@@ -128,6 +128,10 @@ const MODEL_RATES_PER_MILLION: Record<AiLedgerEntry["model"], { input: number; o
   "gpt-5.6-luna": { input: 1, output: 6 },
 };
 
+export const GPT_5_6_LONG_CONTEXT_INPUT_THRESHOLD_TOKENS = 272_000;
+export const GPT_5_6_LONG_CONTEXT_INPUT_PRICE_MULTIPLIER = 2;
+export const GPT_5_6_LONG_CONTEXT_OUTPUT_PRICE_MULTIPLIER = 1.5;
+
 export interface ExtractionInputTokenDetails {
   cachedInputTokens: number;
   cacheWriteInputTokens: number;
@@ -171,7 +175,17 @@ export function estimateExtractionCostUsd(
     // Missing or contradictory provider details must not make the cost fence
     // optimistic. GPT-5.6 cache writes are the most expensive input class.
     : inputTokens * 1.25;
-  return ((inputRateEquivalentTokens * rate.input) + (outputTokens * rate.output)) / 1_000_000;
+  const usesLongContextPricing = inputTokens > GPT_5_6_LONG_CONTEXT_INPUT_THRESHOLD_TOKENS;
+  const inputMultiplier = usesLongContextPricing
+    ? GPT_5_6_LONG_CONTEXT_INPUT_PRICE_MULTIPLIER
+    : 1;
+  const outputMultiplier = usesLongContextPricing
+    ? GPT_5_6_LONG_CONTEXT_OUTPUT_PRICE_MULTIPLIER
+    : 1;
+  return (
+    (inputRateEquivalentTokens * rate.input * inputMultiplier)
+    + (outputTokens * rate.output * outputMultiplier)
+  ) / 1_000_000;
 }
 
 function effectiveLedgerCostUsd(entry: AiLedgerEntry): number {

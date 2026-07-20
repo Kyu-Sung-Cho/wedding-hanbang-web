@@ -8,16 +8,21 @@ import test from "node:test";
 import {
   assertFixedEightPaidExtractionPlanApprovalMatches,
   assertPaidExtractionAttemptRequestAuthorized,
+  assertPaidExtractionAttemptReservationAuthorized,
   assertPaidExtractionPlannedRequestHashes,
   createFixedEightPaidExtractionPlanApproval,
   fixedEightPaidExtractionPlanPath,
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
+  PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+  PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
   readFixedEightPaidExtractionPlanApproval,
   validateFixedEightPaidExtractionPlanApproval,
   writeFixedEightPaidExtractionPlanApproval,
   type CreatePaidExtractionPlanApprovalInput,
 } from "../paid-extraction-plan.js";
 import { canonicalSha256 } from "../gate-integrity.js";
+import { estimateExtractionCostUsd } from "../ledger.js";
+import { nanoUsdToUsd, providerBoundReservation } from "../paid-extraction-budget.js";
 import { FIXED_EIGHT_ORDERED_UNIT_IDS } from "../pilot-pass-receipt.js";
 
 function hash(value: string): string {
@@ -41,6 +46,7 @@ function validInput(): CreatePaidExtractionPlanApprovalInput {
     model: "gpt-5.6-luna",
     scannerParserVersion: "scanner-v-test",
     authorizedCostCeilingUsd: MAX_FIXED_EIGHT_APPROVED_COST_USD,
+    domainCommittedCostNanoUsd: 0,
     priorDurableLedger: {
       relative_path: ".cache/ai-ledger.ndjson",
       content_sha256: hash(""),
@@ -48,17 +54,46 @@ function validInput(): CreatePaidExtractionPlanApprovalInput {
       row_count: 0,
       cumulative_cost_usd: 0,
     },
-    units: FIXED_EIGHT_ORDERED_UNIT_IDS.map((unitId, index) => ({
-      unitId,
-      sourceFingerprint: hash(`source:${index}`),
-      artifactFingerprint: hash(`artifact:${index}`),
-      converterVersion: "converter-v-test",
-      requestHashes: [hash(`request:${index}:0`), hash(`request:${index}:1`)],
-      estimatedInputTokens: 10_000 + index,
-      estimatedOutputTokens: 2_000 + index,
-      maximumInputTokens: 50_000 + index,
-      maximumOutputTokens: 32_000 + index,
-    })),
+    units: FIXED_EIGHT_ORDERED_UNIT_IDS.map((unitId, index) => {
+      const requestHashes = [hash(`request:${index}:0`), hash(`request:${index}:1`)];
+      const authorizedRequestReservationsByBatch = requestHashes.map((requestHash, batchIndex) => [
+        {
+          requestHash,
+          maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+          maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+        },
+      ]);
+      const plannedRequestEstimates = requestHashes.map((requestHash, batchIndex) => ({
+        requestHash,
+        estimatedInputTokens: 5_000 + index + batchIndex,
+        estimatedOutputTokens: 1_000 + index + batchIndex,
+      }));
+      return {
+        unitId,
+        extractionFingerprint: hash(`extraction:${index}`),
+        sourceFingerprint: hash(`source:${index}`),
+        artifactFingerprint: hash(`artifact:${index}`),
+        converterVersion: "converter-v-test",
+        requestHashes,
+        authorizedRequestReservationsByBatch,
+        plannedRequestEstimates,
+        estimatedInputTokens: plannedRequestEstimates.reduce(
+          (sum, request) => sum + request.estimatedInputTokens,
+          0,
+        ),
+        estimatedOutputTokens: plannedRequestEstimates.reduce(
+          (sum, request) => sum + request.estimatedOutputTokens,
+          0,
+        ),
+        maximumInputTokens: authorizedRequestReservationsByBatch.reduce(
+          (sum, requests) => sum + (requests[0]!.maximumInputTokens * 4),
+          0,
+        ),
+        maximumOutputTokens: authorizedRequestReservationsByBatch.length
+          * PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP
+          * 4,
+      };
+    }),
   };
 }
 
@@ -68,7 +103,7 @@ test("fixed-eight paid approval deterministically binds source, model, requests,
   const second = createFixedEightPaidExtractionPlanApproval(structuredClone(input));
 
   assert.deepEqual(second, first);
-  assert.equal(first.schema_version, 3);
+  assert.equal(first.schema_version, 4);
   assert.equal(first.payload.execution_domain.domain_id, input.executionDomain.domain_id);
   assert.equal(first.plan_sha256, canonicalSha256(first.payload));
   assert.deepEqual(first.payload.ordered_unit_ids, FIXED_EIGHT_ORDERED_UNIT_IDS);
@@ -83,11 +118,13 @@ test("fixed-eight paid approval deterministically binds source, model, requests,
     first.payload.units[0].authorized_request_hashes_by_batch,
     first.payload.units[0].request_hashes.map((requestHash) => [requestHash]),
   );
+  assert.equal(first.payload.cost.completion_not_guaranteed, true);
+  assert.equal(first.payload.cost.approval_policy, "sequential_runtime_fence_v1");
   assert.ok(first.payload.cost.estimated_cost_usd < first.payload.cost.authorized_ceiling_usd);
   assert.doesNotMatch(JSON.stringify(first), /OPENAI_API_KEY|source_path/iu);
 });
 
-test("approval creation rejects selection drift and estimates above the approved ceiling", () => {
+test("approval creation rejects selection drift, estimates above the ceiling, and a single unaffordable attempt", () => {
   const reordered = validInput();
   [reordered.units[0], reordered.units[1]] = [reordered.units[1], reordered.units[0]];
   assert.throws(
@@ -96,10 +133,7 @@ test("approval creation rejects selection drift and estimates above the approved
   );
 
   const overBudget = validInput();
-  for (const unit of overBudget.units) {
-    unit.estimatedInputTokens = 3_000_000;
-    unit.maximumInputTokens = 3_000_000;
-  }
+  overBudget.authorizedCostCeilingUsd = 0.000001;
   assert.throws(
     () => createFixedEightPaidExtractionPlanApproval(overBudget),
     /estimated cost exceeds the authorized ceiling/u,
@@ -107,41 +141,57 @@ test("approval creation rejects selection drift and estimates above the approved
 
   const maximumOnlyOverBudget = validInput();
   maximumOnlyOverBudget.authorizedCostCeilingUsd = 1;
-  for (const unit of maximumOnlyOverBudget.units) {
-    unit.maximumInputTokens = 200_000;
-  }
   assert.throws(
     () => createFixedEightPaidExtractionPlanApproval(maximumOnlyOverBudget),
-    /maximum cost exceeds the authorized ceiling/u,
-  );
-
-  const unsafeAggregate = validInput();
-  for (const unit of unsafeAggregate.units) {
-    unit.maximumInputTokens = Number.MAX_SAFE_INTEGER;
-  }
-  assert.throws(
-    () => createFixedEightPaidExtractionPlanApproval(unsafeAggregate),
-    /aggregate request and token totals must remain safe integers/u,
+    /maximum single-attempt reservation exceeds the authorized ceiling/u,
   );
 });
 
-test("the paid plan blocks a >1024-token cache-write upper bound before crossing $20", () => {
-  const exactlyAtLimit = validInput();
-  for (const unit of exactlyAtLimit.units) {
-    unit.estimatedInputTokens = 0;
-    unit.estimatedOutputTokens = 0;
-    unit.maximumInputTokens = 0;
-    unit.maximumOutputTokens = 0;
-  }
-  exactlyAtLimit.units[0].maximumInputTokens = 16_000_000;
-  const approved = createFixedEightPaidExtractionPlanApproval(exactlyAtLimit);
-  assert.equal(approved.payload.cost.maximum_cost_usd, 20);
+test("the paid plan binds every Luna attempt to the documented long-context reserve", () => {
+  const approved = createFixedEightPaidExtractionPlanApproval(validInput());
+  assert.equal(approved.payload.cost.maximum_single_attempt_cost_usd, 2.769);
+  assert.equal(approved.payload.cost.completion_not_guaranteed, true);
 
-  const oneTokenOver = structuredClone(exactlyAtLimit);
-  oneTokenOver.units[0].maximumInputTokens += 1;
+  const oneTokenOver = validInput();
+  oneTokenOver.units[0].authorizedRequestReservationsByBatch[0]![0]!
+    .maximumInputTokens += 1;
+  oneTokenOver.units[0].maximumInputTokens += 4;
   assert.throws(
     () => createFixedEightPaidExtractionPlanApproval(oneTokenOver),
-    /maximum cost exceeds the authorized ceiling/u,
+    /provider context-window input bound/u,
+  );
+});
+
+test("aggregate worst-case cost is informational when expected cost and every next attempt fit", () => {
+  const input = validInput();
+  const approval = createFixedEightPaidExtractionPlanApproval(input);
+  assert.ok(approval.payload.cost.estimated_cost_usd < input.authorizedCostCeilingUsd);
+  assert.ok(approval.payload.cost.maximum_single_attempt_cost_usd < input.authorizedCostCeilingUsd);
+  assert.ok(approval.payload.cost.maximum_cost_usd > input.authorizedCostCeilingUsd);
+  assert.equal(approval.payload.cost.completion_not_guaranteed, true);
+});
+
+test("a one nano-USD short ceiling fails while the exact conservative reservation passes", () => {
+  const reservation = providerBoundReservation("gpt-5.6-luna");
+  const oneNanoShort = validInput();
+  oneNanoShort.authorizedCostCeilingUsd = nanoUsdToUsd(
+    reservation.maximumCostNanoUsd - 1,
+  );
+  assert.throws(
+    () => createFixedEightPaidExtractionPlanApproval(oneNanoShort),
+    /maximum single-attempt reservation exceeds the authorized ceiling/u,
+  );
+
+  const exact = validInput();
+  exact.authorizedCostCeilingUsd = nanoUsdToUsd(reservation.maximumCostNanoUsd);
+  const approval = createFixedEightPaidExtractionPlanApproval(exact);
+  assert.equal(
+    approval.payload.cost.maximum_single_attempt_cost_nano_usd,
+    reservation.maximumCostNanoUsd,
+  );
+  assert.equal(
+    approval.payload.cost.absolute_domain_limit_nano_usd,
+    reservation.maximumCostNanoUsd,
   );
 });
 
@@ -189,7 +239,7 @@ test("exact-match verification detects source, request, model, and ceiling drift
   changedRequest.units[0].requestHashes[0] = hash("changed-request");
   assert.throws(
     () => assertFixedEightPaidExtractionPlanApprovalMatches(approval, changedRequest, approval.plan_sha256),
-    /no longer matches/u,
+    /no longer matches|initial planned request hash/u,
   );
 
   const changedModel = structuredClone(input);
@@ -201,7 +251,7 @@ test("exact-match verification detects source, request, model, and ceiling drift
 
   const lowerCeiling = structuredClone(input);
   lowerCeiling.authorizedCostCeilingUsd = (
-    approval.payload.cost.maximum_cost_usd + input.authorizedCostCeilingUsd
+    approval.payload.cost.maximum_single_attempt_cost_usd + input.authorizedCostCeilingUsd
   ) / 2;
   assert.throws(
     () => assertFixedEightPaidExtractionPlanApprovalMatches(approval, lowerCeiling, approval.plan_sha256),
@@ -222,10 +272,17 @@ test("exact-match verification detects source, request, model, and ceiling drift
 
 test("planned and attempted request hashes fail closed outside the exact per-batch allow-list", () => {
   const input = validInput();
-  input.units[0].authorizedRequestHashesByBatch = input.units[0].requestHashes.map(
+  input.units[0].authorizedRequestReservationsByBatch = input.units[0].requestHashes.map(
     (requestHash, index) => index === 0
-      ? [requestHash, hash("static-retry:0")]
-      : [requestHash],
+      ? [
+          { requestHash, maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND, maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP },
+          { requestHash: hash("static-retry:0"), maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND, maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP },
+        ]
+      : [{ requestHash, maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND, maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP }],
+  );
+  input.units[0].maximumInputTokens = input.units[0].authorizedRequestReservationsByBatch.reduce(
+    (sum, batch) => sum + (Math.max(...batch.map((request) => request.maximumInputTokens)) * 4),
+    0,
   );
   const approval = createFixedEightPaidExtractionPlanApproval(input);
   const unit = assertPaidExtractionPlannedRequestHashes(
@@ -240,6 +297,51 @@ test("planned and attempted request hashes fail closed outside the exact per-bat
     0,
     hash("static-retry:0"),
   ));
+  const staticRetry = approval.payload.units[0]
+    .authorized_request_reservations_by_batch[0]![1]!;
+  assert.doesNotThrow(() => assertPaidExtractionAttemptReservationAuthorized(
+    approval,
+    unit.unit_id,
+    0,
+    staticRetry.request_hash,
+    {
+      maximumInputTokens: staticRetry.maximum_input_tokens,
+      maximumOutputTokens: staticRetry.maximum_output_tokens,
+      maximumCostUsd: staticRetry.maximum_cost_usd,
+    },
+  ));
+  assert.throws(
+    () => assertPaidExtractionAttemptReservationAuthorized(
+      approval,
+      unit.unit_id,
+      0,
+      staticRetry.request_hash,
+      {
+        maximumInputTokens: staticRetry.maximum_input_tokens + 1,
+        maximumOutputTokens: staticRetry.maximum_output_tokens,
+        maximumCostUsd: estimateExtractionCostUsd(
+          "gpt-5.6-luna",
+          staticRetry.maximum_input_tokens + 1,
+          staticRetry.maximum_output_tokens,
+        ),
+      },
+    ),
+    /reservation_does_not_exactly_match_authorized_maximum/u,
+  );
+  assert.throws(
+    () => assertPaidExtractionAttemptReservationAuthorized(
+      approval,
+      unit.unit_id,
+      0,
+      staticRetry.request_hash,
+      {
+        maximumInputTokens: 0,
+        maximumOutputTokens: 0,
+        maximumCostUsd: 0,
+      },
+    ),
+    /reservation_does_not_exactly_match_authorized_maximum/u,
+  );
   assert.throws(
     () => assertPaidExtractionAttemptRequestAuthorized(
       approval,

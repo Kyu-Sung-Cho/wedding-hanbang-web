@@ -50,10 +50,13 @@ import {
 } from "./paid-call-journal.js";
 import {
   assertFixedEightPaidExtractionPlanApprovalMatches,
-  assertPaidExtractionAttemptRequestAuthorized,
+  assertPaidExtractionAttemptReservationAuthorized,
   assertPaidExtractionPlannedRequestHashes,
   createFixedEightPaidExtractionPlanApproval,
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
+  PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
+  PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+  PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
   readFixedEightPaidExtractionPlanApproval,
   writeFixedEightPaidExtractionPlanApproval,
   type CreatePaidExtractionPlanApprovalInput,
@@ -72,6 +75,7 @@ import {
   type ClaimPaidExecutionAttemptInput,
 } from "./paid-execution-domain.js";
 import { FIXED_EIGHT_ORDERED_UNIT_IDS } from "./pilot-pass-receipt.js";
+import { costUsdToNanoUsdCeil } from "./paid-extraction-budget.js";
 import { EXTRACTION_INSTRUCTIONS, EXTRACTION_PROMPT_VERSION } from "./prompt.js";
 import { sourceFileId, sourceFilesForArtifact } from "./provenance.js";
 import {
@@ -98,9 +102,9 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_REQUEST_RAW_BYTES = 40 * 1024 * 1024;
 const MAX_IMAGE_REQUEST_BASE64_CHARACTERS = 50 * 1024 * 1024;
 const MAX_REQUESTS_PER_UNIT = 96;
-const MAX_OUTPUT_TOKENS = 16_000;
-const MAX_EXTRACTION_ATTEMPTS = 4;
-const DEFAULT_UNCACHED_PAID_CALL_LIMIT_USD = 20;
+const MAX_OUTPUT_TOKENS = PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP;
+const MAX_EXTRACTION_ATTEMPTS = PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH;
+const DEFAULT_UNCACHED_PAID_CALL_LIMIT_USD = MAX_FIXED_EIGHT_APPROVED_COST_USD;
 const ESTIMATED_IMAGE_INPUT_TOKENS = 4_096;
 const MAXIMUM_IMAGE_INPUT_TOKENS = 16_384;
 const TARGET_EXTRACTION_PAYLOAD_CHARACTERS = 3_000;
@@ -2407,9 +2411,34 @@ function retryStatus(error: unknown): number | null {
   return error.status;
 }
 
-function isRetryable(error: unknown): boolean {
+function providerErrorStrings(error: unknown): string[] {
+  const values: string[] = [];
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 2 || !value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    for (const key of ["code", "type", "message"]) {
+      if (typeof record[key] === "string") values.push(record[key].toLowerCase());
+    }
+    visit(record.error, depth + 1);
+    visit(record.cause, depth + 1);
+  };
+  visit(error, 0);
+  return values;
+}
+
+export function isPermanentProviderBillingFailure(error: unknown): boolean {
+  if (retryStatus(error) !== 429) return false;
+  return providerErrorStrings(error).some((value) =>
+    value.includes("insufficient_quota")
+    || value.includes("billing_hard_limit_reached")
+    || value.includes("billing hard limit")
+  );
+}
+
+export function isRetryableExtractionProviderError(error: unknown): boolean {
   const status = retryStatus(error);
-  return status === 429 || (status !== null && status >= 500 && status <= 599);
+  return (status === 429 && !isPermanentProviderBillingFailure(error))
+    || (status !== null && status >= 500 && status <= 599);
 }
 
 const MAX_RETRY_DELAY_MILLISECONDS = 60_000;
@@ -2601,6 +2630,7 @@ function staticValidationRetryRequest(request: ExtractionRequest): ExtractionReq
 function safeErrorCategory(error: unknown): "rate_limit" | "provider_5xx" | "timeout" | "network" | "invalid_response" | "unknown" {
   if (error instanceof ExtractionProviderResponseError) return "invalid_response";
   const status = retryStatus(error);
+  if (isPermanentProviderBillingFailure(error)) return "unknown";
   if (status === 429) return "rate_limit";
   if (status !== null && status >= 500 && status <= 599) return "provider_5xx";
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) return "timeout";
@@ -2618,12 +2648,60 @@ interface AttemptAudit {
   error: unknown;
 }
 
+export interface PaidCallCostReservation {
+  maximumInputTokens: number;
+  maximumOutputTokens: number;
+  maximumCostUsd: number;
+}
+
 class UncachedPaidCallCostFenceError extends Error {
   constructor(limitUsd: number, committedUsd: number, reservedUsd: number) {
     super(
       `uncached_paid_call_cost_fence: limit_usd=${limitUsd.toFixed(6)} committed_usd=${committedUsd.toFixed(6)} next_call_reserve_usd=${reservedUsd.toFixed(6)}`,
     );
     this.name = "UncachedPaidCallCostFenceError";
+  }
+}
+
+class PaidProviderUsageExceededReservationError extends Error {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cachedInputTokens: number | null;
+  readonly cacheWriteInputTokens: number | null;
+  readonly usageReported: boolean;
+  readonly requestId?: string;
+
+  constructor(result: ExtractionProviderResult) {
+    super("paid_provider_usage_exceeded_plan_reservation_manual_reconciliation");
+    this.name = "PaidProviderUsageExceededReservationError";
+    const usage = normalizeProviderUsage(result);
+    this.inputTokens = usage.inputTokens;
+    this.outputTokens = usage.outputTokens;
+    this.cachedInputTokens = usage.cachedInputTokens;
+    this.cacheWriteInputTokens = usage.cacheWriteInputTokens;
+    this.usageReported = usage.usageReported;
+    if (result.requestId) this.requestId = result.requestId;
+  }
+}
+
+export function assertPaidProviderUsageWithinReservation(
+  model: ExtractionModel,
+  result: ExtractionProviderResult,
+  reservation: PaidCallCostReservation,
+): void {
+  const usage = normalizeProviderUsage(result);
+  const reportedCostUsd = usageReportedExtractionCostUsd(model, result).costUsd;
+  if (
+    usage.usageReported
+    && (
+      usage.inputTokens > reservation.maximumInputTokens
+      || usage.outputTokens > reservation.maximumOutputTokens
+      || (reportedCostUsd !== null
+        && costUsdToNanoUsdCeil(reportedCostUsd)
+          > costUsdToNanoUsdCeil(reservation.maximumCostUsd))
+    )
+  ) {
+    throw new PaidProviderUsageExceededReservationError(result);
   }
 }
 
@@ -2660,16 +2738,26 @@ class UncachedPaidCallCostFence {
     this.committedUsd = initialCommittedUsd;
   }
 
-  reserve(request: ExtractionRequest): number {
-    const reservedUsd = estimateExtractionCostUsd(
+  modelForUsageValidation(): ExtractionModel {
+    return this.model;
+  }
+
+  reserve(request: ExtractionRequest, providerBounded = false): PaidCallCostReservation {
+    const maximumInputTokens = providerBounded
+      ? PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND
+      : maximumRequestInputTokens(request);
+    const maximumOutputTokens = providerBounded
+      ? PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP
+      : MAX_OUTPUT_TOKENS;
+    const maximumCostUsd = estimateExtractionCostUsd(
       this.model,
-      maximumRequestInputTokens(request),
-      MAX_OUTPUT_TOKENS,
+      maximumInputTokens,
+      maximumOutputTokens,
     );
-    if (this.committedUsd + reservedUsd > this.limitUsd + Number.EPSILON) {
-      throw new UncachedPaidCallCostFenceError(this.limitUsd, this.committedUsd, reservedUsd);
+    if (this.committedUsd + maximumCostUsd > this.limitUsd + Number.EPSILON) {
+      throw new UncachedPaidCallCostFenceError(this.limitUsd, this.committedUsd, maximumCostUsd);
     }
-    return reservedUsd;
+    return { maximumInputTokens, maximumOutputTokens, maximumCostUsd };
   }
 
   settle(reservedUsd: number, value: unknown): void {
@@ -2685,7 +2773,7 @@ interface PaidCallAttemptHooks {
   begin(input: {
     attempt: number;
     requestHash: string;
-    reservedCostUsd: number;
+    reservation: PaidCallCostReservation;
   }): Promise<PaidCallIntent>;
 }
 
@@ -2718,12 +2806,13 @@ async function extractWithRetry(
   for (let attempt = 1; attempt <= MAX_EXTRACTION_ATTEMPTS; attempt += 1) {
     const attemptRequestHash = await hashRequest(attemptRequest);
     attemptRequestHashes.push(attemptRequestHash);
-    const costReservationUsd = costFence.reserve(attemptRequest);
+    const costReservation = costFence.reserve(attemptRequest, paidCallHooks !== undefined);
+    const costReservationUsd = costReservation.maximumCostUsd;
     const paidCallIntent = paidCallHooks
       ? await paidCallHooks.begin({
           attempt,
           requestHash: attemptRequestHash,
-          reservedCostUsd: costReservationUsd,
+          reservation: costReservation,
         })
       : null;
     if (paidCallIntent) paidCallIntents.push(paidCallIntent);
@@ -2751,6 +2840,11 @@ async function extractWithRetry(
         usageReported: result.usageReported,
         ...(result.requestId ? { requestId: result.requestId } : {}),
       });
+      if (paidCallHooks) assertPaidProviderUsageWithinReservation(
+        costFence.modelForUsageValidation(),
+        result,
+        costReservation,
+      );
     } catch (error) {
       const failedUsage = safeProviderUsage(error);
       costFence.settle(costReservationUsd, failedUsage);
@@ -2770,7 +2864,7 @@ async function extractWithRetry(
         attemptRequest = invalidResponseRepair(request, error);
         continue;
       }
-      if (isRetryable(error) && category === "rate_limit" && serverRetries < 3) {
+      if (isRetryableExtractionProviderError(error) && category === "rate_limit" && serverRetries < 3) {
         await sleep(computeRetryDelayMilliseconds(error, serverRetries));
         serverRetries += 1;
         continue;
@@ -3412,9 +3506,11 @@ export interface ExtractionPlan {
   execution_domain_scope: "single_local_user_home_not_central_or_cross_machine" | null;
   approval_status:
     | "not_requested"
-    | "approved"
-    | "blocked_maximum_cost_exceeds_remaining_budget"
-    | "blocked_maximum_cost_exceeds_fixed_approval_cap";
+    | "approved_sequential_runtime_fence"
+    | "blocked_expected_cost_exceeds_remaining_budget"
+    | "blocked_expected_cost_exceeds_fixed_approval_cap"
+    | "blocked_single_attempt_exceeds_remaining_budget"
+    | "blocked_single_attempt_exceeds_fixed_approval_cap";
   approval_authorized_ceiling_usd: number | null;
   approval_plan_sha256: string | null;
   approval_plan_path: string | null;
@@ -3425,6 +3521,8 @@ export interface ExtractionPlan {
   maximum_output_tokens: number;
   estimated_cost_usd: number;
   maximum_cost_usd: number;
+  maximum_single_attempt_cost_usd: number;
+  completion_not_guaranteed: boolean;
 }
 
 function requestPlanningText(request: ExtractionRequest): string {
@@ -3455,68 +3553,6 @@ function maximumRequestInputTokens(request: ExtractionRequest): number {
     + (request.imagePaths.length * MAXIMUM_IMAGE_INPUT_TOKENS);
 }
 
-function maximumPlannedRequestInputTokens(request: ExtractionRequest): number {
-  const variants = [request];
-  variants.push(staticValidationRetryRequest(request));
-  variants.push({
-    ...request,
-    repair: {
-      reason: "text_quote_contiguity",
-      rejectedPath: "partner_vendors[4999].policies[4999]",
-    },
-  });
-  variants.push({
-    ...request,
-    repair: {
-      reason: "structured_numeric_evidence",
-      rejectedPath: "halls[4999].options[4999]",
-    },
-  });
-  const sourceFileIds = allowedSourceFileIds(request);
-  if (sourceFileIds.length > 0) {
-    variants.push({
-      ...request,
-      repair: {
-        reason: "source_file_ownership",
-        rejectedSourceFileId: "f".repeat(64),
-        allowedSourceFileIds: sourceFileIds,
-        allowedSourceFileSetSha256: "0".repeat(64),
-      },
-    });
-  }
-  const allowed = allowedXlsxLocators(request);
-  if (allowed.length > 0) {
-    variants.push({
-      ...request,
-      repair: {
-        reason: "xlsx_locator_ownership",
-        // Excel sheet names and cell ranges are bounded well below this, but a
-        // 500-character placeholder also covers the error audit field limit.
-        rejectedLocator: "X".repeat(500),
-        allowedXlsxLocators: allowed,
-        allowedLocatorSetSha256: "0".repeat(64),
-      },
-    });
-  }
-  if (request.imagePaths.length > 0) {
-    variants.push({
-      ...request,
-      repair: {
-        reason: "image_non_currency_percentage",
-        rejectedOccurrenceIndex: 4_999,
-      },
-    });
-    variants.push({
-      ...request,
-      repair: {
-        reason: "image_money_evidence_mismatch",
-        rejectedOccurrenceIndex: 4_999,
-      },
-    });
-  }
-  return Math.max(...variants.map(maximumRequestInputTokens));
-}
-
 async function paidPlanUnitInput(
   unit: ManifestUnit,
   manifest: IngestManifest,
@@ -3538,33 +3574,66 @@ async function paidPlanUnitInput(
       converterVersion,
     },
   )));
-  const estimatedInputTokens = requests.reduce(
-    (sum, request) => sum + estimatedRequestInputTokens(request),
+  const authorizedRequestReservationsByBatch = requests.map((request, index) => {
+    return [
+      {
+        requestHash: requestHashes[index] as string,
+        maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+        maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+      },
+      {
+        requestHash: staticRetryRequestHashes[index] as string,
+        maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+        maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+      },
+    ];
+  });
+  const plannedRequestEstimates = requests.map((request, index) => {
+    const input = estimatedRequestInputTokens(request);
+    return {
+      requestHash: requestHashes[index] as string,
+      estimatedInputTokens: input,
+      estimatedOutputTokens: Math.min(MAX_OUTPUT_TOKENS, Math.max(1_200, input)),
+    };
+  });
+  const estimatedInputTokens = plannedRequestEstimates.reduce(
+    (sum, request) => sum + request.estimatedInputTokens,
     0,
   );
-  const estimatedOutputTokens = requests.reduce((sum, request) => {
-    const input = estimatedRequestInputTokens(request);
-    return sum + Math.min(MAX_OUTPUT_TOKENS, Math.max(1_200, input));
-  }, 0);
+  const estimatedOutputTokens = plannedRequestEstimates.reduce(
+    (sum, request) => sum + request.estimatedOutputTokens,
+    0,
+  );
   return {
     requests,
     approval: {
       unitId: unit.unit_id,
+      extractionFingerprint: currentExtractionFingerprint({
+        scannerParserVersion: manifest.scanner_parser_version,
+        converterVersion,
+        model,
+        rawName: unit.parsed.raw_name,
+        regionCode: unit.parsed.region_code,
+        kindHint: unit.parsed.kind_hint,
+        sourceFingerprint: unit.source_fingerprint,
+        artifactFingerprint: conversion.artifact_fingerprint,
+      }),
       sourceFingerprint: unit.source_fingerprint,
       artifactFingerprint: conversion.artifact_fingerprint,
       converterVersion,
       requestHashes,
-      authorizedRequestHashesByBatch: requestHashes.map((requestHash, index) => [
-        requestHash,
-        staticRetryRequestHashes[index] as string,
-      ]),
+      authorizedRequestReservationsByBatch,
+      plannedRequestEstimates,
       estimatedInputTokens,
       estimatedOutputTokens,
-      maximumInputTokens: requests.reduce(
-        (sum, request) => sum + (maximumPlannedRequestInputTokens(request) * MAX_EXTRACTION_ATTEMPTS),
+      maximumInputTokens: authorizedRequestReservationsByBatch.reduce(
+        (sum, batch) => sum + (Math.max(...batch.map((request) => request.maximumInputTokens))
+          * PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH),
         0,
       ),
-      maximumOutputTokens: requests.length * MAX_OUTPUT_TOKENS * MAX_EXTRACTION_ATTEMPTS,
+      maximumOutputTokens: requests.length
+        * MAX_OUTPUT_TOKENS
+        * PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
     },
   };
 }
@@ -3575,6 +3644,7 @@ async function currentPaidPlanInput(
   model: ExtractionModel,
   stateDir: string,
   authorizedCostCeilingUsd: number,
+  domainCommittedCostNanoUsd: number,
   priorDurableLedger: AiLedgerSnapshot,
   executionDomain: PaidExecutionDomainBinding,
 ): Promise<CreatePaidExtractionPlanApprovalInput> {
@@ -3588,6 +3658,7 @@ async function currentPaidPlanInput(
     model,
     scannerParserVersion: manifest.scanner_parser_version,
     authorizedCostCeilingUsd,
+    domainCommittedCostNanoUsd,
     priorDurableLedger,
     units,
   };
@@ -3761,24 +3832,39 @@ async function planExtractionInternal(
       maximum_input_tokens: maximumInputTokens,
       estimated_output_tokens: estimatedOutputTokens,
       maximum_output_tokens: maximumOutputTokens,
-      estimated_cost_usd: estimateExtractionCostUsd(model, estimatedInputTokens, estimatedOutputTokens),
-      maximum_cost_usd: estimateExtractionCostUsd(model, maximumInputTokens, maximumOutputTokens),
+      estimated_cost_usd: planned.approval.plannedRequestEstimates.reduce(
+        (sum, request) => sum + estimateExtractionCostUsd(
+          model,
+          request.estimatedInputTokens,
+          request.estimatedOutputTokens,
+        ),
+        0,
+      ),
+      maximum_cost_usd: planned.approval.authorizedRequestReservationsByBatch.reduce(
+        (sum, batch) => sum + (Math.max(...batch.map((request) => estimateExtractionCostUsd(
+          model,
+          request.maximumInputTokens,
+          request.maximumOutputTokens,
+        ))) * PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH),
+        0,
+      ),
     });
   }
   const estimatedInputTokens = units.reduce((sum, unit) => sum + unit.estimated_input_tokens, 0);
   const maximumInputTokens = units.reduce((sum, unit) => sum + unit.maximum_input_tokens, 0);
   const estimatedOutputTokens = units.reduce((sum, unit) => sum + unit.estimated_output_tokens, 0);
   const maximumOutputTokens = units.reduce((sum, unit) => sum + unit.maximum_output_tokens, 0);
-  const estimatedCostUsd = estimateExtractionCostUsd(
-    model,
-    estimatedInputTokens,
-    estimatedOutputTokens,
-  );
-  const maximumCostUsd = estimateExtractionCostUsd(
-    model,
-    maximumInputTokens,
-    maximumOutputTokens,
-  );
+  const estimatedCostUsd = units.reduce((sum, unit) => sum + unit.estimated_cost_usd, 0);
+  const maximumCostUsd = units.reduce((sum, unit) => sum + unit.maximum_cost_usd, 0);
+  const maximumSingleAttemptCostUsd = Math.max(...approvalUnits.flatMap(
+    (unit) => unit.authorizedRequestReservationsByBatch.flatMap(
+      (batch) => batch.map((request) => estimateExtractionCostUsd(
+        model,
+        request.maximumInputTokens,
+        request.maximumOutputTokens,
+      )),
+    ),
+  ));
   const paidCallLimitUsd = resolveUncachedPaidCallLimitUsd(env);
   const priorLedgerState = await readAiLedgerState(options.stateDir);
   const priorDurableLedgerCostUsd = priorLedgerState.snapshot.cumulative_cost_usd;
@@ -3810,12 +3896,16 @@ async function planExtractionInternal(
       remainingPaidCallBudgetUsd,
       MAX_FIXED_EIGHT_APPROVED_COST_USD,
     );
-    if (maximumCostUsd <= approvalAuthorizedCeilingUsd) {
+    if (
+      estimatedCostUsd <= approvalAuthorizedCeilingUsd
+      && maximumSingleAttemptCostUsd <= approvalAuthorizedCeilingUsd
+    ) {
       const approval = createFixedEightPaidExtractionPlanApproval({
         executionDomain: executionDomain.binding,
         model,
         scannerParserVersion: manifest.scanner_parser_version,
         authorizedCostCeilingUsd: approvalAuthorizedCeilingUsd,
+        domainCommittedCostNanoUsd: executionDomain.cumulative_committed_cost_nano_usd,
         priorDurableLedger: priorLedgerState.snapshot,
         units: approvalUnits,
       });
@@ -3824,11 +3914,17 @@ async function planExtractionInternal(
         approval,
       );
       approvalPlanSha256 = approval.plan_sha256;
-      approvalStatus = "approved";
+      approvalStatus = "approved_sequential_runtime_fence";
     } else {
-      approvalStatus = maximumCostUsd > remainingPaidCallBudgetUsd
-        ? "blocked_maximum_cost_exceeds_remaining_budget"
-        : "blocked_maximum_cost_exceeds_fixed_approval_cap";
+      const expectedBlocked = estimatedCostUsd > approvalAuthorizedCeilingUsd;
+      const remainingBudgetIsBinding = remainingPaidCallBudgetUsd <= MAX_FIXED_EIGHT_APPROVED_COST_USD;
+      approvalStatus = expectedBlocked
+        ? (remainingBudgetIsBinding
+            ? "blocked_expected_cost_exceeds_remaining_budget"
+            : "blocked_expected_cost_exceeds_fixed_approval_cap")
+        : (remainingBudgetIsBinding
+            ? "blocked_single_attempt_exceeds_remaining_budget"
+            : "blocked_single_attempt_exceeds_fixed_approval_cap");
     }
   }
   const remainingPaidCallBudgetUsd = Math.max(
@@ -3841,7 +3937,7 @@ async function planExtractionInternal(
     resolved_model: model,
     luna_semantics: "gpt-5.6-luna is the literal OpenAI API model identifier used by this repository, not an alias mapping; the repository labels it as the lower-cost tier.",
     processing_version: EXTRACTION_PROCESSING_VERSION,
-    estimation_basis: `Expected input includes serialized structured-output schema and request framing (UTF-8 bytes/3 + 512 + ${ESTIMATED_IMAGE_INPUT_TOKENS.toLocaleString("en-US")} per image); expected output=max(1,200, 100% input), capped at ${MAX_OUTPUT_TOKENS.toLocaleString("en-US")}. Maximum uses the larger of the initial and targeted-repair instruction payloads, a UTF-8 byte reserve + 2,048 + ${MAXIMUM_IMAGE_INPUT_TOKENS.toLocaleString("en-US")} per image, and ${MAX_OUTPUT_TOKENS.toLocaleString("en-US")} output across ${MAX_EXTRACTION_ATTEMPTS} attempts. Expected, maximum, and per-call reservations price every input token at the GPT-5.6 cache-write upper bound (1.25x); actual settlement uses a lower class only when provider cache details are complete and consistent. Repository planning rates, not a provider quote.`,
+    estimation_basis: `Expected cost is the sum of request-level heuristic estimates, including the serialized structured-output schema and request framing (UTF-8 bytes/3 + 512 + ${ESTIMATED_IMAGE_INPUT_TOKENS.toLocaleString("en-US")} per image) and expected output=max(1,200, 100% input), capped at ${MAX_OUTPUT_TOKENS.toLocaleString("en-US")}. Every authorized paid attempt instead reserves a deliberately conservative 1,050,000-input-token cost bound (the whole context window, above the currently documented 922,000 max input) and ${MAX_OUTPUT_TOKENS.toLocaleString("en-US")} output tokens. That reservation applies the 1.25x cache-write input upper bound plus the long-context multipliers (2x input and 1.5x output above 272,000 input tokens), for up to ${MAX_EXTRACTION_ATTEMPTS} attempts total per batch. Aggregate maximum cost is informational: the sequential authority claim and integer nano-USD runtime fence may stop execution before every planned request completes. Actual settlement releases unused reservation only after an exact completed checkpoint. Repository planning rates, not a provider quote.`,
     max_retry_attempts: MAX_EXTRACTION_ATTEMPTS,
     uncached_paid_call_hard_limit_usd: paidCallLimitUsd,
     prior_durable_ledger_cost_usd: effectivePriorLedgerCostUsd,
@@ -3865,6 +3961,8 @@ async function planExtractionInternal(
     maximum_output_tokens: maximumOutputTokens,
     estimated_cost_usd: estimatedCostUsd,
     maximum_cost_usd: maximumCostUsd,
+    maximum_single_attempt_cost_usd: maximumSingleAttemptCostUsd,
+    completion_not_guaranteed: maximumCostUsd > (approvalAuthorizedCeilingUsd ?? paidCallLimitUsd),
   };
 }
 
@@ -4070,6 +4168,7 @@ async function extractManifestUnlocked(
       model,
       options.stateDir,
       approvedPlan.payload.cost.authorized_ceiling_usd,
+      approvedPlan.payload.cost.domain_committed_at_plan_nano_usd,
       approvedPlan.payload.prior_durable_ledger,
       executionDomain.binding,
     );
@@ -4281,15 +4380,16 @@ async function extractManifestUnlocked(
           ? (initialRequest) => staticValidationRetryRequest(initialRequest)
           : repairRequestForInvalidResponse,
         authorization === "fixed_eight" ? {
-          begin: async ({ attempt, requestHash, reservedCostUsd }) => {
+          begin: async ({ attempt, requestHash, reservation }) => {
             if (!approvedPlan || !approvedPlanUnit) {
               throw new Error("paid_plan_not_in_scope_before_provider_call");
             }
-            assertPaidExtractionAttemptRequestAuthorized(
+            assertPaidExtractionAttemptReservationAuthorized(
               approvedPlan,
               unit.unit_id,
               batch.batchIndex,
               requestHash,
+              reservation,
             );
             await assertPaidPlanLedgerSnapshotAndResumeState(
               options.stateDir,
@@ -4309,7 +4409,10 @@ async function extractManifestUnlocked(
                 requestHash,
                 paidPlanSha256: approvedPlan.plan_sha256,
                 model,
-                reservedCostUsd,
+                reservedCostUsd: reservation.maximumCostUsd,
+                maximumInputTokens: reservation.maximumInputTokens,
+                maximumOutputTokens: reservation.maximumOutputTokens,
+                runtimeAbsoluteCostLimitUsd: paidCallLimitUsd,
               },
             );
             return beginPaidCallIntent(options.stateDir, {
@@ -4321,7 +4424,7 @@ async function extractManifestUnlocked(
               requestHash,
               paidPlanSha256: approvedPlan.plan_sha256,
               model,
-              reservedCostUsd,
+              reservedCostUsd: reservation.maximumCostUsd,
             });
           },
         } : undefined);

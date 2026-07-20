@@ -18,7 +18,7 @@ data/raw/
 pnpm ingest scan data/raw
 pnpm ingest convert
 pnpm ingest extract --plan
-# 승인된 파일럿은 정확한 8개 ID를 고정한다.
+# 승인된 고정 8건 실행은 정확한 8개 ID를 고정한다.
 pnpm ingest extract --units <id1,id2,id3,id4,id5,id6,id7,id8> --plan
 pnpm ingest validate
 pnpm ingest status
@@ -49,7 +49,7 @@ EXTRACTION_MODEL=gpt-5.6-luna   # 기본값·저비용
 # 복잡한 이미지/저품질 파일 파일럿만 명시적으로 gpt-5.6-terra 선택
 ```
 
-처음에는 반드시 `extract --plan`의 형식별 층화 8건과 비용을 확인하고, 승인된 파일럿은 `--units`로 정확한 8개 ID를 고정한 계획을 다시 출력한다. 계획 확인만으로는 API를 호출하지 않는다. 실제 호출은 고정 8건의 예상 token·비용을 승인한 뒤에만 `--plan`을 제거한다. 입력 조각에는 원본 상대경로와 파일 ID를 데이터 라벨로 붙이되, 라벨이나 원문을 지시문으로 취급하지 않는다. 성공한 배치별 schema-validated 체크포인트는 fingerprint와 prompt 버전에 묶어 저장하므로 뒤 배치가 실패해도 앞 배치를 다시 과금하지 않는다. 체크포인트가 손상됐거나 다른 fingerprint와 섞이면 재사용하거나 자동 재과금하지 않고 중단한다. 해당 cache 파일과 ledger ID를 보존해 원인을 확인한 뒤 손상 파일만 격리하고 재실행한다.
+처음에는 반드시 `extract --plan`의 형식별 층화 8건과 비용을 확인하고, 승인된 실행은 `--units`로 정확한 8개 ID를 고정한 계획을 다시 출력한다. 계획 확인만으로는 API를 호출하지 않는다. 활성 계약은 prompt `v7.8-deterministic-line-and-cell-evidence`, plan schema v4, exact fixed-eight 순서다. 실제 호출은 고정 8건의 예상 token·비용과 승인 SHA를 확인한 뒤에만 `--plan`을 제거한다. 입력 조각에는 원본 상대경로와 파일 ID를 데이터 라벨로 붙이되, 라벨이나 원문을 지시문으로 취급하지 않는다. 성공한 배치별 schema-validated 체크포인트는 fingerprint와 prompt 버전에 묶어 저장하므로 뒤 배치가 실패해도 앞 배치를 다시 과금하지 않는다. 체크포인트가 손상됐거나 다른 fingerprint와 섞이면 재사용하거나 자동 재과금하지 않고 중단한다. 해당 cache 파일과 ledger ID를 보존해 원인을 확인한 뒤 손상 파일만 격리하고 재실행한다.
 
 extract는 state별 `.cache/locks/extract.lock`을 원자적으로 생성해 같은 state의 inter-process 동시 실행을 차단한다. lock에는 PID·hostname·시작 시각·소유 ID를 기록한다. 같은 host의 죽은 PID 또는 손상된 lock을 발견해도 자동 삭제하지 않는다. 표시된 PID가 실제 종료됐는지 확인하고 cache·ledger를 보존한 뒤 lock 파일만 수동 격리 또는 제거해 재실행한다.
 
@@ -107,4 +107,4 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role key>
 
 2026-07-19에는 Windows/Poppler 장경로 재현을 통해 성공 exit 뒤 페이지가 생성되지 않는 원인을 확인하고, 짧은 same-volume scratch에서 검증 후 게시하도록 보강했다. 새 격리 state `reprocess-20260719-poppler5`로 원본부터 다시 실행한 결과 `converted=241`, `needs_manual_conversion=8`, `error=0`이었고 PDF 수동 큐 6개는 전부 해소됐다. 새로 래스터화된 6개 unit의 8페이지는 사람이 직접 확인해 빈 페이지·잘림·회전·식별 불가 문제가 없음을 확인했다. 남은 8개는 동일 stem PDF 대체본이 없는 HWP이며 자동 성공 처리하지 않는다. 이 재검증도 OpenAI·Supabase 호출은 0이다.
 
-고정 8건의 자동 채점표와 발생 위치 ground truth는 `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`에 기록했다. 이것은 파일럿 추출 결과가 아니며 prompt v6는 API 호출 0건인 미검증 상태다. 텍스트 원본 2,342건은 발생 위치 단위 ground truth로 고정하고, 메이브라이드 저해상도 PNG의 판독 불가 셀은 `null + needs_review + coverage_gaps` 대상으로 분리한다. 다음 단계는 코드·테스트·보안 게이트를 통과한 commit에서 고정 8개 `--units` 계획을 재확인한 뒤 실제 추출 결과를 자동 채점하는 것이다. 그 확인 전에는 25건 배치, staging `--apply`, 승인·공개, 운영 배포를 진행하지 않는다.
+고정 8건의 자동 채점표와 발생 위치 ground truth는 `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`에 기록했다. 이것은 추출 결과가 아니며 prompt v6는 역사적 API 호출 0건 기록이다. 활성 prompt `v7.8-deterministic-line-and-cell-evidence`와 plan schema v4도 실제 호출 0건인 품질 미검증 상태다. 텍스트 원본 2,342건은 발생 위치 단위 ground truth로 고정하고, 메이브라이드 저해상도 PNG의 판독 불가 셀은 `null + needs_review + coverage_gaps` 대상으로 분리한다. 다음 단계는 코드·테스트·보안 게이트를 통과한 commit에서 고정 8개 `--units` 계획을 재확인한 뒤 실제 추출 결과를 strict score로 자동 채점하는 것이다. 그 확인 전에는 25건 배치, staging `--apply`, 승인·공개, 운영 배포를 진행하지 않는다.

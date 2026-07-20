@@ -13,6 +13,7 @@ import {
   readAiLedgerState,
   type NewAiLedgerEntry,
 } from "../ledger.js";
+import { providerBoundReservation } from "../paid-extraction-budget.js";
 
 test("input cost is cache-aware only for a complete consistent usage breakdown", () => {
   assert.equal(
@@ -33,6 +34,23 @@ test("input cost is cache-aware only for a complete consistent usage breakdown",
     }),
     0.00185,
   );
+});
+
+test("long-context pricing starts only above 272k input and drives the Luna provider reserve", () => {
+  assert.equal(
+    estimateExtractionCostUsd("gpt-5.6-luna", 272_000, 1_000),
+    0.346,
+  );
+  assert.equal(
+    estimateExtractionCostUsd("gpt-5.6-luna", 272_001, 1_000),
+    0.6890025,
+  );
+  assert.deepEqual(providerBoundReservation("gpt-5.6-luna"), {
+    maximumInputTokens: 1_050_000,
+    maximumOutputTokens: 16_000,
+    maximumCostUsd: 2.769,
+    maximumCostNanoUsd: 2_769_000_000,
+  });
 });
 
 function entry(runId: string, attempt: number): NewAiLedgerEntry {

@@ -18,6 +18,7 @@ import { convertManifest } from "../convert.js";
 import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "../io.js";
 import {
   acquireExtractionLock,
+  assertPaidProviderUsageWithinReservation,
   buildOpenAIResponseRequest,
   computeRetryDelayMilliseconds,
   assertOpenAIExtractionProviderEnvironment,
@@ -26,6 +27,8 @@ import {
   extractManifest as extractManifestWithPaidGate,
   extractManifestForTests as extractManifest,
   imageTileScratchTemporaryPathUpperBound,
+  isPermanentProviderBillingFailure,
+  isRetryableExtractionProviderError,
   mergeExtractionChunks,
   parseOpenAIExtractionResponse,
   planExtraction,
@@ -39,11 +42,18 @@ import {
   type ExtractionProvider,
   type ExtractionRequest,
 } from "../extract.js";
-import { initializePaidExecutionDomainForTests } from "../paid-execution-domain.js";
+import {
+  initializePaidExecutionDomainForTests,
+  loadPaidExecutionDomainForPlanningForTests,
+} from "../paid-execution-domain.js";
 import { scanSources } from "../scan.js";
 import { sourceFileId } from "../provenance.js";
 import { FIXED_EIGHT_ORDERED_UNIT_IDS } from "../pilot-pass-receipt.js";
 import { createLedgerId } from "../ledger.js";
+import {
+  PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+  providerBoundReservation,
+} from "../paid-extraction-budget.js";
 import { listPendingPaidCallIntents } from "../paid-call-journal.js";
 import type { DisclosureExtraction } from "../schemas.js";
 import { DisclosureExtractionSchema, ExtractionBatchCheckpointSchema } from "../schemas.js";
@@ -341,7 +351,13 @@ test("extraction plan estimates selected work without requiring an API key or pa
   );
   assert.equal(plan.units[0].maximum_output_tokens, plan.units[0].requests * 16_000 * 4);
   assert.ok(plan.units[0].maximum_input_tokens >= plan.units[0].estimated_input_tokens * 4);
-  assert.match(plan.estimation_basis, /schema.*4 attempts.*1\.25x/iu);
+  assert.match(plan.estimation_basis, /request-level heuristic estimates/iu);
+  assert.match(
+    plan.estimation_basis,
+    /1,050,000-input-token cost bound.*922,000 max input.*16,000 output tokens/iu,
+  );
+  assert.match(plan.estimation_basis, /1\.25x cache-write.*long-context multipliers/iu);
+  assert.match(plan.estimation_basis, /sequential authority claim.*may stop execution/iu);
 });
 
 async function writeDummyDocx(filePath: string, text = "더미 기본 패키지 290만원"): Promise<void> {
@@ -395,7 +411,7 @@ test("fixed-eight planning reports an over-budget maximum without issuing approv
     INGEST_MAX_UNCACHED_COST_USD: "0.000001",
   }, { authorityRoot });
 
-  assert.equal(plan.approval_status, "blocked_maximum_cost_exceeds_remaining_budget");
+  assert.equal(plan.approval_status, "blocked_expected_cost_exceeds_remaining_budget");
   assert.equal(plan.approval_authorized_ceiling_usd, 0.000001);
   assert.equal(plan.approval_plan_sha256, null);
   assert.equal(plan.approval_plan_path, null);
@@ -529,6 +545,16 @@ test("the exact-eight paid path binds plan, intents, ledger, checkpoints, cache,
   assert.ok(ledgerRows.slice(1).every(
     (row) => row.paid_plan_sha256 === plan.approval_plan_sha256,
   ));
+  const settledDomain = await loadPaidExecutionDomainForPlanningForTests(
+    stateDir,
+    { authorityRoot },
+  );
+  assert.ok(
+    settledDomain.cumulative_committed_cost_nano_usd
+      < historicalLedger.estimated_cost_usd * 1_000_000_000
+        + (completedExecution.providerCalls * providerBoundReservation("gpt-5.6-luna").maximumCostNanoUsd),
+    "exact completed checkpoints must release unused per-call reservation",
+  );
 
   const checkpointDirectory = path.join(stateDir, ".cache", "extract-batches");
   const checkpointNames = (await readdir(checkpointDirectory)).filter((name) => name.endsWith(".json"));
@@ -600,8 +626,10 @@ test("raising the runtime env limit cannot spend beyond the approved plan ceilin
     { stateDir, unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS] },
     {},
   );
-  const approvedCeiling = Math.ceil(unapprovedEstimate.maximum_cost_usd * 1_000_000) / 1_000_000
-    + 0.001;
+  const approvedCeiling = 3;
+  assert.ok(unapprovedEstimate.estimated_cost_usd < approvedCeiling);
+  assert.ok(unapprovedEstimate.maximum_single_attempt_cost_usd < approvedCeiling);
+  assert.ok(unapprovedEstimate.maximum_cost_usd > approvedCeiling);
   assert.ok(approvedCeiling < 20);
   await initializePaidExecutionDomainForTests(stateDir, { authorityRoot });
   const plan = await planExtractionForTests(options, {
@@ -609,14 +637,14 @@ test("raising the runtime env limit cannot spend beyond the approved plan ceilin
   }, { authorityRoot });
   assert.match(plan.approval_plan_sha256 ?? "", /^[a-f0-9]{64}$/u);
 
-  const reportedInputTokens = Math.ceil((approvedCeiling + 0.5) * 1_000_000);
   const scriptedScenario = {
     responsesByCanonicalName: Object.fromEntries(manifest.units.map((unit) => [
       unit.parsed.raw_name,
       dummyExtraction(unit.parsed.raw_name),
     ])),
-    inputTokens: reportedInputTokens,
-    outputTokens: 0,
+    failFirstInvalidResponses: 1,
+    inputTokens: 10,
+    outputTokens: 5,
     requestIdPrefix: "approved-ceiling",
   };
 
@@ -1123,9 +1151,10 @@ test("OpenAI extraction request uses Responses structured output and never store
 
   assert.equal(request.store, false);
   assert.equal(request.model, "gpt-5.6-terra");
-  assert.equal(request.max_output_tokens, 16_000);
+  assert.equal(request.max_output_tokens, PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP);
   assert.equal(request.temperature, 0);
   assert.equal(request.reasoning?.effort, "none");
+  assert.equal(request.service_tier, "default");
   assert.equal(request.text?.format?.type, "json_schema");
   assert.equal(request.tools, undefined);
   assert.match(String(request.instructions), /텍스트.*money_occurrences.*빈 배열.*이미지.*금액 발생/isu);
@@ -2269,6 +2298,40 @@ test("extract lock permits one process and diagnoses a dead local owner without 
   );
 });
 
+test("paid usage above the provider-bound reservation halts for manual reconciliation", () => {
+  const reservation = providerBoundReservation("gpt-5.6-luna");
+  assert.throws(
+    () => assertPaidProviderUsageWithinReservation(
+      "gpt-5.6-luna",
+      {
+        data: dummyExtraction("over-reservation"),
+        inputTokens: 1_400_000,
+        outputTokens: 16_000,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        usageReported: true,
+      },
+      reservation,
+    ),
+    /usage_exceeded_plan_reservation_manual_reconciliation/u,
+  );
+});
+
+test("billing-quota 429 errors are permanent and never enter the retry loop", () => {
+  const error = new Error("account quota unavailable");
+  Object.assign(error, {
+    status: 429,
+    error: { type: "insufficient_quota", code: "billing_hard_limit_reached" },
+  });
+  assert.equal(isPermanentProviderBillingFailure(error), true);
+  assert.equal(isRetryableExtractionProviderError(error), false);
+
+  const transient = new Error("rate limited");
+  Object.assign(transient, { status: 429, code: "rate_limit_exceeded" });
+  assert.equal(isPermanentProviderBillingFailure(transient), false);
+  assert.equal(isRetryableExtractionProviderError(transient), true);
+});
+
 test("retry delay honors bounded Retry-After seconds and HTTP dates", () => {
   const secondsError = Object.assign(new Error("generated rate limit"), {
     status: 429,
@@ -2379,7 +2442,7 @@ test("uncached paid-call cost fence is cumulative across retry attempts", async 
   const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
   await convertManifest({ stateDir });
   const plan = await planExtraction({ stateDir, unitIds: [scanned.units[0].unit_id] }, {});
-  const oneAttemptReserve = plan.maximum_cost_usd / plan.max_retry_attempts;
+  const oneAttemptReserve = 0.1;
   let calls = 0;
 
   await assert.rejects(

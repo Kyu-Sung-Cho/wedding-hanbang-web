@@ -31,12 +31,24 @@ import {
   type ExtractionBatchCheckpoint,
 } from "./schemas.js";
 import { listPendingPaidCallIntents } from "./paid-call-journal.js";
+import type {
+  PaidExtractionPlanApproval,
+  PaidExtractionPlanUnit,
+} from "./paid-extraction-plan.js";
+import {
+  costUsdToNanoUsdCeil,
+  limitUsdToNanoUsdFloor,
+  MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+  nanoUsdToUsd,
+  providerBoundReservation,
+} from "./paid-extraction-budget.js";
 
 const AUTHORITY_DIRECTORY_NAME = ".wedding-hanbang-paid-execution-v1";
 const DOMAIN_FILE_NAME = "domain.json";
 const CLAIM_DIRECTORY_NAME = "claims";
 const CLAIM_TEMP_DIRECTORY_NAME = "claim-publish-tmp";
 const AUTHORITY_ANCHOR_SUFFIX = ".initialized.json";
+const BUDGET_LOCK_FILE_NAME = "budget-claim.lock";
 const STATE_BINDING_RELATIVE_PATH = path.join(
   ".cache",
   "paid-execution-domain-binding.json",
@@ -77,7 +89,7 @@ const PaidExecutionDomainStateBindingSchema = z.object({
 }).strict();
 
 export const PaidExecutionClaimSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   kind: z.literal("wedding_hanbang_paid_provider_attempt_claim"),
   content_sha256: Sha256Schema,
   claim_id: Sha256Schema,
@@ -91,7 +103,16 @@ export const PaidExecutionClaimSchema = z.object({
   attempt: z.number().int().positive().max(4),
   request_hash: Sha256Schema,
   model: z.enum(["gpt-5.6-luna", "gpt-5.6-terra"]),
+  maximum_input_tokens: z.number().int().positive(),
+  maximum_output_tokens: z.number().int().positive(),
   reserved_cost_usd: z.number().finite().nonnegative(),
+  reserved_cost_nano_usd: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  plan_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
+    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
+  runtime_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
+    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
+  effective_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
+    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
   created_at: z.string().datetime(),
 }).strict();
 
@@ -108,7 +129,10 @@ export interface ClaimPaidExecutionAttemptInput {
   requestHash: string;
   paidPlanSha256: string;
   model: PaidExecutionClaim["model"];
+  maximumInputTokens: number;
+  maximumOutputTokens: number;
   reservedCostUsd: number;
+  runtimeAbsoluteCostLimitUsd: number;
   createdAt?: string;
 }
 
@@ -124,6 +148,7 @@ export interface PaidExecutionDomainContext {
   pending_claim_count: number;
   pending_reserved_cost_usd: number;
   cumulative_committed_cost_usd: number;
+  cumulative_committed_cost_nano_usd: number;
   local_authority_only: true;
 }
 
@@ -147,6 +172,16 @@ function authorityRoot(options: PaidExecutionDomainLocationOptions): string {
   return path.resolve(
     options.authorityRoot ?? path.join(os.homedir(), AUTHORITY_DIRECTORY_NAME),
   );
+}
+
+function productionRuntimeAbsoluteCostLimitUsd(): number {
+  const raw = process.env.INGEST_MAX_UNCACHED_COST_USD?.trim();
+  if (!raw) return 20;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 20) {
+    throw new Error("paid_execution_runtime_absolute_cost_limit_invalid");
+  }
+  return value;
 }
 
 function authorityAnchorPath(root: string): string {
@@ -213,6 +248,61 @@ async function publishJsonExclusively(
       if (errorCode(error) !== "ENOENT") throw error;
     }
   }
+}
+
+async function acquireBudgetClaimLock(root: string): Promise<() => Promise<void>> {
+  const canonicalRoot = await assertOrdinaryDirectory(
+    root,
+    "paid_execution_domain_root_invalid",
+  );
+  const lockPath = path.join(canonicalRoot, BUDGET_LOCK_FILE_NAME);
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(lockPath, "wx", 0o600);
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") {
+      throw new Error(
+        `paid_execution_budget_lock_requires_manual_reconciliation:${lockPath}`,
+      );
+    }
+    throw error;
+  }
+  try {
+    await handle.writeFile(`${JSON.stringify({
+      schema_version: 1,
+      kind: "wedding_hanbang_paid_budget_claim_lock",
+      lock_id: randomUUID(),
+      pid: process.pid,
+      created_at: new Date().toISOString(),
+    }, null, 2)}\n`, "utf8");
+    await handle.sync();
+    await syncDirectoryMetadata(canonicalRoot);
+  } catch (error) {
+    await handle.close().catch(() => undefined);
+    // A partially created lock is deliberately retained. Its presence is an
+    // explicit manual-reconciliation gate; no stale-lock auto recovery exists.
+    throw error;
+  }
+  await handle.close();
+  let released = false;
+  return async () => {
+    if (released) return;
+    await unlink(lockPath);
+    await syncDirectoryMetadata(canonicalRoot);
+    released = true;
+  };
+}
+
+async function assertBudgetClaimLockAbsent(root: string): Promise<void> {
+  try {
+    await lstat(path.join(root, BUDGET_LOCK_FILE_NAME));
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return;
+    throw error;
+  }
+  throw new Error(
+    `paid_execution_budget_lock_requires_manual_reconciliation:${path.join(root, BUDGET_LOCK_FILE_NAME)}`,
+  );
 }
 
 async function readVerifiedJsonFile(
@@ -399,6 +489,10 @@ function paidAttemptClaimId(input: ClaimPaidExecutionAttemptInput): string {
     extraction_fingerprint: input.extractionFingerprint,
     batch_index: input.batchIndex,
     attempt: input.attempt,
+    model: input.model,
+    maximum_input_tokens: input.maximumInputTokens,
+    maximum_output_tokens: input.maximumOutputTokens,
+    reserved_cost_nano_usd: costUsdToNanoUsdCeil(input.reservedCostUsd),
   };
   return canonicalJsonSha256ExcludingField(
     { ...identity, ignored_hash_field: "0".repeat(64) },
@@ -439,9 +533,20 @@ async function readClaims(
         requestHash: claim.request_hash,
         paidPlanSha256: claim.paid_plan_sha256,
         model: claim.model,
+        maximumInputTokens: claim.maximum_input_tokens,
+        maximumOutputTokens: claim.maximum_output_tokens,
         reservedCostUsd: claim.reserved_cost_usd,
+        runtimeAbsoluteCostLimitUsd: nanoUsdToUsd(
+          claim.runtime_absolute_cost_limit_nano_usd,
+        ),
         createdAt: claim.created_at,
       })
+      || claim.reserved_cost_nano_usd !== costUsdToNanoUsdCeil(claim.reserved_cost_usd)
+      || claim.effective_absolute_cost_limit_nano_usd !== Math.min(
+        claim.plan_absolute_cost_limit_nano_usd,
+        claim.runtime_absolute_cost_limit_nano_usd,
+        MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+      )
     ) {
       throw new Error("paid_execution_claim_identity_mismatch");
     }
@@ -663,20 +768,42 @@ async function contextFor(
       throw new Error("paid_execution_domain_ledger_row_missing_exact_global_claim");
     }
   }
-  const pendingClaims = claims.filter((claim) => {
+  const claimStates = claims.map((claim) => {
     const matchingLedgerRows = ledgerDelta.filter((entry) => ledgerRowMatchesClaim(entry, claim));
-    if (matchingLedgerRows.length !== 1) return true;
-    return !checkpoints.some((checkpoint) => checkpointDurablyCompletesClaim(
-      checkpoint,
-      claim,
-      matchingLedgerRows[0] as AiLedgerState["entries"][number],
-    ));
+    if (matchingLedgerRows.length > 1) {
+      throw new Error("paid_execution_claim_has_multiple_ledger_rows_manual_reconciliation");
+    }
+    const ledgerEntry = matchingLedgerRows[0];
+    const completed = ledgerEntry !== undefined && checkpoints.some(
+      (checkpoint) => checkpointDurablyCompletesClaim(checkpoint, claim, ledgerEntry),
+    );
+    if (
+      ledgerEntry
+      && costUsdToNanoUsdCeil(ledgerEntry.estimated_cost_usd) > claim.reserved_cost_nano_usd
+    ) {
+      throw new Error(
+        `paid_execution_provider_usage_exceeded_reservation_manual_reconciliation:${claim.claim_id}`,
+      );
+    }
+    return { claim, ledgerEntry, completed };
   });
+  const pendingClaims = claimStates.filter((state) => !state.completed).map((state) => state.claim);
   if (pendingClaims.length > 0 && !options.allowPendingClaims) {
     throw new Error(
       `paid_execution_claim_requires_manual_reconciliation:${pendingClaims.map((claim) => claim.claim_id).join(",")}`,
     );
   }
+  const postGenesisCommittedNanoUsd = claimStates.reduce((sum, state) => sum + (
+    state.completed && state.ledgerEntry
+      ? costUsdToNanoUsdCeil(state.ledgerEntry.estimated_cost_usd)
+      : state.claim.reserved_cost_nano_usd
+  ), 0);
+  if (!Number.isSafeInteger(postGenesisCommittedNanoUsd)) {
+    throw new Error("paid_execution_domain_committed_cost_overflow");
+  }
+  const cumulativeCommittedCostNanoUsd = costUsdToNanoUsdCeil(
+    manifest.genesis_ledger.cumulative_cost_usd,
+  ) + postGenesisCommittedNanoUsd;
   return {
     binding: bindingFromManifest(manifest),
     current_ledger: ledgerState.snapshot,
@@ -686,12 +813,119 @@ async function contextFor(
       (sum, claim) => sum + claim.reserved_cost_usd,
       0,
     ),
-    cumulative_committed_cost_usd: manifest.genesis_ledger.cumulative_cost_usd + Math.max(
-      claims.reduce((sum, claim) => sum + claim.reserved_cost_usd, 0),
-      ledgerState.snapshot.cumulative_cost_usd - manifest.genesis_ledger.cumulative_cost_usd,
-    ),
+    cumulative_committed_cost_usd: nanoUsdToUsd(cumulativeCommittedCostNanoUsd),
+    cumulative_committed_cost_nano_usd: cumulativeCommittedCostNanoUsd,
     local_authority_only: true,
   };
+}
+
+async function verifyClaimAgainstPlanArtifact(
+  stateDir: string,
+  expectedBinding: PaidExecutionDomainBinding,
+  input: ClaimPaidExecutionAttemptInput,
+): Promise<{
+  plan: PaidExtractionPlanApproval;
+  unit: PaidExtractionPlanUnit;
+  planAbsoluteCostLimitNanoUsd: number;
+  runtimeAbsoluteCostLimitNanoUsd: number;
+  effectiveAbsoluteCostLimitNanoUsd: number;
+  reservationCostNanoUsd: number;
+  domainCommittedAtPlanNanoUsd: number;
+  authorizedIncrementalNanoUsd: number;
+}> {
+  const { readFixedEightPaidExtractionPlanApproval } = await import(
+    "./paid-extraction-plan.js"
+  );
+  const plan = await readFixedEightPaidExtractionPlanApproval(
+    stateDir,
+    input.paidPlanSha256,
+  );
+  assertExecutionDomainBindingMatches(plan.payload.execution_domain, expectedBinding);
+  if (plan.payload.model !== input.model) {
+    throw new Error("paid_execution_claim_model_does_not_match_plan");
+  }
+  const unit = plan.payload.units.find((candidate) => candidate.unit_id === input.unitId);
+  if (!unit || unit.extraction_fingerprint !== input.extractionFingerprint) {
+    throw new Error("paid_execution_claim_unit_or_fingerprint_does_not_match_plan");
+  }
+  const authorized = unit.authorized_request_reservations_by_batch[input.batchIndex]?.find(
+    (candidate) => candidate.request_hash === input.requestHash,
+  );
+  if (!authorized) {
+    throw new Error("paid_execution_claim_request_hash_not_authorized_by_plan");
+  }
+  const providerReservation = providerBoundReservation(input.model);
+  if (
+    authorized.maximum_input_tokens !== providerReservation.maximumInputTokens
+    || authorized.maximum_output_tokens !== providerReservation.maximumOutputTokens
+    || authorized.maximum_cost_usd !== providerReservation.maximumCostUsd
+    || authorized.maximum_cost_nano_usd !== providerReservation.maximumCostNanoUsd
+    || input.maximumInputTokens !== providerReservation.maximumInputTokens
+    || input.maximumOutputTokens !== providerReservation.maximumOutputTokens
+    || input.reservedCostUsd !== providerReservation.maximumCostUsd
+  ) {
+    throw new Error("paid_execution_claim_reservation_does_not_exactly_match_plan_and_provider_bound");
+  }
+  const planAbsoluteCostLimitNanoUsd = plan.payload.cost.absolute_domain_limit_nano_usd;
+  const runtimeAbsoluteCostLimitNanoUsd = limitUsdToNanoUsdFloor(
+    input.runtimeAbsoluteCostLimitUsd,
+  );
+  const effectiveAbsoluteCostLimitNanoUsd = Math.min(
+    planAbsoluteCostLimitNanoUsd,
+    runtimeAbsoluteCostLimitNanoUsd,
+    MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+  );
+  return {
+    plan,
+    unit,
+    planAbsoluteCostLimitNanoUsd,
+    runtimeAbsoluteCostLimitNanoUsd,
+    effectiveAbsoluteCostLimitNanoUsd,
+    reservationCostNanoUsd: providerReservation.maximumCostNanoUsd,
+    domainCommittedAtPlanNanoUsd: plan.payload.cost.domain_committed_at_plan_nano_usd,
+    authorizedIncrementalNanoUsd: plan.payload.cost.authorized_incremental_nano_usd,
+  };
+}
+
+function assertClaimAttemptSequence(
+  input: ClaimPaidExecutionAttemptInput,
+  unit: PaidExtractionPlanUnit,
+  claims: readonly PaidExecutionClaim[],
+  ledgerEntries: AiLedgerState["entries"],
+): void {
+  const authorizedHashes = unit.authorized_request_hashes_by_batch[input.batchIndex];
+  if (!authorizedHashes || authorizedHashes.length !== 2) {
+    throw new Error("paid_execution_claim_plan_retry_sequence_invalid");
+  }
+  if (input.attempt === 1) {
+    if (input.requestHash !== authorizedHashes[0]) {
+      throw new Error("paid_execution_first_attempt_must_use_initial_request_hash");
+    }
+    return;
+  }
+  const priorClaim = claims.find((claim) =>
+    claim.paid_plan_sha256 === input.paidPlanSha256
+    && claim.run_id === input.runId
+    && claim.unit_id === input.unitId
+    && claim.extraction_fingerprint === input.extractionFingerprint
+    && claim.batch_index === input.batchIndex
+    && claim.attempt === input.attempt - 1
+  );
+  if (!priorClaim) {
+    throw new Error("paid_execution_retry_requires_exact_previous_attempt_claim");
+  }
+  const priorRows = ledgerEntries.filter((entry) => ledgerRowMatchesClaim(entry, priorClaim));
+  if (priorRows.length !== 1 || priorRows[0]?.success) {
+    throw new Error("paid_execution_retry_requires_exact_failed_previous_attempt_ledger");
+  }
+  const expectedRequestHash = priorRows[0].error_category === "invalid_response"
+    ? authorizedHashes[1]
+    : priorRows[0].error_category === "rate_limit"
+      ? priorClaim.request_hash
+      : null;
+  if (!expectedRequestHash || input.requestHash !== expectedRequestHash) {
+    throw new Error("paid_execution_retry_request_hash_does_not_follow_failure_sequence");
+  }
 }
 
 async function claimPaidExecutionAttemptInternal(
@@ -701,11 +935,25 @@ async function claimPaidExecutionAttemptInternal(
   options: PaidExecutionDomainLocationOptions = {},
 ): Promise<PaidExecutionClaim> {
   const expectedBinding = PaidExecutionDomainBindingSchema.parse(expectedBindingValue);
-  const manifest = await existingAuthorityOrMissing(authorityRoot(options));
-  const context = await contextFor(stateDir, manifest, { allowPendingClaims: true });
-  assertExecutionDomainBindingMatches(context.binding, expectedBinding);
-  if (context.pending_claim_count > 0) {
+  const root = authorityRoot(options);
+  await existingAuthorityOrMissing(root);
+  const releaseBudgetLock = await acquireBudgetClaimLock(root);
+  try {
+    // The authority is re-read only after the exclusive lock is durable. This
+    // serializes context refresh, cap validation, and no-overwrite claim fsync.
+    const manifest = await existingAuthorityOrMissing(root);
+    const context = await contextFor(stateDir, manifest, { allowPendingClaims: true });
+    assertExecutionDomainBindingMatches(context.binding, expectedBinding);
+    const authorization = await verifyClaimAgainstPlanArtifact(
+      stateDir,
+      context.binding,
+      input,
+    );
     const ledgerState = await readAiLedgerState(stateDir);
+    assertAiLedgerSnapshotIsExactPrefix(
+      authorization.plan.payload.prior_durable_ledger,
+      ledgerState,
+    );
     const claims = await readClaims(manifest);
     const checkpoints = await readPaidBatchCheckpoints(
       context.binding.authoritative_state_dir_realpath,
@@ -753,66 +1001,93 @@ async function claimPaidExecutionAttemptInternal(
         `paid_execution_claim_requires_manual_reconciliation:${unsafePending.map((claim) => claim.claim_id).join(",")}`,
       );
     }
-  }
-  const existingClaims = await readClaims(await existingAuthorityOrMissing(authorityRoot(options)));
-  const crossPlanReplay = existingClaims.find((existing) =>
-    existing.paid_plan_sha256 !== input.paidPlanSha256
-    && existing.unit_id === input.unitId
-    && existing.extraction_fingerprint === input.extractionFingerprint
-    && existing.batch_index === input.batchIndex
-    && existing.attempt === input.attempt
-    && existing.request_hash === input.requestHash
-  );
-  if (crossPlanReplay) {
-    throw new Error(
-      `paid_execution_cross_plan_replay_requires_manual_reconciliation:${crossPlanReplay.claim_id}`,
+    assertClaimAttemptSequence(input, authorization.unit, claims, ledgerDelta);
+
+    const crossPlanReplay = claims.find((existing) =>
+      existing.paid_plan_sha256 !== input.paidPlanSha256
+      && existing.unit_id === input.unitId
+      && existing.extraction_fingerprint === input.extractionFingerprint
+      && existing.batch_index === input.batchIndex
+      && existing.attempt === input.attempt
+      && existing.request_hash === input.requestHash
     );
-  }
-  const claimId = paidAttemptClaimId(input);
-  const candidate = {
-    schema_version: 1 as const,
-    kind: "wedding_hanbang_paid_provider_attempt_claim" as const,
-    content_sha256: "0".repeat(64),
-    claim_id: claimId,
-    domain_id: context.binding.domain_id,
-    authoritative_state_dir_realpath: context.binding.authoritative_state_dir_realpath,
-    paid_plan_sha256: input.paidPlanSha256,
-    run_id: input.runId,
-    unit_id: input.unitId,
-    extraction_fingerprint: input.extractionFingerprint,
-    batch_index: input.batchIndex,
-    attempt: input.attempt,
-    request_hash: input.requestHash,
-    model: input.model,
-    reserved_cost_usd: input.reservedCostUsd,
-    created_at: input.createdAt ?? new Date().toISOString(),
-  };
-  candidate.content_sha256 = canonicalJsonSha256ExcludingField(candidate, "content_sha256");
-  const claim = PaidExecutionClaimSchema.parse(candidate);
-  const claimPath = path.join(
-    context.binding.authority_root_realpath,
-    CLAIM_DIRECTORY_NAME,
-    `${claim.claim_id}.json`,
-  );
-  try {
-    await publishJsonExclusively(
-      claimPath,
-      claim,
-      path.join(context.binding.authority_root_realpath, CLAIM_TEMP_DIRECTORY_NAME),
+    if (crossPlanReplay) {
+      throw new Error(
+        `paid_execution_cross_plan_replay_requires_manual_reconciliation:${crossPlanReplay.claim_id}`,
+      );
+    }
+    if (
+      context.cumulative_committed_cost_nano_usd
+        < authorization.domainCommittedAtPlanNanoUsd
+    ) {
+      throw new Error("paid_execution_plan_committed_baseline_is_in_the_future");
+    }
+    const committedSincePlanNanoUsd = context.cumulative_committed_cost_nano_usd
+      - authorization.domainCommittedAtPlanNanoUsd;
+    if (
+      committedSincePlanNanoUsd + authorization.reservationCostNanoUsd
+        > authorization.authorizedIncrementalNanoUsd
+      ||
+      context.cumulative_committed_cost_nano_usd + authorization.reservationCostNanoUsd
+        > authorization.effectiveAbsoluteCostLimitNanoUsd
+    ) {
+      throw new Error(
+        `paid_execution_absolute_cost_fence: committed_nano_usd=${context.cumulative_committed_cost_nano_usd} next_reserve_nano_usd=${authorization.reservationCostNanoUsd} limit_nano_usd=${authorization.effectiveAbsoluteCostLimitNanoUsd}`,
+      );
+    }
+
+    const claimId = paidAttemptClaimId(input);
+    const candidate = {
+      schema_version: 2 as const,
+      kind: "wedding_hanbang_paid_provider_attempt_claim" as const,
+      content_sha256: "0".repeat(64),
+      claim_id: claimId,
+      domain_id: context.binding.domain_id,
+      authoritative_state_dir_realpath: context.binding.authoritative_state_dir_realpath,
+      paid_plan_sha256: input.paidPlanSha256,
+      run_id: input.runId,
+      unit_id: input.unitId,
+      extraction_fingerprint: input.extractionFingerprint,
+      batch_index: input.batchIndex,
+      attempt: input.attempt,
+      request_hash: input.requestHash,
+      model: input.model,
+      maximum_input_tokens: input.maximumInputTokens,
+      maximum_output_tokens: input.maximumOutputTokens,
+      reserved_cost_usd: input.reservedCostUsd,
+      reserved_cost_nano_usd: authorization.reservationCostNanoUsd,
+      plan_absolute_cost_limit_nano_usd: authorization.planAbsoluteCostLimitNanoUsd,
+      runtime_absolute_cost_limit_nano_usd: authorization.runtimeAbsoluteCostLimitNanoUsd,
+      effective_absolute_cost_limit_nano_usd: authorization.effectiveAbsoluteCostLimitNanoUsd,
+      created_at: input.createdAt ?? new Date().toISOString(),
+    };
+    candidate.content_sha256 = canonicalJsonSha256ExcludingField(candidate, "content_sha256");
+    const claim = PaidExecutionClaimSchema.parse(candidate);
+    const claimPath = path.join(
+      context.binding.authority_root_realpath,
+      CLAIM_DIRECTORY_NAME,
+      `${claim.claim_id}.json`,
     );
-  } catch (error) {
-    if (errorCode(error) !== "EEXIST") throw error;
-    // Validate the incumbent. Whether it is identical or corrupt, a process
-    // cannot know if the provider accepted the earlier attempt.
-    await readClaims(await existingAuthorityOrMissing(authorityRoot(options)));
-    throw new Error(`paid_execution_claim_requires_manual_reconciliation:${claim.claim_id}`);
+    try {
+      await publishJsonExclusively(
+        claimPath,
+        claim,
+        path.join(context.binding.authority_root_realpath, CLAIM_TEMP_DIRECTORY_NAME),
+      );
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") throw error;
+      await readClaims(await existingAuthorityOrMissing(root));
+      throw new Error(`paid_execution_claim_requires_manual_reconciliation:${claim.claim_id}`);
+    }
+    const persistedClaims = await readClaims(await existingAuthorityOrMissing(root));
+    const persisted = persistedClaims.find((item) => item.claim_id === claim.claim_id);
+    if (!persisted || persisted.content_sha256 !== claim.content_sha256) {
+      throw new Error("paid_execution_claim_changed_during_publication");
+    }
+    return persisted;
+  } finally {
+    await releaseBudgetLock();
   }
-  const persistedClaims = await readClaims(await existingAuthorityOrMissing(authorityRoot(options)));
-  const persisted = persistedClaims.find((item) => item.claim_id === claim.claim_id);
-  if (!persisted || persisted.content_sha256 !== claim.content_sha256) {
-    throw new Error("paid_execution_claim_changed_during_publication");
-  }
-  return persisted;
 }
 
 async function initializePaidExecutionDomainInternal(
@@ -859,7 +1134,9 @@ async function loadPaidExecutionDomainForPlanningInternal(
   stateDir: string,
   options: PaidExecutionDomainLocationOptions = {},
 ): Promise<PaidExecutionDomainContext> {
-  const manifest = await existingAuthorityOrMissing(authorityRoot(options));
+  const root = authorityRoot(options);
+  await assertBudgetClaimLockAbsent(root);
+  const manifest = await existingAuthorityOrMissing(root);
   return contextFor(stateDir, manifest);
 }
 
@@ -869,7 +1146,9 @@ async function verifyPaidExecutionDomainForPlanInternal(
   options: PaidExecutionDomainLocationOptions = {},
 ): Promise<PaidExecutionDomainContext> {
   const expectedBinding = PaidExecutionDomainBindingSchema.parse(expectedBindingValue);
-  const manifest = await existingAuthorityOrMissing(authorityRoot(options));
+  const root = authorityRoot(options);
+  await assertBudgetClaimLockAbsent(root);
+  const manifest = await existingAuthorityOrMissing(root);
   const context = await contextFor(stateDir, manifest);
   assertExecutionDomainBindingMatches(context.binding, expectedBinding);
   return context;
@@ -908,7 +1187,9 @@ export async function loadPaidExecutionDomainForPlanning(
 export async function getPaidExecutionDomainStatus(
   stateDir: string,
 ): Promise<PaidExecutionDomainContext> {
-  const manifest = await existingAuthorityOrMissing(authorityRoot({}));
+  const root = authorityRoot({});
+  await assertBudgetClaimLockAbsent(root);
+  const manifest = await existingAuthorityOrMissing(root);
   return contextFor(stateDir, manifest, { allowPendingClaims: true });
 }
 
@@ -924,7 +1205,10 @@ export async function claimPaidExecutionAttempt(
   expectedBindingValue: unknown,
   input: ClaimPaidExecutionAttemptInput,
 ): Promise<PaidExecutionClaim> {
-  return claimPaidExecutionAttemptInternal(stateDir, expectedBindingValue, input);
+  return claimPaidExecutionAttemptInternal(stateDir, expectedBindingValue, {
+    ...input,
+    runtimeAbsoluteCostLimitUsd: productionRuntimeAbsoluteCostLimitUsd(),
+  });
 }
 
 function assertTestOnlyLocationOverride(): void {
@@ -947,6 +1231,17 @@ export async function loadPaidExecutionDomainForPlanningForTests(
 ): Promise<PaidExecutionDomainContext> {
   assertTestOnlyLocationOverride();
   return loadPaidExecutionDomainForPlanningInternal(stateDir, options);
+}
+
+export async function getPaidExecutionDomainStatusForTests(
+  stateDir: string,
+  options: PaidExecutionDomainLocationOptions,
+): Promise<PaidExecutionDomainContext> {
+  assertTestOnlyLocationOverride();
+  const root = authorityRoot(options);
+  await assertBudgetClaimLockAbsent(root);
+  const manifest = await existingAuthorityOrMissing(root);
+  return contextFor(stateDir, manifest, { allowPendingClaims: true });
 }
 
 export async function verifyPaidExecutionDomainForPlanForTests(

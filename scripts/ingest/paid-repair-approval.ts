@@ -15,13 +15,16 @@ import {
   canonicalSha256,
   writeContentAddressedJsonNoOverwrite,
 } from "./gate-integrity.js";
-import { AiLedgerSnapshotSchema, estimateExtractionCostUsd } from "./ledger.js";
+import { estimateExtractionCostUsd } from "./ledger.js";
 import {
   FIXED_EIGHT_BLOCKING_UNIT_IDS,
   FIXED_EIGHT_NON_BLOCKING_UNIT_IDS,
   FIXED_EIGHT_ORDERED_UNIT_IDS,
 } from "./pilot-pass-receipt.js";
-import { PaidExecutionDomainBindingSchema } from "./paid-execution-domain.js";
+import {
+  validateHistoricalFixedEightPaidExtractionPlanApproval,
+  type PaidExtractionPlanApproval,
+} from "./paid-extraction-plan.js";
 
 const REPAIR_APPROVAL_DIRECTORY = "paid-repair-approvals";
 const PRIOR_PLAN_DIRECTORY = "paid-extraction-plans";
@@ -63,81 +66,25 @@ function modelRates(model: ExtractionModel): {
   output_usd_per_million: number;
 } {
   return {
-    input_usd_per_million: estimateExtractionCostUsd(model, 1_000_000, 0),
-    output_usd_per_million: estimateExtractionCostUsd(model, 0, 1_000_000),
+    input_usd_per_million: estimateExtractionCostUsd(model, 1, 0) * 1_000_000,
+    output_usd_per_million: estimateExtractionCostUsd(model, 0, 1) * 1_000_000,
   };
 }
 
-const HistoricalPlanUnitSchema = z.object({
-  unit_id: Sha256Schema,
-  source_fingerprint: Sha256Schema,
-  artifact_fingerprint: Sha256Schema,
-  converter_version: z.string().min(1).max(100),
-  request_count: z.number().int().min(1).max(96),
-  request_hashes: z.array(Sha256Schema).min(1).max(96),
-  authorized_request_hashes_by_batch: z.array(
-    z.array(Sha256Schema).min(1).max(4),
-  ).min(1).max(96),
-  estimated_input_tokens: SafeCountSchema,
-  estimated_output_tokens: SafeCountSchema,
-  maximum_input_tokens: SafeCountSchema,
-  maximum_output_tokens: SafeCountSchema,
-  estimated_cost_usd: CostSchema,
-  maximum_cost_usd: CostSchema,
-}).strict().superRefine((unit, context) => {
-  if (unit.request_count !== unit.request_hashes.length) {
-    addIssue(context, ["request_count"], "historical request count does not match request hashes");
-  }
-  if (unit.request_count !== unit.authorized_request_hashes_by_batch.length) {
-    addIssue(context, ["authorized_request_hashes_by_batch"], "historical authorized hashes do not match request count");
-  }
-  if (unit.maximum_input_tokens < unit.estimated_input_tokens) {
-    addIssue(context, ["maximum_input_tokens"], "historical maximum input is below its estimate");
-  }
-  if (unit.maximum_output_tokens < unit.estimated_output_tokens) {
-    addIssue(context, ["maximum_output_tokens"], "historical maximum output is below its estimate");
-  }
-});
-
-const HistoricalPlanSchema = z.object({
-  schema_version: z.literal(3),
-  kind: z.literal("fixed_eight_paid_extraction_plan_approval"),
-  payload: z.object({
-    execution_domain: PaidExecutionDomainBindingSchema,
-    prior_durable_ledger: AiLedgerSnapshotSchema,
-    ordered_unit_ids: z.array(Sha256Schema).length(8),
-    model: ModelSchema,
-    prompt_version: z.string().min(1).max(100),
-    prompt_hash: Sha256Schema,
-    processing_version: Sha256Schema,
-    scanner_parser_version: z.string().min(1).max(100),
-    units: z.array(HistoricalPlanUnitSchema).length(8),
-    cost: z.object({
-      pricing_schedule: z.string().min(1).max(100),
-      input_usd_per_million: CostSchema,
-      output_usd_per_million: CostSchema,
-      authorized_ceiling_usd: CostSchema,
-      request_count: SafeCountSchema,
-      estimated_input_tokens: SafeCountSchema,
-      estimated_output_tokens: SafeCountSchema,
-      maximum_input_tokens: SafeCountSchema,
-      maximum_output_tokens: SafeCountSchema,
-      estimated_cost_usd: CostSchema,
-      maximum_cost_usd: CostSchema,
-    }).strict(),
-  }).strict(),
-  plan_sha256: Sha256Schema,
-}).strict().superRefine((plan, context) => {
-  if (!exactOrder(plan.payload.ordered_unit_ids, FIXED_EIGHT_ORDERED_UNIT_IDS)) {
-    addIssue(context, ["payload", "ordered_unit_ids"], "historical plan is not the exact fixed eight");
-  }
-  if (!exactOrder(plan.payload.units.map((unit) => unit.unit_id), FIXED_EIGHT_ORDERED_UNIT_IDS)) {
-    addIssue(context, ["payload", "units"], "historical plan units are not the exact fixed eight");
-  }
-  if (canonicalSha256(plan.payload) !== plan.plan_sha256) {
-    addIssue(context, ["plan_sha256"], "historical plan SHA-256 does not match its canonical payload");
-  }
-});
+function plannedRepairAggregateCostUsd(
+  model: ExtractionModel,
+  inputTokens: number,
+  outputTokens: number,
+): number {
+  const rates = modelRates(model);
+  // Repair approvals predate the executable per-request reservation contract.
+  // Keep their aggregate report explicitly linear; a future paid repair runner
+  // must add request-level reservations before it may call a provider.
+  return (
+    (inputTokens * rates.input_usd_per_million)
+    + (outputTokens * rates.output_usd_per_million)
+  ) / 1_000_000;
+}
 
 const ScoreUnitProvenanceSchema = z.object({
   paid_plan_sha256: Sha256Schema,
@@ -317,12 +264,12 @@ export const FailedUnitRepairApprovalPayloadSchema = z.object({
     ) {
       addIssue(context, ["units", index], "repair source/conversion provenance differs from the failed score unit");
     }
-    const expectedEstimate = estimateExtractionCostUsd(
+    const expectedEstimate = plannedRepairAggregateCostUsd(
       payload.model,
       unit.estimated_input_tokens,
       unit.estimated_output_tokens,
     );
-    const expectedMaximum = estimateExtractionCostUsd(
+    const expectedMaximum = plannedRepairAggregateCostUsd(
       payload.model,
       unit.maximum_input_tokens,
       unit.maximum_output_tokens,
@@ -344,12 +291,12 @@ export const FailedUnitRepairApprovalPayloadSchema = z.object({
     return;
   }
   const rates = modelRates(payload.model);
-  const aggregateEstimate = estimateExtractionCostUsd(
+  const aggregateEstimate = plannedRepairAggregateCostUsd(
     payload.model,
     totals.estimatedInput,
     totals.estimatedOutput,
   );
-  const aggregateMaximum = estimateExtractionCostUsd(
+  const aggregateMaximum = plannedRepairAggregateCostUsd(
     payload.model,
     totals.maximumInput,
     totals.maximumOutput,
@@ -402,7 +349,7 @@ export const FailedUnitRepairApprovalSchema = z.object({
   approval_sha256: Sha256Schema,
 }).strict();
 
-type HistoricalPlan = z.infer<typeof HistoricalPlanSchema>;
+type HistoricalPlan = PaidExtractionPlanApproval;
 type StrictFailedScoreReport = z.infer<typeof StrictFailedScoreReportSchema>;
 export type FailedUnitRepairApproval = z.infer<typeof FailedUnitRepairApprovalSchema>;
 export type ScoreUnitProvenance = z.infer<typeof ScoreUnitProvenanceSchema>;
@@ -470,7 +417,10 @@ async function readHistoricalPlan(
     stateDir,
     `${PRIOR_PLAN_DIRECTORY}/${normalized}.json`,
   );
-  const plan = HistoricalPlanSchema.parse(evidence.value);
+  const plan = validateHistoricalFixedEightPaidExtractionPlanApproval(
+    evidence.value,
+    normalized,
+  );
   if (plan.plan_sha256 !== normalized) {
     throw new Error("historical exact-eight plan does not match the explicitly approved SHA-256");
   }
@@ -574,12 +524,12 @@ function repairPayload(
     estimated_output_tokens: unit.estimatedOutputTokens,
     maximum_input_tokens: unit.maximumInputTokens,
     maximum_output_tokens: unit.maximumOutputTokens,
-    estimated_cost_usd: estimateExtractionCostUsd(
+    estimated_cost_usd: plannedRepairAggregateCostUsd(
       input.model,
       unit.estimatedInputTokens,
       unit.estimatedOutputTokens,
     ),
-    maximum_cost_usd: estimateExtractionCostUsd(
+    maximum_cost_usd: plannedRepairAggregateCostUsd(
       input.model,
       unit.maximumInputTokens,
       unit.maximumOutputTokens,
@@ -623,12 +573,12 @@ function repairPayload(
       estimated_output_tokens: totals.estimatedOutput,
       maximum_input_tokens: totals.maximumInput,
       maximum_output_tokens: totals.maximumOutput,
-      estimated_cost_usd: estimateExtractionCostUsd(
+      estimated_cost_usd: plannedRepairAggregateCostUsd(
         input.model,
         totals.estimatedInput,
         totals.estimatedOutput,
       ),
-      maximum_cost_usd: estimateExtractionCostUsd(
+      maximum_cost_usd: plannedRepairAggregateCostUsd(
         input.model,
         totals.maximumInput,
         totals.maximumOutput,

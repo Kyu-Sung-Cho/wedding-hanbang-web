@@ -16,6 +16,9 @@ import {
 } from "../paid-repair-approval.js";
 import {
   createFixedEightPaidExtractionPlanApproval,
+  PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+  PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+  validateHistoricalFixedEightPaidExtractionPlanApproval,
   writeFixedEightPaidExtractionPlanApproval,
   type CreatePaidExtractionPlanApprovalInput,
 } from "../paid-extraction-plan.js";
@@ -47,6 +50,7 @@ function priorPlanInput(): CreatePaidExtractionPlanApprovalInput {
     model: "gpt-5.6-luna",
     scannerParserVersion: "scanner-prior",
     authorizedCostCeilingUsd: 20,
+    domainCommittedCostNanoUsd: 0,
     priorDurableLedger: {
       relative_path: ".cache/ai-ledger.ndjson",
       content_sha256: digest(""),
@@ -54,17 +58,43 @@ function priorPlanInput(): CreatePaidExtractionPlanApprovalInput {
       row_count: 0,
       cumulative_cost_usd: 0,
     },
-    units: FIXED_EIGHT_ORDERED_UNIT_IDS.map((unitId, index) => ({
-      unitId,
-      sourceFingerprint: digest(`source:${index}`),
-      artifactFingerprint: digest(`conversion:${index}`),
-      converterVersion: "converter-prior",
-      requestHashes: [digest(`prior-request:${index}:0`), digest(`prior-request:${index}:1`)],
-      estimatedInputTokens: 2_000 + index,
-      estimatedOutputTokens: 400 + index,
-      maximumInputTokens: 4_000 + index,
-      maximumOutputTokens: 1_000 + index,
-    })),
+    units: FIXED_EIGHT_ORDERED_UNIT_IDS.map((unitId, index) => {
+      const requestHashes = [
+        digest(`prior-request:${index}:0`),
+        digest(`prior-request:${index}:1`),
+      ];
+      const maximumInputTokens = PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND;
+      const maximumOutputTokens = PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP;
+      const plannedRequestEstimates = requestHashes.map((requestHash, batchIndex) => ({
+        requestHash,
+        estimatedInputTokens: 1_000 + index + batchIndex,
+        estimatedOutputTokens: 200 + index + batchIndex,
+      }));
+      return {
+        unitId,
+        extractionFingerprint: digest(`extraction:${index}`),
+        sourceFingerprint: digest(`source:${index}`),
+        artifactFingerprint: digest(`conversion:${index}`),
+        converterVersion: "converter-prior",
+        requestHashes,
+        authorizedRequestReservationsByBatch: requestHashes.map((requestHash) => [{
+          requestHash,
+          maximumInputTokens,
+          maximumOutputTokens,
+        }]),
+        plannedRequestEstimates,
+        estimatedInputTokens: plannedRequestEstimates.reduce(
+          (sum, request) => sum + request.estimatedInputTokens,
+          0,
+        ),
+        estimatedOutputTokens: plannedRequestEstimates.reduce(
+          (sum, request) => sum + request.estimatedOutputTokens,
+          0,
+        ),
+        maximumInputTokens: requestHashes.length * maximumInputTokens * 4,
+        maximumOutputTokens: requestHashes.length * maximumOutputTokens * 4,
+      };
+    }),
   };
 }
 
@@ -74,6 +104,7 @@ async function createEvidence(
     FIXED_EIGHT_BLOCKING_UNIT_IDS[0],
     FIXED_EIGHT_BLOCKING_UNIT_IDS[2],
   ],
+  options: { historicalPromptDrift?: boolean } = {},
 ): Promise<{
   plan: ReturnType<typeof createFixedEightPaidExtractionPlanApproval>;
   score: Record<string, unknown>;
@@ -81,8 +112,24 @@ async function createEvidence(
   scoreRelativePath: string;
   scoreSha256: string;
 }> {
-  const plan = createFixedEightPaidExtractionPlanApproval(priorPlanInput());
-  await writeFixedEightPaidExtractionPlanApproval(stateDir, plan);
+  let plan = createFixedEightPaidExtractionPlanApproval(priorPlanInput());
+  if (options.historicalPromptDrift) {
+    const historicalPlan = structuredClone(plan);
+    historicalPlan.payload.prompt_version = "v7.7-historical-before-current-contract";
+    historicalPlan.payload.prompt_hash = digest("historical prompt instructions");
+    historicalPlan.payload.processing_version = digest("historical processing contract");
+    historicalPlan.plan_sha256 = canonicalSha256(historicalPlan.payload);
+    plan = historicalPlan;
+    const planDirectory = path.join(stateDir, "paid-extraction-plans");
+    await mkdir(planDirectory, { recursive: true });
+    await writeFile(
+      path.join(planDirectory, `${plan.plan_sha256}.json`),
+      `${JSON.stringify(plan, null, 2)}\n`,
+      "utf8",
+    );
+  } else {
+    await writeFixedEightPaidExtractionPlanApproval(stateDir, plan);
+  }
   const score = {
     schema_version: 1,
     generated_at: "2026-07-20T01:02:03.004Z",
@@ -199,6 +246,43 @@ test("repair approval binds prior exact-eight evidence and permits only an order
   assert.doesNotMatch(JSON.stringify(approval), /stateDir|absolute|OPENAI_API_KEY|\\Users\\/u);
 });
 
+test("a canonical stale-prompt plan remains valid historical evidence for a current-contract repair", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-repair-historical-plan-"));
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+  const evidence = await createEvidence(
+    stateDir,
+    [FIXED_EIGHT_BLOCKING_UNIT_IDS[0], FIXED_EIGHT_BLOCKING_UNIT_IDS[2]],
+    { historicalPromptDrift: true },
+  );
+
+  const historical = validateHistoricalFixedEightPaidExtractionPlanApproval(
+    evidence.plan,
+    evidence.plan.plan_sha256,
+  );
+  assert.equal(historical.payload.prompt_version, "v7.7-historical-before-current-contract");
+
+  const approval = await createFailedUnitRepairApproval(repairInput(stateDir, evidence));
+  assert.equal(approval.payload.prior_plan_sha256, evidence.plan.plan_sha256);
+  assert.notEqual(approval.payload.prompt_hash, evidence.plan.payload.prompt_hash);
+  assert.notEqual(approval.payload.processing_version, evidence.plan.payload.processing_version);
+
+  const forgedProviderContract = structuredClone(evidence.plan);
+  forgedProviderContract.payload.provider_call_contract.input_token_bound -= 1;
+  forgedProviderContract.plan_sha256 = canonicalSha256(forgedProviderContract.payload);
+  assert.throws(
+    () => validateHistoricalFixedEightPaidExtractionPlanApproval(forgedProviderContract),
+    /input_token_bound|Invalid input/iu,
+  );
+
+  const forgedPricing = structuredClone(evidence.plan);
+  forgedPricing.payload.cost.input_usd_per_million /= 2;
+  forgedPricing.plan_sha256 = canonicalSha256(forgedPricing.payload);
+  assert.throws(
+    () => validateHistoricalFixedEightPaidExtractionPlanApproval(forgedPricing),
+    /rate card|cost/iu,
+  );
+});
+
 test("repair approval rejects passed units, hidden failures, duplicate/reordered selection, and source drift", async (t) => {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-repair-selection-"));
   t.after(async () => rm(stateDir, { recursive: true, force: true }));
@@ -267,7 +351,22 @@ test("repair approval fails closed when strict score provenance, plan binding, o
   wrongPlan.expectedPriorScoreReportSha256 = digest(wrongPlanContent);
   await assert.rejects(createFailedUnitRepairApproval(wrongPlan), /does not bind the prior/u);
 
-  await rm(path.join(stateDir, "paid-extraction-plans", `${evidence.plan.plan_sha256}.json`));
+  await writeFile(scorePath, evidence.scoreContent, "utf8");
+  const planPath = path.join(
+    stateDir,
+    "paid-extraction-plans",
+    `${evidence.plan.plan_sha256}.json`,
+  );
+  const forgedHistoricalPlan = structuredClone(evidence.plan);
+  forgedHistoricalPlan.payload.units[0]!.source_fingerprint = digest("tampered-prior-source");
+  await writeFile(planPath, `${JSON.stringify(forgedHistoricalPlan, null, 2)}\n`, "utf8");
+  await assert.rejects(
+    createFailedUnitRepairApproval(repairInput(stateDir, evidence)),
+    /SHA-256/u,
+  );
+  await writeFile(planPath, `${JSON.stringify(evidence.plan, null, 2)}\n`, "utf8");
+
+  await rm(planPath);
   await assert.rejects(createFailedUnitRepairApproval(wrongPlan), /ENOENT|no such file/iu);
 });
 
