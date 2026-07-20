@@ -29,10 +29,14 @@ describe("PriceUploadPanel", () => {
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();
     Object.defineProperty(input, "files", { configurable: true, value: [file] });
-    await act(async () => {
-      input?.dispatchEvent(new Event("change", { bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      await Promise.resolve();
+    await act(async () => input?.dispatchEvent(new Event("change", { bubbles: true })));
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      const hasError = container.querySelector('[role="alert"]') !== null;
+      const hasSelectedFile = container.textContent?.includes(file.name) ?? false;
+      expect(hasError || hasSelectedFile).toBe(true);
     });
   }
 
