@@ -10,6 +10,7 @@ import { marketPriceProvider } from "@/lib/marketPrice/provider";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
 import { buildPriceVendorStructuredData } from "@/lib/price/vendorJsonLd";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import {
   assertPublishedVendorMinimum,
   collectPublishedVendorSlugs,
@@ -54,6 +55,7 @@ const loadProfile = cache((slug: string) =>
 );
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
+  if (isPreviewStubMode()) return [];
   if (isPriceCatalogBuildPlaceholderEnvironment(process.env)) return [];
 
   const client = createPublicClient();
@@ -88,6 +90,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  if (isPreviewStubMode()) return {};
   const { slug } = await params;
   if (!/^[a-z0-9][a-z0-9-]{0,119}$/.test(slug)) return {};
   const profile = await loadProfile(slug);
@@ -209,6 +212,7 @@ export default async function VendorPricePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  if (isPreviewStubMode()) notFound();
   const { slug } = await params;
   if (!/^[a-z0-9][a-z0-9-]{0,119}$/.test(slug)) notFound();
 

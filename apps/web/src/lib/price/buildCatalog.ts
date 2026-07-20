@@ -20,6 +20,8 @@ function supabaseProjectRef(rawUrl: string | undefined): string | null {
 export function isPriceCatalogBuildPlaceholderEnvironment(
   env: Readonly<Record<string, string | undefined>>,
 ): boolean {
+  if (env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true") return true;
+
   const rawUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   return env.CI === "true"
     && supabaseProjectRef(rawUrl) === CI_PLACEHOLDER_PROJECT_REF;

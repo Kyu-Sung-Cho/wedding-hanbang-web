@@ -16,6 +16,21 @@ describe("price catalog build fallback", () => {
     expect(catalog.counts).toEqual({ studio: 0, dress: 0, makeup: 0, hall: 0 });
   });
 
+  it("uses an empty catalog for the explicit Vercel Preview stub without opening Supabase", async () => {
+    const loader = vi.fn().mockRejectedValue(new Error("preview must not open Supabase"));
+    const catalog = await loadPriceCatalogWithBuildFallback(loader, {
+      CI: "false",
+      VERCEL_ENV: "preview",
+      NEXT_PUBLIC_PREVIEW_STUB_MODE: "true",
+      NEXT_PUBLIC_SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+    });
+
+    expect(loader).not.toHaveBeenCalled();
+    expect(catalog.counts).toEqual({ studio: 0, dress: 0, makeup: 0, hall: 0 });
+    expect(catalog.agencies).toEqual([]);
+  });
+
   it.each([
     {},
     {
