@@ -49,4 +49,31 @@ describe("createPriceComboStore", () => {
     malformed.getState().hydrate();
     expect(malformed.getState().totalKrw).toBe(0);
   });
+
+  it("replaces a restored combination atomically and persists only the final state", () => {
+    const writes: string[] = [];
+    const storage = {
+      getItem: () => null,
+      setItem: (_key: string, value: string) => { writes.push(value); },
+      removeItem: () => undefined,
+    };
+    const store = createPriceComboStore(storage);
+
+    store.getState().replaceSelections({
+      studio: selection("studio-restored", 1_200_000),
+      dress: selection("dress-restored", 900_000),
+      makeup: null,
+    });
+
+    expect(store.getState().totalKrw).toBe(2_300_000);
+    expect(store.getState().selections.studio?.vendorId).toBe("studio-restored");
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0])).toMatchObject({
+      selections: {
+        studio: { vendorId: "studio-restored" },
+        dress: { vendorId: "dress-restored" },
+        makeup: null,
+      },
+    });
+  });
 });

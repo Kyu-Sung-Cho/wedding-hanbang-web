@@ -12,9 +12,9 @@ import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
 import { buildPriceVendorStructuredData } from "@/lib/price/vendorJsonLd";
 import { isPreviewStubMode } from "@/lib/previewStub";
 import {
-  assertPublishedVendorMinimum,
+  assertPublishedVendorCatalog,
   collectPublishedVendorSlugs,
-  requiredPublishedVendorMinimum,
+  requiredPublishedVendorCatalogExpectation,
 } from "@/lib/price/staticVendorSlugs";
 import {
   getAttributeFieldDefinitions,
@@ -69,10 +69,10 @@ export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
       .range(from, to);
     return { data, error };
   });
-  assertPublishedVendorMinimum(
-    slugs.length,
-    requiredPublishedVendorMinimum(process.env),
-  );
+  const catalogExpectation = requiredPublishedVendorCatalogExpectation(process.env);
+  if (catalogExpectation) {
+    assertPublishedVendorCatalog(slugs, catalogExpectation);
+  }
   return slugs.map((slug) => ({ slug }));
 }
 

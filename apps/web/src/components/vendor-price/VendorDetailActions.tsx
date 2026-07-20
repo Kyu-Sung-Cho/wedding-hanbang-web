@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AuthGateModal } from "@/components/price/AuthGateModal";
 import { track } from "@/lib/analytics/track";
+import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
 
 type Props = {
   vendorId: string;
@@ -23,7 +24,7 @@ async function loadMembership(
   signal: AbortSignal,
 ): Promise<MembershipResult> {
   try {
-    const response = await fetch(url, { cache: "no-store", signal });
+    const response = await mobileAuthenticatedFetch(url, { cache: "no-store", signal });
     if (response.status === 401) return { status: "guest", selected: false };
     if (!response.ok) return { status: "error", selected: false };
     const body = await response.json() as { vendorIds?: unknown };
@@ -102,7 +103,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
     setBusy("favorite");
     setError(null);
     try {
-      const response = await fetch("/api/favorites", {
+      const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ vendorId }),
@@ -150,7 +151,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
     setBusy("alert");
     setError(null);
     try {
-      const response = await fetch("/api/price/alerts", {
+      const response = await mobileAuthenticatedFetch("/api/price/alerts", {
         method: desiredSubscription ? "POST" : "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ vendorId }),

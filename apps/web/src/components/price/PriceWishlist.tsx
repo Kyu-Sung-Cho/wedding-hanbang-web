@@ -5,6 +5,7 @@ import { AlertCircle, ArrowRight, Heart, LoaderCircle, RefreshCw } from "lucide-
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { track } from "@/lib/analytics/track";
+import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
 import {
   PRICE_CATEGORIES,
   type PriceCatalog,
@@ -50,7 +51,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
     const controller = new AbortController();
     setStatus("loading");
 
-    void fetch("/api/favorites", {
+    void mobileAuthenticatedFetch("/api/favorites", {
       cache: "no-store",
       signal: controller.signal,
     }).then(async (response) => {
@@ -89,7 +90,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
     setFeedback("");
     setBusyIds((current) => new Set(current).add(vendor.id));
     try {
-      const response = await fetch("/api/favorites", {
+      const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: "DELETE",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },

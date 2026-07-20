@@ -73,12 +73,13 @@ test("mobile rejects malformed or mismatched availability payloads instead of as
   }, "2026-07-20"), null);
 });
 
-test("legacy mobile vendor detail redirects to the canonical disclosure explorer", () => {
+test("legacy mobile vendor detail preserves its UUID through the canonical web route", () => {
   const screenPath = fileURLToPath(new URL("../../app/vendors/[id].tsx", import.meta.url));
   const source = readFileSync(screenPath, "utf8");
   assert.doesNotMatch(source, /\.from\(["']vendor_bookings["']\)/);
   assert.doesNotMatch(source, /\/api\/vendors/);
-  assert.match(source, /Redirect href="\/market-prices"/);
+  assert.match(source, /buildLegacyVendorDetailUrl\(rawId, siteOrigin\)/);
+  assert.match(source, /pathname: "\/webview"/);
 });
 
 test("legacy mobile discovery cannot render a second vendor truth surface", () => {
@@ -91,6 +92,7 @@ test("legacy mobile discovery cannot render a second vendor truth surface", () =
     assert.doesNotMatch(source, /\.from\(["']vendors["']\)/);
     assert.doesNotMatch(source, /\.from\(["']vendor_products["']\)/);
     assert.doesNotMatch(source, /\/api\/vendors/);
-    assert.match(source, /Redirect href="\/market-prices"/);
   }
+  assert.match(listSource, /Redirect href="\/market-prices"/);
+  assert.match(detailSource, /buildLegacyVendorDetailUrl\(rawId, siteOrigin\)/);
 });

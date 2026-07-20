@@ -39,7 +39,8 @@ function validEnv(overrides = {}) {
     ADMIN_PASSWORD: "admin-bootstrap-secret-longer-than-thirty-two-chars",
     CRON_SECRET: "cron-secret-longer-than-thirty-two-characters",
     RATE_LIMIT_KEY_SECRET: "rate-limit-secret-longer-than-thirty-two-chars",
-    PRICE_CATALOG_MIN_PUBLISHED_VENDORS: "1",
+    PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: "2",
+    PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256: "a".repeat(64),
     ...overrides,
   };
 }
@@ -76,15 +77,28 @@ test("the production environment gate blocks a missing rate-limit HMAC secret", 
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
 });
 
-test("the production environment gate requires a positive published-vendor floor", () => {
+test("the production environment gate requires an exact positive published-vendor count", () => {
   for (const unsafe of ["", "0", "-1", "1.5"]) {
     const result = runChecker(validEnv({
-      PRICE_CATALOG_MIN_PUBLISHED_VENDORS: unsafe,
+      PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: unsafe,
     }));
     assert.equal(result.status, 1);
     assert.deepEqual(
       JSON.parse(result.stdout).failed,
-      ["priceCatalogMinimumConfigured"],
+      ["priceCatalogExpectedCountConfigured"],
+    );
+  }
+});
+
+test("the production environment gate requires a lowercase SHA-256 catalog digest", () => {
+  for (const unsafe of ["", "a".repeat(63), "A".repeat(64), "g".repeat(64)]) {
+    const result = runChecker(validEnv({
+      PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["priceCatalogExpectedSlugDigestConfigured"],
     );
   }
 });

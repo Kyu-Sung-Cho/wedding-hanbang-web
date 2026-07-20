@@ -24,6 +24,130 @@ type VendorToolExecutionContext = {
   };
 };
 
+const MAX_LEGACY_VENDOR_SEARCH_RESULTS = 10;
+const MAX_VENDOR_PRODUCTS = 25;
+const MAX_VENDOR_STAFF = 20;
+const MAX_VENDOR_PRODUCT_INCLUDES = 8;
+const MAX_VENDOR_PROFILE_PRICES = 6;
+const MAX_VENDOR_PROFILE_OPTIONS_PER_PRICE = 6;
+const MAX_VENDOR_PROFILE_TAGS = 12;
+const MAX_VENDOR_PROFILE_SOURCES = 6;
+
+function boundedToolLimit(value: unknown, fallback: number, maximum: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? Math.min(value, maximum)
+    : fallback;
+}
+
+function boundedToolText(value: unknown, maximum: number): string {
+  return typeof value === "string" ? value.slice(0, maximum) : "";
+}
+
+function boundedNullableToolText(value: unknown, maximum: number): string | null {
+  return typeof value === "string" ? value.slice(0, maximum) : null;
+}
+
+function boundedToolTextList(
+  value: unknown,
+  maximumItems: number,
+  maximumItemLength: number,
+): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, maximumItems)
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.slice(0, maximumItemLength));
+}
+
+type LoadedVendorProfile = NonNullable<Awaited<ReturnType<typeof loadVendorProfile>>>;
+
+/**
+ * The public profile loader intentionally supports evidence-heavy detail pages.
+ * Chat only renders a small preview, so sending the complete relation graph over
+ * SSE would make a single tool result needlessly large. Keep the useful, ordered
+ * prefix and tell the model explicitly whenever relation rows were omitted.
+ */
+function boundedVendorProfileForTool(profile: LoadedVendorProfile) {
+  const selectedPrices = profile.official_prices.slice(0, MAX_VENDOR_PROFILE_PRICES);
+  const availableOptionCount = profile.official_prices.reduce(
+    (total, price) => total + price.options.length,
+    0,
+  );
+  const returnedOptionCount = selectedPrices.reduce(
+    (total, price) => total + Math.min(price.options.length, MAX_VENDOR_PROFILE_OPTIONS_PER_PRICE),
+    0,
+  );
+  const truncated = profile.official_prices.length > selectedPrices.length
+    || availableOptionCount > returnedOptionCount
+    || profile.tags.length > MAX_VENDOR_PROFILE_TAGS
+    || profile.sources.length > MAX_VENDOR_PROFILE_SOURCES;
+
+  return {
+    ...profile,
+    vendor: {
+      ...profile.vendor,
+      name: boundedToolText(profile.vendor.name, 200),
+      slug: boundedToolText(profile.vendor.slug, 200),
+      category: boundedToolText(profile.vendor.category, 80),
+      region_code: boundedNullableToolText(profile.vendor.region_code, 80),
+      urls: {
+        official: boundedNullableToolText(profile.vendor.urls.official, 500),
+        instagram: boundedNullableToolText(profile.vendor.urls.instagram, 500),
+        naver_place: boundedNullableToolText(profile.vendor.urls.naver_place, 500),
+      },
+    },
+    tags: profile.tags.slice(0, MAX_VENDOR_PROFILE_TAGS).map((tag) => ({
+      slug: boundedToolText(tag.slug, 120),
+      label: boundedToolText(tag.label, 160),
+      tag_group: boundedToolText(tag.tag_group, 120),
+    })),
+    official_prices: selectedPrices.map((price) => ({
+      ...price,
+      category: boundedToolText(price.category, 80),
+      item_name: boundedToolText(price.item_name, 200),
+      base_spec: boundedNullableToolText(price.base_spec, 500),
+      vat_note: boundedNullableToolText(price.vat_note, 300),
+      price_note: boundedNullableToolText(price.price_note, 500),
+      period_label: boundedToolText(price.period_label, 100),
+      source: boundedToolText(price.source, 300),
+      options: price.options
+        .slice(0, MAX_VENDOR_PROFILE_OPTIONS_PER_PRICE)
+        .map((option) => ({
+          ...option,
+          name: boundedToolText(option.name, 200),
+          unit: boundedNullableToolText(option.unit, 80),
+          condition: boundedNullableToolText(option.condition, 300),
+          raw_text: boundedToolText(option.raw_text, 500),
+        })),
+    })),
+    data_badges: boundedToolTextList(profile.data_badges, 8, 80),
+    sources: boundedToolTextList(profile.sources, MAX_VENDOR_PROFILE_SOURCES, 300),
+    ...(truncated
+      ? {
+          result_truncation: {
+            policy: "amora_vendor_detail_preview_v1",
+            official_prices: {
+              available: profile.official_prices.length,
+              returned: selectedPrices.length,
+            },
+            official_price_options: {
+              available: availableOptionCount,
+              returned: returnedOptionCount,
+            },
+            tags: {
+              available: profile.tags.length,
+              returned: Math.min(profile.tags.length, MAX_VENDOR_PROFILE_TAGS),
+            },
+            sources: {
+              available: profile.sources.length,
+              returned: Math.min(profile.sources.length, MAX_VENDOR_PROFILE_SOURCES),
+            },
+          },
+        }
+      : {}),
+  };
+}
+
 const VENDOR_CATEGORY_MAP: Record<string, string> = {
   "스튜디오": "studio",
   "드레스": "dress",
@@ -186,7 +310,7 @@ export async function executeSearchVendors(
     .from("vendors")
     .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
     .eq("status", "approved")
-    .limit((input.limit as number) || 5);
+    .limit(boundedToolLimit(input.limit, 5, MAX_LEGACY_VENDOR_SEARCH_RESULTS));
 
   if (input.category) {
     const dbCat = officialCategory
@@ -427,7 +551,7 @@ export async function executeRecommendVendors(
 ): Promise<ToolExecutionResult> {
   const admin = getAdminClient();
   const category = typeof input.category === "string" ? input.category.trim() : "";
-  const limit = (input.limit as number) || 3;
+  const limit = boundedToolLimit(input.limit, 3, MAX_LEGACY_VENDOR_SEARCH_RESULTS);
   const officialCategory = resolveOfficialRecommendationCategory(category);
   const dbCat = officialCategory
     ? officialCategoryDbName(officialCategory)
@@ -801,38 +925,47 @@ export async function executeGetVendorDetail(
           .select("id, name, description, price, discount_price, duration_minutes, is_popular, includes")
           .eq("vendor_id", vendorId)
           .eq("is_active", true)
-          .order("sort_order", { ascending: true }),
+          .order("sort_order", { ascending: true })
+          .order("id", { ascending: true })
+          .limit(MAX_VENDOR_PRODUCTS),
         admin
           .from("vendor_staff")
           .select("id, name, role, description")
           .eq("vendor_id", vendorId)
           .eq("is_active", true)
-          .order("sort_order", { ascending: true }),
+          .order("sort_order", { ascending: true })
+          .order("id", { ascending: true })
+          .limit(MAX_VENDOR_STAFF),
       ]);
       if (productResult.error || staffResult.error) {
         throw new Error("AUXILIARY_BOOKING_DATA_UNAVAILABLE");
       }
       productList = (productResult.data ?? []).map((product) => ({
         id: product.id,
-        name: product.name,
-        description: product.description?.slice(0, 80) || "",
+        name: boundedToolText(product.name, 160),
+        description: boundedToolText(product.description, 80),
         price: product.price,
-        discountPrice: product.discount_price || null,
-        duration: product.duration_minutes || null,
-        isPopular: product.is_popular || false,
-        includes: product.includes || [],
+        discountPrice: product.discount_price ?? null,
+        duration: product.duration_minutes ?? null,
+        isPopular: product.is_popular ?? false,
+        includes: boundedToolTextList(
+          product.includes,
+          MAX_VENDOR_PRODUCT_INCLUDES,
+          120,
+        ),
       }));
       staffList = (staffResult.data ?? []).map((staffMember) => ({
         id: staffMember.id,
-        name: staffMember.name,
-        role: staffMember.role || null,
-        description: staffMember.description?.slice(0, 60) || "",
+        name: boundedToolText(staffMember.name, 160),
+        role: boundedNullableToolText(staffMember.role, 120),
+        description: boundedToolText(staffMember.description, 60),
       }));
     } catch {
       bookingDataStatus = "unavailable";
       console.warn("Auxiliary vendor booking data unavailable");
     }
-    const vendor = officialProfile.vendor;
+    const toolOfficialProfile = boundedVendorProfileForTool(officialProfile);
+    const vendor = toolOfficialProfile.vendor;
     return {
       toolName: "get_vendor_detail",
       toolInput: input,
@@ -846,7 +979,7 @@ export async function executeGetVendorDetail(
           ? RECOMMENDATION_REGION_CODE_LABELS[vendor.region_code] ?? vendor.region_code
           : null,
         profileLink: `/price/vendor/${encodeURIComponent(vendor.slug)}`,
-        officialProfile,
+        officialProfile: toolOfficialProfile,
         bookingData: {
           policy: "legacy_booking_auxiliary_v1",
           dataStatus: bookingDataStatus,
@@ -900,32 +1033,42 @@ export async function executeGetVendorDetail(
     .select("id, name, description, price, discount_price, duration_minutes, is_popular, includes")
     .eq("vendor_id", vendorId)
     .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(MAX_VENDOR_PRODUCTS);
 
   const { data: staff } = await admin
     .from("vendor_staff")
     .select("id, name, role, description")
     .eq("vendor_id", vendorId)
     .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(MAX_VENDOR_STAFF);
 
   const productList = (products ?? []).map((product) => ({
     id: product.id,
-    name: product.name,
-    description: product.description?.slice(0, 80) || "",
+    name: boundedToolText(product.name, 160),
+    description: boundedToolText(product.description, 80),
     price: product.price,
-    discountPrice: product.discount_price || null,
-    duration: product.duration_minutes || null,
-    isPopular: product.is_popular || false,
-    includes: product.includes || [],
+    discountPrice: product.discount_price ?? null,
+    duration: product.duration_minutes ?? null,
+    isPopular: product.is_popular ?? false,
+    includes: boundedToolTextList(
+      product.includes,
+      MAX_VENDOR_PRODUCT_INCLUDES,
+      120,
+    ),
   }));
 
   const staffList = (staff ?? []).map((staffMember) => ({
     id: staffMember.id,
-    name: staffMember.name,
-    role: staffMember.role || null,
-    description: staffMember.description?.slice(0, 60) || "",
+    name: boundedToolText(staffMember.name, 160),
+    role: boundedNullableToolText(staffMember.role, 120),
+    description: boundedToolText(staffMember.description, 60),
   }));
+
+  const vendorName = boundedToolText(vendor.name, 200);
 
   return {
     toolName: "get_vendor_detail",
@@ -935,14 +1078,14 @@ export async function executeGetVendorDetail(
       dataStatus: "auxiliary_only",
       legacyDataNotice: "현재 공시 프로필 지원 밖의 카테고리에서 제공하는 예약 보조 등록 정보입니다.",
       vendorId: vendor.id,
-      vendorName: vendor.name,
-      category: vendor.category,
-      location: vendor.location,
-      priceRange: vendor.price_range,
+      vendorName,
+      category: boundedToolText(vendor.category, 80),
+      location: boundedNullableToolText(vendor.location, 160),
+      priceRange: boundedNullableToolText(vendor.price_range, 160),
       products: productList,
       staff: staffList,
     },
     success: true,
-    displayMessage: `${vendor.name}의 상품 ${productList.length}개, 스태프 ${staffList.length}명`,
+    displayMessage: `${vendorName}의 상품 ${productList.length}개, 스태프 ${staffList.length}명`,
   };
 }

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type PublicVendorSlugPage = {
   data: Array<{ vendor_slug: unknown }> | null;
   error: unknown;
@@ -6,6 +8,12 @@ export type PublicVendorSlugPage = {
 const PUBLIC_VENDOR_SLUG_PAGE_SIZE = 500;
 const PUBLIC_VENDOR_SLUG_CAP = 50_000;
 const SAFE_VENDOR_SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+
+export type PublishedVendorCatalogExpectation = {
+  count: number;
+  slugSha256: string;
+};
 
 export async function collectPublishedVendorSlugs(
   fetchPage: (from: number, to: number) => Promise<PublicVendorSlugPage>,
@@ -47,22 +55,46 @@ export async function collectPublishedVendorSlugs(
   return [...slugs].sort((left, right) => left.localeCompare(right, "en"));
 }
 
-export function requiredPublishedVendorMinimum(
+export function requiredPublishedVendorCatalogExpectation(
   env: Readonly<Record<string, string | undefined>>,
-): number {
+): PublishedVendorCatalogExpectation | null {
   const isProduction = env.VERCEL_ENV === "production"
     || env.HANBANG_DEPLOYMENT_ENV === "production";
-  if (!isProduction) return 0;
+  if (!isProduction) return null;
 
-  const raw = env.PRICE_CATALOG_MIN_PUBLISHED_VENDORS;
-  if (!raw || !/^[1-9][0-9]{0,5}$/.test(raw)) {
-    throw new Error("PRICE_CATALOG_MIN_PUBLISHED_VENDORS_REQUIRED");
+  const rawCount = env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT;
+  if (!rawCount || !/^[1-9][0-9]{0,5}$/.test(rawCount)) {
+    throw new Error("PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT_REQUIRED");
   }
-  return Number(raw);
+
+  const slugSha256 = env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256;
+  if (!slugSha256 || !SHA256_HEX.test(slugSha256)) {
+    throw new Error("PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256_REQUIRED");
+  }
+
+  return { count: Number(rawCount), slugSha256 };
 }
 
-export function assertPublishedVendorMinimum(actual: number, minimum: number): void {
-  if (!Number.isSafeInteger(actual) || actual < minimum) {
-    throw new Error("PUBLIC_VENDOR_STATIC_PARAMS_BELOW_MINIMUM");
+export function assertPublishedVendorCatalog(
+  slugs: readonly string[],
+  expectation: PublishedVendorCatalogExpectation,
+): void {
+  const uniqueSlugs = new Set(slugs);
+  if (uniqueSlugs.size !== expectation.count) {
+    throw new Error("PUBLIC_VENDOR_CATALOG_COUNT_MISMATCH");
   }
+  if (canonicalPublishedVendorSlugSha256(slugs) !== expectation.slugSha256) {
+    throw new Error("PUBLIC_VENDOR_CATALOG_DIGEST_MISMATCH");
+  }
+}
+
+export function canonicalPublishedVendorSlugSha256(slugs: readonly string[]): string {
+  const canonicalSlugs = [...new Set(slugs)];
+  if (canonicalSlugs.some((slug) => !SAFE_VENDOR_SLUG.test(slug))) {
+    throw new Error("PUBLIC_VENDOR_CATALOG_INVALID");
+  }
+  canonicalSlugs.sort();
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalSlugs), "utf8")
+    .digest("hex");
 }

@@ -2,7 +2,11 @@ import { MetadataRoute } from "next";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { communityPostPath } from "@/lib/community/routes";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
-import { collectPublishedVendorSlugs } from "@/lib/price/staticVendorSlugs";
+import {
+  assertPublishedVendorCatalog,
+  collectPublishedVendorSlugs,
+  requiredPublishedVendorCatalogExpectation,
+} from "@/lib/price/staticVendorSlugs";
 import { createPublicClient } from "@/lib/supabase/public";
 
 const BASE_URL = "https://hanbang.ai";
@@ -141,6 +145,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
     return page;
   });
+  const catalogExpectation = requiredPublishedVendorCatalogExpectation(process.env);
+  if (catalogExpectation) {
+    assertPublishedVendorCatalog(vendorSlugs, catalogExpectation);
+  }
   vendorPages = vendorSlugs.map((slug) => {
     const lastModified = latestPublicationBySlug.get(slug);
     return {

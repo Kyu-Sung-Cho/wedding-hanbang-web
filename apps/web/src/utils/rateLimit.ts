@@ -1,7 +1,8 @@
 import { createHash, createHmac } from "node:crypto";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
+import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
 
 // 간단한 인메모리 Rate Limiter (서버리스 환경)
 // Vercel 서버리스에서는 인스턴스당 메모리 — 완벽하지 않지만 기본 방어용
@@ -37,7 +38,7 @@ export interface PersistentRateLimitOptions {
 }
 
 function rateLimitResponse(retryAfter: number): NextResponse {
-  return NextResponse.json(
+  return mobileBridgeJson(
     { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." },
     {
       status: 429,
@@ -47,7 +48,7 @@ function rateLimitResponse(retryAfter: number): NextResponse {
 }
 
 function rateLimitUnavailableResponse(): NextResponse {
-  return NextResponse.json(
+  return mobileBridgeJson(
     { error: "요청 제한 확인에 실패했습니다. 잠시 후 다시 시도해주세요." },
     {
       status: 503,

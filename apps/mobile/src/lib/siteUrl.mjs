@@ -1,6 +1,7 @@
 /* global URL */
 
 const DEVELOPMENT_SITE_ORIGIN = "http://localhost:3000";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isLoopbackHostname(hostname) {
   return hostname === "localhost"
@@ -54,6 +55,11 @@ export function buildMobileSiteUrl(pathname, siteOrigin) {
     throw new Error("MOBILE_SITE_PATH_INVALID");
   }
   return url.toString();
+}
+
+export function buildLegacyVendorDetailUrl(vendorId, siteOrigin) {
+  if (typeof vendorId !== "string" || !UUID_PATTERN.test(vendorId)) return null;
+  return buildMobileSiteUrl(`/price/vendor-id/${vendorId.toLowerCase()}`, siteOrigin);
 }
 
 export function normalizeMobileSiteUrl(value, siteOrigin) {

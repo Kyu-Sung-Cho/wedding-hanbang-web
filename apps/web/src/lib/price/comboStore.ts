@@ -19,6 +19,7 @@ export type PriceComboState = {
   selections: ComboSelections;
   totalKrw: number;
   setSelection(category: ComboCategory, selection: ComboSelection): void;
+  replaceSelections(selections: ComboSelections): void;
   clearSelection(category: ComboCategory): void;
   hydrate(storage?: SessionStorageLike): void;
   reset(): void;
@@ -116,6 +117,11 @@ export function createPriceComboStore(
         persist(selections);
         return { selections, totalKrw: total(selections) };
       });
+    },
+    replaceSelections(selections) {
+      const next = { ...selections };
+      persist(next);
+      set({ selections: next, totalKrw: total(next) });
     },
     clearSelection(category) {
       set((state) => {

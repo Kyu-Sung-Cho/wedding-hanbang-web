@@ -704,6 +704,7 @@ test("a passing receipt binds staging, commit, and the exact successor migration
   assert.equal(receipt.checks.crossUserPolicyInsertsDenied, 4);
   assert.equal(receipt.checks.crossUserPolicyUpdatesAffectedRows, 0);
   assert.equal(receipt.checks.crossUserPolicyDeletesAffectedRows, 0);
+  assert.equal(receipt.checks.crossUserExistingComboDeleteRetained, true);
   assert.equal(receipt.checks.policyProbeRowsRetained, 0);
   const ownedMethods = new Set(requests
     .filter(({ url }) => OWNED_APPLICATION_TABLES.some(
@@ -1251,6 +1252,44 @@ test("cross-user DELETE exposure fails and deterministic policy rows are cleaned
     && init.headers.Authorization === "Bearer fixture-access-token-user-a"
   ));
   assert.equal(comboCleanupRequests.length >= 1, true);
+});
+
+test("an empty cross-user combo DELETE response still requires owner-row retention", async (t) => {
+  const fixture = await createReleaseFixture(t);
+  const env = validFixtureEnv(fixture);
+  const baseFetch = successfulHostedFetch(env, []);
+  let crossDeleteObserved = false;
+  const fetchImpl = async (input, init = {}) => {
+    const url = new URL(input);
+    const bearer = init.headers?.Authorization?.replace("Bearer ", "");
+    const targetsOwnerCombo = url.pathname.endsWith("/combos")
+      && url.searchParams.get("id") === `eq.${env.RLS_PROBE_USER_A_COMBO_ID}`;
+    if (targetsOwnerCombo
+        && init.method === "DELETE"
+        && bearer === "fixture-access-token-user-b") {
+      crossDeleteObserved = true;
+      return jsonResponse([]);
+    }
+    if (crossDeleteObserved
+        && targetsOwnerCombo
+        && (init.method ?? "GET") === "GET"
+        && bearer === "fixture-access-token-user-a") {
+      return jsonResponse([]);
+    }
+    return baseFetch(input, init);
+  };
+
+  await assert.rejects(
+    executeHostedStagingRlsProbe({
+      env,
+      repoRoot: fixture.repoRoot,
+      fetchImpl,
+      persistReceipt: false,
+    }),
+    (error) => error instanceof ProbeFailure
+      && error.code === "CROSS_USER_COMBO_DELETE_RETENTION_UNVERIFIED",
+  );
+  assert.equal(crossDeleteObserved, true);
 });
 
 test("owner and cross cleanup both verify zero rows even when both DELETE requests fail", async (t) => {

@@ -1,5 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 
+import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
+
+function createAnonymousClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  );
+}
+
 /**
  * 쿠키 기반 Supabase 클라이언트 (웹 SSR 전용)
  * Server Components, Server Actions에서 사용
@@ -31,11 +41,7 @@ export async function createClient() {
     );
   } catch {
     // cookies() 실패 시 익명 클라이언트 (API Route 외부 호출 등)
-    return createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => [], setAll: () => {} } }
-    );
+    return createAnonymousClient();
   }
 }
 
@@ -60,10 +66,12 @@ export function createClientFromToken(accessToken: string) {
  */
 export async function createClientFromRequest(request: Request) {
   // 1순위: Bearer 토큰 (모바일 앱)
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return createClientFromToken(authHeader.substring(7));
-  }
+  const authorization = parseAuthorizationHeader(request.headers.get("authorization"));
+  if (authorization.kind === "bearer") return createClientFromToken(authorization.token);
+
+  // A caller that explicitly supplied malformed credentials must never inherit
+  // a browser cookie session as a fallback identity.
+  if (authorization.kind === "invalid") return createAnonymousClient();
 
   // 2순위: Next.js cookies() (웹 브라우저 — 세션 read+write 지원)
   return createClient();

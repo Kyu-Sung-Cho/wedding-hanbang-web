@@ -168,6 +168,11 @@ const nextConfig: NextConfig = {
         destination: "/wedding/budget",
         permanent: false,
       },
+      {
+        source: "/vendors/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})",
+        destination: "/price/vendor-id/:id",
+        permanent: false,
+      },
       ...weddingAppRoutes.map((route) => ({
         source: `/${route}/:path*`,
         destination: `/wedding/${route}/:path*`,

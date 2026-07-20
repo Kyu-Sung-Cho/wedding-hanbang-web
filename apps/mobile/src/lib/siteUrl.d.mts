@@ -12,6 +12,11 @@ export declare function buildMobileSiteUrl(
   siteOrigin: string,
 ): string;
 
+export declare function buildLegacyVendorDetailUrl(
+  vendorId: string | null | undefined,
+  siteOrigin: string,
+): string | null;
+
 export declare function normalizeMobileSiteUrl(
   value: string | null,
   siteOrigin: string,

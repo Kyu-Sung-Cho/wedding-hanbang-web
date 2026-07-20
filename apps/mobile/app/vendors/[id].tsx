@@ -1,7 +1,26 @@
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import {
+  buildLegacyVendorDetailUrl,
+  resolveMobileSiteOrigin,
+} from "@/lib/siteUrl.mjs";
 
-// Legacy UUID details cannot be mapped safely to a published disclosure slug
-// on-device. Return to the canonical explorer instead of showing stale data.
+const siteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+
 export default function LegacyVendorDetailScreen() {
-  return <Redirect href="/market-prices" />;
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const vendorUrl = buildLegacyVendorDetailUrl(rawId, siteOrigin);
+
+  if (!vendorUrl) return <Redirect href="/market-prices" />;
+  return (
+    <Redirect
+      href={{
+        pathname: "/webview",
+        params: { url: vendorUrl },
+      }}
+    />
+  );
 }

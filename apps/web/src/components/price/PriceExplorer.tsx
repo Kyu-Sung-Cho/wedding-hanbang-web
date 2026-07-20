@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { track } from "@/lib/analytics/track";
+import { mobileAuthenticatedFetch } from "@/lib/mobile/mobileAuthenticatedFetch";
 import type { BudgetCombination } from "@/lib/price/budgetFinder";
 import {
   filterPriceCatalog,
@@ -31,6 +32,11 @@ import {
   PRICE_REGION_OPTIONS,
 } from "@/lib/price/labels";
 import { formatDisclosurePeriod } from "@/lib/price/period";
+import {
+  parseLatestSavedComboPayload,
+  restoreSavedComboAgainstCatalog,
+  type SavedComboPreview,
+} from "@/lib/price/savedComboRestore";
 
 import { AddToComboModal } from "./AddToComboModal";
 import { AuthGateModal } from "./AuthGateModal";
@@ -45,6 +51,7 @@ const comboStore = createPriceComboStore();
 
 type AuthStatus = "loading" | "authenticated" | "guest" | "unknown";
 type WishlistHydrationStatus = "loading" | "ready" | "error";
+type SavedComboHydrationStatus = "loading" | "ready" | "error";
 
 function manwonToKrw(value: string): number | null {
   if (!value.trim()) return null;
@@ -67,9 +74,10 @@ function comboPayloadSelection(selection: ComboSelection | null) {
 type PriceExplorerProps = {
   catalog: PriceCatalog;
   category: PriceCategory;
+  surface?: "public" | "app";
 };
 
-export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
+export function PriceExplorer({ catalog, category, surface = "public" }: PriceExplorerProps) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionCode, setRegionCode] = useState("");
@@ -86,6 +94,10 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
     useState<WishlistHydrationStatus>("loading");
   const [ownerStateReload, setOwnerStateReload] = useState(0);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
+  const [savedComboHydrationStatus, setSavedComboHydrationStatus] =
+    useState<SavedComboHydrationStatus>("loading");
+  const [latestSavedCombo, setLatestSavedCombo] = useState<SavedComboPreview | null>(null);
+  const [restoreConfirming, setRestoreConfirming] = useState(false);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const [comboVendor, setComboVendor] = useState<PriceVendor | null>(null);
   const [showBudgetFinder, setShowBudgetFinder] = useState(false);
@@ -115,9 +127,11 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
   useEffect(() => {
     const controller = new AbortController();
     setWishlistHydrationStatus("loading");
+    setSavedComboHydrationStatus("loading");
+    setRestoreConfirming(false);
     void Promise.all([
-      fetch("/api/price/combos", { cache: "no-store", signal: controller.signal }),
-      fetch("/api/favorites", { cache: "no-store", signal: controller.signal }),
+      mobileAuthenticatedFetch("/api/price/combos", { cache: "no-store", signal: controller.signal }),
+      mobileAuthenticatedFetch("/api/favorites", { cache: "no-store", signal: controller.signal }),
     ]).then(async ([comboResponse, favoriteResponse]) => {
       if (controller.signal.aborted) return;
       if (comboResponse.status === 401 || favoriteResponse.status === 401) {
@@ -126,6 +140,28 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
         setAuthStatus("authenticated");
       } else {
         setAuthStatus("unknown");
+      }
+
+      if (comboResponse.status === 401) {
+        setLatestSavedCombo(null);
+        setSavedComboHydrationStatus("ready");
+      } else if (!comboResponse.ok) {
+        setSavedComboHydrationStatus("error");
+      } else {
+        let comboBody: unknown;
+        try {
+          comboBody = await comboResponse.json() as unknown;
+        } catch {
+          comboBody = null;
+        }
+        if (controller.signal.aborted) return;
+        const parsedCombo = parseLatestSavedComboPayload(comboBody);
+        if (!parsedCombo.ok) {
+          setSavedComboHydrationStatus("error");
+        } else {
+          setLatestSavedCombo(parsedCombo.combo);
+          setSavedComboHydrationStatus("ready");
+        }
       }
 
       if (favoriteResponse.status === 401) {
@@ -161,6 +197,7 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
         setAuthStatus("unknown");
         setWishlistOnly(false);
         setWishlistHydrationStatus("error");
+        setSavedComboHydrationStatus("error");
       }
     });
     return () => controller.abort();
@@ -289,7 +326,7 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
     favoriteBusy.current.add(vendor.id);
     setWishlistBusyIds((current) => new Set(current).add(vendor.id));
     try {
-      const response = await fetch("/api/favorites", {
+      const response = await mobileAuthenticatedFetch("/api/favorites", {
         method: desiredFavorite ? "POST" : "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ vendorId: vendor.id }),
@@ -363,6 +400,28 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
     setFeedback("예산 안의 스드메 조합을 담았어요.");
   };
 
+  const restoreLatestCombo = () => {
+    if (!latestSavedCombo || savedComboHydrationStatus !== "ready") return;
+    if (comboCount > 0 && !restoreConfirming) {
+      setRestoreConfirming(true);
+      return;
+    }
+
+    const restored = restoreSavedComboAgainstCatalog(latestSavedCombo, catalog);
+    setRestoreConfirming(false);
+    if (restored.restoredCategories.length === 0) {
+      setFeedback("최근 저장 조합의 가격이 바뀌었거나 업체가 공개 종료되어 불러오지 않았어요.");
+      return;
+    }
+
+    comboStore.getState().replaceSelections(restored.selections);
+    if (restored.skippedCategories.length > 0) {
+      setFeedback(`최근 저장 조합 ${restored.restoredCategories.length}개를 불러왔어요. 변경되거나 공개 종료된 ${restored.skippedCategories.length}개는 제외했어요.`);
+    } else {
+      setFeedback("최근 저장 조합을 현재 공시 정보로 확인해 불러왔어요.");
+    }
+  };
+
   const saveCombo = async () => {
     if (authStatus === "guest") {
       setShowAuthGate(true);
@@ -392,7 +451,7 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
     setComboSaving(true);
     setFeedback("조합을 안전하게 저장하고 있어요…");
     try {
-      const response = await fetch("/api/price/combos", {
+      const response = await mobileAuthenticatedFetch("/api/price/combos", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -415,7 +474,8 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
         return;
       }
       setAuthStatus("authenticated");
-      setFeedback("조합을 저장했어요. 다음에 다시 확인할 수 있어요.");
+      setFeedback("조합을 저장했어요. ‘최근 저장 조합 불러오기’로 다시 열 수 있어요.");
+      setOwnerStateReload((value) => value + 1);
       track("combo_save", { surface: "combo" });
     } catch {
       setFeedback("네트워크를 확인한 뒤 다시 저장해 주세요.");
@@ -448,9 +508,49 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
   const displayVendors = filtered.slice(0, visibleCount).map((vendor) => agencyIds.length === 0
     ? vendor
     : { ...vendor, offers: vendor.offers.filter(({ agencyId }) => agencyId === null || agencyIds.includes(agencyId)) });
+  const Root = surface === "app" ? "div" : "main";
+  const totalVendorCount = new Set(PRICE_CATEGORIES.flatMap((value) => (
+    catalog.categories[value].map((vendor) => vendor.id)
+  ))).size;
 
   return (
-    <main className={`min-h-screen bg-[#FBF8F2] text-[#1D3557] ${comboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
+    <Root className={`${surface === "app" ? "overflow-hidden rounded-[20px] border border-[#eadfc9] bg-[#FBF8F2]" : "min-h-screen bg-[#FBF8F2]"} text-[#1D3557] ${comboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
+      {surface === "app" ? (
+        <section className="border-b border-[#1D3557]/10 bg-white px-4 py-6 sm:px-6" aria-labelledby="vendor-hub-title">
+          <p className="text-[11px] font-bold tracking-[0.16em] text-[#8F6662]">WEDDING HANBANG</p>
+          <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-[-0.04em]">업체 탐색</h1>
+          <p className="mt-2 text-sm leading-6 text-[#1D3557]/65">
+            출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요.
+          </p>
+          <div className="mt-5 grid grid-cols-3 gap-2" aria-label="업체 탐색 현황">
+            <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
+              <p className="text-[11px] font-bold text-[#1D3557]/55">공식 가격 업체</p>
+              <p className="mt-1 text-xl font-bold tabular-nums">{totalVendorCount}</p>
+            </div>
+            <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
+              <p className="text-[11px] font-bold text-[#1D3557]/55">찜한 업체</p>
+              <p className="mt-1 text-xl font-bold tabular-nums">
+                {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
+              </p>
+            </Link>
+            <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
+              <p className="text-[11px] font-bold text-[#1D3557]/55">가격 카테고리</p>
+              <p className="mt-1 text-xl font-bold tabular-nums">
+                {PRICE_CATEGORIES.filter((value) => catalog.counts[value] > 0).length}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-[#1D3557] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
+              <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
+            </div>
+            <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[#1D3557]">
+              아모라와 찾기
+            </Link>
+          </div>
+        </section>
+      ) : null}
       <section className="border-b border-[#1D3557]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -477,11 +577,11 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
             </button>
           </div>
 
-          <nav className="-mx-4 mt-7 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="가격 카테고리">
+          <nav className="scrollbar-hide -mx-4 mt-7 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="가격 카테고리">
             {PRICE_CATEGORIES.map((value) => (
               <Link
                 key={value}
-                href={`/price/${value}`}
+                href={surface === "app" ? `/wedding/vendors?category=${value}` : `/price/${value}`}
                 aria-current={value === category ? "page" : undefined}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#1D3557] bg-[#1D3557] text-white" : "border-[#1D3557]/12 bg-white text-[#1D3557] hover:bg-[#F5ECE4]"}`}
               >
@@ -547,7 +647,7 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
             {activeAgencies.length > 0 ? (
               <fieldset className="mt-4">
                 <legend className="text-xs font-bold text-[#1D3557]/65">대행사</legend>
-                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                <div className="scrollbar-hide mt-2 flex gap-2 overflow-x-auto pb-1">
                   {activeAgencies.map((agency) => {
                     const checked = agencyIds.includes(agency.id);
                     return (
@@ -597,6 +697,60 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
             </button>
           </div>
         ) : null}
+
+        {authStatus === "authenticated" && savedComboHydrationStatus === "error" ? (
+          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#1D3557]/15 bg-white px-4 py-3 text-sm text-[#1D3557]">
+            <p className="font-semibold">저장한 조합을 불러오지 못했어요. 현재 담은 조합은 그대로 두었어요.</p>
+            <button
+              type="button"
+              onClick={() => setOwnerStateReload((value) => value + 1)}
+              className="inline-flex min-h-11 items-center rounded-full border border-[#1D3557]/20 bg-[#FBF8F2] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+            >
+              다시 불러오기
+            </button>
+          </div>
+        ) : null}
+
+        {authStatus === "authenticated"
+          && savedComboHydrationStatus === "ready"
+          && latestSavedCombo ? (
+            <section aria-label="최근 저장 조합" className="mt-4 rounded-2xl border border-[#1D3557]/12 bg-[#F5ECE4] px-4 py-4 text-[#1D3557]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold tracking-[0.1em] text-[#8F6662]">최근 저장 조합</p>
+                  <p className="mt-1 truncate text-sm font-bold">{latestSavedCombo.name}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#1D3557]/60">현재 공개 중인 업체와 가격이 일치하는 항목만 안전하게 불러옵니다.</p>
+                </div>
+                {restoreConfirming ? (
+                  <div className="flex flex-wrap items-center gap-2" role="group" aria-label="현재 조합 교체 확인">
+                    <span className="w-full text-xs font-semibold text-[#7A4742] sm:w-auto">현재 담은 조합을 바꿀까요?</span>
+                    <button
+                      type="button"
+                      onClick={restoreLatestCombo}
+                      className="inline-flex min-h-11 items-center rounded-full bg-[#1D3557] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                    >
+                      바꾸기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRestoreConfirming(false)}
+                      className="inline-flex min-h-11 items-center rounded-full border border-[#1D3557]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={restoreLatestCombo}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#1D3557] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                  >
+                    최근 저장 조합 불러오기
+                  </button>
+                )}
+              </div>
+            </section>
+          ) : null}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="text-sm text-[#1D3557]/65"><strong className="font-bold text-[#1D3557]">{filtered.length}</strong>개 업체</p>
@@ -649,6 +803,6 @@ export function PriceExplorer({ catalog, category }: PriceExplorerProps) {
       />
       <p className="sr-only" role="status" aria-live="polite">{feedback}</p>
       {feedback ? <div className="fixed bottom-40 left-1/2 z-[105] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-[#10233D] px-4 py-2.5 text-center text-xs font-semibold text-white shadow-xl sm:bottom-32">{feedback}</div> : null}
-    </main>
+    </Root>
   );
 }

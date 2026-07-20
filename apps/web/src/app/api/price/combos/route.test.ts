@@ -23,7 +23,8 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
+import { MOBILE_BRIDGE_RESPONSE_BYTES_HEADER } from "@/lib/mobile/boundedJsonResponse";
 
 const USER_ID = "40000000-0000-4000-8000-000000000001";
 const VENDOR_ID = "10000000-0000-4000-8000-000000000001";
@@ -31,10 +32,16 @@ const AGENCY_ID = "20000000-0000-4000-8000-000000000001";
 const PRICE_ID = "30000000-0000-4000-8000-000000000001";
 const IDEMPOTENCY_KEY = "60000000-0000-4000-8000-000000000001";
 
-function comboRequest(body: unknown, idempotencyKey: string | null = IDEMPOTENCY_KEY) {
+function comboRequest(
+  body: unknown,
+  idempotencyKey: string | null = IDEMPOTENCY_KEY,
+  extraHeaders: HeadersInit = {},
+) {
   const headers = new Headers({
     "content-type": "application/json",
+    "sec-fetch-site": "same-origin",
     "x-forwarded-for": `${Math.floor(Math.random() * 200) + 1}.0.0.1`,
+    ...extraHeaders,
   });
   if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
   return new Request("https://hanbang.ai/api/price/combos", {
@@ -42,6 +49,33 @@ function comboRequest(body: unknown, idempotencyKey: string | null = IDEMPOTENCY
     headers,
     body: JSON.stringify(body),
   });
+}
+
+function streamedComboRequest(chunks: string[]) {
+  const encoder = new TextEncoder();
+  let index = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = chunks[index];
+      index += 1;
+      if (chunk === undefined) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(encoder.encode(chunk));
+    },
+  });
+  return new Request("https://hanbang.ai/api/price/combos", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": IDEMPOTENCY_KEY,
+      "sec-fetch-site": "same-origin",
+      "x-forwarded-for": `${Math.floor(Math.random() * 200) + 1}.0.0.1`,
+    },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
 }
 
 function validBody() {
@@ -64,6 +98,36 @@ function validBody() {
 function normalizedRequestHash(body = validBody()) {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
+
+describe("GET /api/price/combos", () => {
+  it("returns only the latest saved combo through the bounded mobile contract", async () => {
+    const latest = {
+      id: "50000000-0000-4000-8000-000000000001",
+      name: "최근 조합",
+      selections: validBody().selections,
+      total_krw: 1_440_000,
+      created_at: "2026-07-20T00:00:00.000Z",
+      updated_at: "2026-07-20T00:00:00.000Z",
+    };
+    const limit = vi.fn().mockResolvedValue({ data: [latest], error: null });
+    const order = vi.fn().mockReturnValue({ limit });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+      from: vi.fn().mockReturnValue({ select }),
+    });
+
+    const response = await GET(new Request("https://hanbang.ai/api/price/combos"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("private");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(limit).toHaveBeenCalledWith(1);
+    await expect(response.json()).resolves.toEqual({ combos: [latest] });
+    expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
+  });
+});
 
 describe("POST /api/price/combos", () => {
   beforeEach(() => {
@@ -134,9 +198,54 @@ describe("POST /api/price/combos", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it("rejects cross-site cookie mutations before authentication", async () => {
+    const response = await POST(comboRequest(validBody(), IDEMPOTENCY_KEY, {
+      origin: "https://attacker.example",
+      "sec-fetch-site": "cross-site",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("accepts a native Bearer mutation without browser origin metadata", async () => {
+    const request = comboRequest(validBody(), IDEMPOTENCY_KEY, {
+      authorization: "Bearer native-session-token",
+    });
+    request.headers.delete("sec-fetch-site");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(mocks.createClientFromRequest).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
   it("requires a UUID idempotency key before reading catalog data", async () => {
     const response = await POST(comboRequest(validBody(), null));
     expect(response.status).toBe(400);
+    expect(mocks.pricesIn).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("stops a chunked body at the byte cap before catalog or service access", async () => {
+    const response = await POST(streamedComboRequest([
+      "x".repeat(20_000),
+      "x".repeat(20_000),
+    ]));
+
+    expect(response.status).toBe(413);
+    expect(mocks.pricesIn).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("counts UTF-8 bytes rather than JavaScript characters", async () => {
+    const response = await POST(streamedComboRequest([
+      "가".repeat(11_000),
+    ]));
+
+    expect(response.status).toBe(413);
     expect(mocks.pricesIn).not.toHaveBeenCalled();
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });

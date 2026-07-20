@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
   isBodyTooLarge,
@@ -8,11 +9,13 @@ import {
   isUuid,
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 4 * 1024;
+const MAX_PRICE_ALERTS = 500;
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
-  Vary: "Origin, Sec-Fetch-Site",
+  Vary: "Origin, Sec-Fetch-Site, Authorization",
 };
 
 function withPrivateNoStore(response: NextResponse): NextResponse {
@@ -22,30 +25,16 @@ function withPrivateNoStore(response: NextResponse): NextResponse {
   return response;
 }
 
-function isSameOriginMutation(request: Request): boolean {
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin") return false;
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      return new URL(origin).origin === new URL(request.url).origin;
-    } catch {
-      return false;
-    }
-  }
-  return fetchSite === "same-origin";
-}
-
 async function readVendorId(request: Request): Promise<string | NextResponse> {
   if (isBodyTooLarge(request, MAX_BODY_BYTES)) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "요청 본문이 너무 큽니다." },
       { status: 413, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
   const bodyResult = await readBoundedUtf8Text(request, MAX_BODY_BYTES);
   if (!bodyResult.ok) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       {
         error: bodyResult.reason === "too_large"
           ? "요청 본문이 너무 큽니다."
@@ -69,7 +58,7 @@ async function readVendorId(request: Request): Promise<string | NextResponse> {
     || Object.keys(body).length !== 1
     || !isUuid(body.vendorId)
   ) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "업체 정보가 올바르지 않습니다." },
       { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -81,32 +70,41 @@ export async function GET(request: Request) {
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
   const { data, error } = await supabase
     .from("price_alerts")
-    .select("vendor_id, created_at")
+    .select("vendor_id")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(MAX_PRICE_ALERTS + 1);
   if (error) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "알림 목록을 불러오지 못했습니다." },
       { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
-  return NextResponse.json(
+  if ((data ?? []).length > MAX_PRICE_ALERTS) {
+    return mobileBridgeJson(
+      {
+        error: "가격 알림 목록이 안전한 조회 한도를 초과했습니다. 고객센터에 문의해 주세요.",
+        code: "PRICE_ALERTS_LIMIT_EXCEEDED",
+      },
+      { status: 409, headers: PRIVATE_NO_STORE_HEADERS },
+    );
+  }
+  return mobileBridgeJson(
     { vendorIds: (data ?? []).map(({ vendor_id }) => vendor_id) },
     { headers: PRIVATE_NO_STORE_HEADERS },
   );
 }
 
 export async function POST(request: Request) {
-  if (!isSameOriginMutation(request)) {
-    return NextResponse.json(
+  if (!isTrustedMutationRequest(request)) {
+    return mobileBridgeJson(
       { error: "잘못된 요청 출처입니다." },
       { status: 403, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -114,7 +112,7 @@ export async function POST(request: Request) {
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -137,7 +135,7 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
   if (publicError || !publicPrice) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "현재 공개 가격이 있는 업체만 알림을 받을 수 있습니다." },
       { status: 404, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -148,20 +146,20 @@ export async function POST(request: Request) {
     { ignoreDuplicates: true, onConflict: "user_id,vendor_id" },
   );
   if (error) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "알림 신청에 실패했습니다." },
       { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
-  return NextResponse.json(
+  return mobileBridgeJson(
     { subscribed: true },
     { headers: PRIVATE_NO_STORE_HEADERS },
   );
 }
 
 export async function DELETE(request: Request) {
-  if (!isSameOriginMutation(request)) {
-    return NextResponse.json(
+  if (!isTrustedMutationRequest(request)) {
+    return mobileBridgeJson(
       { error: "잘못된 요청 출처입니다." },
       { status: 403, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -169,7 +167,7 @@ export async function DELETE(request: Request) {
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "인증이 필요합니다." },
       { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
     );
@@ -188,12 +186,12 @@ export async function DELETE(request: Request) {
     .eq("user_id", user.id)
     .eq("vendor_id", parsedVendorId);
   if (error) {
-    return NextResponse.json(
+    return mobileBridgeJson(
       { error: "알림 해제에 실패했습니다." },
       { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
-  return NextResponse.json(
+  return mobileBridgeJson(
     { subscribed: false },
     { headers: PRIVATE_NO_STORE_HEADERS },
   );

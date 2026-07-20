@@ -11,7 +11,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
 }));
 
-import { DELETE, POST } from "./route";
+import { DELETE, GET, POST } from "./route";
+import { MOBILE_BRIDGE_RESPONSE_BYTES_HEADER } from "@/lib/mobile/boundedJsonResponse";
 
 const USER_ID = "40000000-0000-4000-8000-000000000001";
 const VENDOR_ID = "10000000-0000-4000-8000-000000000001";
@@ -47,6 +48,49 @@ function chain(maybeSingle: () => Promise<unknown>) {
   value.maybeSingle = maybeSingle;
   return value;
 }
+
+function alertListClient(result: { data: unknown; error: unknown }) {
+  const limit = vi.fn().mockResolvedValue(result);
+  const order = vi.fn().mockReturnValue({ limit });
+  const eq = vi.fn().mockReturnValue({ order });
+  const select = vi.fn().mockReturnValue({ eq });
+  return {
+    client: {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+      from: vi.fn().mockReturnValue({ select }),
+    },
+    limit,
+  };
+}
+
+describe("GET /api/price/alerts", () => {
+  it("returns a complete bounded alert membership list", async () => {
+    const database = alertListClient({ data: [{ vendor_id: VENDOR_ID }], error: null });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await GET(new Request("https://hanbang.ai/api/price/alerts"));
+
+    expect(response.status).toBe(200);
+    expect(database.limit).toHaveBeenCalledWith(501);
+    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID] });
+    expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
+  });
+
+  it("fails explicitly instead of returning a silently incomplete alert list", async () => {
+    const database = alertListClient({
+      data: Array.from({ length: 501 }, (_, index) => ({ vendor_id: String(index) })),
+      error: null,
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await GET(new Request("https://hanbang.ai/api/price/alerts"));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PRICE_ALERTS_LIMIT_EXCEEDED",
+    });
+  });
+});
 
 describe("POST /api/price/alerts", () => {
   beforeEach(() => {
@@ -103,6 +147,21 @@ describe("POST /api/price/alerts", () => {
 
     expect(response.status).toBe(403);
     expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts a native Bearer mutation without browser origin metadata", async () => {
+    const response = await DELETE(new Request("https://hanbang.ai/api/price/alerts", {
+      method: "DELETE",
+      headers: {
+        authorization: "Bearer native-session-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ vendorId: VENDOR_ID }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.createClientFromRequest).toHaveBeenCalledOnce();
+    expect(mocks.deleteResult).toHaveBeenCalledOnce();
   });
 
   it("rejects unpublished or stale vendors", async () => {

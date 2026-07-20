@@ -32,6 +32,14 @@ function isPositiveInteger(value) {
   return /^[1-9][0-9]*$/.test(value) && Number.isSafeInteger(Number(value));
 }
 
+function isPublishedVendorCount(value) {
+  return /^[1-9][0-9]{0,5}$/.test(value);
+}
+
+function isSha256Hex(value) {
+  return /^[a-f0-9]{64}$/.test(value);
+}
+
 function isPositiveNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
@@ -83,8 +91,10 @@ const checks = {
   adminBootstrapSecretConfigured: isPlausibleSecret(env.ADMIN_PASSWORD),
   cronSecretConfigured: isPlausibleSecret(env.CRON_SECRET),
   rateLimitSecretConfigured: isPlausibleSecret(env.RATE_LIMIT_KEY_SECRET),
-  priceCatalogMinimumConfigured:
-    isPositiveInteger(env.PRICE_CATALOG_MIN_PUBLISHED_VENDORS),
+  priceCatalogExpectedCountConfigured:
+    isPublishedVendorCount(env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT),
+  priceCatalogExpectedSlugDigestConfigured:
+    isSha256Hex(env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256),
 };
 
 const failed = Object.entries(checks)

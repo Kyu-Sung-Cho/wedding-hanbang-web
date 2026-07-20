@@ -516,12 +516,14 @@ describe("Amora official vendor recommendation", () => {
           select: vi.fn(),
           eq: vi.fn(),
           order: vi.fn(),
+          limit: vi.fn(),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
             Promise.resolve(resolve({ data: resultByTable[table] ?? [], error: null })),
         };
         query.select.mockReturnValue(query);
         query.eq.mockReturnValue(query);
         query.order.mockReturnValue(query);
+        query.limit.mockReturnValue(query);
         return query;
       }),
     };
@@ -548,6 +550,138 @@ describe("Amora official vendor recommendation", () => {
     });
     expect(result.displayMessage).toContain("공시 가격 1건");
     expect(result.displayMessage).toContain("예약 보조 상품 1개");
+  });
+
+  it("bounds the evidence preview sent to the chat client and discloses omitted rows", async () => {
+    const longText = "긴 공시 설명".repeat(300);
+    mocks.loadVendorProfile.mockResolvedValue({
+      vendor: {
+        id: "vendor-1",
+        slug: "sample-studio",
+        name: "샘플 스튜디오",
+        category: "studio",
+        region_code: "seoul_gangnam3",
+        urls: { official: null, instagram: null, naver_place: null },
+      },
+      attributes: {},
+      tags: Array.from({ length: 14 }, (_, index) => ({
+        slug: `tag-${index}`,
+        label: `태그 ${index}`,
+        tag_group: "style",
+      })),
+      official_prices: Array.from({ length: 8 }, (_, priceIndex) => ({
+        id: `price-${priceIndex}`,
+        category: "studio",
+        item_name: longText,
+        base_spec: longText,
+        price_min_krw: 1_000_000 + priceIndex,
+        price_max_krw: 1_200_000 + priceIndex,
+        vat_note: longText,
+        price_note: longText,
+        period_label: "2026Q3",
+        is_current: true,
+        source: longText,
+        options: Array.from({ length: 8 }, (_, optionIndex) => ({
+          id: `option-${priceIndex}-${optionIndex}`,
+          name: longText,
+          price_min_krw: optionIndex * 10_000,
+          price_max_krw: optionIndex * 10_000,
+          unit: longText,
+          condition: longText,
+          raw_text: longText,
+        })),
+      })),
+      data_badges: ["공시가", "최신 공시"],
+      sources: Array.from({ length: 8 }, (_, index) => `source-${index}`),
+    });
+
+    const resultByTable: Record<string, unknown[]> = {
+      vendor_products: [{
+        id: "product-1",
+        name: longText,
+        description: longText,
+        price: 0,
+        discount_price: 0,
+        duration_minutes: 0,
+        is_popular: false,
+        includes: Array.from({ length: 10 }, () => longText),
+      }],
+      vendor_staff: [{
+        id: "staff-1",
+        name: longText,
+        role: longText,
+        description: longText,
+      }],
+    };
+    const admin = {
+      from: vi.fn((table: string) => {
+        const query = {
+          select: vi.fn(),
+          eq: vi.fn(),
+          order: vi.fn(),
+          limit: vi.fn(),
+          then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+            Promise.resolve(resolve({ data: resultByTable[table] ?? [], error: null })),
+        };
+        query.select.mockReturnValue(query);
+        query.eq.mockReturnValue(query);
+        query.order.mockReturnValue(query);
+        query.limit.mockReturnValue(query);
+        return query;
+      }),
+    };
+    mocks.createAdminClient.mockReturnValue(admin);
+
+    const result = await executeGetVendorDetail({ vendor_id: "vendor-1" });
+    const output = result.toolOutput as {
+      officialProfile: {
+        official_prices: Array<{
+          item_name: string;
+          options: Array<{ name: string; raw_text: string }>;
+        }>;
+        tags: unknown[];
+        sources: unknown[];
+        result_truncation: {
+          policy: string;
+          official_prices: { available: number; returned: number };
+          official_price_options: { available: number; returned: number };
+        };
+      };
+      bookingData: {
+        products: Array<{
+          name: string;
+          description: string;
+          discountPrice: number | null;
+          duration: number | null;
+          includes: string[];
+        }>;
+        staff: Array<{ name: string; role: string | null; description: string }>;
+      };
+    };
+
+    expect(output.officialProfile.official_prices).toHaveLength(6);
+    expect(output.officialProfile.official_prices[0].options).toHaveLength(6);
+    expect(output.officialProfile.tags).toHaveLength(12);
+    expect(output.officialProfile.sources).toHaveLength(6);
+    expect(output.officialProfile.result_truncation).toMatchObject({
+      policy: "amora_vendor_detail_preview_v1",
+      official_prices: { available: 8, returned: 6 },
+      official_price_options: { available: 64, returned: 36 },
+    });
+    expect(output.officialProfile.official_prices[0].item_name.length).toBeLessThanOrEqual(200);
+    expect(output.officialProfile.official_prices[0].options[0].name.length).toBeLessThanOrEqual(200);
+    expect(output.officialProfile.official_prices[0].options[0].raw_text.length).toBeLessThanOrEqual(500);
+    expect(output.bookingData.products[0]).toMatchObject({
+      discountPrice: 0,
+      duration: 0,
+    });
+    expect(output.bookingData.products[0].name.length).toBeLessThanOrEqual(160);
+    expect(output.bookingData.products[0].description.length).toBeLessThanOrEqual(80);
+    expect(output.bookingData.products[0].includes).toHaveLength(8);
+    expect(output.bookingData.products[0].includes.every((item) => item.length <= 120)).toBe(true);
+    expect(output.bookingData.staff[0].name.length).toBeLessThanOrEqual(160);
+    expect(output.bookingData.staff[0].role?.length).toBeLessThanOrEqual(120);
+    expect(output.bookingData.staff[0].description.length).toBeLessThanOrEqual(60);
   });
 
   it("keeps the official profile available when auxiliary booking data fails", async () => {

@@ -29,7 +29,7 @@ const menuItems = [
   { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
-  { legacyPath: "/vendors", publicHref: "/price/studio", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
+  { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
   { legacyPath: "/etiquette", icon: BookOpen, label: "가족 조율" },
   { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
@@ -81,15 +81,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
-              const isActive = pathname.startsWith(item.publicHref ?? "__never__")
-                || currentPath === item.legacyPath
+              const isActive = currentPath === item.legacyPath
                 || (item.legacyPath !== "/lounge" && currentPath.startsWith(item.legacyPath));
               return (
                 <Link
                   key={item.legacyPath}
-                  {...(item.publicHref
-                    ? { href: item.publicHref }
-                    : weddingLinkProps(item.legacyPath))}
+                  {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${

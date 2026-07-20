@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildLegacyVendorDetailUrl,
   buildMobileSiteUrl,
   normalizeMobileSiteUrl,
   resolveMobileSiteOrigin,
@@ -70,4 +71,16 @@ test("WebView navigation stays on the exact configured origin", () => {
     normalizeMobileSiteUrl("https://user:password@vendor-preview.example.com/price/studio", origin),
     null,
   );
+});
+
+test("a legacy vendor UUID keeps its exact detail destination", () => {
+  const origin = "https://vendor-preview.example.com";
+  const vendorId = "11111111-1111-4111-8111-111111111111";
+
+  assert.equal(
+    buildLegacyVendorDetailUrl(vendorId, origin),
+    `${origin}/price/vendor-id/${vendorId}`,
+  );
+  assert.equal(buildLegacyVendorDetailUrl("not-a-vendor", origin), null);
+  assert.equal(buildLegacyVendorDetailUrl(undefined, origin), null);
 });

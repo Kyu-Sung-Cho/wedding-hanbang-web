@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  assertPublishedVendorMinimum,
+  assertPublishedVendorCatalog,
+  canonicalPublishedVendorSlugSha256,
   collectPublishedVendorSlugs,
-  requiredPublishedVendorMinimum,
+  requiredPublishedVendorCatalogExpectation,
 } from "./staticVendorSlugs";
 
 describe("published vendor static params", () => {
@@ -40,16 +41,43 @@ describe("published vendor static params", () => {
     )).rejects.toThrow("PUBLIC_VENDOR_STATIC_PARAMS_LIMIT");
   });
 
-  it("requires an explicit positive production minimum and enforces it", () => {
-    expect(requiredPublishedVendorMinimum({ VERCEL_ENV: "preview" })).toBe(0);
-    expect(() => requiredPublishedVendorMinimum({ VERCEL_ENV: "production" }))
-      .toThrow("PRICE_CATALOG_MIN_PUBLISHED_VENDORS_REQUIRED");
-    expect(requiredPublishedVendorMinimum({
+  it("requires an exact production catalog count and canonical slug digest", () => {
+    expect(requiredPublishedVendorCatalogExpectation({ VERCEL_ENV: "preview" }))
+      .toBeNull();
+    expect(() => requiredPublishedVendorCatalogExpectation({
       VERCEL_ENV: "production",
-      PRICE_CATALOG_MIN_PUBLISHED_VENDORS: "12",
-    })).toBe(12);
-    expect(() => assertPublishedVendorMinimum(11, 12))
-      .toThrow("PUBLIC_VENDOR_STATIC_PARAMS_BELOW_MINIMUM");
-    expect(() => assertPublishedVendorMinimum(12, 12)).not.toThrow();
+      PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: "12",
+    })).toThrow("PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256_REQUIRED");
+    expect(requiredPublishedVendorCatalogExpectation({
+      VERCEL_ENV: "production",
+      PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: "12",
+      PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256: "a".repeat(64),
+    })).toEqual({ count: 12, slugSha256: "a".repeat(64) });
+  });
+
+  it("rejects a published catalog whose unique slug count is not exact", () => {
+    expect(() => assertPublishedVendorCatalog(
+      ["alpha", "beta"],
+      { count: 1, slugSha256: "a".repeat(64) },
+    )).toThrow("PUBLIC_VENDOR_CATALOG_COUNT_MISMATCH");
+  });
+
+  it("hashes the sorted unique slug list with one canonical encoding", () => {
+    expect(canonicalPublishedVendorSlugSha256(["beta", "alpha", "beta"]))
+      .toBe("138bf4722f7ae17122c7282d0eb156499d349940e129bd4cdf27c8ffdcbb3d25");
+  });
+
+  it("requires the exact canonical slug digest even when the count matches", () => {
+    expect(() => assertPublishedVendorCatalog(
+      ["beta", "alpha"],
+      { count: 2, slugSha256: "a".repeat(64) },
+    )).toThrow("PUBLIC_VENDOR_CATALOG_DIGEST_MISMATCH");
+    expect(() => assertPublishedVendorCatalog(
+      ["beta", "alpha"],
+      {
+        count: 2,
+        slugSha256: "138bf4722f7ae17122c7282d0eb156499d349940e129bd4cdf27c8ffdcbb3d25",
+      },
+    )).not.toThrow();
   });
 });

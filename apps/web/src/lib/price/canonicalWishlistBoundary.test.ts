@@ -31,7 +31,9 @@ describe("canonical official price wishlist boundary", () => {
 
     expect(page).toContain("loadPublicPriceCatalog");
     expect(page).toContain("createPublicClient");
-    expect(client).toContain('fetch("/api/favorites"');
+    expect(page).toContain("loadPublicPriceCatalog(createPublicClient())");
+    expect(page).not.toContain("optionCategories: []");
+    expect(client).toContain('mobileAuthenticatedFetch("/api/favorites"');
     expect(client).toContain("selectOfficialWishlistedVendors");
     expect(client).toContain("PRICE_CATEGORIES");
     expect(combined).not.toContain("/api/vendors");
@@ -50,5 +52,18 @@ describe("canonical official price wishlist boundary", () => {
     expect(route).toContain("POST sets the desired state");
     expect(route).toContain("ignoreDuplicates: true");
     expect(route).not.toContain("Favorite toggle error");
+  });
+
+  it("keeps authenticated vendor actions working inside the native WebView", () => {
+    const clients = [
+      source("src/components/price/PriceExplorer.tsx"),
+      source("src/components/price/PriceWishlist.tsx"),
+      source("src/components/vendor-price/VendorDetailActions.tsx"),
+    ];
+
+    for (const client of clients) {
+      expect(client).toContain("mobileAuthenticatedFetch");
+    }
+    expect(clients.join("\n")).not.toMatch(/(?<!mobileAuthenticated)fetch\("\/api\/(?:favorites|price\/combos|price\/alerts)"/);
   });
 });

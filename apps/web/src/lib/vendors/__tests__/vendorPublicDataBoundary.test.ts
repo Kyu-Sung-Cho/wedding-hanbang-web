@@ -25,7 +25,7 @@ describe("public vendor data boundary", () => {
     expect(detailRoute).not.toContain('.from("vendor_reviews")\n      .select("*")');
     expect(legacyFavoritesPage).toContain('redirect("/price/wishlist")');
     expect(priceWishlistPage).toContain("loadPublicPriceCatalog");
-    expect(priceWishlistClient).toContain('fetch("/api/favorites"');
+    expect(priceWishlistClient).toContain('mobileAuthenticatedFetch("/api/favorites"');
     for (const wishlistSource of [legacyFavoritesPage, priceWishlistPage, priceWishlistClient]) {
       expect(wishlistSource).not.toContain('.select("*")');
       expect(wishlistSource).not.toContain('.from("vendors")');
@@ -102,8 +102,12 @@ describe("public vendor data boundary", () => {
     const guardedWebListPath = "src/app/(app)/vendors/page.tsx";
     const webList = source(publicWebListPath);
     const publicWebDetailPath = "src/app/vendors/[id]/page.tsx";
+    const publicUuidResolverPath = "src/app/price/vendor-id/[id]/page.tsx";
     const guardedWebDetailPath = "src/app/(app)/vendors/[id]/page.tsx";
     const webDetail = source(publicWebDetailPath);
+    const publicUuidResolver = source(publicUuidResolverPath);
+    const canonicalResolver = source("src/lib/vendors/canonicalVendorDestination.ts");
+    const nextConfig = source("next.config.ts");
     const mobileList = readFileSync(
       resolve(webRoot, "../mobile/app/vendors/index.tsx"),
       "utf8",
@@ -113,23 +117,42 @@ describe("public vendor data boundary", () => {
       "utf8",
     );
 
-    expect(webList).toContain('redirect("/price/studio")');
+    expect(webList).toContain("AuthenticatedAppShell");
+    expect(webList).toContain("loadPublicPriceCatalog");
+    expect(webList).toContain("PriceExplorer");
+    expect(webList).toContain('surface="app"');
+    expect(webList).not.toContain('redirect("/price/studio")');
     expect(existsSync(resolve(webRoot, publicWebListPath))).toBe(true);
     expect(existsSync(resolve(webRoot, guardedWebListPath))).toBe(false);
     expect(existsSync(resolve(webRoot, publicWebDetailPath))).toBe(true);
+    expect(existsSync(resolve(webRoot, publicUuidResolverPath))).toBe(true);
     expect(existsSync(resolve(webRoot, guardedWebDetailPath))).toBe(false);
-    expect(webDetail).toContain('.from("v_public_official_prices")');
-    expect(webDetail).toContain('.from("v_public_vendors")');
-    expect(webDetail).toContain('`/price/vendor/${encodeURIComponent(published.data.vendor_slug)}`');
-    expect(webDetail).toContain('`/price/${priceCategory(publicVendor.data?.category ?? null)}`');
+    expect(webDetail).toContain("resolveCanonicalVendorDestination");
+    expect(publicUuidResolver).toContain("resolveCanonicalVendorDestination");
+    expect(publicUuidResolver).toContain('export const dynamic = "force-dynamic"');
+    expect(publicUuidResolver).not.toMatch(/revalidate\s*=\s*86_400/);
+    expect(canonicalResolver).toContain('.from("v_public_official_prices")');
+    expect(canonicalResolver).toContain('.from("v_public_vendors")');
+    expect(canonicalResolver).toContain('`/price/vendor/${encodeURIComponent(published.data.vendor_slug)}`');
+    expect(canonicalResolver).toContain('`/price/${priceCategory(publicVendor.data?.category ?? null)}`');
+    expect(nextConfig).toContain('destination: "/price/vendor-id/:id"');
+    expect(nextConfig.indexOf('destination: "/price/vendor-id/:id"'))
+      .toBeLessThan(nextConfig.indexOf("...weddingAppRoutes.map"));
     expect(mobileList).toContain('Redirect href="/market-prices"');
-    expect(mobileDetail).toContain('Redirect href="/market-prices"');
-    for (const legacySurface of [webList, webDetail, mobileList, mobileDetail]) {
+    expect(mobileDetail).toContain("buildLegacyVendorDetailUrl(rawId, siteOrigin)");
+    for (const legacySurface of [webList, webDetail, publicUuidResolver, canonicalResolver, mobileList, mobileDetail]) {
       expect(legacySurface).not.toContain("/api/vendors");
       expect(legacySurface).not.toContain("business_license_url");
       expect(legacySurface).not.toContain("price_range");
       expect(legacySurface).not.toContain("ai_recommend");
     }
+  });
+
+  it("keeps the signed-in vendor navigation inside the wedding app", () => {
+    const sidebar = source("src/components/app/Sidebar.tsx");
+
+    expect(sidebar).toContain('{ legacyPath: "/vendors", icon: Building2');
+    expect(sidebar).not.toContain('{ legacyPath: "/vendors", publicHref: "/price/studio"');
   });
 
   it("keeps the hosted-staging RLS receipt fail-closed across disclosure boundaries", () => {

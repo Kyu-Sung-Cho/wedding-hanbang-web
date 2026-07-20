@@ -70,6 +70,7 @@ describe("PriceExplorer", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    window.sessionStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -79,6 +80,125 @@ describe("PriceExplorer", () => {
     vi.unstubAllGlobals();
     await act(async () => root.unmount());
     document.body.replaceChildren();
+  });
+
+  it("preserves the signed-in vendor hub while reusing the official catalog", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [firstVendor.id] })
+        : jsonResponse({ combos: [] }),
+    )));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" surface="app" />);
+      await flushAsyncWork();
+    });
+
+    expect(container.textContent).toContain("업체 탐색");
+    expect(container.textContent).toContain("공식 가격 업체");
+    expect(container.textContent).toContain("찜한 업체");
+    expect(container.querySelector('a[href="/wedding/vendors?category=dress"]')).not.toBeNull();
+    expect(container.querySelector("main main")).toBeNull();
+  });
+
+  it("counts unique official vendors in the app summary across categories", async () => {
+    const duplicateCatalog: PriceCatalog = {
+      ...catalog,
+      categories: {
+        ...catalog.categories,
+        dress: [{ ...firstVendor, category: "dress" }],
+      },
+      counts: { ...catalog.counts, dress: 1 },
+    };
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [] })
+        : jsonResponse({ combos: [] }),
+    )));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={duplicateCatalog} category="studio" surface="app" />);
+      await flushAsyncWork();
+    });
+
+    const label = Array.from(container.querySelectorAll("p"))
+      .find((paragraph) => paragraph.textContent === "공식 가격 업체");
+    expect(label?.parentElement?.textContent?.replace(/\s+/g, ""))
+      .toBe("공식가격업체2");
+  });
+
+  it("offers an explicit, current-catalog-validated restore for the latest saved combo", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [] })
+        : jsonResponse({
+            combos: [{
+              id: "combo-latest",
+              name: "지난주 스드메 조합",
+              created_at: "2026-07-20T05:00:00.000Z",
+              selections: {
+                studio: {
+                  vendor_id: firstVendor.id,
+                  agency_id: "agency-a",
+                  base_krw: 1_000_000,
+                  selected_options: [],
+                  custom_krw: null,
+                },
+                dress: null,
+                makeup: null,
+              },
+            }],
+          }),
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={catalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    const restoreButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    expect(container.querySelector('[aria-label="최근 저장 조합"]')?.textContent)
+      .toContain("지난주 스드메 조합");
+    expect(container.querySelector('aside[aria-label="스드메 조합"]')).toBeNull();
+    expect(restoreButton).toBeDefined();
+
+    await act(async () => {
+      restoreButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('aside[aria-label="스드메 조합"]')?.textContent)
+      .toContain(firstVendor.name);
+    expect(container.querySelector('[role="status"]')?.textContent)
+      .toContain("현재 공시 정보로 확인해 불러왔어요");
+
+    const restoreAgainButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("최근 저장 조합 불러오기"));
+    await act(async () => {
+      restoreAgainButton?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="group"][aria-label="현재 조합 교체 확인"]')?.textContent)
+      .toContain("현재 담은 조합을 바꿀까요?");
+    expect(container.querySelector('aside[aria-label="스드메 조합"]')?.textContent)
+      .toContain(firstVendor.name);
+
+    const cancelButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent === "취소");
+    await act(async () => {
+      cancelButton?.click();
+      await Promise.resolve();
+    });
+
+    const clearButton = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${firstVendor.name} 빼기"]`,
+    );
+    await act(async () => {
+      clearButton?.click();
+      await Promise.resolve();
+    });
   });
 
   it("keeps wishlist actions disabled until the initial owner state is hydrated", async () => {
@@ -92,7 +212,7 @@ describe("PriceExplorer", () => {
       }
       return String(input).includes("/api/favorites")
         ? favoritesResponse
-        : Promise.resolve(jsonResponse({ selections: {} }));
+        : Promise.resolve(jsonResponse({ combos: [] }));
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -125,9 +245,9 @@ describe("PriceExplorer", () => {
 
   it("keeps wishlist actions fail-closed after hydration fails and recovers on retry", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ selections: {} }))
+      .mockResolvedValueOnce(jsonResponse({ combos: [] }))
       .mockResolvedValueOnce(jsonResponse({ error: "unavailable" }, 503))
-      .mockResolvedValueOnce(jsonResponse({ selections: {} }))
+      .mockResolvedValueOnce(jsonResponse({ combos: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -174,7 +294,7 @@ describe("PriceExplorer", () => {
       }
       return Promise.resolve(String(input).includes("/api/favorites")
         ? jsonResponse({ vendorIds: [] })
-        : jsonResponse({ selections: {} }));
+        : jsonResponse({ combos: [] }));
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -247,7 +367,7 @@ describe("PriceExplorer", () => {
     vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
       String(input).includes("/api/favorites")
         ? jsonResponse({ vendorIds: [] })
-        : jsonResponse({ selections: {} }),
+        : jsonResponse({ combos: [] }),
     )));
 
     await act(async () => {
@@ -277,7 +397,7 @@ describe("PriceExplorer", () => {
     vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
       String(input).includes("/api/favorites")
         ? jsonResponse({ vendorIds: [] })
-        : jsonResponse({ selections: {} }),
+        : jsonResponse({ combos: [] }),
     )));
 
     await act(async () => {

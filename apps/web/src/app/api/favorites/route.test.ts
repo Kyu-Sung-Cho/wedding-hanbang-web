@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
-  createAdminClient: vi.fn(),
   createClientFromRequest: vi.fn(),
   hasSignedDemoSessionFromCookieHeader: vi.fn(),
   recordDecision: vi.fn(),
@@ -11,9 +10,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: mocks.createClientFromRequest,
-}));
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: mocks.createAdminClient,
 }));
 vi.mock("@/lib/memory/record-decision", () => ({
   recordDecision: mocks.recordDecision,
@@ -27,6 +23,7 @@ vi.mock("@/utils/rateLimit", () => ({
 }));
 
 import { DELETE, GET, POST } from "./route";
+import { MOBILE_BRIDGE_RESPONSE_BYTES_HEADER } from "@/lib/mobile/boundedJsonResponse";
 
 const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const VENDOR_ID = "11111111-1111-4111-8111-111111111111";
@@ -59,13 +56,30 @@ function getRequest(): NextRequest {
   return new NextRequest("https://hanbang.ai/api/favorites");
 }
 
-function favoriteAddClient(error: unknown = null) {
+function favoriteAddClient(
+  error: unknown = null,
+  publicPriceResult: { data: unknown; error: unknown } = {
+    data: {
+      vendor_id: VENDOR_ID,
+      vendor_name: "샘플업체A",
+      category: "studio",
+    },
+    error: null,
+  },
+) {
   const upsert = vi.fn().mockResolvedValue({ error });
+  const publicMaybeSingle = vi.fn().mockResolvedValue(publicPriceResult);
+  const publicLimit = vi.fn().mockReturnValue({ maybeSingle: publicMaybeSingle });
+  const publicOrder = vi.fn().mockReturnValue({ limit: publicLimit });
+  const publicCurrentEq = vi.fn().mockReturnValue({ order: publicOrder });
+  const publicVendorEq = vi.fn().mockReturnValue({ eq: publicCurrentEq });
+  const publicSelect = vi.fn().mockReturnValue({ eq: publicVendorEq });
   const profileMaybeSingle = vi.fn().mockResolvedValue({ data: { couple_id: null } });
   const profileEq = vi.fn().mockReturnValue({ maybeSingle: profileMaybeSingle });
   const profileSelect = vi.fn().mockReturnValue({ eq: profileEq });
   const from = vi.fn((table: string) => {
     if (table === "vendor_favorites") return { upsert };
+    if (table === "v_public_prices") return { select: publicSelect };
     if (table === "profiles") return { select: profileSelect };
     throw new Error(`unexpected table ${table}`);
   });
@@ -75,18 +89,9 @@ function favoriteAddClient(error: unknown = null) {
       from,
     },
     from,
+    publicMaybeSingle,
     upsert,
   };
-}
-
-function publishedVendorAdminClient() {
-  const maybeSingle = vi.fn().mockResolvedValue({
-    data: { id: VENDOR_ID, name: "샘플업체A", category: "studio" },
-  });
-  const statusEq = vi.fn().mockReturnValue({ maybeSingle });
-  const idEq = vi.fn().mockReturnValue({ eq: statusEq });
-  const select = vi.fn().mockReturnValue({ eq: idEq });
-  return { from: vi.fn().mockReturnValue({ select }) };
 }
 
 function authenticatedClient(error: unknown = null) {
@@ -107,12 +112,17 @@ function authenticatedClient(error: unknown = null) {
 }
 
 function favoritesListClient(result: { data: unknown; error: unknown }) {
-  const order = vi.fn().mockResolvedValue(result);
+  const limit = vi.fn().mockResolvedValue(result);
+  const order = vi.fn().mockReturnValue({ limit });
   const eq = vi.fn().mockReturnValue({ order });
   const select = vi.fn().mockReturnValue({ eq });
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
-    from: vi.fn().mockReturnValue({ select }),
+    client: {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } } }) },
+      from: vi.fn().mockReturnValue({ select }),
+    },
+    limit,
+    select,
   };
 }
 
@@ -123,30 +133,52 @@ describe("GET /api/favorites", () => {
   });
 
   it("returns a private non-cacheable owner-scoped list", async () => {
-    mocks.createClientFromRequest.mockResolvedValue(favoritesListClient({
+    const database = favoritesListClient({
       data: [{ vendor_id: VENDOR_ID, created_at: "2026-07-18T00:00:00.000Z" }],
       error: null,
-    }));
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
 
     const response = await GET(getRequest());
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("private");
     expect(response.headers.get("cache-control")).toContain("no-store");
-    await expect(response.json()).resolves.toMatchObject({ vendorIds: [VENDOR_ID] });
+    expect(database.select).toHaveBeenCalledWith("vendor_id");
+    expect(database.limit).toHaveBeenCalledWith(501);
+    expect(response.headers.get(MOBILE_BRIDGE_RESPONSE_BYTES_HEADER)).toMatch(/^[1-9][0-9]*$/);
+    await expect(response.json()).resolves.toEqual({ vendorIds: [VENDOR_ID] });
   });
 
   it("fails closed instead of presenting a database error as an empty list", async () => {
-    mocks.createClientFromRequest.mockResolvedValue(favoritesListClient({
+    const database = favoritesListClient({
       data: null,
       error: { code: "42501", message: "permission denied" },
-    }));
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
 
     const response = await GET(getRequest());
 
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({ error: expect.any(String) });
+  });
+
+  it("fails explicitly instead of returning a silently incomplete wishlist", async () => {
+    const database = favoritesListClient({
+      data: Array.from({ length: 501 }, (_, index) => ({
+        vendor_id: `${index}`.padStart(36, "0"),
+      })),
+      error: null,
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await GET(getRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "FAVORITES_LIMIT_EXCEEDED",
+    });
   });
 });
 
@@ -199,7 +231,24 @@ describe("DELETE /api/favorites", () => {
     expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
   });
 
-  it("requires an authenticated user and does not use the service role", async () => {
+  it("accepts a native Bearer mutation without browser origin metadata", async () => {
+    const database = authenticatedClient();
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+    const response = await DELETE(new Request("https://hanbang.ai/api/favorites", {
+      method: "DELETE",
+      headers: {
+        authorization: "Bearer native-session-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ vendorId: VENDOR_ID }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.createClientFromRequest).toHaveBeenCalledOnce();
+    expect(database.remove).toHaveBeenCalledOnce();
+  });
+
+  it("requires an authenticated user before starting deletion", async () => {
     mocks.createClientFromRequest.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
     });
@@ -207,7 +256,6 @@ describe("DELETE /api/favorites", () => {
     const response = await DELETE(deleteRequest({ vendorId: VENDOR_ID }));
 
     expect(response.status).toBe(401);
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid vendor id without starting a deletion", async () => {
@@ -249,7 +297,6 @@ describe("POST /api/favorites", () => {
     vi.clearAllMocks();
     mocks.checkRateLimit.mockReturnValue(null);
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
-    mocks.createAdminClient.mockReturnValue(publishedVendorAdminClient());
   });
 
   it("sets the favorite state to present and remains present when repeated", async () => {
@@ -281,7 +328,6 @@ describe("POST /api/favorites", () => {
 
     expect(response.status).toBe(403);
     expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
   it("does not confirm addition when the user-scoped RLS write fails", async () => {
@@ -294,6 +340,29 @@ describe("POST /api/favorites", () => {
     await expect(response.json()).resolves.toMatchObject({ error: expect.any(String) });
   });
 
+  it("does not create an invisible favorite for a vendor without a current public price", async () => {
+    const database = favoriteAddClient(null, { data: null, error: null });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await POST(postRequest({ vendorId: VENDOR_ID }));
+
+    expect(response.status).toBe(404);
+    expect(database.upsert).not.toHaveBeenCalled();
+  });
+
+  it("reports public-catalog lookup outages without pretending the vendor is absent", async () => {
+    const database = favoriteAddClient(null, {
+      data: null,
+      error: { code: "57014", message: "catalog unavailable" },
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await POST(postRequest({ vendorId: VENDOR_ID }));
+
+    expect(response.status).toBe(503);
+    expect(database.upsert).not.toHaveBeenCalled();
+  });
+
   it("rejects unexpected identity fields before vendor lookup", async () => {
     const database = favoriteAddClient();
     mocks.createClientFromRequest.mockResolvedValue(database.client);
@@ -301,7 +370,6 @@ describe("POST /api/favorites", () => {
     const response = await POST(postRequest({ vendorId: VENDOR_ID, userId: USER_ID }));
 
     expect(response.status).toBe(400);
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
     expect(database.from).not.toHaveBeenCalled();
   });
 
@@ -315,7 +383,6 @@ describe("POST /api/favorites", () => {
     }));
 
     expect(response.status).toBe(413);
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
     expect(database.from).not.toHaveBeenCalled();
   });
 });

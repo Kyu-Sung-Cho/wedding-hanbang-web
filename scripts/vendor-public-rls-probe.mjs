@@ -1744,13 +1744,19 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         );
       }
 
+      // Combo direct INSERT is intentionally denied, so its deterministic
+      // policy row is absent. Exercise DELETE against user A's real fixture
+      // instead; a zero-row DELETE against an absent id is vacuous evidence.
+      const crossDeleteRow = table === "combos"
+        ? { id: userA.user.comboId, user_id: userA.user.id }
+        : rows.owner;
       const crossDelete = await policyRequest({
         fetchImpl,
         config,
         bearer: userB.accessToken,
         table,
         method: "DELETE",
-        row: rows.owner,
+        row: crossDeleteRow,
         label: `${table} cross-user DELETE`,
       });
       await assertCrossPolicyAffectedNoRows(
@@ -1758,6 +1764,23 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
         "CROSS_USER_POLICY_DELETE_EXPOSED",
         `${table} cross-user DELETE`,
       );
+      if (table === "combos") {
+        const retainedCombo = await readExactPolicyRow({
+          fetchImpl,
+          config,
+          session: userA,
+          table,
+          row: crossDeleteRow,
+          label: `${table} cross-user DELETE retention verification`,
+        });
+        if (retainedCombo.length !== 1
+            || !policyRowMatches(table, retainedCombo[0], crossDeleteRow)) {
+          fail(
+            "CROSS_USER_COMBO_DELETE_RETENTION_UNVERIFIED",
+            "The existing owner combo was not retained after the cross-user DELETE probe",
+          );
+        }
+      }
 
       const ownerUpdate = await policyRequest({
         fetchImpl,
@@ -1849,6 +1872,7 @@ async function assertOwnedMutationPolicies({ fetchImpl, config, sessions }) {
     crossUserInsertsDenied: 4,
     crossUserUpdatesAffectedRows: 0,
     crossUserDeletesAffectedRows: 0,
+    crossUserExistingComboDeleteRetained: true,
     policyProbeRowsRetained: 0,
   };
 }
@@ -1925,6 +1949,8 @@ function buildReceipt({
         policyProbe.crossUserUpdatesAffectedRows,
       crossUserPolicyDeletesAffectedRows:
         policyProbe.crossUserDeletesAffectedRows,
+      crossUserExistingComboDeleteRetained:
+        policyProbe.crossUserExistingComboDeleteRetained,
       policyProbeRowsRetained: policyProbe.policyProbeRowsRetained,
       managementApiRequestsReadOnly: true,
       applicationDataWritesLimitedToPolicyProbes: true,

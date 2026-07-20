@@ -29,6 +29,7 @@ type TableHandler = {
   singleResult?: QueryResult;
   insertResult?: QueryResult;
   onInsert?: (payload: unknown) => void;
+  limits?: number[];
 };
 
 class FakeQuery {
@@ -38,7 +39,10 @@ class FakeQuery {
   eq() { return this; }
   in() { return this; }
   neq() { return this; }
-  limit() { return this; }
+  limit(value: number) {
+    this.handler.limits?.push(value);
+    return this;
+  }
   order() { return this; }
   or() { return this; }
   lte() { return this; }
@@ -108,6 +112,8 @@ describe("vendorTools", () => {
   });
 
   it("keeps legacy products and staff available only for an unsupported category", async () => {
+    const productLimits: number[] = [];
+    const staffLimits: number[] = [];
     mockAdminClient({
       vendors: [{
         singleResult: {
@@ -122,6 +128,7 @@ describe("vendorTools", () => {
         },
       }],
       vendor_products: [{
+        limits: productLimits,
         awaitResult: {
           data: [{
             id: "product-1",
@@ -137,6 +144,7 @@ describe("vendorTools", () => {
         },
       }],
       vendor_staff: [{
+        limits: staffLimits,
         awaitResult: {
           data: [{
             id: "staff-1",
@@ -176,6 +184,22 @@ describe("vendorTools", () => {
         role: "photographer",
       }],
     });
+    expect(productLimits).toEqual([25]);
+    expect(staffLimits).toEqual([20]);
+  });
+
+  it("clamps model-supplied legacy search limits", async () => {
+    const vendorLimits: number[] = [];
+    mockAdminClient({
+      vendors: [{ limits: vendorLimits, awaitResult: { data: [], error: null } }],
+    });
+
+    await executeSearchVendors(
+      { category: "hanbok", limit: 1_000_000 },
+      { coupleId: "", weddingContext: { budget: 0, progress: {} } },
+    );
+
+    expect(vendorLimits).toEqual([10]);
   });
 
   it("keeps search_vendors output shape and search log insert", async () => {
