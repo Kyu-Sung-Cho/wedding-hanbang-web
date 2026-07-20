@@ -218,6 +218,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.4
         version: 9.39.4
+      '@sentry/cli':
+        specifier: 2.55.0
+        version: 2.55.0
       '@types/react':
         specifier: ~19.1.0
         version: 19.1.17
