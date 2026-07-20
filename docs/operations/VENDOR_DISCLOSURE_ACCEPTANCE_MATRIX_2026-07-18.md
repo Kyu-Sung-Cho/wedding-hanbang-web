@@ -1,5 +1,9 @@
 # 웨딩한방 공시가·업체탐색 수용 판정표
 
+> **상태 snapshot.** 아래 시작 HEAD와 테스트 수치는 판정 당시 기록이다. 최신 구현·검증은
+> Draft PR #64의 원격 branch HEAD와 2026-07-20 fixed-eight 인계 문서를 함께 확인한다.
+> worktree-only 변경이나 과거 테스트 수치를 현재 push·CI·운영 승인 증거로 해석하지 않는다.
+
 - 기준 문서: `CODEX 통합 개발 프롬프트 — 웨딩한방 공시가·업체탐색 모듈 (최종본)` §18
 - 판정 시점: 2026-07-19 KST
 - 검토 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
@@ -7,6 +11,8 @@
 - 범위: 최종 수용 기준 24개와 운영 배포 선행 게이트
 
 이 문서는 로컬 구현과 테스트가 보여 주는 사실, 실제 hosted 환경에서만 증명할 수 있는 사실, 아직 실행하지 않은 검증을 구분한다. 로컬 fixture나 mock 통과를 hosted staging·운영 검증 완료로 간주하지 않는다.
+`NEXT_PUBLIC_PREVIEW_STUB_MODE=true`인 Supabase-free Preview 빌드 성공도 hosted DB,
+migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하지 않는다.
 
 ## 판정 정의
 
@@ -132,7 +138,11 @@ remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 �
 
 `docs/operations/VENDOR_DISCLOSURE_PIPELINE_V2_2026-07-18.md`와 successor release manifest가 다음 항목을 아직 미완료로 기록한다.
 
-- 실제 OpenAI 고정 8건 추출과 2,342건 발생 위치 ground truth 자동 채점, token·비용 ledger. 현재 문서는 파일럿 결과가 아닌 채점표 제작 기록이며 prompt v6는 미검증이다. `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md` 참조
+- 실제 OpenAI 고정 8건 추출과 2,342건 발생 위치 ground truth 자동 채점, token·비용 ledger.
+  2026-07-19 문서는 prompt v6의 파일럿 결과가 아닌 역사적 채점표 제작 기록이고, 현재
+  prompt `v7.8-deterministic-line-and-cell-evidence`도 실제 provider 8건 실행 전까지 품질
+  미검증이다. `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`와
+  `docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md` 참조
 - hosted staging 전체 migration 및 dry-run 대조
 - staging private Storage 업로드와 signed download
 - hosted 두 세션 alias 경쟁·재조회·deadlock 부재

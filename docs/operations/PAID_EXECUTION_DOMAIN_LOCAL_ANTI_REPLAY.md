@@ -56,11 +56,17 @@ the status command. Status reports the bound domain and state, the exact ledger
 snapshot, claim counts, unresolved claim reservation, conservative committed
 cost, and `local_authority_only: true`.
 
-The paid plan records the exact domain binding and ledger genesis. Its schema v3
-requires both estimated and maximum cost to remain within the authorized ceiling.
-The maximum includes as many as four attempts and the pre-authorized static repair
-payload. Raising an environment limit after approval cannot raise the effective
-runtime fence above `prior durable ledger + approved ceiling`.
+The paid plan records the exact domain binding, current ledger prefix, and ledger
+genesis. Schema v4 approves sequential execution only when the request-level
+expected total and one exact provider-bound attempt reservation fit the remaining
+authorized budget. The aggregate maximum covers up to four attempts total per
+batch; each attempt uses either the initial request or its one pre-authorized
+static-repair request. It is informational and may exceed the ceiling. In that
+case the plan records `completion_not_guaranteed: true`; the
+runtime stops before the next unaffordable attempt instead of promising that all
+requests will complete. Raising an environment limit after approval cannot raise
+the effective absolute runtime fence above the minimum of the plan's absolute
+limit, the runtime environment limit, and the fixed USD 20 repository cap.
 
 The binding permanently records `authoritative_state_dir_realpath`. From domain
 initialization until the fixed-eight run and every approved follow-up batch are
@@ -74,6 +80,9 @@ Every paid plan includes the exact domain binding and genesis. Immediately
 before each provider attempt, the runtime atomically publishes a no-replace,
 fsynced claim keyed by the plan SHA, request hash, unit, extraction fingerprint,
 batch, and attempt. Claims are permanent and contain no API key or source text.
+Claim creation runs under a no-overwrite authority-root budget lock. A surviving
+lock from a crash blocks planning, status, verification, and new claims until a
+manual reconciliation; the code never deletes or ages it out automatically.
 
 A claim is complete only when the authoritative state contains both:
 
@@ -102,14 +111,35 @@ production paid path.
 
 ## Cost accounting adjacent to the claim gate
 
-For GPT-5.6, planning, maximums, and per-attempt reservations price all input at
-the cache-write upper bound, 1.25 times the normal input rate. Actual usage may
-settle at normal input `1x`, cache write `1.25x`, and cache read `0.1x` only when
-the provider reports a complete, internally consistent breakdown. Missing,
-malformed, or conflicting details make all input settle at `1.25x`; incomplete
-total usage settles at the reservation upper bound. Historical v2 ledger bytes
-remain unchanged, while their cumulative cost is carried forward at no less
-than the same conservative input bound.
+For GPT-5.6, expected cost is the sum of request-level estimates. Each executable
+attempt independently reserves a deliberately conservative 1,050,000-input-token
+cost bound plus 16,000 output tokens. The input figure is the whole documented
+context window and intentionally exceeds the currently documented 922,000 max
+input; it is not a literal provider input limit. The reservation prices all input at the
+cache-write upper bound (`1.25x`) and, because the input bound exceeds 272,000,
+also applies the long-context multipliers (`2x` input and `1.5x` output). The
+Luna reservation is USD 2.769 per attempt under the pinned repository rates.
+
+Actual usage may settle at normal input `1x`, cache write `1.25x`, and cache read
+`0.1x` only when the provider reports a complete, internally consistent
+breakdown. Missing, malformed, or conflicting details make all input settle at
+`1.25x`; incomplete total usage keeps the complete reservation. A completed
+claim releases unused reservation only when an exact integrity-checked checkpoint
+proves completion. Pending or ambiguous claims retain the whole reservation, and
+provider-reported usage above the reservation stops for manual reconciliation.
+Historical v2 ledger bytes remain unchanged, while their cumulative cost is
+carried forward at no less than the same conservative input bound.
+
+Failed-unit repair approvals are historical, non-executable evidence artifacts.
+They can bind an older prompt plan and a newer prompt request set, but no paid
+repair runner currently consumes them with schema-v4 per-request reservations,
+authority claims, and checkpoints. Possessing such an approval alone never
+authorizes a repair provider call.
+
+All cumulative budget decisions use integer nano-USD: committed cost and new
+reservations round upward, while limits round downward. The authoritative-domain
+test covers the one-nano boundary so floating-point rounding cannot authorize an
+attempt above the cap.
 
 ## Backup and recovery rule
 
@@ -137,13 +167,11 @@ new safe baseline.
 
 ## Verified tests
 
-- Full ingest suite: `356 tests / 355 pass / 0 fail / 1 Windows symlink EPERM skip`.
-- Extraction provider isolation, approval ceiling, cache usage, and paid resume:
-  `73/73 PASS`.
-- Local execution domain, paid plan, and durable ledger targeted tests:
-  `28/28 PASS`.
-- `corepack pnpm ingest:typecheck`: PASS.
-- `corepack pnpm exec turbo run typecheck`: `4/4 PASS`.
+- Full ingest suite: `366 tests / 365 pass / 0 fail / 1 Windows symlink EPERM skip`.
+- Local execution domain, paid plan, durable ledger, repair approval, and
+  extraction targeted tests: `111/111 PASS`.
+- `corepack pnpm exec tsc -p scripts/ingest/tsconfig.json --noEmit`: PASS.
+- `git diff --check`: PASS.
 
 These are code-path tests only. The fixed-eight OpenAI extraction and ground-truth
 score have not run, and production merge/deploy remains **NO-GO** until the hosted

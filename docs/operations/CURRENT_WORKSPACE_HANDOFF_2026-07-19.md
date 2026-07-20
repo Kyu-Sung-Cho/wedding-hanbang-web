@@ -1,9 +1,14 @@
-# Current workspace handoff — 2026-07-19
+# Historical workspace handoff — 2026-07-19
+
+> **역사 snapshot.** 아래 SHA와 테스트 수치는 2026-07-19 당시 기록이다. 현재 업체 공시
+> 유료 실행 계약은 `VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`, 현재 코드
+> 기준은 Draft PR #64의 원격 branch HEAD가 우선한다. 이 문서의 과거 SHA나 수치를 현재
+> 실행 승인·배포 증거로 사용하지 않는다.
 
 ## 결론
 
 현재 통합 브랜치는 로컬 코드·정적 보안·빌드·모바일 export 검증을 통과했다.
-그러나 hosted staging, 실제 OpenAI 파일럿, clean DB 타입 재생성, 백업·복구,
+그러나 hosted staging, 실제 OpenAI 고정 8건 provider 추출·채점, clean DB 타입 재생성, 백업·복구,
 외부 서명 배포 승인, 실제 EAS 기기 빌드가 없으므로 **운영은 NO-GO**다. 병합,
 운영 DB 쓰기, Vercel production 승격, EAS production build를 완료로 보고하지 않는다.
 
@@ -81,15 +86,17 @@
   - `결혼준비대행서비스/전라도/(전라도)_모니카블랑.hwp`
   - `결혼준비대행서비스/충청도/(충청도)_오드 스튜디오.hwp`
   - `예식장/서울(강남 외)/[서울(강남 외)]_국방컨벤션센터.hwp`
-- 실제 OpenAI·Supabase 호출은 아직 0이다. 로컬 OpenAI key와 별도 non-production staging
-  자격증명이 없으며 production 자격증명으로 우회하지 않는다.
+- 이 변환·ground-truth 제작 과정의 OpenAI 추출·Supabase 적재 호출은 0이다. 당시 로컬
+  OpenAI key와 별도 non-production staging 자격증명이 없었으며 production 자격증명으로
+  우회하지 않았다.
 - OpenAI key는 채팅·문서·Git에 기록하지 않고 추출을 실행하는 단일 process 환경에만
   주입한다. 첫 유료 실행은 반드시 승인된 고정 8개 unit ID를 `--units`로 지정하며 ledger와
   원본 대조 후에만 전체 범위로 확대한다.
-- 고정 8건 파일럿의 자동 채점표를 만들었고, 값 집합이 아닌 `시트!셀`/줄 발생 위치 단위
-  커버리지 검증을 추가했다. 텍스트 원본 금액 2,342건은 해시로 고정한 ground truth다. 실제
-  OpenAI 추출은 0건이므로 prompt v6는 미검증이며, 메이브라이드 저해상도 PNG의 판독 불가
-  셀은 별도 검토 대상으로 남겼다. 25건 배치·load·발행은 실행하지 않았다. 상세 근거는
+- 고정 8건 자동 채점용 ground truth를 만들었고, 값 집합이 아닌 `시트!셀`/줄 발생 위치 단위
+  커버리지 검증을 추가했다. 텍스트 원본 금액 2,342건은 해시로 고정했다. 당시 prompt v6는
+  OpenAI 추출 0건인 미검증 상태였고, 현재 활성 prompt
+  `v7.8-deterministic-line-and-cell-evidence`도 실제 provider 호출 전까지 품질 미검증이다.
+  메이브라이드 저해상도 PNG의 판독 불가 셀은 별도 검토 대상으로 남겼다. 25건 배치·load·발행은 실행하지 않았다. 상세 근거는
   `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`다.
 
 ### 릴리스 안전장치
@@ -154,7 +161,7 @@
 배포 영수증을 대신하지 않는다. 이 PC의 전역 `pnpm`은 9.15.0이므로 저장소 명령은 반드시
 `corepack pnpm`으로 실행한다.
 
-## 후속 업체 모듈 보강 (현재 working tree)
+## 후속 업체 모듈 보강 (2026-07-19 working-tree snapshot)
 
 - `/wedding/vendors`를 공개 가격 페이지 redirect가 아닌 인증 앱 shell의 공식 공시가 탐색으로
   복원했다. 앱 안에서 카테고리를 바꿔도 같은 웨딩 여정을 유지한다.
@@ -207,7 +214,7 @@ NOT_VERIFIED 5 / FAIL 2`다. 상세 근거는
 1. 전용 non-production Supabase에 clean migration 적용, remote ledger 대조, DB 타입 재생성
 2. hosted 두 사용자 RLS·own delete·service RPC·Storage signed download·admin E2E 영수증
 3. HWP 8개를 로컬 한컴에서 동일 stem PDF로 저장하고 새 state에서 scan부터 재실행
-4. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 고정 8건 파일럿 원본 대조·비용 ledger
+4. 실제 운영 계정에서 OpenAI Luna/Terra access 확인과 공시 고정 8건 추출·strict score·원본 대조·비용 ledger
 5. 대표 승인 데이터로 가격 목록·조합·아모라 추천 브라우저 E2E와 모바일 Lighthouse 90+
 6. `pg_cron` 집계 job의 안전한 활성화와 비활성화 rollback 증거
 7. 운영 DB backup, 다른 project restore rehearsal, Storage 원본 복구 증거

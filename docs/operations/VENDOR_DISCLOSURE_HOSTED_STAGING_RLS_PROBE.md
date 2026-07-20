@@ -79,16 +79,33 @@ From one clean, exact Git commit, `scripts/vendor-public-rls-probe.mjs` checks:
    denial is covered separately.
 11. Two fixed fixture users can read their own exact rows and cannot read the
    other user's exact rows on all four owned relations. Intentional policy
-   probes then verify owner and cross-user INSERT/UPDATE/DELETE behavior with
-   deterministic temporary rows: owner INSERT/DELETE passes for all four;
-   owner UPDATE changes and returns the real mutable `combos.name` and
-   `price_alerts.created_at` fields; and UPDATE remains deliberately revoked on
-   the two set-semantic favorite relations. Cross-user INSERT is denied and
-   cross-user UPDATE/DELETE affect zero rows.
-12. Both owner and cross-user temporary rows enter independent cleanup paths via
+   probes verify owner and cross-user INSERT/UPDATE/DELETE behavior with
+   deterministic temporary rows. Owner INSERT/DELETE passes for
+   `vendor_favorites`, `wishlists`, and `price_alerts`; owner UPDATE is allowed
+   only for the mutable alert field. Direct owner INSERT and UPDATE on `combos`
+   are denied because creation is restricted to the destination-fenced
+   server-only save RPC. Cross-user INSERT is denied and cross-user
+   UPDATE/DELETE cannot affect rows. The combo DELETE probe targets user A's
+   existing fixture as user B, then re-reads that exact row as user A and
+   requires it to remain present.
+12. Owner and cross-user temporary rows enter independent cleanup paths via
    `Promise.allSettled`. Each path attempts DELETE and then performs its own
    exact zero-row read even if DELETE itself failed. Any failed deletion,
-   unverifiable read, or retained row blocks the receipt.
+   unverifiable read, or retained row blocks the receipt. For `combos`, the
+   owner-delete portion starts with an absent deterministic row because direct
+   owner INSERT is intentionally denied. Its zero-row owner DELETE therefore
+   proves transport only, not deletion of a real server-created combo; the
+   separate cross-user DELETE above does use an existing fixture.
+
+## Separate positive combo gate (not yet evidenced)
+
+The current probe proves direct combo writes are denied, existing owner rows are
+isolated, and cross-user mutations cannot affect them. It does **not** call
+`save_price_combo_service_v1` through the destination-fenced application
+service boundary, create a real combo, delete that exact row as its owner, and
+re-read zero rows. A hosted staging receipt covering that sequence is a separate
+release prerequisite. Until it exists, service save + owner delete must remain
+`BLOCKED_EXTERNAL`; this RLS receipt alone cannot mark that path complete.
 
 The receipt records `productionReadiness: false` and
 `deploymentAuthorization: false`. It also binds the staging-contract hash,

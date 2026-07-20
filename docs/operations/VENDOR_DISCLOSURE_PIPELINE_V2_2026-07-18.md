@@ -135,7 +135,11 @@ corepack pnpm ingest load --snapshot 2026Q3 --apply --confirm-project-ref <STAGI
 - 실제 provider 시도마다 token·비용·latency·request ID·안전한 오류 분류를 content-free ledger에 기록
 - 프롬프트, 원문, 응답 본문, API key는 ledger에 기록하지 않음
 
-비용을 유발하는 전체 추출은 금지한다. 먼저 서로 다른 형식 5개만 추출하고 관리자 화면에서 원본과 대조한 뒤 범위를 늘린다.
+비용을 유발하는 전체 추출은 금지한다. 최초 유료 검증 범위는
+`VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`에 순서까지 고정된 정확한 8개
+unit뿐이다. schema v4 승인 계획의 모델·prompt/processing 버전·원본/변환 fingerprint·요청
+hash·비용 원장 snapshot·실행 도메인 binding이 모두 일치해야 하며, 이 8건의 실제 자동
+채점이 통과하기 전에는 25건 배치나 staging 적재로 범위를 늘리지 않는다.
 
 extract는 state별 `.cache/locks/extract.lock`을 exclusive create해 별도 프로세스의 동시 실행과 중복 과금을 차단한다. 잠금에는 lock ID, PID, hostname, 시작 시각을 기록한다. 같은 host의 PID가 죽은 stale lock이나 손상된 lock은 자동 삭제하지 않고 진단 코드와 경로를 출력한다. 운영자는 해당 PID가 실제로 종료됐는지 확인하고 cache·ledger를 보존한 뒤 lock 파일만 수동 격리하거나 제거해 재실행한다. 손상 체크포인트도 자동으로 버리거나 재과금하지 않는다.
 
@@ -271,7 +275,13 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 1. 코드 전체 test·typecheck·lint·build·보안 검토를 통과하고 commit을 고정한다.
 2. staging DB를 백업하고 project ref를 대조한 뒤 migration dry-run/apply를 수행한다.
-3. OpenAI 고정 8건의 계획을 다시 출력하고 예상 비용이 $20 이하이면 실행한다. token·비용 ledger와 2,342건 발생 위치 ground truth 자동 채점 결과를 남긴다. 현재 수동 감사 문서는 파일럿 결과가 아니라 채점표 제작 기록이며 prompt v6는 미검증이다.
+3. OpenAI 고정 8건은 prompt `v7.8-deterministic-line-and-cell-evidence`와 schema v4 승인
+   계획을 사용한다. 계획 SHA-256, 정확한 8-unit 순서, 요청별 예상 비용 합계, 다음 1회
+   최대 예약, 비용 원장 snapshot, 실행 도메인 binding을 대조한다. 계획의 절대 상한,
+   런타임 상한, 고정 `$20` 중 가장 낮은 상한에서 이미 확정된 nano-USD 누계를 뺀 잔액이
+   요청별 예상 합계와 다음 1회 예약을 모두 감당할 때만 순차 실행한다. token·비용 ledger와
+   2,342건 발생 위치 ground truth 자동 채점 결과를 남긴다. 수동 감사 문서는 채점표 제작
+   기록일 뿐이며, 현재 prompt와 provider 추출 품질은 실제 8건 실행 전까지 미검증이다.
 4. staging `load` dry-run 결과를 승인한 뒤 `--apply`한다.
 5. 관리자 검수, public view, 공개 가격 페이지, 아모라 추천을 staging에서 검증한다.
 6. 운영 backup과 복구 리허설, exact migration hash, write fence, rollback 담당자가 준비된 경우에만 운영 릴리스 절차로 넘긴다.

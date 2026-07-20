@@ -1,5 +1,10 @@
 # 업체 공시 고정 8건 자동 채점표(ground truth) 제작 감사 — 2026-07-19
 
+> **역사 기록 — 현재 실행 지시가 아님.** 이 문서는 prompt v6 시점의 수동 ground-truth
+> 제작 snapshot이다. 모델·비용·승인 계획·실행 순서는
+> `VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`의 schema v4 계약이 대체한다.
+> 아래 0-call 결과는 보존하되 현재 prompt/provider 품질 또는 유료 실행 권한의 증거로 쓰지 않는다.
+
 ## 결론
 
 **이번 작업은 파일럿 추출이 아니라 파일럿을 채점할 ground truth 제작이다. 실제 추출은 0건이며 prompt v6의 품질은 아직 검증되지 않았다. 따라서 25건 전체 배치, staging load, 발행은 진행하지 않았다.**
