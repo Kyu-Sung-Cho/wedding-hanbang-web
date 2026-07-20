@@ -1,6 +1,6 @@
 # 업체 공시 적재·속성·아모라 추천 V2
 
-최종 갱신: 2026-07-19
+최종 갱신: 2026-07-20
 상태: 구현 및 로컬 검증 중. 운영 DB 미적용, 운영 배포 미실행.
 
 ## 이 문서의 지위
@@ -59,6 +59,7 @@ flowchart LR
   - `20260718208000_atomic_weighted_rate_limit.sql`: 이벤트 배치 크기를 DB 공유 버킷에서 원자적으로 차감해 수요 지표 오염 상한을 강제
   - `20260718209000_price_combo_direct_write_fence.sql`: 인증 사용자의 `combos` 직접 INSERT/UPDATE를 제거하고 null-safe agency 및 단일 `official_price_id` 옵션 귀속·합계·멱등성을 재검증하는 service-only 저장 RPC로 단일화
   - `20260718210000_wedding_budget_product_contract.sql`: 아모라·설정·여정·DB가 공유하는 결혼 총예산을 0~10억원 정수 원 단위로 통일한다. 범위 밖 기존 행은 자동 수정하지 않고 migration 전체를 실패시켜 명시적 고객 데이터 검토를 요구한다.
+  - `20260720120000_disclosure_semantic_staging.sql`: 비가격 정책·문서 구간을 schema v2 pending-only inbox에 보존하고, 서로 독립적인 source identity/raw object/preview digest의 형식·개수·확장자와 공개 snapshot 추가 적재 차단을 DB에서 강제한다. 업체 정책은 exact `partner_record_ref`를 실제 `vendors.id`에 영구 연결하고 가격 기반 정책은 같은 snapshot·vendor의 `official_prices.id`까지 연결한다. 정확한 위치·행·ID 매핑은 writer preflight와 DB FK/trigger가 함께 검증한다. 승인된 업체 dedupe는 가격 기반·policy-only semantic의 vendor FK를 같은 트랜잭션에서 preserved vendor로 이동하되 원본 `partner_record_ref`는 유지한다. linked pending price의 vendor 직접 변경도 semantic FK와 원자 동기화하고, snapshot 직접 이동은 증거 경계를 바꾸므로 실패 폐쇄한다.
 - 가격 검수: `/admin/price`
 - 업체 보강: `/admin/enrich`
 - 내부 추천: `POST /api/internal/vendors/recommend`
@@ -98,16 +99,26 @@ flowchart LR
 ## 적재 CLI
 
 ```powershell
-corepack pnpm ingest scan data/raw
-corepack pnpm ingest convert
-corepack pnpm ingest extract --plan
-corepack pnpm ingest extract --units <id1,id2,id3,id4,id5,id6,id7,id8> --plan
-corepack pnpm ingest validate
-corepack pnpm ingest status
-corepack pnpm ingest load --snapshot 2026Q3
+corepack pnpm ingest scan data/raw --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest convert --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest paid-execution-domain-status --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units <exact-8-unit-ids> --plan
+# 바로 위 plan이 발급한 SHA를 사용한다. --plan만 제거해서는 실행되지 않는다.
+corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units <exact-8-unit-ids> --approved-plan-sha256 <sha-from-the-immediately-preceding-plan>
+corepack pnpm ingest validate --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest status --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest load --state-dir reprocess-20260719-poppler5 --snapshot 2026Q3
 ```
 
-`load`는 기본 dry-run이다. 실제 staging 쓰기는 아래 조건이 모두 일치해야 한다.
+유료 실행 도메인이 아직 없다면 기준 state 백업 뒤 같은 컴퓨터에서
+`paid-execution-domain-init`을 최초 1회만 실행한다. 현재 canonical state의 도메인은 이미
+초기화됐으므로 init을 다시 실행하지 않는다. exact 8개 ID와 승인 절차는
+`scripts/ingest/README.md`와
+`docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`가 기준이다.
+
+`load`는 기본 dry-run이다. 아래 `--apply` 명령과 환경 변수는 상태 인식형 25건 배치
+러너가 구현·리뷰된 뒤에만 사용할 미래 계약이다. 현재 CLI와 `loadValidated({ apply: true })`는
+환경 변수가 모두 맞아도 `load_apply_blocked_pending_state_aware_batch_runner`로 무조건 차단한다.
 
 ```powershell
 corepack pnpm ingest load --snapshot 2026Q3 --apply --confirm-project-ref <STAGING_PROJECT_REF>
@@ -234,7 +245,7 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 ## 실제 로컬 파일럿 증거
 
 2026-07-18에 원본을 변경하지 않고 새 기본 state
-`scripts/ingest/.state/default/`에서 `scan → convert → status`를 실행한 뒤, 2026-07-19에 Windows/Poppler 장경로 문제를 수정하고 새 격리 state `scripts/ingest/.state/reprocess-20260719-poppler5/`에서 원본부터 다시 실행했다. 아래는 최신 재검증 결과다.
+`scripts/ingest/.state/default/`에서 `scan → convert → status`를 실행한 뒤, 2026-07-19에 Windows/Poppler 장경로 문제를 수정하고 새 격리 state `scripts/ingest/.state/reprocess-20260719-poppler5/`에서 원본부터 다시 실행했다. 아래 표는 당시 converter v4 시점의 역사 snapshot이며 최신 상태가 아니다.
 
 | 항목 | 결과 |
 |---|---:|
@@ -250,13 +261,20 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 | OpenAI/Supabase 호출 | 0 |
 | token/추정 비용 | 0 |
 
+2026-07-20 current parser v3/converter v6 재감사 결과는 `249 units / 253 files`,
+`238 converted / 8 HWP manual / 3 current error`, artifact refs `332`, missing·hash
+mismatch·generated orphan `0`이다. 오류는 byte-identical 셀레네하우스 2단위와 미지원
+EMF 정책 표가 있는 조선 팰리스 1단위다. current extraction/validation/load/publication은
+모두 `0`이다. 전체 증거와 재개 순서는
+`VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`를 따른다.
+
 초기 14건 중 텍스트가 부족한 PDF 6건은 짧은 same-volume scratch에서 렌더링·검사 후 content-addressed 최종 경로로 원자 게시하도록 보강해 전부 회수했다. 생성된 6개 unit의 8페이지는 사람이 직접 확인해 빈 페이지·잘림·회전·식별 불가 문제가 없었다. 남은 수동 변환 8건은 동일 stem PDF 대체본이 없는 HWP이며 실패를 성공으로 숨기지 않는다. 한컴오피스에서 같은 위치·같은 stem의 PDF 대체본을 만든 뒤 새 state에서 scan부터 다시 실행해야 한다. 이 결과는 변환 단계 증거이며 AI 추출 품질, staging 쓰기, 관리자 실제 승인, 운영 공개를 검증했다는 뜻이 아니다.
 
 ## 배포 게이트와 롤백
 
 로컬 게이트는 `corepack pnpm test:ingest`, `corepack pnpm ingest:typecheck`, 웹·모바일 전체 test/typecheck/lint/build와 정적 release fence를 모두 다시 실행해 PR CI에 고정한다. 로컬 fixture 통과는 아래 실제 provider·staging·운영 게이트를 대체하지 않는다.
 
-현재 successor manifest는 `supabase/release-manifests/vendor-disclosure-v2-20260718.json`이다. 기존 아모라 manifest를 해시로 연결하고 12000~21000 migration 19개 전체를 정확한 순서·정규화 SHA-256으로 고정한다. hosted staging, backup, restore, Storage, finalizer 증거가 아직 없으므로 `status=deployment_blocked`다. 이 상태에서 정적 fence는 무결성 검증을 통과하지만 `--remote`와 실제 release controller는 DB 명령 실행 전에 실패해야 정상이다.
+현재 successor manifest는 `supabase/release-manifests/vendor-disclosure-v2-20260718.json`이다. 기존 아모라 manifest를 해시로 연결하고 20260718120000~20260720120000 migration 20개 전체를 정확한 순서·정규화 SHA-256으로 고정한다. hosted staging, backup, restore, Storage, finalizer 증거가 아직 없으므로 `status=deployment_blocked`다. 이 상태에서 정적 fence는 무결성 검증을 통과하지만 `--remote`와 실제 release controller는 DB 명령 실행 전에 실패해야 정상이다.
 
 실제 Vercel production Next 빌드도 `apps/web/next.config.ts`에서 같은 상태를 확인한다. 현재는 manifest 증거 값과 무관하게 외부 서명 승인 verifier·공유 successor controller 연동이 구현되지 않았으므로 `VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED`로 artifact 생성을 중단한다. 단순히 manifest 상태나 `missing` 값을 바꿔서는 게이트가 열리지 않는다. CI의 일반 `next build`는 `VERCEL_ENV=production`이 아니므로 코드·정적 빌드 검증만 수행하며 배포 승인을 뜻하지 않는다.
 
@@ -275,14 +293,16 @@ scan은 portable 상대경로 codepoint 순서로 `source_files`를 고정하고
 
 1. 코드 전체 test·typecheck·lint·build·보안 검토를 통과하고 commit을 고정한다.
 2. staging DB를 백업하고 project ref를 대조한 뒤 migration dry-run/apply를 수행한다.
-3. OpenAI 고정 8건은 prompt `v7.8-deterministic-line-and-cell-evidence`와 schema v4 승인
+3. OpenAI 고정 8건은 prompt `v7.11-exact-xlsx-auxiliary-repair`와 schema v4 승인
    계획을 사용한다. 계획 SHA-256, 정확한 8-unit 순서, 요청별 예상 비용 합계, 다음 1회
    최대 예약, 비용 원장 snapshot, 실행 도메인 binding을 대조한다. 계획의 절대 상한,
    런타임 상한, 고정 `$20` 중 가장 낮은 상한에서 이미 확정된 nano-USD 누계를 뺀 잔액이
    요청별 예상 합계와 다음 1회 예약을 모두 감당할 때만 순차 실행한다. token·비용 ledger와
    2,342건 발생 위치 ground truth 자동 채점 결과를 남긴다. 수동 감사 문서는 채점표 제작
    기록일 뿐이며, 현재 prompt와 provider 추출 품질은 실제 8건 실행 전까지 미검증이다.
-4. staging `load` dry-run 결과를 승인한 뒤 `--apply`한다.
+4. 상태 인식형 25건 배치 러너를 구현·리뷰하고, 직전 배치 대비 `needs_review` 2배 급증
+   중단과 배치별 비용 원장 갱신을 증명한다. 그 뒤 staging `load` dry-run 결과를 승인한
+   경우에만 `--apply`한다.
 5. 관리자 검수, public view, 공개 가격 페이지, 아모라 추천을 staging에서 검증한다.
 6. 운영 backup과 복구 리허설, exact migration hash, write fence, rollback 담당자가 준비된 경우에만 운영 릴리스 절차로 넘긴다.
 

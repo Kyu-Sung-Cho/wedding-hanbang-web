@@ -223,6 +223,139 @@ export const DisclosureExtractionSchema = z.object({
   extraction_notes: z.string().max(4_000),
 }).strict();
 
+const DisclosureSemanticRecordKindSchema = z.enum([
+  "vendor_policy",
+  "document_section",
+]);
+const DisclosureSemanticTypeSchema = z.enum([
+  "penalty",
+  "refund",
+  "change",
+  "pricing_basis",
+  "refund_policy",
+  "contract_terms",
+  "reservation",
+  "validity",
+  "included_items",
+  "usage_guide",
+  "notice",
+  "other",
+]);
+const DisclosureSemanticSourceAgencySchema = z.object({
+  name: z.string().min(1).max(300),
+  normalized_name: z.string().min(1).max(300),
+  corporate_name: z.string().min(1).max(300).nullable(),
+  region_code: z.string().min(1).max(100),
+  source_file: z.string().min(1).max(10_000),
+}).strict();
+
+/**
+ * Private, pending-only staging contract for non-price disclosure semantics.
+ * These records are deliberately separate from every consumer-facing view.
+ */
+export const DisclosureSemanticStagingSchema = z.object({
+  schema_version: z.literal(2),
+  unit_id: z.string().regex(/^[a-f0-9]{64}$/),
+  record_kind: DisclosureSemanticRecordKindSchema,
+  semantic_type: DisclosureSemanticTypeSchema,
+  subject_kind: z.enum(["vendor", "agency"]),
+  subject_name: z.string().min(1).max(300),
+  subject_normalized_name: z.string().min(1).max(300),
+  partner_record_ref: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  source_agency: DisclosureSemanticSourceAgencySchema.nullable(),
+  partner_link_status: z.enum([
+    "price_row_staged",
+    "policy_only_pending_identity",
+    "not_applicable",
+  ]),
+  vendor_category: z.enum(["studio", "dress", "makeup", "hall", "other"]).nullable(),
+  region_code: z.string().min(1).max(100),
+  title: z.string().min(1).max(300).nullable(),
+  content_verbatim: z.string().min(1).max(20_000),
+  summary: z.string().min(1).max(1_000).nullable(),
+  review_status: z.literal("pending"),
+  needs_review: z.boolean(),
+  validation_issue_codes: z.array(z.string().min(1).max(200)).max(500),
+  source_file_ids: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(16),
+  source_file: z.string().min(1).max(10_000),
+  source_object_keys: z.array(
+    z.string().regex(/^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png)$/),
+  ).min(1).max(16),
+  source_preview_keys: z.array(z.string().regex(/^[a-f0-9]{64}\.txt$/)).max(16),
+  source_quote: z.string().min(1).max(2_000),
+  source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  validation_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  confidence: ConfidenceSchema,
+  source_record_key: z.string().regex(/^[a-f0-9]{64}$/),
+  content_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict().superRefine((row, context) => {
+  if (new Set(row.validation_issue_codes).size !== row.validation_issue_codes.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["validation_issue_codes"],
+      message: "validation_issue_codes must be unique",
+    });
+  }
+  if (row.source_file_ids.length !== row.source_object_keys.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["source_object_keys"],
+      message: "source_file_ids and source_object_keys must preserve the same source subset",
+    });
+  }
+  if (row.record_kind === "vendor_policy") {
+    if (row.subject_kind !== "vendor" || row.vendor_category === null || row.title !== null || row.summary !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["record_kind"],
+        message: "vendor policies require a vendor subject/category and cannot invent section title/summary fields",
+      });
+    }
+    if (!["penalty", "refund", "change", "other"].includes(row.semantic_type)) {
+      context.addIssue({
+        code: "custom",
+        path: ["semantic_type"],
+        message: "vendor policy semantic_type is invalid",
+      });
+    }
+    if (row.partner_record_ref === null || row.partner_link_status === "not_applicable") {
+      context.addIssue({
+        code: "custom",
+        path: ["partner_record_ref"],
+        message: "vendor policies require an explicit partner identity and linkage status",
+      });
+    }
+  } else {
+    if (row.vendor_category !== null || row.title === null || row.summary === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["record_kind"],
+        message: "document sections require title/summary and cannot claim a partner vendor category",
+      });
+    }
+    if (["refund", "change"].includes(row.semantic_type)) {
+      context.addIssue({
+        code: "custom",
+        path: ["semantic_type"],
+        message: "document section semantic_type is invalid",
+      });
+    }
+    if (
+      row.partner_record_ref !== null
+      || row.source_agency !== null
+      || row.partner_link_status !== "not_applicable"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["partner_link_status"],
+        message: "document sections cannot claim a partner-vendor linkage",
+      });
+    }
+  }
+});
+
+export type DisclosureSemanticStaging = z.infer<typeof DisclosureSemanticStagingSchema>;
+
 type ParsedDisclosureExtraction = z.infer<typeof DisclosureExtractionSchema>;
 type ParsedPriceOption = ParsedDisclosureExtraction["agency_packages"][number]["options"][number];
 type CompatiblePriceOption = Omit<ParsedPriceOption, "source_file_ids"> & {

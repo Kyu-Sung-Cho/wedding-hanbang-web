@@ -18,9 +18,15 @@ import {
   matchSingleXlsxEvidenceQuote,
   normalizeEvidenceText,
   parseKoreanMoneyAmounts,
+  scanSourceMoneyOccurrences,
   validateExtractionForUnit,
   validateManifest,
 } from "../validate.js";
+import {
+  indexXlsxAuxiliaryEvidence,
+  matchSingleXlsxAuxiliaryEvidenceQuote,
+  parseXlsxAuxiliaryEvidencePayload,
+} from "../xlsx-aux-evidence.js";
 
 async function writeDummyDocx(filePath: string, text: string): Promise<void> {
   const docx = new JSZip();
@@ -125,6 +131,144 @@ test("single-cell evidence matching rejects ranges, multi-cell composites, and d
   assert.equal(matchSingleXlsxEvidenceQuote("가격표!B2: 앞 문구 뒤 문구", cells).kind, "reject");
 });
 
+test("XLSX auxiliary evidence is exact, request-scoped, and never indexed as a worksheet cell", () => {
+  const drawing = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: [ 총비용 = 예식비 + 식대총액 ]";
+  const formula = "XLSX_FORMULA [sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl/worksheets/sheet5.xml#cell-B20]: expression=SUM(C12,C14,C16) | cached_value_locator=[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20] | evaluation=not_executed";
+  const text = ["계약서!B20: 4,160,000", drawing, formula].join("\n");
+  const auxiliary = indexXlsxAuxiliaryEvidence(text);
+
+  assert.deepEqual(Object.keys(indexXlsxCellEvidence(text)), ["계약서!B20"]);
+  assert.equal(matchSingleXlsxAuxiliaryEvidenceQuote(drawing, auxiliary).kind, "match");
+  assert.equal(
+    matchSingleXlsxAuxiliaryEvidenceQuote(
+      "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: 총비용 = 예식비 + 식대총액",
+      auxiliary,
+    ).kind,
+    "reject",
+  );
+  assert.equal(matchSingleXlsxAuxiliaryEvidenceQuote(formula, auxiliary).kind, "match");
+  assert.equal(
+    parseXlsxAuxiliaryEvidencePayload(formula),
+    "expression=SUM(C12,C14,C16) | cached_value_locator=[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20] | evaluation=not_executed",
+  );
+  assert.deepEqual(
+    matchSingleXlsxAuxiliaryEvidenceQuote(
+      formula.replace("sheet5.xml", "sheet99.xml"),
+      auxiliary,
+    ),
+    {
+      kind: "reject",
+      locator: "XLSX_FORMULA [sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl/worksheets/sheet99.xml#cell-B20]",
+      violation: "not_in_request",
+    },
+  );
+  assert.equal(
+    matchSingleXlsxAuxiliaryEvidenceQuote(
+      `${drawing}; ${formula}`,
+      auxiliary,
+    ).kind,
+    "reject",
+  );
+});
+
+test("exact XLSX drawing and formula evidence ground pricing-basis sections end to end", () => {
+  const drawing = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: [ 총비용 = 예식비 + 식대총액 ]";
+  const formula = "XLSX_FORMULA [sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl/worksheets/sheet5.xml#cell-B20]: expression=SUM(C12,C14,C16) | cached_value_locator=[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20] | evaluation=not_executed";
+  const packageLine = "가격표!B2: 더미 패키지 스튜디오 드레스 메이크업 기본가격 3.3만원";
+  const sourceText = [packageLine, drawing, formula].join("\n");
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "generated.xlsx",
+    parsed: {
+      region_code: "gwangju",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/gwangju/generated.xlsx",
+      absolute_path: "C:/generated/generated.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const data = extraction("generated");
+  data.agency_packages[0].source_quote = packageLine;
+  data.sections = [
+    {
+      section_type: "pricing_basis",
+      title: "총비용",
+      content_verbatim: "[ 총비용 = 예식비 + 식대총액 ]",
+      summary: "총비용 산정 기준",
+      source_quote: drawing,
+      source_file_ids: [],
+      confidence: 0.99,
+      needs_review: false,
+    },
+    {
+      section_type: "pricing_basis",
+      title: "SUM(C12,C14,C16)",
+      content_verbatim: "SUM(C12,C14,C16)",
+      summary: "원문 수식",
+      source_quote: formula,
+      source_file_ids: [],
+      confidence: 0.99,
+      needs_review: false,
+    },
+  ];
+  const evidence = {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    xlsxAuxiliary: indexXlsxAuxiliaryEvidence(sourceText),
+    hasImages: false,
+  };
+
+  const accepted = validateExtractionForUnit(unit, structuredClone(data), evidence);
+  assert.equal(
+    accepted.some((issue) => issue.severity === "error" && issue.path.startsWith("sections[")),
+    false,
+    JSON.stringify(accepted),
+  );
+
+  const forged = structuredClone(data);
+  forged.sections![0].source_quote = drawing.replace("text-box-1", "text-box-2");
+  forged.sections![1].source_quote = formula.replace("sheet5.xml", "sheet99.xml");
+  const forgedIssues = validateExtractionForUnit(unit, forged, evidence);
+  assert.equal(
+    forgedIssues.filter((issue) =>
+      issue.severity === "error" && issue.code === "source_quote_not_found_in_text"
+    ).length,
+    2,
+    JSON.stringify(forgedIssues),
+  );
+
+  const unlabeled = structuredClone(data);
+  unlabeled.sections![0].source_quote = "총비용 = 예식비 + 식대총액";
+  const unlabeledIssues = validateExtractionForUnit(unit, unlabeled, evidence);
+  assert.equal(unlabeledIssues.some((issue) =>
+    issue.severity === "error"
+    && issue.code === "source_quote_not_found_in_text"
+    && issue.path === "sections[0]"
+  ), true, JSON.stringify(unlabeledIssues));
+});
+
+test("drawing money is scanned once at its auxiliary locator and formula annotations add no duplicate", () => {
+  const drawing = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: 라온제나 대관료 500만원";
+  const formula = "XLSX_FORMULA [sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl/worksheets/sheet5.xml#cell-B20]: expression=SUM(C12,C14,C16) | cached_value_locator=[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20] | evaluation=not_executed";
+  const sourceText = ["계약서!B20: 4,160,000원", drawing, formula].join("\n");
+  const occurrences = scanSourceMoneyOccurrences(sourceText);
+
+  assert.deepEqual(occurrences.map(({ krw, source_locator }) => ({ krw, source_locator })), [
+    { krw: 4_160_000, source_locator: "계약서!B20" },
+    { krw: 5_000_000, source_locator: "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1" },
+  ]);
+});
+
 test("validate writes provenance-bound pending artifacts and only suggests likely duplicates", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-validate-"));
   const stateDir = `${rootDir}-state`;
@@ -132,14 +276,20 @@ test("validate writes provenance-bound pending artifacts and only suggests likel
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "광주");
   await mkdir(regionDir, { recursive: true });
   await writeDummyDocx(path.join(regionDir, "(광주)_샘플정우웨딩.docx"), "더미 패키지 스튜디오 드레스 메이크업 3.3만원");
-  await writeDummyDocx(path.join(regionDir, "(광주)_광주샘플정우웨딩.docx"), "더미 패키지 스튜디오 드레스 메이크업 3.3만원");
+  await writeDummyDocx(
+    path.join(regionDir, "(광주)_광주샘플정우웨딩.docx"),
+    "광주 지점 안내 | 더미 패키지 스튜디오 드레스 메이크업 3.3만원",
+  );
   const scanned = await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
   const names = new Map(scanned.units.map((unit) => [unit.unit_id, unit.parsed.raw_name]));
   const provider: ExtractionProvider = {
     extract: async (request) => {
       const data = extraction(names.get(request.unitId) ?? "더미");
-      data.agency_packages[0].source_quote = "line:1: 더미 패키지 스튜디오 드레스 메이크업 3.3만원";
+      const sourceQuote = /^(line:\d+:\s*.*더미 패키지 스튜디오 드레스 메이크업 3\.3만원)$/mu
+        .exec(request.text)?.[1];
+      assert.ok(sourceQuote);
+      data.agency_packages[0].source_quote = sourceQuote;
       return { data, inputTokens: 10, outputTokens: 10 };
     },
   };
@@ -161,7 +311,10 @@ test("validate writes provenance-bound pending artifacts and only suggests likel
     validated.units[0].extraction?.content_sha256,
   );
   assert.equal(artifact.source_files[0].sha256, validated.units[0].source_files[0].sha256);
-  assert.equal(artifact.data.agency_packages[0].source_quote, "line:1: 더미 패키지 스튜디오 드레스 메이크업 3.3만원");
+  assert.match(
+    artifact.data.agency_packages[0].source_quote,
+    /^line:1: .*더미 패키지 스튜디오 드레스 메이크업 3\.3만원$/u,
+  );
   const candidates = JSON.parse(
     await readFile(path.join(stateDir, "validated", "dedupe_candidates.json"), "utf8"),
   );
@@ -256,6 +409,47 @@ test("validate repairs a content-tampered cache artifact instead of trusting its
 
 test("Korean money parsing keeps decimal 만원 units exact", () => {
   assert.deepEqual(parseKoreanMoneyAmounts("기본 3.3만원 / 상위 124만원"), [33_000, 1_240_000]);
+});
+
+test("money parsing recognizes explicit KRW codes and won symbols", () => {
+  assert.deepEqual(
+    parseKoreanMoneyAmounts("기본가 KRW 100000 / 추가 ₩250,000 / 변경 300000 KRW"),
+    [100_000, 250_000, 300_000],
+  );
+});
+
+test("currency markers preserve Korean units instead of treating them as bare won", () => {
+  assert.deepEqual(
+    parseKoreanMoneyAmounts("기본 KRW 10만원 / 패키지 ₩1,000만원 / 피팅 KRW 5만5천원"),
+    [100_000, 10_000_000, 55_000],
+  );
+});
+
+test("currency-marker ranges apply a shared Korean unit to both endpoints", () => {
+  assert.deepEqual(
+    parseKoreanMoneyAmounts("대관 KRW 10~20만원 / 식대 ₩1.5~2억원"),
+    [100_000, 200_000, 150_000_000, 200_000_000],
+  );
+});
+
+test("coverage self-check preserves Korean units attached to KRW and won symbols", () => {
+  const data = extraction("통화 단위 업체");
+  data.agency_packages = [];
+  assert.deepEqual(
+    findCoverageGaps("기본 KRW 10만원\n패키지 ₩1,000만원", data)
+      .map((gap) => gap.krw),
+    [100_000, 10_000_000],
+  );
+});
+
+test("coverage self-check counts explicit KRW and won-symbol ranges", () => {
+  const data = extraction("통화 표기 업체");
+  data.agency_packages = [];
+  assert.deepEqual(
+    findCoverageGaps("기본 KRW 100000~200000\n옵션 ₩300,000-₩400,000", data)
+      .map((gap) => gap.krw),
+    [100_000, 200_000, 300_000, 400_000],
+  );
 });
 
 test("Korean money parsing expands shared range units and accepts omitted won suffixes", () => {

@@ -3,7 +3,7 @@
 > **Status: candidate code locally tested; exact production builder and current
 > deployment receipt NOT RUN.** Existing production configuration or an older
 > deployment does not prove this candidate fence is active. See
-> `CURRENT_WORKSPACE_HANDOFF_2026-07-17.md`.
+> `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`.
 
 This fence prevents a contaminated environment from pairing a privileged key
 with the wrong hosted Supabase project. It is a startup/client-construction

@@ -10,11 +10,18 @@ import { convertManifest } from "../convert.js";
 import { extractManifestForTests as extractManifest, type ExtractionProvider } from "../extract.js";
 import { readJsonFile, writeJsonFile } from "../io.js";
 import {
+  buildDisclosureSemanticContentFingerprint,
+  buildDisclosureSemanticSourceRecordKey,
+  stagingProvenanceForSourceIds,
+  stagingDisclosureSemantics,
+  stagingOption,
   buildOfficialPriceContentFingerprint,
   buildOfficialPriceSourceRecordKey,
+  hallPriceRows,
   loadValidated,
   stagingEnvironment,
   type StagingLoadPlan,
+  type StagingUnit,
   type StagingWriter,
 } from "../load.js";
 import { scanSources } from "../scan.js";
@@ -23,11 +30,15 @@ import type { DisclosureExtraction } from "../schemas.js";
 import { validateManifest } from "../validate.js";
 import {
   activeVendorNameMatches,
+  assertDisclosureSemanticPlanRows,
+  assertDisclosureSemanticLinkPlan,
   canonicalVendorPair,
   collectBoundedPages,
   createSupabaseStagingWriter,
   deterministicVendorSlug,
+  persistDisclosureSemantic,
   reconcileExistingOfficialPrice,
+  resolveDisclosureSemanticPersistenceRows,
   sanitizeVendorAliasProposals,
   stageVendorAliasProposals,
   uploadPreviewObjects,
@@ -45,6 +56,407 @@ test("the staging writer independently refuses the repository production destina
       previewBucket: "disclosure-preview",
     }),
     /production/iu,
+  );
+});
+
+test("row provenance canonicalizes reversed source ids together with their immutable object keys", () => {
+  const sourceA = {
+    source_file_id: "a".repeat(64),
+    source_file: "agency/seoul/a.xlsx",
+    source_object_key: `${"1".repeat(64)}.xlsx`,
+    source_preview_key: `${"3".repeat(64)}.txt`,
+  };
+  const sourceB = {
+    source_file_id: "b".repeat(64),
+    source_file: "agency/seoul/b.pdf",
+    source_object_key: `${"2".repeat(64)}.pdf`,
+    source_preview_key: `${"4".repeat(64)}.txt`,
+  };
+  const unit = {
+    raw_name: "sample",
+    source_records: [sourceA, sourceB],
+  } as unknown as StagingLoadPlan["units"][number];
+
+  assert.deepEqual(
+    stagingProvenanceForSourceIds(unit, [sourceB.source_file_id, sourceA.source_file_id]),
+    {
+      source_file_ids: [sourceA.source_file_id, sourceB.source_file_id],
+      source_file: JSON.stringify([sourceA.source_file, sourceB.source_file]),
+      source_object_keys: [sourceA.source_object_key, sourceB.source_object_key],
+      source_preview_keys: [sourceA.source_preview_key, sourceB.source_preview_key],
+    },
+  );
+  assert.deepEqual(
+    stagingOption(unit, {
+      name: "album",
+      price_min_krw: 10_000,
+      price_max_krw: 10_000,
+      unit: null,
+      condition: null,
+      raw_text: "album 10000",
+      source_quote: "A1: album 10000",
+      source_file_ids: [sourceB.source_file_id, sourceA.source_file_id],
+    }),
+    {
+      name: "album",
+      price_min_krw: 10_000,
+      price_max_krw: 10_000,
+      unit: null,
+      condition: null,
+      raw_text: "album 10000",
+      source_quote: "A1: album 10000",
+      source_file_ids: [sourceA.source_file_id, sourceB.source_file_id],
+      source_file: JSON.stringify([sourceA.source_file, sourceB.source_file]),
+      source_object_keys: [sourceA.source_object_key, sourceB.source_object_key],
+    },
+  );
+});
+
+test("semantic provenance canonicalizes reversed source ids without detaching partner identity", () => {
+  const sourceA = {
+    source_file_id: "a".repeat(64),
+    source_file: "agency/seoul/a.xlsx",
+    source_object_key: `${"1".repeat(64)}.xlsx`,
+    source_preview_key: `${"3".repeat(64)}.txt`,
+  };
+  const sourceB = {
+    source_file_id: "b".repeat(64),
+    source_file: "agency/seoul/b.pdf",
+    source_object_key: `${"2".repeat(64)}.pdf`,
+    source_preview_key: `${"4".repeat(64)}.txt`,
+  };
+  const unit = {
+    unit_id: "c".repeat(64),
+    kind_hint: "agency",
+    region_code: "seoul_gangnam3",
+    raw_name: "Sample Agency",
+    normalized_name: "sampleagency",
+    corporate_name: null,
+    source_fingerprint: "d".repeat(64),
+    validation_fingerprint: "e".repeat(64),
+    validation_issue_codes: [],
+    source_records: [sourceA, sourceB],
+    data: {
+      partner_vendors: [{
+        vendor_name: "(주) Sample Vendor",
+        old_names: [],
+        category: "dress",
+        price_min_krw: null,
+        price_max_krw: null,
+        base_spec: null,
+        price_note: null,
+        options: [],
+        policies: [{
+          policy_type: "penalty",
+          raw_text: "cancellation policy",
+          source_quote: "A1: cancellation policy",
+          source_file_ids: [sourceB.source_file_id, sourceA.source_file_id],
+        }],
+        source_quote: "A1: cancellation policy",
+        source_file_ids: [sourceA.source_file_id],
+        confidence: 0.9,
+        needs_review: false,
+      }],
+      sections: [],
+    },
+  } as unknown as StagingLoadPlan["units"][number];
+
+  const [row] = stagingDisclosureSemantics(unit);
+  assert.deepEqual(row.source_file_ids, [sourceA.source_file_id, sourceB.source_file_id]);
+  assert.deepEqual(row.source_object_keys, [sourceA.source_object_key, sourceB.source_object_key]);
+  assert.equal(row.subject_normalized_name, "samplevendor");
+  assert.equal(row.partner_link_status, "policy_only_pending_identity");
+  assert.match(row.partner_record_ref ?? "", /^[a-f0-9]{64}$/u);
+});
+
+test("semantic source keys use immutable locators rather than content or array occurrence", () => {
+  const identity = {
+    schema_version: 2 as const,
+    source_fingerprint: "a".repeat(64),
+    record_kind: "vendor_policy" as const,
+    semantic_type: "penalty" as const,
+    subject_kind: "vendor" as const,
+    subject_normalized_name: "samplevendor",
+    partner_record_ref: "b".repeat(64),
+    title: null,
+    source_file_ids: ["c".repeat(64), "d".repeat(64)],
+    source_quote: "Sheet1!A1: cancellation fee applies",
+    content_verbatim: "cancellation fee applies",
+  };
+
+  assert.equal(
+    buildDisclosureSemanticSourceRecordKey(identity),
+    buildDisclosureSemanticSourceRecordKey({ ...identity }),
+  );
+  assert.equal(
+    buildDisclosureSemanticSourceRecordKey(identity),
+    buildDisclosureSemanticSourceRecordKey({
+      ...identity,
+      content_verbatim: "a different source-backed policy",
+    }),
+  );
+});
+
+function semanticPlanFixture(options: { stageablePrice?: boolean } = {}): {
+  plan: StagingLoadPlan;
+  row: StagingLoadPlan["disclosure_semantics"][number];
+} {
+  const sourceId = "a".repeat(64);
+  const sourceFile = "agency/seoul/policy.xlsx";
+  const sourceObjectKey = `${"b".repeat(64)}.xlsx`;
+  const unit = {
+    unit_id: "c".repeat(64),
+    kind_hint: "agency",
+    region_code: "seoul_gangnam3",
+    normalized_name: "sampleagency",
+    raw_name: "Sample Agency",
+    corporate_name: null,
+    source_file: sourceFile,
+    source_object_keys: [sourceObjectKey],
+    source_preview_keys: [`${"d".repeat(64)}.txt`],
+    source_records: [{
+      source_file_id: sourceId,
+      source_file: sourceFile,
+      source_object_key: sourceObjectKey,
+      source_preview_key: `${"d".repeat(64)}.txt`,
+    }],
+    source_fingerprint: "e".repeat(64),
+    validation_fingerprint: "f".repeat(64),
+    validation_issue_codes: [],
+    data: {
+      doc_kind: "partner_price_list",
+      business_name: "Sample Agency",
+      region_hint: "서울",
+      agency_packages: [],
+      partner_vendors: [{
+        vendor_name: "Sample Vendor",
+        old_names: [],
+        category: "dress",
+        price_min_krw: options.stageablePrice ? 1_000_000 : null,
+        price_max_krw: options.stageablePrice ? 1_000_000 : null,
+        base_spec: null,
+        price_note: null,
+        options: [],
+        policies: [{
+          policy_type: "penalty",
+          raw_text: "contract cancellation fee applies",
+          source_quote: "Sheet1!A1: contract cancellation fee applies",
+          source_file_ids: [sourceId],
+        }],
+        source_quote: "Sheet1!A1: contract cancellation fee applies",
+        source_file_ids: [sourceId],
+        confidence: 0.9,
+        needs_review: false,
+      }],
+      halls: [],
+      sections: [],
+      money_occurrences: [],
+      hall: {
+        venue_fee_krw: null,
+        meal_price_min_krw: null,
+        meal_price_max_krw: null,
+        venue_fee_source_quote: null,
+        meal_price_source_quote: null,
+        venue_fee_source_file_ids: [],
+        meal_price_source_file_ids: [],
+        items: [],
+        confidence: 0,
+        needs_review: false,
+      },
+      extraction_notes: "generated writer semantic preflight fixture",
+    },
+  } satisfies StagingUnit;
+  const [row] = stagingDisclosureSemantics(unit);
+  return {
+    row,
+    plan: {
+      schema_version: 2,
+      snapshot: "2026Q3",
+      snapshot_source: "kca_tprice",
+      units: [unit],
+      skipped_units: [],
+      raw_objects: [],
+      preview_objects: [],
+      agency_packages: [],
+      official_prices: [],
+      disclosure_semantics: [row],
+      dedupe_candidates: [],
+      ai_ledger: [],
+      warnings: [],
+    },
+  };
+}
+
+test("writer semantic preflight rejects rehashed invented rows and omissions", () => {
+  const { plan, row } = semanticPlanFixture();
+  assert.doesNotThrow(() => assertDisclosureSemanticPlanRows(plan));
+
+  const inventedWithoutFingerprint = {
+    ...row,
+    source_quote: "Sheet1!Z99: invented policy",
+    content_verbatim: "invented policy",
+    source_record_key: buildDisclosureSemanticSourceRecordKey({
+      ...row,
+      source_quote: "Sheet1!Z99: invented policy",
+      content_verbatim: "invented policy",
+    }),
+  };
+  const invented = {
+    ...inventedWithoutFingerprint,
+    content_fingerprint: buildDisclosureSemanticContentFingerprint(inventedWithoutFingerprint),
+  };
+  assert.throws(
+    () => assertDisclosureSemanticPlanRows({ ...plan, disclosure_semantics: [invented] }),
+    /exact.*unit|reconstructed|additional|missing|modified/iu,
+  );
+  assert.throws(
+    () => assertDisclosureSemanticPlanRows({ ...plan, disclosure_semantics: [] }),
+    /exact.*unit|reconstructed|additional|missing|modified/iu,
+  );
+});
+
+test("writer semantic preflight rejects same-locator content drift after a valid rehash", () => {
+  const { plan, row } = semanticPlanFixture();
+  const changedWithoutFingerprint = {
+    ...row,
+    content_verbatim: "mutated content at the same locator",
+  };
+  const changed = {
+    ...changedWithoutFingerprint,
+    content_fingerprint: buildDisclosureSemanticContentFingerprint(changedWithoutFingerprint),
+  };
+  assert.equal(changed.source_record_key, row.source_record_key);
+  assert.notEqual(changed.content_fingerprint, row.content_fingerprint);
+  assert.throws(
+    () => assertDisclosureSemanticPlanRows({ ...plan, disclosure_semantics: [changed] }),
+    /exact.*unit|reconstructed|additional|missing|modified/iu,
+  );
+});
+
+test("semantic link preflight requires one exact staged price row before external writes", () => {
+  const { plan, row } = semanticPlanFixture({ stageablePrice: true });
+  assert.equal(row.partner_link_status, "price_row_staged");
+  assert.throws(
+    () => assertDisclosureSemanticLinkPlan(plan),
+    /price_row_staged.*exact.*official price|persisted IDs.*preflight/iu,
+  );
+  const matchingPrice = {
+    ...stagingOfficialPriceFixture(),
+    unit_id: row.unit_id,
+    partner_record_ref: row.partner_record_ref ?? undefined,
+    vendor_name: row.subject_name,
+    category: row.vendor_category ?? "other",
+    region_code: row.region_code,
+  };
+  const linkedPlan = { ...plan, official_prices: [matchingPrice] };
+  assert.doesNotThrow(() => assertDisclosureSemanticLinkPlan(linkedPlan));
+  assert.throws(
+    () => assertDisclosureSemanticLinkPlan({
+      ...linkedPlan,
+      official_prices: [matchingPrice, { ...matchingPrice }],
+    }),
+    /exactly one|duplicate/iu,
+  );
+});
+
+test("durable semantic link resolution fails closed and distinguishes price from policy-only vendors", () => {
+  const vendorId = "11111111-1111-4111-8111-111111111111";
+  const officialPriceId = "22222222-2222-4222-8222-222222222222";
+  const price = semanticPlanFixture({ stageablePrice: true }).row;
+  const policyOnly = semanticPlanFixture().row;
+  const priceRef = price.partner_record_ref ?? "";
+  const policyRef = policyOnly.partner_record_ref ?? "";
+
+  assert.throws(
+    () => resolveDisclosureSemanticPersistenceRows([price], new Map(), new Map()),
+    /persisted vendor.*official price|price_row_staged.*resolve/iu,
+  );
+  assert.deepEqual(
+    resolveDisclosureSemanticPersistenceRows(
+      [price],
+      new Map([[priceRef, { partnerVendorId: vendorId, officialPriceId }]]),
+      new Map(),
+    )[0],
+    { row: price, partnerVendorId: vendorId, officialPriceId },
+  );
+  assert.deepEqual(
+    resolveDisclosureSemanticPersistenceRows(
+      [policyOnly],
+      new Map(),
+      new Map([[policyRef, vendorId]]),
+    )[0],
+    { row: policyOnly, partnerVendorId: vendorId, officialPriceId: null },
+  );
+});
+
+test("partial canonical halls retain distinct source-backed legacy price facts", () => {
+  const sourceId = "a".repeat(64);
+  const sourceObjectKey = `${"b".repeat(64)}.xlsx`;
+  const sourceQuote = "Sheet1!A1: 그랜드홀 대관료 300만원, 주차 5만원";
+  const unit = {
+    unit_id: "c".repeat(64),
+    raw_name: "그랜드웨딩",
+    region_code: "seoul_gangnam3",
+    source_fingerprint: "d".repeat(64),
+    validation_issue_codes: [],
+    source_records: [{
+      source_file_id: sourceId,
+      source_file: "hall/seoul/grand.xlsx",
+      source_object_key: sourceObjectKey,
+      source_preview_key: `${"e".repeat(64)}.txt`,
+    }],
+    data: {
+      halls: [{
+        hall_name: "그랜드홀",
+        guarantee_min: null,
+        meal_price_min_krw: null,
+        meal_price_max_krw: null,
+        venue_fee_min_krw: 3_000_000,
+        venue_fee_max_krw: 3_000_000,
+        venue_fee_note: null,
+        decoration_fee_min_krw: null,
+        decoration_fee_max_krw: null,
+        decoration_note: null,
+        options: [],
+        source_quote: sourceQuote,
+        source_file_ids: [sourceId],
+        confidence: 0.95,
+        needs_review: false,
+      }],
+      hall: {
+        venue_fee_krw: null,
+        meal_price_min_krw: null,
+        meal_price_max_krw: null,
+        venue_fee_source_quote: null,
+        meal_price_source_quote: null,
+        venue_fee_source_file_ids: [],
+        meal_price_source_file_ids: [],
+        items: [{
+          name: "주차",
+          price_min_krw: 50_000,
+          price_max_krw: 50_000,
+          raw_text: "주차 5만원",
+          source_quote: sourceQuote,
+          source_file_ids: [sourceId],
+          confidence: 0.9,
+          needs_review: false,
+        }],
+        confidence: 0.9,
+        needs_review: false,
+      },
+    },
+  } as unknown as StagingLoadPlan["units"][number];
+
+  assert.deepEqual(
+    hallPriceRows(unit).map((row) => [row.item_name, row.price_min_krw]),
+    [["그랜드홀 대관료", 3_000_000], ["주차", 50_000]],
+  );
+  unit.data.hall.venue_fee_krw = 4_000_000;
+  unit.data.hall.venue_fee_source_quote = sourceQuote;
+  unit.data.hall.venue_fee_source_file_ids = [sourceId];
+  assert.throws(
+    () => hallPriceRows(unit),
+    /canonical and legacy hall payloads disagree/iu,
   );
 });
 
@@ -196,6 +608,241 @@ function stagingOfficialPriceFixture(): StagingLoadPlan["official_prices"][numbe
     source_record_key: "b".repeat(64),
   };
 }
+
+function stagingDisclosureSemanticFixture(): StagingLoadPlan["disclosure_semantics"][number] {
+  const semantic = {
+    schema_version: 2,
+    unit_id: "1".repeat(64),
+    record_kind: "document_section",
+    semantic_type: "pricing_basis",
+    subject_kind: "agency",
+    subject_name: "샘플웨딩",
+    subject_normalized_name: "샘플웨딩",
+    partner_record_ref: null,
+    source_agency: null,
+    partner_link_status: "not_applicable",
+    vendor_category: null,
+    region_code: "seoul_gangnam3",
+    title: "가격 기준",
+    content_verbatim: "가격은 계약일 기준입니다.",
+    summary: "계약일 기준 가격",
+    review_status: "pending",
+    needs_review: true,
+    validation_issue_codes: ["low_confidence"],
+    source_file_ids: ["2".repeat(64)],
+    source_file: "결혼준비대행서비스/서울/샘플.xlsx",
+    source_object_keys: [`${"3".repeat(64)}.xlsx`],
+    source_preview_keys: [`${"4".repeat(64)}.txt`],
+    source_quote: "Sheet1!A1: 가격은 계약일 기준입니다.",
+    source_fingerprint: "5".repeat(64),
+    validation_fingerprint: "6".repeat(64),
+    confidence: 0.75,
+  } satisfies Omit<
+    StagingLoadPlan["disclosure_semantics"][number],
+    "source_record_key" | "content_fingerprint"
+  >;
+  const row = {
+    ...semantic,
+    source_record_key: buildDisclosureSemanticSourceRecordKey(semantic),
+  } satisfies Omit<StagingLoadPlan["disclosure_semantics"][number], "content_fingerprint">;
+  return {
+    ...row,
+    content_fingerprint: buildDisclosureSemanticContentFingerprint(row),
+  };
+}
+
+test("semantic staging inserts an immutable pending row with its snapshot provenance", async () => {
+  const row = stagingDisclosureSemanticFixture();
+  const inserted: Array<Record<string, unknown>> = [];
+  const query = {
+    eq: () => query,
+    maybeSingle: async () => ({ data: null, error: null }),
+  };
+  const client = {
+    from(table: string) {
+      assert.equal(table, "disclosure_semantic_staging");
+      return {
+        select: () => query,
+        insert: (value: Record<string, unknown>) => {
+          inserted.push(value);
+          return {
+            select: () => ({
+              single: async () => ({
+                data: { id: "99999999-9999-4999-8999-999999999999" },
+                error: null,
+              }),
+            }),
+          };
+        },
+      };
+    },
+  } as unknown as Parameters<typeof persistDisclosureSemantic>[0];
+
+  const id = await persistDisclosureSemantic(
+    client,
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    row,
+    { partnerVendorId: null, officialPriceId: null },
+  );
+
+  assert.equal(id, "99999999-9999-4999-8999-999999999999");
+  assert.deepEqual(inserted, [{
+    snapshot_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ...row,
+    partner_vendor_id: null,
+    official_price_id: null,
+  }]);
+});
+
+test("document semantic staging rejects invented durable links before database access", async () => {
+  const row = stagingDisclosureSemanticFixture();
+  let databaseCalls = 0;
+  const client = {
+    from: () => {
+      databaseCalls += 1;
+      throw new Error("database must remain unreachable for invented document links");
+    },
+  } as unknown as Parameters<typeof persistDisclosureSemantic>[0];
+
+  await assert.rejects(
+    persistDisclosureSemantic(
+      client,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      row,
+      {
+        partnerVendorId: "11111111-1111-4111-8111-111111111111",
+        officialPriceId: null,
+      },
+    ),
+    /document semantic.*durable/i,
+  );
+  assert.equal(databaseCalls, 0);
+});
+
+test("price-backed semantic staging persists exact durable vendor and official-price links", async () => {
+  const row = semanticPlanFixture({ stageablePrice: true }).row;
+  const partnerVendorId = "11111111-1111-4111-8111-111111111111";
+  const officialPriceId = "22222222-2222-4222-8222-222222222222";
+  const inserted: Array<Record<string, unknown>> = [];
+  const query = {
+    eq: () => query,
+    maybeSingle: async () => ({ data: null, error: null }),
+  };
+  const client = {
+    from(table: string) {
+      assert.equal(table, "disclosure_semantic_staging");
+      return {
+        select: () => query,
+        insert: (value: Record<string, unknown>) => {
+          inserted.push(value);
+          return {
+            select: () => ({
+              single: async () => ({
+                data: { id: "99999999-9999-4999-8999-999999999999" },
+                error: null,
+              }),
+            }),
+          };
+        },
+      };
+    },
+  } as unknown as Parameters<typeof persistDisclosureSemantic>[0];
+
+  await persistDisclosureSemantic(
+    client,
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    row,
+    { partnerVendorId, officialPriceId },
+  );
+  assert.equal(inserted.length, 1);
+  assert.equal(inserted[0].partner_vendor_id, partnerVendorId);
+  assert.equal(inserted[0].official_price_id, officialPriceId);
+});
+
+test("semantic staging rejects a forged source key before any database access", async () => {
+  const fixture = stagingDisclosureSemanticFixture();
+  const withoutContentFingerprint = {
+    ...fixture,
+    source_record_key: "f".repeat(64),
+    content_fingerprint: undefined,
+  };
+  const { content_fingerprint: _removed, ...row } = withoutContentFingerprint;
+  const forged = {
+    ...row,
+    content_fingerprint: buildDisclosureSemanticContentFingerprint(row),
+  };
+  let databaseCalls = 0;
+  const client = {
+    from: () => {
+      databaseCalls += 1;
+      throw new Error("database must remain unreachable for a forged source key");
+    },
+  } as unknown as Parameters<typeof persistDisclosureSemantic>[0];
+
+  await assert.rejects(
+    persistDisclosureSemantic(
+      client,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      forged,
+      { partnerVendorId: null, officialPriceId: null },
+    ),
+    /source record key.*immutable locator|source key.*match/iu,
+  );
+  assert.equal(databaseCalls, 0);
+});
+
+test("semantic staging is idempotent and rejects immutable source-key content drift", async () => {
+  const row = stagingDisclosureSemanticFixture();
+  const snapshotId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const stored = {
+    id: "99999999-9999-4999-8999-999999999999",
+    snapshot_id: snapshotId,
+    ...row,
+    partner_vendor_id: null,
+    official_price_id: null,
+  };
+  let insertCalls = 0;
+  const clientFor = (existing: Record<string, unknown>) => {
+    const query = {
+      eq: () => query,
+      maybeSingle: async () => ({ data: existing, error: null }),
+    };
+    return {
+      from(table: string) {
+        assert.equal(table, "disclosure_semantic_staging");
+        return {
+          select: () => query,
+          insert: () => {
+            insertCalls += 1;
+            throw new Error("an existing semantic row must never be overwritten");
+          },
+        };
+      },
+    } as unknown as Parameters<typeof persistDisclosureSemantic>[0];
+  };
+
+  assert.equal(
+    await persistDisclosureSemantic(
+      clientFor(stored),
+      snapshotId,
+      row,
+      { partnerVendorId: null, officialPriceId: null },
+    ),
+    stored.id,
+  );
+  assert.equal(insertCalls, 0);
+
+  await assert.rejects(
+    persistDisclosureSemantic(
+      clientFor({ ...stored, content_verbatim: "변조된 원문" }),
+      snapshotId,
+      row,
+      { partnerVendorId: null, officialPriceId: null },
+    ),
+    /different immutable content/iu,
+  );
+  assert.equal(insertCalls, 0);
+});
 
 function storedOfficialPriceFixture(
   row: StagingLoadPlan["official_prices"][number],
@@ -359,6 +1006,443 @@ test("load preserves exact parent and option source files within a multi-source 
   assert.notEqual(row.source_file, row.options[0].source_file);
 });
 
+test("load stages every canonical hall with distinct identity, prices, options, and source provenance", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-canonical-halls-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const vendorDir = path.join(rootDir, "hall", "jeju", "generated-venue");
+  await mkdir(vendorDir, { recursive: true });
+  await writeDummyDocx(
+    path.join(vendorDir, "grand.docx"),
+    "그랜드 홀 대관료 300만원 주말 기준, 식대 8만원, 최소 보증 인원 200명",
+  );
+  await writeDummyDocx(
+    path.join(vendorDir, "ocean.docx"),
+    "오션 홀 대관료 500만원, 장식비 100만원 생화 포함, 빔 프로젝터 10만원",
+  );
+  const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  await convertManifest({ stateDir });
+  const [grandSource, oceanSource] = scanned.units[0].source_files;
+  const provider: ExtractionProvider = {
+    extract: async (request) => {
+      const requestSourceIds = [...request.text.matchAll(/^source_file_id:\s*([a-f0-9]{64})\s*$/gmu)]
+        .map((match) => match[1]);
+      assert.equal(requestSourceIds.length, 1);
+      const sourceQuote = /^(line:\d+:\s*.*)$/mu.exec(request.text)?.[1];
+      assert.ok(sourceQuote);
+      const isGrandHall = requestSourceIds[0] === sourceFileId(grandSource);
+      return {
+        data: {
+          doc_kind: "hall_disclosure",
+          business_name: scanned.units[0].parsed.raw_name,
+          region_hint: "제주",
+          agency_packages: [],
+          partner_vendors: [],
+          halls: [isGrandHall ? {
+            hall_name: "그랜드 홀",
+            guarantee_min: 200,
+            meal_price_min_krw: 80_000,
+            meal_price_max_krw: 80_000,
+            venue_fee_min_krw: 3_000_000,
+            venue_fee_max_krw: 3_000_000,
+            venue_fee_note: "주말 기준",
+            decoration_fee_min_krw: null,
+            decoration_fee_max_krw: null,
+            decoration_note: null,
+            options: [],
+            source_quote: sourceQuote,
+            source_file_ids: requestSourceIds,
+            confidence: 0.95,
+            needs_review: false,
+          } : {
+            hall_name: "오션 홀",
+            guarantee_min: null,
+            meal_price_min_krw: null,
+            meal_price_max_krw: null,
+            venue_fee_min_krw: 5_000_000,
+            venue_fee_max_krw: 5_000_000,
+            venue_fee_note: null,
+            decoration_fee_min_krw: 1_000_000,
+            decoration_fee_max_krw: 1_000_000,
+            decoration_note: "생화 포함",
+            options: [{
+              name: "빔 프로젝터",
+              price_min_krw: 100_000,
+              price_max_krw: 100_000,
+              unit: null,
+              condition: null,
+              raw_text: "빔 프로젝터 10만원",
+              source_quote: sourceQuote,
+              source_file_ids: requestSourceIds,
+            }],
+            source_quote: sourceQuote,
+            source_file_ids: requestSourceIds,
+            confidence: 0.9,
+            needs_review: false,
+          }],
+          sections: [],
+          money_occurrences: [],
+          hall: {
+            venue_fee_krw: null,
+            meal_price_min_krw: null,
+            meal_price_max_krw: null,
+            venue_fee_source_quote: null,
+            meal_price_source_quote: null,
+            venue_fee_source_file_ids: [],
+            meal_price_source_file_ids: [],
+            items: [],
+            confidence: 0,
+            needs_review: false,
+          },
+          extraction_notes: "generated canonical halls fixture",
+        },
+        inputTokens: 10,
+        outputTokens: 10,
+      };
+    },
+  };
+  await extractManifest({ stateDir }, { provider, env: {} });
+  const validated = await validateManifest({ stateDir });
+  const validationArtifact = validated.units[0].validation?.artifact_path
+    ? JSON.parse(await readFile(validated.units[0].validation.artifact_path, "utf8"))
+    : null;
+  assert.equal(
+    validated.units[0].stage,
+    "validated",
+    JSON.stringify(validationArtifact?.issues ?? validated.units[0].notices),
+  );
+
+  const dry = await loadValidated({ stateDir, snapshot: "2026Q3" });
+
+  assert.deepEqual(dry.plan.skipped_units, []);
+  assert.equal(dry.plan.units.length, 1);
+  assert.deepEqual(
+    dry.plan.official_prices.map((row) => ({
+      item_name: row.item_name,
+      base_spec: row.base_spec,
+      price_min_krw: row.price_min_krw,
+      price_max_krw: row.price_max_krw,
+      price_note: row.price_note,
+      source_file: row.source_file,
+      source_quote: row.source_quote,
+      source_object_keys: row.source_object_keys,
+      option_names: row.options.map((option) => option.name),
+      option_sources: row.options.map((option) => option.source_file),
+      option_object_keys: row.options.map((option) => option.source_object_keys),
+      review_status: row.review_status,
+    })),
+    [
+      {
+        item_name: "그랜드 홀 대관료",
+        base_spec: "최소 보증 인원 200명",
+        price_min_krw: 3_000_000,
+        price_max_krw: 3_000_000,
+        price_note: "주말 기준",
+        source_file: grandSource.path,
+        source_quote: "line:1: 그랜드 홀 대관료 300만원 주말 기준, 식대 8만원, 최소 보증 인원 200명",
+        source_object_keys: [`${grandSource.sha256}.${grandSource.ext}`],
+        option_names: [],
+        option_sources: [],
+        option_object_keys: [],
+        review_status: "pending",
+      },
+      {
+        item_name: "그랜드 홀 식대",
+        base_spec: "최소 보증 인원 200명",
+        price_min_krw: 80_000,
+        price_max_krw: 80_000,
+        price_note: null,
+        source_file: grandSource.path,
+        source_quote: "line:1: 그랜드 홀 대관료 300만원 주말 기준, 식대 8만원, 최소 보증 인원 200명",
+        source_object_keys: [`${grandSource.sha256}.${grandSource.ext}`],
+        option_names: [],
+        option_sources: [],
+        option_object_keys: [],
+        review_status: "pending",
+      },
+      {
+        item_name: "오션 홀 대관료",
+        base_spec: null,
+        price_min_krw: 5_000_000,
+        price_max_krw: 5_000_000,
+        price_note: null,
+        source_file: oceanSource.path,
+        source_quote: "line:2: 오션 홀 대관료 500만원, 장식비 100만원 생화 포함, 빔 프로젝터 10만원",
+        source_object_keys: [`${oceanSource.sha256}.${oceanSource.ext}`],
+        option_names: [],
+        option_sources: [],
+        option_object_keys: [],
+        review_status: "pending",
+      },
+      {
+        item_name: "오션 홀 장식비",
+        base_spec: null,
+        price_min_krw: 1_000_000,
+        price_max_krw: 1_000_000,
+        price_note: "생화 포함",
+        source_file: oceanSource.path,
+        source_quote: "line:2: 오션 홀 대관료 500만원, 장식비 100만원 생화 포함, 빔 프로젝터 10만원",
+        source_object_keys: [`${oceanSource.sha256}.${oceanSource.ext}`],
+        option_names: [],
+        option_sources: [],
+        option_object_keys: [],
+        review_status: "pending",
+      },
+      {
+        item_name: "오션 홀 옵션",
+        base_spec: null,
+        price_min_krw: null,
+        price_max_krw: null,
+        price_note: null,
+        source_file: oceanSource.path,
+        source_quote: "line:2: 오션 홀 대관료 500만원, 장식비 100만원 생화 포함, 빔 프로젝터 10만원",
+        source_object_keys: [`${oceanSource.sha256}.${oceanSource.ext}`],
+        option_names: ["빔 프로젝터"],
+        option_sources: [oceanSource.path],
+        option_object_keys: [[`${oceanSource.sha256}.${oceanSource.ext}`]],
+        review_status: "pending",
+      },
+    ],
+  );
+  assert.equal(new Set(dry.plan.official_prices.map((row) => row.source_record_key)).size, 5);
+});
+
+test("load preserves a pricing-basis section even when the document has no price row", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-semantic-only-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const vendorDir = path.join(rootDir, "agency", "jeju", "semantic-only-agency");
+  await mkdir(vendorDir, { recursive: true });
+  await writeDummyDocx(
+    path.join(vendorDir, "pricing-basis.docx"),
+    "가격 기준 | 계약 시점의 공시 원문을 그대로 적용합니다",
+  );
+  const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  await convertManifest({ stateDir });
+  const source = scanned.units[0].source_files[0];
+  const provider: ExtractionProvider = {
+    extract: async (request) => {
+      const sourceQuote = /^(line:\d+:\s*.*)$/mu.exec(request.text)?.[1];
+      assert.ok(sourceQuote);
+      return {
+        data: {
+          doc_kind: "agency_disclosure",
+          business_name: scanned.units[0].parsed.raw_name,
+          region_hint: "제주",
+          agency_packages: [],
+          partner_vendors: [],
+          halls: [],
+          sections: [{
+            section_type: "pricing_basis",
+            title: "가격 기준",
+            content_verbatim: "가격 기준 | 계약 시점의 공시 원문을 그대로 적용합니다",
+            summary: "계약 시점 공시 원문 적용",
+            source_quote: sourceQuote,
+            source_file_ids: [sourceFileId(source)],
+            confidence: 0.95,
+            needs_review: false,
+          }],
+          money_occurrences: [],
+          hall: {
+            venue_fee_krw: null,
+            meal_price_min_krw: null,
+            meal_price_max_krw: null,
+            venue_fee_source_quote: null,
+            meal_price_source_quote: null,
+            venue_fee_source_file_ids: [],
+            meal_price_source_file_ids: [],
+            items: [],
+            confidence: 0,
+            needs_review: false,
+          },
+          extraction_notes: "generated semantic-only fixture",
+        },
+        inputTokens: 10,
+        outputTokens: 10,
+      };
+    },
+  };
+  await extractManifest({ stateDir }, { provider, env: {} });
+  const validated = await validateManifest({ stateDir });
+  const validationArtifact = validated.units[0].validation?.artifact_path
+    ? JSON.parse(await readFile(validated.units[0].validation.artifact_path, "utf8"))
+    : null;
+  assert.equal(
+    validated.units[0].stage,
+    "validated",
+    JSON.stringify(validationArtifact?.issues ?? validated.units[0].notices),
+  );
+
+  const dry = await loadValidated({ stateDir, snapshot: "2026Q3" });
+
+  assert.deepEqual(dry.plan.skipped_units, []);
+  assert.equal(dry.plan.units.length, 1);
+  assert.equal(dry.plan.agency_packages.length, 0);
+  assert.equal(dry.plan.official_prices.length, 0);
+  assert.deepEqual(dry.plan.disclosure_semantics, [{
+    schema_version: 2,
+    unit_id: scanned.units[0].unit_id,
+    record_kind: "document_section",
+    semantic_type: "pricing_basis",
+    subject_kind: "agency",
+    subject_name: scanned.units[0].parsed.raw_name,
+    subject_normalized_name: scanned.units[0].parsed.normalized_name,
+    partner_record_ref: null,
+    source_agency: null,
+    partner_link_status: "not_applicable",
+    vendor_category: null,
+    region_code: "jeju",
+    title: "가격 기준",
+    content_verbatim: "가격 기준 | 계약 시점의 공시 원문을 그대로 적용합니다",
+    summary: "계약 시점 공시 원문 적용",
+    review_status: "pending",
+    needs_review: false,
+    validation_issue_codes: [],
+    source_file_ids: [sourceFileId(source)],
+    source_file: source.path,
+    source_object_keys: [`${source.sha256}.${source.ext}`],
+    source_preview_keys: [dry.plan.preview_objects[0].storage_path],
+    source_quote: "line:1: 가격 기준 | 계약 시점의 공시 원문을 그대로 적용합니다",
+    source_fingerprint: scanned.units[0].source_fingerprint,
+    validation_fingerprint: dry.plan.units[0].validation_fingerprint,
+    confidence: 0.95,
+    source_record_key: dry.plan.disclosure_semantics[0].source_record_key,
+    content_fingerprint: dry.plan.disclosure_semantics[0].content_fingerprint,
+  }]);
+  assert.match(dry.plan.disclosure_semantics[0].source_record_key, /^[a-f0-9]{64}$/u);
+  assert.match(dry.plan.disclosure_semantics[0].content_fingerprint, /^[a-f0-9]{64}$/u);
+});
+
+test("load preserves a partner-vendor policy without inventing a price or summary", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-policy-only-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const vendorDir = path.join(rootDir, "agency", "jeju", "policy-only-agency");
+  await mkdir(vendorDir, { recursive: true });
+  await writeDummyDocx(
+    path.join(vendorDir, "partner-policy.docx"),
+    "샘플드레스 위약금 규정 | 계약 취소 시 위약금은 별도 협의합니다",
+  );
+  const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  await convertManifest({ stateDir });
+  const source = scanned.units[0].source_files[0];
+  const provider: ExtractionProvider = {
+    extract: async (request) => {
+      const sourceQuote = /^(line:\d+:\s*.*)$/mu.exec(request.text)?.[1];
+      assert.ok(sourceQuote);
+      return {
+        data: {
+          doc_kind: "partner_price_list",
+          business_name: scanned.units[0].parsed.raw_name,
+          region_hint: "제주",
+          agency_packages: [],
+          partner_vendors: [{
+            vendor_name: "샘플드레스",
+            old_names: [],
+            category: "dress",
+            price_min_krw: null,
+            price_max_krw: null,
+            base_spec: null,
+            price_note: null,
+            options: [],
+            policies: [{
+              policy_type: "penalty",
+              raw_text: "샘플드레스 위약금 규정 | 계약 취소 시 위약금은 별도 협의합니다",
+              source_quote: sourceQuote,
+              source_file_ids: [sourceFileId(source)],
+            }],
+            source_quote: sourceQuote,
+            source_file_ids: [sourceFileId(source)],
+            confidence: 0.86,
+            needs_review: false,
+          }],
+          halls: [],
+          sections: [],
+          money_occurrences: [],
+          hall: {
+            venue_fee_krw: null,
+            meal_price_min_krw: null,
+            meal_price_max_krw: null,
+            venue_fee_source_quote: null,
+            meal_price_source_quote: null,
+            venue_fee_source_file_ids: [],
+            meal_price_source_file_ids: [],
+            items: [],
+            confidence: 0,
+            needs_review: false,
+          },
+          extraction_notes: "generated policy-only fixture",
+        },
+        inputTokens: 10,
+        outputTokens: 10,
+      };
+    },
+  };
+  await extractManifest({ stateDir }, { provider, env: {} });
+  const validated = await validateManifest({ stateDir });
+  const validationArtifact = validated.units[0].validation?.artifact_path
+    ? JSON.parse(await readFile(validated.units[0].validation.artifact_path, "utf8"))
+    : null;
+  assert.equal(
+    validated.units[0].stage,
+    "validated",
+    JSON.stringify(validationArtifact?.issues ?? validated.units[0].notices),
+  );
+
+  const dry = await loadValidated({ stateDir, snapshot: "2026Q3" });
+
+  assert.deepEqual(dry.plan.skipped_units, []);
+  assert.equal(dry.plan.official_prices.length, 0);
+  assert.equal(dry.plan.agency_packages.length, 0);
+  assert.equal(dry.plan.disclosure_semantics.length, 1);
+  assert.deepEqual(dry.plan.disclosure_semantics[0], {
+    schema_version: 2,
+    unit_id: scanned.units[0].unit_id,
+    record_kind: "vendor_policy",
+    semantic_type: "penalty",
+    subject_kind: "vendor",
+    subject_name: "샘플드레스",
+    subject_normalized_name: "샘플드레스",
+    partner_record_ref: dry.plan.disclosure_semantics[0].partner_record_ref,
+    source_agency: {
+      name: scanned.units[0].parsed.raw_name,
+      normalized_name: scanned.units[0].parsed.normalized_name,
+      corporate_name: scanned.units[0].parsed.corporate_name,
+      region_code: "jeju",
+      source_file: source.path,
+    },
+    partner_link_status: "policy_only_pending_identity",
+    vendor_category: "dress",
+    region_code: "jeju",
+    title: null,
+    content_verbatim: "샘플드레스 위약금 규정 | 계약 취소 시 위약금은 별도 협의합니다",
+    summary: null,
+    review_status: "pending",
+    needs_review: false,
+    validation_issue_codes: [],
+    source_file_ids: [sourceFileId(source)],
+    source_file: source.path,
+    source_object_keys: [`${source.sha256}.${source.ext}`],
+    source_preview_keys: [dry.plan.preview_objects[0].storage_path],
+    source_quote: "line:1: 샘플드레스 위약금 규정 | 계약 취소 시 위약금은 별도 협의합니다",
+    source_fingerprint: scanned.units[0].source_fingerprint,
+    validation_fingerprint: dry.plan.units[0].validation_fingerprint,
+    confidence: 0.86,
+    source_record_key: dry.plan.disclosure_semantics[0].source_record_key,
+    content_fingerprint: dry.plan.disclosure_semantics[0].content_fingerprint,
+  });
+  assert.match(dry.plan.disclosure_semantics[0].partner_record_ref ?? "", /^[a-f0-9]{64}$/u);
+});
+
 function extraction(): DisclosureExtraction {
   return {
     doc_kind: "agency_disclosure",
@@ -437,6 +1521,11 @@ test("agency-root partner prices carry the scan-derived source agency identity",
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir }, {
     extractPdfText: async () => "카테고리: 스튜디오 | 샘플제휴스튜디오 기본 촬영 120만원 ".repeat(20),
+    rasterizePdf: async (_sourcePath, outputDirectory) => {
+      const pagePath = path.join(outputDirectory, "page-1.png");
+      await writeFile(pagePath, "generated partner price raster");
+      return [pagePath];
+    },
   });
   const provider: ExtractionProvider = {
     extract: async () => {
@@ -450,7 +1539,11 @@ test("agency-root partner prices carry the scan-derived source agency identity",
   await validateManifest({ stateDir });
   const dry = await loadValidated({ stateDir, snapshot: "2026Q3" });
 
-  assert.equal(dry.plan.official_prices.length, 1);
+  assert.equal(
+    dry.plan.official_prices.length,
+    1,
+    JSON.stringify(dry.plan.skipped_units),
+  );
   assert.deepEqual(dry.plan.official_prices[0].source_agency, {
     name: "샘플연결플래너",
     normalized_name: "샘플연결플래너",

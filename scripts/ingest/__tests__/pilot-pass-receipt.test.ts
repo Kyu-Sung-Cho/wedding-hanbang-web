@@ -60,6 +60,16 @@ function scoreReport(overrides: Record<string, unknown> = {}): string {
         unsafe_unreadable_extractions: [],
         actual_coverage_gaps: isMay ? [{ reason: "non-blocking image coverage review" }] : [],
       },
+      semantic_gate: {
+        required: true,
+        passed: !isMay,
+        expected_status: "captured",
+        actual_status: isMay ? "missing" : "captured",
+      },
+      semantic_capture: {
+        status: isMay ? "missing" : "captured",
+        misses: isMay ? ["pricing_basis"] : [],
+      },
       unreadable_cells: isMay
         ? FIXED_EIGHT_MAY_UNREADABLE_CELL_BINDINGS.map((binding) => ({
           source_locator: binding.source_locator,
@@ -121,6 +131,10 @@ function scoreReport(overrides: Record<string, unknown> = {}): string {
         actual_coverage_gaps: 0,
         unreadable_amounts_must_remain_unstructured: true,
       },
+      semantic_criteria: {
+        required_for_expected_units: true,
+        required_status: "captured",
+      },
     },
     units,
     ...overrides,
@@ -141,7 +155,7 @@ function validInput() {
 test("a passing fixed-eight report produces a receipt that binds every immutable input", () => {
   const receipt = createFixedEightPassReceipt(validInput());
 
-  assert.equal(receipt.schema_version, 1);
+  assert.equal(receipt.schema_version, 2);
   assert.equal(receipt.kind, "fixed_eight_pilot_pass_receipt");
   assert.match(receipt.receipt_sha256, /^[a-f0-9]{64}$/u);
   assert.deepEqual(receipt.payload.ordered_unit_ids, FIXED_EIGHT_ORDERED_UNIT_IDS);
@@ -155,6 +169,8 @@ test("a passing fixed-eight report produces a receipt that binds every immutable
   assert.equal(receipt.payload.ground_truth.effective_readable_occurrences, 2_404);
   assert.equal(receipt.payload.score_report.status, "pass");
   assert.equal(receipt.payload.score_report.unit_statuses.at(-1)?.status, "fail");
+  assert.equal(receipt.payload.score_report.unit_statuses.at(-1)?.semantic_gate_passed, false);
+  assert.equal(receipt.payload.score_report.unit_statuses.at(-1)?.semantic_capture_status, "missing");
 });
 
 test("receipt issuance rejects selection drift, duplicate evidence, failed zero gates, and an unscoreable May unit", () => {
@@ -231,6 +247,28 @@ test("receipt issuance rejects selection drift, duplicate evidence, failed zero 
   assert.throws(() => createFixedEightPassReceipt(undisposedMay), /lacks a needs_review disposition/u);
 });
 
+test("receipt issuance rejects a stale passing status when a blocking semantic expectation is missing", () => {
+  const staleSemanticGate = validInput();
+  const report = JSON.parse(staleSemanticGate.scoreReportContent) as {
+    units: Array<{
+      status: string;
+      semantic_gate: { passed: boolean; actual_status: string };
+      semantic_capture: { status: string; misses: string[] };
+    }>;
+  };
+  report.units[0]!.status = "pass";
+  report.units[0]!.semantic_gate.passed = false;
+  report.units[0]!.semantic_gate.actual_status = "missing";
+  report.units[0]!.semantic_capture.status = "missing";
+  report.units[0]!.semantic_capture.misses = ["policies"];
+  staleSemanticGate.scoreReportContent = JSON.stringify(report);
+
+  assert.throws(
+    () => createFixedEightPassReceipt(staleSemanticGate),
+    /semantic capture/u,
+  );
+});
+
 test("receipt files are state-contained, named by payload hash, tamper-evident, and never overwritten", async (t) => {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-pilot-receipt-"));
   t.after(async () => rm(stateDir, { recursive: true, force: true }));
@@ -291,6 +329,15 @@ test("receipt validation requires the exact score bytes and rejects recomputed-h
   assert.throws(
     () => validateFixedEightPassReceipt(forged, { scoreReportContent: input.scoreReportContent }),
     /score unit statuses must exactly match/u,
+  );
+
+  const forgedSemantic = structuredClone(receipt);
+  forgedSemantic.payload.score_report.unit_statuses[0]!.semantic_gate_passed = false;
+  forgedSemantic.payload.score_report.unit_statuses[0]!.semantic_capture_status = "missing";
+  forgedSemantic.receipt_sha256 = canonicalSha256(forgedSemantic.payload);
+  assert.throws(
+    () => validateFixedEightPassReceipt(forgedSemantic, { scoreReportContent: input.scoreReportContent }),
+    /semantic capture statuses must all be captured/u,
   );
 });
 

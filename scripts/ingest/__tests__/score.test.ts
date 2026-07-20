@@ -101,6 +101,40 @@ test("XLSX cell locators do not collide on address prefixes", () => {
   ), []);
 });
 
+test("XLSX drawing money matches only the exact auxiliary locator", () => {
+  const exactQuote = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: 라온제나 대관료 500만원";
+  const groundTruth = [{
+    raw: "500만원",
+    krw: 5_000_000,
+    line_context: "라온제나 대관료 500만원",
+    source_locator: "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1",
+    origin: "inventory" as const,
+  }];
+
+  assert.deepEqual(findOccurrenceMatches(
+    [{ path: "a", krw: 5_000_000, source_quote: exactQuote, source_file_ids: [] }],
+    groundTruth,
+  ), [{ extracted_index: 0, ground_truth_index: 0, match_quality: "locator" }]);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "a",
+      krw: 5_000_000,
+      source_quote: exactQuote.replace("text-box-1", "text-box-2"),
+      source_file_ids: [],
+    }],
+    groundTruth,
+  ), []);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "a",
+      krw: 5_000_000,
+      source_quote: "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: 대관료 500만원",
+      source_file_ids: [],
+    }],
+    groundTruth,
+  ), []);
+});
+
 test("merged evidence matches each fragment independently and chooses the exact locator", () => {
   const mergedQuote = encodeMergedEvidenceQuote([
     {
@@ -1404,6 +1438,77 @@ test("semantic policy coverage accepts document-common refund and penalty sectio
   assert.equal(semantic.status, "captured");
 });
 
+test("semantic capture accepts exact XLSX drawing and formula pricing-basis evidence", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  const manifest = await readJsonFile(path.join(fixture.stateDir, "manifest.json")) as IngestManifest;
+  const extractionPath = manifest.units[0].extraction?.artifact_path ?? "";
+  const artifact = await readJsonFile(extractionPath) as {
+    data: DisclosureExtraction;
+  } & Record<string, unknown>;
+  const drawing = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1: [ 총비용 = 예식비 + 식대총액 ]";
+  const formula = "XLSX_FORMULA [sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl/worksheets/sheet5.xml#cell-B20]: expression=SUM(C12,C14,C16) | cached_value_locator=[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20] | evaluation=not_executed";
+  artifact.data.sections = [
+    {
+      section_type: "pricing_basis",
+      title: "총비용",
+      content_verbatim: "[ 총비용 = 예식비 + 식대총액 ]",
+      summary: "총비용 산정 기준",
+      source_quote: drawing,
+      source_file_ids: [SOURCE_ID],
+      confidence: 1,
+      needs_review: false,
+    },
+    {
+      section_type: "pricing_basis",
+      title: "SUM(C12,C14,C16)",
+      content_verbatim: "SUM(C12,C14,C16)",
+      summary: "수식 원문",
+      source_quote: formula,
+      source_file_ids: [SOURCE_ID],
+      confidence: 1,
+      needs_review: false,
+    },
+  ];
+  await writeJsonFile(extractionPath, artifact);
+  await attachStrictArtifacts(fixture.stateDir);
+  const overlayPath = path.join(fixture.stateDir, "xlsx-aux-semantic-overlay.json");
+  await writeJsonFile(overlayPath, {
+    schema_version: 1,
+    created_at: "2026-07-20T00:00:00.000Z",
+    units: [{
+      unit_id: UNIT_ID,
+      readable_occurrences: [],
+      unreadable_cells: [],
+      expectations: {
+        doc_kinds: ["agency_disclosure"],
+        policies: false,
+        pricing_basis: true,
+        sections: true,
+        halls_min: 0,
+      },
+    }],
+  });
+
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    overlayPath,
+    expectedOverlaySha256: (await sha256File(overlayPath)).sha256,
+    requireValidatedArtifacts: true,
+  });
+
+  const unit = (report.units as Array<{
+    status: string;
+    semantic_capture: { status: string; misses: string[] };
+  }>)[0]!;
+  assert.equal(unit.semantic_capture.status, "captured", JSON.stringify(unit));
+  assert.equal(unit.status, "pass", JSON.stringify(unit));
+});
+
 test("semantic capture rejects fabricated content and a policy type unsupported by its quote", async (t) => {
   const fixture = await buildFixture();
   t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
@@ -1481,6 +1586,73 @@ test("semantic capture rejects fabricated content and a policy type unsupported 
   assert.equal(semantic.observed.policies, 0);
   assert.equal(semantic.observed.sections, 0);
   assert.deepEqual(semantic.observed.rejected_paths, ["sections[0]", "sections[1]"]);
+});
+
+test("an expected semantic omission fails the unit and batch while leaving the zero-price gate truthful", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  await attachStrictArtifacts(fixture.stateDir);
+  const overlayPath = path.join(fixture.stateDir, "semantic-omission-overlay.json");
+  await writeJsonFile(overlayPath, {
+    schema_version: 1,
+    created_at: "2026-07-20T00:00:00.000Z",
+    units: [{
+      unit_id: UNIT_ID,
+      readable_occurrences: [],
+      unreadable_cells: [],
+      expectations: {
+        doc_kinds: ["agency_disclosure"],
+        policies: true,
+        pricing_basis: true,
+        sections: true,
+        halls_min: 1,
+      },
+    }],
+  });
+
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    overlayPath,
+    expectedOverlaySha256: (await sha256File(overlayPath)).sha256,
+    requireValidatedArtifacts: true,
+  });
+
+  const unit = (report.units as Array<{
+    status: string;
+    price_gate: { passed: boolean };
+    semantic_gate: {
+      required: boolean;
+      passed: boolean;
+      expected_status: string;
+      actual_status: string;
+    };
+    semantic_capture: { status: string; misses: string[] };
+  }>)[0]!;
+  assert.equal(unit.price_gate.passed, true);
+  assert.equal(unit.semantic_capture.status, "missing");
+  assert.deepEqual(unit.semantic_capture.misses, ["policies", "pricing_basis", "sections", "halls"]);
+  assert.deepEqual(unit.semantic_gate, {
+    required: true,
+    passed: false,
+    expected_status: "captured",
+    actual_status: "missing",
+  });
+  assert.equal(unit.status, "fail");
+  const gate = report.gate as {
+    eligible_for_25_unit_batch: boolean;
+    blocking_failed_units: number;
+    semantic_criteria: { required_for_expected_units: boolean; required_status: string };
+  };
+  assert.equal(gate.eligible_for_25_unit_batch, false);
+  assert.equal(gate.blocking_failed_units, 1);
+  assert.deepEqual(gate.semantic_criteria, {
+    required_for_expected_units: true,
+    required_status: "captured",
+  });
 });
 
 test("score treats an occurrence attributed to an unknown source file as a linking error", async (t) => {

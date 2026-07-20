@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -16,10 +16,13 @@ import {
   validatePdfTextLimits,
   validateXlsxArchiveHeader,
   validateXlsxArchiveLimits,
+  validateXlsxFormulaLimits,
   workbookToMarkdown,
 } from "../convert.js";
 import { writeJsonFile } from "../io.js";
+import { loadManifest, saveManifest } from "../manifest.js";
 import { scanSources } from "../scan.js";
+import { getIngestStatus } from "../status.js";
 
 test("convert sends an HWP-only unit to the manual conversion queue", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-hwp-"));
@@ -40,6 +43,106 @@ test("convert sends an HWP-only unit to the manual conversion queue", async (t) 
     "utf8",
   );
   assert.match(queue, /샘플전라웨딩\.hwp/u);
+});
+
+test("convert preserves a scanner duplicate-content block instead of laundering it", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-duplicate-convert-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(regionDir, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(regionDir, "샘플홀.pdf"), "%PDF identical fixture"),
+    writeFile(path.join(regionDir, "샘플홀 (1).pdf"), "%PDF identical fixture"),
+  ]);
+  const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  assert.ok(scanned.units.every((unit) => unit.stage === "error"));
+  const staleArtifacts = await Promise.all(scanned.units.map(async (unit) => {
+    const staleDirectory = path.join(
+      stateDir,
+      ".converted",
+      unit.unit_id,
+      unit.source_fingerprint,
+    );
+    const staleArtifact = path.join(staleDirectory, "1-sheets.txt");
+    await mkdir(staleDirectory, { recursive: true });
+    await writeFile(staleArtifact, "stale generated conversion");
+    return staleArtifact;
+  }));
+  let extractionCalls = 0;
+
+  const converted = await convertManifest({ stateDir }, {
+    extractPdfText: async () => {
+      extractionCalls += 1;
+      return "should not run";
+    },
+  });
+
+  assert.equal(extractionCalls, 0);
+  assert.ok(converted.units.every((unit) => unit.stage === "error"));
+  assert.ok(converted.units.every((unit) => unit.conversion === undefined));
+  for (const staleArtifact of staleArtifacts) {
+    await assert.rejects(readFile(staleArtifact), /ENOENT/u);
+  }
+  assert.equal(await readFile(path.join(regionDir, "샘플홀.pdf"), "utf8"), "%PDF identical fixture");
+  assert.equal(await readFile(path.join(regionDir, "샘플홀 (1).pdf"), "utf8"), "%PDF identical fixture");
+});
+
+test("convert refuses to remove a cache path that escapes through a symlink or junction", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-duplicate-reparse-"));
+  const stateDir = `${rootDir}-state`;
+  const outsideDir = `${rootDir}-outside`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+    rm(outsideDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(regionDir, { recursive: true });
+  const rawPaths = [
+    path.join(regionDir, "샘플홀.pdf"),
+    path.join(regionDir, "샘플홀 (1).pdf"),
+  ];
+  await Promise.all(rawPaths.map((rawPath) => writeFile(rawPath, "%PDF identical fixture")));
+  const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const unit = scanned.units[0];
+  assert.ok(unit);
+  const escapedConversionDirectory = path.join(outsideDir, unit.source_fingerprint);
+  const escapedArtifact = path.join(escapedConversionDirectory, "1-sheets.txt");
+  await mkdir(escapedConversionDirectory, { recursive: true });
+  await writeFile(escapedArtifact, "must stay outside the state boundary");
+  const convertedRoot = path.join(stateDir, ".converted");
+  await mkdir(convertedRoot, { recursive: true });
+  const reparseUnitRoot = path.join(convertedRoot, unit.unit_id);
+  try {
+    await symlink(
+      outsideDir,
+      reparseUnitRoot,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+  } catch (error) {
+    if (
+      error instanceof Error
+      && "code" in error
+      && ["EACCES", "EPERM", "ENOTSUP"].includes(String(error.code))
+    ) {
+      t.skip(`symlink/junction creation unavailable: ${String(error.code)}`);
+      return;
+    }
+    throw error;
+  }
+
+  const converted = await convertManifest({ stateDir });
+
+  assert.equal((await lstat(reparseUnitRoot)).isSymbolicLink(), true);
+  assert.equal(await readFile(escapedArtifact, "utf8"), "must stay outside the state boundary");
+  assert.match(converted.units[0].notices.join("\n"), /convert_cache_cleanup_blocked/u);
+  for (const rawPath of rawPaths) {
+    assert.equal(await readFile(rawPath, "utf8"), "%PDF identical fixture");
+  }
 });
 
 test("convert preserves merged XLSX values and extracts embedded media for sparse sheets", async (t) => {
@@ -106,6 +209,288 @@ test("convert preserves bounded embedded XLSX media even when the workbook is te
 
   assert.ok((result.units[0].conversion?.cell_count ?? 0) >= 100);
   assert.equal(result.units[0].conversion?.image_artifacts.length, 1);
+});
+
+test("convert preserves rich XLSX drawing text with a deterministic source locator", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-drawing-text-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "예식장", "경기도");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "(경기도)_라온제나 분당.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["예식비", "500만원"]]), "가격표");
+  XLSX.writeFile(workbook, sourcePath);
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file(
+    "xl/drawings/drawing1.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:oneCellAnchor><xdr:sp><xdr:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>[ </a:t></a:r><a:r><a:t>총비용 </a:t></a:r><a:r><a:t>= </a:t></a:r><a:r><a:t>예식비 </a:t></a:r><a:r><a:t>+ </a:t></a:r><a:r><a:t>식대총액 </a:t></a:r><a:r><a:t>]</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>',
+  );
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir });
+
+  const result = await convertManifest({ stateDir });
+  const artifactPath = result.units[0].conversion?.text_artifacts[0];
+
+  assert.equal(result.units[0].stage, "converted");
+  assert.ok(artifactPath);
+  const text = await readFile(artifactPath, "utf8");
+  assert.match(
+    text,
+    /XLSX_DRAWING xl\/drawings\/drawing1\.xml#text-box-1: \[ 총비용 = 예식비 \+ 식대총액 \]/u,
+  );
+});
+
+test("convert preserves XLSX formulas as non-executed source evidence linked to cached cells", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-formulas-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "[서울(강남)]_케이트웨딩플랜.xlsx");
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([["계약서"]]);
+  worksheet.B20 = { t: "n", f: "SUM(C12,C14,C16)", v: 4_160_000, z: "#,##0" };
+  worksheet.B25 = { t: "n", f: "(B20-B24)*0.6", v: 2_196_000, z: "#,##0" };
+  worksheet.B26 = { t: "n", f: "B20-B24-B25", v: 1_464_000, z: "#,##0" };
+  worksheet.C28 = { t: "n", f: "TODAY()", v: 46_185, z: "yyyy-mm-dd" };
+  worksheet["!ref"] = "A1:C28";
+  XLSX.utils.book_append_sheet(workbook, worksheet, "계약서");
+  XLSX.writeFile(workbook, sourcePath);
+  await scanSources({ rootDir, stateDir });
+
+  const result = await convertManifest({ stateDir });
+  const artifactPath = result.units[0].conversion?.text_artifacts[0];
+
+  assert.equal(result.units[0].stage, "converted");
+  assert.ok(artifactPath);
+  const text = await readFile(artifactPath, "utf8");
+  const formulaLines = text.split(/\r?\n/u).filter((line) => line.startsWith("XLSX_FORMULA "));
+  assert.equal(formulaLines.length, 4);
+  assert.match(
+    formulaLines[0],
+    /^XLSX_FORMULA \[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20;part=xl\/worksheets\/sheet1\.xml#cell-B20\]: expression=SUM\(C12,C14,C16\) \| cached_value_locator=\[sheet=%EA%B3%84%EC%95%BD%EC%84%9C;cell=B20\] \| evaluation=not_executed$/u,
+  );
+  assert.match(formulaLines[3], /cell=C28;.*expression=TODAY\(\).*evaluation=not_executed$/u);
+  assert.equal(formulaLines.some((line) => /4,?160,?000|2,?196,?000|1,?464,?000|46185/u.test(line)), false);
+  assert.match(text, /계약서!B20: 4,160,000/u);
+});
+
+test("convert records dangerous XLSX formulas literally without evaluating them", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-dangerous-formula-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "예식장", "강남");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "[서울(강남)]_외부수식.xlsx");
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([["검증"]]);
+  worksheet.B2 = {
+    t: "s",
+    f: 'WEBSERVICE("https://example.invalid/should-never-run")',
+    v: "cached-only",
+  };
+  worksheet["!ref"] = "A1:B2";
+  XLSX.utils.book_append_sheet(workbook, worksheet, "검증");
+  XLSX.writeFile(workbook, sourcePath);
+  await scanSources({ rootDir, stateDir });
+
+  const result = await convertManifest({ stateDir });
+  const artifactPath = result.units[0].conversion?.text_artifacts[0];
+
+  assert.equal(result.units[0].stage, "converted");
+  assert.ok(artifactPath);
+  const text = await readFile(artifactPath, "utf8");
+  assert.match(text, /expression=WEBSERVICE\("https:\/\/example\.invalid\/should-never-run"\)/u);
+  assert.match(text, /evaluation=not_executed/u);
+});
+
+test("XLSX formula count and character limits enforce exact boundaries", () => {
+  assert.doesNotThrow(() => validateXlsxFormulaLimits({
+    formulaCount: 10_000,
+    expressionCharacters: 8_192,
+    totalExpressionCharacters: 200_000,
+  }));
+  assert.throws(
+    () => validateXlsxFormulaLimits({
+      formulaCount: 10_001,
+      expressionCharacters: 1,
+      totalExpressionCharacters: 10_001,
+    }),
+    /xlsx_formula_count_limit/u,
+  );
+  assert.throws(
+    () => validateXlsxFormulaLimits({
+      formulaCount: 1,
+      expressionCharacters: 8_193,
+      totalExpressionCharacters: 8_193,
+    }),
+    /xlsx_formula_character_limit/u,
+  );
+  assert.throws(
+    () => validateXlsxFormulaLimits({
+      formulaCount: 10_000,
+      expressionCharacters: 20,
+      totalExpressionCharacters: 200_001,
+    }),
+    /xlsx_formula_total_character_limit/u,
+  );
+});
+
+test("convert fails closed for shared XLSX formula semantics", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-shared-formula-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "강남");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "[서울(강남)]_공유수식.xlsx");
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([[1, 2]]);
+  worksheet.C1 = { t: "n", f: "SUM(A1:B1)", v: 3 };
+  worksheet["!ref"] = "A1:C1";
+  XLSX.utils.book_append_sheet(workbook, worksheet, "계약서");
+  XLSX.writeFile(workbook, sourcePath);
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  const sheet = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+  zip.file("xl/worksheets/sheet1.xml", sheet.replace("<f>", '<f t="shared" si="0">'));
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir });
+
+  const result = await convertManifest({ stateDir });
+
+  assert.equal(result.units[0].stage, "error");
+  assert.match(result.units[0].notices.join("\n"), /xlsx_formula_structure_unsupported/u);
+});
+
+test("convert fails closed for malformed or unsupported XLSX drawing text", async (t) => {
+  for (const fixture of [
+    {
+      name: "malformed",
+      xml: '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:sp><xdr:txBody><a:p><a:r><a:t>미완성</a:t></a:r></a:p></xdr:sp>',
+      code: "xlsx_drawing_xml_malformed",
+    },
+    {
+      name: "unsupported",
+      xml: '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:sp><a:t>본문 밖 텍스트</a:t></xdr:sp></xdr:wsDr>',
+      code: "xlsx_drawing_text_structure_unsupported",
+    },
+  ] as const) {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), `hanbang-ingest-xlsx-drawing-${fixture.name}-`));
+    const stateDir = `${rootDir}-state`;
+    t.after(async () => Promise.all([
+      rm(rootDir, { recursive: true, force: true }),
+      rm(stateDir, { recursive: true, force: true }),
+    ]));
+    const regionDir = path.join(rootDir, "예식장", "경기도");
+    await mkdir(regionDir, { recursive: true });
+    const sourcePath = path.join(regionDir, `(경기도)_도형-${fixture.name}.xlsx`);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["가격", "100만원"]]), "가격표");
+    XLSX.writeFile(workbook, sourcePath);
+    const zip = await JSZip.loadAsync(await readFile(sourcePath));
+    zip.file("xl/drawings/drawing1.xml", fixture.xml);
+    await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+    await scanSources({ rootDir, stateDir });
+
+    const result = await convertManifest({ stateDir });
+
+    assert.equal(result.units[0].stage, "error");
+    assert.equal(result.units[0].conversion, undefined);
+    assert.match(result.units[0].notices.join("\n"), new RegExp(fixture.code, "u"));
+  }
+});
+
+test("convert fails closed with remediation when XLSX contains unsupported embedded media", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-emf-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "예식장", "강남");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "[서울(강남)]_조선 팰리스.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([["대관료", "1,000만원"]]),
+    "가격표",
+  );
+  XLSX.writeFile(workbook, sourcePath);
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file("xl/media/image1.emf", Buffer.from("generated-emf-fixture"));
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  const originalSource = await readFile(sourcePath);
+  await scanSources({ rootDir, stateDir });
+  const previous = await loadManifest(stateDir);
+  const previousUnit = previous.units[0];
+  const staleCurrentDirectory = path.join(
+    stateDir,
+    ".converted",
+    previousUnit.unit_id,
+    previousUnit.source_fingerprint,
+  );
+  const staleCurrentArtifact = path.join(staleCurrentDirectory, "1-sheets.txt");
+  await mkdir(staleCurrentDirectory, { recursive: true });
+  await writeFile(staleCurrentArtifact, "stale generated conversion");
+  previousUnit.stage = "validated";
+  previousUnit.conversion = {
+    converter_version: "v4-complete-pdf-page-vision",
+    source_fingerprint: previousUnit.source_fingerprint,
+    text_artifacts: [path.join(stateDir, ".converted", "stale-v4.txt")],
+    image_artifacts: [],
+    text_characters: 10,
+    cell_count: 2,
+    artifact_fingerprint: "a".repeat(64),
+    converted_at: new Date().toISOString(),
+  };
+  previousUnit.extraction = {
+    fingerprint: "b".repeat(64),
+    source_fingerprint: previousUnit.source_fingerprint,
+    artifact_fingerprint: "a".repeat(64),
+    prompt_version: "stale-v4-prompt",
+    model: "gpt-5.6-luna",
+    artifact_path: path.join(stateDir, ".cache", "extract", "stale-v4.json"),
+    cache_hit: true,
+    attempts: 1,
+    input_tokens: 1,
+    output_tokens: 1,
+    extracted_at: new Date().toISOString(),
+  };
+  previousUnit.validation = {
+    fingerprint: "c".repeat(64),
+    artifact_path: path.join(stateDir, "validated", "stale-v4.json"),
+    review_status: "pending",
+    issue_count: 0,
+    validated_at: new Date().toISOString(),
+  };
+  await saveManifest(previous);
+
+  const result = await convertManifest({ stateDir });
+  const status = await getIngestStatus({ stateDir });
+
+  assert.equal(result.units[0].stage, "error");
+  assert.equal(result.units[0].conversion, undefined);
+  assert.equal(result.units[0].extraction, undefined);
+  assert.equal(result.units[0].validation, undefined);
+  assert.match(result.units[0].notices.join("\n"), /xlsx_media_format_unsupported/u);
+  assert.match(result.units[0].notices.join("\n"), /PNG.*scan/u);
+  assert.equal(status.current_by_stage.error, 1);
+  assert.equal(status.stale_by_stage.error, 0);
+  await assert.rejects(readFile(staleCurrentArtifact), /ENOENT/u);
+  assert.deepEqual(await readFile(sourcePath), originalSource);
 });
 
 test("convert keeps embedded XLSX media source-scoped when one unit has multiple workbooks", async (t) => {
@@ -178,6 +563,83 @@ test("convert extracts DOCX text and carries a PNG into the vision inputs", asyn
   assert.match(await readFile(conversion.text_artifacts[0], "utf8"), /더미 기본 패키지 290만원/u);
   assert.equal(conversion.image_artifacts.length, 1);
   assert.match(conversion.image_artifacts[0], /가격표\.png$/u);
+});
+
+test("convert extracts embedded DOCX media into source-scoped vision inputs", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-docx-media-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "agency", "jeju");
+  await mkdir(regionDir, { recursive: true });
+  const docx = new JSZip();
+  docx.file(
+    "[Content_Types].xml",
+    '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+  );
+  docx.file(
+    "_rels/.rels",
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+  );
+  docx.file(
+    "word/document.xml",
+    '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>본문 가격 100만원</w:t></w:r></w:p></w:body></w:document>',
+  );
+  docx.file(
+    "word/media/image1.png",
+    Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=", "base64"),
+  );
+  await writeFile(
+    path.join(regionDir, "embedded.docx"),
+    await docx.generateAsync({ type: "nodebuffer" }),
+  );
+
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const result = await convertManifest({ stateDir });
+  const artifacts = result.units[0].conversion?.image_artifacts ?? [];
+
+  assert.equal(artifacts.length, 1);
+  assert.match(artifacts[0], /1-docx-media[\\/]image1\.png$/u);
+});
+
+test("convert fails closed with remediation when DOCX contains unsupported embedded media", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-docx-emf-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "agency", "jeju");
+  await mkdir(regionDir, { recursive: true });
+  const docx = new JSZip();
+  docx.file(
+    "[Content_Types].xml",
+    '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+  );
+  docx.file(
+    "_rels/.rels",
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+  );
+  docx.file(
+    "word/document.xml",
+    '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>본문 가격 100만원</w:t></w:r></w:p></w:body></w:document>',
+  );
+  docx.file("word/media/image1.emf", Buffer.from("generated-emf-fixture"));
+  await writeFile(
+    path.join(regionDir, "embedded-emf.docx"),
+    await docx.generateAsync({ type: "nodebuffer" }),
+  );
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+
+  const result = await convertManifest({ stateDir });
+
+  assert.equal(result.units[0].stage, "error");
+  assert.equal(result.units[0].conversion, undefined);
+  assert.match(result.units[0].notices.join("\n"), /docx_media_format_unsupported/u);
+  assert.match(result.units[0].notices.join("\n"), /PNG.*scan/u);
 });
 
 test("DOCX preflight rejects compression bombs before document extraction", async (t) => {
@@ -264,7 +726,7 @@ test("DOCX entry count is rejected from the raw ZIP header before JSZip metadata
   assert.throws(() => validateDocxArchiveHeader(archive), /docx_archive_entry_count_limit/u);
 });
 
-test("convert rasterizes a PDF when extracted text is shorter than 300 characters", async (t) => {
+test("convert rasterizes every PDF page even when text extraction is sparse", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-pdf-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([rm(rootDir, { recursive: true, force: true }), rm(stateDir, { recursive: true, force: true })]));
@@ -291,6 +753,38 @@ test("convert rasterizes a PDF when extracted text is shorter than 300 character
   assert.equal(result.units[0].stage, "converted");
   assert.match(await readFile(conversion.text_artifacts[0], "utf8"), /짧은 더미 문서/u);
   assert.match(conversion.image_artifacts[0], /page-1\.png$/u);
+});
+
+test("convert retains page images for a text-rich hybrid PDF", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-pdf-hybrid-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "예식장", "전라");
+  await mkdir(regionDir, { recursive: true });
+  await writeFile(path.join(regionDir, "(전라)_혼합형홀.pdf"), "%PDF generated hybrid fixture");
+  await scanSources({ rootDir, stateDir });
+
+  let rasterized = false;
+  const result = await convertManifest(
+    { stateDir },
+    {
+      extractPdfText: async () => "검색 가능한 본문 ".repeat(100),
+      rasterizePdf: async (_sourcePath, outputDirectory) => {
+        rasterized = true;
+        const pagePath = path.join(outputDirectory, "page-1.png");
+        await writeFile(pagePath, "generated hybrid raster");
+        return [pagePath];
+      },
+    },
+  );
+
+  assert.equal(rasterized, true);
+  assert.equal(result.units[0].stage, "converted");
+  assert.equal(result.units[0].conversion?.image_artifacts.length, 1);
 });
 
 test("PDF text and raster metadata limits fail closed at page and output boundaries", () => {
@@ -480,6 +974,11 @@ test("convert accepts a same-stem PDF replacement while retaining HWP provenance
 
   const result = await convertManifest({ stateDir }, {
     extractPdfText: async () => "generated replacement disclosure ".repeat(30),
+    rasterizePdf: async (_sourcePath, outputDirectory) => {
+      const pagePath = path.join(outputDirectory, "page-1.png");
+      await writeFile(pagePath, "generated replacement raster");
+      return [pagePath];
+    },
   });
 
   assert.equal(result.units.length, 1);
@@ -548,6 +1047,24 @@ test("XLSX archive limits cover non-media entries and total uncompressed bytes",
       uncompressedBytes: 1,
     }))),
     /xlsx_archive_entry_count_limit/u,
+  );
+  assert.doesNotThrow(() => validateXlsxArchiveLimits(Array.from({ length: 1_000 }, (_, index) => ({
+    name: `xl/drawings/drawing${index + 1}.xml`,
+    uncompressedBytes: 1,
+  }))));
+  assert.throws(
+    () => validateXlsxArchiveLimits(Array.from({ length: 1_001 }, (_, index) => ({
+      name: `xl/drawings/drawing${index + 1}.xml`,
+      uncompressedBytes: 1,
+    }))),
+    /xlsx_drawing_part_count_limit/u,
+  );
+  assert.throws(
+    () => validateXlsxArchiveLimits([{
+      name: "xl/drawings/vmlDrawing1.vml",
+      uncompressedBytes: 1,
+    }]),
+    /xlsx_drawing_part_format_unsupported/u,
   );
 });
 
@@ -631,6 +1148,11 @@ test("convert skips an unchanged unit whose artifacts already exist", async (t) 
       extractionCount += 1;
       return "충분한 더미 텍스트 ".repeat(30);
     },
+    rasterizePdf: async (_sourcePath: string, outputDirectory: string) => {
+      const pagePath = path.join(outputDirectory, "page-1.png");
+      await writeFile(pagePath, "generated cache raster");
+      return [pagePath];
+    },
   };
 
   const first = await convertManifest({ stateDir }, dependencies);
@@ -638,4 +1160,79 @@ test("convert skips an unchanged unit whose artifacts already exist", async (t) 
 
   assert.equal(extractionCount, 1);
   assert.equal(second.units[0].conversion?.converted_at, first.units[0].conversion?.converted_at);
+});
+
+test("convert repairs a cached unit when an artifact's content is tampered", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-convert-cache-tamper-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "예식장", "부산");
+  await mkdir(regionDir, { recursive: true });
+  await writeFile(path.join(regionDir, "(부산)_캐시무결성.pdf"), "%PDF generated fixture");
+  await scanSources({ rootDir, stateDir });
+  let extractionCount = 0;
+  const expectedText = "원본에서 복구한 가격 정보 ".repeat(30).trim();
+  const dependencies = {
+    extractPdfText: async () => {
+      extractionCount += 1;
+      return expectedText;
+    },
+    rasterizePdf: async (_sourcePath: string, outputDirectory: string) => {
+      const pagePath = path.join(outputDirectory, "page-1.png");
+      await writeFile(pagePath, "generated cache raster");
+      return [pagePath];
+    },
+  };
+
+  const first = await convertManifest({ stateDir }, dependencies);
+  const firstConversion = first.units[0].conversion;
+  assert.ok(firstConversion);
+  await writeFile(firstConversion.text_artifacts[0], "tampered artifact");
+
+  const repaired = await convertManifest({ stateDir }, dependencies);
+  const repairedConversion = repaired.units[0].conversion;
+  assert.ok(repairedConversion);
+  assert.equal(extractionCount, 2);
+  assert.equal(await readFile(repairedConversion.text_artifacts[0], "utf8"), expectedText);
+  assert.equal(repairedConversion.artifact_fingerprint, firstConversion.artifact_fingerprint);
+});
+
+test("convert repairs a cached unit when an artifact is deleted", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-convert-cache-deleted-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "예식장", "부산");
+  await mkdir(regionDir, { recursive: true });
+  await writeFile(path.join(regionDir, "(부산)_캐시삭제복구.pdf"), "%PDF generated fixture");
+  await scanSources({ rootDir, stateDir });
+  let extractionCount = 0;
+  const dependencies = {
+    extractPdfText: async () => {
+      extractionCount += 1;
+      return "삭제된 산출물을 원본에서 복구 ".repeat(30);
+    },
+    rasterizePdf: async (_sourcePath: string, outputDirectory: string) => {
+      const pagePath = path.join(outputDirectory, "page-1.png");
+      await writeFile(pagePath, "recreated raster bytes");
+      return [pagePath];
+    },
+  };
+
+  const first = await convertManifest({ stateDir }, dependencies);
+  const firstConversion = first.units[0].conversion;
+  assert.ok(firstConversion);
+  await rm(firstConversion.image_artifacts[0]);
+
+  const repaired = await convertManifest({ stateDir }, dependencies);
+  const repairedConversion = repaired.units[0].conversion;
+  assert.ok(repairedConversion);
+  assert.equal(extractionCount, 2);
+  assert.equal(await readFile(repairedConversion.image_artifacts[0], "utf8"), "recreated raster bytes");
+  assert.equal(repairedConversion.artifact_fingerprint, firstConversion.artifact_fingerprint);
 });

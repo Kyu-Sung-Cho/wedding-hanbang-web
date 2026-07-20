@@ -3,7 +3,7 @@
 > **상태: 코드·migration 후보 구현 및 로컬 검증, 운영 migration·cron 배포 NOT RUN.**
 > 아래 cron과 replay RPC는 1020 migration, fenced 배포, 운영 검증이 끝난 뒤의 계약이다.
 > 현재 실행 중인 기능으로 해석하거나 운영에서 독립 실행하지 않는다. 현행 상태는
-> `CURRENT_WORKSPACE_HANDOFF_2026-07-17.md`를 따른다.
+> `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`를 따른다.
 
 예약 원장은 `vendor_bookings`이고, 일정·예산은 `wedding_journeys.progress`에 투영됩니다. 예약 생성·취소·실결제 금액 변경 트랜잭션의 trigger가 `booking_projection_jobs`에 원하는 최종 상태를 함께 기록하므로, 웹 요청이 중간에 종료되어도 반영 작업은 사라지지 않습니다. 완료 결과의 `actual_amount`가 있으면 견적 `amount`보다 우선하는 canonical 예산 기여액으로 사용합니다.
 

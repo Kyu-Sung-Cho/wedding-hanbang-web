@@ -4,7 +4,7 @@
 
 - 저장소: `wedding-vendor-disclosure-v2`
 - 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
-- 이 인계 갱신 작업의 원격 기준 HEAD: `150ee21d990662f6399a336c6e5576751ec351d3`
+- 이 인계 작업의 최초 기준 ancestor: `150ee21d990662f6399a336c6e5576751ec351d3`
   (`feat(ingest): harden fixed-eight paid extraction`)
 - 이 문서가 포함된 최종 HEAD는 자기 참조를 피하기 위해 본문에 하드코딩하지 않는다. 다른
   컴퓨터에서는 PR #64의 원격 branch HEAD를 fetch하고, GitHub check가 그 SHA에 귀속됐는지
@@ -12,13 +12,24 @@
 - 통합 PR: [#64](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/64), Draft, base `main`
 - 2026-07-20 최신 재검증 시점까지 이번 연속 작업의 신규 유료 API 호출은 `0건`이다. 아래 변경과 테스트는 모두 로컬·무과금 경로에서 수행했으며, 실제 고정 8건 추출은 아직 시작하지 않았다.
 - 내구성 비용 원장 원본은 `102행`, `67,495 bytes`, SHA-256 `32d3943160aa6ff656ce08b1411664bd3de2c1285657a15837b5eec0ccfd3d46`이며 기록 당시 누계는 `$4.0023985`다. nano-USD 올림과 GPT-5.6 보수 단가를 적용한 비용 fence 누계는 `$4.185901626`, `$20` 기준 잔여 예산은 `$15.814098374`다. 원장 바이트는 재작성하지 않는다. `$1.541804`는 v7.5·v7.6 두 실행만 더한 부분합이므로 전체 누계로 사용하면 안 된다.
-- 유료 호출 없이 생성한 최신 schema v4 계획은 `gpt-5.6-luna`, `125 requests`, 예상 비용 `$9.5568545`, 1회 최대 예약 `$2.769`, 전체 최악 비용 `$1,384.50`(정보용), 상태 `approved_sequential_runtime_fence`, SHA-256 `d20701c503ae36c10a0eb509886077950ea9725d8c56203592ad34897a9c7609`다. 계획 뒤에도 원장 `102행`과 위 SHA-256은 그대로이고 claim은 `0건`이므로 이 계획 생성으로 비용은 발생하지 않았다.
+- 로컬 유료 실행 도메인은 이미 최초 초기화됐다. 2026-07-20 read-only status는 canonical
+  state binding·현재 ledger snapshot이 위 hash/행/바이트와 일치하고 `claim_count=0`,
+  `pending_claim_count=0`, 예약 비용 `$0`임을 확인했다. init을 다시 실행하지 않는다.
+- parser v3/converter v6 전수 재실행 뒤 유료 호출 없이 생성한 최신 paid-plan schema v4 계획은 `gpt-5.6-luna`, `125 requests`, 예상 input `1,357,066`, 예상 output `1,347,972`, 예상 비용 `$9.7841645`, 1회 최대 예약 `$2.769`, 전체 최악 비용 `$1,384.50`(정보용), 상태 `approved_sequential_runtime_fence`, SHA-256 `32fb11f972467405bed56ad3c1a59200b759f6702365b1583e0698e6debdf155`다. 계획 뒤에도 원장 `102행`과 위 ledger SHA-256은 그대로이고 claim은 `0건`이므로 이 계획 생성으로 비용은 발생하지 않았다.
 - 실패 단위 유료 repair와 전체 배치·staging apply는 각각 실행 가능한 repair 러너와 상태 인식형 25건 러너가 완성될 때까지 코드 경계에서 차단한다.
 - 운영 병합·운영 배포는 PR #64의 hosted evidence 게이트가 실패 중이므로 아직 NO-GO다.
+- 2026-07-20 원본 전수 재검증 결과는 `253 files / 249 units / 23,767,447 bytes`, 원본 SHA 불일치 `0`, current v6 변환 산출물 `332 refs` 중 누락·fingerprint 불일치 `0`이다. 현재 단계는 `238 converted / 8 HWP manual / 3 current error / 0 stale error / 0 extracted / 0 validated / 0 loaded`다. 오류 3개는 동일 셀레네하우스 복사본 2개와 조선 팰리스 XLSX embedded EMF 1개다.
+- canonical 산출물에서 라온제나 분당 drawing 1개와 케이트웨딩플랜 formula 4개를 직접 확인했다. B20/B25/B26은 원식과 기존 cached 금액 셀을 분리해 보존하고, C28 `TODAY()`는 실행 없이 기존 cached 표시값만 보존한다. formula 행의 cached 금액 중복은 `0`이다.
+- Vercel Production의 `OPENAI_API_KEY`와 모델·feature flag는 `env pull`에서
+  `[SENSITIVE]` marker로 내려오므로 로컬 값 길이로 유효성을 판정할 수 없다. 과거
+  server-side Production checker에서는 OpenAI·모델 조건이 통과했지만 그 deployment는
+  domain에 승격되지 않았다. 현재 로컬 ingest process에는 복호화 key가 없으므로 이번
+  고정 8건 provider 호출은 시작하지 않았고 실제 신규 비용도 `0`이다.
 
 ## 실제 모델과 Luna의 의미
 
-- 로컬 비밀 환경 파일의 `EXTRACTION_MODEL` 값은 `gpt-5.6-luna`이다.
+- 현재 `EXTRACTION_MODEL` env는 미설정이며 저장소 기본 해석이 literal API identifier
+  `gpt-5.6-luna`이다.
 - 여기서 `Luna`는 다른 공급자나 별칭으로 치환되는 이름이 아니다. OpenAI Responses API에 그대로 전달되는 모델 식별자다.
 - 허용 모델은 `gpt-5.6-luna`, `gpt-5.6-terra` 두 개뿐이다.
 - `OPENAI_API_KEY` 값은 Git, 로그, 문서, 채팅에 기록하지 않는다.
@@ -35,7 +46,7 @@
 8. score와 load는 검증 로직을 다시 실행해 `data`, `issues`, `coverage_gaps`가 저장된 pending artifact와 정확히 같은지 확인한다.
 9. fixed-eight pass receipt는 strict validated-artifact 채점 모드를 명시한 보고서만 받을 수 있다.
 10. `loadValidated({ apply: true })`는 CLI를 우회해 직접 호출해도 상태 인식형 배치 러너 완성 전에는 즉시 실패한다.
-11. 현재 추출 계약은 prompt `v7.8-deterministic-line-and-cell-evidence`다. 비-XLSX 텍스트 근거는 정확한 `line:N:` 접두어, XLSX 근거는 정확한 셀 또는 포함 범위 locator를 사용하며 `line:5`/`line:51`, `B1`/`B10` 같은 접두어 충돌을 허용하지 않는다.
+11. 현재 추출 계약은 prompt `v7.11-exact-xlsx-auxiliary-repair`다. 비-XLSX 텍스트 근거는 정확한 `line:N:` 접두어, XLSX 근거는 정확한 단일 셀 또는 `XLSX_DRAWING`/`XLSX_FORMULA` locator와 전체 payload를 사용한다. 기본 요청과 locator repair 모두 `line:5`/`line:51`, `B1`/`B10` 접두어 충돌, 잘못된 part/text-box/cell, payload 부분 인용, 합성 quote, 보조 행의 `line:N` 별칭을 허용하지 않는다. formula는 실행하거나 계산하지 않고 pricing-basis 근거로만 사용할 수 있다.
 12. 유료 실행 전 승인 문서는 exact fixed-eight 순서, 모델, prompt/processing 버전, 원본·변환 fingerprint, 요청 해시, 토큰·비용을 content-addressed SHA-256으로 묶는다. CLI 실제 실행에는 `extract --plan`이 발급한 정확한 `--approved-plan-sha256`이 필요하다.
 13. 실제 공급자 호출 직전 paid-call intent를 내구성 있게 기록하고, 비용 원장과 요청 체크포인트가 기록된 뒤에만 해제한다. 고아 intent는 수동 정산 전 재개를 차단하며, 비용 fence는 이전 내구성 원장 누계까지 포함해 `$20` 상한을 적용한다.
 14. 유료 계획 schema v4는 계획 생성 직전의 비용 원장 바이트 SHA-256·바이트 수·행 수·누계와 domain committed nano-USD를 함께 묶는다. 계획 뒤 원장이 잘리거나 바뀌면 실행을 차단한다.
@@ -74,6 +85,14 @@
 
 앞의 7건은 blocking이고 마지막 메이브라이드 이미지는 non-blocking이다. 다만 메이브라이드도 반드시 실행·채점하며 판독 불가 금액은 `null + needs_review + coverage_gaps`로 남긴다.
 
+```powershell
+$units = '7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587,0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c,fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00,467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead,0aea5091993fbb729d4c746d0e31ecb26ef40c7c44030349c2e255f2a0d4ee38,9cd5e12d7941a7175b2388164081bb1c3886ea4b2badee4c80fff0ea18f9831c,cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29,9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7'
+corepack pnpm ingest paid-execution-domain-status --state-dir reprocess-20260719-poppler5
+corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units $units --plan
+# 바로 위 계획의 SHA가 문서의 값과 정확히 같을 때만 실행한다.
+corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units $units --approved-plan-sha256 32fb11f972467405bed56ad3c1a59200b759f6702365b1583e0698e6debdf155
+```
+
 ## 불변 채점 근거
 
 - base inventory SHA-256: `17a927f52d51774c9f3e149a3dba6fb3acfa0c5f79587d010089a00ac1988d75`
@@ -88,25 +107,24 @@
 
 ## 검증 현황
 
-- `corepack pnpm test:ingest`: `366 tests / 365 pass / 0 fail / 1 Windows symlink EPERM skip`
+- `corepack pnpm test:ingest`: `423 tests / 422 pass / 0 fail / 1 Windows file-symlink EPERM skip`
 - `corepack pnpm exec tsc -p scripts/ingest/tsconfig.json --noEmit`: PASS
 - `corepack pnpm exec turbo run typecheck`: `4/4 PASS`
 - `git diff --check`: PASS
 - workspace package typecheck: ingest + shared + design-tokens + mobile + web PASS
-- web full tests: `2,587/2,587 PASS` (`303` test files)
+- web full tests: `2,597/2,597 PASS` (`304` test files)
 - mobile full tests after the cross-account refresh/replay fence: `111/111 PASS`
 - web/mobile lint: PASS
 - Vercel Preview 동일 환경 전체 web build: PASS (`109` static pages generated)
 - Expo web/iOS/Android export: PASS
-- mobile release readiness: `103/103 PASS`
+- mobile release readiness: `104/104 PASS`
+- Supabase release tests: `166/166 PASS`
+- static release fence: predecessor `27` + successor `20` PASS
 - 가격 탐색 렌더 QA: 320/360/390/1440px에서 문서 가로 overflow와 새 console warning/error `0`; 320px 앱 화면의 아모라 launcher 중복은 컴포넌트 회귀 테스트로 `1개`를 고정했다.
 - Preview에서 legacy UUID resolver는 유효하지 않은 UUID를 `/price/studio`로 안전하게 돌려보냈고, wishlist API의 의도된 `503`은 재시도 가능한 오류 UI로 표시됐다. 둘 다 운영 DB 성공 증거는 아니다.
-- 실제 운영 공개 Supabase를 읽는 로컬 production build: `PUBLIC_VENDOR_STATIC_PARAMS_UNAVAILABLE`로 fail-closed. `v_public_prices` REST 조회가 `404`여서 아직 migration 적용 및 발행 catalog를 증명하지 못했다.
-- source-record linkage focused tests: `30/30 PASS`
-- score + pass receipt focused tests: `59/59 PASS`
-- load + pipeline focused tests: `26/26 PASS`
-- semantic provenance validation tests: `51/51 PASS`
-- local execution domain + paid plan + ledger + repair approval + extraction targeted tests: `111/111 PASS`
+- 실제 운영 공개 Supabase를 읽는 로컬 production build: `PUBLIC_VENDOR_STATIC_PARAMS_UNAVAILABLE`로 fail-closed. anon REST 직접 확인도 `v_public_prices`에 `404 / PGRST205`를 반환해 아직 migration 적용 및 발행 catalog를 증명하지 못했다.
+- semantic 출처·연결, 변환 캐시 byte 무결성·안전한 orphan 정리, score receipt, load,
+  paid-plan·ledger·authority 회귀는 위 `423`개 ingest 테스트에 포함된다.
 
 이 결과는 코드의 자동 테스트 통과를 뜻할 뿐 실제 OpenAI 고정 8건 추출, 운영 원문 대비 채점, 파일럿 통과 또는 배치 실행 완료를 뜻하지 않는다. Preview stub으로는 인증 앱 shell과 실제 업체 데이터의 브라우저 E2E를 증명할 수 없고, 실제 기기 smoke도 별도 게이트로 남는다.
 
@@ -120,26 +138,40 @@
 
 ## 아직 해결되지 않은 차단 항목
 
-1. **실제 고정 8건 실행·채점 전**: 이 문서 갱신 시점까지 신규 OpenAI 호출은 `0건`이다. 코드 테스트 통과는 실제 원문에서 지어냄·누락·연결 오류 0건을 증명하지 않는다.
+1. **실제 고정 8건 실행·채점 전**: 이 문서 갱신 시점까지 신규 OpenAI 호출은 `0건`이다. Vercel Production secret은 로컬 CLI에서 복호화할 수 없으므로 실제 key를 현재 로컬 ingest process에 비공개로 주입해야 한다. 코드 테스트 통과는 실제 원문에서 지어냄·누락·연결 오류 0건을 증명하지 않는다.
 2. **사람 검수형 exhaustive linkage map 부재**: 자동 검증은 업체명·카테고리·금액을 같은 원본의 같은 연속 line block 또는 XLSX record component에 묶고 모호하면 차단한다. 하지만 2,342개 수동 금액 inventory가 모든 업체·패키지·홀 소유 관계를 사람 검수로 전수 표기한 map은 아니다. 따라서 실제 8건 score와 수동 대조 전에는 연결 오류 0건을 선언하지 않는다.
-3. **XLSX 레이아웃 메타데이터 한계**: 변환기가 셀 border/table 경계를 보존하지 않는다. 빈 열 없이 인접한 표, 숫자만 있는 단위 선언 표에서 경쟁 identity를 안전하게 구분할 수 없으면 자동 통과하지 않고 `source_record_scope_ambiguous` 또는 사람 검수로 닫는다.
-4. **이미지 판독 한계**: 이미지-only 근거는 자동 진위 판별이 불가능하므로 visual-review warning과 `needs_review`를 유지한다. 메이브라이드의 알려진 판독 불가 2개 셀을 금액으로 추정해 적재하면 안 된다.
-5. **상태 인식형 25건 runner 미완료**: batch safety journal은 계획·증거 형식만 제공하며 실제 순차 실행, 배치별 비용 원장 갱신, 직전 배치 대비 needs_review 2배 급증 중단, staging pending 적용을 수행하는 runner는 아직 없다. `load --apply`는 계속 fail-closed다.
-6. **실패 단위 repair runner 미완료**: repair approval은 이전 계획·strict score·새 요청을 묶는 비실행 증거 artifact일 뿐이다. 이를 schema v4 요청별 예약, 로컬 authority claim, 비용 원장, batch checkpoint에 연결해 실제 공급자 호출을 수행하는 유료 repair runner는 아직 없다. artifact 생성만으로 재실행이 승인됐다고 해석하면 안 된다.
-7. **실행 도메인은 로컬 단일 권위**: 현재 anti-replay는 이 Windows 사용자 홈의 한 권위와 한 canonical state 경로만 보호한다. authority root와 anchor만 삭제해도 state-side binding이 재초기화를 차단한다. 남은 우회 범위는 권한 있는 운영자가 root·anchor·state binding을 함께 파괴하거나 state 전체를 초기화 전 시점으로 롤백하는 의도적 복합 파괴, 또는 다른 컴퓨터에서 별도 도메인을 만드는 경우다. 유료 실행은 이 권위가 있는 한 컴퓨터에서만 하고, 다른 컴퓨터는 코드 개발 전용으로 사용한다. 진짜 다중 컴퓨터 유료 실행과 자동 재해복구에는 중앙 transactional/append-only 저장소가 필요하다.
+3. **미지원 원본 미디어 1건**: 조선 팰리스 XLSX의 `xl/media/image1.emf`는 취소 시점별 배상률 정책 표다. v6는 이를 숨기지 않고 `xlsx_media_format_unsupported`로 차단한다. 검수된 PNG/JPEG 대체 증거를 제공하기 전에는 이 업체 단위를 추출·적재하지 않는다.
+4. **XLSX 레이아웃 메타데이터 한계**: 변환기가 셀 border/table 경계를 보존하지 않는다. 빈 열 없이 인접한 표, 숫자만 있는 단위 선언 표에서 경쟁 identity를 안전하게 구분할 수 없으면 자동 통과하지 않고 `source_record_scope_ambiguous` 또는 사람 검수로 닫는다.
+5. **이미지 판독 한계**: 이미지-only 근거는 자동 진위 판별이 불가능하므로 visual-review warning과 `needs_review`를 유지한다. 메이브라이드의 알려진 판독 불가 2개 셀을 금액으로 추정해 적재하면 안 된다.
+6. **상태 인식형 25건 runner 미완료**: batch safety journal은 계획·증거 형식만 제공하며 실제 순차 실행, 배치별 비용 원장 갱신, 직전 배치 대비 needs_review 2배 급증 중단, staging pending 적용을 수행하는 runner는 아직 없다. `load --apply`는 계속 fail-closed다.
+7. **실패 단위 repair runner 미완료**: repair approval은 이전 계획·strict score·새 요청을 묶는 비실행 증거 artifact일 뿐이다. 이를 schema v4 요청별 예약, 로컬 authority claim, 비용 원장, batch checkpoint에 연결해 실제 공급자 호출을 수행하는 유료 repair runner는 아직 없다. artifact 생성만으로 재실행이 승인됐다고 해석하면 안 된다.
+8. **실행 도메인은 로컬 단일 권위**: 현재 anti-replay는 이 Windows 사용자 홈의 한 권위와 한 canonical state 경로만 보호한다. authority root와 anchor만 삭제해도 state-side binding이 재초기화를 차단한다. 남은 우회 범위는 권한 있는 운영자가 root·anchor·state binding을 함께 파괴하거나 state 전체를 초기화 전 시점으로 롤백하는 의도적 복합 파괴, 또는 다른 컴퓨터에서 별도 도메인을 만드는 경우다. 유료 실행은 이 권위가 있는 한 컴퓨터에서만 하고, 다른 컴퓨터는 코드 개발 전용으로 사용한다. 진짜 다중 컴퓨터 유료 실행과 자동 재해복구에는 중앙 transactional/append-only 저장소가 필요하다.
 
 ## 다음 실행 순서
 
 1. 보안·유지보수·성능 최종 리뷰에서 P0/P1이 없는지 확인한다.
 2. 관련 파일만 선별 stage하고 raw/state/env가 제외됐는지 확인한 뒤 checkpoint commit·push한다.
-3. 초기화 전 canonical state의 기준 백업과 checksum manifest를 만든다. 이 기준 백업에는 아직 존재하지 않는 domain binding을 임의로 넣지 않으며, 이후 이를 복원해 유료 실행을 재개해서는 안 된다.
-4. 같은 유료 실행 컴퓨터에서 `corepack pnpm ingest paid-execution-domain-init --state-dir <state-dir>`을 최초 1회만 실행하고, `corepack pnpm ingest paid-execution-domain-status --state-dir <state-dir>`의 domain·state·ledger·claim 상태를 확인한다. 이미 초기화됐으면 init을 재실행하지 않는다. 이 시점부터 고정 8건과 승인된 후속 배치가 끝날 때까지 worktree/state 절대 경로를 고정한다.
-5. 초기화 직후 state를 다시 백업한다. 이 실행 기준 백업에는 state binding과 그 hash, 현재 domain ID·domain manifest hash·원장 snapshot hash/행/바이트 참조를 기록하되 authority 디렉터리와 anchor 자체는 복사하지 않는다.
-6. 비밀 env를 현재 process에만 로드하고 exact fixed-eight `extract --plan`을 실행한다.
-7. 모델 식별자, 요청 수, 예상 토큰·비용, 1회 최대 예약, 정보용 전체 최악 비용, `completion_not_guaranteed`, 승인 SHA와 절대 ceiling을 기록한다. `estimated_cost_usd <= authorized_incremental_usd`이고 다음 1회 예약이 `min(plan absolute limit, runtime env absolute limit, $20) - domain committed` 안에 들 때만 순차 실행을 시작한다. 실행 중에는 매 시도 직전 같은 조건을 다시 검사하며 남은 예산이 부족하면 미완료 상태로 안전하게 중단한다.
-8. validate 후 strict score를 실행한다. 실패 단위는 원문 증거와 prompt 다음 버전 수정안을 보고하고, 최초 계획·strict score·변경 요청 hash에 묶인 repair-subset 승인 artifact까지만 생성·검증한다. 현재 artifact는 **NOT EXECUTABLE / BLOCKED**다. schema v4 요청별 예약·authority claim·원장·checkpoint를 갖춘 별도 유료 repair runner를 구현하고 다시 리뷰하기 전에는 실패 단위를 공급자에 재호출하지 않는다.
-9. blocking 7건이 전부 통과할 때만 immutable pass receipt를 발급한다.
-10. 25건 배치는 아직 실행하지 않는다. 현재 batch journal은 의도적으로 `blocked_pending_state_aware_runner`다.
+3. `paid-execution-domain-status`를 다시 실행해 canonical state·ledger hash·행·바이트,
+   claim `0`, pending claim `0`을 대조한다. 도메인은 이미 초기화됐으므로 init을 재실행하지
+   않는다. 고정 8건과 승인된 후속 배치가 끝날 때까지 worktree/state 절대 경로를 고정한다.
+4. canonical state의 checksum backup을 만든다. state binding과 그 hash, 현재 domain ID·domain
+   manifest hash·원장 snapshot hash/행/바이트 참조를 기록하되 authority 디렉터리와 anchor
+   자체는 복사하지 않는다. 이 백업을 과거 시점으로 복원해 유료 실행을 재개하지 않는다.
+5. 비밀 env를 현재 process에만 로드하고 위 exact fixed-eight `extract --plan`을 실행한다.
+6. 모델 식별자, 요청 수, 예상 토큰·비용, 1회 최대 예약, 정보용 전체 최악 비용,
+   `completion_not_guaranteed`, 승인 SHA와 절대 ceiling을 기록한다.
+   `estimated_cost_usd <= authorized_incremental_usd`이고 다음 1회 예약이
+   `min(plan absolute limit, runtime env absolute limit, $20) - domain committed` 안에 들 때만
+   위 승인 SHA 명령으로 순차 실행을 시작한다. 실행 중에는 매 시도 직전 같은 조건을 다시
+   검사하며 남은 예산이 부족하면 미완료 상태로 안전하게 중단한다.
+7. validate 후 strict score를 실행한다. 실패 단위는 원문 증거와 prompt 다음 버전 수정안을
+   보고하고, 최초 계획·strict score·변경 요청 hash에 묶인 repair-subset 승인 artifact까지만
+   생성·검증한다. 현재 artifact는 **NOT EXECUTABLE / BLOCKED**다. schema v4 요청별
+   예약·authority claim·원장·checkpoint를 갖춘 별도 유료 repair runner를 구현하고 다시
+   리뷰하기 전에는 실패 단위를 공급자에 재호출하지 않는다.
+8. blocking 7건이 전부 통과할 때만 immutable pass receipt를 발급한다.
+9. 25건 배치는 아직 실행하지 않는다. 현재 batch journal은 의도적으로
+   `blocked_pending_state_aware_runner`다.
 
 ## 완료라고 말하면 안 되는 항목
 

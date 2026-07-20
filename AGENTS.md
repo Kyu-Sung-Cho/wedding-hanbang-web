@@ -24,7 +24,7 @@
 주요 실행 경계는 `apps/web`, `apps/mobile`, `packages/shared`다.
 
 ```text
-wedding-amora-engine-v2/
+<repo-root>/
 ├── apps/
 │   ├── web/                 Next.js 16 웹·API·Vercel 배포 대상
 │   └── mobile/              Expo/React Native·EAS 빌드 대상
@@ -49,7 +49,16 @@ wedding-amora-engine-v2/
 - 현행 운영 릴리스:
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
 - 현재 인수인계:
-  `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-17.md`
+  `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- 업체 공시 실행 기준: `scripts/ingest/README.md`
+- 업체 공시 전수 감사:
+  `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`
+- 업체 공시 고정 8건 실행:
+  `docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`
+- 업체 공시 수용·배포 게이트:
+  `docs/operations/VENDOR_DISCLOSURE_ACCEPTANCE_MATRIX_2026-07-18.md`,
+  `docs/operations/VENDOR_DISCLOSURE_HOSTED_STAGING_RLS_PROBE.md`,
+  `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
 - 모바일: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 - WeddingCode: `docs/wedding-code/README.md`
 - Storage 운영: `supabase/platform-operations/storage/README.md`
@@ -141,9 +150,11 @@ corepack pnpm mobile:release-check
 4. UI는 실제 브라우저 또는 실기기에서 작은 모바일·일반 모바일·데스크톱을 확인한다.
 5. 운영 전에는 preview/hosted clone 증거와 production-safe read-only probe를 구분한다.
 
-전체 로컬 게이트는 `pnpm qa:local`이다. 웹 tests·typecheck·lint·build와 모바일
-tests·typecheck·lint·bundle export가 모두 성공해야 한다. 마이그레이션 SQL은 정적
-문자열 테스트만으로 완료하지 않고 PGlite와 hosted PostgreSQL 사후조건도 확인한다.
+`corepack pnpm qa:local`은 웹·모바일 앱 게이트다. 업체 공시 변경은 추가로
+`corepack pnpm ingest:typecheck`, `corepack pnpm test:ingest`,
+`corepack pnpm supabase:release:test`, `corepack pnpm supabase:release:fence`를
+실행한다. 마이그레이션 SQL은 정적 문자열 테스트만으로 완료하지 않고 PGlite와
+hosted PostgreSQL 사후조건도 확인한다.
 
 ## Git과 다른 컴퓨터 인수인계
 

@@ -53,6 +53,7 @@ export const VENDOR_DISCLOSURE_BASE_TABLES = Object.freeze([
   "price_upload_confirmations",
   "price_upload_confirmation_events",
   "vendor_demand_daily",
+  "disclosure_semantic_staging",
 ]);
 
 export const OWNED_APPLICATION_TABLES = Object.freeze([

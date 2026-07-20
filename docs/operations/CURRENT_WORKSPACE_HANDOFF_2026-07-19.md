@@ -95,7 +95,7 @@
 - 고정 8건 자동 채점용 ground truth를 만들었고, 값 집합이 아닌 `시트!셀`/줄 발생 위치 단위
   커버리지 검증을 추가했다. 텍스트 원본 금액 2,342건은 해시로 고정했다. 당시 prompt v6는
   OpenAI 추출 0건인 미검증 상태였고, 현재 활성 prompt
-  `v7.8-deterministic-line-and-cell-evidence`도 실제 provider 호출 전까지 품질 미검증이다.
+  `v7.11-exact-xlsx-auxiliary-repair`도 실제 provider 호출 전까지 품질 미검증이다.
   메이브라이드 저해상도 PNG의 판독 불가 셀은 별도 검토 대상으로 남겼다. 25건 배치·load·발행은 실행하지 않았다. 상세 근거는
   `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`다.
 
@@ -146,7 +146,7 @@
 | 실제 공시 변환 재검증 | 249 units, 241 converted, 8 HWP manual, error 0; raw hash 253/253, artifact 291/291 |
 | repo release/fail-closed Node tests | PASS |
 | Supabase release tests | `165/165 PASS` |
-| Supabase static fence | predecessor 27 + successor 19 PASS |
+| Supabase static fence | predecessor 27 + successor 20 PASS |
 | 전체 workspace typecheck | 4 packages PASS |
 | 전체 workspace lint | 0 errors, 0 warnings |
 | Next production-shape local build | PASS, 109 static pages |

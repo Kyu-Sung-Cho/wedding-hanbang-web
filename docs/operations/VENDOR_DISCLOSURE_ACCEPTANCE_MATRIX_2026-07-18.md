@@ -4,6 +4,13 @@
 > Draft PR #64의 원격 branch HEAD와 2026-07-20 fixed-eight 인계 문서를 함께 확인한다.
 > worktree-only 변경이나 과거 테스트 수치를 현재 push·CI·운영 승인 증거로 해석하지 않는다.
 
+> **2026-07-20 전수 감사:** parser v3/converter v6의 현재 상태는 `253 files / 249 units`,
+> `238 converted / 8 HWP manual / 3 current error / 0 stale error / 0 extracted /
+> 0 validated / 0 loaded`다. 원본 253개와 current 산출물 332개의 해시·fingerprint
+> 불일치는 0이다. 라온제나 drawing 1개와 케이트웨딩플랜 formula 4개를 canonical
+> 산출물에서 확인했고, 오류 3개는 동일 원본 복사본 2개와 미지원 embedded EMF 1개다.
+> 세부 근거는 `VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`를 따른다.
+
 - 기준 문서: `CODEX 통합 개발 프롬프트 — 웨딩한방 공시가·업체탐색 모듈 (최종본)` §18
 - 판정 시점: 2026-07-19 KST
 - 검토 브랜치: `feat/vendor-disclosure-pipeline-v2-20260718`
@@ -19,6 +26,7 @@ migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하
 | 상태 | 의미 |
 |---|---|
 | `PASS` | 해당 수용 기준을 직접 증명하는 재현 가능한 코드·테스트·명령 증거가 있다. |
+| `PASS_WITH_BLOCKS` | 기준의 핵심 계약은 증명됐지만 해당 범위를 완전히 처리하려면 명시된 수동·외부 차단 항목이 남아 있다. |
 | `BLOCKED_EXTERNAL` | 로컬 계약은 확인했지만 Supabase hosted 환경, Storage, 실제 관리자 계정 등 외부 조건이 없어 완료할 수 없다. |
 | `NOT_VERIFIED` | 구현 또는 부분 테스트는 있으나 수용 기준이 요구하는 전체 동작·성능·브라우저 검증을 아직 실행하지 않았다. |
 | `FAIL` | 명시적 누락이나 최종 스펙과의 충돌이 확인됐다. |
@@ -29,7 +37,8 @@ migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하
 
 | 상태 | 개수 |
 |---|---:|
-| `PASS` | 12 |
+| `PASS` | 11 |
+| `PASS_WITH_BLOCKS` | 1 |
 | `BLOCKED_EXTERNAL` | 5 |
 | `NOT_VERIFIED` | 5 |
 | `FAIL` | 2 |
@@ -39,7 +48,7 @@ migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하
 
 | ID | 수용 기준 | 상태 | 직접 증거와 보수적 판정 |
 |---|---|---|---|
-| A1 | 마이그레이션 클린 DB 적용 + 타입 재생성 | `FAIL` | 로컬 PGlite의 개별·순서 계약 테스트와 21000까지의 정적 release manifest 검증은 통과한다. 그러나 `apps/web/src/types/database.types.ts`에 `agencies`, `price_snapshots`, `official_prices`, `official_price_options`, `v_public_official_prices`가 모두 0건이다. 실제 clean Supabase 전체 적용과 타입 재생성이 완료되지 않았다. |
+| A1 | 마이그레이션 클린 DB 적용 + 타입 재생성 | `FAIL` | 로컬 PGlite의 개별·순서 계약 테스트와 `20260720120000`까지의 정적 release manifest 검증은 통과한다. 그러나 `apps/web/src/types/database.types.ts`에 `agencies`, `price_snapshots`, `official_prices`, `official_price_options`, `v_public_official_prices`, `disclosure_semantic_staging`이 모두 0건이다. 실제 clean Supabase 전체 적용과 타입 재생성이 완료되지 않았다. |
 | A2 | anon base select 차단, 공개 뷰 허용, 타 사용자 wishlist 차단 | `BLOCKED_EXTERNAL` | fail-closed probe는 base/public/owned-table 전 컬럼, 두 사용자 격리, 실제 `vendor_favorites`, view column·security option·definition hash, cleanup을 검증한다. Git `skip-worktree`·`assume-unchanged`로 숨긴 변경도 외부 요청 전에 거부한다. 다만 승인된 전용 hosted staging ref와 실제 두 세션 실행 영수증은 아직 없다. |
 | A3 | 더미 시드 `/price/studio` 렌더와 검색·지역·대행사·가격·정렬 필터 | `NOT_VERIFIED` | `catalog.test.ts`가 이름/alias, 지역, 대행사, 기본가, wishlist, 최저가 정렬 조합을 검증한다. 실제 더미 DB를 연결한 `/price/studio` 브라우저 렌더와 조작은 실행하지 않았다. |
 | A4 | 라운지 `업체 탐색`이 가격 리스트로 연결 | `PASS` | `Sidebar.tsx`는 canonical `/wedding/vendors` 여정을 유지한다. rewrite 대상 `/vendors`는 인증·데모 가드를 공유하는 앱 화면을 렌더하고, 선택 카테고리를 `/wedding/vendors?category=...` 안에서 이동한다. 모바일의 legacy UUID 상세는 같은 origin `/vendors/{uuid}`를 WebView로 열며, 찜·조합·알림 요청만 네이티브 세션의 폐쇄형 API bridge를 사용한다. |
@@ -58,9 +67,9 @@ migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하
 
 | ID | 수용 기준 | 상태 | 직접 증거와 보수적 판정 |
 |---|---|---|---|
-| B1 | 혼합 포맷 scan manifest와 HWP 수동 큐 | `PASS` | 2026-07-18 default baseline은 249 units, `converted=235`, `needs_manual_conversion=14`, `error=0`이었다. 2026-07-19 Windows/Poppler 장경로 처리를 보강한 새 격리 state 전수 재처리는 `converted=241`, `needs_manual_conversion=8`, `error=0`이다. source 파일은 xlsx 219, docx 3, pdf 22, png 1, hwp 8이며 PDF 6개는 회수됐고 동일 stem PDF가 없는 HWP 8개만 수동 큐다. |
+| B1 | 혼합 포맷 scan manifest와 HWP 수동 큐 | `PASS_WITH_BLOCKS` | 2026-07-18 default baseline은 249 units, `converted=235`, `needs_manual_conversion=14`, `error=0`이었다. 2026-07-19 역사적 재처리는 `converted=241`, `needs_manual_conversion=8`, `error=0`이었다. 2026-07-20 current identity 전수 재처리는 `converted=238`, `needs_manual_conversion=8`, current `error=3`, stale `error=0`이다. error 3은 같은 SHA의 셀레네하우스 복사본 양쪽과 조선 팰리스 XLSX의 미지원 EMF를 의도적으로 fail-closed한 결과다. source 파일은 xlsx 219, docx 3, pdf 22, png 1, hwp 8이며 동일 stem PDF가 없는 HWP 8개만 수동 큐다. |
 | B2 | 지정 구조·파일명 파서 테스트 | `PASS` | `scripts/ingest/__tests__/scan.test.ts`의 지정 구조 대응 테스트가 모두 통과한다. §3을 지키기 위해 실제 업체명 대신 동일 구조의 명시적 샘플명이 사용된다. |
-| B3 | extract cache hit 무호출과 실패 상태 표시 | `PASS` | ingest 테스트가 cache hit 시 OpenAI API 미호출, 실패 unit 상태 표 노출을 검증한다. 고정 8건 무료 수동 감사는 했지만 실제 OpenAI 추출은 0건이므로 provider 품질 검증을 대신하지 않는다. |
+| B3 | extract cache hit 무호출과 실패 상태 표시 | `PASS` | ingest 테스트가 cache hit 시 OpenAI API 미호출, 실패 unit 상태 표 노출을 검증한다. 고정 8건 무료 수동 감사는 했지만 현재 fixed-eight v7.11 계획의 실제 OpenAI 호출은 0건이므로 provider 품질 검증을 대신하지 않는다. 과거 append-only ledger의 유료 시도는 별도 역사 비용으로 유지한다. |
 | B4 | 만원·소수 표기를 원 단위 정수로 변환 | `PASS` | money parsing fixture와 발생 위치 단위 양방향 coverage 테스트가 통과한다. 같은 금액의 다른 행, XLSX 중복 렌더링, 병합 가격 열, 수량·월 범위 제외를 회귀 검증한다. |
 | B5 | 동일 지역 중복 업체 후보 탐지 | `PASS` | 동일 지역의 정확한 더미 쌍 `샘플정우웨딩`/`광주샘플정우웨딩`을 자동 병합하지 않고 dedupe 후보 1건으로 내보내는 테스트가 통과한다. |
 | B6 | load provenance와 원본 Storage 보존 | `BLOCKED_EXTERNAL` | source file/quote/object key/hash 계약 테스트는 있다. 실제 ingest 상태는 `loaded=0`이며 staging Storage 업로드·보존·signed download 증거가 없다. |
@@ -75,20 +84,21 @@ migration 적용, 실제 공개 catalog 또는 운영 승인 증거로 간주하
 
 | 명령 | 결과 | 의미와 한계 |
 |---|---|---|
-| `corepack pnpm test:ingest` | `125/125 PASS` | scan/convert/extract cache/발생 위치 coverage/money/dedupe/load·Storage 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
+| `corepack pnpm test:ingest` | `423 total / 422 pass / 0 fail / 1 Windows file-symlink EPERM skip` | scan/convert/cache byte integrity·안전한 orphan 정리/extract cache/XLSX drawing·formula 보존/정확한 보조 locator/발생 위치 coverage/money/dedupe/load·Storage·semantic staging 계약을 검증한다. 실제 provider·hosted write 증거는 아니다. |
 | `corepack pnpm ingest:typecheck` | `PASS` | ingest TypeScript 계약 통과. |
-| GitHub와 동일한 `CI=true`에서 `corepack pnpm --filter @hanbang/web exec vitest run` | `297/297 files, 2,549/2,549 tests PASS` | 업체 네이티브 인증 bridge, 앱 내 공식 업체 여정, 예산 outlier 무변형 계약, 아모라 상세 상한을 포함한 2026-07-19 최신 전체 회귀다. |
+| semantic staging·vendor merge PGlite 집중 회귀 | migration `5/5 PASS`, merge/direct-update `4/4 PASS` | 가격 기반·policy-only semantic의 승인 업체 병합, late-failure 전체 롤백, pending price vendor 직접 변경 원자 동기화, linked price snapshot 이동 차단을 실제 SQL 함수·trigger로 검증한다. 다중 세션 hosted 동시성 증거는 아니다. |
+| `corepack pnpm --filter @hanbang/web test` | web `304 files / 2,597 tests PASS` | Turbo orchestration은 제한 시간 안에 종료되지 않아 web과 mobile을 각각 실행했다. 이 행은 업체 가격·예산·아모라·semantic migration을 포함한 web 전체 회귀다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/constants/__tests__/runtimeDisclosureDataBoundary.test.ts" "src/lib/vendors/__tests__/publicDisclosureEvidencePrivacyMigration.test.ts" --reporter=verbose` | `2 files / 8 tests PASS` | 최신 `zero_result`, public `raw_text`, private `source_quote`, PII/길이 DB fence를 검증한다. |
 | `corepack pnpm --filter @hanbang/web typecheck` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web lint` | `PASS` | 최신 전체 P1 변경 뒤 재실행했다. |
 | `corepack pnpm --filter @hanbang/web exec vitest run "src/lib/price/catalog.test.ts" "src/components/price/PricePresentation.test.tsx" --reporter=verbose` | `2 files / 9 tests PASS` | 필터 조합, empty state, 공시 원문, 로그인 경계, 조합 표시를 검증한다. |
 | 업체 앱 여정·인증 bridge·쓰기 경계·예산 migration·아모라 업체 도구 대상 회귀 | `11 files / 74 tests PASS` | 웹/네이티브 bridge allowlist·크기 제한·401 전달, cookie CSRF와 native Bearer 분리, 앱 내 업체 화면, 옵션 없는 wishlist 적재, 추천·상세 상한, 예산 outlier 무변형 실패를 검증한다. 실제 기기·hosted DB 증거는 아니다. |
-| `corepack pnpm --filter @hanbang/mobile test` | `101/101 PASS` | legacy UUID 상세, WebView same-origin navigation, 폐쇄형 업체 API bridge를 포함한 현재 모바일 전체 Node 회귀다. |
-| GitHub CI와 동일한 placeholder 환경의 `next build` | `PASS`, 109 static pages | `CI=true`, production이 아닌 정확한 CI 조건에서 성공했다. 데이터가 연결되지 않아 발행 업체 slug의 실제 SSG 산출은 증명하지 않는다. `VERCEL_ENV=preview`에서 placeholder만 넣은 build는 공개 slug를 증명할 수 없어 의도대로 실패한다. |
-| `corepack pnpm ingest status --state-dir reprocess-20260719-poppler5` | 249 total, 241 converted, 8 manual, 0 error, 0 loaded, AI tokens 0 | 변환 현황과 PDF 8페이지 시각 대조만 증명하며 추출 품질·DB load·공개를 증명하지 않는다. |
-| `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 19개 migration hash/order 고정 | 20900의 combo direct-write fence와 21000의 0~10억원 웨딩 예산 계약을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
-| `corepack pnpm supabase:release:test` | `165/165 PASS` | backup·restore·write fence·release controller·SQL read-only·service destination·successor contract·combo direct-write deny를 포함한 hosted probe의 로컬 fail-closed 계약을 검증한다. 실제 hosted probe·backup·restore 영수증은 아니다. |
-| `corepack pnpm supabase:release:fence:remote` | 예상된 차단 | hosted staging, backup, restore, Storage, finalizer가 `missing`이므로 DB 명령 전에 차단되는 것이 안전한 동작이다. |
+| `corepack pnpm --filter @hanbang/mobile test` | `111/111 PASS` | legacy UUID 상세, WebView same-origin navigation, 폐쇄형 업체 API bridge를 포함한 현재 모바일 전체 Node 회귀다. |
+| Vercel Preview shape `next build` | `PASS`, 109 static pages | Preview stub 경계에서 번들·라우트 생성을 증명한다. 실제 운영 DB나 발행 업체 slug의 성공 증거는 아니다. |
+| `corepack pnpm ingest status --state-dir reprocess-20260719-poppler5` | 249 total, 238 converted, 8 manual, 3 current error, 0 stale error, 0 current extracted/validated/loaded; historical ledger 713,410 input / 523,539 output | current converter v6 변환 identity와 역사 비용 원장을 증명할 뿐, fixed-eight v7.11 추출 품질·DB load·공개를 증명하지 않는다. |
+| `corepack pnpm supabase:release:fence` | `PASS`, predecessor 27개 + successor 20개 migration hash/order 고정 | 20900의 combo direct-write fence, 21000의 0~10억원 웨딩 예산 계약, 20260720120000의 private semantic staging 계약을 포함한 로컬 정적 무결성만 증명한다. hosted 적용 또는 배포 준비 완료 증거는 아니다. |
+| `corepack pnpm supabase:release:test` | `166/166 PASS` | backup·restore·write fence·release controller·SQL read-only·service destination·successor contract·semantic base-table deny를 포함한 hosted probe의 로컬 fail-closed 계약을 검증한다. 실제 hosted probe·backup·restore 영수증은 아니다. |
+| `corepack pnpm supabase:release:fence:remote` | `NOT RUN` — manifest상 실행 전 차단 예상 | hosted staging, backup, restore, Storage, finalizer가 `missing`이다. 실제 remote 명령 영수증은 없으며, 실행한다면 DB 명령 전에 차단돼야 한다. |
 
 ### 타입 재생성 확인 명령
 
@@ -100,7 +110,8 @@ $symbols = @(
   'price_snapshots',
   'official_prices',
   'official_price_options',
-  'v_public_official_prices'
+  'v_public_official_prices',
+  'disclosure_semantic_staging'
 )
 foreach ($symbol in $symbols) {
   (Select-String -LiteralPath 'apps/web/src/types/database.types.ts' -Pattern $symbol -SimpleMatch | Measure-Object).Count
@@ -127,10 +138,10 @@ received: 20260718120000 ... 20260718206000, 20260718207000
 재검증 working tree 기준 시작 HEAD: 3ab26298414d
 당시 manifest 마지막 migration: 20260718207000_public_disclosure_evidence_privacy.sql
 당시 normalized SHA-256: b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512
-현재 manifest 마지막 migration: 20260718210000_wedding_budget_product_contract.sql
-현재 마지막 migration normalized SHA-256: 8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac
-정적 fence 결과: PASS — predecessor 27개, successor 19개 migration 검증
-관련 release 전체 테스트: PASS — 165/165
+현재 manifest 마지막 migration: 20260720120000_disclosure_semantic_staging.sql
+현재 마지막 migration normalized SHA-256: 67d57fdaf8af58611f76f87890754dd535a563c8e057e144248edcf019fec249
+정적 fence 결과: PASS — predecessor 27개, successor 20개 migration 검증
+관련 release 전체 테스트: PASS — 166/166
 remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 증거 전에는 DB 명령 전에 차단되어야 함
 ```
 
@@ -140,7 +151,7 @@ remote fence 결과: 미실행. manifest가 deployment_blocked이므로 외부 �
 
 - 실제 OpenAI 고정 8건 추출과 2,342건 발생 위치 ground truth 자동 채점, token·비용 ledger.
   2026-07-19 문서는 prompt v6의 파일럿 결과가 아닌 역사적 채점표 제작 기록이고, 현재
-  prompt `v7.8-deterministic-line-and-cell-evidence`도 실제 provider 8건 실행 전까지 품질
+  prompt `v7.11-exact-xlsx-auxiliary-repair`도 실제 provider 8건 실행 전까지 품질
   미검증이다. `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`와
   `docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md` 참조
 - hosted staging 전체 migration 및 dry-run 대조

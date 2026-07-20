@@ -1,9 +1,17 @@
 # Production release continuation — 2026-07-20
 
-This is the current cross-computer handoff for the Amora V2 and vendor-disclosure
-release work. It records external evidence as well as code state. It is not an
-approval to merge, deploy to the public domain, write production data, or publish
-vendor records.
+> **Historical checkpoint, superseded.** This file records the earlier SHA-specific
+> release attempt below. The current cross-computer authority is
+> `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md` plus
+> `VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`; use the remote HEAD of PR
+> #64, not the SHAs in this snapshot.
+
+This historical checkpoint records external evidence as well as code state. It is
+not an approval to merge, deploy to the public domain, write production data, or
+publish vendor records. A later 2026-07-20 read-only recheck found the production DB
+still at migration head `20260715210000` with 47 local migrations pending. Vercel
+`env pull` returns `[SENSITIVE]` markers, so it cannot revalidate secret values;
+the server-side OpenAI PASS below applies only to the named unpromoted deployment.
 
 ## GitHub state
 

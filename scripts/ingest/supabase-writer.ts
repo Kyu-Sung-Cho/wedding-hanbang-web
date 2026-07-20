@@ -1,11 +1,22 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { assertDisclosureStagingProjectRef } from "./destination.js";
 import { sha256Text } from "./io.js";
-import { buildOfficialPriceContentFingerprint } from "./load.js";
+import {
+  buildDisclosureSemanticContentFingerprint,
+  buildDisclosureSemanticSourceRecordKey,
+  buildOfficialPriceContentFingerprint,
+  stagingDisclosureSemantics,
+} from "./load.js";
+import { buildPartnerVendorRecords } from "./partner-dedupe.js";
 import { normalizeVendorName } from "./scan.js";
+import {
+  DisclosureSemanticStagingSchema,
+  type DisclosureSemanticStaging,
+} from "./schemas.js";
 import type {
   StagingAgencyPackage,
   StagingEnvironment,
@@ -206,6 +217,289 @@ async function ensureSnapshot(client: SupabaseClient, plan: StagingLoadPlan): Pr
   return idFrom(inserted.data, "가격 snapshot 생성");
 }
 
+const DISCLOSURE_SEMANTIC_SELECT_COLUMNS = [
+  "id",
+  "snapshot_id",
+  "schema_version",
+  "unit_id",
+  "record_kind",
+  "semantic_type",
+  "subject_kind",
+  "subject_name",
+  "subject_normalized_name",
+  "partner_record_ref",
+  "partner_vendor_id",
+  "official_price_id",
+  "source_agency",
+  "partner_link_status",
+  "vendor_category",
+  "region_code",
+  "title",
+  "content_verbatim",
+  "summary",
+  "review_status",
+  "needs_review",
+  "validation_issue_codes",
+  "source_file_ids",
+  "source_file",
+  "source_object_keys",
+  "source_preview_keys",
+  "source_quote",
+  "source_fingerprint",
+  "validation_fingerprint",
+  "confidence",
+  "source_record_key",
+  "content_fingerprint",
+].join(",");
+
+function disclosureSemanticDatabasePayload(
+  snapshotId: string,
+  row: DisclosureSemanticStaging,
+  links: Pick<ResolvedDisclosureSemanticPersistenceRow, "partnerVendorId" | "officialPriceId">,
+): Record<string, unknown> {
+  return {
+    snapshot_id: snapshotId,
+    ...row,
+    partner_vendor_id: links.partnerVendorId,
+    official_price_id: links.officialPriceId,
+  };
+}
+
+function parseAndVerifyDisclosureSemantic(
+  unsafeRow: DisclosureSemanticStaging,
+): DisclosureSemanticStaging {
+  const row = DisclosureSemanticStagingSchema.parse(unsafeRow);
+  if (buildDisclosureSemanticSourceRecordKey(row) !== row.source_record_key) {
+    throw new Error("disclosure semantic source record key does not match its immutable locator identity");
+  }
+  if (buildDisclosureSemanticContentFingerprint(row) !== row.content_fingerprint) {
+    throw new Error("disclosure semantic content fingerprint does not match its immutable payload");
+  }
+  return row;
+}
+
+export function assertDisclosureSemanticPlanRows(plan: StagingLoadPlan): void {
+  if (plan.schema_version !== 2) {
+    throw new Error("staging plan schema_version 2 is required for disclosure semantics");
+  }
+  if (!Array.isArray(plan.disclosure_semantics)) {
+    throw new Error("staging plan is missing the disclosure_semantics contract");
+  }
+  const unitById = new Map(plan.units.map((unit) => [unit.unit_id, unit]));
+  const contentBySourceKey = new Map<string, string>();
+  const actualRows: DisclosureSemanticStaging[] = [];
+  for (const unsafeRow of plan.disclosure_semantics) {
+    const row = parseAndVerifyDisclosureSemantic(unsafeRow);
+    actualRows.push(row);
+    const unit = unitById.get(row.unit_id);
+    if (!unit) throw new Error("disclosure semantic row must reference a staged unit");
+    if (row.record_kind === "vendor_policy") {
+      const partnerRecord = buildPartnerVendorRecords(
+        unit.unit_id,
+        unit.region_code,
+        unit.data.partner_vendors,
+      ).find((candidate) => candidate.record_ref === row.partner_record_ref);
+      if (
+        !partnerRecord
+        || partnerRecord.vendor_name !== row.subject_name
+        || partnerRecord.normalized_name !== row.subject_normalized_name
+        || partnerRecord.category !== row.vendor_category
+        || (partnerRecord.stageable ? "price_row_staged" : "policy_only_pending_identity")
+          !== row.partner_link_status
+      ) {
+        throw new Error("disclosure vendor policy must preserve its exact partner-record identity and linkage state");
+      }
+      const expectedSourceAgency = unit.kind_hint === "agency" ? {
+        name: unit.raw_name,
+        normalized_name: unit.normalized_name,
+        corporate_name: unit.corporate_name,
+        region_code: unit.region_code,
+        source_file: row.source_file,
+      } : null;
+      if (!isDeepStrictEqual(row.source_agency, expectedSourceAgency)) {
+        throw new Error("disclosure vendor policy source agency must match its scan-derived unit identity");
+      }
+    } else if (
+      row.subject_name !== unit.raw_name
+      || row.subject_normalized_name !== unit.normalized_name
+      || row.subject_kind !== (unit.kind_hint === "agency" ? "agency" : "vendor")
+    ) {
+      throw new Error("disclosure document section subject must match its scan-derived unit identity");
+    }
+    const previous = contentBySourceKey.get(row.source_record_key);
+    if (previous !== undefined && previous !== row.content_fingerprint) {
+      throw new Error("one semantic source record key cannot identify different immutable payloads");
+    }
+    contentBySourceKey.set(row.source_record_key, row.content_fingerprint);
+  }
+  const expectedRows = plan.units.flatMap((unit) => stagingDisclosureSemantics(unit));
+  const canonicalRows = (rows: DisclosureSemanticStaging[]): string[] => rows
+    .map((row) => JSON.stringify(row))
+    .sort((left, right) => left.localeCompare(right, "en"));
+  if (!isDeepStrictEqual(canonicalRows(actualRows), canonicalRows(expectedRows))) {
+    throw new Error(
+      "disclosure semantic plan must exactly match reconstructed unit semantics; additional, missing, or modified rows are blocked",
+    );
+  }
+}
+
+export function assertDisclosureSemanticLinkPlan(plan: StagingLoadPlan): void {
+  const priceRowsByPartnerRef = new Map<string, StagingOfficialPrice[]>();
+  for (const price of plan.official_prices) {
+    if (!price.partner_record_ref) continue;
+    const rows = priceRowsByPartnerRef.get(price.partner_record_ref) ?? [];
+    rows.push(price);
+    priceRowsByPartnerRef.set(price.partner_record_ref, rows);
+  }
+  for (const [partnerRef, prices] of priceRowsByPartnerRef) {
+    if (prices.length !== 1) {
+      throw new Error(`partner record ref must identify exactly one staged official price: ${partnerRef}`);
+    }
+  }
+  for (const row of plan.disclosure_semantics) {
+    if (row.record_kind !== "vendor_policy") continue;
+    const partnerRef = row.partner_record_ref;
+    if (!partnerRef) throw new Error("vendor policy is missing its partner record ref");
+    const linkedPrices = priceRowsByPartnerRef.get(partnerRef) ?? [];
+    if (row.partner_link_status === "price_row_staged") {
+      if (linkedPrices.length !== 1) {
+        throw new Error("price_row_staged policy requires one exact staged official price before persisted IDs preflight");
+      }
+      const [price] = linkedPrices;
+      if (
+        price.unit_id !== row.unit_id
+        || price.vendor_name !== row.subject_name
+        || normalizeVendorName(price.vendor_name) !== row.subject_normalized_name
+        || price.category !== row.vendor_category
+        || price.region_code !== row.region_code
+      ) {
+        throw new Error("price_row_staged policy does not match its exact staged official price identity");
+      }
+    } else if (linkedPrices.length !== 0) {
+      throw new Error("policy_only_pending_identity cannot reference a staged official price");
+    }
+  }
+}
+
+export interface PersistedPartnerPriceLink {
+  partnerVendorId: string;
+  officialPriceId: string;
+}
+
+export interface ResolvedDisclosureSemanticPersistenceRow {
+  row: DisclosureSemanticStaging;
+  partnerVendorId: string | null;
+  officialPriceId: string | null;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export function resolveDisclosureSemanticPersistenceRows(
+  rows: DisclosureSemanticStaging[],
+  persistedPriceLinks: Map<string, PersistedPartnerPriceLink>,
+  policyOnlyVendorIds: Map<string, string>,
+): ResolvedDisclosureSemanticPersistenceRow[] {
+  return rows.map((row) => {
+    if (row.record_kind === "document_section") {
+      return { row, partnerVendorId: null, officialPriceId: null };
+    }
+    const partnerRef = row.partner_record_ref;
+    if (!partnerRef) throw new Error("vendor policy cannot resolve without a partner record ref");
+    if (row.partner_link_status === "price_row_staged") {
+      const link = persistedPriceLinks.get(partnerRef);
+      if (
+        !link
+        || !UUID_PATTERN.test(link.partnerVendorId)
+        || !UUID_PATTERN.test(link.officialPriceId)
+      ) {
+        throw new Error("price_row_staged policy could not resolve its persisted vendor and official price IDs");
+      }
+      return { row, ...link };
+    }
+    const partnerVendorId = policyOnlyVendorIds.get(partnerRef);
+    if (!partnerVendorId || !UUID_PATTERN.test(partnerVendorId)) {
+      throw new Error("policy-only vendor policy could not resolve its persisted vendor ID");
+    }
+    if (persistedPriceLinks.has(partnerRef)) {
+      throw new Error("policy-only vendor policy unexpectedly resolved an official price ID");
+    }
+    return { row, partnerVendorId, officialPriceId: null };
+  });
+}
+
+async function findExistingDisclosureSemantic(
+  client: SupabaseClient,
+  snapshotId: string,
+  sourceRecordKey: string,
+): Promise<Record<string, unknown> | null> {
+  const existing = await client
+    .from("disclosure_semantic_staging")
+    .select(DISCLOSURE_SEMANTIC_SELECT_COLUMNS)
+    .eq("snapshot_id", snapshotId)
+    .eq("source_record_key", sourceRecordKey)
+    .maybeSingle();
+  if (existing.error) databaseError("공시 의미정보 staging 조회", existing.error);
+  return existing.data as Record<string, unknown> | null;
+}
+
+function reconcileExistingDisclosureSemantic(
+  existing: Record<string, unknown>,
+  expected: Record<string, unknown>,
+): string {
+  const id = idFrom(existing, "공시 의미정보 staging 조회");
+  const { id: _id, ...stored } = existing;
+  if (!isDeepStrictEqual(stored, expected)) {
+    throw new Error(
+      "existing disclosure semantic source key has different immutable content; staging is blocked",
+    );
+  }
+  return id;
+}
+
+export async function persistDisclosureSemantic(
+  client: SupabaseClient,
+  snapshotId: string,
+  unsafeRow: DisclosureSemanticStaging,
+  links: Pick<ResolvedDisclosureSemanticPersistenceRow, "partnerVendorId" | "officialPriceId">,
+): Promise<string> {
+  const row = parseAndVerifyDisclosureSemantic(unsafeRow);
+  if (
+    row.record_kind === "document_section"
+    && (links.partnerVendorId !== null || links.officialPriceId !== null)
+  ) {
+    throw new Error("document semantic records cannot carry durable vendor or official-price links");
+  }
+  const [resolved] = resolveDisclosureSemanticPersistenceRows(
+    [row],
+    row.partner_record_ref && links.officialPriceId ? new Map([[row.partner_record_ref, {
+      partnerVendorId: links.partnerVendorId ?? "",
+      officialPriceId: links.officialPriceId,
+    }]]) : new Map(),
+    row.partner_record_ref && links.partnerVendorId && !links.officialPriceId
+      ? new Map([[row.partner_record_ref, links.partnerVendorId]])
+      : new Map(),
+  );
+  const payload = disclosureSemanticDatabasePayload(snapshotId, row, resolved);
+  const existing = await findExistingDisclosureSemantic(
+    client,
+    snapshotId,
+    row.source_record_key,
+  );
+  if (existing) return reconcileExistingDisclosureSemantic(existing, payload);
+
+  const inserted = await client
+    .from("disclosure_semantic_staging")
+    .insert(payload)
+    .select("id")
+    .single();
+  if (inserted.error && databaseErrorCode(inserted.error) === "23505") {
+    const raced = await findExistingDisclosureSemantic(client, snapshotId, row.source_record_key);
+    if (raced) return reconcileExistingDisclosureSemantic(raced, payload);
+  }
+  if (inserted.error) databaseError("공시 의미정보 staging 적재", inserted.error);
+  return idFrom(inserted.data, "공시 의미정보 staging 적재");
+}
+
 type StagingAgencyIdentity = Pick<
   StagingAgencyPackage,
   "agency_name" | "agency_normalized_name" | "agency_corporate_name" | "region_code" | "source_file"
@@ -384,7 +678,12 @@ export async function stageVendorAliasProposals(
   }
 }
 
-async function ensureVendor(client: SupabaseClient, row: StagingOfficialPrice): Promise<string> {
+type StagingVendorIdentity = Pick<
+  StagingOfficialPrice,
+  "vendor_name" | "category" | "region_code"
+>;
+
+async function ensureVendor(client: SupabaseClient, row: StagingVendorIdentity): Promise<string> {
   const databaseCategory = vendorDatabaseCategory(row.category);
   const allCandidates = await collectBoundedPages<unknown>(async (from, to) => {
     const page = await client
@@ -702,7 +1001,7 @@ async function insertOfficialPrice(
   client: SupabaseClient,
   snapshotId: string,
   row: StagingOfficialPrice,
-): Promise<{ vendorId: string; agencyId: string | null }> {
+): Promise<{ vendorId: string; agencyId: string | null; officialPriceId: string }> {
   const vendorId = await ensureVendor(client, row);
   const agencyId = row.source_agency
     ? await ensureAgency(client, {
@@ -730,7 +1029,11 @@ async function insertOfficialPrice(
       vendorId,
       row.alias_proposals,
     );
-    return { vendorId, agencyId };
+    return {
+      vendorId,
+      agencyId,
+      officialPriceId: idFrom(existing.data, "공시 가격 중복 확인"),
+    };
   }
 
   const inserted = await client.from("official_prices").insert({
@@ -759,7 +1062,7 @@ async function insertOfficialPrice(
   const officialPriceId = idFrom(inserted.data, "공시 가격 staging 적재");
   await insertPriceOptions(client, officialPriceId, row);
   await stageVendorAliasProposals(client, officialPriceId, vendorId, row.alias_proposals);
-  return { vendorId, agencyId };
+  return { vendorId, agencyId, officialPriceId };
 }
 
 export function canonicalVendorPair(leftVendorId: string, rightVendorId: string): [string, string] {
@@ -843,17 +1146,25 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
       throw new Error("preview object must reference an immutable raw object in the same upload plan");
     }
   }
-  const rows = [...plan.agency_packages, ...plan.official_prices];
-  const rowProvenance = rows.flatMap((row) => [
-    { unit_id: row.unit_id, source_file: row.source_file, source_object_keys: row.source_object_keys, source_preview_keys: row.source_preview_keys, requires_preview: true },
+  const priceRows = [...plan.agency_packages, ...plan.official_prices];
+  const rowProvenance = priceRows.flatMap((row) => [
+    { unit_id: row.unit_id, source_file: row.source_file, source_file_ids: null, source_object_keys: row.source_object_keys, source_preview_keys: row.source_preview_keys, requires_preview: true },
     ...row.options.map((option) => ({
       unit_id: row.unit_id,
       source_file: option.source_file,
+      source_file_ids: option.source_file_ids,
       source_object_keys: option.source_object_keys,
       source_preview_keys: [] as string[],
       requires_preview: false,
     })),
-  ]);
+  ]).concat(plan.disclosure_semantics.map((row) => ({
+    unit_id: row.unit_id,
+    source_file: row.source_file,
+    source_file_ids: row.source_file_ids,
+    source_object_keys: row.source_object_keys,
+    source_preview_keys: row.source_preview_keys,
+    requires_preview: true,
+  })));
   for (const row of rowProvenance) {
     const records = unitRecords.get(row.unit_id);
     const selected = records?.filter((record) => row.source_object_keys.includes(record.source_object_key)) ?? [];
@@ -874,6 +1185,10 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
       || !records
       || selected.length !== row.source_object_keys.length
       || selected.some((record, index) => record.source_object_key !== row.source_object_keys[index])
+      || (row.source_file_ids !== null && (
+        row.source_file_ids.length !== selected.length
+        || selected.some((record, index) => record.source_file_id !== row.source_file_ids?.[index])
+      ))
       || selected.some((record, index) => record.source_file !== sourceLabels[index])
       || sourceLabels.length !== selected.length
     ) {
@@ -891,9 +1206,12 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
       throw new Error("staging source_preview_keys must preserve canonical preview order and be backed by the private upload plan");
     }
   }
-  const rowUnitIds = new Set(rows.map((row) => row.unit_id));
+  const rowUnitIds = new Set([
+    ...priceRows.map((row) => row.unit_id),
+    ...plan.disclosure_semantics.map((row) => row.unit_id),
+  ]);
   if (plan.units.some((unit) => !rowUnitIds.has(unit.unit_id))) {
-    throw new Error("a unit without a staging price/package row cannot be marked loaded");
+    throw new Error("a unit without a staging price/package/semantic row cannot be marked loaded");
   }
 }
 
@@ -904,11 +1222,17 @@ export function createSupabaseStagingWriter(environment: StagingEnvironment): St
   });
   return {
     stage: async (plan): Promise<StagingWriterResult> => {
+      assertDisclosureSemanticPlanRows(plan);
+      assertDisclosureSemanticLinkPlan(plan);
       assertPlanSourceObjectKeys(plan);
       const loggedLedgerIds = await logAiLedger(client, plan);
       await uploadRawObjects(client, environment.bucket, plan);
       await uploadPreviewObjects(client, environment.previewBucket, plan);
-      if (plan.agency_packages.length === 0 && plan.official_prices.length === 0) {
+      if (
+        plan.agency_packages.length === 0
+        && plan.official_prices.length === 0
+        && plan.disclosure_semantics.length === 0
+      ) {
         return {
           loadedUnitIds: [],
           skippedUnitIds: plan.skipped_units.map((unit) => unit.unit_id),
@@ -923,8 +1247,9 @@ export function createSupabaseStagingWriter(environment: StagingEnvironment): St
       }
       const unitVendorIds = new Map<string, string>();
       const partnerVendorIds = new Map<string, string>();
+      const persistedPriceLinks = new Map<string, PersistedPartnerPriceLink>();
       for (const row of plan.official_prices) {
-        const { vendorId, agencyId } = await insertOfficialPrice(client, snapshotId, row);
+        const { vendorId, agencyId, officialPriceId } = await insertOfficialPrice(client, snapshotId, row);
         if (!unitVendorIds.has(row.unit_id)) unitVendorIds.set(row.unit_id, vendorId);
         if (row.partner_record_ref) {
           const previousVendorId = partnerVendorIds.get(row.partner_record_ref);
@@ -932,8 +1257,40 @@ export function createSupabaseStagingWriter(environment: StagingEnvironment): St
             throw new Error("partner vendor row ref resolved to more than one persisted vendor UUID");
           }
           partnerVendorIds.set(row.partner_record_ref, vendorId);
+          if (persistedPriceLinks.has(row.partner_record_ref)) {
+            throw new Error("partner vendor row ref resolved to more than one persisted official price ID");
+          }
+          persistedPriceLinks.set(row.partner_record_ref, {
+            partnerVendorId: vendorId,
+            officialPriceId,
+          });
         }
         if (agencyId && !unitAgencyIds.has(row.unit_id)) unitAgencyIds.set(row.unit_id, agencyId);
+      }
+      const policyOnlyVendorIds = new Map<string, string>();
+      for (const row of plan.disclosure_semantics) {
+        if (row.record_kind !== "vendor_policy" || row.partner_link_status !== "policy_only_pending_identity") {
+          continue;
+        }
+        const partnerRef = row.partner_record_ref;
+        if (!partnerRef) throw new Error("policy-only vendor policy is missing its partner record ref");
+        if (policyOnlyVendorIds.has(partnerRef)) continue;
+        if (row.vendor_category === null) throw new Error("policy-only vendor policy is missing its category");
+        const vendorId = await ensureVendor(client, {
+          vendor_name: row.subject_name,
+          category: row.vendor_category,
+          region_code: row.region_code,
+        });
+        policyOnlyVendorIds.set(partnerRef, vendorId);
+        partnerVendorIds.set(partnerRef, vendorId);
+      }
+      const resolvedSemantics = resolveDisclosureSemanticPersistenceRows(
+        plan.disclosure_semantics,
+        persistedPriceLinks,
+        policyOnlyVendorIds,
+      );
+      for (const resolved of resolvedSemantics) {
+        await persistDisclosureSemantic(client, snapshotId, resolved.row, resolved);
       }
       for (const candidate of plan.dedupe_candidates) {
         await persistDedupeCandidate(client, candidate, unitVendorIds, partnerVendorIds);

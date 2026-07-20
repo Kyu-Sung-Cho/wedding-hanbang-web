@@ -88,6 +88,18 @@ const ZeroCriteriaSchema = z.object({
   unreadable_amounts_must_remain_unstructured: z.literal(true),
 }).strict();
 
+const SemanticCriteriaSchema = z.object({
+  required_for_expected_units: z.literal(true),
+  required_status: z.literal("captured"),
+}).strict();
+
+const SemanticCaptureStatusSchema = z.enum([
+  "captured",
+  "missing",
+  "unverified",
+  "not_grounded",
+]);
+
 const ScoreUnitStatusSchema = z.object({
   unit_id: UnitIdSchema,
   prompt_version: z.string().min(1),
@@ -104,6 +116,15 @@ const ScoreUnitStatusSchema = z.object({
     blocking_validation_issues: z.array(z.unknown()),
     unsafe_unreadable_extractions: z.array(z.unknown()),
     actual_coverage_gaps: z.array(z.unknown()),
+  }).passthrough(),
+  semantic_gate: z.object({
+    required: z.literal(true),
+    passed: z.boolean(),
+    expected_status: z.literal("captured"),
+    actual_status: SemanticCaptureStatusSchema,
+  }).strict(),
+  semantic_capture: z.object({
+    status: SemanticCaptureStatusSchema,
   }).passthrough(),
   unreadable_cells: z.array(z.object({
     source_locator: z.string().min(1),
@@ -152,6 +173,7 @@ const ScoreReportSchema = z.object({
     blocking_failed_units: z.number().int().nonnegative(),
     blocking_blocked_units: z.number().int().nonnegative(),
     criteria: ZeroCriteriaSchema,
+    semantic_criteria: SemanticCriteriaSchema,
   }).passthrough(),
   units: z.array(ScoreUnitStatusSchema),
 }).passthrough();
@@ -169,15 +191,18 @@ const ReceiptPayloadSchema = z.object({
     status: z.literal("pass"),
     eligible_for_25_unit_batch: z.literal(true),
     criteria: ZeroCriteriaSchema,
+    semantic_criteria: SemanticCriteriaSchema,
     unit_statuses: z.array(z.object({
       unit_id: UnitIdSchema,
       status: z.enum(["pass", "fail"]),
+      semantic_gate_passed: z.boolean(),
+      semantic_capture_status: SemanticCaptureStatusSchema,
     }).strict()).length(8),
   }).strict(),
 }).strict();
 
 export const FixedEightPassReceiptSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   kind: z.literal("fixed_eight_pilot_pass_receipt"),
   payload: ReceiptPayloadSchema,
   receipt_sha256: Sha256Schema,
@@ -292,6 +317,17 @@ export function createFixedEightPassReceipt(
     ) {
       throw new Error(`score provenance does not match extraction provenance: ${unitScore.unit_id}`);
     }
+    const semanticCaptured = unitScore.semantic_capture.status === "captured";
+    if (
+      unitScore.semantic_gate.passed !== semanticCaptured
+      || unitScore.semantic_gate.actual_status !== unitScore.semantic_capture.status
+    ) {
+      throw new Error(`semantic capture gate contradicts its evidence: ${unitScore.unit_id}`);
+    }
+    const expectedUnitStatus = unitScore.price_gate.passed && semanticCaptured ? "pass" : "fail";
+    if (unitScore.status !== "blocked" && unitScore.status !== expectedUnitStatus) {
+      throw new Error(`unit status contradicts its price and semantic capture gates: ${unitScore.unit_id}`);
+    }
     if (index < 7) {
       const priceGate = unitScore.price_gate;
       const hasZeroFailures = [
@@ -306,6 +342,9 @@ export function createFixedEightPassReceipt(
       ].every((items) => items.length === 0);
       if (unitScore.status !== "pass" || !priceGate.passed || !hasZeroFailures) {
         throw new Error(`blocking pilot unit did not meet every zero criterion: ${unitScore.unit_id}`);
+      }
+      if (!unitScore.semantic_gate.passed || !semanticCaptured) {
+        throw new Error(`blocking pilot unit semantic capture is not complete: ${unitScore.unit_id}`);
       }
     } else {
       assertMayUnreadableCellsSafelyDisposed(unitScore);
@@ -337,11 +376,17 @@ export function createFixedEightPassReceipt(
       status: "pass",
       eligible_for_25_unit_batch: true,
       criteria: score.gate.criteria,
-      unit_statuses: score.units.map((unit) => ({ unit_id: unit.unit_id, status: unit.status })),
+      semantic_criteria: score.gate.semantic_criteria,
+      unit_statuses: score.units.map((unit) => ({
+        unit_id: unit.unit_id,
+        status: unit.status,
+        semantic_gate_passed: unit.semantic_gate.passed,
+        semantic_capture_status: unit.semantic_capture.status,
+      })),
     },
   });
   return {
-    schema_version: 1,
+    schema_version: 2,
     kind: "fixed_eight_pilot_pass_receipt",
     payload,
     receipt_sha256: canonicalSha256(payload),
@@ -364,6 +409,11 @@ function parseFixedEightPassReceiptEnvelope(value: unknown): FixedEightPassRecei
   }
   if (receipt.payload.score_report.unit_statuses.slice(0, 7).some((unit) => unit.status !== "pass")) {
     throw new Error("receipt blocking unit statuses must all pass");
+  }
+  if (receipt.payload.score_report.unit_statuses.slice(0, 7).some((unit) =>
+    !unit.semantic_gate_passed || unit.semantic_capture_status !== "captured"
+  )) {
+    throw new Error("receipt blocking unit semantic capture statuses must all be captured");
   }
   if (canonicalSha256(receipt.payload) !== receipt.receipt_sha256) {
     throw new Error("fixed-eight receipt SHA-256 does not match its payload");

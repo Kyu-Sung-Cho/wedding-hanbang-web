@@ -21,8 +21,15 @@
 - 제품·디자인: `DESIGN.md`
 - 아모라 V2: `docs/AMORA_ENGINE_V2_2026-07-16.md`
 - 현재 운영 릴리스: `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
-- 다른 컴퓨터 인수인계: `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-19.md`
+- 다른 컴퓨터 인수인계: `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- 업체 공시 실행 기준: `scripts/ingest/README.md`
 - 업체 공시 적재·속성·아모라 추천 V2: `docs/operations/VENDOR_DISCLOSURE_PIPELINE_V2_2026-07-18.md`
+- 업체 공시 전수 감사: `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`
+- 업체 공시 고정 8건 실행: `docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`
+- 업체 공시 수용·배포 게이트:
+  `docs/operations/VENDOR_DISCLOSURE_ACCEPTANCE_MATRIX_2026-07-18.md`,
+  `docs/operations/VENDOR_DISCLOSURE_HOSTED_STAGING_RLS_PROBE.md`,
+  `docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md`
 - 모바일: `docs/MOBILE_APP_MASTERPLAN_2026-06-30.md`
 - WeddingCode: `docs/wedding-code/README.md`
 
@@ -63,9 +70,11 @@ corepack pnpm test
 corepack pnpm mobile:release-check
 ```
 
-`pnpm qa:local`은 웹 typecheck·lint·tests·production build와 모바일
-readiness·tests·typecheck·lint·bundle export를 포함합니다. 명령이 실제로 성공하지
-않았다면 문서나 PR에서 통과했다고 표시하지 않습니다.
+`corepack pnpm qa:local`은 웹·모바일 앱 게이트입니다. 업체 공시 변경은 추가로
+`corepack pnpm ingest:typecheck`, `corepack pnpm test:ingest`,
+`corepack pnpm supabase:release:test`, `corepack pnpm supabase:release:fence`를
+실행합니다. 명령이 실제로 성공하지 않았다면 문서나 PR에서 통과했다고 표시하지
+않습니다.
 
 ## 운영 변경 안전 규칙
 

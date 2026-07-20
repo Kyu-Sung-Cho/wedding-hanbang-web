@@ -1,5 +1,11 @@
 # Vendor public RLS hotfix
 
+> **Historical incident record.** Linked production now includes
+> `20260715210000_harden_vendor_public_read_policies.sql`. The original mutable
+> post-apply probe below has been superseded: the current
+> `supabase:vendor-security:probe` is hosted-staging-only and must never run
+> against production.
+
 ## Purpose
 
 Production contained three manually created SELECT policies that were absent
@@ -49,16 +55,15 @@ recreated as an availability rollback.
   broader database failure. A physical restore for this metadata-only change
   would also rewind unrelated production writes and is not the normal rollback.
 
-## Post-apply canary
+## Current production canary rule
 
-1. Run `pnpm supabase:vendor-security:probe` with the production URL and anon
-   key supplied only through the current process environment.
-2. Confirm no non-approved vendor is visible.
-3. Confirm every anonymously visible product and image belongs to an
-   anonymously visible approved vendor.
-4. Query `pg_policies` through the Management API and confirm the three drift
-   policy names are absent.
-5. Confirm `/api/vendors` and the vendor page still return successfully.
+Do not run `supabase:vendor-security:probe` against production. It creates and
+cleans up temporary rows as part of its two-session proof and is allowed only
+on an approved disposable hosted staging project. Production verification must
+use a separately reviewed read-only canary that cannot insert, update, or
+delete data. Until that canary exists and returns a SHA-bound receipt, the
+production post-apply canary remains blocked rather than being inferred from
+the staging probe.
 
 ## Remaining boundary
 

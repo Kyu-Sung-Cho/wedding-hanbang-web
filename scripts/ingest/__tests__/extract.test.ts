@@ -377,6 +377,15 @@ async function writeDummyDocx(filePath: string, text = "더미 기본 패키지 
   await writeFile(filePath, await docx.generateAsync({ type: "nodebuffer" }));
 }
 
+async function rasterizeGeneratedPdf(
+  _sourcePath: string,
+  outputDirectory: string,
+): Promise<string[]> {
+  const pagePath = path.join(outputDirectory, "page-1.png");
+  await writeFile(pagePath, "generated PDF page raster");
+  return [pagePath];
+}
+
 test("fixed-eight planning reports an over-budget maximum without issuing approval", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-plan-blocked-"));
   const stateDir = `${rootDir}-state`;
@@ -390,7 +399,10 @@ test("fixed-eight planning reports an over-budget maximum without issuing approv
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
   await mkdir(regionDir, { recursive: true });
   for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
-    await writeDummyDocx(path.join(regionDir, `(제주)_blocked-plan-${index}.docx`));
+    await writeDummyDocx(
+      path.join(regionDir, `(제주)_blocked-plan-${index}.docx`),
+      `blocked plan fixture ${index} 더미 기본 패키지 290만원`,
+    );
   }
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
@@ -451,7 +463,10 @@ test("the exact-eight paid path binds plan, intents, ledger, checkpoints, cache,
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
   await mkdir(regionDir, { recursive: true });
   for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
-    await writeDummyDocx(path.join(regionDir, `(제주)_paid-chain-${index}.docx`));
+    await writeDummyDocx(
+      path.join(regionDir, `(제주)_paid-chain-${index}.docx`),
+      `paid chain fixture ${index} 더미 기본 패키지 290만원`,
+    );
   }
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
@@ -605,7 +620,10 @@ test("raising the runtime env limit cannot spend beyond the approved plan ceilin
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
   await mkdir(regionDir, { recursive: true });
   for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
-    await writeDummyDocx(path.join(regionDir, `(제주)_approved-ceiling-${index}.docx`));
+    await writeDummyDocx(
+      path.join(regionDir, `(제주)_approved-ceiling-${index}.docx`),
+      `approved ceiling fixture ${index} 더미 기본 패키지 290만원`,
+    );
   }
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
@@ -941,6 +959,9 @@ test("text extraction materializes the money audit ledger from source evidence i
   await convertManifest({ stateDir });
 
   const modelResult = dummyExtraction("원장테스트");
+  modelResult.agency_packages[0].price_min_krw = 1_050_000;
+  modelResult.agency_packages[0].price_max_krw = 1_050_000;
+  modelResult.agency_packages[0].source_quote = "가격표!B3: 105";
   modelResult.money_occurrences = [{
     amount_krw: 10_500_000,
     raw_text: "105",
@@ -999,7 +1020,9 @@ test("workbook extraction never splits cells from the same sheet row across requ
     provider: {
       extract: async (request) => {
         requestTexts.push(request.text);
-        return { data: dummyExtraction("행원자성테스트"), inputTokens: 10, outputTokens: 10 };
+        const data = dummyExtraction("행원자성테스트");
+        data.agency_packages = [];
+        return { data, inputTokens: 10, outputTokens: 10 };
       },
     },
   });
@@ -1065,7 +1088,10 @@ test("extract accepts a bounded multi-file unit that needs more than ten text ch
   await writeFile(path.join(regionDir, "(제주)_샘플대형홀.pdf"), "%PDF generated fixture");
   await scanSources({ rootDir, stateDir });
   const longText = "샘플 공시 100만원\n".repeat(5_000);
-  await convertManifest({ stateDir }, { extractPdfText: async () => longText });
+  await convertManifest({ stateDir }, {
+    extractPdfText: async () => longText,
+    rasterizePdf: rasterizeGeneratedPdf,
+  });
   let requests = 0;
 
   const result = await extractManifest(
@@ -1158,7 +1184,8 @@ test("OpenAI extraction request uses Responses structured output and never store
   assert.equal(request.text?.format?.type, "json_schema");
   assert.equal(request.tools, undefined);
   assert.match(String(request.instructions), /텍스트.*money_occurrences.*빈 배열.*이미지.*금액 발생/isu);
-  assert.match(String(request.instructions), /단일 '시트!셀: 원문'.*세미콜론.*만들지 않습니다/isu);
+  assert.match(String(request.instructions), /단일 셀·도형·수식 locator.*여러 locator.*세미콜론.*만들지 않습니다/isu);
+  assert.match(String(request.instructions), /XLSX_FORMULA.*절대로 계산하거나 외부 함수를 실행하지 않습니다/isu);
   assert.match(String(request.instructions), /parent price.*null.*options.*parent와 option.*중복/isu);
   assert.match(String(request.instructions), /보완적 halls 레코드.*셀별.*exact source_quote/isu);
   assert.match(String(request.instructions), /%는 비율.*KRW 금액이 아닙니다.*money_occurrences/isu);
@@ -1209,7 +1236,10 @@ test("multi-batch retries reuse successful schema-validated checkpoints instead 
   await scanSources({ rootDir, stateDir });
   await convertManifest(
     { stateDir },
-    { extractPdfText: async () => "체크포인트홀 100만원\n".repeat(4_000) },
+    {
+      extractPdfText: async () => "체크포인트홀 100만원\n".repeat(4_000),
+      rasterizePdf: rasterizeGeneratedPdf,
+    },
   );
 
   const callTexts: string[] = [];
@@ -1307,7 +1337,10 @@ test("an invalid batch checkpoint fails closed before another provider charge", 
   await scanSources({ rootDir, stateDir });
   await convertManifest(
     { stateDir },
-    { extractPdfText: async () => "깨진체크포인트홀 100만원\n".repeat(4_000) },
+    {
+      extractPdfText: async () => "깨진체크포인트홀 100만원\n".repeat(4_000),
+      rasterizePdf: rasterizeGeneratedPdf,
+    },
   );
 
   let calls = 0;
@@ -1382,6 +1415,9 @@ test("a text batch cannot cite an XLSX cell that was absent from that request", 
   assert.match(repairPayload, /trusted_repair_constraints/u);
   assert.match(repairPayload, /가격표!B3/u);
   assert.match(repairPayload, /허용 목록에 없는 XLSX locator/u);
+  assert.match(repairPayload, /일반 시트 셀은 그 셀의 실제 연속 원문 조각/u);
+  assert.match(repairPayload, /XLSX_DRAWING\/XLSX_FORMULA는[^\n]*payload 전체를 생략·축약 없이 정확히 복사/u);
+  assert.doesNotMatch(repairPayload, /단일 locator와 그 뒤의 실제 연속 원문 조각만/u);
 
   const ledger = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
     .trim()
@@ -1500,6 +1536,88 @@ test("XLSX ownership accepts one exact locator with a contiguous verbatim fragme
   });
 
   assert.equal(calls, 1);
+  assert.equal(result.units[0].stage, "extracted");
+});
+
+test("XLSX ownership accepts request-scoped drawing and formula evidence and repairs a forged part", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-aux-evidence-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "(제주)_보조근거테스트.xlsx");
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    ["패키지", "기본가격"],
+    ["더미 기본 패키지 스튜디오 드레스 메이크업", "기본가격 290만원"],
+  ]);
+  worksheet.B20 = { t: "n", f: "SUM(B2)", v: 2_900_000, z: "#,##0" };
+  worksheet["!ref"] = "A1:B20";
+  XLSX.utils.book_append_sheet(workbook, worksheet, "가격표");
+  await writeFile(sourcePath, XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file(
+    "xl/drawings/drawing1.xml",
+    '<?xml version="1.0" encoding="UTF-8"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:sp><xdr:txBody><a:p><a:r><a:t>총비용 = 기본가격</a:t></a:r></a:p></xdr:txBody></xdr:sp></xdr:wsDr>',
+  );
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+
+  let calls = 0;
+  const captured: ExtractionRequest[] = [];
+  const result = await extractManifest({ stateDir }, {
+    env: {},
+    provider: {
+      extract: async (request) => {
+        calls += 1;
+        captured.push(request);
+        const drawing = request.text.match(/^XLSX_DRAWING .*$/mu)?.[0];
+        const formula = request.text.match(/^XLSX_FORMULA .*$/mu)?.[0];
+        assert.ok(drawing);
+        assert.ok(formula);
+        const data = dummyExtraction("보조근거테스트");
+        data.agency_packages[0].source_quote = "가격표!B2: 기본가격 290만원";
+        data.sections = [
+          {
+            section_type: "pricing_basis",
+            title: "총비용",
+            content_verbatim: "총비용 = 기본가격",
+            summary: "도형 산정 기준",
+            source_quote: drawing,
+            source_file_ids: [],
+            confidence: 0.99,
+            needs_review: false,
+          },
+          {
+            section_type: "pricing_basis",
+            title: "SUM(B2)",
+            content_verbatim: "SUM(B2)",
+            summary: "수식 원문",
+            source_quote: calls === 1 ? formula.replace("sheet1.xml", "sheet99.xml") : formula,
+            source_file_ids: [],
+            confidence: 0.99,
+            needs_review: false,
+          },
+        ];
+        return { data, inputTokens: 10, outputTokens: 10 };
+      },
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(captured[1].repair?.reason, "xlsx_locator_ownership");
+  assert.equal(
+    captured[1].repair?.allowedXlsxLocators.some((locator) => locator.startsWith("XLSX_DRAWING ")),
+    true,
+  );
+  assert.equal(
+    captured[1].repair?.allowedXlsxLocators.some((locator) => locator.startsWith("XLSX_FORMULA ")),
+    true,
+  );
   assert.equal(result.units[0].stage, "extracted");
 });
 
@@ -2469,15 +2587,18 @@ test("invalid structured output receives exactly one repair retry while a second
   t.after(async () => Promise.all([rm(rootDir, { recursive: true, force: true }), rm(stateDir, { recursive: true, force: true })]));
   const regionDir = path.join(rootDir, "agency", "제주");
   await mkdir(regionDir, { recursive: true });
-  await writeDummyDocx(path.join(regionDir, "repair.docx"));
-  await writeDummyDocx(path.join(regionDir, "fail.docx"));
-  await writeDummyDocx(path.join(regionDir, "other-4xx.docx"));
+  await writeDummyDocx(path.join(regionDir, "repair.docx"), "repair fixture 더미 기본 패키지 290만원");
+  await writeDummyDocx(path.join(regionDir, "fail.docx"), "fail fixture 더미 기본 패키지 290만원");
+  await writeDummyDocx(path.join(regionDir, "other-4xx.docx"), "other 4xx fixture 더미 기본 패키지 290만원");
   const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
   await convertManifest({ stateDir });
   const repairId = scanned.units.find((unit) => unit.display_name === "repair.docx")?.unit_id;
   const other4xxId = scanned.units.find((unit) => unit.display_name === "other-4xx.docx")?.unit_id;
   assert.ok(repairId);
   assert.ok(other4xxId);
+  const canonicalNameByUnitId = new Map(
+    scanned.units.map((unit) => [unit.unit_id, unit.parsed.raw_name]),
+  );
   const attempts = new Map<string, number>();
   const delays: number[] = [];
   const provider: ExtractionProvider = {
@@ -2490,7 +2611,11 @@ test("invalid structured output receives exactly one repair retry while a second
         throw error;
       }
       if (request.unitId === repairId && count === 2) {
-        return { data: dummyExtraction("repaired"), inputTokens: 10, outputTokens: 5 };
+        return {
+          data: dummyExtraction(canonicalNameByUnitId.get(request.unitId) ?? ""),
+          inputTokens: 10,
+          outputTokens: 5,
+        };
       }
       throw new Error("구조화 출력 검증 실패");
     },
@@ -2505,7 +2630,8 @@ test("invalid structured output receives exactly one repair retry while a second
   const failedUnit = result.units.find((unit) => unit.unit_id !== repairId && unit.unit_id !== other4xxId);
   assert.equal(attempts.get(failedUnit?.unit_id ?? ""), 2);
   assert.equal(attempts.get(other4xxId), 1);
-  assert.equal(result.units.find((unit) => unit.unit_id === repairId)?.stage, "extracted");
+  const repairedUnit = result.units.find((unit) => unit.unit_id === repairId);
+  assert.equal(repairedUnit?.stage, "extracted", JSON.stringify(repairedUnit?.notices));
   assert.equal(failedUnit?.stage, "error");
   assert.equal(result.units.find((unit) => unit.unit_id === other4xxId)?.stage, "error");
   assert.deepEqual(delays, []);

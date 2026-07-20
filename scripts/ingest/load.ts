@@ -16,8 +16,12 @@ import { readAiLedger, type AiLedgerEntry } from "./ledger.js";
 import { loadManifest } from "./manifest.js";
 import { buildPartnerVendorRecords } from "./partner-dedupe.js";
 import { sourceFileId } from "./provenance.js";
-import { SCANNER_PARSER_VERSION } from "./scan.js";
-import type { DisclosureExtraction } from "./schemas.js";
+import { normalizeVendorName, SCANNER_PARSER_VERSION } from "./scan.js";
+import {
+  DisclosureSemanticStagingSchema,
+  type DisclosureExtraction,
+  type DisclosureSemanticStaging,
+} from "./schemas.js";
 import {
   currentExtractionFingerprint,
   EXTRACTION_PROCESSING_VERSION,
@@ -141,7 +145,7 @@ export interface StagingOfficialPrice {
 }
 
 export interface StagingLoadPlan {
-  schema_version: 1;
+  schema_version: 2;
   snapshot: string;
   snapshot_source: "kca_tprice";
   units: StagingUnit[];
@@ -150,6 +154,7 @@ export interface StagingLoadPlan {
   preview_objects: PreviewStorageObject[];
   agency_packages: StagingAgencyPackage[];
   official_prices: StagingOfficialPrice[];
+  disclosure_semantics: DisclosureSemanticStaging[];
   dedupe_candidates: StagingDedupeCandidate[];
   ai_ledger: AiLedgerEntry[];
   warnings: string[];
@@ -219,15 +224,24 @@ function sourceFileBundle(paths: string[]): string {
   return canonical.length === 1 ? canonical[0] : JSON.stringify(canonical);
 }
 
-function stagingProvenanceForSourceIds(
+export function stagingProvenanceForSourceIds(
   unit: StagingUnit,
   sourceIds: string[] | undefined,
-): Pick<StagingAgencyPackage, "source_file" | "source_object_keys" | "source_preview_keys"> {
-  const selected = unit.source_records.filter((record) => sourceIds?.includes(record.source_file_id));
-  if (!sourceIds || sourceIds.length === 0 || selected.length !== new Set(sourceIds).size) {
+): Pick<StagingAgencyPackage, "source_file" | "source_object_keys" | "source_preview_keys"> & {
+  source_file_ids: string[];
+} {
+  const uniqueSourceIds = sourceIds ? new Set(sourceIds) : new Set<string>();
+  const selected = unit.source_records.filter((record) => uniqueSourceIds.has(record.source_file_id));
+  if (
+    !sourceIds
+    || sourceIds.length === 0
+    || uniqueSourceIds.size !== sourceIds.length
+    || selected.length !== uniqueSourceIds.size
+  ) {
     throw new Error(`행 단위 source_file_ids가 unit 원본과 일치하지 않습니다: ${unit.raw_name}`);
   }
   return {
+    source_file_ids: selected.map((record) => record.source_file_id),
     source_file: sourceFileBundle(selected.map((record) => record.source_file)),
     source_object_keys: selected.map((record) => record.source_object_key),
     source_preview_keys: selected
@@ -236,12 +250,20 @@ function stagingProvenanceForSourceIds(
   };
 }
 
-function stagingOption(unit: StagingUnit, option: DisclosureExtraction["agency_packages"][number]["options"][number]): StagingPriceOption {
+function stagingRowProvenanceForSourceIds(
+  unit: StagingUnit,
+  sourceIds: string[] | undefined,
+): Pick<StagingAgencyPackage, "source_file" | "source_object_keys" | "source_preview_keys"> {
+  const { source_file_ids: _sourceFileIds, ...provenance } = stagingProvenanceForSourceIds(unit, sourceIds);
+  return provenance;
+}
+
+export function stagingOption(unit: StagingUnit, option: DisclosureExtraction["agency_packages"][number]["options"][number]): StagingPriceOption {
   const provenance = stagingProvenanceForSourceIds(unit, option.source_file_ids);
-  const { source_file_ids: sourceFileIds, ...safeOption } = option;
+  const { source_file_ids: _sourceFileIds, ...safeOption } = option;
   return {
     ...safeOption,
-    source_file_ids: sourceFileIds ?? [],
+    source_file_ids: provenance.source_file_ids,
     source_file: provenance.source_file,
     source_object_keys: provenance.source_object_keys,
   };
@@ -353,6 +375,158 @@ function canonicalJson(value: unknown): string {
   ).join(",")}}`;
 }
 
+type DisclosureSemanticWithoutContentFingerprint = Omit<
+  DisclosureSemanticStaging,
+  "content_fingerprint"
+>;
+
+export function buildDisclosureSemanticContentFingerprint(
+  row: DisclosureSemanticWithoutContentFingerprint | DisclosureSemanticStaging,
+): string {
+  const { content_fingerprint: _contentFingerprint, ...content } = row as DisclosureSemanticStaging;
+  return sha256Text(canonicalJson(content));
+}
+
+export function buildDisclosureSemanticSourceRecordKey(input: {
+  schema_version: 2;
+  source_fingerprint: string;
+  record_kind: DisclosureSemanticStaging["record_kind"];
+  semantic_type: DisclosureSemanticStaging["semantic_type"];
+  subject_kind: DisclosureSemanticStaging["subject_kind"];
+  subject_normalized_name: string;
+  partner_record_ref: string | null;
+  title: string | null;
+  source_file_ids: string[];
+  source_quote: string;
+  // Accepted as part of a semantic row, but deliberately excluded from the
+  // locator key. Content drift at one locator must collide and be detected by
+  // content_fingerprint instead of silently creating a second logical row.
+  content_verbatim: string;
+}): string {
+  if (
+    input.source_file_ids.length === 0
+    || new Set(input.source_file_ids).size !== input.source_file_ids.length
+    || input.source_file_ids.some((sourceId) => !/^[a-f0-9]{64}$/u.test(sourceId))
+  ) {
+    throw new Error("disclosure semantic source ids must be a non-empty canonical SHA-256 subset");
+  }
+  if (input.partner_record_ref !== null && !/^[a-f0-9]{64}$/u.test(input.partner_record_ref)) {
+    throw new Error("disclosure semantic partner record ref must be a SHA-256 digest or null");
+  }
+  return sha256Text(canonicalJson({
+    schema_version: input.schema_version,
+    source_fingerprint: input.source_fingerprint,
+    record_kind: input.record_kind,
+    semantic_type: input.semantic_type,
+    subject_kind: input.subject_kind,
+    subject_normalized_name: input.subject_normalized_name,
+    partner_record_ref: input.partner_record_ref,
+    title: input.title,
+    source_file_ids: input.source_file_ids,
+    source_quote: input.source_quote,
+  }));
+}
+
+export function stagingDisclosureSemantics(unit: StagingUnit): DisclosureSemanticStaging[] {
+  const rows: DisclosureSemanticStaging[] = [];
+  const append = (candidate: Omit<
+    DisclosureSemanticWithoutContentFingerprint,
+    "source_record_key"
+  >): void => {
+    const sourceRecordKey = buildDisclosureSemanticSourceRecordKey(candidate);
+    const rowWithoutContentFingerprint: DisclosureSemanticWithoutContentFingerprint = {
+      ...candidate,
+      source_record_key: sourceRecordKey,
+    };
+    rows.push(DisclosureSemanticStagingSchema.parse({
+      ...rowWithoutContentFingerprint,
+      content_fingerprint: buildDisclosureSemanticContentFingerprint(rowWithoutContentFingerprint),
+    }));
+  };
+
+  const partnerRecords = buildPartnerVendorRecords(
+    unit.unit_id,
+    unit.region_code,
+    unit.data.partner_vendors,
+  );
+  for (const [vendorIndex, vendor] of unit.data.partner_vendors.entries()) {
+    const partnerRecord = partnerRecords[vendorIndex];
+    if (!partnerRecord) throw new Error("partner vendor semantic row reference could not be resolved");
+    const normalizedVendorName = normalizeVendorName(vendor.vendor_name);
+    if (!normalizedVendorName) throw new Error("disclosure semantic vendor subject must not be empty");
+    for (const policy of vendor.policies ?? []) {
+      const provenance = stagingProvenanceForSourceIds(unit, policy.source_file_ids);
+      append({
+        schema_version: 2,
+        unit_id: unit.unit_id,
+        record_kind: "vendor_policy",
+        semantic_type: policy.policy_type,
+        subject_kind: "vendor",
+        subject_name: vendor.vendor_name,
+        subject_normalized_name: normalizedVendorName,
+        partner_record_ref: partnerRecord.record_ref,
+        source_agency: unit.kind_hint === "agency" ? {
+          name: unit.raw_name,
+          normalized_name: unit.normalized_name,
+          corporate_name: unit.corporate_name,
+          region_code: unit.region_code,
+          source_file: provenance.source_file,
+        } : null,
+        partner_link_status: partnerRecord.stageable
+          ? "price_row_staged"
+          : "policy_only_pending_identity",
+        vendor_category: vendor.category,
+        region_code: unit.region_code,
+        title: null,
+        content_verbatim: policy.raw_text,
+        summary: null,
+        review_status: "pending",
+        needs_review: vendor.needs_review
+          || vendor.confidence < 0.8
+          || unit.validation_issue_codes.length > 0,
+        validation_issue_codes: unit.validation_issue_codes,
+        ...provenance,
+        source_quote: policy.source_quote,
+        source_fingerprint: unit.source_fingerprint,
+        validation_fingerprint: unit.validation_fingerprint,
+        confidence: vendor.confidence,
+      });
+    }
+  }
+
+  for (const section of unit.data.sections ?? []) {
+    const provenance = stagingProvenanceForSourceIds(unit, section.source_file_ids);
+    append({
+      schema_version: 2,
+      unit_id: unit.unit_id,
+      record_kind: "document_section",
+      semantic_type: section.section_type,
+      subject_kind: unit.kind_hint === "agency" ? "agency" : "vendor",
+      subject_name: unit.raw_name,
+      subject_normalized_name: unit.normalized_name,
+      partner_record_ref: null,
+      source_agency: null,
+      partner_link_status: "not_applicable",
+      vendor_category: null,
+      region_code: unit.region_code,
+      title: section.title,
+      content_verbatim: section.content_verbatim,
+      summary: section.summary,
+      review_status: "pending",
+      needs_review: section.needs_review
+        || section.confidence < 0.8
+        || unit.validation_issue_codes.length > 0,
+      validation_issue_codes: unit.validation_issue_codes,
+      ...provenance,
+      source_quote: section.source_quote,
+      source_fingerprint: unit.source_fingerprint,
+      validation_fingerprint: unit.validation_fingerprint,
+      confidence: section.confidence,
+    });
+  }
+  return rows;
+}
+
 type OfficialPriceRowKind = "partner" | "hall_venue_fee" | "hall_meal_price" | "hall_item";
 
 function normalizedLogicalIdentity(value: unknown, label: string): string {
@@ -426,12 +600,12 @@ function logicalOccurrence<T>(
   return occurrence;
 }
 
-function hallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
+function legacyHallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
   const rows: StagingOfficialPrice[] = [];
   const hall = unit.data.hall;
   const vendorName = unit.raw_name;
   if (hall.venue_fee_krw !== null && hall.venue_fee_source_quote) {
-    const provenance = stagingProvenanceForSourceIds(unit, hall.venue_fee_source_file_ids);
+    const provenance = stagingRowProvenanceForSourceIds(unit, hall.venue_fee_source_file_ids);
     rows.push({
       unit_id: unit.unit_id,
       vendor_name: vendorName,
@@ -466,7 +640,7 @@ function hallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
     });
   }
   if ((hall.meal_price_min_krw !== null || hall.meal_price_max_krw !== null) && hall.meal_price_source_quote) {
-    const provenance = stagingProvenanceForSourceIds(unit, hall.meal_price_source_file_ids);
+    const provenance = stagingRowProvenanceForSourceIds(unit, hall.meal_price_source_file_ids);
     rows.push({
       unit_id: unit.unit_id,
       vendor_name: vendorName,
@@ -502,7 +676,7 @@ function hallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
   }
   for (const [itemIndex, item] of hall.items.entries()) {
     if (item.price_min_krw === null && item.price_max_krw === null) continue;
-    const provenance = stagingProvenanceForSourceIds(unit, item.source_file_ids);
+    const provenance = stagingRowProvenanceForSourceIds(unit, item.source_file_ids);
     rows.push({
       unit_id: unit.unit_id,
       vendor_name: vendorName,
@@ -534,6 +708,161 @@ function hallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
   return rows;
 }
 
+type CanonicalHall = NonNullable<DisclosureExtraction["halls"]>[number];
+
+function canonicalHallBaseSpec(hall: CanonicalHall): string | null {
+  return hall.guarantee_min === null
+    ? null
+    : `최소 보증 인원 ${hall.guarantee_min.toLocaleString("ko-KR")}명`;
+}
+
+function canonicalHallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
+  const rows: StagingOfficialPrice[] = [];
+  const logicalOccurrences = new Map<string, number>();
+  const append = (
+    hall: CanonicalHall,
+    itemName: string,
+    priceMinKrw: number | null,
+    priceMaxKrw: number | null,
+    priceNote: string | null,
+    options: StagingPriceOption[],
+  ): void => {
+    const provenance = stagingRowProvenanceForSourceIds(unit, hall.source_file_ids);
+    const normalizedItemName = normalizedLogicalIdentity(itemName, "hall item identity");
+    const occurrence = logicalOccurrences.get(normalizedItemName) ?? 0;
+    logicalOccurrences.set(normalizedItemName, occurrence + 1);
+    rows.push({
+      unit_id: unit.unit_id,
+      vendor_name: unit.raw_name,
+      alias_proposals: [],
+      source_agency: null,
+      category: "hall",
+      region_code: unit.region_code,
+      item_name: itemName,
+      base_spec: canonicalHallBaseSpec(hall),
+      price_min_krw: priceMinKrw,
+      price_max_krw: priceMaxKrw,
+      vat_note: null,
+      price_note: priceNote,
+      options,
+      review_status: "pending",
+      needs_review: hall.needs_review || hall.confidence < 0.8 || unit.validation_issue_codes.length > 0,
+      validation_issue_codes: unit.validation_issue_codes,
+      ...provenance,
+      source_quote: hall.source_quote,
+      confidence: hall.confidence,
+      source_record_key: buildOfficialPriceSourceRecordKey(
+        unit.source_fingerprint,
+        "hall_item",
+        { name: itemName },
+        occurrence,
+      ),
+    });
+  };
+
+  for (const hall of unit.data.halls ?? []) {
+    const hallIdentity = hall.hall_name?.trim() || unit.raw_name;
+    if (hall.venue_fee_min_krw !== null || hall.venue_fee_max_krw !== null) {
+      append(
+        hall,
+        `${hallIdentity} 대관료`,
+        hall.venue_fee_min_krw,
+        hall.venue_fee_max_krw,
+        hall.venue_fee_note,
+        [],
+      );
+    }
+    if (hall.meal_price_min_krw !== null || hall.meal_price_max_krw !== null) {
+      append(
+        hall,
+        `${hallIdentity} 식대`,
+        hall.meal_price_min_krw,
+        hall.meal_price_max_krw,
+        null,
+        [],
+      );
+    }
+    if (hall.decoration_fee_min_krw !== null || hall.decoration_fee_max_krw !== null) {
+      append(
+        hall,
+        `${hallIdentity} 장식비`,
+        hall.decoration_fee_min_krw,
+        hall.decoration_fee_max_krw,
+        hall.decoration_note,
+        [],
+      );
+    }
+    if (optionsContainPrice(hall.options)) {
+      append(
+        hall,
+        `${hallIdentity} 옵션`,
+        null,
+        null,
+        null,
+        hall.options.map((option) => stagingOption(unit, option)),
+      );
+    }
+  }
+  return rows;
+}
+
+function hallFactKind(itemName: string): string {
+  const normalized = normalizeVendorName(itemName);
+  if (normalized.endsWith("대관료")) return "venue_fee";
+  if (normalized.endsWith("식대")) return "meal_price";
+  if (normalized.endsWith("장식비") || normalized.endsWith("장식료")) return "decoration_fee";
+  return `item:${normalized}`;
+}
+
+function hallFactLocator(
+  sourceObjectKeys: string[],
+  sourceQuote: string,
+  factKind: string,
+): string {
+  return canonicalJson({ source_object_keys: sourceObjectKeys, source_quote: sourceQuote, fact_kind: factKind });
+}
+
+function hallFactPrice(min: number | null, max: number | null): string {
+  return canonicalJson({ price_min_krw: min, price_max_krw: max });
+}
+
+export function hallPriceRows(unit: StagingUnit): StagingOfficialPrice[] {
+  const canonicalRows = canonicalHallPriceRows(unit);
+  if (canonicalRows.length === 0) return legacyHallPriceRows(unit);
+
+  const canonicalFacts = new Map<string, string>();
+  for (const row of canonicalRows) {
+    canonicalFacts.set(
+      hallFactLocator(row.source_object_keys, row.source_quote, hallFactKind(row.item_name)),
+      hallFactPrice(row.price_min_krw, row.price_max_krw),
+    );
+    for (const option of row.options) {
+      canonicalFacts.set(
+        hallFactLocator(option.source_object_keys, option.source_quote, hallFactKind(option.name)),
+        hallFactPrice(option.price_min_krw, option.price_max_krw),
+      );
+    }
+  }
+
+  const merged = [...canonicalRows];
+  for (const legacyRow of legacyHallPriceRows(unit)) {
+    const locator = hallFactLocator(
+      legacyRow.source_object_keys,
+      legacyRow.source_quote,
+      hallFactKind(legacyRow.item_name),
+    );
+    const canonicalPrice = canonicalFacts.get(locator);
+    if (canonicalPrice === undefined) {
+      merged.push(legacyRow);
+      continue;
+    }
+    if (canonicalPrice !== hallFactPrice(legacyRow.price_min_krw, legacyRow.price_max_krw)) {
+      throw new Error("canonical and legacy hall payloads disagree for the same source-backed price fact");
+    }
+  }
+  return merged;
+}
+
 function optionsContainPrice(options: DisclosureExtraction["agency_packages"][number]["options"]): boolean {
   return options.some((option) => option.price_min_krw !== null || option.price_max_krw !== null);
 }
@@ -551,10 +880,16 @@ function stageablePartnerVendors(data: DisclosureExtraction): DisclosureExtracti
 }
 
 function hasHallPayload(data: DisclosureExtraction): boolean {
-  return data.hall.venue_fee_krw !== null
+  return (data.halls?.length ?? 0) > 0
+    || data.hall.venue_fee_krw !== null
     || data.hall.meal_price_min_krw !== null
     || data.hall.meal_price_max_krw !== null
     || data.hall.items.length > 0;
+}
+
+function hasDisclosureSemantics(data: DisclosureExtraction): boolean {
+  return (data.sections?.length ?? 0) > 0
+    || data.partner_vendors.some((vendor) => (vendor.policies?.length ?? 0) > 0);
 }
 
 function documentPayloadIsCompatible(data: DisclosureExtraction): boolean {
@@ -797,7 +1132,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
           ? "document_payload_conflict"
           : hasConflictingAgencyPackageRows(stagingUnit.data)
             ? "conflicting_agency_package_rows"
-            : stageableRowCount(stagingUnit) === 0
+            : stageableRowCount(stagingUnit) === 0 && !hasDisclosureSemantics(stagingUnit.data)
               ? stagingUnit.data.doc_kind === "unknown"
                 ? "unknown_document_kind"
                 : "no_stageable_price_rows"
@@ -835,7 +1170,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
   const agencyPackages: StagingAgencyPackage[] = units.flatMap((unit) =>
     unit.data.doc_kind === "agency_disclosure" || unit.data.doc_kind === "mixed"
       ? stageableAgencyPackages(unit.data).map((item) => {
-        const provenance = stagingProvenanceForSourceIds(unit, item.source_file_ids);
+        const provenance = stagingRowProvenanceForSourceIds(unit, item.source_file_ids);
         return ({
     unit_id: unit.unit_id,
     agency_name: unit.raw_name,
@@ -866,7 +1201,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       unit.data.partner_vendors,
     );
     return stageablePartnerVendors(unit.data).map((item, itemIndex, items) => {
-        const provenance = stagingProvenanceForSourceIds(unit, item.source_file_ids);
+        const provenance = stagingRowProvenanceForSourceIds(unit, item.source_file_ids);
         const sourceItemIndex = unit.data.partner_vendors.indexOf(item);
         const partnerRecord = allPartnerRecords[sourceItemIndex];
         if (!partnerRecord) throw new Error("partner vendor row reference could not be resolved");
@@ -910,6 +1245,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
     unit.data.doc_kind === "hall_disclosure" || unit.data.doc_kind === "mixed"
       ? hallPriceRows(unit)
       : []);
+  const disclosureSemantics = units.flatMap(stagingDisclosureSemantics);
   const unitsWithPrimaryVendor = new Set(hallPrices.map((row) => row.unit_id));
   const unitsWithPrimaryAgency = new Set([
     ...agencyPackages.map((row) => row.unit_id),
@@ -961,7 +1297,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
   return {
     manifest,
     plan: {
-      schema_version: 1,
+      schema_version: 2,
       snapshot,
       snapshot_source: "kca_tprice",
       units,
@@ -970,6 +1306,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       preview_objects: previewObjects,
       agency_packages: agencyPackages,
       official_prices: [...partnerPrices, ...hallPrices],
+      disclosure_semantics: disclosureSemantics,
       dedupe_candidates: dedupeCandidates,
       ai_ledger: await readAiLedger(stateDir),
       warnings: [...warnings],

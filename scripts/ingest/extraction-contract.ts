@@ -9,9 +9,9 @@ export { EXTRACTION_PROMPT_VERSION };
 export const ALLOWED_EXTRACTION_MODELS = ["gpt-5.6-luna", "gpt-5.6-terra"] as const;
 export type ExtractionModel = (typeof ALLOWED_EXTRACTION_MODELS)[number];
 
-export const SOURCE_MONEY_SCANNER_VERSION = "v8-compound-contextual-unit-money-scanner";
+export const SOURCE_MONEY_SCANNER_VERSION = "v9-xlsx-auxiliary-locator-money-scanner";
 export const EXTRACTION_REQUEST_FORMAT_VERSION =
-  "v7.8.0-deterministic-line-cell-source-repair-attested-bytes-and-attempt-hashes";
+  "v7.9.0-deterministic-line-cell-aux-source-repair-attested-bytes-and-attempt-hashes";
 export const EXTRACTION_MERGE_VERSION = "v4-normalized-conflict-safe-merged-evidence";
 export const EXTRACTION_RESPONSE_FORMAT = zodTextFormat(
   DisclosureExtractionSchema,

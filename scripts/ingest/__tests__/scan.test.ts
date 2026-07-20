@@ -305,3 +305,222 @@ test("scan covers every disclosure filename shape from the ingestion acceptance 
   assert.doesNotMatch(byName.get("샘플방송컨벤션진주")?.notices.join("\n") ?? "", /region_mismatch/u);
   assert.equal(byName.get("샘플전라웨딩")?.source_files[0].ext, "hwp");
 });
+
+test("scan removes disclosure-only hall and standard-form suffixes from vendor identities", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-identity-suffix-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "gangwon");
+  await mkdir(hallDir, { recursive: true });
+  await writeFile(path.join(hallDir, "(강원도)_베로나지디_예식장.xlsx"), "hall fixture");
+  await writeFile(path.join(hallDir, "스카이나인스 표준양식.xlsx"), "standard fixture");
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const byDisplayName = new Map(manifest.units.map((unit) => [unit.display_name, unit.parsed]));
+
+  assert.deepEqual(byDisplayName.get("(강원도)_베로나지디_예식장.xlsx"), {
+    region_code: "gangwon",
+    raw_name: "베로나지디",
+    normalized_name: "베로나지디",
+    corporate_name: null,
+    kind_hint: "hall",
+  });
+  assert.deepEqual(byDisplayName.get("스카이나인스 표준양식.xlsx"), {
+    region_code: "gangwon",
+    raw_name: "스카이나인스",
+    normalized_name: "스카이나인스",
+    corporate_name: null,
+    kind_hint: "hall",
+  });
+});
+
+test("scan keeps an entire nested registered corporate owner separate from the venue name", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-nested-corporate-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "jeolla");
+  await mkdir(hallDir, { recursive: true });
+  const cases = new Map([
+    ["(전라도)_힐스코트(태성산업(주)).xlsx", ["힐스코트", "태성산업(주)"]],
+    ["(전라도)_화목원 웨딩홀(농업회사법인마중물(주)).xlsx", ["화목원 웨딩홀", "농업회사법인마중물(주)"]],
+    ["(전라도)_PJ호텔 웨딩홀(오일관광(주)).xlsx", ["PJ호텔 웨딩홀", "오일관광(주)"]],
+    ["(전라도)_빌라드지디 논현(라비에벨(주)).xlsx", ["빌라드지디 논현", "라비에벨(주)"]],
+    ["(전라도)_더파티 김해점(더리본(주)더파티김해점).xlsx", ["더파티 김해점", "더리본(주)더파티김해점"]],
+    ["(전라도)_W웨딩 마리나컨벤션웨딩홀(더리본(주)마리나웨딩지점).xlsx", ["W웨딩 마리나컨벤션웨딩홀", "더리본(주)마리나웨딩지점"]],
+    ["(전라도)_W웨딩시티 웨딩홀(더리본(주)누리엔웨딩지점).xlsx", ["W웨딩시티 웨딩홀", "더리본(주)누리엔웨딩지점"]],
+  ] as const);
+  let fixtureIndex = 0;
+  for (const displayName of cases.keys()) {
+    await writeFile(path.join(hallDir, displayName), `corporate fixture ${fixtureIndex++}`);
+  }
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const byDisplayName = new Map(manifest.units.map((unit) => [unit.display_name, unit.parsed]));
+
+  for (const [displayName, [rawName, corporateName]] of cases) {
+    const parsed = byDisplayName.get(displayName);
+    assert.equal(parsed?.raw_name, rawName, displayName);
+    assert.equal(parsed?.corporate_name, corporateName, displayName);
+  }
+});
+
+test("scan recognizes the parenthesized corporate symbol without absorbing it into the vendor name", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-corporate-symbol-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "busan");
+  const agencyDir = path.join(rootDir, "agency", "busan");
+  await Promise.all([mkdir(hallDir, { recursive: true }), mkdir(agencyDir, { recursive: true })]);
+  const hallCases = new Map([
+    ["(부산)_더파티 센텀점(더리본㈜더파티센텀).xlsx", ["더파티 센텀점", "더리본㈜더파티센텀"]],
+    ["(부산)_목화웨딩컨벤션(더리본㈜더파티아이목화점).xlsx", ["목화웨딩컨벤션", "더리본㈜더파티아이목화점"]],
+    ["(부산)_W웨딩 국민연금웨딩홀(㈜더블유웨딩).xlsx", ["W웨딩 국민연금웨딩홀", "㈜더블유웨딩"]],
+    ["(부산)_W웨딩 팔레드시즈웨딩홀(더리본㈜더파티해운대지점).xlsx", ["W웨딩 팔레드시즈웨딩홀", "더리본㈜더파티해운대지점"]],
+    ["(부산)_웨스턴라이프호텔&컨벤션(㈜디에스에이치글로벌 익산지점)_예식장.xlsx", ["웨스턴라이프호텔&컨벤션", "㈜디에스에이치글로벌 익산지점"]],
+  ] as const);
+  for (const [index, displayName] of [...hallCases.keys()].entries()) {
+    await writeFile(path.join(hallDir, displayName), `symbol hall fixture ${index}`);
+  }
+  const agencyDisplayName = "(부산)_웨스턴라이프호텔&컨벤션(㈜디에스에이치글로벌 익산지점)_결혼준비대행.xlsx";
+  await writeFile(path.join(agencyDir, agencyDisplayName), "symbol agency fixture");
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const byDisplayName = new Map(manifest.units.map((unit) => [unit.display_name, unit.parsed]));
+  for (const [displayName, [rawName, corporateName]] of hallCases) {
+    const parsed = byDisplayName.get(displayName);
+    assert.equal(parsed?.raw_name, rawName, displayName);
+    assert.equal(parsed?.corporate_name, corporateName, displayName);
+  }
+  assert.equal(byDisplayName.get(agencyDisplayName)?.raw_name, "웨스턴라이프호텔&컨벤션");
+  assert.equal(
+    byDisplayName.get(agencyDisplayName)?.corporate_name,
+    "㈜디에스에이치글로벌 익산지점",
+  );
+});
+
+test("scan removes a delimiter-bound residual region prefix but keeps a vendor name that merely starts alike", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-residual-region-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const regionDir = path.join(rootDir, "hall", "daejeon");
+  const hotelDir = path.join(regionDir, "대전_호텔인터시티");
+  await mkdir(hotelDir, { recursive: true });
+  await writeFile(path.join(hotelDir, "가격표.pdf"), "hotel fixture");
+  await writeFile(path.join(regionDir, "대전웨딩.xlsx"), "lookalike fixture");
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const byDisplayName = new Map(manifest.units.map((unit) => [unit.display_name, unit.parsed.raw_name]));
+  assert.equal(byDisplayName.get("대전_호텔인터시티"), "호텔인터시티");
+  assert.equal(byDisplayName.get("대전웨딩.xlsx"), "대전웨딩");
+});
+
+test("scan removes a filesystem copy suffix without removing a meaningful branch qualifier", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-copy-suffix-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(hallDir, { recursive: true });
+  const displayName = "(충청도)_셀레네하우스웨딩(천안, 청주점) (1).xlsx";
+  await writeFile(path.join(hallDir, displayName), "copy fixture");
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  assert.equal(manifest.units[0].parsed.raw_name, "셀레네하우스웨딩(천안, 청주점)");
+  assert.equal(manifest.units[0].parsed.normalized_name, "셀레네하우스웨딩천안청주점");
+});
+
+test("scan preserves but blocks units with an identical complete source-content set", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-identical-copy-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(hallDir, { recursive: true });
+  const original = "(충청도)_셀레네하우스웨딩(천안, 청주점).xlsx";
+  const copy = "(충청도)_셀레네하우스웨딩(천안, 청주점) (1).xlsx";
+  await Promise.all([
+    writeFile(path.join(hallDir, original), "byte-identical source"),
+    writeFile(path.join(hallDir, copy), "byte-identical source"),
+  ]);
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+
+  assert.equal(manifest.units.length, 2, "scanner must not destroy either immutable provenance path");
+  assert.equal(new Set(manifest.units.map((unit) => unit.unit_id)).size, 2);
+  for (const unit of manifest.units) {
+    assert.equal(unit.stage, "error");
+    assert.match(unit.notices.join("\n"), /duplicate_source_content/u);
+  }
+});
+
+test("scan does not call two differently hashed snapshots a content duplicate", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-distinct-copy-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(hallDir, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(hallDir, "(충청도)_샘플웨딩.xlsx"), "first snapshot"),
+    writeFile(path.join(hallDir, "(충청도)_샘플웨딩 (1).xlsx"), "changed snapshot"),
+  ]);
+
+  const manifest = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  assert.equal(manifest.units.length, 2);
+  assert.ok(manifest.units.every((unit) => unit.stage === "scanned"));
+  assert.ok(manifest.units.every((unit) => !unit.notices.some(
+    (notice) => notice.startsWith("duplicate_source_content:"),
+  )));
+});
+
+test("scan clears its duplicate block after the extra immutable path is removed", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-resolved-copy-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+
+  const hallDir = path.join(rootDir, "hall", "chungcheong");
+  await mkdir(hallDir, { recursive: true });
+  const originalPath = path.join(hallDir, "(충청도)_샘플웨딩.xlsx");
+  const copyPath = path.join(hallDir, "(충청도)_샘플웨딩 (1).xlsx");
+  await Promise.all([
+    writeFile(originalPath, "same source"),
+    writeFile(copyPath, "same source"),
+  ]);
+  const blocked = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  assert.ok(blocked.units.every((unit) => unit.stage === "error"));
+
+  await rm(copyPath);
+  const resolved = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+
+  assert.equal(resolved.units.length, 1);
+  assert.equal(resolved.units[0].stage, "scanned");
+  assert.doesNotMatch(resolved.units[0].notices.join("\n"), /duplicate_source_content/u);
+});

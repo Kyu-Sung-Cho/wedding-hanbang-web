@@ -209,6 +209,46 @@ test("a priced record without an exact XLSX or line locator fails closed", () =>
   }]);
 });
 
+test("XLSX drawing linkage requires the exact auxiliary locator and payload", () => {
+  const locator = "XLSX_DRAWING xl/drawings/drawing1.xml#text-box-1";
+  const payload = "베이직 A 스튜디오 100만원";
+  const sourceText = `${locator}: ${payload}`;
+  const makeData = (sourceQuote: string): DisclosureExtraction => {
+    const data = emptyExtraction();
+    data.agency_packages.push({
+      package_name: "베이직 A",
+      category_scope: ["studio"],
+      price_min_krw: 1_000_000,
+      price_max_krw: 1_000_000,
+      vat_note: null,
+      price_note: null,
+      options: [],
+      source_quote: sourceQuote,
+      source_file_ids: [],
+      confidence: 0.99,
+      needs_review: false,
+    });
+    return data;
+  };
+
+  assert.deepEqual(validateStructuredRecordSourceLinkage(
+    makeData(sourceText),
+    sourceText,
+  ), []);
+  assert.deepEqual(validateStructuredRecordSourceLinkage(
+    makeData(`${locator}: 베이직 A 스튜디오`),
+    sourceText,
+  ).map(({ code }) => code), ["source_quote_payload_mismatch"]);
+  assert.deepEqual(validateStructuredRecordSourceLinkage(
+    makeData("XLSX_DRAWING xl/drawings/drawing1.xml#text-box-2: 베이직 A 스튜디오 100만원"),
+    sourceText,
+  ).map(({ code }) => code), ["source_locator_invalid"]);
+  assert.deepEqual(validateStructuredRecordSourceLinkage(
+    makeData("line:1: 베이직 A 스튜디오 100만원"),
+    sourceText,
+  ).map(({ code }) => code), ["source_locator_invalid"]);
+});
+
 test("a model-proposed old name alone cannot authenticate a different vendor", () => {
   const data = emptyExtraction();
   data.partner_vendors.push({

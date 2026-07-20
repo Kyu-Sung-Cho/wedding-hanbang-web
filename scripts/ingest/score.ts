@@ -38,6 +38,11 @@ import {
   ValidatedArtifactSchema,
   verifyValidationInputsUnchanged,
 } from "./validate.js";
+import {
+  looksLikeXlsxAuxiliaryEvidence,
+  parseXlsxAuxiliaryEvidenceLine,
+  stripXlsxAuxiliaryEvidenceLocator,
+} from "./xlsx-aux-evidence.js";
 import type { CoverageGap } from "./validate.js";
 
 const MoneyOccurrenceSchema = z.object({
@@ -720,6 +725,18 @@ function singleQuoteMatchQuality(
   const quote = normalizeEvidenceText(sourceQuote);
   if (!quote) return null;
   const context = normalizeEvidenceText(candidate.line_context);
+  const auxiliary = parseXlsxAuxiliaryEvidenceLine(quote);
+  if (auxiliary) {
+    return auxiliary.locator === candidate.source_locator
+      && context === normalizeEvidenceText(auxiliary.payload)
+      ? "locator"
+      : null;
+  }
+  if (
+    looksLikeXlsxAuxiliaryEvidence(quote)
+    || candidate.source_locator.startsWith("XLSX_DRAWING ")
+    || candidate.source_locator.startsWith("XLSX_FORMULA ")
+  ) return null;
   if (/^line:\d+(?::|\s|$)/iu.test(quote)) {
     return quoteLineMatchesCandidate(quote, candidate.source_locator) ? "locator" : null;
   }
@@ -935,6 +952,7 @@ function linkingErrors(
       ? decoded.fragments.map((fragment) => fragment.quote)
       : decoded.kind === "single" ? [decoded.quote] : [];
     const sheetCategories = new Set(evidenceQuotes.flatMap((quote) => {
+      if (looksLikeXlsxAuxiliaryEvidence(quote)) return [];
       const sheet = /^(.+?)![A-Z]+\d+/iu.exec(normalizeEvidenceText(quote))?.[1]
         ?.replace(/[\s_-]/gu, "")
         .toLowerCase();
@@ -985,9 +1003,12 @@ function semanticEvidenceFragments(sourceQuote: string): string[] {
     : decoded.kind === "merged"
       ? decoded.fragments.map((fragment) => fragment.quote)
       : [];
-  return quotes.map((quote) => normalizeEvidenceText(quote)
+  return quotes.flatMap((quote) => {
+    if (looksLikeXlsxAuxiliaryEvidence(quote) && !parseXlsxAuxiliaryEvidenceLine(quote)) return [];
+    return [normalizeEvidenceText(stripXlsxAuxiliaryEvidenceLocator(quote))
     .replace(/^(?:(?:.+?![A-Z]{1,4}\d+(?::[A-Z]{1,4}\d+)?)|(?:line:\d+)):\s*/iu, "")
-    .trim())
+    .trim()];
+  })
     .filter(Boolean);
 }
 
@@ -1035,7 +1056,7 @@ function semanticCapture(
       penalty: /위약|취소\s*수수료|penalty/iu,
       contract: /계약|변경|contract|change/iu,
       reservation: /예약|reservation/iu,
-      pricing: /가격|금액|요금|부가세|별도|포함|price|fee|vat/iu,
+      pricing: /가격|금액|요금|총비용|계산식|산정|산출|부가세|별도|포함|price|fee|vat/iu,
     };
     return patterns[type]?.test(value) ?? false;
   };
@@ -1080,7 +1101,17 @@ function semanticCapture(
   });
   const pricingBasisSections = verifiedSections.filter(({ path: recordPath, section }) => {
     if (section.section_type !== "pricing_basis") return false;
-    const accepted = semanticTypeLabelPresent(section.content_verbatim, "pricing");
+    const decoded = decodeEvidenceQuote(section.source_quote);
+    const quotes = decoded.kind === "single"
+      ? [decoded.quote]
+      : decoded.kind === "merged"
+        ? decoded.fragments.map((fragment) => fragment.quote)
+        : [];
+    const exactFormulaEvidence = quotes.some((quote) =>
+      parseXlsxAuxiliaryEvidenceLine(quote)?.locator.startsWith("XLSX_FORMULA ") === true
+    );
+    const accepted = exactFormulaEvidence
+      || semanticTypeLabelPresent(section.content_verbatim, "pricing");
     if (!accepted) rejectedPaths.add(recordPath);
     return accepted;
   });
@@ -1817,13 +1848,22 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       && unsafeUnreadableExtractions.length === 0
       && unreadableCellsSafelyDisposed
       && actualCoverageGaps.length === 0;
+    const semanticCaptureResult = semanticCapture(
+      extraction.data,
+      overlayUnit?.expectations,
+      requireValidatedArtifacts,
+      strictSemanticValidationIssues,
+    );
+    const semanticGateRequired = overlayUnit?.expectations !== undefined;
+    const semanticCaptureStatus = String(semanticCaptureResult.status ?? "not_grounded");
+    const semanticGatePassed = !semanticGateRequired || semanticCaptureStatus === "captured";
     reports.push({
       unit_id: unitId,
       display_name: unit.display_name,
       prompt_version: extraction.prompt_version,
       model: extraction.model,
       provenance: strictProvenance,
-      status: priceGatePassed ? "pass" : "fail",
+      status: priceGatePassed && semanticGatePassed ? "pass" : "fail",
       price_gate: {
         passed: priceGatePassed,
         hallucinated_amounts: hallucinated,
@@ -1851,12 +1891,13 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
         quote_context_matches: matches.filter((match) => match.match_quality === "quote_context").length,
         image_value_only_matches: matches.filter((match) => match.match_quality === "image_value_only").length,
       },
-      semantic_capture: semanticCapture(
-        extraction.data,
-        overlayUnit?.expectations,
-        requireValidatedArtifacts,
-        strictSemanticValidationIssues,
-      ),
+      semantic_gate: {
+        required: semanticGateRequired,
+        passed: semanticGatePassed,
+        expected_status: semanticGateRequired ? "captured" : "not_required",
+        actual_status: semanticCaptureStatus,
+      },
+      semantic_capture: semanticCaptureResult,
       validator_coverage_gaps: validatorCoverageGaps,
       unreadable_cells: overlayUnit?.unreadable_cells ?? [],
       unreadable_handling: {
@@ -1995,6 +2036,10 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
         blocking_validation_issues: 0,
         actual_coverage_gaps: 0,
         unreadable_amounts_must_remain_unstructured: true,
+      },
+      semantic_criteria: {
+        required_for_expected_units: overlay !== undefined,
+        required_status: overlay !== undefined ? "captured" : "not_required",
       },
     },
     units: reports,

@@ -84,6 +84,10 @@
     {
       "file": "20260718210000_wedding_budget_product_contract.sql",
       "sha256": "8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac"
+    },
+    {
+      "file": "20260720120000_disclosure_semantic_staging.sql",
+      "sha256": "67d57fdaf8af58611f76f87890754dd535a563c8e057e144248edcf019fec249"
     }
   ],
   "deploymentEvidence": {

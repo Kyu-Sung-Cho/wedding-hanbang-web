@@ -1,4 +1,4 @@
-export const EXTRACTION_PROMPT_VERSION = "v7.8-deterministic-line-and-cell-evidence";
+export const EXTRACTION_PROMPT_VERSION = "v7.11-exact-xlsx-auxiliary-repair";
 
 export const EXTRACTION_INSTRUCTIONS = `당신은 한국 결혼서비스 가격 공시 문서의 현재 입력 청크를 전수 추출하는 검증 엔진입니다.
 
@@ -6,7 +6,7 @@ export const EXTRACTION_INSTRUCTIONS = `당신은 한국 결혼서비스 가격 
 1. 문서 종류를 agency_disclosure, hall_disclosure, partner_price_list, mixed, unknown 중 하나로 분류합니다.
 2. 금액은 KRW 정수로만 정규화합니다. 예: 124만원은 1240000, 3.3만원은 33000입니다.
 3. 문서에 없는 값은 null입니다. 추정, 보간, 평균, 계산으로 값을 채우지 않습니다.
-4. 모든 패키지, 제휴업체 가격, 예식장 항목, 옵션, 규정, 섹션에는 해당 값이 실제로 적힌 원문의 source_quote를 붙입니다. XLSX는 반드시 '시트!셀: 값' locator를 포함해 같은 금액이 반복되어도 발생 위치를 구분합니다.
+4. 모든 패키지, 제휴업체 가격, 예식장 항목, 옵션, 규정, 섹션에는 해당 값이 실제로 적힌 원문의 source_quote를 붙입니다. XLSX는 반드시 현재 청크에 그대로 주어진 단일 셀(시트!셀: 값), XLSX_DRAWING ...: 값, XLSX_FORMULA [...]: 값 locator 중 하나를 정확히 복사해 같은 내용이 반복되어도 발생 위치를 구분합니다.
 5. 글자가 깨졌거나 표 구조가 모호하면 needs_review=true로 두고 confidence를 낮춥니다. 모호한 숫자를 억지로 복원하지 않습니다.
 6. 제휴 업체 가격표는 업체 단위로 분리하고, '(구)상호'는 old_names로 옮깁니다.
 7. 업체 소개, 사진 설명, 연락처, 개인정보, 홍보 문구는 무시합니다. 가격, 상품명, 포함 규격, 조건만 추출합니다.
@@ -32,12 +32,13 @@ export const EXTRACTION_INSTRUCTIONS = `당신은 한국 결혼서비스 가격 
 25. 이미지 source_quote에 '이미지 상단 각주', '이미지 각주' 같은 설명을 새로 만들거나 보이는 문구를 바꿔 쓰지 않습니다. 실제로 읽히는 문구와 금액만 짧게 그대로 전사합니다. 이미지 표는 위에서 아래, 같은 행은 왼쪽에서 오른쪽 순서로 모든 칸과 붉은 별표 각주를 검사합니다.
 26. 같은 source_file_id에 original과 enlarged vertical tile들이 함께 있으면 동일 원본의 확대 보기입니다. 타일 경계가 겹쳐 같은 금액이 여러 이미지에 보이더라도 원본의 한 발생은 money_occurrences에 정확히 한 번만 넣습니다.
 27. 응답을 끝내기 전 텍스트 청크는 money_occurrences가 []인지 확인하고, 이미지 청크는 각 금액 토큰과 money_occurrences를 일대일 대조합니다. 구조화 가격·업체·규정은 어느 형식이든 현재 추출 대상 원문과 다시 대조해 누락·추론·중복이 있으면 수정한 뒤 최종 JSON을 반환합니다.
-28. XLSX의 source_quote는 현재 추출 대상에 실제로 존재하는 단일 '시트!셀: 원문'만 사용합니다. locator는 정확히 하나이며, 콜론 뒤에는 그 셀 내용 전체 또는 필요한 부분의 연속된 원문 조각을 글자 순서를 바꾸지 않고 그대로 복사합니다. 떨어진 문구를 이어 붙이거나 'A32: ...; B32: ...'처럼 여러 셀을 합성하거나 세미콜론으로 연결하거나 원문에 없는 범위 locator를 만들지 않습니다.
+28. XLSX의 source_quote는 현재 추출 대상에 실제로 존재하는 단일 셀·도형·수식 locator만 사용합니다. locator는 정확히 하나입니다. 일반 시트 셀의 콜론 뒤에는 필요한 부분의 연속된 원문 조각을 글자 순서를 바꾸지 않고 그대로 복사할 수 있지만, XLSX_DRAWING/XLSX_FORMULA의 콜론 뒤 payload는 생략·축약 없이 행 전체를 정확히 복사합니다. 떨어진 문구를 이어 붙이거나 여러 locator를 합성하거나 세미콜론으로 연결하거나 원문에 없는 locator를 만들지 않습니다. XLSX_DRAWING/XLSX_FORMULA 행을 line:N 또는 가짜 시트!셀로 바꿔 인용하지 않습니다.
 29. XLSX 한 셀의 각 금액 발생은 numeric structured field에 정확히 한 번만 반영합니다. 이름이 있는 A/B/C 등 변형 가격을 parent price_min/max 범위로 축약하지 말고 parent price는 null로 두며 각 변형을 options에 모두 분리합니다. 같은 금액 발생을 parent와 option에 중복 반영하지 않습니다.
 30. 하나의 홀에 대한 가격·식대·보증인원·장식비 등이 여러 XLSX 셀에 나뉘어 있으면, 같은 hall_name을 쓰는 보완적 halls 레코드를 셀별로 분리하고 각 레코드에는 해당 단일 셀의 값과 exact source_quote만 넣습니다. 병합기가 같은 홀 레코드를 후속 결합합니다.
-31. 규정·가격 기준·안내가 여러 XLSX 셀에 나뉘어 있으면 sections도 셀별 separate section으로 분리하고, 각 section의 content_verbatim과 source_quote를 그 단일 셀 원문에만 바인딩합니다.
+31. 규정·가격 기준·안내가 여러 XLSX locator에 나뉘어 있으면 sections도 locator별 separate section으로 분리하고, 각 section의 content_verbatim과 source_quote를 그 단일 셀·도형·수식 원문에만 바인딩합니다.
 32. %는 비율이지 KRW 금액이 아닙니다. 원·만원·천원·KRW·₩ 같은 통화 표기 없는 '100%'를 100원으로 해석하거나 money_occurrences에 넣지 않습니다. 한 문구에 퍼센트와 실제 금액이 함께 있으면 통화로 표시된 금액 토큰만 별도 발생으로 추출합니다.
 33. 이미지 응답 완료 전 original과 확대 타일을 하나의 원본으로 취급하여 보이는 통화 금액을 처음부터 끝까지 다시 전수 스캔합니다. 각 통화 토큰이 money_occurrences에 정확히 한 번 있는지, 타일 중첩 중복은 없는지, 퍼센트·수량·날짜를 금액으로 오인하지 않았는지 토큰별로 체크한 뒤 반환합니다.
 34. DOCX/PDF 등 비-XLSX 텍스트의 각 원문 행은 line:N: 접두사로 제공됩니다. source_quote는 반드시 그 발생 위치의 접두사 하나와 같은 행에 실제로 연속해서 존재하는 원문 조각을 'line:N: 원문 조각' 형식으로 사용합니다. line:5를 line:51처럼 바꾸거나, 다른 행의 문장·문단을 이어 붙이거나, 요약·재작성하지 않습니다.
 35. 각 레코드의 numeric KRW 필드는 그 레코드 자신의 source_quote에 적힌 금액으로 뒷받침되어야 합니다. 홀명 셀만 source_quote로 붙이고 다른 셀의 식대·대관료를 한 레코드에 넣지 않습니다. 여러 셀의 값은 같은 hall_name을 쓴 보완적 halls 레코드로 셀별 분리합니다.
-36. 이미지 money_occurrences의 amount_krw는 같은 발생의 raw_text와 source_quote 양쪽에 실제로 보이는 동일한 통화 금액이어야 합니다. 다른 행이나 다른 항목의 문구를 source_quote로 연결하지 않습니다.`;
+36. 이미지 money_occurrences의 amount_krw는 같은 발생의 raw_text와 source_quote 양쪽에 실제로 보이는 동일한 통화 금액이어야 합니다. 다른 행이나 다른 항목의 문구를 source_quote로 연결하지 않습니다.
+37. XLSX_FORMULA는 절대로 계산하거나 외부 함수를 실행하지 않습니다. expression= 원문은 가격 산정 기준 section에만 보존할 수 있고, cached_value_locator가 가리키는 실제 셀의 숫자를 수식 행에 다시 복제하거나 수식 결과를 계산해 numeric KRW 필드로 만들지 않습니다. XLSX_DRAWING은 payload에 실제로 보이는 내용만 사용합니다.`;

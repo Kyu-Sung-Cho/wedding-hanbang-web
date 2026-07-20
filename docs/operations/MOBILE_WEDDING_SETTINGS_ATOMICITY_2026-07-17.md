@@ -3,7 +3,7 @@
 > **Status: implemented and locally tested; production migrations, current
 > deployment, signed EAS and physical-device verification NOT RUN.** This
 > document describes the candidate contract, not current production behavior.
-> See `CURRENT_WORKSPACE_HANDOFF_2026-07-17.md` for release status.
+> See `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md` for release status.
 
 ## Scope
 

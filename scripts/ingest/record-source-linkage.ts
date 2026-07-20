@@ -1,5 +1,9 @@
 import type { DisclosureExtraction } from "./schemas.js";
 import { decodeEvidenceQuote } from "./merge-evidence.js";
+import {
+  looksLikeXlsxAuxiliaryEvidence,
+  parseXlsxAuxiliaryEvidenceLine,
+} from "./xlsx-aux-evidence.js";
 
 export const MAX_STRUCTURED_LINKAGE_SOURCE_CHARACTERS = 4_000_000;
 export const MAX_STRUCTURED_LINKAGE_SOURCE_LINES = 200_000;
@@ -69,6 +73,7 @@ interface WorkbookCell {
 
 interface SourceEvidenceIndex {
   lines: string[];
+  auxiliaryByLocator: ReadonlyMap<string, readonly XlsxAuxiliaryRecord[]>;
   cellsByLocator: ReadonlyMap<string, readonly WorkbookCell[]>;
   cellsByRow: ReadonlyMap<string, readonly WorkbookCell[]>;
   cellsBySectionAddress: ReadonlyMap<string, readonly WorkbookCell[]>;
@@ -86,6 +91,11 @@ interface WorkbookMerge {
   anchorAddress: string;
 }
 
+interface XlsxAuxiliaryRecord {
+  locator: string;
+  payload: string;
+}
+
 interface ResolvedEvidence {
   locator: string;
   segments: string[];
@@ -94,6 +104,7 @@ interface ResolvedEvidence {
 
 type EvidenceScope =
   | { kind: "line"; lineNumber: number }
+  | { kind: "xlsx_auxiliary"; locator: string }
   | {
     kind: "xlsx";
     sheet: string;
@@ -227,6 +238,7 @@ function parseWorkbookCells(lines: readonly string[]): WorkbookCell[] {
       sectionId += 1;
       continue;
     }
+    if (looksLikeXlsxAuxiliaryEvidence(rawLine)) continue;
     const match = /^(.+)!([A-Z]+\d+):\s*(.*)$/u.exec(rawLine.trim());
     if (!match) continue;
     const row = Number.parseInt(match[2].match(/\d+$/u)?.[0] ?? "", 10);
@@ -358,6 +370,7 @@ function buildSourceEvidenceIndex(sourceText: string): SourceEvidenceIndex {
   const lines = sourceText.split(/\r?\n/u);
   const cells = parseWorkbookCells(lines);
   const merges = parseWorkbookMerges(lines);
+  const auxiliaryByLocator = new Map<string, XlsxAuxiliaryRecord[]>();
   const cellsByLocator = new Map<string, WorkbookCell[]>();
   const cellsByRow = new Map<string, WorkbookCell[]>();
   const cellsBySectionAddress = new Map<string, WorkbookCell[]>();
@@ -378,8 +391,13 @@ function buildSourceEvidenceIndex(sourceText: string): SourceEvidenceIndex {
       merge,
     );
   }
+  for (const rawLine of lines) {
+    const auxiliary = parseXlsxAuxiliaryEvidenceLine(rawLine);
+    if (auxiliary) appendToIndex(auxiliaryByLocator, auxiliary.locator, auxiliary);
+  }
   return {
     lines,
+    auxiliaryByLocator,
     cellsByLocator,
     cellsByRow,
     cellsBySectionAddress,
@@ -389,6 +407,7 @@ function buildSourceEvidenceIndex(sourceText: string): SourceEvidenceIndex {
 }
 
 function parseXlsxQuote(value: string): { locator: string; payload: string } | null {
+  if (looksLikeXlsxAuxiliaryEvidence(value)) return null;
   const match = /^(.+)!([A-Z]+\d+):\s*(.+)$/u.exec(value.trim());
   if (!match) return null;
   const payload = match[3].trim();
@@ -415,6 +434,22 @@ function resolveSingleEvidence(
   quoteValue: string,
   index: SourceEvidenceIndex,
 ): EvidenceResolution {
+  const auxiliaryQuote = parseXlsxAuxiliaryEvidenceLine(quoteValue);
+  if (auxiliaryQuote) {
+    const locatedByLocator = index.auxiliaryByLocator.get(auxiliaryQuote.locator) ?? [];
+    if (locatedByLocator.length === 0) return "source_locator_invalid";
+    const located = locatedByLocator.filter((candidate) =>
+      normalizeEvidence(candidate.payload) === normalizeEvidence(auxiliaryQuote.payload)
+    );
+    if (located.length === 0) return "source_quote_payload_mismatch";
+    if (located.length > 1) return "source_locator_ambiguous";
+    return {
+      locator: auxiliaryQuote.locator,
+      segments: [located[0].payload],
+      scope: { kind: "xlsx_auxiliary", locator: auxiliaryQuote.locator },
+    };
+  }
+  if (looksLikeXlsxAuxiliaryEvidence(quoteValue)) return "source_locator_invalid";
   const lineQuote = /^line:(\d+):\s*(.+)$/iu.exec(normalizeEvidence(quoteValue));
   if (lineQuote) {
     const lineNumber = Number.parseInt(lineQuote[1], 10);
@@ -422,6 +457,7 @@ function resolveSingleEvidence(
     if (!Number.isSafeInteger(lineNumber) || lineNumber < 1 || sourceLine === undefined) {
       return "source_locator_invalid";
     }
+    if (looksLikeXlsxAuxiliaryEvidence(sourceLine)) return "source_locator_invalid";
     if (!normalizeEvidence(sourceLine).includes(normalizeEvidence(lineQuote[2]))) {
       return "source_quote_payload_mismatch";
     }
@@ -543,7 +579,7 @@ function resolveEvidence(
       index.resolutionCache.set(quoteValue, "source_record_scope_ambiguous");
       return "source_record_scope_ambiguous";
     }
-  } else {
+  } else if (firstScope.kind === "xlsx") {
     if (!scopes.every((scope) =>
       scope.kind === "xlsx"
       && scope.sheet === firstScope.sheet
@@ -555,6 +591,11 @@ function resolveEvidence(
       index.resolutionCache.set(quoteValue, "source_record_scope_ambiguous");
       return "source_record_scope_ambiguous";
     }
+  } else if (!scopes.every((scope) =>
+    scope.kind === "xlsx_auxiliary" && scope.locator === firstScope.locator
+  )) {
+    index.resolutionCache.set(quoteValue, "source_record_scope_ambiguous");
+    return "source_record_scope_ambiguous";
   }
   const resolved = {
     locator: resolvedFragments.map(({ evidence }) => evidence.locator).join(" | "),

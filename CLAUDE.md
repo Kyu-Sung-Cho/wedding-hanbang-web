@@ -4,7 +4,10 @@
 모든 AI 호출은 ai_interactions_log에 기록되며,
 모든 커플 의사결정은 decision_nodes에 기록된다.
 
-## 📍 현재 상태 (2026-06-11 기준 — 새 세션은 여기부터)
+> 아래 2026-06-11 상태는 역사 snapshot이다. 현재 작업 규칙은 `AGENTS.md`, 현재
+> 인계는 `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`를 따른다.
+
+## 📍 역사 상태 snapshot (2026-06-11 기준)
 - **전략 최상위 문서**: `docs/MASTER_BLUEPRINT_2026-06-10.md` (포지셔닝·3층 구조·로드맵). 미션: "웨딩의 '웨'자를 몰라도, 추가금에 안 당하고, 결혼식까지 — AI 친언니 아모라". 부속: STRATEGY_REVIEW / EONNI_OS / COMMUNITY_ENGINE / WINWINWIN_VERDICT / CONSERVATIVE_VIABILITY / MOMENT_CATALOG + SESSION_SYNTHESIS_2026-06-11 (전부 docs/).
 - **Week 1 수술 완료 (2026-06-11)**: 페르소나 자동화·AI 대본·피팅 스텁·B2B·청첩장·방명록·결제(Toss)·정산·전자계약·벤더포털 **코드 전체 삭제** (커밋 3개, 약 -2.5만 줄, 라우트 213→127). 실데이터 확인(payments·settlements·contracts 0행, 청첩장·방명록 각 2건 테스트) 후 진행. DB 테이블은 보존, 복구는 `pre-surgery` 태그. 예약(bookings)은 방문·상담 예약으로 단순화(취소는 아모라 채팅 cancel_booking). 축의금은 moneyStore/money.types로 분리되어 유지.
 - **보안 핫픽스 완료 (2026-06-11)**: signup rate limit + enumeration 차단, chat-image RLS 커플 스코프(마이그레이션), proactive 배선(채팅 진입 시 1회 호출 — 모멘트 루프 활성). ※환불 API 수정은 이후 결제층 삭제로 함께 제거됨.
@@ -29,14 +32,15 @@
 
 # 웨딩한방 웹 (hanbang.ai) — 프로젝트 레퍼런스
 
-> 미션·전략·진행 상황은 위 **📍 현재 상태**와 `docs/`를 본다. 아래는 잘 안 바뀌는 사실 + 컨벤션만.
+> 위 snapshot은 역사 증거다. 현재 규칙·진행 상황은 `AGENTS.md`와
+> `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`를 본다. 아래는 잘 안 바뀌는 사실 + 컨벤션만.
 > **출처 우선 원칙**: 색상·환경변수·DB 스키마·라우트·디렉토리 구조는 아래에 베끼지 않는다 —
 > 베껴두면 코드와 어긋난다(드리프트). 항상 실제 소스를 ground truth로 본다.
 
 ## 개요·스택
-- **무엇**: 한국 AI 웨딩 플래너 "아모라". 모바일 앱(별도 레포, React Native)과 **같은 Supabase 프로젝트** 공유.
+- **무엇**: 한국 AI 웨딩 플래너 "아모라". 웹과 모바일은 이 저장소의 `apps/web`, `apps/mobile`인 동일 pnpm 모노레포다.
 - **스택(전환 브랜치)**: Next.js 16 App Router · TypeScript · Tailwind · Zustand · Supabase(PostgreSQL/Auth/Realtime/Storage) · OpenAI Responses API(GPT-5.6 Luna·Terra) · Resend. 배포 Vercel. 운영 활성화는 별도 안전 게이트를 따른다.
-- **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `wedding/`.
+- **구조**: 모노레포(pnpm + turbo) — `apps/web`(Next.js), `apps/mobile`(Expo), `supabase/`. git 레포 루트는 `<repo-root>/`다.
 
 ## 진짜 출처 (여기를 본다)
 | 알고 싶은 것 | 본다 |
@@ -46,7 +50,7 @@
 | DB 스키마·RLS·RPC | `supabase/migrations/` (시간순) |
 | 라우트·페이지 구조 | `apps/web/src/app/` (App Router 디렉토리 = 라우트) |
 | 시세 데이터 | 승인된 관리자 JSON 업로드 또는 로컬 공시 원본 파이프라인(외부 자동 수집 금지) |
-| 폰트 | Noto Serif/Sans KR, Cormorant Garamond (제목·숫자) |
+| 폰트 | Paperlogy(웹·모바일 공통) |
 
 ## 코딩 컨벤션
 - 함수형 컴포넌트만 (`export default function`). 스타일은 Tailwind만(인라인 style 금지).
@@ -59,7 +63,7 @@
 `feat:` 기능 / `fix:` 버그 / `style:` 디자인 / `refactor:` 리팩토링 / `docs:` 문서 / `chore:` 설정·패키지
 
 ## 빌드·검증
-커밋 전 `apps/web`에서 `npx tsc --noEmit` + `npx vitest run` + `npx next build` 통과 확인.
-마이그레이션은 `apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN`(2026-07-04부터)으로 **Management API 직접 실행** 가능
-(`POST https://api.supabase.com/v1/projects/{ref}/database/query` — SQL Editor와 동일 경로).
-실행 후 PostgREST 원격 검증(RPC 응답·권한 거부 확인)까지 수행할 것. 토큰이 없으면 폴백: 사용자에게 복붙용 SQL 전달(SQL Editor 수동 실행).
+저장소 루트의 `corepack pnpm qa:local`과 `AGENTS.md`의 업체 공시 추가 게이트를
+사용한다. `npx next build`로 `scripts/build-web-safely.mjs`를 우회하지 않는다. 운영 DB
+쓰기는 현재 release manifest와 `corepack pnpm supabase:release:apply`만 사용하며,
+Management API `database/query` 직접 write를 금지한다.

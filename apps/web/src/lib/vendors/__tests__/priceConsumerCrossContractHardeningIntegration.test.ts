@@ -14,6 +14,14 @@ const migration = readFileSync(
   "utf8",
 );
 
+const disclosureSemanticMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260720120000_disclosure_semantic_staging.sql",
+  ),
+  "utf8",
+);
+
 function readMigration(name: string) {
   return readFileSync(
     resolve(process.cwd(), `../../supabase/migrations/${name}`),
@@ -45,6 +53,10 @@ const LOSER_AGENCY_ID = "30000000-0000-4000-8000-000000000002";
 const VENDOR_CANDIDATE_ID = "40000000-0000-4000-8000-000000000001";
 const AGENCY_CANDIDATE_ID = "40000000-0000-4000-8000-000000000002";
 const EVENT_ID = "50000000-0000-4000-8000-000000000001";
+const DISCLOSURE_DRAFT_SNAPSHOT_ID = "60000000-0000-4000-8000-000000000010";
+const DISCLOSURE_OFFICIAL_PRICE_ID = "70000000-0000-4000-8000-000000000010";
+const DISCLOSURE_PRICE_PARTNER_REF = "a".repeat(64);
+const DISCLOSURE_POLICY_PARTNER_REF = "b".repeat(64);
 
 async function createDatabase() {
   const db = await PGlite.create();
@@ -441,6 +453,89 @@ async function seedMergeScenario(db: PGlite) {
     INSERT INTO cron.job (jobname, schedule, command, active) VALUES
       ('vendor-demand-daily-kst', '5 5 * * *', 'SELECT 1', true),
       ('vendor-demand-daily-kst', '0 19 * * *', 'SELECT 1', false);
+  `);
+}
+
+async function installDisclosureObjectKeyGuard(db: PGlite) {
+  await db.exec(`
+    CREATE FUNCTION public.disclosure_object_keys_are_safe(p_object_keys text[])
+    RETURNS boolean
+    LANGUAGE sql
+    IMMUTABLE
+    AS $function$
+      SELECT COALESCE(
+        p_object_keys IS NOT NULL
+        AND cardinality(p_object_keys) <= 100
+        AND NOT EXISTS (
+          SELECT 1
+          FROM unnest(p_object_keys) AS object_key(value)
+          WHERE value IS NULL
+            OR value !~ '^[0-9a-f]{64}\\.(xlsx|docx|hwp|pdf|png)$'
+        ),
+        false
+      );
+    $function$;
+    GRANT EXECUTE ON FUNCTION public.disclosure_object_keys_are_safe(text[])
+      TO service_role;
+  `);
+}
+
+async function seedDisclosureSemanticMergeScenario(db: PGlite) {
+  await seedMergeScenario(db);
+  await db.exec(migration);
+  await installDisclosureObjectKeyGuard(db);
+  await db.exec(disclosureSemanticMigration);
+  await db.exec(`
+    UPDATE public.vendors SET status = 'pending'
+    WHERE id = '${LOSER_VENDOR_ID}';
+    INSERT INTO public.vendor_dedupe_candidates (
+      id, left_vendor_id, right_vendor_id
+    ) VALUES (
+      '${VENDOR_CANDIDATE_ID}', '${WINNER_VENDOR_ID}', '${LOSER_VENDOR_ID}'
+    );
+    INSERT INTO public.price_snapshots (
+      id, period_label, source, published_at, is_current, published
+    ) VALUES (
+      '${DISCLOSURE_DRAFT_SNAPSHOT_ID}', 'draft', 'test', NULL, false, false
+    );
+    INSERT INTO public.official_prices (
+      id, snapshot_id, vendor_id, category, item_name
+    ) VALUES (
+      '${DISCLOSURE_OFFICIAL_PRICE_ID}', '${DISCLOSURE_DRAFT_SNAPSHOT_ID}',
+      '${LOSER_VENDOR_ID}', 'studio', 'Draft package'
+    );
+    INSERT INTO public.disclosure_semantic_staging (
+      snapshot_id, schema_version, unit_id, record_kind, semantic_type,
+      subject_kind, subject_name, subject_normalized_name, vendor_category,
+      region_code, title, content_verbatim, summary, partner_record_ref,
+      partner_vendor_id, official_price_id, source_agency,
+      partner_link_status, validation_issue_codes, source_file_ids,
+      source_file, source_object_keys, source_preview_keys, source_quote,
+      source_fingerprint, validation_fingerprint, confidence,
+      source_record_key, content_fingerprint
+    ) VALUES
+      (
+        '${DISCLOSURE_DRAFT_SNAPSHOT_ID}', 2, '${"1".repeat(64)}',
+        'vendor_policy', 'refund', 'vendor', 'Loser Studio', 'loser studio',
+        'studio', '11', NULL, 'Refund policy source text', NULL,
+        '${DISCLOSURE_PRICE_PARTNER_REF}', '${LOSER_VENDOR_ID}',
+        '${DISCLOSURE_OFFICIAL_PRICE_ID}', NULL, 'price_row_staged',
+        '{}'::text[], ARRAY['${"2".repeat(64)}'], 'fixtures/price.xlsx',
+        ARRAY['${"3".repeat(64)}.xlsx'], '{}'::text[],
+        'Refund policy source text', '${"4".repeat(64)}', '${"5".repeat(64)}',
+        1, '${"6".repeat(64)}', '${"7".repeat(64)}'
+      ),
+      (
+        '${DISCLOSURE_DRAFT_SNAPSHOT_ID}', 2, '${"8".repeat(64)}',
+        'vendor_policy', 'change', 'vendor', 'Loser Studio', 'loser studio',
+        'studio', '11', NULL, 'Change policy source text', NULL,
+        '${DISCLOSURE_POLICY_PARTNER_REF}', '${LOSER_VENDOR_ID}', NULL,
+        NULL, 'policy_only_pending_identity', '{}'::text[],
+        ARRAY['${"9".repeat(64)}'], 'fixtures/policy.pdf',
+        ARRAY['${"a".repeat(64)}.pdf'], '{}'::text[],
+        'Change policy source text', '${"b".repeat(64)}', '${"c".repeat(64)}',
+        1, '${"d".repeat(64)}', '${"e".repeat(64)}'
+      );
   `);
 }
 
@@ -1163,6 +1258,202 @@ describe("price consumer cross-contract hardening integration", () => {
       )).rejects.toThrow(
         /AGENCY_DEDUPE_UNMERGED_COLUMN_CONFLICT: unclassified_provenance/u,
       );
+    } finally {
+      await db.exec("RESET ROLE;").catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("moves price-backed and policy-only semantic links with an approved vendor merge", async () => {
+    const db = await createDatabase();
+    try {
+      await seedDisclosureSemanticMergeScenario(db);
+      await db.exec("SET ROLE service_role;");
+
+      await db.query(
+        "SELECT public.decide_vendor_dedupe_candidate($1, 'same', $2, $3)",
+        [VENDOR_CANDIDATE_ID, WINNER_VENDOR_ID, ACTOR_ID],
+      );
+      await db.exec("RESET ROLE;");
+
+      const links = await db.query<{
+        official_price_id: string | null;
+        partner_record_ref: string;
+        partner_vendor_id: string;
+      }>(`
+        SELECT
+          partner_record_ref,
+          partner_vendor_id::text,
+          official_price_id::text
+        FROM public.disclosure_semantic_staging
+        ORDER BY partner_record_ref
+      `);
+      expect(links.rows).toEqual([
+        {
+          partner_record_ref: DISCLOSURE_PRICE_PARTNER_REF,
+          partner_vendor_id: WINNER_VENDOR_ID,
+          official_price_id: DISCLOSURE_OFFICIAL_PRICE_ID,
+        },
+        {
+          partner_record_ref: DISCLOSURE_POLICY_PARTNER_REF,
+          partner_vendor_id: WINNER_VENDOR_ID,
+          official_price_id: null,
+        },
+      ]);
+      const price = await db.query<{ vendor_id: string }>(`
+        SELECT vendor_id::text FROM public.official_prices
+        WHERE id = '${DISCLOSURE_OFFICIAL_PRICE_ID}'
+      `);
+      expect(price.rows).toEqual([{ vendor_id: WINNER_VENDOR_ID }]);
+    } finally {
+      await db.exec("RESET ROLE;").catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rolls price and semantic links back when a later vendor-merge step fails", async () => {
+    const db = await createDatabase();
+    try {
+      await seedDisclosureSemanticMergeScenario(db);
+      await db.exec(`
+        CREATE FUNCTION public.reject_test_vendor_merge_late()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+          IF NEW.merged_into_vendor_id IS NOT NULL THEN
+            RAISE EXCEPTION 'TEST_LATE_VENDOR_MERGE_FAILURE';
+          END IF;
+          RETURN NEW;
+        END
+        $function$;
+        CREATE TRIGGER zz_reject_test_vendor_merge_late
+        BEFORE UPDATE OF merged_into_vendor_id ON public.vendors
+        FOR EACH ROW
+        EXECUTE FUNCTION public.reject_test_vendor_merge_late();
+        SET ROLE service_role;
+      `);
+
+      await expect(db.query(
+        "SELECT public.decide_vendor_dedupe_candidate($1, 'same', $2, $3)",
+        [VENDOR_CANDIDATE_ID, WINNER_VENDOR_ID, ACTOR_ID],
+      )).rejects.toThrow(/TEST_LATE_VENDOR_MERGE_FAILURE/u);
+      await db.exec("RESET ROLE;");
+
+      const rolledBack = await db.query<{
+        candidate_status: string;
+        losing_merged_into: string | null;
+        price_vendor_id: string;
+        semantic_loser_count: number;
+        semantic_preserved_count: number;
+      }>(`
+        SELECT
+          (
+            SELECT status FROM public.vendor_dedupe_candidates
+            WHERE id = '${VENDOR_CANDIDATE_ID}'
+          ) AS candidate_status,
+          (
+            SELECT merged_into_vendor_id::text FROM public.vendors
+            WHERE id = '${LOSER_VENDOR_ID}'
+          ) AS losing_merged_into,
+          (
+            SELECT vendor_id::text FROM public.official_prices
+            WHERE id = '${DISCLOSURE_OFFICIAL_PRICE_ID}'
+          ) AS price_vendor_id,
+          (
+            SELECT count(*)::integer FROM public.disclosure_semantic_staging
+            WHERE partner_vendor_id = '${LOSER_VENDOR_ID}'
+          ) AS semantic_loser_count,
+          (
+            SELECT count(*)::integer FROM public.disclosure_semantic_staging
+            WHERE partner_vendor_id = '${WINNER_VENDOR_ID}'
+          ) AS semantic_preserved_count
+      `);
+      expect(rolledBack.rows).toEqual([{
+        candidate_status: "pending",
+        losing_merged_into: null,
+        price_vendor_id: LOSER_VENDOR_ID,
+        semantic_loser_count: 2,
+        semantic_preserved_count: 0,
+      }]);
+    } finally {
+      await db.exec("RESET ROLE;").catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("keeps a linked semantic vendor in sync on a direct pending-price vendor move", async () => {
+    const db = await createDatabase();
+    try {
+      await seedDisclosureSemanticMergeScenario(db);
+      await db.exec(`
+        GRANT ALL ON public.official_prices TO service_role;
+        SET ROLE service_role;
+        UPDATE public.official_prices
+        SET vendor_id = '${WINNER_VENDOR_ID}'
+        WHERE id = '${DISCLOSURE_OFFICIAL_PRICE_ID}';
+        RESET ROLE;
+      `);
+
+      const linked = await db.query<{
+        price_vendor_id: string;
+        semantic_vendor_id: string;
+      }>(`
+        SELECT
+          price.vendor_id::text AS price_vendor_id,
+          semantic.partner_vendor_id::text AS semantic_vendor_id
+        FROM public.official_prices AS price
+        JOIN public.disclosure_semantic_staging AS semantic
+          ON semantic.official_price_id = price.id
+        WHERE price.id = '${DISCLOSURE_OFFICIAL_PRICE_ID}'
+      `);
+      expect(linked.rows).toEqual([{
+        price_vendor_id: WINNER_VENDOR_ID,
+        semantic_vendor_id: WINNER_VENDOR_ID,
+      }]);
+    } finally {
+      await db.exec("RESET ROLE;").catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("rejects moving a linked pending price to a different snapshot", async () => {
+    const db = await createDatabase();
+    const otherDraftSnapshotId = "60000000-0000-4000-8000-000000000011";
+    try {
+      await seedDisclosureSemanticMergeScenario(db);
+      await db.exec(`
+        INSERT INTO public.price_snapshots (
+          id, period_label, source, published_at, is_current, published
+        ) VALUES (
+          '${otherDraftSnapshotId}', 'other-draft', 'test', NULL, false, false
+        );
+        GRANT ALL ON public.official_prices TO service_role;
+        SET ROLE service_role;
+      `);
+      await expect(db.exec(`
+        UPDATE public.official_prices
+        SET snapshot_id = '${otherDraftSnapshotId}'
+        WHERE id = '${DISCLOSURE_OFFICIAL_PRICE_ID}'
+      `)).rejects.toThrow(/DISCLOSURE_SEMANTIC_PRICE_SNAPSHOT_IMMUTABLE/u);
+      await db.exec("RESET ROLE;");
+
+      const snapshots = await db.query<{
+        price_snapshot_id: string;
+        semantic_snapshot_id: string;
+      }>(`
+        SELECT
+          price.snapshot_id::text AS price_snapshot_id,
+          semantic.snapshot_id::text AS semantic_snapshot_id
+        FROM public.official_prices AS price
+        JOIN public.disclosure_semantic_staging AS semantic
+          ON semantic.official_price_id = price.id
+        WHERE price.id = '${DISCLOSURE_OFFICIAL_PRICE_ID}'
+      `);
+      expect(snapshots.rows).toEqual([{
+        price_snapshot_id: DISCLOSURE_DRAFT_SNAPSHOT_ID,
+        semantic_snapshot_id: DISCLOSURE_DRAFT_SNAPSHOT_ID,
+      }]);
     } finally {
       await db.exec("RESET ROLE;").catch(() => undefined);
       await db.close();

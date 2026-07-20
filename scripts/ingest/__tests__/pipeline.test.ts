@@ -32,6 +32,15 @@ async function writeGeneratedDocx(filePath: string): Promise<void> {
   await writeFile(filePath, await docx.generateAsync({ type: "nodebuffer" }));
 }
 
+async function rasterizeGeneratedPdf(
+  _sourcePath: string,
+  outputDirectory: string,
+): Promise<string[]> {
+  const pagePath = path.join(outputDirectory, "page-1.png");
+  await writeFile(pagePath, "generated PDF page raster");
+  return [pagePath];
+}
+
 function generatedExtraction(name: string): DisclosureExtraction {
   return {
     doc_kind: "agency_disclosure",
@@ -97,6 +106,7 @@ test("all five supported formats flow safely while the unconverted HWP remains b
   const converted = await convertManifest({ stateDir }, {
     extractPdfText: async () =>
       "기본 패키지 | 스튜디오 드레스 메이크업 | 100만원 ".repeat(30),
+    rasterizePdf: rasterizeGeneratedPdf,
   });
   assert.equal(converted.units.filter((unit) => unit.stage === "converted").length, 4);
   assert.equal(converted.units.filter((unit) => unit.stage === "needs_manual_conversion").length, 1);
@@ -104,6 +114,21 @@ test("all five supported formats flow safely while the unconverted HWP remains b
   const provider: ExtractionProvider = {
     extract: async (request) => {
       const data = generatedExtraction(scannedNames.get(request.unitId) ?? request.canonicalName);
+      if (
+        !request.text.trim()
+        && request.imagePaths.some((imagePath) => /pdf-pages/iu.test(imagePath))
+      ) {
+        // The generated raster contains no additional disclosure content. It
+        // still travels through the image request, but must not duplicate the
+        // price already grounded in the PDF text layer.
+        data.agency_packages = [];
+        return {
+          data,
+          inputTokens: 10,
+          outputTokens: 5,
+          requestId: `generated-${request.unitId.slice(0, 8)}-pdf-image`,
+        };
+      }
       if (request.text.includes("price!A1: 기본 패키지")) {
         data.agency_packages[0].source_quote =
           "price!A1: 기본 패키지 | 스튜디오 드레스 메이크업 | 100만원";
@@ -174,6 +199,7 @@ test("a same-stem HWP replacement preserves both audit paths and both storage ob
   await convertManifest({ stateDir }, {
     extractPdfText: async () =>
       "기본 패키지 | 스튜디오 드레스 메이크업 | 100만원 ".repeat(30),
+    rasterizePdf: rasterizeGeneratedPdf,
   });
   const provider: ExtractionProvider = {
     extract: async () => {
@@ -227,10 +253,15 @@ test("an existing reverse-ordered manifest keeps conversion prefixes bound to th
   await convertManifest({ stateDir }, {
     extractPdfText: async (sourcePath) =>
       `${path.basename(sourcePath)} 패키지 | 스튜디오 드레스 메이크업 | 100만원 `.repeat(30),
+    rasterizePdf: rasterizeGeneratedPdf,
   });
   const provider: ExtractionProvider = {
     extract: async (request) => {
       const data = generatedExtraction("reverse-order-vendor");
+      if (!request.text.trim() && request.imagePaths.length > 0) {
+        data.agency_packages = [];
+        return { data, inputTokens: 10, outputTokens: 5 };
+      }
       const requestSourceIds = [...request.text.matchAll(/^source_file_id:\s*([a-f0-9]{64})\s*$/gmu)]
         .map((match) => match[1]);
       assert.equal(requestSourceIds.length, 1);

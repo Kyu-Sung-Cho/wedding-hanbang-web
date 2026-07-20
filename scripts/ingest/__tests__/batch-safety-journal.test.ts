@@ -109,6 +109,10 @@ function validReceiptContext(): PilotReceiptContext {
         actual_coverage_gaps: 0,
         unreadable_amounts_must_remain_unstructured: true,
       },
+      semantic_criteria: {
+        required_for_expected_units: true,
+        required_status: "captured",
+      },
     },
     units: FIXED_EIGHT_ORDERED_UNIT_IDS.map((unitId, index) => {
       const { unit_id: _unitId, ...provenance } = units[index]!;
@@ -119,6 +123,16 @@ function validReceiptContext(): PilotReceiptContext {
         provenance,
         status: index === 7 ? "fail" : "pass",
         price_gate: priceGate(index !== 7),
+        semantic_gate: {
+          required: true,
+          passed: index !== 7,
+          expected_status: "captured",
+          actual_status: index === 7 ? "missing" : "captured",
+        },
+        semantic_capture: {
+          status: index === 7 ? "missing" : "captured",
+          misses: index === 7 ? ["pricing_basis"] : [],
+        },
         unreadable_cells: index === 7
           ? FIXED_EIGHT_MAY_UNREADABLE_CELL_BINDINGS.map((binding) => ({
             source_locator: binding.source_locator,

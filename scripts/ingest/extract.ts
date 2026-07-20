@@ -95,6 +95,12 @@ import {
   parseKoreanMoneyAmounts,
   scanSourceMoneyOccurrences,
 } from "./validate.js";
+import {
+  indexXlsxAuxiliaryEvidence,
+  looksLikeXlsxAuxiliaryEvidence,
+  matchSingleXlsxAuxiliaryEvidenceQuote,
+  parseXlsxAuxiliaryEvidencePayload,
+} from "./xlsx-aux-evidence.js";
 
 const MAX_TEXT_CHARACTERS_PER_REQUEST = 8_000;
 const MAX_IMAGES_PER_REQUEST = 5;
@@ -734,16 +740,22 @@ function currentExtractionTarget(text: string): string {
 }
 
 function allowedXlsxLocators(request: ExtractionRequest): string[] {
-  const locators = new Set<string>();
-  for (const line of currentExtractionTarget(request.text).split(/\r?\n/u)) {
-    const cell = /^(.+)!([A-Z]+\d+):\s*/u.exec(line.trim());
-    if (cell) locators.add(`${cell[1].normalize("NFKC")}!${cell[2].toUpperCase()}`);
-  }
+  const target = currentExtractionTarget(request.text);
+  const locators = new Set([
+    ...Object.keys(indexXlsxCellEvidence(target)),
+    ...Object.keys(indexXlsxAuxiliaryEvidence(target)),
+  ]);
   return [...locators].sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function allowedXlsxEvidenceLines(request: ExtractionRequest): ReturnType<typeof indexXlsxCellEvidence> {
   return indexXlsxCellEvidence(currentExtractionTarget(request.text));
+}
+
+function allowedXlsxAuxiliaryEvidence(
+  request: ExtractionRequest,
+): ReturnType<typeof indexXlsxAuxiliaryEvidence> {
+  return indexXlsxAuxiliaryEvidence(currentExtractionTarget(request.text));
 }
 
 function allowedSourceFileIds(request: ExtractionRequest): string[] {
@@ -766,7 +778,7 @@ function repairInstructions(request: ExtractionRequest): string | null {
       "이미지의 통화 단위 없는 퍼센트·숫자는 KRW로 해석하지 말고, money_occurrences는 raw_text와 source_quote의 동일한 통화 금액만 기록하십시오.",
       `allowed_locator_set_sha256: ${repair.allowedLocatorSetSha256}`,
       `allowed_source_file_set_sha256: ${repair.allowedSourceFileSetSha256}`,
-      "XLSX source_quote는 아래 exact cell locator만 사용하십시오:",
+      "XLSX source_quote는 아래 exact 셀/도형/수식 locator만 사용하십시오:",
       ...repair.allowedXlsxLocators.map((locator) => `- ${locator}`),
       "source_file_ids는 아래 ID만 사용하십시오:",
       ...repair.allowedSourceFileIds.map((sourceId) => `- ${sourceId}`),
@@ -846,10 +858,10 @@ function repairInstructions(request: ExtractionRequest): string | null {
     "직전 응답은 현재 요청이 소유하지 않은 XLSX locator를 인용해 거부되었습니다.",
     `rejected_locator_for_audit_only: ${repair.rejectedLocator}`,
     `allowed_locator_set_sha256: ${repair.allowedLocatorSetSha256}`,
-    "다시 출력할 때 source_quote의 XLSX locator는 아래 허용 목록에 있는 정확한 셀만 사용하십시오.",
-    "source_quote는 현재 추출 대상의 단일 '시트!셀: 원문'만 사용하고, 콜론 뒤에는 그 셀 내용 전체 또는 필요한 연속 원문 조각을 그대로 복사하십시오. 떨어진 문구 결합, 여러 셀 합성, 세미콜론 연결, 범위 생성은 금지합니다.",
-    "허용 목록에 없는 XLSX locator, 다른 청크의 셀, 새로 만든 범위는 인용하지 마십시오.",
-    "현재 청크에 근거 셀이 없는 항목은 추론하지 말고 제거하거나 null + needs_review로 두십시오.",
+    "다시 출력할 때 source_quote의 XLSX locator는 아래 허용 목록에 있는 정확한 셀·도형·수식 locator만 사용하십시오.",
+    "source_quote는 현재 추출 대상의 단일 locator만 사용하십시오. 일반 시트 셀은 그 셀의 실제 연속 원문 조각을 사용할 수 있지만, XLSX_DRAWING/XLSX_FORMULA는 허용 목록의 locator와 콜론 뒤 payload 전체를 생략·축약 없이 정확히 복사하십시오. 떨어진 문구 결합, 여러 locator 합성, 세미콜론 연결, 범위 생성은 금지합니다.",
+    "허용 목록에 없는 XLSX locator, 다른 청크의 셀·도형·수식, 새로 만든 범위는 인용하지 마십시오.",
+    "현재 청크에 근거 locator가 없는 항목은 추론하지 말고 제거하거나 null + needs_review로 두십시오.",
     "allowed_xlsx_locators:",
     ...repair.allowedXlsxLocators.map((locator) => `- ${locator}`),
     "[/trusted_repair_constraints]",
@@ -993,7 +1005,11 @@ function assertBatchEvidenceOwnership(
 ): void {
   const targetLines = allowedXlsxEvidenceLines(request);
   const targetCells = new Set(Object.keys(targetLines));
-  const allowed = [...targetCells].sort((left, right) => left.localeCompare(right, "en"));
+  const targetAuxiliary = allowedXlsxAuxiliaryEvidence(request);
+  const targetAuxiliaryLocators = new Set(Object.keys(targetAuxiliary));
+  const hasXlsxEvidence = targetCells.size > 0 || targetAuxiliaryLocators.size > 0;
+  const allowed = [...new Set([...targetCells, ...targetAuxiliaryLocators])]
+    .sort((left, right) => left.localeCompare(right, "en"));
   const rejectXlsxQuote = (
     rejectedLocator: string,
     locatorViolation: "not_in_request" | "not_exact_single_cell",
@@ -1005,8 +1021,8 @@ function assertBatchEvidenceOwnership(
       locatorViolation,
     };
     const reason = locatorViolation === "not_in_request"
-      ? "현재 요청에 없는 XLSX 셀"
-      : "현재 요청의 단일 XLSX 셀 원문과 일치하지 않는 합성 source_quote";
+      ? "현재 요청에 없는 XLSX 셀·도형·수식 locator"
+      : "현재 요청의 단일 XLSX locator 원문과 일치하지 않는 합성 source_quote";
     throw new ExtractionProviderResponseError(
       `OpenAI 구조화 출력 검증에 실패했습니다: ${reason} (rejected_locator=${rejectedLocator})`,
       audit,
@@ -1075,10 +1091,26 @@ function assertBatchEvidenceOwnership(
       // structured-record checks.
       continue;
     }
-    if (targetCells.size > 0) {
-      const quoteMatch = matchSingleXlsxEvidenceQuote(String(record.source_quote), targetLines);
-      if (quoteMatch.kind === "reject") {
-        rejectXlsxQuote(quoteMatch.locator, quoteMatch.violation);
+    let matchedXlsxEvidence = false;
+    if (hasXlsxEvidence) {
+      const sourceQuote = String(record.source_quote);
+      const auxiliaryMatch = matchSingleXlsxAuxiliaryEvidenceQuote(sourceQuote, targetAuxiliary);
+      if (auxiliaryMatch.kind === "reject") {
+        rejectXlsxQuote(
+          auxiliaryMatch.locator,
+          auxiliaryMatch.violation === "not_in_request"
+            ? "not_in_request"
+            : "not_exact_single_cell",
+        );
+      }
+      if (auxiliaryMatch.kind === "match") matchedXlsxEvidence = true;
+      const cellMatch = matchSingleXlsxEvidenceQuote(sourceQuote, targetLines);
+      if (cellMatch.kind === "reject") {
+        rejectXlsxQuote(cellMatch.locator, cellMatch.violation);
+      }
+      if (cellMatch.kind === "match") matchedXlsxEvidence = true;
+      if (!matchedXlsxEvidence) {
+        rejectXlsxQuote("missing_xlsx_locator", "not_exact_single_cell");
       }
     }
     const structuredCurrencyValues = [...new Set(Object.entries(record).flatMap(([key, value]) =>
@@ -1091,15 +1123,20 @@ function assertBatchEvidenceOwnership(
     ))];
     if (structuredCurrencyValues.length > 0) {
       const sourceQuote = String(record.source_quote);
-      const sourceQuoteContent = /^.+?![A-Z]+\d+:\s*(.*)$/iu.exec(sourceQuote)?.[1] ?? sourceQuote;
+      const sourceQuoteContent = parseXlsxAuxiliaryEvidencePayload(sourceQuote)
+        ?? /^.+?![A-Z]+\d+:\s*(.*)$/iu.exec(sourceQuote)?.[1]
+        ?? sourceQuote;
       const quotedAmounts = parseKoreanMoneyAmounts(sourceQuote);
       const positiveStructuredValues = structuredCurrencyValues.filter((value) => value > 0);
       const imageOnlyRequest = request.imagePaths.length > 0 && !request.text.trim();
       const normalizedQuoteContent = normalizeEvidenceText(sourceQuoteContent);
+      const auxiliaryLocatorMatch = matchSingleXlsxAuxiliaryEvidenceQuote(sourceQuote, targetAuxiliary);
       const quoteLocatorMatch = /^(.+?)!([A-Z]+\d+):/iu.exec(normalizeEvidenceText(sourceQuote));
-      const quoteLocator = quoteLocatorMatch
-        ? `${quoteLocatorMatch[1].normalize("NFKC")}!${quoteLocatorMatch[2].toUpperCase()}`
-        : null;
+      const quoteLocator = auxiliaryLocatorMatch.kind === "match"
+        ? auxiliaryLocatorMatch.locator
+        : quoteLocatorMatch
+          ? `${quoteLocatorMatch[1].normalize("NFKC")}!${quoteLocatorMatch[2].toUpperCase()}`
+          : null;
       const supportsStructuredValue = (value: number): boolean => {
         if (quotedAmounts.includes(value)) return true;
         if (imageOnlyRequest) return false;
@@ -1121,7 +1158,7 @@ function assertBatchEvidenceOwnership(
         );
       }
     }
-    if (targetCells.size === 0) {
+    if (!hasXlsxEvidence) {
       const targetText = normalizeEvidenceText(currentExtractionTarget(request.text));
       const sourceQuote = normalizeEvidenceText(String(record.source_quote));
       if (targetText && sourceQuote && !targetText.includes(sourceQuote)) {
@@ -1421,6 +1458,7 @@ function workbookColumnName(value: number): string {
 function workbookMergeInheritances(text: string): WorkbookMergeInheritance[] {
   const canonicalValues = new Map<string, string>();
   for (const line of text.split(/\r?\n/u)) {
+    if (looksLikeXlsxAuxiliaryEvidence(line)) continue;
     const cell = /^(.+)!([A-Z]+\d+):\s*(.*)$/u.exec(line.trim());
     if (cell) canonicalValues.set(`${cell[1]}!${cell[2].toUpperCase()}`, cell[3]);
   }
@@ -1462,7 +1500,9 @@ function chunkAtomicWorkbookRows(
   maximumCharacters: number,
 ): string[] {
   const lines = text.split(/\r?\n/u);
-  if (!lines.some((line) => /^.+![A-Z]+\d+:\s*/u.test(line.trim()))) {
+  if (!lines.some((line) =>
+    !looksLikeXlsxAuxiliaryEvidence(line) && /^.+![A-Z]+\d+:\s*/u.test(line.trim())
+  )) {
     return chunkText(text, targetCharacters);
   }
 
@@ -1475,6 +1515,7 @@ function chunkAtomicWorkbookRows(
       const [sheet, rowText] = rowKey.split("\0");
       const row = Number.parseInt(rowText, 10);
       const existingAddresses = new Set(rowLines.flatMap((line) => {
+        if (looksLikeXlsxAuxiliaryEvidence(line)) return [];
         const cell = /^.+!([A-Z]+\d+):\s*/u.exec(line.trim());
         return cell ? [cell[1].toUpperCase()] : [];
       }));
@@ -1499,6 +1540,11 @@ function chunkAtomicWorkbookRows(
     rowLines = [];
   };
   for (const line of lines) {
+    if (looksLikeXlsxAuxiliaryEvidence(line)) {
+      flushRow();
+      if (line.trim()) blocks.push(line);
+      continue;
+    }
     const cell = /^(.+)!([A-Z]+)(\d+):\s*/u.exec(line.trim());
     if (!cell) {
       flushRow();
@@ -1564,6 +1610,7 @@ export function workbookInterpretationContext(text: string): string {
       selected.add(line);
       continue;
     }
+    if (looksLikeXlsxAuxiliaryEvidence(line)) continue;
     const cell = /^(.+)!([A-Z]+)(\d+):\s*(.*)$/u.exec(line);
     if (cell?.[3] && cell[4]) {
       canonicalPayloads.set(`${cell[1]}!${cell[2]}${cell[3]}`, cell[4]);

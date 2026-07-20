@@ -1,7 +1,8 @@
 # 현재 작업 인수인계 — 2026-07-17 KST
 
-> **CURRENT CHECKPOINT, NOT A PRODUCTION COMPLETION RECEIPT.** 이 문서는 다른
-> 컴퓨터에서 현재 개발을 이어가기 위한 진입점이다. 정확한 후보는 이 문서를 포함해
+> **HISTORICAL SNAPSHOT — `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`로 대체됨.** 이 문서는
+> 2026-07-17 시점의 개발 기록일 뿐 현재 작업 진입점이나 완료 영수증이 아니다. 당시 후보는
+> 이 문서를 포함해
 > push된 `feat/amora-engine-v2-20260716`의 원격 HEAD와 PR #61로 확인한다. 운영 DB,
 > 운영 배포, signed 모바일 빌드, 카나리는 아래에 명시된 대로 아직 완료되지 않았다.
 

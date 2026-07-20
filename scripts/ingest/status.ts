@@ -1,6 +1,18 @@
+import path from "node:path";
+
+import { CONVERTER_VERSION, isCurrentConversionFailureNotice } from "./convert.js";
+import {
+  currentExtractionFingerprint,
+  EXTRACTION_PROCESSING_VERSION,
+  EXTRACTION_PROMPT_HASH,
+  EXTRACTION_PROMPT_VERSION,
+} from "./extraction-contract.js";
+import { sha256File, sha256Text } from "./io.js";
 import { loadManifest } from "./manifest.js";
-import { readAiLedger } from "./ledger.js";
-import type { UnitStage } from "./types.js";
+import { readAiLedgerState } from "./ledger.js";
+import { DUPLICATE_SOURCE_NOTICE_PREFIX, SCANNER_PARSER_VERSION } from "./scan.js";
+import type { IngestManifest, ManifestUnit, UnitStage } from "./types.js";
+import { VALIDATOR_VERSION } from "./validate.js";
 
 export interface StatusOptions {
   stateDir: string;
@@ -8,14 +20,19 @@ export interface StatusOptions {
 
 export interface IngestStatus {
   total_units: number;
-  by_stage: Record<UnitStage, number>;
-  manual_source_files: number;
-  failed_units: number;
-  pending_review_units: number;
-  extraction_input_tokens: number;
-  extraction_output_tokens: number;
-  extraction_estimated_cost_usd: number;
-  validation_issues: number;
+  durable_by_stage: Record<UnitStage, number>;
+  current_by_stage: Record<UnitStage, number>;
+  stale_by_stage: Record<UnitStage, number>;
+  durable_manual_source_files: number;
+  durable_failed_units: number;
+  historical_pending_review_units: number;
+  current_pending_review_units: number;
+  current_strict_load_eligible_units: number;
+  historical_extraction_input_tokens: number;
+  historical_extraction_output_tokens: number;
+  durable_ledger_estimated_cost_usd: number;
+  historical_validation_issues: number;
+  current_validation_issues: number;
   failed_unit_details: Array<{
     unit_id: string;
     error_codes: string[];
@@ -32,6 +49,177 @@ const STAGE_ORDER: UnitStage[] = [
   "error",
 ];
 
+function emptyStageCounts(): Record<UnitStage, number> {
+  return {
+    scanned: 0,
+    converted: 0,
+    needs_manual_conversion: 0,
+    extracted: 0,
+    validated: 0,
+    loaded: 0,
+    error: 0,
+  };
+}
+
+async function hasCurrentConversion(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+): Promise<boolean> {
+  const conversion = unit.conversion;
+  if (
+    manifest.scanner_parser_version !== SCANNER_PARSER_VERSION
+    || conversion === undefined
+    || conversion.converter_version !== CONVERTER_VERSION
+    || conversion.source_fingerprint !== unit.source_fingerprint
+  ) {
+    return false;
+  }
+  try {
+    const records = await Promise.all(
+      [...conversion.text_artifacts, ...conversion.image_artifacts]
+        .sort((left, right) => left.localeCompare(right, "en"))
+        .map(async (artifactPath) => {
+          const digest = await sha256File(artifactPath);
+          return `${path.resolve(artifactPath)}\0${digest.sha256}`;
+        }),
+    );
+    return sha256Text(records.join("\n")) === conversion.artifact_fingerprint;
+  } catch {
+    // Missing or unreadable artifacts are stale evidence. Do not surface the
+    // filesystem error because status output is intentionally content-safe.
+    return false;
+  }
+}
+
+function hasCurrentExtraction(
+  unit: ManifestUnit,
+  currentConversion: boolean,
+): boolean {
+  const conversion = unit.conversion;
+  const extraction = unit.extraction;
+  if (!conversion || !extraction || !currentConversion) return false;
+  const expectedFingerprint = currentExtractionFingerprint({
+    scannerParserVersion: SCANNER_PARSER_VERSION,
+    converterVersion: CONVERTER_VERSION,
+    model: extraction.model,
+    rawName: unit.parsed.raw_name,
+    regionCode: unit.parsed.region_code,
+    kindHint: unit.parsed.kind_hint,
+    sourceFingerprint: unit.source_fingerprint,
+    artifactFingerprint: conversion.artifact_fingerprint,
+  });
+  return extraction.fingerprint === expectedFingerprint
+    && extraction.source_fingerprint === unit.source_fingerprint
+    && extraction.artifact_fingerprint === conversion.artifact_fingerprint
+    && extraction.prompt_version === EXTRACTION_PROMPT_VERSION
+    && extraction.prompt_hash === EXTRACTION_PROMPT_HASH
+    && extraction.processing_version === EXTRACTION_PROCESSING_VERSION
+    && extraction.scanner_parser_version === SCANNER_PARSER_VERSION
+    && extraction.converter_version === CONVERTER_VERSION
+    && extraction.content_sha256 !== undefined;
+}
+
+function hasCurrentValidation(
+  unit: ManifestUnit,
+  currentExtraction: boolean,
+): boolean {
+  const extraction = unit.extraction;
+  const validation = unit.validation;
+  return extraction !== undefined
+    && validation !== undefined
+    && currentExtraction
+    && validation.validator_version === VALIDATOR_VERSION
+    && validation.content_sha256 !== undefined
+    && validation.extraction_content_sha256 !== undefined
+    && validation.extraction_content_sha256 === extraction.content_sha256;
+}
+
+function sourceStemKey(sourcePath: string): string {
+  const portable = sourcePath.replace(/\\/gu, "/");
+  return `${path.posix.dirname(portable)}/${path.posix.basename(
+    portable,
+    path.posix.extname(portable),
+  )}`.normalize("NFKC").toLocaleLowerCase("ko-KR");
+}
+
+function hasCurrentManualConversionDecision(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+  currentConversion: boolean,
+): boolean {
+  if (manifest.scanner_parser_version !== SCANNER_PARSER_VERSION) return false;
+  if (currentConversion) return true;
+  const replacementPdfStems = new Set(
+    unit.source_files
+      .filter((source) => source.ext === "pdf")
+      .map((source) => sourceStemKey(source.path)),
+  );
+  return unit.source_files
+    .filter((source) => source.ext === "hwp")
+    .some((source) => !replacementPdfStems.has(sourceStemKey(source.path)));
+}
+
+function hasCurrentScannerError(manifest: IngestManifest, unit: ManifestUnit): boolean {
+  if (manifest.scanner_parser_version !== SCANNER_PARSER_VERSION) return false;
+  return unit.notices.some((notice) =>
+    notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX)
+    || notice.startsWith("unknown_region:"),
+  );
+}
+
+function hasCurrentConversionError(manifest: IngestManifest, unit: ManifestUnit): boolean {
+  return manifest.scanner_parser_version === SCANNER_PARSER_VERSION
+    && unit.notices.some((notice) =>
+      isCurrentConversionFailureNotice(notice, unit.source_fingerprint),
+    );
+}
+
+function recordedStageUsesCurrentIdentities(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+  identities: {
+    conversion: boolean;
+    extraction: boolean;
+    validation: boolean;
+  },
+): boolean {
+  if (manifest.scanner_parser_version !== SCANNER_PARSER_VERSION) return false;
+  switch (unit.stage) {
+    case "scanned":
+      return true;
+    case "error":
+      // A scanner error is recreated by every current scan, and a validation
+      // error carries the full conversion/extraction/validator identity chain.
+      // Other downstream failures do not persist an attempt version, so
+      // treating them as current would overstate evidence after code changes.
+      return hasCurrentScannerError(manifest, unit)
+        || hasCurrentConversionError(manifest, unit)
+        || identities.validation;
+    case "needs_manual_conversion":
+      return hasCurrentManualConversionDecision(manifest, unit, identities.conversion);
+    case "converted":
+      return identities.conversion;
+    case "extracted":
+      return identities.extraction;
+    case "validated":
+      return identities.validation;
+    case "loaded":
+      // The manifest currently has no load-plan/writer receipt identity. A
+      // current validation alone cannot prove that an old schema/writer load
+      // is current after loader code changes, so never overstate loaded state.
+      return false;
+  }
+}
+
+function isCurrentStrictLoadEligible(
+  unit: ManifestUnit,
+  currentValidation: boolean,
+): boolean {
+  return unit.stage === "validated"
+    && currentValidation
+    && unit.validation?.review_status === "pending";
+}
+
 function contentSafeFailureCodes(notices: string[]): string[] {
   const codes = new Set<string>();
   for (const notice of notices) {
@@ -44,6 +232,8 @@ function contentSafeFailureCodes(notices: string[]): string[] {
       codes.add("validate_failed");
     } else if (normalized.startsWith("load ") || normalized.startsWith("load_")) {
       codes.add("load_failed");
+    } else if (normalized.startsWith("duplicate_source_content:")) {
+      codes.add("duplicate_source_content");
     }
   }
   if (codes.size === 0) codes.add("pipeline_failed");
@@ -53,17 +243,25 @@ function contentSafeFailureCodes(notices: string[]): string[] {
 export function formatIngestStatus(status: IngestStatus): string {
   const stageWidth = Math.max("Stage".length, ...STAGE_ORDER.map((stage) => stage.length));
   const lines = [
-    `${"Stage".padEnd(stageWidth)}  Count`,
-    `${"-".repeat(stageWidth)}  -----`,
-    ...STAGE_ORDER.map((stage) => `${stage.padEnd(stageWidth)}  ${status.by_stage[stage]}`),
+    `${"Stage".padEnd(stageWidth)}  Durable  Current  Stale`,
+    `${"-".repeat(stageWidth)}  -------  -------  -----`,
+    ...STAGE_ORDER.map((stage) => [
+      stage.padEnd(stageWidth),
+      String(status.durable_by_stage[stage]).padStart(7),
+      String(status.current_by_stage[stage]).padStart(7),
+      String(status.stale_by_stage[stage]).padStart(5),
+    ].join("  ")),
     "",
     `Total units: ${status.total_units}`,
-    `Manual source files: ${status.manual_source_files}`,
-    `Failed units: ${status.failed_units}`,
-    `Pending review units: ${status.pending_review_units}`,
-    `Validation issues: ${status.validation_issues}`,
-    `AI tokens: ${status.extraction_input_tokens} input / ${status.extraction_output_tokens} output`,
-    `Estimated AI cost (USD): ${status.extraction_estimated_cost_usd.toFixed(6)}`,
+    `Durable manual source files: ${status.durable_manual_source_files}`,
+    `Durable failed units: ${status.durable_failed_units}`,
+    `Historical pending review units: ${status.historical_pending_review_units}`,
+    `Current pending review units: ${status.current_pending_review_units}`,
+    `Current strict-load identity eligible units: ${status.current_strict_load_eligible_units}`,
+    `Historical validation issues: ${status.historical_validation_issues}`,
+    `Current validation issues: ${status.current_validation_issues}`,
+    `Historical extraction tokens: ${status.historical_extraction_input_tokens} input / ${status.historical_extraction_output_tokens} output`,
+    `Durable AI ledger estimated cost (USD): ${status.durable_ledger_estimated_cost_usd.toFixed(6)}`,
   ];
   if (status.failed_unit_details.length > 0) {
     lines.push(
@@ -79,32 +277,76 @@ export function formatIngestStatus(status: IngestStatus): string {
 
 export async function getIngestStatus(options: StatusOptions): Promise<IngestStatus> {
   const manifest = await loadManifest(options.stateDir);
-  const ledger = await readAiLedger(options.stateDir);
-  const byStage: Record<UnitStage, number> = {
-    scanned: 0,
-    converted: 0,
-    needs_manual_conversion: 0,
-    extracted: 0,
-    validated: 0,
-    loaded: 0,
-    error: 0,
-  };
-  for (const unit of manifest.units) byStage[unit.stage] += 1;
+  const ledgerState = await readAiLedgerState(options.stateDir);
+  const ledger = ledgerState.entries;
+  const durableByStage = emptyStageCounts();
+  const currentByStage = emptyStageCounts();
+  const staleByStage = emptyStageCounts();
+  const currentIdentities = await Promise.all(manifest.units.map(async (unit) => {
+    const conversion = await hasCurrentConversion(manifest, unit);
+    const extraction = hasCurrentExtraction(unit, conversion);
+    const validation = hasCurrentValidation(unit, extraction);
+    return { conversion, extraction, validation };
+  }));
+  for (const [index, unit] of manifest.units.entries()) {
+    durableByStage[unit.stage] += 1;
+    if (recordedStageUsesCurrentIdentities(manifest, unit, currentIdentities[index])) {
+      currentByStage[unit.stage] += 1;
+    }
+    else staleByStage[unit.stage] += 1;
+  }
+  const currentValidatedUnits = manifest.units.filter((unit, index) =>
+    unit.stage === "validated" && currentIdentities[index].validation
+  );
+
+  const manifestInputTokens = manifest.units
+    .reduce((sum, unit) => sum + (unit.extraction?.input_tokens ?? 0), 0);
+  const manifestOutputTokens = manifest.units
+    .reduce((sum, unit) => sum + (unit.extraction?.output_tokens ?? 0), 0);
+  const ledgerInputTokens = ledger.reduce((sum, entry) => sum + entry.input_tokens, 0);
+  const ledgerOutputTokens = ledger.reduce((sum, entry) => sum + entry.output_tokens, 0);
 
   return {
     total_units: manifest.units.length,
-    by_stage: byStage,
-    manual_source_files: manifest.units
+    durable_by_stage: durableByStage,
+    current_by_stage: currentByStage,
+    stale_by_stage: staleByStage,
+    durable_manual_source_files: manifest.units
       .filter((unit) => unit.stage === "needs_manual_conversion")
       .flatMap((unit) => unit.source_files)
       .filter((source) => source.ext === "hwp" || source.ext === "pdf")
       .length,
-    failed_units: byStage.error,
-    pending_review_units: manifest.units.filter((unit) => unit.validation?.review_status === "pending").length,
-    extraction_input_tokens: manifest.units.reduce((sum, unit) => sum + (unit.extraction?.input_tokens ?? 0), 0),
-    extraction_output_tokens: manifest.units.reduce((sum, unit) => sum + (unit.extraction?.output_tokens ?? 0), 0),
-    extraction_estimated_cost_usd: ledger.reduce((sum, entry) => sum + entry.estimated_cost_usd, 0),
-    validation_issues: manifest.units.reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
+    durable_failed_units: durableByStage.error,
+    historical_pending_review_units: manifest.units
+      .filter((unit) => unit.validation?.review_status === "pending")
+      .length,
+    current_pending_review_units: currentValidatedUnits
+      .filter((unit) => unit.validation?.review_status === "pending")
+      .length,
+    current_strict_load_eligible_units: manifest.units
+      .filter((unit, index) => isCurrentStrictLoadEligible(
+        unit,
+        currentIdentities[index].validation,
+      ))
+      .length,
+    // The append-only ledger survives a manifest rescan. Prefer it when it
+    // exists so historical paid attempts do not disappear from status; the
+    // manifest fallback keeps legacy/test states without a ledger observable.
+    historical_extraction_input_tokens: ledger.length > 0
+      ? ledgerInputTokens
+      : manifestInputTokens,
+    historical_extraction_output_tokens: ledger.length > 0
+      ? ledgerOutputTokens
+      : manifestOutputTokens,
+    // Use the same conservative historical-v2 accounting that binds paid
+    // plans and execution-domain authority. Summing the raw row field would
+    // understate legacy cache-write exposure and make two status surfaces
+    // disagree for the same immutable ledger bytes.
+    durable_ledger_estimated_cost_usd: ledgerState.snapshot.cumulative_cost_usd,
+    historical_validation_issues: manifest.units
+      .reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
+    current_validation_issues: currentValidatedUnits
+      .reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
     failed_unit_details: manifest.units
       .filter((unit) => unit.stage === "error")
       .map((unit) => ({

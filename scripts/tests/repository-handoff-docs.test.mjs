@@ -35,4 +35,11 @@ test("repository handoff docs describe the current monorepo and release source o
   assert.match(readme, /pnpm qa:local/);
   assert.match(readme, /supabase:release:apply/);
   assert.match(readme, /직접.*db push|db push.*직접/i);
+
+  for (const document of [agents, readme]) {
+    assert.match(document, /docs\/operations\/CURRENT_WORKSPACE_HANDOFF_2026-07-20\.md/);
+    assert.match(document, /scripts\/ingest\/README\.md/);
+    assert.doesNotMatch(document, /현재 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-17\.md/);
+    assert.doesNotMatch(document, /다른 컴퓨터 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-19\.md/);
+  }
 });

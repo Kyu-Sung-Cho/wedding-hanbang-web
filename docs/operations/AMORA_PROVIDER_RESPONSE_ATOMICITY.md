@@ -3,7 +3,7 @@
 > **Status: implemented and locally tested; production migrations and current
 > candidate deployment NOT RUN.** This is a candidate contract, not evidence
 > that production already uses migrations 1060/1100. See
-> `CURRENT_WORKSPACE_HANDOFF_2026-07-17.md` for the live release status.
+> `CURRENT_WORKSPACE_HANDOFF_2026-07-20.md` for the live release status.
 
 ## Release invariant
 

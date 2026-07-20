@@ -30,8 +30,16 @@ import { normalizeVendorName, regionCodeFromDirectory, SCANNER_PARSER_VERSION } 
 import { DisclosureExtractionSchema, StrictExtractionArtifactSchema } from "./schemas.js";
 import type { DisclosureExtraction } from "./schemas.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
+import {
+  indexXlsxAuxiliaryEvidence,
+  looksLikeXlsxAuxiliaryEvidence,
+  matchSingleXlsxAuxiliaryEvidenceQuote,
+  parseXlsxAuxiliaryEvidenceLine,
+  parseXlsxAuxiliaryEvidencePayload,
+  type XlsxAuxiliaryEvidenceIndex,
+} from "./xlsx-aux-evidence.js";
 
-export const VALIDATOR_VERSION = "v11-bounded-semantic-provenance";
+export const VALIDATOR_VERSION = "v12-xlsx-auxiliary-evidence";
 export { SOURCE_MONEY_SCANNER_VERSION } from "./extraction-contract.js";
 const BASE_PRICE_MIN_KRW = 100_000;
 const BASE_PRICE_MAX_KRW = 30_000_000;
@@ -143,11 +151,13 @@ export interface ValidationEvidenceContext {
   normalizedText: string;
   hasImages: boolean;
   xlsxCells?: XlsxCellEvidenceIndex;
+  xlsxAuxiliary?: XlsxAuxiliaryEvidenceIndex;
   lineEvidence?: Record<string, string[]>;
   bySourceFileId?: Record<string, {
     normalizedText: string;
     hasImages: boolean;
     xlsxCells?: XlsxCellEvidenceIndex;
+    xlsxAuxiliary?: XlsxAuxiliaryEvidenceIndex;
     lineEvidence?: Record<string, string[]>;
   }>;
   sourceScoped?: boolean;
@@ -235,7 +245,11 @@ export function indexLineEvidence(text: string, lineOffset = 0): Record<string, 
   for (const [index, rawLine] of text.split(/\r?\n/u).entries()) {
     const normalized = normalizeEvidenceText(rawLine);
     const locator = `line:${lineOffset + index + 1}`;
-    result[locator] = normalized ? [normalized] : [];
+    // XLSX auxiliary records have their own source-scoped locator contract.
+    // Never let a generic line:N quote bypass it.
+    result[locator] = normalized && !looksLikeXlsxAuxiliaryEvidence(normalized)
+      ? [normalized]
+      : [];
   }
   return result;
 }
@@ -260,6 +274,7 @@ interface ParsedXlsxEvidenceLine {
 
 function parseXlsxEvidenceLine(value: string, rejectComposite: boolean): ParsedXlsxEvidenceLine | null {
   const normalized = normalizeEvidenceText(value);
+  if (looksLikeXlsxAuxiliaryEvidence(normalized)) return null;
   const located = /^(.+?)!([A-Z]+\d+):\s*(.+)$/iu.exec(normalized);
   if (!located) return null;
   const locator = `${located[1].normalize("NFKC")}!${located[2].toUpperCase()}`;
@@ -279,6 +294,7 @@ function parseXlsxEvidenceLine(value: string, rejectComposite: boolean): ParsedX
 export function indexXlsxCellEvidence(text: string): XlsxCellEvidenceIndex {
   const index: XlsxCellEvidenceIndex = {};
   for (const line of text.split(/\r?\n/u)) {
+    if (looksLikeXlsxAuxiliaryEvidence(line)) continue;
     const parsed = parseXlsxEvidenceLine(line.trim(), false);
     if (!parsed) continue;
     const values = index[parsed.locator] ?? [];
@@ -292,6 +308,7 @@ export function matchSingleXlsxEvidenceQuote(
   quote: string,
   cells: XlsxCellEvidenceIndex,
 ): XlsxEvidenceQuoteMatch {
+  if (looksLikeXlsxAuxiliaryEvidence(quote)) return { kind: "not_xlsx" };
   const parsed = parseXlsxEvidenceLine(quote, true);
   if (!parsed) {
     const locatedButComposite = parseXlsxEvidenceLine(quote, false);
@@ -481,6 +498,33 @@ function explicitMoneyAmount(raw: string): number | null {
   return won ? numericMoney(won[1], 1) : null;
 }
 
+function explicitCurrencyMoneyAmount(raw: string): number | null {
+  const unitAmount = explicitMoneyAmount(raw);
+  if (unitAmount !== null) return unitAmount;
+  const numeric = raw.match(/\d[\d,]*(?:\.\d+)?/u)?.[0];
+  return numeric ? numericMoney(numeric, 1) : null;
+}
+
+function simpleKoreanMoneyMultiplier(raw: string): number | null {
+  const match = raw.match(
+    /^\s*\d[\d,]*(?:\.\d+)?\s*(천만|백만|억|만|천)\s*원?\s*$/u,
+  );
+  return match ? moneyMultiplier(match[1]) : null;
+}
+
+function explicitCurrencyRangeAmount(raw: string, peer: string): number | null {
+  if (!/(?:천만|백만|억|만|천|원)/u.test(raw)) {
+    const sharedMultiplier = simpleKoreanMoneyMultiplier(peer);
+    const numeric = raw.match(/\d[\d,]*(?:\.\d+)?/u)?.[0];
+    if (sharedMultiplier !== null && numeric) {
+      return numericMoney(numeric, sharedMultiplier);
+    }
+  }
+  return explicitCurrencyMoneyAmount(raw);
+}
+
+const CURRENCY_MONEY_TOKEN_PATTERN = String.raw`\d[\d,]*(?:\.\d+)?(?:\s*(?:천만|백만|억|만|천)(?:\s*\d[\d,]*(?:\.\d+)?\s*(?:천만|백만|억|만|천))*\s*원?|\s*원)?`;
+
 function bareMoneyMultiplier(raw: string, declaredMultiplier: number, before = ""): number {
   // A comma-formatted value such as `1컷16,500` is already written in won,
   // even when the surrounding sheet declares bare table cells in 만원. Applying
@@ -550,10 +594,39 @@ function sourceMoneyOccurrences(
     });
   };
 
+  // Some disclosure files use the ISO code or won symbol instead of the
+  // Korean `원` suffix. Treat those markers as explicit currency evidence so
+  // they are audited even when the surrounding table has no declared unit.
+  const explicitCurrencyRange = new RegExp(
+    String.raw`(?:(KRW|₩)\s*)?(${CURRENCY_MONEY_TOKEN_PATTERN})\s*(KRW)?\s*(?:~|〜|–|—|-)\s*(?:(KRW|₩)\s*)?(${CURRENCY_MONEY_TOKEN_PATTERN})\s*(KRW)?`,
+    "giu",
+  );
+  for (const match of payload.matchAll(explicitCurrencyRange)) {
+    if (![match[1], match[3], match[4], match[6]].some(Boolean)) continue;
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    occupied.push({ start, end });
+    push(match[0], explicitCurrencyRangeAmount(match[2], match[5]), start, end);
+    push(match[0], explicitCurrencyRangeAmount(match[5], match[2]), start, end);
+  }
+
+  const explicitCurrencySingle = new RegExp(
+    String.raw`(?:KRW\s*|₩\s*)(${CURRENCY_MONEY_TOKEN_PATTERN})|(${CURRENCY_MONEY_TOKEN_PATTERN})\s*KRW\b`,
+    "giu",
+  );
+  for (const match of payload.matchAll(explicitCurrencySingle)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (overlapsSpan(start, end, occupied)) continue;
+    occupied.push({ start, end });
+    push(match[0], explicitCurrencyMoneyAmount(match[1] ?? match[2]), start, end);
+  }
+
   const explicitRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(?:(?:최고|최대|상한)\s*)?(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)\s*원?/gu;
   for (const match of payload.matchAll(explicitRange)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
+    if (overlapsSpan(start, end, occupied)) continue;
     if (!match[0].trimEnd().endsWith("원") && hasKoreanCountSuffix(payload.slice(end))) {
       occupied.push({ start, end });
       continue;
@@ -654,6 +727,7 @@ export function scanSourceMoneyOccurrences(fullText: string): CoverageGap[] {
   const workbookCellPayloads = new Map<string, string>();
   const workbookSheets = new Set<string>();
   for (const rawLine of lines) {
+    if (looksLikeXlsxAuxiliaryEvidence(rawLine)) continue;
     const cellMatch = rawLine.trim().match(/^(.+)!([A-Z]+\d+):\s*(.*)$/u);
     if (!cellMatch) continue;
     workbookSheets.add(cellMatch[1]);
@@ -766,6 +840,22 @@ export function scanSourceMoneyOccurrences(fullText: string): CoverageGap[] {
   for (const [lineIndex, rawLine] of lines.entries()) {
     const line = rawLine.trim();
     if (!line) continue;
+    const auxiliary = parseXlsxAuxiliaryEvidenceLine(line);
+    if (auxiliary) {
+      candidates.push(...sourceMoneyOccurrences(
+        auxiliary.payload,
+        null,
+        auxiliary.payload,
+        auxiliary.locator,
+        !excludedMoneyContext(auxiliary.payload),
+      ));
+      continue;
+    }
+    if (looksLikeXlsxAuxiliaryEvidence(line)) {
+      // Converted auxiliary evidence is required to be canonical. A malformed
+      // line cannot fall back to a generic line locator.
+      continue;
+    }
     const sheetHeading = line.match(/^##\s*시트:\s*(.+)$/u);
     if (sheetHeading) {
       currentSheet = sheetHeading[1].trim();
@@ -836,6 +926,7 @@ export function findCoverageGaps(
 ): CoverageGap[] {
   const candidates = scanSourceMoneyOccurrences(fullText);
   const xlsxCells = indexXlsxCellEvidence(fullText);
+  const xlsxAuxiliary = indexXlsxAuxiliaryEvidence(fullText);
   const lineEvidence = indexLineEvidence(fullText);
   const evidenceValues = extractedMoneyEvidence(data, options.includeAuditLedger ?? false)
     .flatMap((evidence) => evidence.values.map((value) => ({ quote: evidence.quote, value })));
@@ -845,6 +936,10 @@ export function findCoverageGaps(
     if (!normalizedQuote) return [] as number[];
     const lineQuote = parseLineEvidenceQuote(evidence.quote);
     const xlsxQuote = matchSingleXlsxEvidenceQuote(evidence.quote, xlsxCells);
+    const xlsxAuxiliaryQuote = matchSingleXlsxAuxiliaryEvidenceQuote(
+      evidence.quote,
+      xlsxAuxiliary,
+    );
     return candidates.flatMap((candidate, candidateIndex) => {
       if (candidate.krw !== evidence.value) return [];
       const candidateContext = normalizeEvidenceText(candidate.line_context);
@@ -858,6 +953,11 @@ export function findCoverageGaps(
       if (xlsxQuote.kind === "match") {
         return candidate.source_locator === xlsxQuote.locator ? [candidateIndex] : [];
       }
+      if (xlsxQuote.kind === "reject") return [];
+      if (xlsxAuxiliaryQuote.kind === "match") {
+        return candidate.source_locator === xlsxAuxiliaryQuote.locator ? [candidateIndex] : [];
+      }
+      if (xlsxAuxiliaryQuote.kind === "reject") return [];
       // Legacy/non-located evidence remains acceptable only when its semantic
       // context identifies the actual occurrence. A money-only quote must not
       // consume an arbitrary equal-valued occurrence elsewhere in the source.
@@ -907,20 +1007,36 @@ function sameStringSet(left: string[], right: string[]): boolean {
 
 function evidenceContainsQuote(
   quote: string,
-  evidence: Pick<ValidationEvidenceContext, "normalizedText" | "xlsxCells" | "lineEvidence">,
+  evidence: Pick<ValidationEvidenceContext, "normalizedText" | "xlsxCells" | "xlsxAuxiliary" | "lineEvidence">,
 ): boolean {
+  const auxiliaryQuote = matchSingleXlsxAuxiliaryEvidenceQuote(
+    quote,
+    evidence.xlsxAuxiliary ?? {},
+  );
+  if (auxiliaryQuote.kind === "match") return true;
+  if (auxiliaryQuote.kind === "reject") return false;
   const lineQuote = parseLineEvidenceQuote(quote);
   if (lineQuote) {
     return (evidence.lineEvidence?.[lineQuote.locator] ?? [])
       .some((line) => line.includes(lineQuote.lineContent));
   }
+  const xlsxQuote = evidence.xlsxCells === undefined
+    ? { kind: "not_xlsx" as const }
+    : matchSingleXlsxEvidenceQuote(quote, evidence.xlsxCells);
+  if (xlsxQuote.kind === "match") return true;
+  if (xlsxQuote.kind === "reject") return false;
   const normalizedQuote = normalizeEvidenceText(quote);
-  if (normalizedQuote && evidence.normalizedText.includes(normalizedQuote)) return true;
-  return evidence.xlsxCells !== undefined
-    && matchSingleXlsxEvidenceQuote(quote, evidence.xlsxCells).kind === "match";
+  if (!normalizedQuote) return false;
+  const unlabeledAuxiliaryPayload = Object.values(evidence.xlsxAuxiliary ?? {})
+    .flat()
+    .some((payload) => payload.includes(normalizedQuote));
+  return !unlabeledAuxiliaryPayload && evidence.normalizedText.includes(normalizedQuote);
 }
 
 function boundedSingleQuotePayload(quote: string): string | null {
+  const auxiliary = parseXlsxAuxiliaryEvidencePayload(quote);
+  if (auxiliary) return normalizeEvidenceText(auxiliary);
+  if (looksLikeXlsxAuxiliaryEvidence(quote)) return null;
   const line = parseLineEvidenceQuote(quote);
   if (line) return normalizeEvidenceText(line.lineContent);
   const xlsx = parseXlsxEvidenceLine(quote, true);
@@ -963,7 +1079,21 @@ const SECTION_TYPE_EVIDENCE_LABELS: Readonly<Record<
   NonNullable<DisclosureExtraction["sections"]>[number]["section_type"],
   readonly string[]
 >> = {
-  pricing_basis: ["가격 기준", "가격기준", "금액 기준", "금액기준", "금액 단위", "금액단위", "단위", "pricing basis", "price basis"],
+  pricing_basis: [
+    "가격 기준",
+    "가격기준",
+    "금액 기준",
+    "금액기준",
+    "금액 단위",
+    "금액단위",
+    "단위",
+    "총비용",
+    "계산식",
+    "산정",
+    "산출",
+    "pricing basis",
+    "price basis",
+  ],
   refund_policy: ["환불", "환급", "반환", "refund"],
   penalty: ["위약금", "위약", "해약금", "취소 수수료", "penalty"],
   contract_terms: ["계약 조건", "계약조건", "계약 조항", "계약조항", "약관", "contract terms"],
@@ -1051,10 +1181,27 @@ function validateSectionSemanticGrounding(
       message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
     });
   }
-  if (!boundedEvidenceContainsAnyLabel(
-    payloads,
-    SECTION_TYPE_EVIDENCE_LABELS[section.section_type],
-  )) {
+  const decodedSourceQuote = decodeEvidenceQuote(section.source_quote);
+  const sourceQuotes = decodedSourceQuote.kind === "single"
+    ? [decodedSourceQuote.quote]
+    : decodedSourceQuote.kind === "merged"
+      ? decodedSourceQuote.fragments.map((fragment) => fragment.quote)
+      : [];
+  const exactFormulaGroundsPricingBasis = section.section_type === "pricing_basis"
+    && sourceQuotes.some((quote) =>
+      quote.trim().startsWith("XLSX_FORMULA ")
+      && matchSingleXlsxAuxiliaryEvidenceQuote(
+        quote,
+        evidence.xlsxAuxiliary ?? {},
+      ).kind === "match"
+    );
+  if (
+    !exactFormulaGroundsPricingBasis
+    && !boundedEvidenceContainsAnyLabel(
+      payloads,
+      SECTION_TYPE_EVIDENCE_LABELS[section.section_type],
+    )
+  ) {
     requiresReview = true;
     issues.push({
       severity: "error",
@@ -1437,6 +1584,10 @@ function validateMoneyOccurrenceQuote(
   if (!evidence) return requiresReview;
   const normalizedQuote = normalizeEvidenceText(quote);
   if (evidenceContainsQuote(quote, evidence)) return requiresReview;
+  if (looksLikeXlsxAuxiliaryEvidence(quote)) {
+    validateEvidenceQuote(quote, issuePath, issues, evidence);
+    return requiresReview;
+  }
   const located = /^(.+![A-Z]+\d+):\s*(.+)$/iu.exec(normalizedQuote);
   if (located) {
     const locator = normalizeEvidenceText(located[1]);
@@ -1506,6 +1657,7 @@ function resolveRowEvidence(
       normalizedText: string;
       hasImages: boolean;
       xlsxCells?: XlsxCellEvidenceIndex;
+      xlsxAuxiliary?: XlsxAuxiliaryEvidenceIndex;
       lineEvidence?: Record<string, string[]>;
     } => value !== undefined);
   if (referenced.length !== resolvedIds.length) {
@@ -1524,6 +1676,12 @@ function resolveRowEvidence(
       hasImages: referenced.some((value) => value.hasImages),
       xlsxCells: referenced.reduce<XlsxCellEvidenceIndex>((result, value) => {
         for (const [locator, candidates] of Object.entries(value.xlsxCells ?? {})) {
+          result[locator] = [...new Set([...(result[locator] ?? []), ...candidates])];
+        }
+        return result;
+      }, {}),
+      xlsxAuxiliary: referenced.reduce<XlsxAuxiliaryEvidenceIndex>((result, value) => {
+        for (const [locator, candidates] of Object.entries(value.xlsxAuxiliary ?? {})) {
           result[locator] = [...new Set([...(result[locator] ?? []), ...candidates])];
         }
         return result;
@@ -1570,6 +1728,11 @@ function hasAnyPriceValue(data: DisclosureExtraction): boolean {
     || data.hall.meal_price_min_krw !== null
     || data.hall.meal_price_max_krw !== null
     || data.hall.items.some((item) => item.price_min_krw !== null || item.price_max_krw !== null);
+}
+
+function hasReviewableDisclosureSemantics(data: DisclosureExtraction): boolean {
+  return (data.sections?.length ?? 0) > 0
+    || data.partner_vendors.some((vendor) => (vendor.policies?.length ?? 0) > 0);
 }
 
 function hasConflictingAgencyPackageRows(data: DisclosureExtraction): boolean {
@@ -1687,7 +1850,7 @@ export function validateExtractionForUnit(
       message: "문서 유형과 추출 payload가 충돌해 자동 적재를 차단했습니다. mixed 여부를 사람이 확인해야 합니다.",
     });
   }
-  if (!hasAnyPriceValue(data)) {
+  if (!hasAnyPriceValue(data) && !hasReviewableDisclosureSemantics(data)) {
     issues.push({
       severity: "error",
       code: "no_price_records",
@@ -2154,6 +2317,7 @@ export async function deriveValidatedPayloadForUnit(
   const evidence: ValidationEvidenceContext = {
     normalizedText: normalizeEvidenceText(sourceText),
     xlsxCells: indexXlsxCellEvidence(sourceText),
+    xlsxAuxiliary: indexXlsxAuxiliaryEvidence(sourceText),
     lineEvidence: indexLineEvidence(sourceText),
     hasImages: (unit.conversion?.image_artifacts.length ?? 0) > 0,
     recordModalities: Object.fromEntries(
@@ -2176,6 +2340,7 @@ export async function deriveValidatedPayloadForUnit(
       {
         normalizedText: normalizeEvidenceText(value.text.map((entry) => entry.value).join("\n")),
         xlsxCells: indexXlsxCellEvidence(value.text.map((entry) => entry.value).join("\n")),
+        xlsxAuxiliary: indexXlsxAuxiliaryEvidence(value.text.map((entry) => entry.value).join("\n")),
         lineEvidence: Object.assign(
           {},
           ...value.text.map((entry) => indexLineEvidence(entry.value, entry.lineOffset)),

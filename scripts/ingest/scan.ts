@@ -24,7 +24,8 @@ import {
 const DEFAULT_AGENCY_DIRECTORY = "결혼준비대행서비스";
 const DEFAULT_HALL_DIRECTORY = "예식장";
 const supportedExtensions = new Set<string>(SUPPORTED_SOURCE_EXTENSIONS);
-export const SCANNER_PARSER_VERSION = "v2-canonical-source-order";
+export const SCANNER_PARSER_VERSION = "v3-vendor-identity-dedup";
+export const DUPLICATE_SOURCE_NOTICE_PREFIX = "duplicate_source_content:";
 
 function deterministicTextCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -147,6 +148,11 @@ function removeRegionPrefix(value: string): string {
   return withoutSquareRegion.replace(/^\([^)]*(?:\([^)]*\)[^)]*)?\)[\s_-]*/, "");
 }
 
+function removeResidualRegionPrefix(value: string, regionDirectory: string): string {
+  if (regionCodeFromDirectory(regionDirectory) !== "daejeon") return value;
+  return value.replace(/^대전[\s_-]+/u, "");
+}
+
 function filenameRegionCode(value: string): string {
   const square = value.match(/^\[([^\]]+)\]/)?.[1];
   if (square) return regionCodeFromDirectory(square);
@@ -156,15 +162,28 @@ function filenameRegionCode(value: string): string {
 }
 
 function splitCorporateName(value: string): { name: string; corporateName: string | null } {
-  const markerIndex = value.search(/\((?:주|유)\)|주식회사/);
-  if (markerIndex <= 0) return { name: value, corporateName: null };
+  const trimmed = value.trim();
+  if (!trimmed.endsWith(")")) return { name: trimmed, corporateName: null };
 
-  const name = value.slice(0, markerIndex).replace(/[\s(]+$/, "");
-  const corporateName = value
-    .slice(markerIndex)
-    .replace(/\)+$/, "")
-    .trim();
-  return { name, corporateName };
+  let depth = 0;
+  for (let index = trimmed.length - 1; index >= 0; index -= 1) {
+    const character = trimmed[index];
+    if (character === ")") depth += 1;
+    if (character !== "(") continue;
+    depth -= 1;
+    if (depth !== 0) continue;
+
+    if (index === 0) return { name: trimmed, corporateName: null };
+    const corporateName = trimmed.slice(index + 1, -1).trim();
+    if (!/(?:\((?:주|유)\)|㈜|주식회사)/u.test(corporateName)) {
+      return { name: trimmed, corporateName: null };
+    }
+    return {
+      name: trimmed.slice(0, index).trimEnd(),
+      corporateName,
+    };
+  }
+  return { name: trimmed, corporateName: null };
 }
 
 export function normalizeVendorName(value: string): string {
@@ -182,9 +201,14 @@ export function parseUnitName(
   kindHint: DocumentKindHint,
 ): ParsedUnitName {
   const withoutExtension = displayName.replace(/\.(?:xlsx|docx|hwp|pdf|png)$/i, "");
-  const withoutRegion = removeRegionPrefix(withoutExtension);
+  const withoutRegion = removeResidualRegionPrefix(
+    removeRegionPrefix(withoutExtension),
+    regionDirectory,
+  );
   const withoutDocumentSuffix = withoutRegion
     .replace(/[\s_-]*결혼준비대행(?:서비스)?[\s_-]*$/u, "")
+    .replace(/[\s_-]+(?:예식장|표준양식)[\s_-]*$/u, "")
+    .replace(/\s+\(1\)\s*$/u, "")
     .trim();
   const { name, corporateName } = splitCorporateName(withoutDocumentSuffix);
 
@@ -315,6 +339,31 @@ async function scanKindRoot(
   return units;
 }
 
+function blockDuplicateCompleteSourceSets(units: ManifestUnit[]): void {
+  const unitsByContentSet = new Map<string, ManifestUnit[]>();
+  for (const unit of units) {
+    const contentSet = unit.source_files
+      .map((source) => `${source.ext}\0${source.bytes}\0${source.sha256}`)
+      .sort(deterministicTextCompare)
+      .join("\n");
+    const matchingUnits = unitsByContentSet.get(contentSet);
+    if (matchingUnits) matchingUnits.push(unit);
+    else unitsByContentSet.set(contentSet, [unit]);
+  }
+
+  for (const matchingUnits of unitsByContentSet.values()) {
+    if (matchingUnits.length < 2) continue;
+    const matchingUnitIds = matchingUnits
+      .map((unit) => unit.unit_id)
+      .sort(deterministicTextCompare);
+    const notice = `${DUPLICATE_SOURCE_NOTICE_PREFIX} identical complete source set across unit_ids=${matchingUnitIds.join(",")}; immutable paths retained and automatic merge/load blocked pending manual resolution.`;
+    for (const unit of matchingUnits) {
+      unit.stage = "error";
+      unit.notices = Array.from(new Set([...unit.notices, notice]));
+    }
+  }
+}
+
 export async function scanSources(options: ScanOptions): Promise<IngestManifest> {
   const rootDir = await realpath(path.resolve(options.rootDir));
   const stateDir = path.resolve(options.stateDir ?? resolveIngestStateDirectory(undefined));
@@ -351,6 +400,7 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
     ...(await scanKindRoot(rootDir, agencyRoot, "agency")),
     ...(await scanKindRoot(rootDir, hallRoot, "hall")),
   ].sort((left, right) => left.display_name.localeCompare(right.display_name, "ko"));
+  blockDuplicateCompleteSourceSets(scannedUnits);
   if (scannedUnits.length === 0) {
     throw new Error("No supported source files were found. Check the raw root and its agency/hall directories.");
   }
@@ -371,7 +421,16 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
   const existingById = new Map(existingManifest?.units.map((unit) => [unit.unit_id, unit]));
   const units = scannedUnits.map((unit) => {
     const previous = existingById.get(unit.unit_id);
-    if (!mayReuseDownstream || !previous || previous.source_fingerprint !== unit.source_fingerprint) return unit;
+    const previousDuplicateBlock = previous?.notices.some(
+      (notice) => notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX),
+    ) ?? false;
+    if (
+      unit.stage === "error"
+      || previousDuplicateBlock
+      || !mayReuseDownstream
+      || !previous
+      || previous.source_fingerprint !== unit.source_fingerprint
+    ) return unit;
     return {
       ...previous,
       display_name: unit.display_name,
