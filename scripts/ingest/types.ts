@@ -46,10 +46,17 @@ export interface ManifestUnit {
     converted_at: string;
   };
   extraction?: {
+    provider_mode?: "production_paid" | "test_only";
+    paid_plan_sha256?: string | null;
     fingerprint: string;
+    content_sha256?: string;
     source_fingerprint: string;
     artifact_fingerprint: string;
     prompt_version: string;
+    prompt_hash?: string;
+    processing_version?: string;
+    scanner_parser_version?: string;
+    converter_version?: string;
     model: "gpt-5.6-luna" | "gpt-5.6-terra";
     artifact_path: string;
     cache_hit: boolean;
@@ -60,6 +67,9 @@ export interface ManifestUnit {
   };
   validation?: {
     fingerprint: string;
+    content_sha256?: string;
+    extraction_content_sha256?: string;
+    validator_version?: string;
     artifact_path: string;
     review_status: "pending";
     issue_count: number;

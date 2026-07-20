@@ -2,22 +2,40 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { readJsonFile, sha256Text, writeJsonFile } from "./io.js";
+import { CONVERTER_VERSION } from "./convert.js";
+import {
+  currentExtractionFingerprint,
+  EXTRACTION_PROCESSING_VERSION,
+  EXTRACTION_PROMPT_HASH,
+  EXTRACTION_PROMPT_VERSION,
+  SOURCE_MONEY_SCANNER_VERSION,
+} from "./extraction-contract.js";
+import {
+  canonicalJsonSha256ExcludingField,
+  prepareDeterministicStateArtifactWritePath,
+  verifyDeterministicStateArtifactPath,
+  verifyJsonContentHash,
+} from "./artifact-integrity.js";
+import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "./io.js";
 import { loadManifest, saveManifest } from "./manifest.js";
+import { decodeEvidenceQuote } from "./merge-evidence.js";
 import {
   buildPartnerVendorRecords,
   findPartnerVendorIdentityConflicts,
   findPartnerVendorDedupeCandidates,
 } from "./partner-dedupe.js";
 import { sourceFileId, sourceFilesForArtifact } from "./provenance.js";
-import { normalizeVendorName, regionCodeFromDirectory } from "./scan.js";
-import { DisclosureExtractionSchema, ExtractionArtifactSchema } from "./schemas.js";
+import { validateStructuredRecordSourceLinkage } from "./record-source-linkage.js";
+import { normalizeVendorName, regionCodeFromDirectory, SCANNER_PARSER_VERSION } from "./scan.js";
+import { DisclosureExtractionSchema, StrictExtractionArtifactSchema } from "./schemas.js";
 import type { DisclosureExtraction } from "./schemas.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
 
-const VALIDATOR_VERSION = "v6-occurrence-money-coverage";
+export const VALIDATOR_VERSION = "v11-bounded-semantic-provenance";
+export { SOURCE_MONEY_SCANNER_VERSION } from "./extraction-contract.js";
 const BASE_PRICE_MIN_KRW = 100_000;
 const BASE_PRICE_MAX_KRW = 30_000_000;
+const SECTION_AND_POLICY_SOURCE_QUOTE_MAX_CHARACTERS = 2_000;
 const PUBLIC_CONTACT_PATTERN = /(?:\+?82[-.\s]?)?0?1[016789][-.\s]?\d{3,4}[-.\s]?\d{4}|0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu;
 
 const ValidationIssueSchema = z.object({
@@ -68,16 +86,18 @@ export const DedupeCandidatesSchema = z.object({
 
 export type DedupeCandidates = z.infer<typeof DedupeCandidatesSchema>;
 
-export const ValidatedArtifactSchema = z.object({
+const ValidatedSourceFileSchema = z.object({
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  bytes: z.number().int().nonnegative(),
+}).strict();
+
+export const LegacyValidatedArtifactSchema = z.object({
   schema_version: z.literal(1),
   validator_version: z.literal(VALIDATOR_VERSION),
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   unit_id: z.string().regex(/^[a-f0-9]{64}$/),
-  source_files: z.array(z.object({
-    path: z.string().min(1),
-    sha256: z.string().regex(/^[a-f0-9]{64}$/),
-    bytes: z.number().int().nonnegative(),
-  })),
+  source_files: z.array(ValidatedSourceFileSchema),
   source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   extraction_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   data: DisclosureExtractionSchema,
@@ -87,6 +107,32 @@ export const ValidatedArtifactSchema = z.object({
   validated_at: z.string().datetime(),
 });
 
+export const StrictValidatedArtifactSchema = z.object({
+  schema_version: z.literal(2),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  validator_version: z.literal(VALIDATOR_VERSION),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  unit_id: z.string().regex(/^[a-f0-9]{64}$/),
+  source_files: z.array(ValidatedSourceFileSchema),
+  source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  extraction_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  extraction_content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  prompt_version: z.string().min(1).max(200),
+  prompt_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  model: z.enum(["gpt-5.6-luna", "gpt-5.6-terra"]),
+  data: DisclosureExtractionSchema,
+  issues: z.array(ValidationIssueSchema),
+  coverage_gaps: z.array(CoverageGapSchema).max(5_000),
+  review_status: z.literal("pending"),
+  validated_at: z.string().datetime(),
+}).strict();
+
+export const ValidatedArtifactSchema = z.union([
+  LegacyValidatedArtifactSchema,
+  StrictValidatedArtifactSchema,
+]);
+
+export type StrictValidatedArtifact = z.infer<typeof StrictValidatedArtifactSchema>;
 export type ValidatedArtifact = z.infer<typeof ValidatedArtifactSchema>;
 
 export interface ValidateOptions {
@@ -96,11 +142,67 @@ export interface ValidateOptions {
 export interface ValidationEvidenceContext {
   normalizedText: string;
   hasImages: boolean;
+  xlsxCells?: XlsxCellEvidenceIndex;
+  lineEvidence?: Record<string, string[]>;
   bySourceFileId?: Record<string, {
     normalizedText: string;
     hasImages: boolean;
+    xlsxCells?: XlsxCellEvidenceIndex;
+    lineEvidence?: Record<string, string[]>;
   }>;
   sourceScoped?: boolean;
+  referencedSourceFileIds?: string[];
+  recordModalities?: Record<string, "text" | "image" | "mixed">;
+  recordSourceModalities?: Record<string, Record<string, "text" | "image" | "mixed">>;
+}
+
+function recordEvidenceModality(
+  recordModalities: ValidationEvidenceContext["recordModalities"],
+  issuePath: string,
+): "text" | "image" | "mixed" | undefined {
+  if (!recordModalities) return undefined;
+  let candidate = issuePath;
+  while (candidate) {
+    const modality = recordModalities[candidate];
+    if (modality) return modality;
+    const parent = candidate.replace(/(?:\.[^.[]+|\[\d+\])$/u, "");
+    if (parent === candidate) break;
+    candidate = parent;
+  }
+  return undefined;
+}
+
+function scopeEvidenceToRecord(
+  evidence: ValidationEvidenceContext,
+  issuePath: string,
+): ValidationEvidenceContext {
+  const modality = recordEvidenceModality(evidence.recordModalities, issuePath);
+  return {
+    ...evidence,
+    // Text-backed and mixed-origin records must pass exact converted-text
+    // validation. An unrelated image on the same source cannot downgrade the
+    // mismatch to a warning. Only an explicitly image-backed record, or a
+    // legacy image-only source with no converted text, receives visual review.
+    hasImages: modality === "image"
+      || (modality === undefined && !evidence.normalizedText && evidence.hasImages),
+  };
+}
+
+function recordSourceEvidenceModality(
+  recordSourceModalities: ValidationEvidenceContext["recordSourceModalities"],
+  issuePath: string,
+  sourceFileIdValue: string,
+): "text" | "image" | "mixed" | undefined {
+  if (!recordSourceModalities) return undefined;
+  let candidate = issuePath;
+  while (candidate) {
+    const modality = recordSourceModalities[candidate]?.[sourceFileIdValue];
+    if (modality) return modality;
+    const parent = candidate.replace(/(?:\.[^.[]+|\[\d+\])$/u, "");
+    if (parent === candidate) break;
+    candidate = parent;
+  }
+  return undefined;
 }
 
 export function normalizeEvidenceText(value: string): string {
@@ -110,6 +212,110 @@ export function normalizeEvidenceText(value: string): string {
     .replace(/\\\|/g, "|")
     .replace(/\s+/gu, " ")
     .trim();
+}
+
+interface ParsedLineEvidenceQuote {
+  locator: string;
+  lineNumber: number;
+  lineContent: string;
+}
+
+export function parseLineEvidenceQuote(value: string): ParsedLineEvidenceQuote | null {
+  const normalized = normalizeEvidenceText(value);
+  const match = /^line:(\d+):\s*(.+)$/iu.exec(normalized);
+  if (!match) return null;
+  const lineNumber = Number.parseInt(match[1], 10);
+  const lineContent = match[2].trim();
+  if (!Number.isSafeInteger(lineNumber) || lineNumber < 1 || !lineContent) return null;
+  return { locator: `line:${lineNumber}`, lineNumber, lineContent };
+}
+
+export function indexLineEvidence(text: string, lineOffset = 0): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const [index, rawLine] of text.split(/\r?\n/u).entries()) {
+    const normalized = normalizeEvidenceText(rawLine);
+    const locator = `line:${lineOffset + index + 1}`;
+    result[locator] = normalized ? [normalized] : [];
+  }
+  return result;
+}
+
+export type XlsxCellEvidenceIndex = Record<string, string[]>;
+
+export type XlsxEvidenceQuoteMatch = {
+  kind: "not_xlsx";
+} | {
+  kind: "match";
+  locator: string;
+} | {
+  kind: "reject";
+  locator: string;
+  violation: "not_in_request" | "not_exact_single_cell";
+};
+
+interface ParsedXlsxEvidenceLine {
+  locator: string;
+  cellContent: string;
+}
+
+function parseXlsxEvidenceLine(value: string, rejectComposite: boolean): ParsedXlsxEvidenceLine | null {
+  const normalized = normalizeEvidenceText(value);
+  const located = /^(.+?)!([A-Z]+\d+):\s*(.+)$/iu.exec(normalized);
+  if (!located) return null;
+  const locator = `${located[1].normalize("NFKC")}!${located[2].toUpperCase()}`;
+  const cellContent = located[3].trim();
+  if (!cellContent) return null;
+  if (rejectComposite) {
+    // A range such as `Sheet!A1:B2: ...` is parsed with `B2: ...` as the
+    // apparent cell content. Explicitly reject that shape, as well as a
+    // second locator joined by punctuation. A source quote may bind to one
+    // physical cell only.
+    if (/^[A-Z]+\d+(?::[A-Z]+\d+)?\s*:/iu.test(cellContent)) return null;
+    if (/(?:^|[;|])\s*(?:[^;|]+!)?[A-Z]+\d+(?::[A-Z]+\d+)?\s*:/iu.test(cellContent)) return null;
+  }
+  return { locator, cellContent };
+}
+
+export function indexXlsxCellEvidence(text: string): XlsxCellEvidenceIndex {
+  const index: XlsxCellEvidenceIndex = {};
+  for (const line of text.split(/\r?\n/u)) {
+    const parsed = parseXlsxEvidenceLine(line.trim(), false);
+    if (!parsed) continue;
+    const values = index[parsed.locator] ?? [];
+    if (!values.includes(parsed.cellContent)) values.push(parsed.cellContent);
+    index[parsed.locator] = values;
+  }
+  return index;
+}
+
+export function matchSingleXlsxEvidenceQuote(
+  quote: string,
+  cells: XlsxCellEvidenceIndex,
+): XlsxEvidenceQuoteMatch {
+  const parsed = parseXlsxEvidenceLine(quote, true);
+  if (!parsed) {
+    const locatedButComposite = parseXlsxEvidenceLine(quote, false);
+    if (locatedButComposite) {
+      return {
+        kind: "reject",
+        locator: locatedButComposite.locator,
+        violation: "not_exact_single_cell",
+      };
+    }
+    return /(?:^|[;|\s])(?:[^;|\s]+!)?[A-Z]+\d+(?::[A-Z]+\d+)?\s*:/iu.test(
+      normalizeEvidenceText(quote),
+    )
+      ? { kind: "reject", locator: "invalid_xlsx_locator", violation: "not_exact_single_cell" }
+      : { kind: "not_xlsx" };
+  }
+  const candidates = cells[parsed.locator];
+  if (!candidates) {
+    return { kind: "reject", locator: parsed.locator, violation: "not_in_request" };
+  }
+  if (!candidates.some((candidate) => candidate.includes(parsed.cellContent))) {
+    return { kind: "reject", locator: parsed.locator, violation: "not_exact_single_cell" };
+  }
+  return { kind: "match", locator: parsed.locator };
 }
 
 export function validatedArtifactFingerprint(
@@ -133,11 +339,33 @@ function validMoneyValues(...values: Array<number | null>): number[] {
   ))];
 }
 
-function extractedMoneyEvidence(data: DisclosureExtraction): ExtractedMoneyEvidence[] {
+function extractedMoneyEvidence(
+  data: DisclosureExtraction,
+  includeAuditLedger = true,
+): ExtractedMoneyEvidence[] {
+  if (includeAuditLedger && (data.money_occurrences?.length ?? 0) > 0) {
+    return (data.money_occurrences ?? []).map((occurrence) => ({
+      values: [occurrence.amount_krw],
+      quote: occurrence.source_quote,
+    }));
+  }
   const evidence: ExtractedMoneyEvidence[] = [];
   const add = (quote: string | null, ...values: Array<number | null>): void => {
     const normalizedValues = validMoneyValues(...values);
-    if (normalizedValues.length > 0) evidence.push({ values: normalizedValues, quote });
+    if (normalizedValues.length === 0) return;
+    if (quote === null) {
+      evidence.push({ values: normalizedValues, quote });
+      return;
+    }
+    const decoded = decodeEvidenceQuote(quote);
+    if (decoded.kind === "merged") {
+      evidence.push(...decoded.fragments.map((fragment) => ({
+        values: normalizedValues,
+        quote: fragment.quote,
+      })));
+      return;
+    }
+    evidence.push({ values: normalizedValues, quote });
   };
   for (const item of data.agency_packages) {
     add(item.source_quote, item.price_min_krw, item.price_max_krw);
@@ -150,6 +378,36 @@ function extractedMoneyEvidence(data: DisclosureExtraction): ExtractedMoneyEvide
     for (const option of item.options) {
       add(option.source_quote, option.price_min_krw, option.price_max_krw);
     }
+    for (const policy of item.policies ?? []) {
+      add(policy.source_quote, ...sourceMoneyOccurrences(
+        policy.source_quote,
+        null,
+        policy.source_quote,
+        "policy_quote",
+      ).map((occurrence) => occurrence.krw));
+    }
+  }
+  for (const hall of data.halls ?? []) {
+    add(
+      hall.source_quote,
+      hall.venue_fee_min_krw,
+      hall.venue_fee_max_krw,
+      hall.meal_price_min_krw,
+      hall.meal_price_max_krw,
+      hall.decoration_fee_min_krw,
+      hall.decoration_fee_max_krw,
+    );
+    for (const option of hall.options) {
+      add(option.source_quote, option.price_min_krw, option.price_max_krw);
+    }
+  }
+  for (const section of data.sections ?? []) {
+    add(section.source_quote, ...sourceMoneyOccurrences(
+      section.source_quote,
+      null,
+      section.source_quote,
+      "section_quote",
+    ).map((occurrence) => occurrence.krw));
   }
   add(data.hall.venue_fee_source_quote, data.hall.venue_fee_krw);
   add(
@@ -172,6 +430,12 @@ function declaredMoneyMultiplier(line: string): number | null {
   if (match[1] === "만") return 10_000;
   if (match[1] === "천") return 1_000;
   return 1;
+}
+
+function parentheticalMoneyMultiplier(line: string): number | null {
+  const match = line.match(/[([]\s*(?:단위\s*[:：]?\s*)?(억|천만|백만|만|천)?\s*원(?:\s*,[^)\]]*)?\s*[)\]]/u);
+  if (!match) return null;
+  return moneyMultiplier(match[1] ?? "원");
 }
 
 function excludedMoneyContext(line: string): boolean {
@@ -198,9 +462,67 @@ function moneyMultiplier(unit: string): number {
 
 function numericMoney(value: string, multiplier: number): number | null {
   const numeric = Number(value.replace(/,/g, ""));
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
   const amount = Math.round(numeric * multiplier);
   return Number.isSafeInteger(amount) ? amount : null;
+}
+
+function explicitMoneyAmount(raw: string): number | null {
+  let amount = 0;
+  let components = 0;
+  for (const match of raw.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(천만|백만|억|만|천)/gu)) {
+    const component = numericMoney(match[1], moneyMultiplier(match[2]));
+    if (component === null) return null;
+    amount += component;
+    components += 1;
+  }
+  if (components > 0) return Number.isSafeInteger(amount) ? amount : null;
+  const won = raw.match(/(\d[\d,]*(?:\.\d+)?)\s*원/u);
+  return won ? numericMoney(won[1], 1) : null;
+}
+
+function bareMoneyMultiplier(raw: string, declaredMultiplier: number, before = ""): number {
+  // A comma-formatted value such as `1컷16,500` is already written in won,
+  // even when the surrounding sheet declares bare table cells in 만원. Applying
+  // the sheet multiplier would turn 16,500원 into 165,000,000원. Explicit unit
+  // text still wins earlier in sourceMoneyOccurrences.
+  if (
+    declaredMultiplier > 1
+    && raw.includes(",")
+    && Number(raw.replace(/,/g, "")) >= 1_000
+    && /(?:컷|장|개|부|권)\s*$/u.test(before)
+  ) {
+    return 1;
+  }
+  return declaredMultiplier;
+}
+
+function isClockFragment(before: string, after: string): boolean {
+  return /(?:^|\D)\d{1,2}:$/u.test(before) || /^:\d{2}(?:\D|$)/u.test(after);
+}
+
+function isNumberedClause(before: string, after: string): boolean {
+  return /(?:^|<br>|[\n\r])\s*$/iu.test(before) && /^\.\s/u.test(after);
+}
+
+function hasKoreanCountSuffix(after: string): boolean {
+  return /^(?:명|개|건|회|벌|장|부|권|페이지|컷|시간|분|일|개월|월|년|조|인|팀|곳|호|차|대)/u.test(after.trimStart());
+}
+
+function isEmbeddedIdentifier(raw: string, before: string, after: string): boolean {
+  if (raw.includes(",")) return false;
+  // Bare table prices are frequently attached directly to a Korean label
+  // (`대표:55`, `선수정본:5컷11`). Only suppress known choice syntax here;
+  // vendor-name digits in identity columns never receive a bare-price
+  // multiplier in the first place.
+  if (/(?:택|선택)\s*$/u.test(before) || /^스팟/u.test(after)) return true;
+  if (!/[\p{L}]$/u.test(before) && !/^\p{L}/u.test(after)) return false;
+  const segment = before.split(/<br>|[\/|]/iu).at(-1) ?? before;
+  if (/[:：]/u.test(segment)) return false;
+  if (/(?:가격|금액|비용|추가|옵션|할인|할증|대관료|식대|보증금|사용료|상담비|제작비|변경비|당|컷|장|벌|개)\s*$/u.test(before)) {
+    return false;
+  }
+  return true;
 }
 
 function sourceMoneyOccurrences(
@@ -208,57 +530,73 @@ function sourceMoneyOccurrences(
   multiplier: number | null,
   lineContext: string,
   sourceLocator: string,
+  allowBare = true,
 ): CoverageGap[] {
   const occurrences: CoverageGap[] = [];
   const occupied: MoneyMatchSpan[] = [];
-  const push = (raw: string, krw: number | null): void => {
+  const push = (raw: string, krw: number | null, start: number, end: number): void => {
     if (krw === null) return;
+    const context = lineContext.length <= 1_000
+      ? lineContext
+      : payload.slice(
+        Math.max(0, start - 480),
+        Math.min(payload.length, end + 480),
+      );
     occurrences.push({
       raw: raw.trim().slice(0, 200),
       krw,
-      line_context: lineContext.slice(0, 1_000),
+      line_context: context.slice(0, 1_000),
       source_locator: sourceLocator.slice(0, 200),
     });
   };
 
-  const explicitRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)\s*원?/gu;
+  const explicitRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(?:(?:최고|최대|상한)\s*)?(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)\s*원?/gu;
   for (const match of payload.matchAll(explicitRange)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
+    if (!match[0].trimEnd().endsWith("원") && hasKoreanCountSuffix(payload.slice(end))) {
+      occupied.push({ start, end });
+      continue;
+    }
     occupied.push({ start, end });
     const unitMultiplier = moneyMultiplier(match[3]);
-    push(match[0], numericMoney(match[1], unitMultiplier));
-    push(match[0], numericMoney(match[2], unitMultiplier));
+    push(match[0], numericMoney(match[1], unitMultiplier), start, end);
+    push(match[0], numericMoney(match[2], unitMultiplier), start, end);
   }
 
-  const explicitSingle = /(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)(?:\s*원)?|(\d[\d,]*(?:\.\d+)?)\s*원/gu;
+  const explicitSingle = /(?:\d[\d,]*(?:\.\d+)?\s*(?:천만|백만|억|만|천)\s*)+원?|\d[\d,]*(?:\.\d+)?\s*원/gu;
   for (const match of payload.matchAll(explicitSingle)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     if (overlapsSpan(start, end, occupied)) continue;
-    occupied.push({ start, end });
-    if (match[1] && match[2]) {
-      push(match[0], numericMoney(match[1], moneyMultiplier(match[2])));
-    } else if (match[3]) {
-      push(match[0], numericMoney(match[3], 1));
+    if (!match[0].trimEnd().endsWith("원") && hasKoreanCountSuffix(payload.slice(end))) {
+      occupied.push({ start, end });
+      continue;
     }
+    occupied.push({ start, end });
+    push(match[0], explicitMoneyAmount(match[0]), start, end);
   }
 
-  if (multiplier === null) return occurrences;
+  if (multiplier === null || !allowBare) return occurrences;
 
-  const bareRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(\d[\d,]*(?:\.\d+)?)/gu;
+  const bareRange = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(?:(?:최고|최대|상한)\s*)?(\d[\d,]*(?:\.\d+)?)/gu;
   for (const match of payload.matchAll(bareRange)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     if (overlapsSpan(start, end, occupied)) continue;
     const after = payload.slice(end).trimStart();
+    const before = payload.slice(0, start);
+    if (isClockFragment(before, after)) {
+      occupied.push({ start, end });
+      continue;
+    }
     if (/^(?:%|년|개월|월|일|시간|분|시|회|벌|장|개|명|부|권|페이지|컷)/u.test(after)) {
       occupied.push({ start, end });
       continue;
     }
     occupied.push({ start, end });
-    push(match[0], numericMoney(match[1], multiplier));
-    push(match[0], numericMoney(match[2], multiplier));
+    push(match[0], numericMoney(match[1], bareMoneyMultiplier(match[1], multiplier, before)), start, end);
+    push(match[0], numericMoney(match[2], bareMoneyMultiplier(match[2], multiplier, before)), start, end);
   }
 
   for (const match of payload.matchAll(/\d[\d,]*(?:\.\d+)?/gu)) {
@@ -268,19 +606,13 @@ function sourceMoneyOccurrences(
     if (overlapsSpan(start, end, occupied)) continue;
     const after = payload.slice(end).trimStart();
     const before = payload.slice(0, start);
-    if (/^(?:%|p\b|r\b|벌|회|장|개|명|시간|분|시|부|권|페이지|컷|일|개월|월|년|조)/iu.test(after)) continue;
+    if (isClockFragment(before, after) || isNumberedClause(before, after)) continue;
+    if (isEmbeddedIdentifier(raw, before, after)) continue;
+    if (/^(?:%|p\b|r\b|벌|회|장|개|명|시간|분|시|부|권|페이지|컷|스팟|일|개월|월|년|조)/iu.test(after)) continue;
     if (/[\d,.-]$/u.test(before)) continue;
-    push(raw, numericMoney(raw, multiplier));
+    push(raw, numericMoney(raw, bareMoneyMultiplier(raw, multiplier, before)), start, end);
   }
   return occurrences;
-}
-
-function evidenceMatchScore(candidate: CoverageGap, normalizedQuote: string): number {
-  const context = normalizeEvidenceText(candidate.line_context);
-  const raw = normalizeEvidenceText(candidate.raw);
-  if (context.includes(normalizedQuote) || normalizedQuote.includes(context)) return 3;
-  if (raw && normalizedQuote.includes(raw)) return 2;
-  return 1;
 }
 
 function xlsxColumnNumber(column: string): number {
@@ -304,14 +636,20 @@ function priceHeaderContext(payload: string): boolean {
   return /(?:가격|금액|비용|요금|대관료|식대|보증금|추가금|헬퍼|퍼스트웨어|추가대여|헤어피스|선택품목|옵션)/u.test(payload);
 }
 
-export function findCoverageGaps(
-  fullText: string,
-  data: DisclosureExtraction,
-): CoverageGap[] {
-  const normalizedFullText = normalizeEvidenceText(fullText);
+export function scanSourceMoneyOccurrences(fullText: string): CoverageGap[] {
   const candidates: CoverageGap[] = [];
   const lines = fullText.normalize("NFKC").split(/\r?\n/u);
   const workbookMultipliers = new Map<string, Set<number>>();
+  const workbookUnitDeclarations = new Map<string, Array<{
+    column: string;
+    row: number;
+    multiplier: number;
+  }>>();
+  const workbookColumnUnitDeclarations = new Map<string, Array<{
+    column: string;
+    row: number;
+    multiplier: number;
+  }>>();
   const workbookPriceColumns = new Map<string, Set<string>>();
   const workbookCellPayloads = new Map<string, string>();
   const workbookSheets = new Set<string>();
@@ -321,16 +659,27 @@ export function findCoverageGaps(
     workbookSheets.add(cellMatch[1]);
     workbookCellPayloads.set(`${cellMatch[1]}\0${cellMatch[2]}`, cellMatch[3]);
     const declared = declaredMoneyMultiplier(cellMatch[3]);
-    if (declared !== null) {
+    const row = Number(cellMatch[2].match(/\d+$/u)?.[0]);
+    const column = cellMatch[2].match(/^[A-Z]+/u)?.[0];
+    const columnDeclared = declared === null && priceHeaderContext(cellMatch[3])
+      ? parentheticalMoneyMultiplier(cellMatch[3])
+      : null;
+    if (columnDeclared !== null && column && Number.isSafeInteger(row)) {
+      const declarations = workbookColumnUnitDeclarations.get(cellMatch[1]) ?? [];
+      declarations.push({ column, row, multiplier: columnDeclared });
+      workbookColumnUnitDeclarations.set(cellMatch[1], declarations);
+    } else if (declared !== null) {
       const values = workbookMultipliers.get(cellMatch[1]) ?? new Set<number>();
       values.add(declared);
       workbookMultipliers.set(cellMatch[1], values);
+      if (column && Number.isSafeInteger(row)) {
+        const declarations = workbookUnitDeclarations.get(cellMatch[1]) ?? [];
+        declarations.push({ column, row, multiplier: declared });
+        workbookUnitDeclarations.set(cellMatch[1], declarations);
+      }
     }
-    const row = Number(cellMatch[2].match(/\d+$/u)?.[0]);
-    const column = cellMatch[2].match(/^[A-Z]+/u)?.[0];
     if (
-      declared === null
-      && column
+      column
       && Number.isSafeInteger(row)
       && row <= 20
       && priceHeaderContext(cellMatch[3])
@@ -339,6 +688,30 @@ export function findCoverageGaps(
       priceColumns.add(column);
       workbookPriceColumns.set(cellMatch[1], priceColumns);
     }
+  }
+  for (const [sheetName, declarations] of workbookUnitDeclarations) {
+    const existingColumnDeclarations = workbookColumnUnitDeclarations.get(sheetName) ?? [];
+    const columnSpecificRows = new Set<number>();
+    for (const row of new Set([
+      ...declarations.map((declaration) => declaration.row),
+      ...existingColumnDeclarations.map((declaration) => declaration.row),
+    ])) {
+      const rowDeclarations = [...declarations, ...existingColumnDeclarations]
+        .filter((declaration) => declaration.row === row);
+      if (
+        new Set(rowDeclarations.map((declaration) => declaration.column)).size > 1
+        && new Set(rowDeclarations.map((declaration) => declaration.multiplier)).size > 1
+      ) {
+        columnSpecificRows.add(row);
+      }
+    }
+    const promoted = declarations.filter((declaration) => columnSpecificRows.has(declaration.row));
+    if (promoted.length === 0) continue;
+    workbookColumnUnitDeclarations.set(sheetName, [...existingColumnDeclarations, ...promoted]);
+    workbookUnitDeclarations.set(
+      sheetName,
+      declarations.filter((declaration) => !columnSpecificRows.has(declaration.row)),
+    );
   }
   let prepassSheet: string | null = null;
   for (const rawLine of lines) {
@@ -357,12 +730,33 @@ export function findCoverageGaps(
     const endColumn = merge[2].match(/^[A-Z]+/u)?.[0];
     if (!startColumn || !endColumn) continue;
     const priceColumns = workbookPriceColumns.get(prepassSheet) ?? new Set<string>();
+    const anchorColumn = merge[3].match(/^[A-Z]+/u)?.[0];
+    const anchorRow = Number(merge[3].match(/\d+$/u)?.[0]);
+    const anchorDeclaration = (workbookColumnUnitDeclarations.get(prepassSheet) ?? [])
+      .filter((declaration) => declaration.column === anchorColumn && declaration.row === anchorRow)
+      .at(-1);
     for (
       let column = xlsxColumnNumber(startColumn);
       column <= xlsxColumnNumber(endColumn);
       column += 1
     ) {
-      priceColumns.add(xlsxColumnName(column));
+      const columnName = xlsxColumnName(column);
+      priceColumns.add(columnName);
+      if (anchorDeclaration) {
+        const declarations = workbookColumnUnitDeclarations.get(prepassSheet) ?? [];
+        if (!declarations.some((declaration) =>
+          declaration.column === columnName
+          && declaration.row === anchorDeclaration.row
+          && declaration.multiplier === anchorDeclaration.multiplier
+        )) {
+          declarations.push({
+            column: columnName,
+            row: anchorDeclaration.row,
+            multiplier: anchorDeclaration.multiplier,
+          });
+          workbookColumnUnitDeclarations.set(prepassSheet, declarations);
+        }
+      }
     }
     workbookPriceColumns.set(prepassSheet, priceColumns);
   }
@@ -383,10 +777,19 @@ export function findCoverageGaps(
     if (canonicalCell) {
       const sheetName = canonicalCell[1];
       const sheetMultipliers = workbookMultipliers.get(sheetName);
-      const sheetMultiplier = sheetMultipliers?.size === 1 ? [...sheetMultipliers][0] : tableMultiplier;
-      const payload = canonicalCell[3];
-      if (excludedMoneyContext(payload) || declaredMoneyMultiplier(payload) !== null) continue;
+      const cellRow = Number.parseInt(canonicalCell[2].match(/\d+$/u)?.[0] ?? "", 10);
       const column = canonicalCell[2].match(/^[A-Z]+/u)?.[0];
+      const nearestColumnDeclaration = (workbookColumnUnitDeclarations.get(sheetName) ?? [])
+        .filter((declaration) => declaration.column === column && declaration.row <= cellRow)
+        .sort((left, right) => right.row - left.row)[0];
+      const nearestDeclaration = (workbookUnitDeclarations.get(sheetName) ?? [])
+        .filter((declaration) => declaration.row <= cellRow)
+        .sort((left, right) => right.row - left.row)[0];
+      const sheetMultiplier = nearestColumnDeclaration?.multiplier
+        ?? nearestDeclaration?.multiplier
+        ?? (sheetMultipliers?.size === 1 ? [...sheetMultipliers][0] : tableMultiplier);
+      const payload = canonicalCell[3];
+      if (declaredMoneyMultiplier(payload) !== null || parentheticalMoneyMultiplier(payload) !== null) continue;
       const hasInlinePriceSemantics = /(?:가격|금액|비용|추가|옵션|할인|할증|당|업그레이드|제작|변경|대관|식대|사용료|보증금|원본|수정|앨범|액자)/u.test(payload);
       const isPriceColumn = Boolean(column && workbookPriceColumns.get(sheetName)?.has(column));
       const cellMultiplier = isPriceColumn || hasInlinePriceSemantics ? sheetMultiplier : null;
@@ -395,6 +798,7 @@ export function findCoverageGaps(
         cellMultiplier,
         line,
         `${sheetName}!${canonicalCell[2]}`,
+        !excludedMoneyContext(payload),
       ));
       continue;
     }
@@ -413,68 +817,500 @@ export function findCoverageGaps(
       tableMultiplier = declared;
       continue;
     }
-    if (excludedMoneyContext(line)) continue;
     candidates.push(...sourceMoneyOccurrences(
       line,
       tableMultiplier,
       line,
       `line:${lineIndex + 1}`,
+      !excludedMoneyContext(line),
     ));
   }
 
-  const matched = new Set<number>();
-  for (const evidence of extractedMoneyEvidence(data)) {
-    if (!evidence.quote) continue;
+  return candidates;
+}
+
+export function findCoverageGaps(
+  fullText: string,
+  data: DisclosureExtraction,
+  options: { includeAuditLedger?: boolean } = {},
+): CoverageGap[] {
+  const candidates = scanSourceMoneyOccurrences(fullText);
+  const xlsxCells = indexXlsxCellEvidence(fullText);
+  const lineEvidence = indexLineEvidence(fullText);
+  const evidenceValues = extractedMoneyEvidence(data, options.includeAuditLedger ?? false)
+    .flatMap((evidence) => evidence.values.map((value) => ({ quote: evidence.quote, value })));
+  const edges = evidenceValues.map((evidence) => {
+    if (!evidence.quote) return [] as number[];
     const normalizedQuote = normalizeEvidenceText(evidence.quote);
-    if (!normalizedQuote || !normalizedFullText.includes(normalizedQuote)) continue;
-    for (const value of evidence.values) {
-      const matchingIndices = candidates
-        .map((candidate, index) => ({ candidate, index }))
-        .filter(({ candidate, index }) => !matched.has(index) && candidate.krw === value)
-        .sort((left, right) =>
-          evidenceMatchScore(right.candidate, normalizedQuote)
-          - evidenceMatchScore(left.candidate, normalizedQuote)
-          || left.index - right.index
-        );
-      const match = matchingIndices[0];
-      if (match) matched.add(match.index);
+    if (!normalizedQuote) return [] as number[];
+    const lineQuote = parseLineEvidenceQuote(evidence.quote);
+    const xlsxQuote = matchSingleXlsxEvidenceQuote(evidence.quote, xlsxCells);
+    return candidates.flatMap((candidate, candidateIndex) => {
+      if (candidate.krw !== evidence.value) return [];
+      const candidateContext = normalizeEvidenceText(candidate.line_context);
+      if (lineQuote) {
+        const sourceLines = lineEvidence[lineQuote.locator] ?? [];
+        return candidate.source_locator === lineQuote.locator
+          && sourceLines.some((line) => line.includes(lineQuote.lineContent))
+          ? [candidateIndex]
+          : [];
+      }
+      if (xlsxQuote.kind === "match") {
+        return candidate.source_locator === xlsxQuote.locator ? [candidateIndex] : [];
+      }
+      // Legacy/non-located evidence remains acceptable only when its semantic
+      // context identifies the actual occurrence. A money-only quote must not
+      // consume an arbitrary equal-valued occurrence elsewhere in the source.
+      const semanticTokens = normalizedQuote
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((token) => token.length >= 2)
+        .filter((token) => !/^(?:krw|\d[\d,.]*(?:원|만원|천원|억원)?)$/iu.test(token));
+      return semanticTokens.some((token) => candidateContext.includes(token))
+        && (candidateContext.includes(normalizedQuote) || normalizedQuote.includes(candidateContext))
+        ? [candidateIndex]
+        : [];
+    });
+  });
+
+  const candidateOwner = new Map<number, number>();
+  const assign = (evidenceIndex: number, visited: Set<number>): boolean => {
+    for (const candidateIndex of edges[evidenceIndex] ?? []) {
+      if (visited.has(candidateIndex)) continue;
+      visited.add(candidateIndex);
+      const previousOwner = candidateOwner.get(candidateIndex);
+      if (previousOwner === undefined || assign(previousOwner, visited)) {
+        candidateOwner.set(candidateIndex, evidenceIndex);
+        return true;
+      }
     }
-  }
+    return false;
+  };
+  for (const evidenceIndex of evidenceValues.keys()) assign(evidenceIndex, new Set<number>());
+  const matched = new Set(candidateOwner.keys());
   return candidates.filter((_, index) => !matched.has(index)).slice(0, 5_000);
 }
 
 export function parseKoreanMoneyAmounts(text: string): number[] {
-  const amounts = new Set<number>();
-  const multiplierFor = (unit: string | undefined): number => {
-    if (unit === "억") return 100_000_000;
-    if (unit === "천만") return 10_000_000;
-    if (unit === "백만") return 1_000_000;
-    if (unit === "만") return 10_000;
-    if (unit === "천") return 1_000;
-    return 1;
-  };
-  const parseNumeric = (value: string): number => Number(value.replace(/,/g, ""));
+  return [...new Set(sourceMoneyOccurrences(
+    text.normalize("NFKC"),
+    null,
+    text,
+    "quote",
+  ).map((occurrence) => occurrence.krw))];
+}
 
-  const rangePattern = /(\d[\d,]*(?:\.\d+)?)\s*(?:~|〜|–|—|-)\s*(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)\s*원?/g;
-  for (const match of text.matchAll(rangePattern)) {
-    const minimum = parseNumeric(match[1]);
-    const maximum = parseNumeric(match[2]);
-    const multiplier = multiplierFor(match[3]);
-    if (Number.isFinite(minimum)) amounts.add(Math.round(minimum * multiplier));
-    if (Number.isFinite(maximum)) amounts.add(Math.round(maximum * multiplier));
-  }
+function sameStringSet(left: string[], right: string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((value) => rightSet.has(value));
+}
 
-  const explicitUnitPattern = /(\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|만|천)(?:\s*원)?/g;
-  for (const match of text.matchAll(explicitUnitPattern)) {
-    const numeric = parseNumeric(match[1]);
-    if (Number.isFinite(numeric)) amounts.add(Math.round(numeric * multiplierFor(match[2])));
+function evidenceContainsQuote(
+  quote: string,
+  evidence: Pick<ValidationEvidenceContext, "normalizedText" | "xlsxCells" | "lineEvidence">,
+): boolean {
+  const lineQuote = parseLineEvidenceQuote(quote);
+  if (lineQuote) {
+    return (evidence.lineEvidence?.[lineQuote.locator] ?? [])
+      .some((line) => line.includes(lineQuote.lineContent));
   }
-  const wonPattern = /(\d[\d,]*(?:\.\d+)?)\s*원/g;
-  for (const match of text.matchAll(wonPattern)) {
-    const numeric = parseNumeric(match[1]);
-    if (Number.isFinite(numeric)) amounts.add(Math.round(numeric));
+  const normalizedQuote = normalizeEvidenceText(quote);
+  if (normalizedQuote && evidence.normalizedText.includes(normalizedQuote)) return true;
+  return evidence.xlsxCells !== undefined
+    && matchSingleXlsxEvidenceQuote(quote, evidence.xlsxCells).kind === "match";
+}
+
+function boundedSingleQuotePayload(quote: string): string | null {
+  const line = parseLineEvidenceQuote(quote);
+  if (line) return normalizeEvidenceText(line.lineContent);
+  const xlsx = parseXlsxEvidenceLine(quote, true);
+  if (xlsx) return normalizeEvidenceText(xlsx.cellContent);
+  const normalized = normalizeEvidenceText(quote);
+  return normalized.length > 0 ? normalized : null;
+}
+
+/**
+ * Return only the text explicitly carried by the quoted evidence boundary.
+ * Never search the whole source here: an exact but unrelated quote must not
+ * authenticate semantic fields copied or invented from somewhere else.
+ */
+function boundedEvidencePayloads(quote: string): string[] | null {
+  const decoded = decodeEvidenceQuote(quote);
+  if (decoded.kind === "invalid") return null;
+  if (decoded.kind === "single") {
+    const payload = boundedSingleQuotePayload(decoded.quote);
+    return payload ? [payload] : null;
   }
-  return [...amounts];
+  const payloads: string[] = [];
+  for (const fragment of decoded.fragments) {
+    // Nested envelopes are not part of the evidence contract and must not
+    // expand the trusted text boundary recursively.
+    if (decodeEvidenceQuote(fragment.quote).kind !== "single") return null;
+    const payload = boundedSingleQuotePayload(fragment.quote);
+    if (!payload) return null;
+    payloads.push(payload);
+  }
+  return payloads;
+}
+
+function boundedEvidenceContainsField(payloads: readonly string[], value: string): boolean {
+  const normalizedValue = normalizeEvidenceText(value);
+  return normalizedValue.length > 0
+    && payloads.some((payload) => payload.includes(normalizedValue));
+}
+
+const SECTION_TYPE_EVIDENCE_LABELS: Readonly<Record<
+  NonNullable<DisclosureExtraction["sections"]>[number]["section_type"],
+  readonly string[]
+>> = {
+  pricing_basis: ["가격 기준", "가격기준", "금액 기준", "금액기준", "금액 단위", "금액단위", "단위", "pricing basis", "price basis"],
+  refund_policy: ["환불", "환급", "반환", "refund"],
+  penalty: ["위약금", "위약", "해약금", "취소 수수료", "penalty"],
+  contract_terms: ["계약 조건", "계약조건", "계약 조항", "계약조항", "약관", "contract terms"],
+  reservation: ["예약", "reservation"],
+  validity: ["유효", "적용 기간", "적용기간", "validity"],
+  included_items: ["포함", "구성", "included"],
+  usage_guide: ["이용 안내", "이용안내", "사용 안내", "사용안내", "usage guide"],
+  notice: ["안내", "유의", "주의", "공지", "notice"],
+  other: ["기타", "other"],
+};
+
+const POLICY_TYPE_EVIDENCE_LABELS: Readonly<Record<
+  NonNullable<DisclosureExtraction["partner_vendors"][number]["policies"]>[number]["policy_type"],
+  readonly string[]
+>> = {
+  penalty: ["위약금", "위약", "해약금", "취소 수수료", "penalty"],
+  refund: ["환불", "환급", "반환", "refund"],
+  change: ["변경", "change"],
+  other: ["기타", "other"],
+};
+
+const PARTNER_CATEGORY_EVIDENCE_LABELS: Readonly<Record<
+  DisclosureExtraction["partner_vendors"][number]["category"],
+  readonly string[]
+>> = {
+  studio: ["스튜디오", "studio"],
+  dress: ["드레스", "dress"],
+  makeup: ["메이크업", "헤어 메이크업", "makeup"],
+  hall: ["예식장", "웨딩홀", "hall", "venue"],
+  other: ["기타", "other"],
+};
+
+const AGENCY_CATEGORY_EVIDENCE_LABELS: Readonly<Record<
+  DisclosureExtraction["agency_packages"][number]["category_scope"][number],
+  readonly string[]
+>> = {
+  studio: ["스튜디오", "studio", "스드메"],
+  dress: ["드레스", "dress", "스드메"],
+  makeup: ["메이크업", "헤어 메이크업", "makeup", "스드메"],
+};
+
+function boundedEvidenceContainsAnyLabel(
+  payloads: readonly string[],
+  labels: readonly string[],
+): boolean {
+  const normalizedPayloads = payloads.map((payload) => payload.toLocaleLowerCase("ko-KR"));
+  return labels.some((label) => {
+    const normalizedLabel = normalizeEvidenceText(label).toLocaleLowerCase("ko-KR");
+    return normalizedPayloads.some((payload) => payload.includes(normalizedLabel));
+  });
+}
+
+function validateSectionSemanticGrounding(
+  section: NonNullable<DisclosureExtraction["sections"]>[number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): void {
+  if (!evidence) return;
+  const payloads = boundedEvidencePayloads(section.source_quote);
+  if (!payloads) return;
+  let requiresReview = false;
+  for (const [field, value] of [
+    ["title", section.title],
+    ["content_verbatim", section.content_verbatim],
+  ] as const) {
+    if (boundedEvidenceContainsField(payloads, value)) continue;
+    requiresReview = true;
+    if (
+      field === "content_verbatim"
+      && normalizeEvidenceText(value).length > SECTION_AND_POLICY_SOURCE_QUOTE_MAX_CHARACTERS
+    ) {
+      issues.push({
+        severity: "error",
+        code: "authoritative_field_exceeds_source_quote_capacity",
+        path: `${issuePath}.${field}`,
+        message: "content_verbatim이 source_quote 최대 길이를 넘어 일부 인용만으로 전체 원문을 인증할 수 없어 수동 검토로 격리했습니다.",
+      });
+      continue;
+    }
+    issues.push({
+      severity: "error",
+      code: "authoritative_field_not_grounded_in_source_quote",
+      path: `${issuePath}.${field}`,
+      message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
+    });
+  }
+  if (!boundedEvidenceContainsAnyLabel(
+    payloads,
+    SECTION_TYPE_EVIDENCE_LABELS[section.section_type],
+  )) {
+    requiresReview = true;
+    issues.push({
+      severity: "error",
+      code: "semantic_type_not_grounded_in_source_quote",
+      path: `${issuePath}.section_type`,
+      message: "section_type을 뒷받침하는 명시적 유형 표지가 source_quote 안에 없어 자동 적재를 차단했습니다.",
+    });
+  }
+  if (requiresReview) section.needs_review = true;
+}
+
+function validatePolicySemanticGrounding(
+  policy: NonNullable<DisclosureExtraction["partner_vendors"][number]["policies"]>[number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): boolean {
+  if (!evidence) return false;
+  const payloads = boundedEvidencePayloads(policy.source_quote);
+  if (!payloads) return false;
+  let requiresReview = false;
+  if (!boundedEvidenceContainsField(payloads, policy.raw_text)) {
+    requiresReview = true;
+    const exceedsQuoteCapacity = normalizeEvidenceText(policy.raw_text).length
+      > SECTION_AND_POLICY_SOURCE_QUOTE_MAX_CHARACTERS;
+    issues.push(exceedsQuoteCapacity
+      ? {
+          severity: "error",
+          code: "authoritative_field_exceeds_source_quote_capacity",
+          path: `${issuePath}.raw_text`,
+          message: "정책 raw_text가 source_quote 최대 길이를 넘어 일부 인용만으로 전체 원문을 인증할 수 없어 수동 검토로 격리했습니다.",
+        }
+      : {
+          severity: "error",
+          code: "authoritative_field_not_grounded_in_source_quote",
+          path: `${issuePath}.raw_text`,
+          message: "정책 raw_text가 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.",
+        });
+  }
+  if (!boundedEvidenceContainsAnyLabel(
+    payloads,
+    POLICY_TYPE_EVIDENCE_LABELS[policy.policy_type],
+  )) {
+    requiresReview = true;
+    issues.push({
+      severity: "error",
+      code: "semantic_type_not_grounded_in_source_quote",
+      path: `${issuePath}.policy_type`,
+      message: "policy_type을 뒷받침하는 명시적 유형 표지가 source_quote 안에 없어 자동 적재를 차단했습니다.",
+    });
+  }
+  return requiresReview;
+}
+
+function validateOptionSemanticGrounding(
+  option: DisclosureExtraction["agency_packages"][number]["options"][number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): boolean {
+  if (!evidence) return false;
+  const payloads = boundedEvidencePayloads(option.source_quote);
+  if (!payloads) return false;
+  let requiresReview = false;
+  const fields: Array<["name" | "raw_text" | "unit" | "condition", string]> = [
+    ["name", option.name],
+    ["raw_text", option.raw_text],
+  ];
+  if (option.unit !== null) fields.push(["unit", option.unit]);
+  if (option.condition !== null) fields.push(["condition", option.condition]);
+  for (const [field, value] of fields) {
+    if (boundedEvidenceContainsField(payloads, value)) continue;
+    requiresReview = true;
+    issues.push({
+      severity: "error",
+      code: "authoritative_field_not_grounded_in_source_quote",
+      path: `${issuePath}.${field}`,
+      message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
+    });
+  }
+  return requiresReview;
+}
+
+function validatePartnerVendorSemanticGrounding(
+  vendor: DisclosureExtraction["partner_vendors"][number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): void {
+  if (!evidence) return;
+  const payloads = boundedEvidencePayloads(vendor.source_quote);
+  if (!payloads) return;
+  const fields: Array<["vendor_name" | "base_spec" | "price_note", string]> = [
+    ["vendor_name", vendor.vendor_name],
+  ];
+  if (vendor.base_spec !== null) fields.push(["base_spec", vendor.base_spec]);
+  if (vendor.price_note !== null) fields.push(["price_note", vendor.price_note]);
+  for (const [field, value] of fields) {
+    if (boundedEvidenceContainsField(payloads, value)) continue;
+    vendor.needs_review = true;
+    issues.push({
+      severity: "error",
+      code: "authoritative_field_not_grounded_in_source_quote",
+      path: `${issuePath}.${field}`,
+      message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
+    });
+  }
+  if (!boundedEvidenceContainsAnyLabel(
+    payloads,
+    PARTNER_CATEGORY_EVIDENCE_LABELS[vendor.category],
+  )) {
+    vendor.needs_review = true;
+    issues.push({
+      severity: "error",
+      code: "semantic_type_not_grounded_in_source_quote",
+      path: `${issuePath}.category`,
+      message: "업체 category를 뒷받침하는 명시적 카테고리 표지가 source_quote 안에 없어 자동 적재를 차단했습니다.",
+    });
+  }
+}
+
+function validateAgencyPackageSemanticGrounding(
+  agencyPackage: DisclosureExtraction["agency_packages"][number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): void {
+  if (!evidence) return;
+  const payloads = boundedEvidencePayloads(agencyPackage.source_quote);
+  if (!payloads) return;
+  const fields: Array<["package_name" | "vat_note" | "price_note", string]> = [
+    ["package_name", agencyPackage.package_name],
+  ];
+  if (agencyPackage.vat_note !== null) fields.push(["vat_note", agencyPackage.vat_note]);
+  if (agencyPackage.price_note !== null) fields.push(["price_note", agencyPackage.price_note]);
+  for (const [field, value] of fields) {
+    if (boundedEvidenceContainsField(payloads, value)) continue;
+    agencyPackage.needs_review = true;
+    issues.push({
+      severity: "error",
+      code: "authoritative_field_not_grounded_in_source_quote",
+      path: `${issuePath}.${field}`,
+      message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
+    });
+  }
+  agencyPackage.category_scope.forEach((category, categoryIndex) => {
+    if (boundedEvidenceContainsAnyLabel(
+      payloads,
+      AGENCY_CATEGORY_EVIDENCE_LABELS[category],
+    )) return;
+    agencyPackage.needs_review = true;
+    issues.push({
+      severity: "error",
+      code: "semantic_type_not_grounded_in_source_quote",
+      path: `${issuePath}.category_scope[${categoryIndex}]`,
+      message: "패키지 category_scope를 뒷받침하는 명시적 카테고리 표지가 source_quote 안에 없어 자동 적재를 차단했습니다.",
+    });
+  });
+}
+
+function validateLegacyHallItemSemanticGrounding(
+  item: DisclosureExtraction["hall"]["items"][number],
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): void {
+  if (!evidence) return;
+  const payloads = boundedEvidencePayloads(item.source_quote);
+  if (!payloads) return;
+  for (const [field, value] of [
+    ["name", item.name],
+    ["raw_text", item.raw_text],
+  ] as const) {
+    if (boundedEvidenceContainsField(payloads, value)) continue;
+    item.needs_review = true;
+    issues.push({
+      severity: "error",
+      code: "authoritative_field_not_grounded_in_source_quote",
+      path: `${issuePath}.${field}`,
+      message: `${field} 값이 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.`,
+    });
+  }
+}
+
+function validateMergedEvidenceQuote(
+  quote: string,
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): boolean {
+  const decoded = decodeEvidenceQuote(quote);
+  if (decoded.kind === "single") return false;
+  if (decoded.kind === "invalid") {
+    issues.push({
+      severity: "error",
+      code: "merged_source_quote_invalid",
+      path: issuePath,
+      message: `병합 source_quote 형식이 올바르지 않습니다: ${decoded.reason}`,
+    });
+    return true;
+  }
+  if (!evidence?.bySourceFileId || !evidence.referencedSourceFileIds) {
+    issues.push({
+      severity: "error",
+      code: "merged_source_quote_evidence_missing",
+      path: issuePath,
+      message: "병합 source_quote의 조각별 원본을 검증할 수 없어 적재를 차단했습니다.",
+    });
+    return true;
+  }
+  const fragmentSourceIds = decoded.fragments.map((fragment) => fragment.source_file_id);
+  if (!sameStringSet(fragmentSourceIds, evidence.referencedSourceFileIds)) {
+    issues.push({
+      severity: "error",
+      code: "merged_source_quote_provenance_mismatch",
+      path: issuePath,
+      message: "병합 source_quote 조각의 source_file_id 집합이 행 provenance와 일치하지 않습니다.",
+    });
+    return true;
+  }
+  for (const fragment of decoded.fragments) {
+    const source = evidence.bySourceFileId[fragment.source_file_id];
+    if (!source) {
+      issues.push({
+        severity: "error",
+        code: "merged_source_quote_provenance_mismatch",
+        path: issuePath,
+        message: "병합 source_quote가 현재 행에서 참조하지 않은 source_file_id를 포함합니다.",
+      });
+      continue;
+    }
+    if (evidenceContainsQuote(fragment.quote, source)) continue;
+    const fragmentModality = recordSourceEvidenceModality(
+      evidence.recordSourceModalities,
+      issuePath,
+      fragment.source_file_id,
+    );
+    const requiresVisualReview = source.hasImages && (
+      fragmentModality === "image"
+      || (fragmentModality === undefined && !source.normalizedText)
+    );
+    issues.push(requiresVisualReview
+      ? {
+          severity: "warning",
+          code: "merged_source_quote_fragment_requires_visual_review",
+          path: issuePath,
+          message: "병합 source_quote 조각을 해당 이미지 원본에서 사람이 직접 대조해야 합니다.",
+        }
+      : {
+          severity: "error",
+          code: "merged_source_quote_fragment_not_found_in_referenced_source",
+          path: issuePath,
+          message: "병합 source_quote 조각이 선언된 source_file_id의 변환 원문에 존재하지 않습니다.",
+        });
+  }
+  return true;
 }
 
 function validateRange(
@@ -529,9 +1365,9 @@ function validateRange(
       });
     }
 
-    if (evidence) {
-      const normalizedQuote = normalizeEvidenceText(quote);
-      if (!normalizedQuote || !evidence.normalizedText.includes(normalizedQuote)) {
+    const mergedEvidenceHandled = validateMergedEvidenceQuote(quote, issuePath, issues, evidence);
+    if (evidence && !mergedEvidenceHandled) {
+      if (!evidenceContainsQuote(quote, evidence)) {
         issues.push(evidence.hasImages
           ? {
               severity: "warning",
@@ -550,6 +1386,72 @@ function validateRange(
       }
     }
   }
+}
+
+function validateEvidenceQuote(
+  quote: string,
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): void {
+  if (validateMergedEvidenceQuote(quote, issuePath, issues, evidence)) return;
+  if (!evidence) return;
+  if (evidenceContainsQuote(quote, evidence)) return;
+  issues.push(evidence.hasImages
+    ? {
+        severity: "warning",
+        code: "source_quote_requires_visual_review",
+        path: issuePath,
+        message: "source_quote를 변환 텍스트에서 찾지 못했습니다. 이미지/PDF 원본을 사람이 직접 대조해야 합니다.",
+      }
+    : {
+        severity: "error",
+        code: evidence.sourceScoped
+          ? "source_quote_not_found_in_referenced_source"
+          : "source_quote_not_found_in_text",
+        path: issuePath,
+        message: "source_quote가 변환된 원문 텍스트에 존재하지 않아 적재를 차단했습니다.",
+  });
+}
+
+function validateMoneyOccurrenceQuote(
+  quote: string,
+  rawText: string,
+  issuePath: string,
+  issues: ValidationIssue[],
+  evidence?: ValidationEvidenceContext,
+): boolean {
+  let requiresReview = false;
+  if (evidence) {
+    const payloads = boundedEvidencePayloads(quote);
+    if (payloads && !boundedEvidenceContainsField(payloads, rawText)) {
+      requiresReview = true;
+      issues.push({
+        severity: "error",
+        code: "authoritative_field_not_grounded_in_source_quote",
+        path: `${issuePath}.raw_text`,
+        message: "금액 발생 raw_text가 source_quote가 한정한 원문 안에 그대로 존재하지 않아 자동 적재를 차단했습니다.",
+      });
+    }
+  }
+  if (!evidence) return requiresReview;
+  const normalizedQuote = normalizeEvidenceText(quote);
+  if (evidenceContainsQuote(quote, evidence)) return requiresReview;
+  const located = /^(.+![A-Z]+\d+):\s*(.+)$/iu.exec(normalizedQuote);
+  if (located) {
+    const locator = normalizeEvidenceText(located[1]);
+    const raw = normalizeEvidenceText(rawText);
+    const locatorIndex = evidence.normalizedText.indexOf(`${locator}:`);
+    const rawIndex = locatorIndex < 0 ? -1 : evidence.normalizedText.indexOf(raw, locatorIndex + locator.length + 1);
+    const nextCell = rawIndex < 0
+      ? -1
+      : evidence.normalizedText.slice(locatorIndex + locator.length + 1, rawIndex).search(
+        /(?:^|\s).+![A-Z]+\d+:/u,
+      );
+    if (locatorIndex >= 0 && rawIndex >= 0 && nextCell < 0) return requiresReview;
+  }
+  validateEvidenceQuote(quote, issuePath, issues, evidence);
+  return requiresReview;
 }
 
 function resolveRowEvidence(
@@ -592,10 +1494,20 @@ function resolveRowEvidence(
     });
     return { sourceIds: resolvedIds, evidence: undefined };
   }
-  if (!evidence?.bySourceFileId) return { sourceIds: resolvedIds, evidence };
+  if (!evidence?.bySourceFileId) {
+    return {
+      sourceIds: resolvedIds,
+      evidence: evidence ? scopeEvidenceToRecord(evidence, issuePath) : undefined,
+    };
+  }
   const referenced = resolvedIds
     .map((id) => evidence.bySourceFileId?.[id])
-    .filter((value): value is { normalizedText: string; hasImages: boolean } => value !== undefined);
+    .filter((value): value is {
+      normalizedText: string;
+      hasImages: boolean;
+      xlsxCells?: XlsxCellEvidenceIndex;
+      lineEvidence?: Record<string, string[]>;
+    } => value !== undefined);
   if (referenced.length !== resolvedIds.length) {
     issues.push({
       severity: "error",
@@ -607,16 +1519,33 @@ function resolveRowEvidence(
   }
   return {
     sourceIds: resolvedIds,
-    evidence: {
+    evidence: scopeEvidenceToRecord({
       normalizedText: referenced.map((value) => value.normalizedText).filter(Boolean).join(" "),
       hasImages: referenced.some((value) => value.hasImages),
+      xlsxCells: referenced.reduce<XlsxCellEvidenceIndex>((result, value) => {
+        for (const [locator, candidates] of Object.entries(value.xlsxCells ?? {})) {
+          result[locator] = [...new Set([...(result[locator] ?? []), ...candidates])];
+        }
+        return result;
+      }, {}),
+      lineEvidence: referenced.reduce<Record<string, string[]>>((result, value) => {
+        for (const [locator, candidates] of Object.entries(value.lineEvidence ?? {})) {
+          result[locator] = [...new Set([...(result[locator] ?? []), ...candidates])];
+        }
+        return result;
+      }, {}),
+      bySourceFileId: Object.fromEntries(resolvedIds.map((id, index) => [id, referenced[index]])),
       sourceScoped: true,
-    },
+      referencedSourceFileIds: resolvedIds,
+      recordModalities: evidence.recordModalities,
+      recordSourceModalities: evidence.recordSourceModalities,
+    }, issuePath),
   };
 }
 
 function hasHallPayload(data: DisclosureExtraction): boolean {
-  return data.hall.venue_fee_krw !== null
+  return (data.halls?.length ?? 0) > 0
+    || data.hall.venue_fee_krw !== null
     || data.hall.meal_price_min_krw !== null
     || data.hall.meal_price_max_krw !== null
     || data.hall.items.length > 0;
@@ -629,6 +1558,14 @@ function hasAnyPriceValue(data: DisclosureExtraction): boolean {
     item.price_min_krw !== null || item.price_max_krw !== null || optionHasPrice(item.options)
   ) || data.partner_vendors.some((item) =>
     item.price_min_krw !== null || item.price_max_krw !== null || optionHasPrice(item.options)
+  ) || (data.halls ?? []).some((hall) =>
+    hall.meal_price_min_krw !== null
+    || hall.meal_price_max_krw !== null
+    || hall.venue_fee_min_krw !== null
+    || hall.venue_fee_max_krw !== null
+    || hall.decoration_fee_min_krw !== null
+    || hall.decoration_fee_max_krw !== null
+    || optionHasPrice(hall.options)
   ) || data.hall.venue_fee_krw !== null
     || data.hall.meal_price_min_krw !== null
     || data.hall.meal_price_max_krw !== null
@@ -672,6 +1609,27 @@ function publicContactFields(data: DisclosureExtraction): Array<{ path: string; 
       add(`${path}.source_quote`, option.source_quote);
     });
   });
+  (data.halls ?? []).forEach((hall, index) => {
+    const path = `halls[${index}]`;
+    add(`${path}.hall_name`, hall.hall_name);
+    add(`${path}.venue_fee_note`, hall.venue_fee_note);
+    add(`${path}.decoration_note`, hall.decoration_note);
+    add(`${path}.source_quote`, hall.source_quote);
+    hall.options.forEach((option, optionIndex) => {
+      const optionPath = `${path}.options[${optionIndex}]`;
+      add(`${optionPath}.name`, option.name);
+      add(`${optionPath}.condition`, option.condition);
+      add(`${optionPath}.raw_text`, option.raw_text);
+      add(`${optionPath}.source_quote`, option.source_quote);
+    });
+  });
+  (data.sections ?? []).forEach((section, index) => {
+    const path = `sections[${index}]`;
+    add(`${path}.title`, section.title);
+    add(`${path}.content_verbatim`, section.content_verbatim);
+    add(`${path}.summary`, section.summary);
+    add(`${path}.source_quote`, section.source_quote);
+  });
   data.partner_vendors.forEach((item, index) => {
     add(`partner_vendors[${index}].vendor_name`, item.vendor_name);
     add(`partner_vendors[${index}].base_spec`, item.base_spec);
@@ -683,6 +1641,11 @@ function publicContactFields(data: DisclosureExtraction): Array<{ path: string; 
       add(`${path}.condition`, option.condition);
       add(`${path}.raw_text`, option.raw_text);
       add(`${path}.source_quote`, option.source_quote);
+    });
+    (item.policies ?? []).forEach((policy, policyIndex) => {
+      const path = `partner_vendors[${index}].policies[${policyIndex}]`;
+      add(`${path}.raw_text`, policy.raw_text);
+      add(`${path}.source_quote`, policy.source_quote);
     });
   });
   add("hall.venue_fee_source_quote", data.hall.venue_fee_source_quote);
@@ -779,10 +1742,12 @@ export function validateExtractionForUnit(
       message: `폴더 힌트(${unit.parsed.kind_hint})와 문서 분류(${data.doc_kind})가 충돌합니다.`,
     });
   }
-  if (
-    data.business_name
-    && normalizeVendorName(data.business_name) !== unit.parsed.normalized_name
-  ) {
+  if (data.business_name && ![
+    unit.parsed.raw_name,
+    unit.parsed.corporate_name,
+  ].filter((value): value is string => Boolean(value)).some((value) =>
+    normalizeVendorName(data.business_name ?? "") === normalizeVendorName(value)
+  )) {
     issues.push({
       severity: "error",
       code: "business_name_conflict",
@@ -807,11 +1772,20 @@ export function validateExtractionForUnit(
     const itemProvenance = resolveRowEvidence(unit, item.source_file_ids, itemPath, issues, evidence);
     item.source_file_ids = itemProvenance.sourceIds;
     validateRange(item.price_min_krw, item.price_max_krw, item.source_quote, itemPath, issues, true, itemProvenance.evidence);
+    validateAgencyPackageSemanticGrounding(item, itemPath, issues, itemProvenance.evidence);
     item.options.forEach((option, optionIndex) => {
       const optionPath = `${itemPath}.options[${optionIndex}]`;
       const optionProvenance = resolveRowEvidence(unit, option.source_file_ids, optionPath, issues, evidence);
       option.source_file_ids = optionProvenance.sourceIds;
       validateRange(option.price_min_krw, option.price_max_krw, option.source_quote, optionPath, issues, false, optionProvenance.evidence);
+      if (validateOptionSemanticGrounding(
+        option,
+        optionPath,
+        issues,
+        optionProvenance.evidence,
+      )) {
+        item.needs_review = true;
+      }
     });
     if (item.needs_review || item.confidence < 0.8) {
       issues.push({ severity: "warning", code: "low_confidence", path: `agency_packages[${index}]`, message: "추출 신뢰도가 낮거나 모델이 검토를 요청했습니다." });
@@ -822,14 +1796,127 @@ export function validateExtractionForUnit(
     const itemProvenance = resolveRowEvidence(unit, item.source_file_ids, itemPath, issues, evidence);
     item.source_file_ids = itemProvenance.sourceIds;
     validateRange(item.price_min_krw, item.price_max_krw, item.source_quote, itemPath, issues, true, itemProvenance.evidence);
+    validatePartnerVendorSemanticGrounding(item, itemPath, issues, itemProvenance.evidence);
     item.options.forEach((option, optionIndex) => {
       const optionPath = `${itemPath}.options[${optionIndex}]`;
       const optionProvenance = resolveRowEvidence(unit, option.source_file_ids, optionPath, issues, evidence);
       option.source_file_ids = optionProvenance.sourceIds;
       validateRange(option.price_min_krw, option.price_max_krw, option.source_quote, optionPath, issues, false, optionProvenance.evidence);
+      if (validateOptionSemanticGrounding(
+        option,
+        optionPath,
+        issues,
+        optionProvenance.evidence,
+      )) {
+        item.needs_review = true;
+      }
+    });
+    (item.policies ?? []).forEach((policy, policyIndex) => {
+      const policyPath = `${itemPath}.policies[${policyIndex}]`;
+      const policyProvenance = resolveRowEvidence(unit, policy.source_file_ids, policyPath, issues, evidence);
+      policy.source_file_ids = policyProvenance.sourceIds;
+      validateEvidenceQuote(policy.source_quote, policyPath, issues, policyProvenance.evidence);
+      if (validatePolicySemanticGrounding(
+        policy,
+        policyPath,
+        issues,
+        policyProvenance.evidence,
+      )) {
+        item.needs_review = true;
+      }
     });
     if (item.needs_review || item.confidence < 0.8) {
       issues.push({ severity: "warning", code: "low_confidence", path: `partner_vendors[${index}]`, message: "추출 신뢰도가 낮거나 모델이 검토를 요청했습니다." });
+    }
+  });
+  (data.halls ?? []).forEach((hall, index) => {
+    const hallPath = `halls[${index}]`;
+    const hallProvenance = resolveRowEvidence(unit, hall.source_file_ids, hallPath, issues, evidence);
+    hall.source_file_ids = hallProvenance.sourceIds;
+    validateRange(
+      hall.venue_fee_min_krw,
+      hall.venue_fee_max_krw,
+      hall.source_quote,
+      `${hallPath}.venue_fee`,
+      issues,
+      true,
+      hallProvenance.evidence,
+    );
+    validateRange(
+      hall.meal_price_min_krw,
+      hall.meal_price_max_krw,
+      hall.source_quote,
+      `${hallPath}.meal_price`,
+      issues,
+      false,
+      hallProvenance.evidence,
+    );
+    validateRange(
+      hall.decoration_fee_min_krw,
+      hall.decoration_fee_max_krw,
+      hall.source_quote,
+      `${hallPath}.decoration_fee`,
+      issues,
+      false,
+      hallProvenance.evidence,
+    );
+    hall.options.forEach((option, optionIndex) => {
+      const optionPath = `${hallPath}.options[${optionIndex}]`;
+      const optionProvenance = resolveRowEvidence(unit, option.source_file_ids, optionPath, issues, evidence);
+      option.source_file_ids = optionProvenance.sourceIds;
+      validateRange(
+        option.price_min_krw,
+        option.price_max_krw,
+        option.source_quote,
+        optionPath,
+        issues,
+        false,
+        optionProvenance.evidence,
+      );
+      if (validateOptionSemanticGrounding(
+        option,
+        optionPath,
+        issues,
+        optionProvenance.evidence,
+      )) {
+        hall.needs_review = true;
+      }
+    });
+    if (hall.needs_review || hall.confidence < 0.8) {
+      issues.push({ severity: "warning", code: "low_confidence", path: hallPath, message: "추출 신뢰도가 낮거나 모델이 검토를 요청했습니다." });
+    }
+  });
+  (data.sections ?? []).forEach((section, index) => {
+    const sectionPath = `sections[${index}]`;
+    const sectionProvenance = resolveRowEvidence(unit, section.source_file_ids, sectionPath, issues, evidence);
+    section.source_file_ids = sectionProvenance.sourceIds;
+    validateEvidenceQuote(section.source_quote, sectionPath, issues, sectionProvenance.evidence);
+    validateSectionSemanticGrounding(section, sectionPath, issues, sectionProvenance.evidence);
+    if (section.needs_review || section.confidence < 0.8) {
+      issues.push({ severity: "warning", code: "low_confidence", path: sectionPath, message: "추출 신뢰도가 낮거나 모델이 검토를 요청했습니다." });
+    }
+  });
+  (data.money_occurrences ?? []).forEach((occurrence, index) => {
+    const occurrencePath = `money_occurrences[${index}]`;
+    const occurrenceProvenance = resolveRowEvidence(
+      unit,
+      occurrence.source_file_ids,
+      occurrencePath,
+      issues,
+      evidence,
+    );
+    occurrence.source_file_ids = occurrenceProvenance.sourceIds;
+    if (validateMoneyOccurrenceQuote(
+      occurrence.source_quote,
+      occurrence.raw_text,
+      occurrencePath,
+      issues,
+      occurrenceProvenance.evidence,
+    )) {
+      occurrence.needs_review = true;
+    }
+    if (occurrence.needs_review) {
+      issues.push({ severity: "warning", code: "low_confidence", path: occurrencePath, message: "금액 발생의 판독을 모델이 검토 요청했습니다." });
     }
   });
   if (data.hall.venue_fee_krw !== null) {
@@ -847,6 +1934,7 @@ export function validateExtractionForUnit(
     const itemProvenance = resolveRowEvidence(unit, item.source_file_ids, itemPath, issues, evidence);
     item.source_file_ids = itemProvenance.sourceIds;
     validateRange(item.price_min_krw, item.price_max_krw, item.source_quote, itemPath, issues, false, itemProvenance.evidence);
+    validateLegacyHallItemSemanticGrounding(item, itemPath, issues, itemProvenance.evidence);
     if (item.needs_review || item.confidence < 0.8) {
       issues.push({ severity: "warning", code: "low_confidence", path: `hall.items[${index}]`, message: "추출 신뢰도가 낮거나 모델이 검토를 요청했습니다." });
     }
@@ -877,19 +1965,125 @@ export function trigramSimilarity(left: string, right: string): number {
   return (2 * overlap) / (leftSet.size + rightSet.size);
 }
 
+export async function verifyValidationInputsUnchanged(
+  unit: ManifestUnit,
+  manifest: IngestManifest,
+): Promise<void> {
+  const conversion = unit.conversion;
+  if (
+    !conversion
+    || conversion.source_fingerprint !== unit.source_fingerprint
+    || manifest.scanner_parser_version !== SCANNER_PARSER_VERSION
+    || (conversion.converter_version ?? "v1-legacy") !== CONVERTER_VERSION
+  ) {
+    throw new Error("validation_input_version_mismatch");
+  }
+  for (const source of unit.source_files) {
+    const digest = await sha256File(source.absolute_path);
+    if (digest.sha256 !== source.sha256 || digest.bytes !== source.bytes) {
+      throw new Error(`validation_source_changed:${source.path}`);
+    }
+  }
+  const records = await Promise.all(
+    [...conversion.text_artifacts, ...conversion.image_artifacts]
+      .sort((left, right) => left.localeCompare(right, "en"))
+      .map(async (artifactPath) => {
+        const digest = await sha256File(artifactPath);
+        return `${path.resolve(artifactPath)}\0${digest.sha256}`;
+      }),
+  );
+  if (sha256Text(records.join("\n")) !== conversion.artifact_fingerprint) {
+    throw new Error("validation_conversion_artifact_changed");
+  }
+}
+
+async function readStrictExtractionForValidation(
+  unit: ManifestUnit,
+  manifest: IngestManifest,
+  stateDir: string,
+): Promise<ReturnType<typeof StrictExtractionArtifactSchema.parse>> {
+  const metadata = unit.extraction;
+  const conversion = unit.conversion;
+  if (!metadata || !conversion) throw new Error("validation_extraction_metadata_missing");
+  const converterVersion = conversion.converter_version ?? "v1-legacy";
+  const expectedFingerprint = currentExtractionFingerprint({
+    scannerParserVersion: manifest.scanner_parser_version,
+    converterVersion,
+    model: metadata.model,
+    rawName: unit.parsed.raw_name,
+    regionCode: unit.parsed.region_code,
+    kindHint: unit.parsed.kind_hint,
+    sourceFingerprint: unit.source_fingerprint,
+    artifactFingerprint: conversion.artifact_fingerprint,
+  });
+  if (
+    metadata.fingerprint !== expectedFingerprint
+    || metadata.prompt_version !== EXTRACTION_PROMPT_VERSION
+    || metadata.prompt_hash !== EXTRACTION_PROMPT_HASH
+    || metadata.processing_version !== EXTRACTION_PROCESSING_VERSION
+    || metadata.scanner_parser_version !== manifest.scanner_parser_version
+    || metadata.converter_version !== converterVersion
+    || !metadata.content_sha256
+  ) {
+    throw new Error("validation_extraction_manifest_identity_mismatch");
+  }
+  await verifyDeterministicStateArtifactPath({
+    stateDir,
+    artifactPath: metadata.artifact_path,
+    expectedRelativePath: path.join(".cache", "extract", `${expectedFingerprint}.json`),
+  });
+  const raw = await readJsonFile(metadata.artifact_path);
+  const parsed = StrictExtractionArtifactSchema.safeParse(raw);
+  if (!parsed.success) throw new Error("validation_extraction_artifact_schema_invalid");
+  verifyJsonContentHash(raw as Record<string, unknown>, "content_sha256");
+  const artifact = parsed.data;
+  if (
+    artifact.content_sha256 !== metadata.content_sha256
+    || artifact.unit_id !== unit.unit_id
+    || artifact.fingerprint !== expectedFingerprint
+    || artifact.source_fingerprint !== unit.source_fingerprint
+    || artifact.artifact_fingerprint !== conversion.artifact_fingerprint
+    || artifact.prompt_version !== EXTRACTION_PROMPT_VERSION
+    || artifact.prompt_hash !== EXTRACTION_PROMPT_HASH
+    || artifact.processing_version !== EXTRACTION_PROCESSING_VERSION
+    || artifact.scanner_parser_version !== manifest.scanner_parser_version
+    || artifact.converter_version !== converterVersion
+    || artifact.model !== metadata.model
+  ) {
+    throw new Error("validation_extraction_artifact_identity_mismatch");
+  }
+  return artifact;
+}
+
 async function readExistingValidated(
   filePath: string,
   expected: {
+    stateDir: string;
     fingerprint: string;
     unitId: string;
     sourceFingerprint: string;
     extractionFingerprint: string;
-    sourceFiles: ValidatedArtifact["source_files"];
+    extractionContentSha256: string;
+    promptVersion: string;
+    promptHash: string;
+    model: "gpt-5.6-luna" | "gpt-5.6-terra";
+    sourceFiles: StrictValidatedArtifact["source_files"];
   },
-): Promise<ValidatedArtifact | null> {
+): Promise<StrictValidatedArtifact | null> {
   try {
-    const parsed = ValidatedArtifactSchema.safeParse(await readJsonFile(filePath));
+    await verifyDeterministicStateArtifactPath({
+      stateDir: expected.stateDir,
+      artifactPath: filePath,
+      expectedRelativePath: path.join("validated", `${expected.unitId}.json`),
+    });
+    const raw = await readJsonFile(filePath);
+    const parsed = StrictValidatedArtifactSchema.safeParse(raw);
     if (!parsed.success) return null;
+    try {
+      verifyJsonContentHash(raw as Record<string, unknown>, "content_sha256");
+    } catch {
+      return null;
+    }
     const artifact = parsed.data;
     const contentFingerprint = validatedArtifactFingerprint(
       artifact.extraction_fingerprint,
@@ -902,6 +2096,10 @@ async function readExistingValidated(
         && artifact.unit_id === expected.unitId
         && artifact.source_fingerprint === expected.sourceFingerprint
         && artifact.extraction_fingerprint === expected.extractionFingerprint
+        && artifact.extraction_content_sha256 === expected.extractionContentSha256
+        && artifact.prompt_version === expected.promptVersion
+        && artifact.prompt_hash === expected.promptHash
+        && artifact.model === expected.model
         && JSON.stringify(artifact.source_files) === JSON.stringify(expected.sourceFiles)
       ? artifact
       : null;
@@ -911,67 +2109,141 @@ async function readExistingValidated(
   }
 }
 
+export interface DerivedValidatedPayload {
+  data: DisclosureExtraction;
+  issues: ValidationIssue[];
+  coverageGaps: CoverageGap[];
+}
+
+/** Rebuild the exact payload validation is allowed to persist. */
+export async function deriveValidatedPayloadForUnit(
+  unit: ManifestUnit,
+  extraction: Pick<
+    ReturnType<typeof StrictExtractionArtifactSchema.parse>,
+    "data" | "evidence_modalities"
+  >,
+): Promise<DerivedValidatedPayload> {
+  const data = DisclosureExtractionSchema.parse(structuredClone(extraction.data));
+  const textArtifacts = unit.conversion?.text_artifacts ?? [];
+  const evidenceBySource = new Map(unit.source_files.map((source) => [
+    sourceFileId(source),
+    { text: [] as Array<{ value: string; lineOffset: number }>, hasImages: false },
+  ]));
+  const textArtifactContents: Array<{ artifactPath: string; text: string; lineOffset: number }> = [];
+  let lineOffset = 0;
+  for (const artifactPath of textArtifacts) {
+    const text = await readFile(artifactPath, "utf8");
+    textArtifactContents.push({ artifactPath, text, lineOffset });
+    lineOffset += text.split(/\r?\n/u).length;
+  }
+  for (const artifact of textArtifactContents) {
+    for (const source of sourceFilesForArtifact(unit, artifact.artifactPath)) {
+      evidenceBySource.get(sourceFileId(source))?.text.push({
+        value: artifact.text,
+        lineOffset: artifact.lineOffset,
+      });
+    }
+  }
+  for (const artifactPath of unit.conversion?.image_artifacts ?? []) {
+    for (const source of sourceFilesForArtifact(unit, artifactPath)) {
+      const sourceEvidence = evidenceBySource.get(sourceFileId(source));
+      if (sourceEvidence) sourceEvidence.hasImages = true;
+    }
+  }
+  const sourceText = textArtifactContents.map((artifact) => artifact.text).join("\n");
+  const evidence: ValidationEvidenceContext = {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    lineEvidence: indexLineEvidence(sourceText),
+    hasImages: (unit.conversion?.image_artifacts.length ?? 0) > 0,
+    recordModalities: Object.fromEntries(
+      (extraction.evidence_modalities ?? [])
+        .filter((entry) => entry.source_file_id === undefined)
+        .map((entry) => [entry.path, entry.modality]),
+    ),
+    recordSourceModalities: (extraction.evidence_modalities ?? []).reduce<
+      Record<string, Record<string, "text" | "image" | "mixed">>
+    >((result, entry) => {
+      if (!entry.source_file_id) return result;
+      result[entry.path] = {
+        ...(result[entry.path] ?? {}),
+        [entry.source_file_id]: entry.modality,
+      };
+      return result;
+    }, {}),
+    bySourceFileId: Object.fromEntries([...evidenceBySource.entries()].map(([id, value]) => [
+      id,
+      {
+        normalizedText: normalizeEvidenceText(value.text.map((entry) => entry.value).join("\n")),
+        xlsxCells: indexXlsxCellEvidence(value.text.map((entry) => entry.value).join("\n")),
+        lineEvidence: Object.assign(
+          {},
+          ...value.text.map((entry) => indexLineEvidence(entry.value, entry.lineOffset)),
+        ),
+        hasImages: value.hasImages,
+      },
+    ])),
+  };
+  const issues = validateExtractionForUnit(unit, data, evidence);
+  issues.push(...validateStructuredRecordSourceLinkage(data, sourceText).map((issue) => {
+    const modality = recordEvidenceModality(evidence.recordModalities, issue.path);
+    const imageOnlyEvidence = modality === "image"
+      || (modality === undefined && !sourceText.trim() && evidence.hasImages);
+    return {
+      severity: imageOnlyEvidence ? "warning" as const : "error" as const,
+      code: issue.code,
+      path: issue.path,
+      message: imageOnlyEvidence
+        ? `${issue.message} 이미지 원본에서 관리자 대조가 필요합니다.`
+        : issue.message,
+    };
+  }));
+  const coverageGaps = findCoverageGaps(sourceText, data, { includeAuditLedger: false });
+  if (coverageGaps.length > 0) {
+    issues.push({
+      severity: "warning",
+      code: "coverage_gap",
+      path: "coverage_gaps",
+      message: `원문 금액 후보 ${coverageGaps.length}건이 추출 KRW 값과 연결되지 않아 사람 검토가 필요합니다.`,
+    });
+  }
+  return { data, issues, coverageGaps };
+}
+
 export async function validateManifest(options: ValidateOptions): Promise<IngestManifest> {
   const manifest = await loadManifest(options.stateDir);
   const validatedDirectory = path.join(path.resolve(options.stateDir), "validated");
-  const artifactsByUnitId = new Map<string, ValidatedArtifact>();
+  const artifactsByUnitId = new Map<string, StrictValidatedArtifact>();
 
   for (const unit of manifest.units) {
     if (!unit.extraction || !["extracted", "validated"].includes(unit.stage)) continue;
-    const extractionParsed = ExtractionArtifactSchema.safeParse(await readJsonFile(unit.extraction.artifact_path));
-    if (
-      !extractionParsed.success
-      || extractionParsed.data.fingerprint !== unit.extraction.fingerprint
-      || extractionParsed.data.source_fingerprint !== unit.source_fingerprint
-      || extractionParsed.data.artifact_fingerprint !== unit.conversion?.artifact_fingerprint
-    ) {
+    let extractionArtifact: ReturnType<typeof StrictExtractionArtifactSchema.parse>;
+    try {
+      await verifyValidationInputsUnchanged(unit, manifest);
+      const { verifyCurrentExtractionCacheForUnit } = await import("./extract.js");
+      extractionArtifact = await verifyCurrentExtractionCacheForUnit(
+        unit,
+        manifest,
+        options.stateDir,
+      );
+    } catch (error) {
       unit.stage = "error";
-      unit.notices = Array.from(new Set([...unit.notices, "validate 실패: 추출 artifact provenance가 현재 manifest와 일치하지 않습니다."]));
+      delete unit.validation;
+      const message = error instanceof Error ? error.message : "unknown_validation_provenance_error";
+      unit.notices = Array.from(new Set([
+        ...unit.notices,
+        `validate failed: extraction artifact provenance mismatch (${message})`,
+      ]));
       continue;
     }
 
-    const textArtifacts = unit.conversion?.text_artifacts ?? [];
-    const evidenceBySource = new Map(unit.source_files.map((source) => [
-      sourceFileId(source),
-      { text: [] as string[], hasImages: false },
-    ]));
-    const textArtifactContents = await Promise.all(textArtifacts.map(async (artifactPath) => ({
-      artifactPath,
-      text: await readFile(artifactPath, "utf8"),
-    })));
-    for (const artifact of textArtifactContents) {
-      for (const source of sourceFilesForArtifact(unit, artifact.artifactPath)) {
-        evidenceBySource.get(sourceFileId(source))?.text.push(artifact.text);
-      }
-    }
-    for (const artifactPath of unit.conversion?.image_artifacts ?? []) {
-      for (const source of sourceFilesForArtifact(unit, artifactPath)) {
-        const sourceEvidence = evidenceBySource.get(sourceFileId(source));
-        if (sourceEvidence) sourceEvidence.hasImages = true;
-      }
-    }
-    const sourceText = textArtifactContents.map((artifact) => artifact.text).join("\n");
-    const evidence: ValidationEvidenceContext = {
-      normalizedText: normalizeEvidenceText(sourceText),
-      hasImages: (unit.conversion?.image_artifacts.length ?? 0) > 0,
-      bySourceFileId: Object.fromEntries([...evidenceBySource.entries()].map(([id, value]) => [
-        id,
-        { normalizedText: normalizeEvidenceText(value.text.join("\n")), hasImages: value.hasImages },
-      ])),
-    };
-    const issues = validateExtractionForUnit(unit, extractionParsed.data.data, evidence);
-    const coverageGaps = findCoverageGaps(sourceText, extractionParsed.data.data);
-    if (coverageGaps.length > 0) {
-      issues.push({
-        severity: "warning",
-        code: "coverage_gap",
-        path: "coverage_gaps",
-        message: `원문 금액 후보 ${coverageGaps.length}건이 추출 KRW 값과 연결되지 않아 사람 검토가 필요합니다.`,
-      });
-    }
+    const { data, issues, coverageGaps } = await deriveValidatedPayloadForUnit(
+      unit,
+      extractionArtifact,
+    );
     const fingerprint = validatedArtifactFingerprint(
       unit.extraction.fingerprint,
-      extractionParsed.data.data,
+      data,
       issues,
       coverageGaps,
     );
@@ -982,30 +2254,57 @@ export async function validateManifest(options: ValidateOptions): Promise<Ingest
       bytes: source.bytes,
     }));
     const existing = await readExistingValidated(artifactPath, {
+      stateDir: options.stateDir,
       fingerprint,
       unitId: unit.unit_id,
       sourceFingerprint: unit.source_fingerprint,
       extractionFingerprint: unit.extraction.fingerprint,
+      extractionContentSha256: extractionArtifact.content_sha256,
+      promptVersion: extractionArtifact.prompt_version,
+      promptHash: extractionArtifact.prompt_hash,
+      model: extractionArtifact.model,
       sourceFiles,
     });
-    const artifact: ValidatedArtifact = existing ?? {
-      schema_version: 1,
+    const artifactCandidate = existing ?? {
+      schema_version: 2 as const,
+      content_sha256: "0".repeat(64),
       validator_version: VALIDATOR_VERSION,
       fingerprint,
       unit_id: unit.unit_id,
       source_files: sourceFiles,
       source_fingerprint: unit.source_fingerprint,
       extraction_fingerprint: unit.extraction.fingerprint,
-      data: extractionParsed.data.data,
+      extraction_content_sha256: extractionArtifact.content_sha256,
+      prompt_version: extractionArtifact.prompt_version,
+      prompt_hash: extractionArtifact.prompt_hash,
+      model: extractionArtifact.model,
+      data,
       issues,
       coverage_gaps: coverageGaps,
       review_status: "pending",
       validated_at: new Date().toISOString(),
     };
-    if (!existing) await writeJsonFile(artifactPath, artifact);
+    if (!existing) {
+      artifactCandidate.content_sha256 = canonicalJsonSha256ExcludingField(
+        artifactCandidate,
+        "content_sha256",
+      );
+    }
+    const artifact = StrictValidatedArtifactSchema.parse(artifactCandidate);
+    if (!existing) {
+      await prepareDeterministicStateArtifactWritePath({
+        stateDir: options.stateDir,
+        artifactPath,
+        expectedRelativePath: path.join("validated", `${unit.unit_id}.json`),
+      });
+      await writeJsonFile(artifactPath, artifact);
+    }
     artifactsByUnitId.set(unit.unit_id, artifact);
     unit.validation = {
       fingerprint,
+      content_sha256: artifact.content_sha256,
+      extraction_content_sha256: artifact.extraction_content_sha256,
+      validator_version: artifact.validator_version,
       artifact_path: artifactPath,
       review_status: "pending",
       issue_count: artifact.issues.length,
@@ -1042,12 +2341,22 @@ export async function validateManifest(options: ValidateOptions): Promise<Ingest
       });
       artifact.fingerprint = validatedArtifactFingerprint(
         artifact.extraction_fingerprint,
-      artifact.data,
-      artifact.issues,
-      artifact.coverage_gaps,
+        artifact.data,
+        artifact.issues,
+        artifact.coverage_gaps,
       );
+      artifact.content_sha256 = canonicalJsonSha256ExcludingField(
+        artifact,
+        "content_sha256",
+      );
+      await verifyDeterministicStateArtifactPath({
+        stateDir: options.stateDir,
+        artifactPath: unit.validation.artifact_path,
+        expectedRelativePath: path.join("validated", `${unit.unit_id}.json`),
+      });
       await writeJsonFile(unit.validation.artifact_path, artifact);
       unit.validation.fingerprint = artifact.fingerprint;
+      unit.validation.content_sha256 = artifact.content_sha256;
       unit.validation.issue_count = artifact.issues.length;
       unit.stage = "error";
     }

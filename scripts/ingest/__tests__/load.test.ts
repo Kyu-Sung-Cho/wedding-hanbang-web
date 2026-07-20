@@ -7,12 +7,13 @@ import test from "node:test";
 import JSZip from "jszip";
 
 import { convertManifest } from "../convert.js";
-import { extractManifest, type ExtractionProvider } from "../extract.js";
+import { extractManifestForTests as extractManifest, type ExtractionProvider } from "../extract.js";
 import { readJsonFile, writeJsonFile } from "../io.js";
 import {
   buildOfficialPriceContentFingerprint,
   buildOfficialPriceSourceRecordKey,
   loadValidated,
+  stagingEnvironment,
   type StagingLoadPlan,
   type StagingWriter,
 } from "../load.js";
@@ -43,6 +44,107 @@ test("the staging writer independently refuses the repository production destina
       bucket: "disclosure-raw",
       previewBucket: "disclosure-preview",
     }),
+    /production/iu,
+  );
+});
+
+test("load apply is blocked at the public API boundary before planning, env checks, or writer access", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-blocked-apply-"));
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+  let writerCalls = 0;
+  const writer: StagingWriter = {
+    stage: async () => {
+      writerCalls += 1;
+      throw new Error("writer must remain unreachable while apply is blocked");
+    },
+  };
+  const blocked = (error: unknown): boolean => error instanceof Error
+    && error.message === "load_apply_blocked_pending_state_aware_batch_runner";
+
+  await assert.rejects(
+    loadValidated(
+      { stateDir, snapshot: "2026Q3", apply: true, confirmProjectRef: "staging-ref" },
+      {
+        writer,
+        env: {
+          INGEST_LOAD_ENABLED: "true",
+          INGEST_TARGET_ENV: "staging",
+          INGEST_STAGING_PROJECT_REF: "staging-ref",
+          INGEST_STORAGE_BUCKET: "disclosure-raw",
+          SUPABASE_PROJECT_REF: "staging-ref",
+          SUPABASE_PRODUCTION_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+          SUPABASE_URL: "https://staging-ref.supabase.co",
+          SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
+        },
+      },
+    ),
+    blocked,
+  );
+  await assert.rejects(
+    loadValidated({ stateDir, snapshot: "2026Q3", apply: true }),
+    blocked,
+  );
+  assert.equal(writerCalls, 0);
+});
+
+test("staging environment validation retains URL, production, and service-key fences", () => {
+  const validStagingEnv = {
+    INGEST_LOAD_ENABLED: "true",
+    INGEST_TARGET_ENV: "staging",
+    INGEST_STAGING_PROJECT_REF: "staging-ref",
+    INGEST_STORAGE_BUCKET: "disclosure-raw",
+    SUPABASE_PROJECT_REF: "staging-ref",
+    SUPABASE_PRODUCTION_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+    SUPABASE_URL: "https://staging-ref.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
+  };
+
+  assert.deepEqual(stagingEnvironment(validStagingEnv, "staging-ref"), {
+    url: "https://staging-ref.supabase.co",
+    key: "sb_secret_generated_fixture",
+    projectRef: "staging-ref",
+    bucket: "disclosure-raw",
+    previewBucket: "disclosure-preview",
+  });
+  for (const [unsafeUrl, expectedError] of [
+    ["http://staging-ref.supabase.co", /https/iu],
+    ["https://staging-ref.supabase.co:8443", /port|포트/iu],
+    ["https://user:password@staging-ref.supabase.co", /credentials/iu],
+    ["https://staging-ref.supabase.co/rest/v1", /base URL|path/iu],
+    ["https://staging-ref.supabase.co?redirect=other", /base URL|query/iu],
+    ["https://staging-ref.supabase.co#other", /base URL|hash|fragment/iu],
+  ] as const) {
+    assert.throws(
+      () => stagingEnvironment({ ...validStagingEnv, SUPABASE_URL: unsafeUrl }, "staging-ref"),
+      expectedError,
+    );
+  }
+  for (const unsafeKey of ["sb_publishable_fixture", "anon_fixture", "not-a-service-role-key"]) {
+    assert.throws(
+      () => stagingEnvironment({
+        ...validStagingEnv,
+        SUPABASE_SERVICE_ROLE_KEY: unsafeKey,
+      }, "staging-ref"),
+      /anon|publishable|service_role|sb_secret/iu,
+    );
+  }
+  assert.throws(
+    () => stagingEnvironment({
+      ...validStagingEnv,
+      INGEST_STAGING_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+      SUPABASE_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+      SUPABASE_URL: "https://slrtobkksjmxgzatjyqb.supabase.co",
+    }, "slrtobkksjmxgzatjyqb"),
+    /production/iu,
+  );
+  assert.throws(
+    () => stagingEnvironment({
+      ...validStagingEnv,
+      INGEST_STAGING_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+      SUPABASE_PROJECT_REF: "slrtobkksjmxgzatjyqb",
+      SUPABASE_PRODUCTION_PROJECT_REF: "misspelled-production-ref",
+      SUPABASE_URL: "https://slrtobkksjmxgzatjyqb.supabase.co",
+    }, "slrtobkksjmxgzatjyqb"),
     /production/iu,
   );
 });
@@ -143,7 +245,10 @@ function priceOptionClient(existingOptions: Array<Record<string, unknown>>) {
   return { client, inserted };
 }
 
-async function writeDummyDocx(filePath: string, text = "더미 기본 패키지 290만원"): Promise<void> {
+async function writeDummyDocx(
+  filePath: string,
+  text = "더미 기본 패키지 | 스튜디오 드레스 메이크업 | 290만원",
+): Promise<void> {
   const docx = new JSZip();
   docx.file(
     "[Content_Types].xml",
@@ -169,34 +274,48 @@ test("load preserves exact parent and option source files within a multi-source 
   ]));
   const vendorDir = path.join(rootDir, "agency", "jeju", "generated-multi");
   await mkdir(vendorDir, { recursive: true });
-  await writeDummyDocx(path.join(vendorDir, "a-prices.docx"), "샘플 멀티 패키지 100만원");
-  await writeDummyDocx(path.join(vendorDir, "b-options.docx"), "원본 추가 10만원");
+  await writeDummyDocx(
+    path.join(vendorDir, "a-prices.docx"),
+    "샘플 멀티 패키지 | 스튜디오 드레스 메이크업 | 100만원",
+  );
+  await writeDummyDocx(
+    path.join(vendorDir, "b-options.docx"),
+    "샘플 멀티 패키지 | 스튜디오 드레스 메이크업 | 원본 추가 | 1건 | 10만원",
+  );
   const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
   await convertManifest({ stateDir });
   const [priceSource, optionSource] = scanned.units[0].source_files;
   const provider: ExtractionProvider = {
-    extract: async () => ({
-      data: {
+    extract: async (request) => {
+      const requestSourceIds = [...request.text.matchAll(/^source_file_id:\s*([a-f0-9]{64})\s*$/gmu)]
+        .map((match) => match[1]);
+      assert.equal(requestSourceIds.length, 1);
+      const isPriceRequest = requestSourceIds[0] === sourceFileId(priceSource);
+      const locatedLine = /^(line:\d+:\s*.*)$/mu.exec(request.text)?.[1];
+      assert.ok(locatedLine);
+      return {
+        data: {
         doc_kind: "agency_disclosure",
         business_name: scanned.units[0].parsed.raw_name,
         region_hint: "제주",
         agency_packages: [{
           package_name: "샘플 멀티 패키지",
           category_scope: ["studio", "dress", "makeup"],
-          price_min_krw: 1_000_000,
-          price_max_krw: 1_000_000,
+          price_min_krw: isPriceRequest ? 1_000_000 : null,
+          price_max_krw: isPriceRequest ? 1_000_000 : null,
           vat_note: null,
           price_note: null,
-          source_quote: "샘플 멀티 패키지 100만원",
-          source_file_ids: [sourceFileId(priceSource)],
-          options: [{
+          source_quote: locatedLine,
+          source_file_ids: requestSourceIds,
+          options: isPriceRequest ? [] : [{
             name: "원본 추가",
             price_min_krw: 100_000,
             price_max_krw: 100_000,
             unit: "1건",
             condition: null,
-            raw_text: "원본 추가 10만원",
-            source_quote: "원본 추가 10만원",
+            raw_text:
+              "샘플 멀티 패키지 | 스튜디오 드레스 메이크업 | 원본 추가 | 1건 | 10만원",
+            source_quote: locatedLine,
             source_file_ids: [sourceFileId(optionSource)],
           }],
           confidence: 0.95,
@@ -213,15 +332,23 @@ test("load preserves exact parent and option source files within a multi-source 
           confidence: 0,
           needs_review: true,
         },
-        extraction_notes: "generated multi-source fixture",
-      },
-      inputTokens: 10,
-      outputTokens: 10,
-    }),
+          extraction_notes: "generated multi-source fixture",
+        },
+        inputTokens: 10,
+        outputTokens: 10,
+      };
+    },
   };
   await extractManifest({ stateDir }, { provider, env: {} });
   const validated = await validateManifest({ stateDir });
-  assert.equal(validated.units[0].stage, "validated");
+  const validationArtifact = validated.units[0].validation?.artifact_path
+    ? JSON.parse(await readFile(validated.units[0].validation.artifact_path, "utf8"))
+    : null;
+  assert.equal(
+    validated.units[0].stage,
+    "validated",
+    JSON.stringify(validationArtifact?.issues ?? validated.units[0].notices),
+  );
 
   const dry = await loadValidated({ stateDir, snapshot: "2026Q3" });
   const row = dry.plan.agency_packages[0];
@@ -245,7 +372,7 @@ function extraction(): DisclosureExtraction {
       vat_note: null,
       price_note: null,
       options: [],
-      source_quote: "더미 기본 패키지 290만원",
+      source_quote: "더미 기본 패키지 | 스튜디오 드레스 메이크업 | 290만원",
       confidence: 0.95,
       needs_review: true,
     }],
@@ -309,10 +436,15 @@ test("agency-root partner prices carry the scan-derived source agency identity",
   await writeFile(path.join(regionDir, "(제주)_샘플연결플래너.pdf"), "%PDF generated fixture");
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir }, {
-    extractPdfText: async () => "샘플제휴스튜디오 기본 촬영 120만원 ".repeat(20),
+    extractPdfText: async () => "카테고리: 스튜디오 | 샘플제휴스튜디오 기본 촬영 120만원 ".repeat(20),
   });
   const provider: ExtractionProvider = {
-    extract: async () => ({ data: partnerExtraction(), inputTokens: 10, outputTokens: 5 }),
+    extract: async () => {
+      const data = partnerExtraction();
+      data.partner_vendors[0].source_quote =
+        "line:1: 카테고리: 스튜디오 | 샘플제휴스튜디오 기본 촬영 120만원";
+      return { data, inputTokens: 10, outputTokens: 5 };
+    },
   };
   await extractManifest({ stateDir }, { provider, env: {} });
   await validateManifest({ stateDir });
@@ -329,7 +461,7 @@ test("agency-root partner prices carry the scan-derived source agency identity",
   assert.deepEqual(dry.plan.official_prices[0].alias_proposals, ["샘플제휴스튜디오 구상호"]);
 });
 
-test("load is dry by default and apply requires an explicitly confirmed staging destination", async (t) => {
+test("load is dry by default and keeps validated artifacts tamper-evident", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-load-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([rm(rootDir, { recursive: true, force: true }), rm(stateDir, { recursive: true, force: true })]));
@@ -339,7 +471,12 @@ test("load is dry by default and apply requires an explicitly confirmed staging 
   await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
   const provider: ExtractionProvider = {
-    extract: async () => ({ data: extraction(), inputTokens: 10, outputTokens: 5, requestId: "req_generated" }),
+    extract: async () => {
+      const data = extraction();
+      data.agency_packages[0].source_quote =
+        "line:1: 더미 기본 패키지 | 스튜디오 드레스 메이크업 | 290만원";
+      return { data, inputTokens: 10, outputTokens: 5, requestId: "req_generated" };
+    },
   };
   await extractManifest({ stateDir }, { provider, env: {} });
   await validateManifest({ stateDir });
@@ -379,7 +516,7 @@ test("load is dry by default and apply requires an explicitly confirmed staging 
   await writeFile(previewArtifactPath, Buffer.concat([previewArtifactContent, Buffer.from("\ntampered")]));
   await assert.rejects(
     loadValidated({ stateDir, snapshot: "2026Q3" }, { writer, env: {} }),
-    /conversion artifact hash|artifact hash.*conversion/iu,
+    /validation_conversion_artifact_changed|conversion artifact hash|artifact hash.*conversion/iu,
   );
   await writeFile(previewArtifactPath, previewArtifactContent);
 
@@ -403,115 +540,11 @@ test("load is dry by default and apply requires an explicitly confirmed staging 
   await writeJsonFile(manifestPath, escapedManifest);
   await assert.rejects(
     loadValidated({ stateDir, snapshot: "2026Q3" }, { writer, env: {} }),
-    /preview artifact path|변환 디렉터리/iu,
+    /strict extraction metadata|preview artifact path|변환 디렉터리/iu,
   );
   await writeJsonFile(manifestPath, originalManifest);
 
-  await assert.rejects(
-    loadValidated(
-      { stateDir, snapshot: "2026Q3", apply: true, confirmProjectRef: "staging-ref" },
-      { writer, env: {} },
-    ),
-    /INGEST_LOAD_ENABLED/u,
-  );
-  assert.equal(writerCalls, 0);
-
-  const applied = await loadValidated(
-    { stateDir, snapshot: "2026Q3", apply: true, confirmProjectRef: "staging-ref" },
-    {
-      writer,
-      env: {
-        INGEST_LOAD_ENABLED: "true",
-        INGEST_TARGET_ENV: "staging",
-        INGEST_STAGING_PROJECT_REF: "staging-ref",
-        INGEST_STORAGE_BUCKET: "disclosure-raw",
-        SUPABASE_PROJECT_REF: "staging-ref",
-        SUPABASE_PRODUCTION_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-        SUPABASE_URL: "https://staging-ref.supabase.co",
-        SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
-      },
-    },
-  );
-
-  assert.equal(applied.mode, "applied");
-  assert.equal(writerCalls, 1);
-  assert.equal(applied.manifest.units[0].stage, "loaded");
-
-  const validStagingEnv = {
-    INGEST_LOAD_ENABLED: "true",
-    INGEST_TARGET_ENV: "staging",
-    INGEST_STAGING_PROJECT_REF: "staging-ref",
-    INGEST_STORAGE_BUCKET: "disclosure-raw",
-    SUPABASE_PROJECT_REF: "staging-ref",
-    SUPABASE_PRODUCTION_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
-  };
-  for (const [unsafeUrl, expectedError] of [
-    ["http://staging-ref.supabase.co", /https/iu],
-    ["https://staging-ref.supabase.co:8443", /port|포트/iu],
-    ["https://user:password@staging-ref.supabase.co", /credentials|자격|사용자/iu],
-    ["https://staging-ref.supabase.co/rest/v1", /base URL|path|경로/iu],
-    ["https://staging-ref.supabase.co?redirect=other", /base URL|query|쿼리/iu],
-    ["https://staging-ref.supabase.co#other", /base URL|hash|fragment|해시/iu],
-  ] as const) {
-    await assert.rejects(
-      loadValidated(
-        { stateDir, snapshot: "2026Q3", apply: true, confirmProjectRef: "staging-ref" },
-        { writer, env: { ...validStagingEnv, SUPABASE_URL: unsafeUrl } },
-      ),
-      expectedError,
-    );
-  }
-  assert.equal(writerCalls, 1);
-
-  await assert.rejects(
-    loadValidated(
-      { stateDir, snapshot: "2026Q3", apply: true, confirmProjectRef: "slrtobkksjmxgzatjyqb" },
-      {
-        writer,
-        env: {
-          INGEST_LOAD_ENABLED: "true",
-          INGEST_TARGET_ENV: "staging",
-          INGEST_STAGING_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-          INGEST_STORAGE_BUCKET: "disclosure-raw",
-          SUPABASE_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-          SUPABASE_PRODUCTION_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-          SUPABASE_URL: "https://slrtobkksjmxgzatjyqb.supabase.co",
-          SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
-        },
-      },
-    ),
-    /production/iu,
-  );
-
-  await assert.rejects(
-    loadValidated(
-      {
-        stateDir,
-        snapshot: "2026Q3",
-        apply: true,
-        confirmProjectRef: "slrtobkksjmxgzatjyqb",
-      },
-      {
-        writer,
-        env: {
-          INGEST_LOAD_ENABLED: "true",
-          INGEST_TARGET_ENV: "staging",
-          INGEST_STAGING_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-          INGEST_STORAGE_BUCKET: "disclosure-raw",
-          SUPABASE_PROJECT_REF: "slrtobkksjmxgzatjyqb",
-          // A typo or malicious override must not redefine which project is production.
-          SUPABASE_PRODUCTION_PROJECT_REF: "misspelled-production-ref",
-          SUPABASE_URL: "https://slrtobkksjmxgzatjyqb.supabase.co",
-          SUPABASE_SERVICE_ROLE_KEY: "sb_secret_generated_fixture",
-        },
-      },
-    ),
-    /production/iu,
-  );
-  assert.equal(writerCalls, 1);
-
-  const artifactPath = applied.manifest.units[0].validation?.artifact_path;
+  const artifactPath = dryRun.manifest.units[0].validation?.artifact_path;
   assert.ok(artifactPath);
   const artifact = await readJsonFile(artifactPath) as Record<string, unknown>;
   const data = artifact.data as DisclosureExtraction;

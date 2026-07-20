@@ -5,8 +5,13 @@ import { extractManifest, planExtraction } from "./extract.js";
 import { resolveIngestStateDirectory } from "./io.js";
 import { loadValidated } from "./load.js";
 import { scanSources } from "./scan.js";
+import { scoreExtractionAgainstGroundTruth } from "./score.js";
 import { formatIngestStatus, getIngestStatus } from "./status.js";
 import { validateManifest } from "./validate.js";
+import {
+  getPaidExecutionDomainStatus,
+  initializePaidExecutionDomain,
+} from "./paid-execution-domain.js";
 
 function optionValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -29,6 +34,12 @@ function positiveInteger(value: string | undefined, label: string): number | und
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 1) throw new Error(`${label}은 1 이상의 정수여야 합니다.`);
   return parsed;
+}
+
+function requiredOption(args: string[], name: string): string {
+  const value = optionValue(args, name)?.trim();
+  if (!value) throw new Error(`${name} 옵션이 필요합니다.`);
+  return value;
 }
 
 function print(value: unknown): void {
@@ -66,12 +77,22 @@ async function main(): Promise<void> {
     if (units && limit) throw new Error("--units와 --limit은 함께 사용할 수 없습니다.");
     const extractOptions = {
       stateDir,
+      enforcePilotAuthorization: true,
       ...(limit ? { limit } : {}),
       ...(units ? { unitIds: units } : {}),
+      ...(optionValue(args, "--approved-plan-sha256")
+        ? { approvedPlanSha256: optionValue(args, "--approved-plan-sha256") }
+        : {}),
     };
     if (hasFlag(args, "--plan")) {
+      if (optionValue(args, "--approved-plan-sha256")) {
+        throw new Error("--plan과 --approved-plan-sha256은 함께 사용할 수 없습니다.");
+      }
       print({ command: "extract-plan", ...(await planExtraction(extractOptions)) });
       return;
+    }
+    if (!optionValue(args, "--approved-plan-sha256")) {
+      throw new Error("extract --plan이 출력한 --approved-plan-sha256 값이 필요합니다.");
     }
     await extractManifest(extractOptions);
     print({ command, status: await getIngestStatus({ stateDir }) });
@@ -82,13 +103,56 @@ async function main(): Promise<void> {
     print({ command, status: await getIngestStatus({ stateDir }) });
     return;
   }
+  if (command === "score") {
+    const units = requiredOption(args, "--units")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const expectedOccurrenceCount = positiveInteger(
+      requiredOption(args, "--expected-occurrences"),
+      "--expected-occurrences",
+    );
+    if (!expectedOccurrenceCount) throw new Error("--expected-occurrences가 필요합니다.");
+    const report = await scoreExtractionAgainstGroundTruth({
+      stateDir,
+      unitIds: units,
+      approvedPaidPlanSha256: requiredOption(args, "--approved-plan-sha256"),
+      groundTruthPath: requiredOption(args, "--ground-truth"),
+      expectedGroundTruthSha256: requiredOption(args, "--ground-truth-sha256"),
+      expectedOccurrenceCount,
+      ...(optionValue(args, "--overlay") ? { overlayPath: optionValue(args, "--overlay") } : {}),
+      ...(optionValue(args, "--overlay-sha256")
+        ? { expectedOverlaySha256: optionValue(args, "--overlay-sha256") }
+        : {}),
+      ...(optionValue(args, "--adjudication")
+        ? { adjudicationPath: optionValue(args, "--adjudication") }
+        : {}),
+      ...(optionValue(args, "--adjudication-sha256")
+        ? { expectedAdjudicationSha256: optionValue(args, "--adjudication-sha256") }
+        : {}),
+      ...(optionValue(args, "--non-blocking-units")
+        ? {
+            nonBlockingUnitIds: optionValue(args, "--non-blocking-units")
+              ?.split(",")
+              .map((value) => value.trim())
+              .filter(Boolean),
+          }
+        : {}),
+      requireValidatedArtifacts: true,
+    });
+    print({ command, report });
+    return;
+  }
   if (command === "load") {
     const snapshot = optionValue(args, "--snapshot");
     if (!snapshot) throw new Error("load에는 --snapshot 2026Q3가 필요합니다.");
+    if (hasFlag(args, "--apply")) {
+      throw new Error("load_apply_blocked_pending_state_aware_batch_runner");
+    }
     const result = await loadValidated({
       stateDir,
       snapshot,
-      apply: hasFlag(args, "--apply"),
+      apply: false,
       confirmProjectRef: optionValue(args, "--confirm-project-ref"),
     });
     print({
@@ -113,8 +177,17 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "paid-execution-domain-init") {
+    print({ command, ...(await initializePaidExecutionDomain(stateDir)) });
+    return;
+  }
+  if (command === "paid-execution-domain-status") {
+    print({ command, ...(await getPaidExecutionDomainStatus(stateDir)) });
+    return;
+  }
+
   throw new Error(
-    "사용법: pnpm ingest <scan|convert|extract|validate|load|status> [옵션] (extract: --units id1,id2 또는 형식별 층화 --limit N; 기본 8)",
+    "사용법: pnpm ingest <scan|convert|extract|validate|score|load|status|paid-execution-domain-init|paid-execution-domain-status> [옵션] (유료 계획 전에 paid-execution-domain-init 1회 필수; extract --plan: 승인 SHA 생성; 실제 extract: --approved-plan-sha256 <sha> 필수)",
   );
 }
 

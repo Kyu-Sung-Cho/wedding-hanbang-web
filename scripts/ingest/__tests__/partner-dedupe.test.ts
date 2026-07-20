@@ -6,7 +6,7 @@ import test from "node:test";
 import JSZip from "jszip";
 
 import { convertManifest } from "../convert.js";
-import { extractManifest, type ExtractionProvider } from "../extract.js";
+import { extractManifestForTests as extractManifest, type ExtractionProvider } from "../extract.js";
 import { loadValidated } from "../load.js";
 import {
   buildPartnerVendorRecords,
@@ -43,6 +43,7 @@ function partner(
   vendorName: string,
   category: "studio" | "dress" = "studio",
 ): DisclosureExtraction["partner_vendors"][number] {
+  const categoryLabel = category === "studio" ? "스튜디오" : "드레스";
   return {
     vendor_name: vendorName,
     old_names: [],
@@ -52,7 +53,7 @@ function partner(
     base_spec: "20p album",
     price_note: null,
     options: [],
-    source_quote: `${vendorName} 120만원`,
+    source_quote: `카테고리: ${categoryLabel} | ${vendorName} | 20p album | 120만원`,
     confidence: 0.95,
     needs_review: false,
   };
@@ -211,8 +212,14 @@ test("manifest validation blocks cross-unit exact partner identity conflicts bef
   ]));
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "서울");
   await mkdir(regionDir, { recursive: true });
-  await writeDummyDocx(path.join(regionDir, "(서울)_샘플첫대행사.docx"), "샘플하나스튜디오 120만원");
-  await writeDummyDocx(path.join(regionDir, "(서울)_샘플둘대행사.docx"), "샘플하나 스튜디오 150만원");
+  await writeDummyDocx(
+    path.join(regionDir, "(서울)_샘플첫대행사.docx"),
+    "카테고리: 스튜디오 | 샘플하나스튜디오 | 20p album | 120만원",
+  );
+  await writeDummyDocx(
+    path.join(regionDir, "(서울)_샘플둘대행사.docx"),
+    "카테고리: 스튜디오 | 샘플하나 스튜디오 | 20p album | 150만원",
+  );
   const scanned = await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
   const names = new Map(scanned.units.map((unit) => [unit.unit_id, unit.parsed.raw_name]));
@@ -231,7 +238,8 @@ test("manifest validation blocks cross-unit exact partner identity conflicts bef
             ...partner(vendorName),
             price_min_krw: price,
             price_max_krw: price,
-            source_quote: `${vendorName} ${price === 1_200_000 ? "120만원" : "150만원"}`,
+            source_quote:
+              `line:1: 카테고리: 스튜디오 | ${vendorName} | 20p album | ${price === 1_200_000 ? "120만원" : "150만원"}`,
           }],
           hall: {
             venue_fee_krw: null,
@@ -267,8 +275,14 @@ test("cross-unit partner candidates retain row refs and vendor kind in the load 
   ]));
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "부산");
   await mkdir(regionDir, { recursive: true });
-  await writeDummyDocx(path.join(regionDir, "(부산)_샘플첫대행사.docx"), "샘플온유스튜디오 120만원");
-  await writeDummyDocx(path.join(regionDir, "(부산)_샘플둘대행사.docx"), "샘플온유스튜디오점 120만원");
+  await writeDummyDocx(
+    path.join(regionDir, "(부산)_샘플첫대행사.docx"),
+    "카테고리: 스튜디오 | 샘플온유스튜디오 | 20p album | 120만원",
+  );
+  await writeDummyDocx(
+    path.join(regionDir, "(부산)_샘플둘대행사.docx"),
+    "카테고리: 스튜디오 | 샘플온유스튜디오점 | 20p album | 120만원",
+  );
   const scanned = await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
   const names = new Map(scanned.units.map((unit) => [unit.unit_id, unit.parsed.raw_name]));
@@ -282,7 +296,11 @@ test("cross-unit partner candidates retain row refs and vendor kind in the load 
           business_name: businessName,
           region_hint: "부산",
           agency_packages: [],
-          partner_vendors: [partner(vendorName)],
+          partner_vendors: [{
+            ...partner(vendorName),
+            source_quote:
+              `line:1: 카테고리: 스튜디오 | ${vendorName} | 20p album | 120만원`,
+          }],
           hall: {
             venue_fee_krw: null,
             meal_price_min_krw: null,

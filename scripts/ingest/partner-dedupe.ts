@@ -45,12 +45,14 @@ function canonicalJson(value: unknown): string {
 
 function partnerPayloadFingerprint(item: DisclosureExtraction["partner_vendors"][number]): string {
   const semanticOptions = item.options.map(({ source_file_ids: _sourceFileIds, ...option }) => option);
+  const semanticPolicies = (item.policies ?? []).map(({ source_file_ids: _sourceFileIds, ...policy }) => policy);
   return sha256Text(canonicalJson({
     price_min_krw: item.price_min_krw,
     price_max_krw: item.price_max_krw,
     base_spec: item.base_spec,
     price_note: item.price_note,
     options: semanticOptions,
+    policies: semanticPolicies,
   }));
 }
 

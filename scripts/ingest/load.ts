@@ -1,21 +1,37 @@
 import { realpath } from "node:fs/promises";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
+import {
+  verifyDeterministicStateArtifactPath,
+  verifyJsonContentHash,
+} from "./artifact-integrity.js";
 import {
   assertDisclosureStagingProjectRef,
   assertRepositoryProductionProjectRef,
 } from "./destination.js";
-import { isPathWithin, readJsonFile, sha256File, sha256Text, writeJsonFile } from "./io.js";
+import { CONVERTER_VERSION } from "./convert.js";
+import { isPathWithin, readJsonFile, sha256File, sha256Text } from "./io.js";
 import { readAiLedger, type AiLedgerEntry } from "./ledger.js";
-import { loadManifest, saveManifest } from "./manifest.js";
+import { loadManifest } from "./manifest.js";
 import { buildPartnerVendorRecords } from "./partner-dedupe.js";
 import { sourceFileId } from "./provenance.js";
+import { SCANNER_PARSER_VERSION } from "./scan.js";
 import type { DisclosureExtraction } from "./schemas.js";
+import {
+  currentExtractionFingerprint,
+  EXTRACTION_PROCESSING_VERSION,
+  EXTRACTION_PROMPT_HASH,
+  EXTRACTION_PROMPT_VERSION,
+} from "./extraction-contract.js";
 import type { IngestManifest } from "./types.js";
 import {
+  deriveValidatedPayloadForUnit,
   DedupeCandidatesSchema,
-  ValidatedArtifactSchema,
+  StrictValidatedArtifactSchema,
+  VALIDATOR_VERSION,
   validatedArtifactFingerprint,
+  verifyValidationInputsUnchanged,
 } from "./validate.js";
 
 export interface RawStorageObject {
@@ -584,6 +600,133 @@ function stageableRowCount(unit: StagingUnit): number {
   return agency + partner + hall;
 }
 
+async function readStrictValidatedArtifactForLoad(
+  stateDir: string,
+  manifest: IngestManifest,
+  unit: IngestManifest["units"][number],
+): Promise<ReturnType<typeof StrictValidatedArtifactSchema.parse>> {
+  const extractionMetadata = unit.extraction;
+  const validationMetadata = unit.validation;
+  const conversion = unit.conversion;
+  if (!extractionMetadata || !validationMetadata || !conversion) {
+    throw new Error(`strict staging provenance is incomplete: ${unit.display_name}`);
+  }
+  await verifyValidationInputsUnchanged(unit, manifest);
+  const converterVersion = conversion.converter_version ?? "v1-legacy";
+  if (
+    manifest.scanner_parser_version !== SCANNER_PARSER_VERSION
+    || converterVersion !== CONVERTER_VERSION
+  ) {
+    throw new Error(`strict staging input versions are stale: ${unit.display_name}`);
+  }
+  const expectedExtractionFingerprint = currentExtractionFingerprint({
+    scannerParserVersion: manifest.scanner_parser_version,
+    converterVersion,
+    model: extractionMetadata.model,
+    rawName: unit.parsed.raw_name,
+    regionCode: unit.parsed.region_code,
+    kindHint: unit.parsed.kind_hint,
+    sourceFingerprint: unit.source_fingerprint,
+    artifactFingerprint: conversion.artifact_fingerprint,
+  });
+  if (
+    extractionMetadata.fingerprint !== expectedExtractionFingerprint
+    || extractionMetadata.prompt_version !== EXTRACTION_PROMPT_VERSION
+    || extractionMetadata.prompt_hash !== EXTRACTION_PROMPT_HASH
+    || extractionMetadata.processing_version !== EXTRACTION_PROCESSING_VERSION
+    || extractionMetadata.scanner_parser_version !== manifest.scanner_parser_version
+    || extractionMetadata.converter_version !== converterVersion
+    || !extractionMetadata.content_sha256
+  ) {
+    throw new Error(`strict extraction metadata is stale: ${unit.display_name}`);
+  }
+  const { verifyCurrentExtractionCacheForUnit } = await import("./extract.js");
+  const extraction = await verifyCurrentExtractionCacheForUnit(unit, manifest, stateDir);
+  if (
+    extraction.content_sha256 !== extractionMetadata.content_sha256
+    || extraction.unit_id !== unit.unit_id
+    || extraction.fingerprint !== expectedExtractionFingerprint
+    || extraction.source_fingerprint !== unit.source_fingerprint
+    || extraction.artifact_fingerprint !== conversion.artifact_fingerprint
+    || extraction.prompt_version !== EXTRACTION_PROMPT_VERSION
+    || extraction.prompt_hash !== EXTRACTION_PROMPT_HASH
+    || extraction.processing_version !== EXTRACTION_PROCESSING_VERSION
+    || extraction.scanner_parser_version !== manifest.scanner_parser_version
+    || extraction.converter_version !== converterVersion
+    || extraction.model !== extractionMetadata.model
+  ) {
+    throw new Error(`strict extraction artifact provenance is invalid: ${unit.display_name}`);
+  }
+
+  await verifyDeterministicStateArtifactPath({
+    stateDir,
+    artifactPath: validationMetadata.artifact_path,
+    expectedRelativePath: path.join("validated", `${unit.unit_id}.json`),
+  });
+  const validationRaw = await readJsonFile(validationMetadata.artifact_path);
+  const validationParsed = StrictValidatedArtifactSchema.safeParse(validationRaw);
+  if (!validationParsed.success) {
+    throw new Error(`strict validation artifact schema is invalid: ${unit.display_name}`);
+  }
+  verifyJsonContentHash(validationRaw as Record<string, unknown>, "content_sha256");
+  const validation = validationParsed.data;
+  const expectedSourceFiles = unit.source_files.map((source) => ({
+    path: source.path,
+    sha256: source.sha256,
+    bytes: source.bytes,
+  }));
+  const recomputedValidationFingerprint = validatedArtifactFingerprint(
+    validation.extraction_fingerprint,
+    validation.data,
+    validation.issues,
+    validation.coverage_gaps,
+  );
+  const provenanceFailures = [
+    validation.validator_version !== VALIDATOR_VERSION ? "validator_version" : null,
+    validationMetadata.validator_version !== VALIDATOR_VERSION ? "manifest_validator_version" : null,
+    validation.content_sha256 !== validationMetadata.content_sha256 ? "content_sha256" : null,
+    validation.extraction_content_sha256 !== extraction.content_sha256
+      ? "extraction_content_sha256"
+      : null,
+    validation.extraction_content_sha256 !== validationMetadata.extraction_content_sha256
+      ? "manifest_extraction_content_sha256"
+      : null,
+    validation.fingerprint !== validationMetadata.fingerprint ? "fingerprint" : null,
+    validation.fingerprint !== recomputedValidationFingerprint ? "recomputed_fingerprint" : null,
+    validation.unit_id !== unit.unit_id ? "unit_id" : null,
+    validation.source_fingerprint !== unit.source_fingerprint ? "source_fingerprint" : null,
+    validation.extraction_fingerprint !== extraction.fingerprint ? "extraction_fingerprint" : null,
+    validation.prompt_version !== EXTRACTION_PROMPT_VERSION ? "prompt_version" : null,
+    validation.prompt_hash !== EXTRACTION_PROMPT_HASH ? "prompt_hash" : null,
+    validation.model !== extraction.model ? "model" : null,
+    validation.review_status !== "pending" ? "review_status" : null,
+    validationMetadata.review_status !== validation.review_status ? "manifest_review_status" : null,
+    validationMetadata.issue_count !== validation.issues.length ? "manifest_issue_count" : null,
+    validationMetadata.validated_at !== validation.validated_at ? "manifest_validated_at" : null,
+    validation.issues.some((issue) => issue.severity === "error") ? "blocking_issue" : null,
+    JSON.stringify(validation.source_files) !== JSON.stringify(expectedSourceFiles) ? "source_files" : null,
+  ].filter((failure): failure is string => failure !== null);
+  if (provenanceFailures.length > 0) {
+    throw new Error(
+      `strict validation artifact provenance is invalid (${provenanceFailures.join(",")}): ${unit.display_name}`,
+    );
+  }
+  const replayed = await deriveValidatedPayloadForUnit(unit, extraction);
+  const replayFailures = [
+    !isDeepStrictEqual(validation.data, replayed.data) ? "data_replay" : null,
+    !isDeepStrictEqual(validation.issues, replayed.issues) ? "issues_replay" : null,
+    !isDeepStrictEqual(validation.coverage_gaps, replayed.coverageGaps)
+      ? "coverage_gaps_replay"
+      : null,
+  ].filter((failure): failure is string => failure !== null);
+  if (replayFailures.length > 0) {
+    throw new Error(
+      `strict validation artifact replay is invalid (${replayFailures.join(",")}): ${unit.display_name}`,
+    );
+  }
+  return validation;
+}
+
 async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan: StagingLoadPlan; manifest: IngestManifest }> {
   if (!/^20\d{2}Q[1-4]$/.test(snapshot)) throw new Error("snapshot은 2026Q3 형식이어야 합니다.");
   const manifest = await loadManifest(stateDir);
@@ -607,24 +750,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       });
       continue;
     }
-    const parsed = ValidatedArtifactSchema.safeParse(await readJsonFile(unit.validation.artifact_path));
-    if (
-      !parsed.success
-      || parsed.data.fingerprint !== unit.validation.fingerprint
-      || parsed.data.source_fingerprint !== unit.source_fingerprint
-      || parsed.data.review_status !== "pending"
-    ) {
-      throw new Error(`검증 artifact provenance가 일치하지 않습니다: ${unit.display_name}`);
-    }
-    const recomputedValidationFingerprint = validatedArtifactFingerprint(
-      parsed.data.extraction_fingerprint,
-      parsed.data.data,
-      parsed.data.issues,
-      parsed.data.coverage_gaps,
-    );
-    if (recomputedValidationFingerprint !== parsed.data.fingerprint) {
-      throw new Error(`검증 artifact 내용 hash가 일치하지 않습니다: ${unit.display_name}`);
-    }
+    const validatedArtifact = await readStrictValidatedArtifactForLoad(stateDir, manifest, unit);
     // scan writes canonical source order. Load must not reorder an existing
     // manifest because conversion artifacts encode this exact positional order.
     const orderedSourceFiles = [...unit.source_files];
@@ -658,10 +784,11 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       source_records: sourceRecords,
       source_fingerprint: unit.source_fingerprint,
       validation_fingerprint: unit.validation.fingerprint,
-      validation_issue_codes: [...new Set(parsed.data.issues.map((issue) => issue.code))].sort(deterministicTextCompare),
-      data: parsed.data.data,
+      validation_issue_codes: [...new Set(validatedArtifact.issues.map((issue) => issue.code))]
+        .sort(deterministicTextCompare),
+      data: validatedArtifact.data,
     };
-    const blockingArtifactIssue = parsed.data.issues.some((issue) => issue.severity === "error");
+    const blockingArtifactIssue = validatedArtifact.issues.some((issue) => issue.severity === "error");
     const skipReason = unit.parsed.region_code === "unknown"
       ? "unknown_region"
       : blockingArtifactIssue
@@ -687,6 +814,10 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
     units.push(stagingUnit);
     previewObjects.push(...unitPreviewObjects);
     for (const source of unit.source_files) {
+      const currentSource = await sha256File(source.absolute_path);
+      if (currentSource.sha256 !== source.sha256 || currentSource.bytes !== source.bytes) {
+        throw new Error(`raw source changed after scan: ${source.path}`);
+      }
       if (source.bytes > 50 * 1024 * 1024) {
         throw new Error(`Storage 50MB 제한을 넘는 원본입니다: ${source.path}`);
       }
@@ -846,7 +977,7 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
   };
 }
 
-function stagingEnvironment(env: NodeJS.ProcessEnv, confirmation: string | undefined): StagingEnvironment {
+export function stagingEnvironment(env: NodeJS.ProcessEnv, confirmation: string | undefined): StagingEnvironment {
   if (env.INGEST_LOAD_ENABLED !== "true") throw new Error("apply에는 INGEST_LOAD_ENABLED=true가 필요합니다.");
   if (env.INGEST_TARGET_ENV !== "staging") throw new Error("INGEST_TARGET_ENV=staging만 허용합니다.");
   const projectRef = env.SUPABASE_PROJECT_REF?.trim();
@@ -920,24 +1051,11 @@ function stagingEnvironment(env: NodeJS.ProcessEnv, confirmation: string | undef
 
 export async function loadValidated(
   options: LoadOptions,
-  dependencies: LoadDependencies = {},
+  _dependencies: LoadDependencies = {},
 ): Promise<LoadResult> {
+  if (options.apply) {
+    throw new Error("load_apply_blocked_pending_state_aware_batch_runner");
+  }
   const { plan, manifest } = await buildLoadPlan(options.stateDir, options.snapshot);
-  if (!options.apply) return { mode: "dry-run", plan, manifest, writer_result: null };
-
-  const environment = stagingEnvironment(dependencies.env ?? process.env, options.confirmProjectRef);
-  const writer = dependencies.writer ?? (await import("./supabase-writer.js")).createSupabaseStagingWriter(environment);
-  const writerResult = await writer.stage(plan);
-  const loadedIds = new Set(writerResult.loadedUnitIds);
-  for (const unit of manifest.units) if (loadedIds.has(unit.unit_id)) unit.stage = "loaded";
-  await saveManifest(manifest);
-  await writeJsonFile(
-    path.join(path.resolve(options.stateDir), ".cache", `ai-ledger-loaded-${environment.projectRef}.json`),
-    {
-      project_ref: environment.projectRef,
-      ledger_ids: [...new Set(writerResult.loggedLedgerIds)].sort(),
-      marked_at: new Date().toISOString(),
-    },
-  );
-  return { mode: "applied", plan, manifest, writer_result: writerResult };
+  return { mode: "dry-run", plan, manifest, writer_result: null };
 }
