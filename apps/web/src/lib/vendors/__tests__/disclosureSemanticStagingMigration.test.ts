@@ -359,22 +359,16 @@ describe("private disclosure semantic staging migration", () => {
 
   it("accepts independent provenance digests and enforces shape/extensions", async () => {
     const allowed = ["xlsx", "docx", "hwp", "pdf", "png"];
-    for (const extension of allowed) {
-      const db = await baseline();
-      try {
-        await db.exec(migration);
-        await db.exec("SET ROLE service_role");
-        await insertSemantic(db, { sourceObjectKeys: [`${SHA.rawObject}.${extension}`] });
-      } finally {
-        await db.exec("RESET ROLE").catch(() => undefined);
-        await db.close();
-      }
-    }
-
     const db = await baseline();
     try {
       await db.exec(migration);
       await db.exec("SET ROLE service_role");
+      for (const [index, extension] of allowed.entries()) {
+        await insertSemantic(db, {
+          sourceObjectKeys: [`${SHA.rawObject}.${extension}`],
+          sourceRecordKey: String(index + 1).repeat(64),
+        });
+      }
       await expect(insertSemantic(db, {
         sourceObjectKeys: [`${SHA.rawObject}.txt`],
       })).rejects.toThrow();
