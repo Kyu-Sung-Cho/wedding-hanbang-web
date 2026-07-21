@@ -26,7 +26,12 @@ import {
 } from "./partner-dedupe.js";
 import { sourceFileId, sourceFilesForArtifact } from "./provenance.js";
 import { validateStructuredRecordSourceLinkage } from "./record-source-linkage.js";
-import { normalizeVendorName, regionCodeFromDirectory, SCANNER_PARSER_VERSION } from "./scan.js";
+import {
+  DUPLICATE_SOURCE_NOTICE_PREFIX,
+  normalizeVendorName,
+  regionCodeFromDirectory,
+  SCANNER_PARSER_VERSION,
+} from "./scan.js";
 import { DisclosureExtractionSchema, StrictExtractionArtifactSchema } from "./schemas.js";
 import type { DisclosureExtraction } from "./schemas.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
@@ -39,7 +44,7 @@ import {
   type XlsxAuxiliaryEvidenceIndex,
 } from "./xlsx-aux-evidence.js";
 
-export const VALIDATOR_VERSION = "v12-xlsx-auxiliary-evidence";
+export const VALIDATOR_VERSION = "v14-local-evidence-review-gates";
 export { SOURCE_MONEY_SCANNER_VERSION } from "./extraction-contract.js";
 const BASE_PRICE_MIN_KRW = 100_000;
 const BASE_PRICE_MAX_KRW = 30_000_000;
@@ -2363,6 +2368,22 @@ export async function deriveValidatedPayloadForUnit(
         : issue.message,
     };
   }));
+  if (unit.notices.some((notice) => notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX))) {
+    issues.push({
+      severity: "warning",
+      code: "duplicate_source_content",
+      path: "unit.notices",
+      message: "다른 업체 unit과 완전히 동일한 원본 세트이므로 자동 승인을 제외하고 사람이 업체 연결을 확인해야 합니다.",
+    });
+  }
+  if (/(?:^|\n)\[local_evidence_guard\]/u.test(data.extraction_notes)) {
+    issues.push({
+      severity: "warning",
+      code: "local_evidence_guard",
+      path: "extraction_notes",
+      message: "근거가 불충분한 추출 레코드를 로컬 보호 로직이 제거했으므로 자동 승인을 제외하고 원문 누락 여부를 사람이 확인해야 합니다.",
+    });
+  }
   const coverageGaps = findCoverageGaps(sourceText, data, { includeAuditLedger: false });
   if (coverageGaps.length > 0) {
     issues.push({

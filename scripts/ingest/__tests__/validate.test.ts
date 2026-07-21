@@ -326,6 +326,106 @@ test("validate writes provenance-bound pending artifacts and only suggests likel
   assert.equal(dryRun.plan.dedupe_candidates[0].entity_kind, "agency");
 });
 
+test("duplicate source notices force every staged row to remain in manual review", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-validate-duplicate-source-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "광주");
+  await mkdir(regionDir, { recursive: true });
+  const firstPath = path.join(regionDir, "(광주)_중복원본가.docx");
+  const secondPath = path.join(regionDir, "(광주)_중복원본나.docx");
+  await writeDummyDocx(firstPath, "더미 패키지 스튜디오 드레스 메이크업 3.3만원");
+  await writeFile(secondPath, await readFile(firstPath));
+
+  const scanned = await scanSources({ rootDir, stateDir });
+  assert.equal(scanned.units.length, 2);
+  assert.equal(scanned.units.every((unit) =>
+    unit.notices.some((notice) => notice.startsWith("duplicate_source_content:"))
+  ), true);
+  await convertManifest({ stateDir });
+  const names = new Map(scanned.units.map((unit) => [unit.unit_id, unit.parsed.raw_name]));
+  await extractManifest({ stateDir }, {
+    provider: {
+      extract: async (request) => {
+        const data = extraction(names.get(request.unitId) ?? "더미");
+        const sourceQuote = /^(line:\d+:\s*.*더미 패키지 스튜디오 드레스 메이크업 3\.3만원)$/mu
+          .exec(request.text)?.[1];
+        assert.ok(sourceQuote);
+        data.agency_packages[0].source_quote = sourceQuote;
+        return { data, inputTokens: 10, outputTokens: 10 };
+      },
+    },
+    env: {},
+  });
+
+  const validated = await validateManifest({ stateDir });
+  assert.equal(validated.units.every((unit) => unit.stage === "validated"), true);
+  for (const unit of validated.units) {
+    const artifact = JSON.parse(await readFile(unit.validation?.artifact_path ?? "", "utf8"));
+    assert.equal(artifact.issues.some((issue: { code?: string; severity?: string }) =>
+      issue.code === "duplicate_source_content" && issue.severity === "warning"
+    ), true, JSON.stringify(artifact.issues));
+  }
+
+  const dryRun = await loadValidated({ stateDir, snapshot: "2026Q3" });
+  assert.equal(dryRun.plan.agency_packages.length, 2);
+  assert.equal(dryRun.plan.agency_packages.every((row) => row.needs_review), true);
+  assert.equal(dryRun.plan.agency_packages.every((row) =>
+    row.validation_issue_codes.includes("duplicate_source_content")
+  ), true);
+});
+
+test("local evidence sanitization forces every staged row to remain in manual review", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-validate-local-guard-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "광주");
+  await mkdir(regionDir, { recursive: true });
+  await writeDummyDocx(
+    path.join(regionDir, "(광주)_근거보호.docx"),
+    "더미 패키지 스튜디오 드레스 메이크업 3.3만원",
+  );
+  const scanned = await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+  await extractManifest({ stateDir }, {
+    provider: {
+      extract: async (request) => {
+        const data = extraction(scanned.units[0].parsed.raw_name);
+        const sourceQuote = /^(line:\d+:\s*.*더미 패키지 스튜디오 드레스 메이크업 3\.3만원)$/mu
+          .exec(request.text)?.[1];
+        assert.ok(sourceQuote);
+        data.agency_packages[0].source_quote = sourceQuote;
+        data.extraction_notes = "[local_evidence_guard] removed unsupported policy record";
+        return { data, inputTokens: 10, outputTokens: 10 };
+      },
+    },
+    env: {},
+  });
+
+  const validated = await validateManifest({ stateDir });
+  assert.equal(validated.units[0].stage, "validated");
+  const artifact = JSON.parse(
+    await readFile(validated.units[0].validation?.artifact_path ?? "", "utf8"),
+  );
+  assert.equal(artifact.issues.some((issue: { code?: string; severity?: string }) =>
+    issue.code === "local_evidence_guard" && issue.severity === "warning"
+  ), true, JSON.stringify(artifact.issues));
+
+  const dryRun = await loadValidated({ stateDir, snapshot: "2026Q3" });
+  assert.equal(dryRun.plan.agency_packages.length, 1);
+  assert.equal(dryRun.plan.agency_packages[0].needs_review, true);
+  assert.equal(
+    dryRun.plan.agency_packages[0].validation_issue_codes.includes("local_evidence_guard"),
+    true,
+  );
+});
+
 test("validate blocks a content-tampered extraction artifact", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-validate-extract-tamper-"));
   const stateDir = `${rootDir}-state`;
