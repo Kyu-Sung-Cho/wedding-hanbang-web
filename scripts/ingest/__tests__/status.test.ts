@@ -13,12 +13,17 @@ import {
 } from "../extraction-contract.js";
 import { sha256File, sha256Text } from "../io.js";
 import { createLedgerId } from "../ledger.js";
+import { extractManifestLocally } from "../local-extraction-runner.js";
 import { loadManifest, saveManifest } from "../manifest.js";
 import { SCANNER_PARSER_VERSION, scanSources } from "../scan.js";
 import { formatIngestStatus, getIngestStatus } from "../status.js";
-import { VALIDATOR_VERSION } from "../validate.js";
+import { validateManifest, VALIDATOR_VERSION } from "../validate.js";
 
-async function createConvertedStatusFixture(rootDir: string, stateDir: string) {
+async function createConvertedStatusFixture(
+  rootDir: string,
+  stateDir: string,
+  artifactText = "preserved disclosure evidence",
+) {
   const regionDir = path.join(rootDir, "agency", "jeju");
   await mkdir(regionDir, { recursive: true });
   await writeFile(path.join(regionDir, "sample-vendor.docx"), "generated source fixture");
@@ -37,14 +42,14 @@ async function createConvertedStatusFixture(rootDir: string, stateDir: string) {
     "1-doc.txt",
   );
   await mkdir(path.dirname(artifactPath), { recursive: true });
-  await writeFile(artifactPath, "preserved disclosure evidence");
+  await writeFile(artifactPath, artifactText);
   const digest = await sha256File(artifactPath);
   unit.conversion = {
     converter_version: CONVERTER_VERSION,
     source_fingerprint: unit.source_fingerprint,
     text_artifacts: [artifactPath],
     image_artifacts: [],
-    text_characters: 29,
+    text_characters: artifactText.length,
     cell_count: 0,
     artifact_fingerprint: sha256Text(`${path.resolve(artifactPath)}\0${digest.sha256}`),
     converted_at: new Date().toISOString(),
@@ -94,6 +99,119 @@ test("status treats a converted unit with tampered artifact content as stale", a
     formatIngestStatus(status),
     /tampered private vendor disclosure content|sample-vendor|\.converted/u,
   );
+});
+
+test("status counts current local deterministic extraction separately with zero usage and cost", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-status-local-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  await createConvertedStatusFixture(rootDir, stateDir);
+  const extraction = await extractManifestLocally({ stateDir });
+  assert.equal(extraction.processed_units, 1);
+
+  const status = await getIngestStatus({ stateDir });
+
+  assert.equal(status.current_by_stage.extracted, 1);
+  assert.equal(status.stale_by_stage.extracted, 0);
+  assert.equal(status.durable_local_extracted_units, 1);
+  assert.equal(status.current_local_extracted_units, 1);
+  assert.equal(status.historical_local_extraction_input_tokens, 0);
+  assert.equal(status.historical_local_extraction_output_tokens, 0);
+  assert.equal(status.durable_local_extraction_cost_usd, 0);
+  assert.equal(status.historical_extraction_input_tokens, 0);
+  assert.equal(status.historical_extraction_output_tokens, 0);
+  assert.equal(status.durable_ledger_estimated_cost_usd, 0);
+  assert.match(
+    formatIngestStatus(status),
+    /Current local deterministic extraction units:\s+1[\s\S]*Local deterministic extraction tokens:\s+0 input \/ 0 output[\s\S]*Local deterministic extraction cost \(USD\):\s+0\.000000/u,
+  );
+});
+
+test("status does not treat stale local engine metadata as current", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-status-local-stale-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  await createConvertedStatusFixture(rootDir, stateDir);
+  await extractManifestLocally({ stateDir });
+  const manifest = await loadManifest(stateDir);
+  assert.ok(manifest.units[0].local_extraction);
+  manifest.units[0].local_extraction.engine_version = "stale-local-engine";
+  await saveManifest(manifest);
+
+  const status = await getIngestStatus({ stateDir });
+
+  assert.equal(status.durable_by_stage.extracted, 1);
+  assert.equal(status.current_by_stage.extracted, 0);
+  assert.equal(status.stale_by_stage.extracted, 1);
+  assert.equal(status.durable_local_extracted_units, 1);
+  assert.equal(status.current_local_extracted_units, 0);
+  assert.equal(status.durable_local_extraction_cost_usd, 0);
+});
+
+test("status treats a missing local extraction artifact as stale", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-status-local-missing-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  await createConvertedStatusFixture(rootDir, stateDir);
+  const extraction = await extractManifestLocally({ stateDir });
+  const artifactPath = extraction.manifest.units[0]?.local_extraction?.artifact_path;
+  assert.ok(artifactPath);
+  await rm(artifactPath);
+
+  const status = await getIngestStatus({ stateDir });
+
+  assert.equal(status.durable_by_stage.extracted, 1);
+  assert.equal(status.current_by_stage.extracted, 0);
+  assert.equal(status.stale_by_stage.extracted, 1);
+  assert.equal(status.current_local_extracted_units, 0);
+});
+
+test("status verifies and reports local review-only validation separately from strict paid load", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-status-local-validation-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  await createConvertedStatusFixture(rootDir, stateDir, [
+    "## 시트: 스튜디오",
+    "스튜디오!A3: 사업자명",
+    "스튜디오!B3: 기본가격",
+    "스튜디오!A4: 해피스튜디오",
+    "스튜디오!B4: 스튜디오 기본 120만원",
+  ].join("\n"));
+  await extractManifestLocally({ stateDir });
+  const validated = await validateManifest({ stateDir });
+  assert.equal(validated.units[0]?.stage, "validated");
+
+  const current = await getIngestStatus({ stateDir });
+
+  assert.equal(current.current_by_stage.validated, 1);
+  assert.equal(current.durable_local_validated_units, 1);
+  assert.equal(current.current_local_validated_units, 1);
+  assert.equal(current.current_local_review_load_eligible_units, 1);
+  assert.equal(current.current_strict_load_eligible_units, 0);
+  assert.equal(current.current_pending_review_units, 1);
+  assert.match(
+    formatIngestStatus(current),
+    /Current local review-only validated units:\s+1[\s\S]*Current local pending-load eligible units:\s+1/u,
+  );
+
+  await rm(validated.units[0]!.validation!.artifact_path);
+  const missing = await getIngestStatus({ stateDir });
+  assert.equal(missing.current_by_stage.validated, 0);
+  assert.equal(missing.current_local_validated_units, 0);
+  assert.equal(missing.current_local_review_load_eligible_units, 0);
+  assert.equal(missing.current_pending_review_units, 0);
 });
 
 test("status reports manual work separately from completed stages", async (t) => {

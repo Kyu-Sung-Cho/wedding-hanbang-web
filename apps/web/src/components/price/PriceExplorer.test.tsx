@@ -101,6 +101,85 @@ describe("PriceExplorer", () => {
     expect(container.querySelector("main main")).toBeNull();
   });
 
+  it("marks admin preview content and preserves preview on category and detail links", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [] })
+        : jsonResponse({ combos: [] }),
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(
+        <PriceExplorer
+          catalog={catalog}
+          category="studio"
+          surface="app"
+          preview
+        />,
+      );
+      await flushAsyncWork();
+    });
+
+    expect(container.textContent).toContain("관리자 전용 미리보기 — 자동 추출·검수 전·정확성 미보장");
+    expect(container.textContent).toContain("업체·가격·연결 정보의 정확성이 보장되지 않습니다.");
+    const previewBadge = container.querySelector('[role="status"][aria-label="관리자 미리보기 상태"]');
+    expect(previewBadge?.className).toContain("border-[#B89785]/35");
+    expect(previewBadge?.className).toContain("bg-[#F7F1E8]");
+    expect(previewBadge?.className).toContain("text-[#36534E]");
+    const hrefs = Array.from(container.querySelectorAll<HTMLAnchorElement>("a"))
+      .map((anchor) => anchor.getAttribute("href"));
+    expect(hrefs).toContain("/wedding/vendors?category=dress&preview=1");
+    const firstVendorLinks = hrefs.filter((href) => href?.includes(firstVendor.id));
+    expect(firstVendorLinks).toHaveLength(2);
+    expect(firstVendorLinks.every((href) => (
+      href === `/wedding/vendors/${firstVendor.id}?preview=1`
+    ))).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.querySelector('a[href="/price/wishlist"]')).toBeNull();
+    expect(container.querySelector(`button[aria-label="${firstVendor.name} 찜하기"]`)).toBeNull();
+    expect(container.textContent).toContain("읽기 전용");
+    expect(container.textContent).not.toContain("내 예산으로 조합 찾기");
+    expect(container.textContent).not.toContain("+ 조합에 담기");
+    expect(container.textContent).not.toContain("아모라");
+    expect(container.querySelector('a[href="/wedding/chat"]')).toBeNull();
+  });
+
+  it("shows only each vendor agency until an agency filter is explicitly selected", async () => {
+    const agencyBVendor: PriceVendor = {
+      ...studio("vendor-agency-b", "대행사 B 전용 스튜디오"),
+      offers: [offer("offer-b", "agency-b", "대행사 B", 2_000_000)],
+    };
+    const multiAgencyCatalog: PriceCatalog = {
+      ...catalog,
+      categories: {
+        ...catalog.categories,
+        studio: [firstVendor, agencyBVendor],
+      },
+      agencies: [
+        { id: "agency-a", name: "대행사 A" },
+        { id: "agency-b", name: "대행사 B" },
+      ],
+    };
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
+      String(input).includes("/api/favorites")
+        ? jsonResponse({ vendorIds: [] })
+        : jsonResponse({ combos: [] }),
+    )));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={multiAgencyCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    const firstVendorComparison = container.querySelector(
+      `[aria-label="${firstVendor.name} 대행사별 공시가"]`,
+    );
+    expect(firstVendorComparison?.textContent).toContain("대행사 A");
+    expect(firstVendorComparison?.textContent).not.toContain("대행사 B");
+    expect(firstVendorComparison?.textContent).not.toContain("—");
+  });
+
   it("counts unique official vendors in the app summary across categories", async () => {
     const duplicateCatalog: PriceCatalog = {
       ...catalog,

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rmdir, stat, unlink } from "node:fs/promises";
-import { hostname, tmpdir } from "node:os";
+import { link, mkdtemp, open, readFile, readdir, realpath, rename, rmdir, stat, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import OpenAI from "openai";
@@ -15,12 +15,18 @@ import {
 } from "./artifact-integrity.js";
 import {
   ALLOWED_EXTRACTION_MODELS,
+  CURRENT_EXTRACTION_FINALIZATION_CONTRACT,
   currentExtractionFingerprint,
   EXTRACTION_PROCESSING_VERSION,
   EXTRACTION_PROMPT_HASH,
-  EXTRACTION_RESPONSE_FORMAT,
+  LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT,
+  LEGACY_TRANSITIONAL_EXTRACTION_PROCESSING_VERSION,
+  LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_HASH,
+  LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_VERSION,
   type ExtractionModel,
 } from "./extraction-contract.js";
+import { acquireExtractionLock } from "./extraction-lock.js";
+export { acquireExtractionLock } from "./extraction-lock.js";
 import {
   isPathWithin,
   readJsonFile,
@@ -83,6 +89,7 @@ import {
   type PaidExecutionDomainLocationOptions,
   type ClaimPaidExecutionAttemptInput,
 } from "./paid-execution-domain.js";
+import { EXTRACTION_RESPONSE_FORMAT } from "./openai-extraction-response-format.js";
 import { FIXED_EIGHT_ORDERED_UNIT_IDS } from "./pilot-pass-receipt.js";
 import { costUsdToNanoUsdCeil } from "./paid-extraction-budget.js";
 import { EXTRACTION_INSTRUCTIONS, EXTRACTION_PROMPT_VERSION } from "./prompt.js";
@@ -102,6 +109,7 @@ import {
   matchSingleXlsxEvidenceQuote,
   normalizeEvidenceText,
   parseKoreanMoneyAmounts,
+  scanLegacyE258SourceMoneyOccurrences,
   scanSourceMoneyOccurrences,
 } from "./validate.js";
 import {
@@ -125,7 +133,19 @@ const MAXIMUM_IMAGE_INPUT_TOKENS = 16_384;
 const TARGET_EXTRACTION_PAYLOAD_CHARACTERS = 3_000;
 const MAX_EXTRACTION_NOTES_CHARACTERS = 4_000;
 const LOCAL_EVIDENCE_GUARD_MARKER = "[local_evidence_guard]";
+const LEGACY_TRANSITIONAL_SCANNER_PARSER_VERSION = "v4-convertible-content-duplicates";
+const LEGACY_TRANSITIONAL_CONVERTER_VERSION = "v8-xlsx-emf-notice-reconcile";
+const LEGACY_TRANSITIONAL_MODEL: ExtractionModel = "gpt-5.6-luna";
 export type { ExtractionModel } from "./extraction-contract.js";
+
+export type ExtractionFinalizationContract =
+  | typeof CURRENT_EXTRACTION_FINALIZATION_CONTRACT
+  | typeof LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT;
+
+export type VerifiedStrictExtractionArtifact = StrictExtractionArtifact & {
+  /** Assigned by replay verification; never read from or persisted to the cache JSON. */
+  readonly verified_finalization_contract: ExtractionFinalizationContract;
+};
 
 export interface ExtractionSourceReference {
   sourceFileId: string;
@@ -334,7 +354,15 @@ export interface ExtractOptions {
   enforcePilotAuthorization?: boolean;
   /** Content hash emitted by `extract --plan`; required before any production paid call. */
   approvedPlanSha256?: string;
+  /** Legacy inert field retained only to prove the hard-disabled paid entrypoint cannot be reopened. */
+  executionMode?: "local_only" | "paid_openai";
+  /** Legacy inert acknowledgement; no value enables production paid extraction. */
+  paidOpenAIConfirmation?: string;
 }
+
+/** Legacy test input. The production paid entrypoint is unconditionally disabled. */
+export const PAID_OPENAI_EXTRACTION_CONFIRMATION =
+  "I_ACCEPT_PAID_OPENAI_API_CHARGES" as const;
 
 export interface ExtractDependencies {
   env?: NodeJS.ProcessEnv;
@@ -1086,6 +1114,21 @@ function mergeExtractionNotes(notes: Array<string | null | undefined>): string {
   return generalLimit > 0
     ? `${guardBlock}\n${generalBlock.slice(0, generalLimit)}`
     : guardBlock;
+}
+
+function mergeLegacyTransitionalExtractionNotes(
+  notes: Array<string | null | undefined>,
+): string {
+  return notes.filter(Boolean).join("\n").slice(0, MAX_EXTRACTION_NOTES_CHARACTERS);
+}
+
+function mergeExtractionNotesForContract(
+  notes: Array<string | null | undefined>,
+  contract: ExtractionFinalizationContract,
+): string {
+  return contract === LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT
+    ? mergeLegacyTransitionalExtractionNotes(notes)
+    : mergeExtractionNotes(notes);
 }
 
 function imageMoneyOccurrenceViolation(
@@ -2445,16 +2488,20 @@ async function buildRequests(
 
 async function deterministicTextMoneyLedger(
   unit: ManifestUnit,
+  finalizationContract: ExtractionFinalizationContract = CURRENT_EXTRACTION_FINALIZATION_CONTRACT,
 ): Promise<NonNullable<DisclosureExtraction["money_occurrences"]>> {
   if (!unit.conversion) return [];
   const snapshot = await readVerifiedConversionSnapshot(unit);
+  const scanMoney = finalizationContract === LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT
+    ? scanLegacyE258SourceMoneyOccurrences
+    : scanSourceMoneyOccurrences;
   const ledger: NonNullable<DisclosureExtraction["money_occurrences"]> = [];
   let lineOffset = 0;
   for (const artifactPath of unit.conversion.text_artifacts) {
     const text = snapshot.textByPath.get(path.resolve(artifactPath));
     if (text === undefined) throw new Error(`verified_text_snapshot_missing:${artifactPath}`);
     const sourceFileIds = sourceFilesForArtifact(unit, artifactPath).map(sourceFileId);
-    for (const occurrence of scanSourceMoneyOccurrences(text)) {
+    for (const occurrence of scanMoney(text)) {
       const policyContext = /(?:위약|환불|취소|청약|계약금|계약\s*해지|해약)/u.test(occurrence.line_context);
       const localLine = /^line:(\d+)$/u.exec(occurrence.source_locator);
       const sourceLocator = localLine
@@ -2788,7 +2835,10 @@ function coalesceComplementaryHalls(items: ExtractedHall[]): ExtractedHall[] {
   });
 }
 
-export function mergeExtractionChunks(results: DisclosureExtraction[]): DisclosureExtraction {
+export function mergeExtractionChunks(
+  results: DisclosureExtraction[],
+  finalizationContract: ExtractionFinalizationContract = CURRENT_EXTRACTION_FINALIZATION_CONTRACT,
+): DisclosureExtraction {
   const first = results[0];
   if (!first) throw new Error("추출 결과가 비어 있습니다.");
   const kinds = new Set(results.map((result) => result.doc_kind).filter((kind) => kind !== "unknown"));
@@ -2911,10 +2961,10 @@ export function mergeExtractionChunks(results: DisclosureExtraction[]): Disclosu
       confidence: Math.min(...hallSources.map((hall) => hall.confidence)),
       needs_review: hasConflict || hallSources.some((hall) => hall.needs_review),
     },
-    extraction_notes: mergeExtractionNotes([
+    extraction_notes: mergeExtractionNotesForContract([
       ...results.map((result) => result.extraction_notes).filter(Boolean),
       conflictNote,
-    ]),
+    ], finalizationContract),
   };
 }
 
@@ -3495,12 +3545,13 @@ async function finalizeExtractionResponses(
   unit: ManifestUnit,
   responses: DisclosureExtraction[],
   requests: ExtractionRequest[],
+  finalizationContract: ExtractionFinalizationContract = CURRENT_EXTRACTION_FINALIZATION_CONTRACT,
 ): Promise<{
   data: DisclosureExtraction;
   evidenceModalities: NonNullable<ExtractionArtifact["evidence_modalities"]>;
 }> {
-  const merged = mergeExtractionChunks(responses);
-  const textLedger = await deterministicTextMoneyLedger(unit);
+  const merged = mergeExtractionChunks(responses, finalizationContract);
+  const textLedger = await deterministicTextMoneyLedger(unit, finalizationContract);
   if ((unit.conversion?.text_artifacts.length ?? 0) > 0) {
     merged.money_occurrences = [
       ...textLedger,
@@ -3519,10 +3570,56 @@ async function finalizeExtractionResponses(
   };
 }
 
+function finalizationExactlyMatches(
+  artifact: StrictExtractionArtifact,
+  finalized: Awaited<ReturnType<typeof finalizeExtractionResponses>>,
+  checkpoints: ExtractionBatchCheckpoint[],
+): boolean {
+  return isDeepStrictEqual(artifact.data, finalized.data)
+    && isDeepStrictEqual(artifact.evidence_modalities ?? [], finalized.evidenceModalities)
+    && artifact.attempts === checkpoints.reduce((sum, checkpoint) => sum + checkpoint.attempts, 0)
+    && artifact.input_tokens === checkpoints.reduce(
+      (sum, checkpoint) => sum + checkpoint.input_tokens,
+      0,
+    )
+    && artifact.output_tokens === checkpoints.reduce(
+      (sum, checkpoint) => sum + checkpoint.output_tokens,
+      0,
+    );
+}
+
+function isKnownLegacyTransitionalFinalization(
+  artifact: StrictExtractionArtifact,
+  expected: ExtractionCacheIdentity,
+): boolean {
+  return artifact.provider_mode === "production_paid"
+    && expected.providerMode === "production_paid"
+    && artifact.paid_plan_sha256 !== null
+    && artifact.processing_version === LEGACY_TRANSITIONAL_EXTRACTION_PROCESSING_VERSION
+    && artifact.prompt_version === LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_VERSION
+    && artifact.prompt_hash === LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_HASH
+    && artifact.scanner_parser_version === LEGACY_TRANSITIONAL_SCANNER_PARSER_VERSION
+    && artifact.converter_version === LEGACY_TRANSITIONAL_CONVERTER_VERSION
+    && artifact.model === LEGACY_TRANSITIONAL_MODEL;
+}
+
+function markVerifiedFinalizationContract(
+  artifact: StrictExtractionArtifact,
+  contract: ExtractionFinalizationContract,
+): VerifiedStrictExtractionArtifact {
+  Object.defineProperty(artifact, "verified_finalization_contract", {
+    value: contract,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return artifact as VerifiedStrictExtractionArtifact;
+}
+
 async function readCache(
   cachePath: string,
   expected: ExtractionCacheIdentity,
-): Promise<StrictExtractionArtifact | null> {
+): Promise<VerifiedStrictExtractionArtifact | null> {
   try {
     await verifyDeterministicStateArtifactPath({
       stateDir: expected.stateDir,
@@ -3666,16 +3763,28 @@ async function readCache(
       checkpoints.map((checkpoint) => checkpoint.data),
       expected.requests,
     );
-    if (
-      !isDeepStrictEqual(artifact.data, finalized.data)
-      || !isDeepStrictEqual(artifact.evidence_modalities ?? [], finalized.evidenceModalities)
-      || artifact.attempts !== checkpoints.reduce((sum, checkpoint) => sum + checkpoint.attempts, 0)
-      || artifact.input_tokens !== checkpoints.reduce((sum, checkpoint) => sum + checkpoint.input_tokens, 0)
-      || artifact.output_tokens !== checkpoints.reduce((sum, checkpoint) => sum + checkpoint.output_tokens, 0)
-    ) {
+    if (finalizationExactlyMatches(artifact, finalized, checkpoints)) {
+      return markVerifiedFinalizationContract(
+        artifact,
+        CURRENT_EXTRACTION_FINALIZATION_CONTRACT,
+      );
+    }
+    if (!isKnownLegacyTransitionalFinalization(artifact, expected)) {
       throw new Error("extract_cache_invalid:finalization_mismatch");
     }
-    return artifact;
+    const legacyFinalized = await finalizeExtractionResponses(
+      expected.unit,
+      checkpoints.map((checkpoint) => checkpoint.data),
+      expected.requests,
+      LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT,
+    );
+    if (!finalizationExactlyMatches(artifact, legacyFinalized, checkpoints)) {
+      throw new Error("extract_cache_invalid:legacy_finalization_mismatch");
+    }
+    return markVerifiedFinalizationContract(
+      artifact,
+      LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT,
+    );
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
     throw error;
@@ -3944,7 +4053,7 @@ export async function verifyCurrentExtractionCacheForUnit(
   unit: ManifestUnit,
   manifest: IngestManifest,
   stateDir: string,
-): Promise<StrictExtractionArtifact> {
+): Promise<VerifiedStrictExtractionArtifact> {
   const conversion = unit.conversion;
   const metadata = unit.extraction;
   if (!conversion || !metadata) throw new Error("strict_extraction_cache_metadata_missing");
@@ -4578,131 +4687,6 @@ export async function planExtractionForTests(
   ));
 }
 
-interface ExtractionLockMetadata {
-  schema_version: 1;
-  lock_id: string;
-  pid: number;
-  hostname: string;
-  started_at: string;
-  state_dir: string;
-}
-
-function parseExtractionLockMetadata(value: unknown): ExtractionLockMetadata | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<ExtractionLockMetadata>;
-  if (
-    candidate.schema_version !== 1
-    || typeof candidate.lock_id !== "string"
-    || !candidate.lock_id
-    || !Number.isSafeInteger(candidate.pid)
-    || (candidate.pid ?? 0) < 1
-    || typeof candidate.hostname !== "string"
-    || !candidate.hostname
-    || typeof candidate.started_at !== "string"
-    || !Number.isFinite(Date.parse(candidate.started_at))
-    || typeof candidate.state_dir !== "string"
-    || !candidate.state_dir
-  ) {
-    return null;
-  }
-  return candidate as ExtractionLockMetadata;
-}
-
-function isLocalProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "EPERM") return true;
-    return false;
-  }
-}
-
-async function readExtractionLock(lockPath: string): Promise<ExtractionLockMetadata> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(lockPath, "utf8"));
-  } catch {
-    throw new Error(`extract_lock_invalid: inspect ${lockPath} before manual recovery`);
-  }
-  const metadata = parseExtractionLockMetadata(parsed);
-  if (!metadata) {
-    throw new Error(`extract_lock_invalid: inspect ${lockPath} before manual recovery`);
-  }
-  return metadata;
-}
-
-export async function acquireExtractionLock(stateDir: string): Promise<() => Promise<void>> {
-  const resolvedStateDirectory = path.resolve(stateDir);
-  const lockDirectory = path.join(resolvedStateDirectory, ".cache", "locks");
-  const lockPath = path.join(lockDirectory, "extract.lock");
-  await mkdir(lockDirectory, { recursive: true });
-  const metadata: ExtractionLockMetadata = {
-    schema_version: 1,
-    lock_id: randomUUID(),
-    pid: process.pid,
-    hostname: hostname(),
-    started_at: new Date().toISOString(),
-    state_dir: resolvedStateDirectory,
-  };
-  const temporaryLockPath = `${lockPath}.${process.pid}.${metadata.lock_id}.tmp`;
-  const lockHandle = await open(temporaryLockPath, "wx");
-  try {
-    await lockHandle.writeFile(`${JSON.stringify(metadata, null, 2)}\n`, "utf8");
-    await lockHandle.sync();
-  } catch (error) {
-    await lockHandle.close().catch(() => undefined);
-    await unlink(temporaryLockPath).catch(() => undefined);
-    throw error;
-  }
-  await lockHandle.close();
-  try {
-    await link(temporaryLockPath, lockPath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") {
-      await unlink(temporaryLockPath).catch(() => undefined);
-      throw error;
-    }
-    await unlink(temporaryLockPath).catch(() => undefined);
-    const owner = await readExtractionLock(lockPath);
-    if (path.resolve(owner.state_dir) !== resolvedStateDirectory) {
-      throw new Error(`extract_lock_state_mismatch: inspect ${lockPath} before manual recovery`);
-    }
-    if (owner.hostname === hostname() && !isLocalProcessAlive(owner.pid)) {
-      throw new Error(
-        `extract_lock_stale_local_pid: pid=${owner.pid} started_at=${owner.started_at}; inspect ${lockPath} before manual recovery`,
-      );
-    }
-    throw new Error(
-      `extract_lock_active: pid=${owner.pid} host=${owner.hostname} started_at=${owner.started_at}`,
-    );
-  }
-  try {
-    await unlink(temporaryLockPath);
-  } catch (error) {
-    await unlink(lockPath).catch(() => undefined);
-    throw error;
-  }
-
-  let released = false;
-  return async () => {
-    if (released) return;
-    let current: ExtractionLockMetadata;
-    try {
-      current = await readExtractionLock(lockPath);
-    } catch (error) {
-      throw new Error(
-        `extract_lock_ownership_lost: ${error instanceof Error ? error.message : "lock unavailable"}`,
-      );
-    }
-    if (current.lock_id !== metadata.lock_id) {
-      throw new Error("extract_lock_ownership_lost: lock owner changed before release");
-    }
-    await unlink(lockPath);
-    released = true;
-  };
-}
-
 async function extractManifestUnlocked(
   options: ExtractOptions,
   dependencies: ExtractInternalDependencies = {},
@@ -5252,20 +5236,30 @@ async function extractManifestUnlocked(
 }
 
 export async function extractManifest(
-  options: ExtractOptions,
-  dependencies: ExtractDependencies = {},
+  _options: ExtractOptions,
+  _dependencies: ExtractDependencies = {},
 ): Promise<IngestManifest> {
-  if ("provider" in dependencies || "paidExecutionDomainAccess" in dependencies) {
-    throw new Error("production_extract_rejects_injected_provider_or_authority_override");
-  }
-  const releaseLock = await acquireExtractionLock(options.stateDir);
-  try {
-    // Unit failures remain explicit in the manifest so the 25-unit
-    // orchestrator can measure the batch failure ratio and continue/stop by
-    // policy instead of hiding the remaining successfully processed units.
-    return await extractManifestUnlocked(options, dependencies);
-  } finally {
-    await releaseLock();
+  throw new Error(
+    "paid_openai_extraction_hard_disabled: production vendor ingestion is local-only and zero-cost",
+  );
+}
+
+function hasPaidOpenAIProviderEnvironment(env: NodeJS.ProcessEnv): boolean {
+  return env.INGEST_OPENAI_ENABLED === "true"
+    || Boolean(env.OPENAI_API_KEY?.trim())
+    || Boolean(env.OPENAI_ADMIN_KEY?.trim());
+}
+
+async function assertTestOnlyExtractionStateIsIsolated(stateDir: string): Promise<void> {
+  const [stateRealPath, temporaryRootRealPath] = await Promise.all([
+    realpath(stateDir),
+    realpath(tmpdir()),
+  ]);
+  if (
+    !isPathWithin(temporaryRootRealPath, stateRealPath)
+    || path.resolve(stateRealPath) === path.resolve(temporaryRootRealPath)
+  ) {
+    throw new Error("test_only_extraction_helper_requires_isolated_temporary_state");
   }
 }
 
@@ -5286,12 +5280,16 @@ export async function extractManifestForTests(
     throw new Error("test_only_extraction_helper_requires_node_test_runner");
   }
   const env = dependencies.env ?? {};
-  if (env.INGEST_OPENAI_ENABLED === "true" || Boolean(env.OPENAI_API_KEY?.trim())) {
+  if (hasPaidOpenAIProviderEnvironment(env)) {
     throw new Error("test_only_extraction_helper_rejects_paid_provider_environment");
+  }
+  if (hasPaidOpenAIProviderEnvironment(process.env)) {
+    throw new Error("test_only_extraction_helper_rejects_ambient_paid_provider_environment");
   }
   if (options.enforcePilotAuthorization || options.approvedPlanSha256) {
     throw new Error("arbitrary_test_provider_cannot_enter_production_paid_mode");
   }
+  await assertTestOnlyExtractionStateIsIsolated(options.stateDir);
   const internalDependencies: ExtractInternalDependencies = {
     env,
     provider: dependencies.provider,

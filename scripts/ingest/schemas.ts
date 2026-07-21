@@ -62,11 +62,39 @@ export const ManifestUnitSchema = z.object({
     output_tokens: z.number().int().nonnegative(),
     extracted_at: z.string().datetime(),
   }).optional(),
+  local_extraction: z.object({
+    provider_mode: z.literal("local_deterministic"),
+    model: z.literal("local-deterministic-v1"),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    artifact_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    scanner_parser_version: z.string().min(1).max(100),
+    converter_version: z.string().min(1).max(100),
+    engine_version: z.string().min(1).max(200),
+    engine_hash: z.string().regex(/^[a-f0-9]{64}$/),
+    artifact_path: z.string().min(1),
+    cache_hit: z.boolean(),
+    attempts: z.literal(0),
+    input_tokens: z.literal(0),
+    output_tokens: z.literal(0),
+    estimated_cost_usd: z.literal(0),
+    review_status: z.literal("pending"),
+    needs_review: z.literal(true),
+    bulk_approval_eligible: z.literal(false),
+    extracted_at: z.string().datetime(),
+  }).strict().optional(),
   validation: z.object({
     fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     content_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     extraction_content_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     validator_version: z.string().min(1).max(100).optional(),
+    provider_mode: z.literal("local_deterministic").optional(),
+    model: z.literal("local-deterministic-v1").optional(),
+    engine_version: z.string().min(1).max(200).optional(),
+    engine_hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    needs_review: z.literal(true).optional(),
+    bulk_approval_eligible: z.literal(false).optional(),
     artifact_path: z.string().min(1),
     review_status: z.literal("pending"),
     issue_count: z.number().int().nonnegative(),
@@ -478,6 +506,55 @@ export const ExtractionArtifactSchema = z.union([
 
 export type StrictExtractionArtifact = z.infer<typeof StrictExtractionArtifactSchema>;
 export type ExtractionArtifact = z.infer<typeof ExtractionArtifactSchema>;
+
+const LocalExtractionSourceFileSchema = z.object({
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  bytes: z.number().int().nonnegative(),
+}).strict();
+
+const LocalConversionArtifactSchema = z.object({
+  path: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  bytes: z.number().int().nonnegative(),
+  kind: z.enum(["text", "image"]),
+}).strict();
+
+/**
+ * Review-only, zero-cost extraction artifact. It is intentionally not a
+ * member of ExtractionArtifactSchema: paid/test provider replay and local
+ * deterministic replay have different trust contracts.
+ */
+export const LocalDeterministicExtractionArtifactSchema = z.object({
+  schema_version: z.literal(1),
+  artifact_kind: z.literal("local_deterministic_extraction"),
+  provider_mode: z.literal("local_deterministic"),
+  model: z.literal("local-deterministic-v1"),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  unit_id: z.string().regex(/^[a-f0-9]{64}$/),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  artifact_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  scanner_parser_version: z.string().min(1).max(100),
+  converter_version: z.string().min(1).max(100),
+  engine_version: z.string().min(1).max(200),
+  engine_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  source_files: z.array(LocalExtractionSourceFileSchema).min(1),
+  conversion_artifacts: z.array(LocalConversionArtifactSchema).min(1),
+  data: DisclosureExtractionSchema,
+  attempts: z.literal(0),
+  input_tokens: z.literal(0),
+  output_tokens: z.literal(0),
+  estimated_cost_usd: z.literal(0),
+  review_status: z.literal("pending"),
+  needs_review: z.literal(true),
+  bulk_approval_eligible: z.literal(false),
+  created_at: z.string().datetime(),
+}).strict();
+
+export type LocalDeterministicExtractionArtifact = z.infer<
+  typeof LocalDeterministicExtractionArtifactSchema
+>;
 
 export const ExtractionBatchCheckpointSchema = z.object({
   schema_version: z.literal(3),

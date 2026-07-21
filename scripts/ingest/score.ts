@@ -36,6 +36,7 @@ import {
   StrictValidatedArtifactSchema,
   validatedArtifactFingerprint,
   ValidatedArtifactSchema,
+  verifyCurrentLocalValidatedArtifactForUnit,
   verifyValidationInputsUnchanged,
 } from "./validate.js";
 import {
@@ -209,6 +210,8 @@ export interface ScoreOptions {
    * scoring path; the operational CLI opts in explicitly.
    */
   requireValidatedArtifacts?: boolean;
+  /** Explicitly select paid artifacts (default) or zero-cost review-only local evidence. */
+  candidateSource?: "paid" | "local";
 }
 
 export function evaluateBatchGate(
@@ -1483,7 +1486,14 @@ function normalizedSha256(value: string, label: string): string {
 export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): Promise<Record<string, unknown>> {
   const stateDir = path.resolve(options.stateDir);
   const requireValidatedArtifacts = options.requireValidatedArtifacts === true;
-  const paidPlanSha256 = options.approvedPaidPlanSha256
+  const candidateSource = options.candidateSource ?? "paid";
+  if (candidateSource === "local" && !requireValidatedArtifacts) {
+    throw new Error("local_candidate_source_requires_strict_validated_artifacts");
+  }
+  if (candidateSource === "local" && options.approvedPaidPlanSha256) {
+    throw new Error("local_candidate_source_cannot_claim_paid_plan");
+  }
+  const paidPlanSha256 = candidateSource === "paid" && options.approvedPaidPlanSha256
     ? normalizedSha256(options.approvedPaidPlanSha256, "approvedPaidPlanSha256")
     : null;
   const paidPlan = paidPlanSha256
@@ -1630,10 +1640,19 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       });
       continue;
     }
-    const stageIsScoreable = requireValidatedArtifacts
-      ? unit.stage === "validated"
-        || (unit.stage === "error" && Boolean(unit.extraction) && Boolean(unit.validation))
-      : unit.stage === "extracted" || unit.stage === "validated";
+    const stageIsScoreable = candidateSource === "local"
+      ? unit.local_extraction
+        ? unit.stage === "validated"
+          || (unit.stage === "error" && Boolean(unit.validation))
+        : Boolean(
+            unit.conversion
+            && unit.extraction?.provider_mode === "production_paid"
+            && ["extracted", "validated", "error"].includes(unit.stage),
+          )
+      : requireValidatedArtifacts
+        ? unit.stage === "validated"
+          || (unit.stage === "error" && Boolean(unit.extraction) && Boolean(unit.validation))
+        : unit.stage === "extracted" || unit.stage === "validated";
     if (!stageIsScoreable) {
       reports.push({
         unit_id: unitId,
@@ -1648,7 +1667,7 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       });
       continue;
     }
-    if (!unit.extraction?.artifact_path) {
+    if (candidateSource === "paid" && !unit.extraction?.artifact_path) {
       reports.push({
         unit_id: unitId,
         display_name: unit.display_name,
@@ -1660,7 +1679,11 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       });
       continue;
     }
-    let extraction: z.infer<typeof ExtractionArtifactSchema>;
+    let extraction: {
+      data: DisclosureExtraction;
+      prompt_version: string;
+      model: string;
+    };
     let strictValidatorCoverageGaps: CoverageGap[] | null = null;
     let strictBlockingValidationIssues: Array<{
       severity: "error";
@@ -1676,7 +1699,98 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     }> = [];
     let strictSemanticValidationIssues: SemanticValidationIssue[] = [];
     let strictProvenance: Record<string, unknown> | null = null;
-    if (requireValidatedArtifacts) {
+    if (candidateSource === "local") {
+      const activeLocal = Boolean(unit.local_extraction);
+      try {
+        if (activeLocal) {
+          const localValidation = await verifyCurrentLocalValidatedArtifactForUnit(
+            unit,
+            manifest,
+            stateDir,
+          );
+          extraction = {
+            data: localValidation.data,
+            prompt_version: localValidation.engine_version,
+            model: localValidation.model,
+          };
+          strictValidatorCoverageGaps = localValidation.coverage_gaps;
+          strictBlockingValidationIssues = localValidation.issues.filter(
+            (issue): issue is typeof issue & { severity: "error" } => issue.severity === "error",
+          );
+          strictLinkageReviewWarnings = localValidation.issues.filter(
+            (issue): issue is typeof issue & { severity: "warning" } =>
+              issue.severity === "warning" && isStructuredRecordSourceLinkageCode(issue.code),
+          );
+          strictSemanticValidationIssues = localValidation.issues;
+          strictProvenance = {
+            candidate_source: "active_local_validation",
+            source_fingerprint: localValidation.source_fingerprint,
+            conversion_fingerprint: unit.conversion?.artifact_fingerprint ?? null,
+            extraction_fingerprint: localValidation.extraction_fingerprint,
+            extraction_content_sha256: localValidation.extraction_content_sha256,
+            validation_fingerprint: localValidation.fingerprint,
+            validation_content_sha256: localValidation.content_sha256,
+            model: localValidation.model,
+            engine_version: localValidation.engine_version,
+            engine_hash: localValidation.engine_hash,
+            validator_version: localValidation.validator_version,
+            review_status: localValidation.review_status,
+            needs_review: localValidation.needs_review,
+            bulk_approval_eligible: localValidation.bulk_approval_eligible,
+          };
+        } else {
+          const { verifyCurrentLocalCandidateForUnit } = await import("./local-candidate.js");
+          const verified = await verifyCurrentLocalCandidateForUnit(unit, manifest, stateDir);
+          const candidate = verified.candidate;
+          extraction = {
+            data: candidate.data,
+            prompt_version: candidate.local_engine.engine_version,
+            model: candidate.model,
+          };
+          strictValidatorCoverageGaps = candidate.coverage_gaps;
+          strictBlockingValidationIssues = candidate.validation_issues.filter(
+            (issue): issue is typeof issue & { severity: "error" } => issue.severity === "error",
+          );
+          strictLinkageReviewWarnings = candidate.validation_issues.filter(
+            (issue): issue is typeof issue & { severity: "warning" } =>
+              issue.severity === "warning" && isStructuredRecordSourceLinkageCode(issue.code),
+          );
+          strictSemanticValidationIssues = candidate.validation_issues;
+          strictProvenance = {
+            candidate_source: "local_candidate_sidecar",
+            source_fingerprint: candidate.source_fingerprint,
+            conversion_fingerprint: candidate.conversion_fingerprint,
+            candidate_fingerprint: candidate.fingerprint,
+            candidate_content_sha256: candidate.content_sha256,
+            receipt_fingerprint: verified.receipt.fingerprint,
+            receipt_content_sha256: verified.receipt.content_sha256,
+            paid_extraction_fingerprint: candidate.paid_extraction.fingerprint,
+            paid_extraction_content_sha256: candidate.paid_extraction.content_sha256,
+            paid_plan_sha256: candidate.paid_extraction.paid_plan_sha256,
+            model: candidate.model,
+            engine_version: candidate.local_engine.engine_version,
+            engine_hash: candidate.local_engine.engine_hash,
+            validator_version: candidate.local_engine.validator_version,
+            review_status: candidate.review_status,
+            needs_review: candidate.needs_review,
+            bulk_approval_eligible: candidate.bulk_approval_eligible,
+            adoption_status: candidate.adoption_status,
+          };
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "unreadable_or_invalid";
+        reports.push({
+          unit_id: unitId,
+          display_name: unit.display_name,
+          status: "blocked",
+          blockers: [`${activeLocal ? "local_validation_artifact" : "local_candidate_artifact"}:${detail}`],
+          readable_ground_truth_occurrences: appliedAdjudication?.effective.length
+            ?? inventoryUnit.candidates.length + (overlayUnit?.readable_occurrences.length ?? 0),
+          unreadable_cells: overlayUnit?.unreadable_cells ?? [],
+        });
+        continue;
+      }
+    } else if (requireValidatedArtifacts) {
       try {
         const strictExtraction = await readStrictExtractionArtifact(
           unit,
@@ -1748,7 +1862,7 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
         continue;
       }
     } else {
-      const extractionPath = path.resolve(unit.extraction.artifact_path);
+      const extractionPath = path.resolve(unit.extraction!.artifact_path);
       if (!isPathWithin(stateDir, extractionPath)) {
         throw new Error(`extraction artifact가 state 밖을 가리킵니다: ${unitId}`);
       }
@@ -1935,7 +2049,7 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
   const failedUnits = reports.filter((report) => report.status === "fail").length;
   const blockedUnits = reports.filter((report) => report.status === "blocked").length;
   const batchGate = evaluateBatchGate(uniqueUnitIds, reports, uniqueNonBlockingUnitIds);
-  const eligibleForBatch = batchGate.eligible;
+  const eligibleForBatch = candidateSource === "paid" && batchGate.eligible;
   const generatedAt = new Date().toISOString();
   const baseReadableOccurrenceCount = inventoryOccurrenceCount + (overlay?.units.reduce(
     (sum, unit) => sum + unit.readable_occurrences.length,
@@ -1948,15 +2062,25 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
   const report = {
     schema_version: 1,
     generated_at: generatedAt,
-    verification: {
-      mode: requireValidatedArtifacts
-        ? "strict_validated_artifacts"
-        : "legacy_compatible",
-      validated_artifacts_required: requireValidatedArtifacts,
-      deterministic_artifact_paths_required: requireValidatedArtifacts,
-      artifact_content_hashes_required: requireValidatedArtifacts,
-      paid_plan_sha256: paidPlanSha256,
-    },
+    verification: candidateSource === "local"
+      ? {
+          mode: "strict_local_review_artifacts",
+          candidate_source: "local",
+          validated_artifacts_required: true,
+          deterministic_artifact_paths_required: true,
+          artifact_content_hashes_required: true,
+          paid_plan_sha256: null,
+          review_only: true,
+        }
+      : {
+          mode: requireValidatedArtifacts
+            ? "strict_validated_artifacts"
+            : "legacy_compatible",
+          validated_artifacts_required: requireValidatedArtifacts,
+          deterministic_artifact_paths_required: requireValidatedArtifacts,
+          artifact_content_hashes_required: requireValidatedArtifacts,
+          paid_plan_sha256: paidPlanSha256,
+        },
     ground_truth: {
       path: groundTruthPath,
       sha256: groundTruthSnapshot.sha256,
@@ -2013,10 +2137,14 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       },
     },
     gate: {
-      status: eligibleForBatch ? "pass" : batchGate.blocking_blocked_units > 0 ? "blocked" : "fail",
-      verification_mode: requireValidatedArtifacts
-        ? "strict_validated_artifacts"
-        : "legacy_compatible",
+      status: candidateSource === "local"
+        ? "review_only"
+        : eligibleForBatch ? "pass" : batchGate.blocking_blocked_units > 0 ? "blocked" : "fail",
+      verification_mode: candidateSource === "local"
+        ? "strict_local_review_artifacts"
+        : requireValidatedArtifacts
+          ? "strict_validated_artifacts"
+          : "legacy_compatible",
       validated_artifacts_required: requireValidatedArtifacts,
       passed_units: passedUnits,
       failed_units: failedUnits,
@@ -2044,7 +2172,9 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     },
     units: reports,
   };
-  const outputDirectory = path.join(stateDir, "scoring");
+  const outputDirectory = candidateSource === "local"
+    ? path.join(stateDir, "scoring", "local-review")
+    : path.join(stateDir, "scoring");
   const timestamp = generatedAt.replace(/[:.]/gu, "-");
   await writeJsonFile(path.join(outputDirectory, `score-${timestamp}.json`), report);
   await writeJsonFile(path.join(outputDirectory, "latest.json"), report);

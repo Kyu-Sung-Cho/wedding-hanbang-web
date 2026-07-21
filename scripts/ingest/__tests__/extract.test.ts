@@ -13,6 +13,7 @@ import {
   EXTRACTION_PROCESSING_VERSION,
   EXTRACTION_PROMPT_HASH,
   EXTRACTION_PROMPT_VERSION,
+  LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT,
 } from "../extraction-contract.js";
 import { convertManifest } from "../convert.js";
 import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "../io.js";
@@ -31,6 +32,7 @@ import {
   isPermanentProviderBillingFailure,
   isRetryableExtractionProviderError,
   mergeExtractionChunks,
+  PAID_OPENAI_EXTRACTION_CONFIRMATION,
   parseOpenAIExtractionResponse,
   planExtraction,
   planExtractionForTests,
@@ -38,6 +40,7 @@ import {
   resolveUncachedPaidCallLimitUsd,
   selectExtractionUnits,
   stripRedundantWorkbookMarkdown,
+  verifyCurrentExtractionCacheForUnit,
   workbookInterpretationContext,
   validateImageRequestPayloadLimits,
   type ExtractionProvider,
@@ -151,7 +154,7 @@ test("fixed --units selection preserves the requested order and rejects unknown 
   );
 });
 
-test("the production extraction API rejects provider injection before any injected code can run", async () => {
+test("the production paid extraction API is hard-disabled before any injected code can run", async () => {
   let calls = 0;
   const injectedProvider: ExtractionProvider = {
     extract: async () => {
@@ -170,7 +173,87 @@ test("the production extraction API rejects provider injection before any inject
       { stateDir: path.join(os.tmpdir(), "must-not-read-production-injection") },
       compileTimeBoundary as ProductionDependencies,
     ),
-    /production_extract_rejects_injected_provider/u,
+    /paid_openai_extraction_hard_disabled/u,
+  );
+  assert.equal(calls, 0);
+});
+
+test("production paid extraction stays disabled even with complete explicit opt-in and environment residue", async (t) => {
+  const stateDir = path.join(
+    os.tmpdir(),
+    `hanbang-zero-cost-default-${process.pid}-${Date.now()}`,
+  );
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+
+  await assert.rejects(
+    extractManifestWithPaidGate(
+      {
+        stateDir,
+        enforcePilotAuthorization: true,
+        approvedPlanSha256: "a".repeat(64),
+        executionMode: "paid_openai",
+        paidOpenAIConfirmation: PAID_OPENAI_EXTRACTION_CONFIRMATION,
+      },
+      {
+        env: {
+          OPENAI_API_KEY: "sk-residual-key-must-not-enable-paid-extraction",
+          INGEST_OPENAI_ENABLED: "true",
+        },
+      },
+    ),
+    /paid_openai_extraction_hard_disabled/u,
+  );
+
+  await assert.rejects(stat(stateDir), /ENOENT/u);
+});
+
+test("the arbitrary test provider seam rejects ambient paid OpenAI credentials", async (t) => {
+  const stateDir = path.join(
+    os.tmpdir(),
+    `hanbang-test-provider-ambient-env-${process.pid}-${Date.now()}`,
+  );
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+  let calls = 0;
+  const provider: ExtractionProvider = {
+    extract: async () => {
+      calls += 1;
+      return { data: dummyExtraction("must-not-run"), inputTokens: 1, outputTokens: 1 };
+    },
+  };
+  const previousApiKey = process.env.OPENAI_API_KEY;
+  const previousEnabled = process.env.INGEST_OPENAI_ENABLED;
+  process.env.OPENAI_API_KEY = "sk-ambient-key-must-never-enable-a-test-provider";
+  process.env.INGEST_OPENAI_ENABLED = "true";
+  try {
+    await assert.rejects(
+      extractManifest({ stateDir }, { provider, env: {} }),
+      /test_only_extraction_helper_rejects_ambient_paid_provider_environment/u,
+    );
+  } finally {
+    if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousApiKey;
+    if (previousEnabled === undefined) delete process.env.INGEST_OPENAI_ENABLED;
+    else process.env.INGEST_OPENAI_ENABLED = previousEnabled;
+  }
+  assert.equal(calls, 0);
+});
+
+test("the arbitrary test provider seam only accepts state inside the OS temp root", async (t) => {
+  const outsideTemporaryRoot = await mkdtemp(path.join(os.homedir(), "hanbang-test-provider-state-"));
+  const stateDir = path.join(outsideTemporaryRoot, "state");
+  await mkdir(stateDir);
+  t.after(async () => rm(outsideTemporaryRoot, { recursive: true, force: true }));
+  let calls = 0;
+  const provider: ExtractionProvider = {
+    extract: async () => {
+      calls += 1;
+      return { data: dummyExtraction("must-not-run"), inputTokens: 1, outputTokens: 1 };
+    },
+  };
+
+  await assert.rejects(
+    extractManifest({ stateDir }, { provider, env: {} }),
+    /test_only_extraction_helper_requires_isolated_temporary_state/u,
   );
   assert.equal(calls, 0);
 });
@@ -450,8 +533,10 @@ test("fixed-eight planning reports an over-budget maximum without issuing approv
       stateDir,
       unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
       enforcePilotAuthorization: true,
+      executionMode: "paid_openai",
+      paidOpenAIConfirmation: PAID_OPENAI_EXTRACTION_CONFIRMATION,
     }, { env: {} }),
-    /paid_extraction_batch_requires_approved_plan_sha256/u,
+    /paid_openai_extraction_hard_disabled/u,
   );
 });
 
@@ -1092,6 +1177,117 @@ test("a self-rehashed final cache cannot diverge from checkpoint replay", async 
   assert.equal(calls, 1);
   assert.equal(retried.units[0].stage, "error");
   assert.match(retried.units[0].notices.join("\n"), /finalization_mismatch/u);
+});
+
+test("a paid cache produced by the known legacy finalizer is accepted only after exact upstream replay", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-legacy-finalizer-"));
+  const stateDir = `${rootDir}-state`;
+  const authorityRoot = `${rootDir}-authority`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+    rm(authorityRoot, { recursive: true, force: true }),
+    rm(`${authorityRoot}.initialized.json`, { force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "agency", "서울");
+  await mkdir(regionDir, { recursive: true });
+  for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
+    await writeDummyDocx(
+      path.join(regionDir, `legacy-finalizer-${index}.docx`),
+      `legacy finalizer fixture ${index} package 290만원 dotted 110.000원`,
+    );
+  }
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  await convertManifest({ stateDir });
+  const manifestPath = path.join(stateDir, "manifest.json");
+  const manifest = await readJsonFile(manifestPath) as IngestManifest;
+  assert.ok(
+    manifest.units.every((unit) => unit.stage === "converted"),
+    JSON.stringify(manifest.units.map((unit) => ({ stage: unit.stage, notices: unit.notices }))),
+  );
+  manifest.units.sort((left, right) => left.unit_id.localeCompare(right.unit_id, "en"));
+  manifest.units.forEach((unit, index) => {
+    unit.unit_id = FIXED_EIGHT_ORDERED_UNIT_IDS[index] as string;
+  });
+  await writeJsonFile(manifestPath, manifest);
+  await initializePaidExecutionDomainForTests(stateDir, { authorityRoot });
+  const options = {
+    stateDir,
+    unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
+    enforcePilotAuthorization: true,
+  };
+  const plan = await planExtractionForTests(options, {}, { authorityRoot });
+  assert.match(plan.approval_plan_sha256 ?? "", /^[a-f0-9]{64}$/u);
+  const responsesByCanonicalName = Object.fromEntries(manifest.units.map((unit) => {
+    const response = dummyExtraction(unit.parsed.raw_name);
+    response.extraction_notes = [
+      `general note for ${unit.parsed.raw_name}`,
+      "[local_evidence_guard] known transitional finalizer fixture",
+    ].join("\n");
+    return [unit.parsed.raw_name, response];
+  }));
+  const completed = await extractFixedEightWithScriptedProviderForTests(
+    { ...options, approvedPlanSha256: plan.approval_plan_sha256 as string },
+    {
+      responsesByCanonicalName,
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "legacy-finalizer",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  const unit = completed.manifest.units[0];
+  assert.ok(unit?.extraction);
+  const artifactPath = unit.extraction.artifact_path;
+  const artifact = await readJsonFile(artifactPath) as Record<string, any>;
+  const checkpointPath = path.join(
+    stateDir,
+    ".cache",
+    "extract-batches",
+    `${artifact.batch_checkpoint_fingerprints[0]}.json`,
+  );
+  const checkpoint = await readJsonFile(checkpointPath) as Record<string, any>;
+  const legacyNotes = checkpoint.data.extraction_notes as string;
+  assert.ok(legacyNotes.includes("[local_evidence_guard]"));
+  assert.notEqual(artifact.data.extraction_notes, legacyNotes);
+  artifact.data.extraction_notes = legacyNotes;
+  const dottedOccurrence = (artifact.data.money_occurrences as Array<Record<string, any>>)
+    .find((occurrence) => String(occurrence.raw_text).includes("110.000"));
+  assert.ok(dottedOccurrence);
+  assert.equal(dottedOccurrence.amount_krw, 110_000);
+  dottedOccurrence.amount_krw = 110;
+  artifact.content_sha256 = canonicalJsonSha256ExcludingField(artifact, "content_sha256");
+  await writeJsonFile(artifactPath, artifact);
+  unit.extraction.content_sha256 = artifact.content_sha256;
+  await writeJsonFile(manifestPath, completed.manifest);
+
+  const replayed = await verifyCurrentExtractionCacheForUnit(
+    unit,
+    completed.manifest,
+    stateDir,
+  );
+
+  assert.equal(replayed.content_sha256, artifact.content_sha256);
+  assert.equal(
+    replayed.verified_finalization_contract,
+    LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT,
+  );
+  assert.equal(replayed.data.extraction_notes, legacyNotes);
+  assert.equal(
+    replayed.data.money_occurrences?.find((occurrence) => occurrence.raw_text.includes("110.000"))
+      ?.amount_krw,
+    110,
+  );
+
+  artifact.data.business_name = "self-rehashed forged legacy final result";
+  artifact.content_sha256 = canonicalJsonSha256ExcludingField(artifact, "content_sha256");
+  await writeJsonFile(artifactPath, artifact);
+  unit.extraction.content_sha256 = artifact.content_sha256;
+  await writeJsonFile(manifestPath, completed.manifest);
+  await assert.rejects(
+    verifyCurrentExtractionCacheForUnit(unit, completed.manifest, stateDir),
+    /legacy_finalization_mismatch/u,
+  );
 });
 
 test("a self-rehashed checkpoint with a substituted request hash is rejected", async (t) => {

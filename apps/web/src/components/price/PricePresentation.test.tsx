@@ -148,7 +148,7 @@ describe("consumer price presentation", () => {
     expect(html).toContain("min-w-0");
   });
 
-  it("passes the category-wide active agency order to every comparison card", () => {
+  it("keeps the default comparison card scoped to agencies that actually offer that vendor", () => {
     const offer = (id: string, agencyId: string, agencyName: string, price: number) => ({
       id,
       agencyId,
@@ -201,9 +201,8 @@ describe("consumer price presentation", () => {
     host.innerHTML = html;
     const comparison = host.querySelector('[aria-label="B 전용 업체 대행사별 공시가"]');
 
-    expect(comparison?.textContent?.replace(/\s+/g, "")).toContain(
-      "대행사A—대행사B200만원",
-    );
+    expect(comparison?.textContent?.replace(/\s+/g, "")).toContain("대행사B200만원");
+    expect(comparison?.textContent).not.toContain("대행사 A");
   });
 
   it("explains the authentication boundary before asking the user to sign in", () => {

@@ -75,9 +75,15 @@ type PriceExplorerProps = {
   catalog: PriceCatalog;
   category: PriceCategory;
   surface?: "public" | "app";
+  preview?: boolean;
 };
 
-export function PriceExplorer({ catalog, category, surface = "public" }: PriceExplorerProps) {
+export function PriceExplorer({
+  catalog,
+  category,
+  surface = "public",
+  preview = false,
+}: PriceExplorerProps) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionCode, setRegionCode] = useState("");
@@ -113,6 +119,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   const selections = useStore(comboStore, (state) => state.selections);
   const comboTotalKrw = useStore(comboStore, (state) => state.totalKrw);
   const comboCount = Object.values(selections).filter(Boolean).length;
+  const visibleComboCount = preview ? 0 : comboCount;
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
@@ -120,11 +127,23 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   }, [searchInput]);
 
   useEffect(() => {
+    if (preview) return;
     comboStore.getState().hydrate(sessionStorage);
     track("page_view", { surface: "price_list", context: { category } });
-  }, [category]);
+  }, [category, preview]);
 
   useEffect(() => {
+    if (preview) {
+      setAuthStatus("guest");
+      setWishlistedIds(new Set());
+      setWishlistBusyIds(new Set());
+      setWishlistOnly(false);
+      setWishlistHydrationStatus("ready");
+      setLatestSavedCombo(null);
+      setSavedComboHydrationStatus("ready");
+      setRestoreConfirming(false);
+      return;
+    }
     const controller = new AbortController();
     setWishlistHydrationStatus("loading");
     setSavedComboHydrationStatus("loading");
@@ -201,7 +220,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
       }
     });
     return () => controller.abort();
-  }, [ownerStateReload]);
+  }, [ownerStateReload, preview]);
 
   const vendors = catalog.categories[category];
   const activeAgencyIds = useMemo(() => new Set(vendors.flatMap((vendor) => vendor.offers.flatMap((offer) => (
@@ -209,7 +228,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   )))), [vendors]);
   const activeAgencies = useMemo(() => catalog.agencies.filter(({ id }) => activeAgencyIds.has(id)), [activeAgencyIds, catalog.agencies]);
   const cardAgencyOrder = useMemo(() => {
-    if (agencyIds.length === 0) return activeAgencies;
+    if (agencyIds.length === 0) return undefined;
     const agenciesById = new Map(activeAgencies.map((agency) => [agency.id, agency]));
     return agencyIds.flatMap((id) => {
       const agency = agenciesById.get(id);
@@ -248,7 +267,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   ].join("|");
 
   useEffect(() => {
-    if (!debouncedSearch) return;
+    if (preview || !debouncedSearch) return;
     const signature = `${category}\0${debouncedSearch}`;
     if (lastTrackedSearchSignature.current === signature) return;
     lastTrackedSearchSignature.current = signature;
@@ -256,9 +275,10 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
       surface: "price_list",
       context: { category, zero_result: searchResultCount === 0 },
     });
-  }, [category, debouncedSearch, searchResultCount]);
+  }, [category, debouncedSearch, preview, searchResultCount]);
 
   useEffect(() => {
+    if (preview) return;
     if (!lastTrackedFilterSignature.current) {
       lastTrackedFilterSignature.current = filterSignature;
       return;
@@ -273,7 +293,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
         zero_result: filtered.length === 0,
       },
     });
-  }, [category, filterSignature, filtered.length, regionCode]);
+  }, [category, filterSignature, filtered.length, preview, regionCode]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -311,6 +331,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   };
 
   const toggleWishlist = useCallback(async (vendor: PriceVendor) => {
+    if (preview) return;
     if (wishlistHydrationStatus !== "ready") {
       if (wishlistHydrationStatus === "error") {
         setFeedback("찜 목록을 먼저 다시 불러와 주세요.");
@@ -369,7 +390,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
         return next;
       });
     }
-  }, [authStatus, wishlistHydrationStatus, wishlistedIds]);
+  }, [authStatus, preview, wishlistHydrationStatus, wishlistedIds]);
 
   const addCombo = (comboCategory: ComboCategory, selection: ComboSelection) => {
     comboStore.getState().setSelection(comboCategory, selection);
@@ -514,25 +535,47 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
   ))).size;
 
   return (
-    <Root className={`${surface === "app" ? "overflow-hidden rounded-[20px] border border-[#eadfc9] bg-[#FBF8F2]" : "min-h-screen bg-[#FBF8F2]"} text-[#1D3557] ${comboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
+    <Root className={`${surface === "app" ? "overflow-hidden rounded-[20px] border border-[#eadfc9] bg-[#FBF8F2]" : "min-h-screen bg-[#FBF8F2]"} text-[#1D3557] ${visibleComboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
+      {preview ? (
+        <div
+          role="status"
+          aria-label="관리자 미리보기 상태"
+          className="border-b border-[#B89785]/35 bg-[#F7F1E8] px-4 py-3 text-center text-sm font-bold text-[#36534E] sm:px-6"
+        >
+          관리자 전용 미리보기 — 자동 추출·검수 전·정확성 미보장
+        </div>
+      ) : null}
       {surface === "app" ? (
         <section className="border-b border-[#1D3557]/10 bg-white px-4 py-6 sm:px-6" aria-labelledby="vendor-hub-title">
           <p className="text-[11px] font-bold tracking-[0.16em] text-[#8F6662]">WEDDING HANBANG</p>
-          <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-[-0.04em]">업체 탐색</h1>
+          <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-[-0.04em]">
+            {preview ? "업체 공시가 검수 미리보기" : "업체 탐색"}
+          </h1>
           <p className="mt-2 text-sm leading-6 text-[#1D3557]/65">
-            출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요.
+            {preview
+              ? "자동 추출된 검수 전 데이터입니다. 업체·가격·연결 정보의 정확성이 보장되지 않습니다."
+              : "출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요."}
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2" aria-label="업체 탐색 현황">
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#1D3557]/55">공식 가격 업체</p>
+              <p className="text-[11px] font-bold text-[#1D3557]/55">
+                {preview ? "자동 추출 업체" : "공식 가격 업체"}
+              </p>
               <p className="mt-1 text-xl font-bold tabular-nums">{totalVendorCount}</p>
             </div>
-            <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
-              <p className="text-[11px] font-bold text-[#1D3557]/55">찜한 업체</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">
-                {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
-              </p>
-            </Link>
+            {preview ? (
+              <div className="rounded-2xl bg-[#F5ECE4] px-3 py-4">
+                <p className="text-[11px] font-bold text-[#1D3557]/55">검수 상태</p>
+                <p className="mt-1 text-sm font-bold text-[#36534E]">읽기 전용</p>
+              </div>
+            ) : (
+              <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
+                <p className="text-[11px] font-bold text-[#1D3557]/55">찜한 업체</p>
+                <p className="mt-1 text-xl font-bold tabular-nums">
+                  {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
+                </p>
+              </Link>
+            )}
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
               <p className="text-[11px] font-bold text-[#1D3557]/55">가격 카테고리</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
@@ -540,48 +583,60 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
               </p>
             </div>
           </div>
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-[#1D3557] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
-              <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
+          {!preview ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-[#1D3557] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
+                <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
+              </div>
+              <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[#1D3557]">
+                아모라와 찾기
+              </Link>
             </div>
-            <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[#1D3557]">
-              아모라와 찾기
-            </Link>
-          </div>
+          ) : null}
         </section>
       ) : null}
       <section className="border-b border-[#1D3557]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">한국소비자원 참가격 공시</p>
+              <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">
+                {preview ? "관리자 검수용 자동 추출 데이터" : "한국소비자원 참가격 공시"}
+              </p>
               <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#1D3557] sm:text-4xl">
-                스드메·예식장 공시가 비교
+                {preview ? "스드메·예식장 공시가 검수" : "스드메·예식장 공시가 비교"}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex rounded-full bg-[#F5ECE4] px-3 py-1.5 text-xs font-bold text-[#7C5754]">
                   {formatDisclosurePeriod(catalog.periodLabel)} 공시 기준
                 </span>
                 <p className="text-sm font-semibold leading-6 text-[#1D3557]/75">
-                  가격표시제에 따라 가격을 공개한 업체만 표시됩니다.
+                  {preview
+                    ? "승인 전 원문 대조가 필요한 자동 추출 결과입니다."
+                    : "가격표시제에 따라 가격을 공개한 업체만 표시됩니다."}
                 </p>
               </div>
               <p className="mt-2 text-sm leading-6 text-[#1D3557]/65">
-                업체별 기본가와 추가금을 한 화면에서 편하게 확인하세요.
+                {preview
+                  ? "일반 사용자에게는 보이지 않으며, 검수 완료 전 저장·추천에 사용하지 않습니다."
+                  : "업체별 기본가와 추가금을 한 화면에서 편하게 확인하세요."}
               </p>
             </div>
-            <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,102,98,0.18)] hover:bg-[#7C5754]">
-              <Calculator aria-hidden="true" className="size-4" />
-              내 예산으로 조합 찾기
-            </button>
+            {!preview ? (
+              <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,102,98,0.18)] hover:bg-[#7C5754]">
+                <Calculator aria-hidden="true" className="size-4" />
+                내 예산으로 조합 찾기
+              </button>
+            ) : null}
           </div>
 
           <nav className="scrollbar-hide -mx-4 mt-7 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="가격 카테고리">
             {PRICE_CATEGORIES.map((value) => (
               <Link
                 key={value}
-                href={surface === "app" ? `/wedding/vendors?category=${value}` : `/price/${value}`}
+                href={surface === "app"
+                  ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
+                  : `/price/${value}`}
                 aria-current={value === category ? "page" : undefined}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#1D3557] bg-[#1D3557] text-white" : "border-[#1D3557]/12 bg-white text-[#1D3557] hover:bg-[#F5ECE4]"}`}
               >
@@ -664,7 +719,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
             ) : null}
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#1D3557]/10 pt-4">
-              <button type="button" onClick={() => {
+              {!preview ? <button type="button" onClick={() => {
                 if (wishlistHydrationStatus !== "ready") return;
                 if (authStatus === "guest") {
                   setShowAuthGate(true);
@@ -674,7 +729,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
               }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[#1D3557]"}`}>
                 <Heart aria-hidden="true" className="size-4" fill={wishlistOnly ? "currentColor" : "none"} />
                 찜한 업체만
-              </button>
+              </button> : null}
               {activeFilterCount > 0 ? (
                 <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#1D3557]/65 hover:bg-[#FBF8F2]">
                   <RotateCcw aria-hidden="true" className="size-3.5" />
@@ -685,7 +740,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
           </div>
         </div>
 
-        {wishlistHydrationStatus === "error" ? (
+        {!preview && wishlistHydrationStatus === "error" ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#8F6662]/25 bg-[#F5ECE4] px-4 py-3 text-sm text-[#7A4742]">
             <p className="font-semibold">찜 목록을 불러오지 못했어요. 기존 찜은 변경하지 않았어요.</p>
             <button
@@ -698,7 +753,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
           </div>
         ) : null}
 
-        {authStatus === "authenticated" && savedComboHydrationStatus === "error" ? (
+        {!preview && authStatus === "authenticated" && savedComboHydrationStatus === "error" ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#1D3557]/15 bg-white px-4 py-3 text-sm text-[#1D3557]">
             <p className="font-semibold">저장한 조합을 불러오지 못했어요. 현재 담은 조합은 그대로 두었어요.</p>
             <button
@@ -711,7 +766,7 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
           </div>
         ) : null}
 
-        {authStatus === "authenticated"
+        {!preview && authStatus === "authenticated"
           && savedComboHydrationStatus === "ready"
           && latestSavedCombo ? (
             <section aria-label="최근 저장 조합" className="mt-4 rounded-2xl border border-[#1D3557]/12 bg-[#F5ECE4] px-4 py-4 text-[#1D3557]">
@@ -765,9 +820,10 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
                 vendor={vendor}
                 agencyOrder={cardAgencyOrder}
                 isWishlisted={wishlistedIds.has(vendor.id)}
-                wishlistBusy={wishlistHydrationStatus !== "ready" || wishlistBusyIds.has(vendor.id)}
+                wishlistBusy={preview || wishlistHydrationStatus !== "ready" || wishlistBusyIds.has(vendor.id)}
                 onToggleWishlist={toggleWishlist}
-                onOpenCombo={setComboVendor}
+                onOpenCombo={preview ? undefined : setComboVendor}
+                preview={preview}
               />
             ))}
           </div>
@@ -784,23 +840,27 @@ export function PriceExplorer({ catalog, category, surface = "public" }: PriceEx
         <PriceDisclosureFooter periodLabel={catalog.periodLabel} />
       </section>
 
-      <AddToComboModal key={comboVendor?.id ?? "closed"} vendor={comboVendor} onClose={() => setComboVendor(null)} onAdd={addCombo} />
-      <BudgetFinderModal
-        open={showBudgetFinder}
-        catalog={{ studio: catalog.categories.studio, dress: catalog.categories.dress, makeup: catalog.categories.makeup }}
-        agencies={budgetAgencies}
-        onClose={() => setShowBudgetFinder(false)}
-        onChoose={chooseBudgetCombination}
-      />
-      <AuthGateModal open={showAuthGate} redirectPath={`/price/${category}`} onClose={() => setShowAuthGate(false)} />
-      <ComboBar
-        selections={selections}
-        totalKrw={comboTotalKrw}
-        saving={comboSaving}
-        onClear={(comboCategory) => comboStore.getState().clearSelection(comboCategory)}
-        onSave={() => void saveCombo()}
-        onShare={() => void shareCombo()}
-      />
+      {!preview ? (
+        <>
+          <AddToComboModal key={comboVendor?.id ?? "closed"} vendor={comboVendor} onClose={() => setComboVendor(null)} onAdd={addCombo} />
+          <BudgetFinderModal
+            open={showBudgetFinder}
+            catalog={{ studio: catalog.categories.studio, dress: catalog.categories.dress, makeup: catalog.categories.makeup }}
+            agencies={budgetAgencies}
+            onClose={() => setShowBudgetFinder(false)}
+            onChoose={chooseBudgetCombination}
+          />
+          <AuthGateModal open={showAuthGate} redirectPath={`/price/${category}`} onClose={() => setShowAuthGate(false)} />
+          <ComboBar
+            selections={selections}
+            totalKrw={comboTotalKrw}
+            saving={comboSaving}
+            onClear={(comboCategory) => comboStore.getState().clearSelection(comboCategory)}
+            onSave={() => void saveCombo()}
+            onShare={() => void shareCombo()}
+          />
+        </>
+      ) : null}
       <p className="sr-only" role="status" aria-live="polite">{feedback}</p>
       {feedback ? <div className="fixed bottom-40 left-1/2 z-[105] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-[#10233D] px-4 py-2.5 text-center text-xs font-semibold text-white shadow-xl sm:bottom-32">{feedback}</div> : null}
     </Root>

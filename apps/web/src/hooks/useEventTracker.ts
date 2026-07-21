@@ -72,7 +72,10 @@ export function usePageViewTracker(enabled = true) {
   const lastPath = useRef("");
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      lastPath.current = "";
+      return;
+    }
     if (typeof window === "undefined") return;
 
     const trackPageView = () => {

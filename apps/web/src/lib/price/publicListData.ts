@@ -22,6 +22,7 @@ type PublicPriceRow = {
   agency_name: string | null;
   agency_display_name: string | null;
   price_category: string;
+  item_name: string;
   base_spec: string | null;
   price_min_krw: number | null;
   price_max_krw: number | null;
@@ -121,7 +122,7 @@ export async function loadPublicPriceCatalog(
     const result = await client
       .from("v_public_official_prices")
       .select(
-        "id, period_label, vendor_id, vendor_slug, vendor_name, vendor_aliases, vendor_category, region_code, agency_id, agency_name, agency_display_name, price_category, base_spec, price_min_krw, price_max_krw, price_note",
+        "id, period_label, vendor_id, vendor_slug, vendor_name, vendor_aliases, vendor_category, region_code, agency_id, agency_name, agency_display_name, price_category, item_name, base_spec, price_min_krw, price_max_krw, price_note",
       )
       .eq("source", "kca_tprice")
       .eq("is_current", true)
@@ -188,6 +189,7 @@ export async function loadPublicPriceCatalog(
     if (row.agency_id) agencyNames.set(row.agency_id, agencyLabel);
     const offer: PriceOffer = {
       id: row.id,
+      itemName: row.item_name,
       agencyId: row.agency_id,
       agencyName: agencyLabel,
       minimumKrw: money(row.price_min_krw),

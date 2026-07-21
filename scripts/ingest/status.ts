@@ -10,6 +10,13 @@ import {
 import { sha256File, sha256Text } from "./io.js";
 import { loadManifest } from "./manifest.js";
 import { readAiLedgerState } from "./ledger.js";
+import {
+  currentLocalExtractionFingerprint,
+  LOCAL_DETERMINISTIC_ENGINE_HASH,
+  LOCAL_DETERMINISTIC_ENGINE_VERSION,
+  LOCAL_DETERMINISTIC_MODEL,
+  LOCAL_DETERMINISTIC_PROVIDER_MODE,
+} from "./local-extraction-contract.js";
 import { DUPLICATE_SOURCE_NOTICE_PREFIX, SCANNER_PARSER_VERSION } from "./scan.js";
 import type { IngestManifest, ManifestUnit, UnitStage } from "./types.js";
 import { VALIDATOR_VERSION } from "./validate.js";
@@ -31,6 +38,14 @@ export interface IngestStatus {
   historical_extraction_input_tokens: number;
   historical_extraction_output_tokens: number;
   durable_ledger_estimated_cost_usd: number;
+  durable_local_extracted_units: number;
+  current_local_extracted_units: number;
+  durable_local_validated_units: number;
+  current_local_validated_units: number;
+  current_local_review_load_eligible_units: number;
+  historical_local_extraction_input_tokens: number;
+  historical_local_extraction_output_tokens: number;
+  durable_local_extraction_cost_usd: 0;
   historical_validation_issues: number;
   current_validation_issues: number;
   failed_unit_details: Array<{
@@ -119,7 +134,72 @@ function hasCurrentExtraction(
     && extraction.content_sha256 !== undefined;
 }
 
-function hasCurrentValidation(
+function hasCurrentLocalExtractionMetadata(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+  currentConversion: boolean,
+): boolean {
+  const conversion = unit.conversion;
+  const extraction = unit.local_extraction;
+  if (!conversion || !extraction || !currentConversion) return false;
+  const expectedFingerprint = currentLocalExtractionFingerprint({
+    scannerParserVersion: manifest.scanner_parser_version,
+    converterVersion: conversion.converter_version ?? "v1-legacy",
+    rawName: unit.parsed.raw_name,
+    regionCode: unit.parsed.region_code,
+    kindHint: unit.parsed.kind_hint,
+    sourceFingerprint: unit.source_fingerprint,
+    artifactFingerprint: conversion.artifact_fingerprint,
+  });
+  const metadataIsCurrent = extraction.provider_mode === LOCAL_DETERMINISTIC_PROVIDER_MODE
+    && extraction.model === LOCAL_DETERMINISTIC_MODEL
+    && extraction.fingerprint === expectedFingerprint
+    && extraction.source_fingerprint === unit.source_fingerprint
+    && extraction.artifact_fingerprint === conversion.artifact_fingerprint
+    && extraction.scanner_parser_version === manifest.scanner_parser_version
+    && extraction.converter_version === (conversion.converter_version ?? "v1-legacy")
+    && extraction.engine_version === LOCAL_DETERMINISTIC_ENGINE_VERSION
+    && extraction.engine_hash === LOCAL_DETERMINISTIC_ENGINE_HASH
+    && extraction.attempts === 0
+    && extraction.input_tokens === 0
+    && extraction.output_tokens === 0
+    && extraction.estimated_cost_usd === 0
+    && extraction.review_status === "pending"
+    && extraction.needs_review === true
+    && extraction.bulk_approval_eligible === false;
+  return metadataIsCurrent;
+}
+
+async function verifyCurrentLocalExtraction(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+  metadataIsCurrent: boolean,
+  stateDir: string,
+): Promise<boolean> {
+  if (!metadataIsCurrent || !unit.local_extraction) return false;
+  try {
+    const { verifyCurrentLocalExtractionCacheForUnit } = await import(
+      "./local-extraction-runner.js"
+    );
+    const artifact = await verifyCurrentLocalExtractionCacheForUnit(
+      unit,
+      manifest,
+      stateDir,
+    );
+    return artifact.content_sha256 === unit.local_extraction.content_sha256
+      && artifact.review_status === "pending"
+      && artifact.needs_review === true
+      && artifact.bulk_approval_eligible === false
+      && artifact.attempts === 0
+      && artifact.input_tokens === 0
+      && artifact.output_tokens === 0
+      && artifact.estimated_cost_usd === 0;
+  } catch {
+    return false;
+  }
+}
+
+function hasCurrentPaidValidation(
   unit: ManifestUnit,
   currentExtraction: boolean,
 ): boolean {
@@ -127,11 +207,53 @@ function hasCurrentValidation(
   const validation = unit.validation;
   return extraction !== undefined
     && validation !== undefined
+    && validation.provider_mode !== "local_deterministic"
     && currentExtraction
     && validation.validator_version === VALIDATOR_VERSION
     && validation.content_sha256 !== undefined
     && validation.extraction_content_sha256 !== undefined
     && validation.extraction_content_sha256 === extraction.content_sha256;
+}
+
+async function currentLocalValidationIdentity(
+  manifest: IngestManifest,
+  unit: ManifestUnit,
+  currentLocalExtractionMetadata: boolean,
+  stateDir: string,
+): Promise<{ current: boolean; reviewLoadEligible: boolean }> {
+  const metadata = unit.validation;
+  if (
+    !currentLocalExtractionMetadata
+    || !metadata
+    || metadata.provider_mode !== LOCAL_DETERMINISTIC_PROVIDER_MODE
+    || metadata.validator_version !== VALIDATOR_VERSION
+    || metadata.model !== LOCAL_DETERMINISTIC_MODEL
+    || metadata.engine_version !== LOCAL_DETERMINISTIC_ENGINE_VERSION
+    || metadata.engine_hash !== LOCAL_DETERMINISTIC_ENGINE_HASH
+    || metadata.review_status !== "pending"
+    || metadata.needs_review !== true
+    || metadata.bulk_approval_eligible !== false
+    || metadata.extraction_content_sha256 !== unit.local_extraction?.content_sha256
+  ) {
+    return { current: false, reviewLoadEligible: false };
+  }
+  try {
+    const { verifyCurrentLocalValidatedArtifactForUnit } = await import("./validate.js");
+    const artifact = await verifyCurrentLocalValidatedArtifactForUnit(
+      unit,
+      manifest,
+      stateDir,
+    );
+    return {
+      current: true,
+      reviewLoadEligible: artifact.review_status === "pending"
+        && artifact.needs_review === true
+        && artifact.bulk_approval_eligible === false
+        && !artifact.issues.some((issue) => issue.severity === "error"),
+    };
+  } catch {
+    return { current: false, reviewLoadEligible: false };
+  }
 }
 
 function sourceStemKey(sourcePath: string): string {
@@ -262,6 +384,13 @@ export function formatIngestStatus(status: IngestStatus): string {
     `Current validation issues: ${status.current_validation_issues}`,
     `Historical extraction tokens: ${status.historical_extraction_input_tokens} input / ${status.historical_extraction_output_tokens} output`,
     `Durable AI ledger estimated cost (USD): ${status.durable_ledger_estimated_cost_usd.toFixed(6)}`,
+    `Durable local deterministic extraction units: ${status.durable_local_extracted_units}`,
+    `Current local deterministic extraction units: ${status.current_local_extracted_units}`,
+    `Durable local review-only validated units: ${status.durable_local_validated_units}`,
+    `Current local review-only validated units: ${status.current_local_validated_units}`,
+    `Current local pending-load eligible units: ${status.current_local_review_load_eligible_units}`,
+    `Local deterministic extraction tokens: ${status.historical_local_extraction_input_tokens} input / ${status.historical_local_extraction_output_tokens} output`,
+    `Local deterministic extraction cost (USD): ${status.durable_local_extraction_cost_usd.toFixed(6)}`,
   ];
   if (status.failed_unit_details.length > 0) {
     lines.push(
@@ -284,9 +413,40 @@ export async function getIngestStatus(options: StatusOptions): Promise<IngestSta
   const staleByStage = emptyStageCounts();
   const currentIdentities = await Promise.all(manifest.units.map(async (unit) => {
     const conversion = await hasCurrentConversion(manifest, unit);
-    const extraction = hasCurrentExtraction(unit, conversion);
-    const validation = hasCurrentValidation(unit, extraction);
-    return { conversion, extraction, validation };
+    const paidExtraction = hasCurrentExtraction(unit, conversion);
+    const localExtractionMetadata = hasCurrentLocalExtractionMetadata(
+      manifest,
+      unit,
+      conversion,
+    );
+    const paidValidation = hasCurrentPaidValidation(unit, paidExtraction);
+    const localValidation = await currentLocalValidationIdentity(
+      manifest,
+      unit,
+      localExtractionMetadata,
+      options.stateDir,
+    );
+    // The local validation verifier already re-verifies the extraction
+    // contract. Only replay the extraction separately when no current local
+    // validation can provide that proof.
+    const localExtraction = localValidation.current || await verifyCurrentLocalExtraction(
+      manifest,
+      unit,
+      localExtractionMetadata,
+      options.stateDir,
+    );
+    const extraction = paidExtraction || localExtraction;
+    const validation = paidValidation || localValidation.current;
+    return {
+      conversion,
+      extraction,
+      paidExtraction,
+      localExtraction,
+      paidValidation,
+      localValidation: localValidation.current,
+      localReviewLoadEligible: localValidation.reviewLoadEligible,
+      validation,
+    };
   }));
   for (const [index, unit] of manifest.units.entries()) {
     durableByStage[unit.stage] += 1;
@@ -324,10 +484,7 @@ export async function getIngestStatus(options: StatusOptions): Promise<IngestSta
       .filter((unit) => unit.validation?.review_status === "pending")
       .length,
     current_strict_load_eligible_units: manifest.units
-      .filter((unit, index) => isCurrentStrictLoadEligible(
-        unit,
-        currentIdentities[index].validation,
-      ))
+      .filter((unit, index) => isCurrentStrictLoadEligible(unit, currentIdentities[index].paidValidation))
       .length,
     // The append-only ledger survives a manifest rescan. Prefer it when it
     // exists so historical paid attempts do not disappear from status; the
@@ -343,6 +500,30 @@ export async function getIngestStatus(options: StatusOptions): Promise<IngestSta
     // understate legacy cache-write exposure and make two status surfaces
     // disagree for the same immutable ledger bytes.
     durable_ledger_estimated_cost_usd: ledgerState.snapshot.cumulative_cost_usd,
+    durable_local_extracted_units: manifest.units
+      .filter((unit) => unit.local_extraction !== undefined)
+      .length,
+    current_local_extracted_units: manifest.units
+      .filter((_unit, index) => currentIdentities[index].localExtraction)
+      .length,
+    durable_local_validated_units: manifest.units
+      .filter((unit) => unit.validation?.provider_mode === LOCAL_DETERMINISTIC_PROVIDER_MODE)
+      .length,
+    current_local_validated_units: manifest.units
+      .filter((unit, index) =>
+        unit.stage === "validated" && currentIdentities[index].localValidation
+      )
+      .length,
+    current_local_review_load_eligible_units: manifest.units
+      .filter((unit, index) =>
+        unit.stage === "validated" && currentIdentities[index].localReviewLoadEligible
+      )
+      .length,
+    historical_local_extraction_input_tokens: manifest.units
+      .reduce((sum, unit) => sum + (unit.local_extraction?.input_tokens ?? 0), 0),
+    historical_local_extraction_output_tokens: manifest.units
+      .reduce((sum, unit) => sum + (unit.local_extraction?.output_tokens ?? 0), 0),
+    durable_local_extraction_cost_usd: 0,
     historical_validation_issues: manifest.units
       .reduce((sum, unit) => sum + (unit.validation?.issue_count ?? 0), 0),
     current_validation_issues: currentValidatedUnits

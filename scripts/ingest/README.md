@@ -2,12 +2,13 @@
 
 한국소비자원 참가격 공시 원본을 로컬에서 스캔·변환·추출·검증한 뒤, 사람 검토 전 `pending` 상태로만 staging에 적재하는 파이프라인이다. 원본 폴더는 읽기 전용으로 취급하며 웹 검색, 업체 사이트 fetch, 공개 발행은 하지 않는다.
 
-> **2026-07-20 현재 상태:** 원본 253개 파일의 경로·크기·SHA-256은 전부 일치한다.
-> 249개 단위 중 238개가 현재 converter로 변환됐고, HWP 8개는 사람 변환 대기,
-> 동일 바이트 복사본 2개는 `duplicate_source_content`, 조선 팰리스 embedded EMF 1개는
-> `xlsx_media_format_unsupported`로 차단됐다. 현재 identity로 실제
-> 추출·strict validation·staging load·공개 발행된 단위는 모두 0이다. 자세한 근거는
-> `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`를 따른다.
+> **2026-07-21 canonical 상태:** 원본 253개 파일·249개 단위 중 241개 단위의 변환이
+> 완료됐고 HWP 8개는 사람 변환 대기다. 과거 `production_paid` cache 225개는 원본·변환물·
+> request/checkpoint/ledger/finalization replay를 통과했지만 현재 strict validator의
+> record-scope 근거 기준에는 미달해 모두 `error`다. 나머지 16개는 비용 0원 로컬 v8로
+> 추출·검증했다. 그중 15개는 `pending + needs_review`, 1개는 교차 업체 근거 오염을 제거한
+> 뒤 명시적 카테고리 근거 부족 6건이 드러나 `error`로 차단됐다. DB/Storage apply와 공개
+> 발행은 0건이다. 현재 상태와 과거 감사 문서가 다르면 이 절과 실제 `status` 출력을 따른다.
 
 ## 디렉터리와 실행 순서
 
@@ -24,9 +25,9 @@ data/raw/
 ```powershell
 corepack pnpm ingest scan data/raw
 corepack pnpm ingest convert
-corepack pnpm ingest extract --plan
-# 승인된 고정 8건 실행은 정확한 8개 ID를 고정한다.
-corepack pnpm ingest extract --units <id1,id2,id3,id4,id5,id6,id7,id8> --plan
+corepack pnpm ingest extract
+# 일부 단위만 재현할 때는 정확한 unit ID를 고정한다. 이 경로도 로컬·0원이다.
+corepack pnpm ingest extract --units <id1,id2,id3>
 corepack pnpm ingest validate
 corepack pnpm ingest status
 corepack pnpm ingest load --snapshot 2026Q3
@@ -46,45 +47,97 @@ corepack pnpm ingest load --snapshot 2026Q3
 - HWP는 자동 해석하지 않는다. 같은 디렉터리·동일 stem의 PDF가 있을 때만 그 PDF를 대체본으로 인정한다. HWP와 다른 형식이 섞여 있어도 대체 PDF가 없는 HWP가 하나라도 있으면 unit 전체를 `needs_manual_conversion`으로 막는다. 대체 PDF가 있어도 HWP와 PDF 양쪽의 원본 provenance와 Storage object를 보존한다.
 - 지원되지 않는 지역 폴더는 `unknown_region` 오류로 막으며 vendor 생성까지 진행하지 않는다. scan과 extract는 심볼릭 링크까지 실제 경로로 해석해 raw/artifact root 밖 파일을 읽지 않는다.
 
-## OpenAI 추출과 비용 감사
+## 로컬 전용 추출과 비용 0원 보장
 
-실제 추출은 OpenAI Responses API만 사용한다. 요청은 `store:false`, Zod structured output, SDK 자동 재시도 0회, 애플리케이션 429/5xx 최대 3회 재시도(최초 포함 총 4 attempts), 구조화 출력 검증 실패 repair 재요청 정확히 1회, 120초 timeout을 사용한다. 429/5xx의 `Retry-After` 초·HTTP date는 존중하되 대기 상한은 60초다. 그 밖의 4xx는 재시도하지 않으며 자동 이중 호출도 하지 않는다.
+업체 공시 추출은 `local-deterministic-v1` 엔진만 사용한다. `pnpm ingest extract`는
+네트워크나 OpenAI SDK를 호출하지 않으며, 모든 결과를 `pending`, `needs_review=true`,
+`bulk_approval_eligible=false`, 입력·출력 토큰 0, 비용 0원으로 기록한다. 기존 유료 추출
+코드와 과거 AI 비용 원장은 감사 재현을 위해 남아 있지만 공개 production 진입점은
+항상 `paid_openai_extraction_hard_disabled`로 중단된다.
 
 ```text
-INGEST_OPENAI_ENABLED=true
-OPENAI_API_KEY=<key>
-EXTRACTION_MODEL=gpt-5.6-luna   # 기본값·저비용
-# 복잡한 이미지/저품질 파일 파일럿만 명시적으로 gpt-5.6-terra 선택
+INGEST_OPENAI_ENABLED=false
+INGEST_MAX_UNCACHED_COST_USD=0
 ```
 
-처음에는 반드시 `extract --plan`의 형식별 층화 8건과 비용을 확인하고, 승인된 실행은
-`--units`로 정확한 8개 ID를 고정한 계획을 다시 출력한다. 계획 확인만으로는 API를
-호출하지 않는다. 활성 계약은 prompt `v7.11-exact-xlsx-auxiliary-repair`, plan schema v4,
-exact fixed-eight 순서다. 정확한 ID와 최신 승인 계획은
-`docs/operations/VENDOR_DISCLOSURE_FIXED8_EXECUTION_HANDOFF_2026-07-20.md`를 따른다.
-실제 호출은 `--plan`만 제거해서 실행할 수 없다. 같은 컴퓨터·같은 canonical state에서
-유료 실행 도메인을 최초 1회 초기화하고 상태를 확인한 뒤, 계획이 출력한 정확한 SHA를
-`--approved-plan-sha256`에 넣어야 한다.
+`OPENAI_API_KEY`와 `EXTRACTION_MODEL`은 업체 공시 추출에 필요하지 않다. `--plan`,
+`--paid-openai`, `--approved-plan-sha256` 플래그는 모두 차단된다. 다른 컴퓨터에서도 별도
+API 설정 없이 아래처럼 실행한다.
 
 ```powershell
-corepack pnpm ingest paid-execution-domain-status --state-dir reprocess-20260719-poppler5
-# status가 paid_execution_domain_missing이고 기준 state 백업이 끝난 경우에만 최초 1회 실행한다.
-corepack pnpm ingest paid-execution-domain-init --state-dir reprocess-20260719-poppler5
-corepack pnpm ingest paid-execution-domain-status --state-dir reprocess-20260719-poppler5
-corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units <exact-8-unit-ids> --plan
-corepack pnpm ingest extract --state-dir reprocess-20260719-poppler5 --units <exact-8-unit-ids> --approved-plan-sha256 <sha-from-the-immediately-preceding-plan>
+corepack pnpm ingest extract --state-dir <absolute-state-directory>
+corepack pnpm ingest validate --state-dir <absolute-state-directory>
+corepack pnpm ingest status --state-dir <absolute-state-directory>
 ```
 
-입력 조각에는 원본 상대경로와 파일 ID를 데이터 라벨로 붙이되, 라벨이나 원문을
-지시문으로 취급하지 않는다. 성공한 배치별 schema-validated 체크포인트는 fingerprint와
-prompt 버전에 묶어 저장하므로 뒤 배치가 실패해도 앞 배치를 다시 과금하지 않는다.
-체크포인트가 손상됐거나 다른 fingerprint와 섞이면 재사용하거나 자동 재과금하지 않고
-중단한다. 해당 cache 파일과 ledger ID를 보존해 원인을 확인한 뒤 손상 파일만 격리하고
-재실행한다.
+### 기존 유료 결과와 비교하는 로컬 후보 sidecar
 
-extract는 state별 `.cache/locks/extract.lock`을 원자적으로 생성해 같은 state의 inter-process 동시 실행을 차단한다. lock에는 PID·hostname·시작 시각·소유 ID를 기록한다. 같은 host의 죽은 PID 또는 손상된 lock을 발견해도 자동 삭제하지 않는다. 표시된 PID가 실제 종료됐는지 확인하고 cache·ledger를 보존한 뒤 lock 파일만 수동 격리 또는 제거해 재실행한다.
+기존 `production_paid` 추출을 덮어쓰지 않고 현재 로컬 규칙 결과와 비교하려면 아래의
+명시적 하위 명령만 사용한다.
 
-각 실제 provider 시도는 `.cache/ai-ledger.ndjson`에 임의 `run_id`, content-free ledger ID, unit/fingerprint/model/request ID, token, 추정 비용, latency, 성공 여부와 안전한 오류 분류만 기록한다. 구조화 출력이 유효하지 않아도 provider가 반환한 usage와 request ID는 원장에 남긴다. 프롬프트·원문·응답 본문·API key는 기록하지 않는다. CLI를 다시 실행한 실제 시도는 새 `run_id`로 남고, 같은 로컬 ledger의 staging 재적재만 멱등이다.
+```powershell
+corepack pnpm ingest extract local-candidates --state-dir <absolute-state-directory>
+corepack pnpm ingest extract local-candidates --state-dir <absolute-state-directory> --units <id1,id2>
+```
+
+Candidate/receipt schema v2 keeps the raw `field_differences` and
+`exact_representation_match` audit unchanged. It also records a separate
+`semantic_field_differences` view that omits review trust metadata
+(`confidence`, `needs_review`, and `extraction_notes`), plus identity/linkage,
+pricing, and other-domain counts. Only a semantic mismatch adds the
+`paid_local_semantic_diff` hold reason; exact provenance differences remain
+available for human review.
+
+이 명령은 먼저 기존 유료 cache를 request/checkpoint/ledger/finalization까지 전부 replay
+검증한다. 검증되지 않거나 자체 재해시된 유료 cache, 변경된 원본·변환 산출물에서는
+후보를 만들지 않는다. 통과한 경우에만 `.cache/extract-local-candidates/`와
+`.cache/extract-local-candidate-receipts/`에 content-addressed 비교 자료를 만든다.
+manifest의 `extraction`, `local_extraction`, `validation`, `stage`, 기존 유료 cache와 AI
+ledger는 변경하지 않는다.
+
+후보와 영수증은 항상 비용·토큰 0, `pending`, `needs_review=true`,
+`bulk_approval_eligible=false`, `blocked_human_review_required`다. PDF·DOCX·PNG와 이미지
+증거는 별도 hard-hold 사유가 붙는다. 후보 채택·병합·DB 적재·공개 명령은 제공하지
+않으며 사람이 원본과 양쪽 결과를 검수하기 전까지 어떤 active 상태도 바뀌지 않는다.
+
+2026-07-21 canonical 상태에서 과거 유료 cache 225개 전부의 v8/schema-v2 로컬 후보와 검증
+영수증을 실제로 생성했고 재실행은 225/225 cache hit였다. 신규 입력·출력 token과 비용은
+모두 0, 실패도 0이었다. 로컬 후보 중 hard error 보유 단위는 36개(469 errors), coverage gap
+보유 단위는 53개(705 occurrences), 이미지 증거 보류는 76개, PDF·DOCX·PNG 보류는 24개다.
+유료 결과와 exact 또는 trust metadata를 제외한 semantic 표현이 같은 단위는 각각 0/225다.
+exact 차이 34,477개 중 9,469개는 review trust metadata였고, 나머지 semantic 차이는
+25,008개이므로 자동 채택하지 않는다. 후보 실행 전후 AI ledger와 225개 유료 cache는
+동일했고 manifest는 후보 명령으로 변경되지 않았다.
+후보·영수증과 원본은 감사·저작권·용량 경계 때문에 Git에 올리지 않는다. 다른 컴퓨터에서는
+원본과 `.state`를 승인된 private 전달 경로로 복사하거나 같은 원본에서 다시 생성한다.
+
+로컬 캐시는 원본·변환 산출물·엔진 해시에 묶여 재현 검증되며, 원본 또는 캐시가 바뀌면
+재사용하지 않는다. 이미지나 근거가 불충분한 항목은 값을 추정하지 않고 `null`,
+`needs_review`, `coverage_gaps`로 남긴다. 과거 `.cache/ai-ledger.ndjson`은 변경하지 않으며,
+실행 전후 SHA-256·바이트 수·행 수가 같아야 비용 0원 실행으로 인정한다.
+
+### 고정 8건의 로컬 결과 채점
+
+과거 유료 결과가 아니라 현재 active local artifact와 v8/schema-v2 candidate sidecar를
+ground truth에 대조하려면 `--candidate-source local`을 명시한다. active local validation을
+우선 쓰고, 없을 때만 현재 source·conversion·paid-cache·engine·validator에 결속된 candidate와
+receipt를 결정론적으로 재검증해 사용한다. 결과는 `scoring/local-review/`에 분리 저장되며
+항상 `review_only`, `eligible_for_25_unit_batch=false`다. 이 명령은 sidecar 생성, 후보 채택,
+DB 적재나 유료 API 호출을 하지 않는다.
+
+```powershell
+corepack pnpm ingest score `
+  --candidate-source local `
+  --state-dir <absolute-state-directory> `
+  --units <fixed-eight-unit-ids> `
+  --ground-truth <ground-truth.json> `
+  --ground-truth-sha256 <sha256> `
+  --expected-occurrences <count>
+```
+
+현재 고정 8건 로컬 채점은 8/8 `fail`이다. 합계는 지어낸 발생 14, 판독 가능 누락 67,
+구조화 근거 불일치 6, 연결 오류 1, validator 차단 이슈 3, 실제 coverage gap 29다. 따라서
+25건 배치, staging apply와 자동 승인은 진행할 수 없다.
 
 ## 검증과 보수적 차단
 
@@ -141,12 +194,17 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role key>
 
 2026-07-19에는 Windows/Poppler 장경로 재현을 통해 성공 exit 뒤 페이지가 생성되지 않는 원인을 확인하고, 짧은 same-volume scratch에서 검증 후 게시하도록 보강했다. 새 격리 state `reprocess-20260719-poppler5`로 원본부터 다시 실행한 결과 `converted=241`, `needs_manual_conversion=8`, `error=0`이었고 PDF 수동 큐 6개는 전부 해소됐다. 새로 래스터화된 6개 unit의 8페이지는 사람이 직접 확인해 빈 페이지·잘림·회전·식별 불가 문제가 없음을 확인했다. 남은 8개는 동일 stem PDF 대체본이 없는 HWP이며 자동 성공 처리하지 않는다. 이 재검증도 OpenAI·Supabase 호출은 0이다.
 
-고정 8건의 자동 채점표와 발생 위치 ground truth는 `docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`에 기록했다. 이것은 추출 결과가 아니며 prompt v6는 역사적 API 호출 0건 기록이다. 활성 prompt `v7.11-exact-xlsx-auxiliary-repair`와 plan schema v4도 실제 호출 0건인 품질 미검증 상태다. 텍스트 원본 2,342건은 발생 위치 단위 ground truth로 고정하고, 메이브라이드 저해상도 PNG의 판독 불가 셀은 `null + needs_review + coverage_gaps` 대상으로 분리한다. 다음 단계는 코드·테스트·보안 게이트를 통과한 commit에서 고정 8개 `--units` 계획을 재확인한 뒤 실제 추출 결과를 strict score로 자동 채점하는 것이다. 그 확인 전에는 25건 배치, staging `--apply`, 승인·공개, 운영 배포를 진행하지 않는다.
+고정 8건의 발생 위치 ground truth는
+`docs/operations/VENDOR_DISCLOSURE_PILOT_MANUAL_AUDIT_2026-07-19.md`에 기록돼 있다. 그 문서의
+prompt v6 호출 0건 표기는 당시 채점표 제작 시점의 역사 기록이지 현재 누적 비용을 뜻하지
+않는다. 이후 만들어진 append-only AI ledger는 1,560행, 입력 10,426,591 token, 출력
+3,737,302 token, 보수적 누적 추정 비용 `$43.867371`을 기록한다. 이것은 2026-07-21 무과금
+전환 전에 발생한 과거 비용이며 삭제하거나 0으로 다시 쓰지 않는다. 현재 production/default
+추출 진입점은 유료 플래그와 OpenAI 정적 import까지 차단하며, 고정 8건을 포함한 추가 API
+추출을 실행하지 않는다.
 
-위 수치는 당시 converter의 역사적 snapshot이다. 2026-07-20 현재 parser v3/converter `v6-complete-xlsx-drawing-formula-evidence` 전수
-재실행 결과는 `238 converted / 8 HWP manual / 3 current error / 0 stale error`다. 오류는
-동일 원본 복사본 2개와 미지원 embedded EMF 1개다. 과거 append-only
-ledger에는 실제 유료 시도 102행과 비용 기록이 있으므로 새 state의 빈 ledger를 근거로
-전체 역사 비용을 0이라고 보고하면 안 된다. 현재 fixed-eight v7.11 무과금 재계획은
-`125 requests / estimated input 1,357,066 / output 1,347,972 / $9.7841645`, 승인 계획 SHA-256
-`32fb11f972467405bed56ad3c1a59200b759f6702365b1583e0698e6debdf155`이며 신규 provider 호출은 0건이다.
+텍스트 원본 2,342건은 발생 위치 단위 ground truth로 유지한다. 메이브라이드 저해상도 PNG,
+HWP 8개, 이미지·비-XLSX hard hold, strict validation 오류와 coverage gap은 사람이 원본을
+대조하기 전까지 `null/pending/needs_review` 경계를 넘지 않는다. 따라서 현재 다음 단계는
+API 재추출이 아니라 sidecar 비교 검수, 근거가 확정된 human-reviewed compilation, staging
+25건 배치 러너·검증 provenance 스키마를 구현한 뒤에만 `--apply`를 여는 것이다.

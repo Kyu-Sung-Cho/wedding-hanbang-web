@@ -6,10 +6,12 @@ import path from "node:path";
 import test from "node:test";
 import JSZip from "jszip";
 
+import { canonicalJsonSha256ExcludingField } from "../artifact-integrity.js";
 import { convertManifest } from "../convert.js";
 import { extractManifestForTests as extractManifest, type ExtractionProvider } from "../extract.js";
 import { loadValidated } from "../load.js";
 import { scanSources } from "../scan.js";
+import { encodeMergedEvidenceQuote } from "../merge-evidence.js";
 import type { DisclosureExtraction } from "../schemas.js";
 import type { ManifestUnit } from "../types.js";
 import {
@@ -424,6 +426,77 @@ test("local evidence sanitization forces every staged row to remain in manual re
     dryRun.plan.agency_packages[0].validation_issue_codes.includes("local_evidence_guard"),
     true,
   );
+});
+
+test("validate retries an error-stage unit only through its verified extraction provenance", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-validate-error-retry-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "광주");
+  await mkdir(regionDir, { recursive: true });
+  await writeDummyDocx(
+    path.join(regionDir, "(광주)_오류복구.docx"),
+    "더미 패키지 스튜디오 드레스 메이크업 3.3만원",
+  );
+  const scanned = await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+  await extractManifest({ stateDir }, {
+    provider: {
+      extract: async () => {
+        const data = extraction(scanned.units[0].parsed.raw_name);
+        data.agency_packages[0].source_quote =
+          "line:1: 더미 패키지 스튜디오 드레스 메이크업 3.3만원";
+        return { data, inputTokens: 10, outputTokens: 10 };
+      },
+    },
+    env: {},
+  });
+  const manifestPath = path.join(stateDir, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.units[0].stage = "error";
+  delete manifest.units[0].validation;
+  manifest.units[0].notices.push(
+    "validate failed: extraction artifact provenance mismatch (extract_cache_invalid:finalization_mismatch)",
+  );
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  const validated = await validateManifest({ stateDir });
+
+  assert.equal(validated.units[0].stage, "validated", JSON.stringify(validated.units[0].notices));
+  assert.ok(validated.units[0].validation);
+  assert.equal(
+    validated.units[0].notices.some((notice) => notice.startsWith("validate failed:")),
+    false,
+  );
+
+  const extractionArtifactPath = validated.units[0].extraction?.artifact_path;
+  assert.ok(extractionArtifactPath);
+  const forgedArtifact = JSON.parse(await readFile(extractionArtifactPath, "utf8"));
+  forgedArtifact.data.business_name = "self-rehashed forged error-stage result";
+  forgedArtifact.content_sha256 = canonicalJsonSha256ExcludingField(
+    forgedArtifact,
+    "content_sha256",
+  );
+  await writeFile(
+    extractionArtifactPath,
+    `${JSON.stringify(forgedArtifact, null, 2)}\n`,
+    "utf8",
+  );
+  const forgedManifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  forgedManifest.units[0].stage = "error";
+  delete forgedManifest.units[0].validation;
+  forgedManifest.units[0].extraction.content_sha256 = forgedArtifact.content_sha256;
+  forgedManifest.units[0].notices.push("validate failed: retry forged cache fixture");
+  await writeFile(manifestPath, `${JSON.stringify(forgedManifest, null, 2)}\n`, "utf8");
+
+  const rejected = await validateManifest({ stateDir });
+
+  assert.equal(rejected.units[0].stage, "error");
+  assert.equal(rejected.units[0].validation, undefined);
+  assert.match(rejected.units[0].notices.join("\n"), /finalization_mismatch/u);
 });
 
 test("validate blocks a content-tampered extraction artifact", async (t) => {
@@ -1430,6 +1503,48 @@ test("public price fields containing phone numbers or email addresses are blocke
   }
 });
 
+test("contact screening scans merged quote payloads but never its SHA provenance envelope", () => {
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "generated.xlsx",
+    parsed: {
+      region_code: "gwangju",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/gwangju/generated.xlsx",
+      absolute_path: "C:/generated/generated.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const data = extraction("generated");
+  const merged = (payload: string): string => encodeMergedEvidenceQuote([{
+    source_file_id: "0101234567890123456789012345678901234567890123456789012345678901",
+    quote: "가격표!A2: 더미 패키지 스튜디오 드레스 메이크업",
+  }, {
+    source_file_id: "0101234567890123456789012345678901234567890123456789012345678901",
+    quote: `가격표!B2: ${payload}`,
+  }], 1_000)!;
+
+  data.agency_packages[0]!.source_quote = merged("기본가격 3.3만원");
+  assert.equal(validateExtractionForUnit(unit, structuredClone(data)).some(({ code }) =>
+    code === "public_field_contains_contact_data"
+  ), false);
+
+  data.agency_packages[0]!.source_quote = merged("기본가격 3.3만원 문의 010-1234-5678");
+  assert.equal(validateExtractionForUnit(unit, data).some(({ code }) =>
+    code === "public_field_contains_contact_data"
+  ), true);
+});
+
 test("mixed documents cannot bypass their scan-derived root kind", () => {
   const agencyUnit: ManifestUnit = {
     unit_id: "a".repeat(64),
@@ -1662,6 +1777,53 @@ test("an exact but unrelated quote cannot authenticate fabricated section semant
   ), true);
 });
 
+test("exact cancellation wording grounds a deterministic contract-terms section", () => {
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "contract-terms.xlsx",
+    parsed: {
+      region_code: "seoul",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/seoul/contract-terms.xlsx",
+      absolute_path: "C:/generated/contract-terms.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const sourceText = "안내!A2: 계약 취소 시 적용되는 조건";
+  const data = extraction("generated");
+  data.sections = [{
+    section_type: "contract_terms",
+    title: "계약 취소 시 적용되는 조건",
+    content_verbatim: "계약 취소 시 적용되는 조건",
+    summary: "계약 취소 시 적용되는 조건",
+    source_quote: sourceText,
+    source_file_ids: [],
+    confidence: 0.5,
+    needs_review: true,
+  }];
+
+  const issues = validateExtractionForUnit(unit, data, {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  });
+
+  assert.equal(issues.some(({ code, path }) =>
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "sections[0].section_type"
+  ), false, JSON.stringify(issues));
+});
+
 test("an exact vendor price quote cannot authenticate fabricated policy text or type", () => {
   const unit: ManifestUnit = {
     unit_id: "a".repeat(64),
@@ -1834,6 +1996,60 @@ test("an exact vendor quote cannot authenticate a category absent from its bound
     && issue.path === "partner_vendors[0].category"
   ), true);
   assert.equal(data.partner_vendors[0].needs_review, true);
+});
+
+test("global validation does not treat an album page count as an explicit studio label", () => {
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "studio-category.xlsx",
+    parsed: {
+      region_code: "seoul",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/seoul/studio-category.xlsx",
+      absolute_path: "C:/generated/studio-category.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const sourceText = "가격표!A5: 로즈<br>가격표!B5: 앨범 50페이지<br>가격표!C5: 100만원";
+  const data = extraction("generated");
+  data.doc_kind = "partner_price_list";
+  data.agency_packages = [];
+  data.partner_vendors = [{
+    vendor_name: "로즈",
+    old_names: [],
+    category: "studio",
+    price_min_krw: 1_000_000,
+    price_max_krw: 1_000_000,
+    base_spec: "앨범 50페이지",
+    price_note: null,
+    options: [],
+    policies: [],
+    source_quote: sourceText,
+    source_file_ids: [],
+    confidence: 0.5,
+    needs_review: true,
+  }];
+
+  const issues = validateExtractionForUnit(unit, data, {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  });
+
+  assert.equal(issues.some(({ code, path }) =>
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "partner_vendors[0].category"
+  ), true, JSON.stringify(issues));
 });
 
 test("agency category and notes must be explicit inside the package quote", () => {
@@ -2094,6 +2310,52 @@ test("generated section summary remains explicitly non-authoritative", () => {
     issue.path.startsWith("sections[0]") && issue.severity === "error"
   ), false, JSON.stringify(issues));
   assert.equal(data.sections[0].needs_review, false);
+});
+
+test("other sections require exact text but no invented lexical type label", () => {
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "generated.xlsx",
+    parsed: {
+      region_code: "gwangju",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/gwangju/generated.xlsx",
+      absolute_path: "C:/generated/generated.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const data = extraction("generated");
+  data.sections = [{
+    section_type: "other",
+    title: "방문 전 안내",
+    content_verbatim: "방문 전 안내",
+    summary: "방문 전 안내",
+    source_quote: "안내!A2: 방문 전 안내",
+    source_file_ids: [],
+    confidence: 0.5,
+    needs_review: true,
+  }];
+  const sourceText = "안내!A2: 방문 전 안내";
+  const issues = validateExtractionForUnit(unit, data, {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  });
+
+  assert.equal(issues.some(({ code, path }) =>
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "sections[0].section_type"
+  ), false, JSON.stringify(issues));
 });
 
 test("policy raw text longer than its quote capacity is quarantined", () => {

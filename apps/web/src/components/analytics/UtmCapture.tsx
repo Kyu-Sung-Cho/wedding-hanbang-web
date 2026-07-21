@@ -3,12 +3,15 @@
 // 첫 페이지 로드 시 first-touch UTM을 sessionStorage에 보존.
 // PostHog 키 유무와 무관하게 항상 동작해야 해서 AnalyticsProvider와 분리.
 import { useEffect } from "react";
-import { isAnalyticsSuppressedPath } from "@/lib/analyticsPrivacy";
+import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
 import { persistFirstTouchUtm } from "@/utils/utm";
 
 export default function UtmCapture() {
   useEffect(() => {
-    if (isAnalyticsSuppressedPath(window.location.pathname)) return;
+    if (isAnalyticsSuppressedLocation(
+      window.location.pathname,
+      new URLSearchParams(window.location.search),
+    )) return;
     persistFirstTouchUtm();
   }, []);
   return null;

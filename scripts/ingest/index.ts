@@ -1,8 +1,12 @@
 import path from "node:path";
 
 import { convertManifest } from "./convert.js";
-import { extractManifest, planExtraction } from "./extract.js";
 import { resolveIngestStateDirectory } from "./io.js";
+import {
+  LOCAL_DETERMINISTIC_MODEL,
+  LOCAL_DETERMINISTIC_PROVIDER_MODE,
+} from "./local-extraction-contract.js";
+import { extractManifestLocally } from "./local-extraction-runner.js";
 import { loadValidated } from "./load.js";
 import { scanSources } from "./scan.js";
 import { scoreExtractionAgainstGroundTruth } from "./score.js";
@@ -23,6 +27,10 @@ function optionValue(args: string[], name: string): string | undefined {
 
 function hasFlag(args: string[], name: string): boolean {
   return args.includes(name);
+}
+
+function hasFlagOrAssignment(args: string[], name: string): boolean {
+  return args.some((argument) => argument === name || argument.startsWith(`${name}=`));
 }
 
 function stateDirectory(args: string[]): string {
@@ -69,33 +77,72 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "extract") {
+    const extractOptionsWithValues = new Set([
+      "--state-dir",
+      "--limit",
+      "--units",
+      "--approved-plan-sha256",
+    ]);
+    const extractPositionals = args.filter((argument, index) =>
+      !argument.startsWith("--")
+      && !extractOptionsWithValues.has(args[index - 1] ?? "")
+    );
+    const extractOperation = extractPositionals[0];
+    if (extractOperation !== undefined && extractOperation !== "local-candidates") {
+      throw new Error(`unknown_extract_operation:${extractOperation}`);
+    }
+    if (extractPositionals.length > (extractOperation ? 1 : 0)) {
+      throw new Error(`unknown_extract_operation:${extractPositionals[1]}`);
+    }
+    const localCandidateMode = extractOperation === "local-candidates";
     const limit = positiveInteger(optionValue(args, "--limit"), "--limit");
     const units = optionValue(args, "--units")
       ?.split(",")
       .map((value) => value.trim())
       .filter(Boolean);
     if (units && limit) throw new Error("--units와 --limit은 함께 사용할 수 없습니다.");
-    const extractOptions = {
-      stateDir,
-      enforcePilotAuthorization: true,
-      ...(limit ? { limit } : {}),
-      ...(units ? { unitIds: units } : {}),
-      ...(optionValue(args, "--approved-plan-sha256")
-        ? { approvedPlanSha256: optionValue(args, "--approved-plan-sha256") }
-        : {}),
-    };
-    if (hasFlag(args, "--plan")) {
-      if (optionValue(args, "--approved-plan-sha256")) {
-        throw new Error("--plan과 --approved-plan-sha256은 함께 사용할 수 없습니다.");
-      }
-      print({ command: "extract-plan", ...(await planExtraction(extractOptions)) });
+    if (
+      hasFlagOrAssignment(args, "--plan")
+      || hasFlagOrAssignment(args, "--paid-openai")
+      || hasFlagOrAssignment(args, "--approved-plan-sha256")
+    ) {
+      throw new Error(
+        "paid_openai_cli_disabled: 업체 공시 추출은 로컬 전용이며 유료 OpenAI 실행은 모든 production 진입점에서 차단됩니다.",
+      );
+    }
+    if (localCandidateMode) {
+      const { extractLocalCandidates } = await import("./local-candidate.js");
+      const result = await extractLocalCandidates({
+        stateDir,
+        ...(limit ? { limit } : {}),
+        ...(units ? { unitIds: units } : {}),
+      });
+      print({
+        command,
+        operation: "local-candidates",
+        mode: LOCAL_DETERMINISTIC_PROVIDER_MODE,
+        model: LOCAL_DETERMINISTIC_MODEL,
+        ...result,
+      });
       return;
     }
-    if (!optionValue(args, "--approved-plan-sha256")) {
-      throw new Error("extract --plan이 출력한 --approved-plan-sha256 값이 필요합니다.");
-    }
-    await extractManifest(extractOptions);
-    print({ command, status: await getIngestStatus({ stateDir }) });
+    const extractOptions = {
+      stateDir,
+      ...(limit ? { limit } : {}),
+      ...(units ? { unitIds: units } : {}),
+    };
+    const result = await extractManifestLocally(extractOptions);
+    print({
+      command,
+      mode: LOCAL_DETERMINISTIC_PROVIDER_MODE,
+      model: LOCAL_DETERMINISTIC_MODEL,
+      cost_usd: 0,
+      selected_units: result.selected_units,
+      processed_units: result.processed_units,
+      cache_hits: result.cache_hits,
+      failed_units: result.failed_units,
+      status: await getIngestStatus({ stateDir }),
+    });
     return;
   }
   if (command === "validate") {
@@ -104,6 +151,18 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "score") {
+    const candidateSourceOption = optionValue(args, "--candidate-source") ?? "paid";
+    if (candidateSourceOption !== "paid" && candidateSourceOption !== "local") {
+      throw new Error("--candidate-source must be paid or local");
+    }
+    const candidateSource = candidateSourceOption as "paid" | "local";
+    const approvedPaidPlanSha256 = optionValue(args, "--approved-plan-sha256")?.trim();
+    if (candidateSource === "paid" && !approvedPaidPlanSha256) {
+      throw new Error("--approved-plan-sha256 옵션이 필요합니다.");
+    }
+    if (candidateSource === "local" && approvedPaidPlanSha256) {
+      throw new Error("--candidate-source local cannot be combined with --approved-plan-sha256");
+    }
     const units = requiredOption(args, "--units")
       .split(",")
       .map((value) => value.trim())
@@ -116,7 +175,8 @@ async function main(): Promise<void> {
     const report = await scoreExtractionAgainstGroundTruth({
       stateDir,
       unitIds: units,
-      approvedPaidPlanSha256: requiredOption(args, "--approved-plan-sha256"),
+      ...(approvedPaidPlanSha256 ? { approvedPaidPlanSha256 } : {}),
+      candidateSource,
       groundTruthPath: requiredOption(args, "--ground-truth"),
       expectedGroundTruthSha256: requiredOption(args, "--ground-truth-sha256"),
       expectedOccurrenceCount,
@@ -187,7 +247,7 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "사용법: pnpm ingest <scan|convert|extract|validate|score|load|status|paid-execution-domain-init|paid-execution-domain-status> [옵션] (유료 계획 전에 paid-execution-domain-init 1회 필수; extract --plan: 승인 SHA 생성; 실제 extract: --approved-plan-sha256 <sha> 필수)",
+    "사용법: pnpm ingest <scan|convert|extract|validate|score|load|status|paid-execution-domain-init|paid-execution-domain-status> [옵션] (extract는 로컬 결정론적·0원·검수대기 전용)",
   );
 }
 

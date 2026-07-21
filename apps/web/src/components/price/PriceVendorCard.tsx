@@ -13,6 +13,7 @@ type PriceVendorCardProps = {
   agencyOrder?: readonly { id: string; name: string }[];
   isWishlisted: boolean;
   wishlistBusy?: boolean;
+  preview?: boolean;
   onToggleWishlist(vendor: PriceVendor): void;
   onOpenCombo?(vendor: PriceVendor): void;
 };
@@ -22,22 +23,31 @@ export function PriceVendorCard({
   agencyOrder,
   isWishlisted,
   wishlistBusy = false,
+  preview = false,
   onToggleWishlist,
   onOpenCombo,
 }: PriceVendorCardProps) {
   const cardRef = useRef<HTMLElement>(null);
   const optionCount = vendor.offers.reduce((count, offer) => count + offer.options.length, 0);
-  const offersByAgency = new Map(
-    vendor.offers.flatMap((offer) => offer.agencyId ? [[offer.agencyId, offer] as const] : []),
-  );
+  const offersByAgency = new Map<string, typeof vendor.offers>();
+  for (const offer of vendor.offers) {
+    if (!offer.agencyId) continue;
+    const agencyOffers = offersByAgency.get(offer.agencyId) ?? [];
+    agencyOffers.push(offer);
+    offersByAgency.set(offer.agencyId, agencyOffers);
+  }
   const directOffers = vendor.offers.filter(({ agencyId }) => agencyId === null);
   const displayedAgencies = agencyOrder ?? [...new Map(
     vendor.offers.flatMap((offer) => offer.agencyId
       ? [[offer.agencyId, { id: offer.agencyId, name: offer.agencyName }] as const]
       : []),
   ).values()];
+  const detailHref = preview
+    ? `/wedding/vendors/${vendor.id}?preview=1`
+    : `/price/vendor/${vendor.slug}`;
 
   useEffect(() => {
+    if (preview) return;
     const element = cardRef.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
     const storageKey = `hb-price-impression:${vendor.id}`;
@@ -73,7 +83,7 @@ export function PriceVendorCard({
       if (timer !== null) clearTimeout(timer);
       observer.disconnect();
     };
-  }, [vendor.category, vendor.id, vendor.regionCode]);
+  }, [preview, vendor.category, vendor.id, vendor.regionCode]);
 
   return (
     <article
@@ -83,8 +93,8 @@ export function PriceVendorCard({
       <div className="flex items-start justify-between gap-4 px-4 pb-4 pt-5 sm:px-6">
         <div className="min-w-0">
           <Link
-            href={`/price/vendor/${vendor.slug}`}
-            onClick={() => track("vendor_card_click", {
+            href={detailHref}
+            onClick={preview ? undefined : () => track("vendor_card_click", {
               vendor_id: vendor.id,
               surface: "price_list",
               context: { category: vendor.category },
@@ -99,16 +109,18 @@ export function PriceVendorCard({
             </p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => onToggleWishlist(vendor)}
-          disabled={wishlistBusy}
-          aria-busy={wishlistBusy}
-          aria-label={isWishlisted ? `${vendor.name} 찜 해제` : `${vendor.name} 찜하기`}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#1D3557]/12 bg-[#FBF8F2] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B5977A] disabled:cursor-wait disabled:opacity-55"
-        >
-          <Heart aria-hidden="true" className="size-5" fill={isWishlisted ? "currentColor" : "none"} />
-        </button>
+        {!preview ? (
+          <button
+            type="button"
+            onClick={() => onToggleWishlist(vendor)}
+            disabled={wishlistBusy}
+            aria-busy={wishlistBusy}
+            aria-label={isWishlisted ? `${vendor.name} 찜 해제` : `${vendor.name} 찜하기`}
+            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#1D3557]/12 bg-[#FBF8F2] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B5977A] disabled:cursor-wait disabled:opacity-55"
+          >
+            <Heart aria-hidden="true" className="size-5" fill={isWishlisted ? "currentColor" : "none"} />
+          </button>
+        ) : null}
       </div>
 
       {displayedAgencies.length > 0 || directOffers.length > 0 ? (
@@ -122,18 +134,31 @@ export function PriceVendorCard({
             >
               <div className="grid w-max min-w-full grid-flow-col auto-cols-[minmax(10.5rem,1fr)]">
                 {displayedAgencies.map((agency) => {
-                  const offer = offersByAgency.get(agency.id);
+                  const agencyOffers = offersByAgency.get(agency.id) ?? [];
                   return (
                     <div key={agency.id} className="min-w-0 border-r border-[#1D3557]/10 px-4 py-4 last:border-r-0 sm:px-6">
                       <p className="truncate text-xs font-semibold text-[#1D3557]/65" title={agency.name}>
                         {agency.name}
                       </p>
-                      <p className="mt-1 text-lg font-bold tabular-nums text-[#1D3557]">
-                        {offer ? krwRangeLabel(offer.minimumKrw, offer.maximumKrw) : "—"}
-                      </p>
-                      {offer?.priceNote ? (
-                        <p className="mt-1.5 text-xs leading-5 text-[#1D3557]/60">{offer.priceNote}</p>
-                      ) : null}
+                      {agencyOffers.length > 0 ? (
+                        <div className="mt-1 divide-y divide-[#1D3557]/10">
+                          {agencyOffers.map((offer) => (
+                            <div key={offer.id} className="py-1 first:pt-0 last:pb-0">
+                              {offer.itemName ? (
+                                <p className="text-xs font-semibold leading-5 text-[#1D3557]/65">
+                                  {offer.itemName}
+                                </p>
+                              ) : null}
+                              <p className="text-lg font-bold tabular-nums text-[#1D3557]">
+                                {krwRangeLabel(offer.minimumKrw, offer.maximumKrw)}
+                              </p>
+                              {offer.priceNote ? (
+                                <p className="mt-1.5 text-xs leading-5 text-[#1D3557]/60">{offer.priceNote}</p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="mt-1 text-lg font-bold text-[#1D3557]">—</p>}
                     </div>
                   );
                 })}
@@ -146,6 +171,11 @@ export function PriceVendorCard({
               {directOffers.map((offer) => (
                 <div key={offer.id} className="min-w-0 border-b border-[#1D3557]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
                   <p className="text-xs font-semibold text-[#1D3557]/65">업체 직접 공시</p>
+                  {offer.itemName ? (
+                    <p className="mt-1 text-xs font-semibold leading-5 text-[#1D3557]/65">
+                      {offer.itemName}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-lg font-bold tabular-nums text-[#1D3557]">
                     {krwRangeLabel(offer.minimumKrw, offer.maximumKrw)}
                   </p>
@@ -163,7 +193,7 @@ export function PriceVendorCard({
         <details
           className="group border-b border-[#1D3557]/10"
           onToggle={(event) => {
-            if (event.currentTarget.open) {
+            if (!preview && event.currentTarget.open) {
               track("addon_expand", {
                 vendor_id: vendor.id,
                 surface: "price_list",
@@ -190,9 +220,11 @@ export function PriceVendorCard({
                     {[option.unit, option.condition].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
-                <p className="mt-1 text-xs leading-5 text-[#1D3557]/65">
-                  공시 원문 · {option.rawText}
-                </p>
+                {option.rawText ? (
+                  <p className="mt-1 text-xs leading-5 text-[#1D3557]/65">
+                    공시 원문 · {option.rawText}
+                  </p>
+                ) : null}
                 {option.isEffectivelyMandatory ? (
                   <span className="mt-2 inline-flex rounded-full bg-[#A43E3E]/10 px-2 py-1 text-[11px] font-bold text-[#A43E3E]">
                     사실상 필수
@@ -206,8 +238,8 @@ export function PriceVendorCard({
 
       <div className="flex items-center gap-3 px-4 py-4 sm:px-6">
         <Link
-          href={`/price/vendor/${vendor.slug}`}
-          onClick={() => track("vendor_card_click", {
+          href={detailHref}
+          onClick={preview ? undefined : () => track("vendor_card_click", {
             vendor_id: vendor.id,
             surface: "price_list",
             context: { category: vendor.category },
@@ -216,7 +248,7 @@ export function PriceVendorCard({
         >
           상세 보기
         </Link>
-        {vendor.category !== "hall" && onOpenCombo ? (
+        {!preview && vendor.category !== "hall" && onOpenCombo ? (
           <button
             type="button"
             onClick={() => onOpenCombo(vendor)}

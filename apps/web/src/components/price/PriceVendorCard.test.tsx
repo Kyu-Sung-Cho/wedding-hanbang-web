@@ -1,0 +1,144 @@
+// @vitest-environment jsdom
+
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PriceVendor } from "@/lib/price/catalog";
+import { track } from "@/lib/analytics/track";
+
+import { PriceVendorCard } from "./PriceVendorCard";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true;
+
+vi.mock("@/lib/analytics/track", () => ({ track: vi.fn() }));
+
+describe("PriceVendorCard", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    vi.mocked(track).mockClear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  it("renders every offer when one agency disclosed multiple items", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-1",
+      slug: "vendor-1",
+      name: "복수 공시 예식장",
+      aliases: [],
+      category: "hall",
+      regionCode: "seoul_gangnam3",
+      offers: [
+        {
+          id: "offer-1",
+          itemName: "그랜드홀 대관료",
+          agencyId: "agency-1",
+          agencyName: "대행사 하나",
+          minimumKrw: 1_000_000,
+          maximumKrw: 1_000_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+        {
+          id: "offer-2",
+          itemName: "그랜드홀 식대",
+          agencyId: "agency-1",
+          agencyName: "대행사 하나",
+          minimumKrw: 2_000_000,
+          maximumKrw: 2_000_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+        />,
+      );
+    });
+
+    const comparison = container.querySelector('[aria-label="복수 공시 예식장 대행사별 공시가"]');
+    expect(comparison?.textContent?.replace(/\s+/g, "")).toContain("100만원");
+    expect(comparison?.textContent?.replace(/\s+/g, "")).toContain("200만원");
+    expect(comparison?.textContent).toContain("그랜드홀 대관료");
+    expect(comparison?.textContent).toContain("그랜드홀 식대");
+  });
+
+  it("keeps an admin preview card read-only", async () => {
+    const onToggleWishlist = vi.fn();
+    const onOpenCombo = vi.fn();
+    const vendor: PriceVendor = {
+      id: "pending-vendor",
+      slug: "pending-vendor",
+      name: "검수 전 업체",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: [{
+        id: "pending-offer",
+        agencyId: null,
+        agencyName: "업체 직접 공시",
+        minimumKrw: 1_000_000,
+        maximumKrw: 1_000_000,
+        priceNote: null,
+        baseSpec: null,
+        options: [{
+          id: "pending-option",
+          name: "추가 옵션",
+          minimumKrw: 100_000,
+          maximumKrw: 100_000,
+          unit: null,
+          condition: null,
+          rawText: "",
+          isEffectivelyMandatory: false,
+        }],
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          isWishlisted={false}
+          onToggleWishlist={onToggleWishlist}
+          onOpenCombo={onOpenCombo}
+          preview
+        />,
+      );
+    });
+
+    expect(container.querySelector('a[href="/wedding/vendors/pending-vendor?preview=1"]'))
+      .not.toBeNull();
+    expect(container.querySelector('button[aria-label="검수 전 업체 찜하기"]')).toBeNull();
+    expect(container.textContent).not.toContain("+ 조합에 담기");
+    const details = container.querySelector<HTMLDetailsElement>("details");
+    expect(details).not.toBeNull();
+    await act(async () => {
+      if (details) {
+        details.open = true;
+        details.dispatchEvent(new Event("toggle"));
+      }
+      await Promise.resolve();
+    });
+    expect(track).not.toHaveBeenCalled();
+    expect(onToggleWishlist).not.toHaveBeenCalled();
+    expect(onOpenCombo).not.toHaveBeenCalled();
+  });
+});

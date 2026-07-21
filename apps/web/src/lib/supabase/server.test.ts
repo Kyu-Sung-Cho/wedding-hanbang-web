@@ -60,4 +60,23 @@ describe("createClientFromRequest authorization precedence", () => {
     expect(options.cookies.getAll()).toEqual([]);
     expect(mocks.cookies).not.toHaveBeenCalled();
   });
+
+  it("inherits the current Next cookie session when a synthetic request has no Authorization header", async () => {
+    const cookieRows = [{ name: "sb-session", value: "ambient-cookie" }];
+    const cookieStore = {
+      getAll: vi.fn(() => cookieRows),
+      set: vi.fn(),
+    };
+    mocks.cookies.mockResolvedValue(cookieStore);
+
+    await createClientFromRequest(new Request(
+      "http://localhost/internal-admin-preview",
+    ));
+
+    expect(mocks.cookies).toHaveBeenCalledOnce();
+    expect(mocks.createServerClient).toHaveBeenCalledOnce();
+    const options = mocks.createServerClient.mock.calls[0][2];
+    expect(options.global).toBeUndefined();
+    expect(options.cookies.getAll()).toEqual(cookieRows);
+  });
 });

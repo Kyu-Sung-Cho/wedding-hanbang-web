@@ -15,6 +15,7 @@ export type PriceOption = {
 
 export type PriceOffer = {
   id: string;
+  itemName?: string;
   agencyId: string | null;
   agencyName: string;
   minimumKrw: number | null;

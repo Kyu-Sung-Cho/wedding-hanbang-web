@@ -140,6 +140,7 @@ describe("loadPublicPriceCatalog", () => {
     expect(catalog.counts).toEqual({ studio: 1, dress: 1, makeup: 0, hall: 0 });
     expect(catalog.categories.studio[0].offers[0].options[1].rawText)
       .toBe("샘플 원본 제공 10만원");
+    expect(catalog.categories.studio[0].offers[0].itemName).toBe("샘플 기본 촬영");
     expect(catalog.categories.studio[0].aliases).toEqual(["샘플 옛 상호"]);
     expect(catalog.categories.studio[0].offers[0].options[1].isEffectivelyMandatory)
       .toBe(true);

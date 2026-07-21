@@ -9,10 +9,14 @@ import AppClientLayout from "./AppClientLayout";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/wedding/lounge",
+  searchParams: new URLSearchParams(),
+  isDemo: true,
+  pageViewCalls: [] as boolean[],
 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
+  useSearchParams: () => mocks.searchParams,
 }));
 
 vi.mock("lucide-react", () => ({
@@ -38,7 +42,9 @@ vi.mock("@/components/app/chat/ChatSidePanel", () => ({
 }));
 
 vi.mock("@/hooks/useEventTracker", () => ({
-  usePageViewTracker: () => undefined,
+  usePageViewTracker: (enabled = true) => {
+    mocks.pageViewCalls.push(enabled);
+  },
 }));
 
 vi.mock("@/hooks/useAuthSessionSync", () => ({
@@ -50,7 +56,7 @@ vi.mock("@/stores/authStore", () => ({
     initialize: vi.fn(),
     isInitialized: true,
     isLoading: false,
-    isDemo: true,
+    isDemo: mocks.isDemo,
   }),
 }));
 
@@ -60,6 +66,9 @@ describe("AppClientLayout global Amora panel", () => {
 
   beforeEach(() => {
     mocks.pathname = "/wedding/lounge";
+    mocks.searchParams = new URLSearchParams();
+    mocks.isDemo = true;
+    mocks.pageViewCalls.length = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -113,5 +122,21 @@ describe("AppClientLayout global Amora panel", () => {
     expect(
       container.querySelectorAll('button[aria-label="아모라 AI 상담"]'),
     ).toHaveLength(1);
+  });
+
+  it("suppresses internal page-view writes only in admin vendor preview mode", async () => {
+    mocks.isDemo = false;
+    mocks.pathname = "/wedding/vendors";
+    mocks.searchParams = new URLSearchParams("preview=1");
+    await renderLayout();
+
+    expect(mocks.pageViewCalls.at(-1)).toBe(false);
+    expect(container.querySelector(".ph-no-capture")).not.toBeNull();
+
+    mocks.searchParams = new URLSearchParams();
+    await renderLayout();
+
+    expect(mocks.pageViewCalls.at(-1)).toBe(true);
+    expect(container.querySelector(".ph-no-capture")).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
@@ -10,6 +10,7 @@ import TopNav from "@/components/app/TopNav";
 import { usePageViewTracker } from "@/hooks/useEventTracker";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
+import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
 import { useAuthStore } from "@/stores/authStore";
 
 function GlobalChatAssistant() {
@@ -37,11 +38,14 @@ function GlobalChatAssistant() {
 export default function AppClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
-  usePageViewTracker(isInitialized && !isDemo);
+  const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
+
+  usePageViewTracker(isInitialized && !isDemo && !analyticsSuppressed);
   useAuthSessionSync(!isDemo);
 
   useEffect(() => {
@@ -61,11 +65,11 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
 
   return (
     <div
-      className={
+      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
         isChatPage
           ? "hanbang-service-theme h-screen overflow-hidden bg-[#fbf8f2]"
           : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#fbf8f2_0%,#ffffff_48%,#f6efe5_100%)]"
-      }
+      }`}
     >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className={isChatPage ? "flex h-screen flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>

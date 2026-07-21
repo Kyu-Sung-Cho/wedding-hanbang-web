@@ -292,7 +292,7 @@ async function buildUnitPreviewObjects(
   unit: IngestManifest["units"][number],
 ): Promise<PreviewStorageObject[]> {
   const conversion = unit.conversion;
-  const extraction = unit.extraction;
+  const extraction = unit.extraction ?? unit.local_extraction;
   if (!conversion || !extraction) {
     throw new Error(`conversion provenance가 없습니다: ${unit.display_name}`);
   }
@@ -1062,6 +1062,37 @@ async function readStrictValidatedArtifactForLoad(
   return validation;
 }
 
+async function readValidatedArtifactForLoad(
+  stateDir: string,
+  manifest: IngestManifest,
+  unit: IngestManifest["units"][number],
+) {
+  if (unit.validation?.provider_mode !== "local_deterministic") {
+    return readStrictValidatedArtifactForLoad(stateDir, manifest, unit);
+  }
+  try {
+    const { verifyCurrentLocalValidatedArtifactForUnit } = await import("./validate.js");
+    const validation = await verifyCurrentLocalValidatedArtifactForUnit(
+      unit,
+      manifest,
+      stateDir,
+    );
+    if (
+      validation.review_status !== "pending"
+      || validation.needs_review !== true
+      || validation.bulk_approval_eligible !== false
+      || validation.issues.some((issue) => issue.severity === "error")
+    ) {
+      throw new Error("review_only_contract_mismatch");
+    }
+    return validation;
+  } catch {
+    throw new Error(
+      `local validation artifact is not eligible for pending-only staging: ${unit.unit_id}`,
+    );
+  }
+}
+
 async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan: StagingLoadPlan; manifest: IngestManifest }> {
   if (!/^20\d{2}Q[1-4]$/.test(snapshot)) throw new Error("snapshot은 2026Q3 형식이어야 합니다.");
   const manifest = await loadManifest(stateDir);
@@ -1085,7 +1116,10 @@ async function buildLoadPlan(stateDir: string, snapshot: string): Promise<{ plan
       });
       continue;
     }
-    const validatedArtifact = await readStrictValidatedArtifactForLoad(stateDir, manifest, unit);
+    const validatedArtifact = await readValidatedArtifactForLoad(stateDir, manifest, unit);
+    if (unit.validation.provider_mode === "local_deterministic") {
+      warnings.add(`local_deterministic_review_only:${unit.unit_id}`);
+    }
     // scan writes canonical source order. Load must not reorder an existing
     // manifest because conversion artifacts encode this exact positional order.
     const orderedSourceFiles = [...unit.source_files];

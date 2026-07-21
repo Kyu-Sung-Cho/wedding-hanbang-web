@@ -1,8 +1,5 @@
-import { zodTextFormat } from "openai/helpers/zod";
-
 import { sha256Text } from "./io.js";
 import { EXTRACTION_INSTRUCTIONS, EXTRACTION_PROMPT_VERSION } from "./prompt.js";
-import { DisclosureExtractionSchema } from "./schemas.js";
 
 export { EXTRACTION_PROMPT_VERSION };
 
@@ -14,16 +11,36 @@ export const EXTRACTION_REQUEST_FORMAT_VERSION =
   "v7.9.0-deterministic-line-cell-aux-source-repair-attested-bytes-and-attempt-hashes";
 export const EXTRACTION_MERGE_VERSION =
   "v5-normalized-conflict-safe-merged-evidence-local-guard";
-export const EXTRACTION_RESPONSE_FORMAT = zodTextFormat(
-  DisclosureExtractionSchema,
-  "vendor_disclosure_v2",
-);
-export const EXTRACTION_SCHEMA_HASH = sha256Text(JSON.stringify(EXTRACTION_RESPONSE_FORMAT));
+/**
+ * Pinned from the provider-specific response format. That module asserts this
+ * digest at load time; keeping the digest here leaves local ingestion free of
+ * every OpenAI package import.
+ */
+export const EXTRACTION_SCHEMA_HASH =
+  "dd5cddb680d3c97ee4e83108241035307300625bd92d146b5811abca0639fea5" as const;
 export const EXTRACTION_PROCESSING_VERSION = sha256Text([
   SOURCE_MONEY_SCANNER_VERSION,
   EXTRACTION_SCHEMA_HASH,
   EXTRACTION_MERGE_VERSION,
 ].join("\0"));
+
+/**
+ * Request/checkpoint identity and final-cache replay are separate contracts.
+ * `EXTRACTION_PROCESSING_VERSION` remains the immutable identity that was
+ * authorized and paid for. A finalizer compatibility path must never rewrite
+ * that request identity or silently pretend to be the current finalizer.
+ */
+export const EXTRACTION_REQUEST_PROCESSING_VERSION = EXTRACTION_PROCESSING_VERSION;
+export const CURRENT_EXTRACTION_FINALIZATION_CONTRACT =
+  "v6-guard-first-dotted-thousands-boundary" as const;
+export const LEGACY_TRANSITIONAL_EXTRACTION_FINALIZATION_CONTRACT =
+  "legacy-e258-precommit-note-order-v9-money" as const;
+export const LEGACY_TRANSITIONAL_EXTRACTION_PROCESSING_VERSION =
+  "e258c99053e76c701dd39e61ef20c71b140f6905a6b06bac19f8a9ff0fafab0e" as const;
+export const LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_HASH =
+  "a8cde85852e3d86fc586e33fdc204a7552ca330d703887e8ac646f7336cb215a" as const;
+export const LEGACY_TRANSITIONAL_EXTRACTION_PROMPT_VERSION =
+  "v7.11-exact-xlsx-auxiliary-repair" as const;
 export const EXTRACTION_PROMPT_HASH = sha256Text(
   `${EXTRACTION_INSTRUCTIONS}\0${EXTRACTION_REQUEST_FORMAT_VERSION}\0${EXTRACTION_PROCESSING_VERSION}`,
 );

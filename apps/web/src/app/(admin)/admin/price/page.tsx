@@ -177,6 +177,119 @@ type PriceSnapshot = {
   blocking_reasons: string[];
 };
 
+type BulkApprovalSummary = {
+  eligible_count: number;
+  can_execute: boolean;
+  batch_limit: number;
+  blocked_code?: string;
+  blocked_reason?: string;
+};
+
+function BulkApprovalPanel() {
+  const [summary, setSummary] = useState<BulkApprovalSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function loadCount() {
+    if (loading || executing) return;
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/price/bulk-approval");
+      if (response.status === 401) {
+        window.location.assign("/admin/login");
+        return;
+      }
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "일괄 승인 대상을 계산하지 못했습니다.");
+      setSummary(body as BulkApprovalSummary);
+    } catch (caught) {
+      setSummary(null);
+      setError(caught instanceof Error ? caught.message : "일괄 승인 대상을 계산하지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function execute() {
+    if (!summary?.can_execute || summary.eligible_count < 1 || executing) return;
+    if (!window.confirm(
+      `자동 검증을 통과한 ${summary.eligible_count}건을 승인합니다. 공개 전환은 하지 않습니다. 계속할까요?`,
+    )) return;
+    setExecuting(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/price/bulk-approval", { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.blocked_reason ?? body.error ?? "일괄 승인을 완료하지 못했습니다.");
+      setNotice(
+        `승인 ${body.approved_count ?? 0}건 · 충돌 ${body.conflict_count ?? 0}건 · 실패 ${body.failed_count ?? 0}건`,
+      );
+      setSummary(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "일괄 승인을 완료하지 못했습니다.");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  const blocked = summary !== null && !summary.can_execute;
+  return (
+    <section
+      aria-label="자동 검증 통과분 일괄 승인"
+      className="mb-7 rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold tracking-wide text-[#8F6662]">HUMAN-CONFIRMED BULK REVIEW</p>
+          <h2 className="mt-1 text-lg font-bold text-[#243832]">자동 검증 통과분 일괄 승인</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6D806E]">
+            버튼을 누르면 먼저 승인 가능 건수만 계산합니다. 승인 실행은 건수 확인 뒤 다시 눌러야 하며 공개 전환은 별도입니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={loading || executing || blocked}
+          onClick={() => void (summary ? execute() : loadCount())}
+          className="min-h-11 rounded-lg bg-[#36534E] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {loading
+            ? "승인 가능 건수 확인 중…"
+            : executing
+              ? "일괄 승인 중…"
+              : summary
+                ? `자동 검증 통과분 일괄 승인 (${summary.eligible_count}건)`
+                : "자동 검증 통과분 일괄 승인"}
+        </button>
+      </div>
+      {summary ? (
+        <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${blocked ? "border-[#B89785]/35 bg-[#F7F1E8] text-[#36534E]" : "border-[#C7D1C2] bg-[#F2F7F3] text-[#36534E]"}`}>
+          <p className="font-bold">승인 가능 {summary.eligible_count}건</p>
+          {summary.blocked_reason ? <p className="mt-1 leading-6">{summary.blocked_reason}</p> : null}
+          {blocked ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSummary(null);
+                void loadCount();
+              }}
+              className="mt-3 min-h-10 rounded-lg border border-[#B89785]/50 bg-white px-3 text-xs font-bold"
+            >
+              대상 다시 확인
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {notice ? <p className="mt-4 rounded-lg bg-[#E8F1EA] px-4 py-3 text-sm font-semibold text-[#36534E]" role="status">{notice}</p> : null}
+      {error ? <p className="mt-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p> : null}
+    </section>
+  );
+}
+
 function SourceLoadError({
   message,
   recordId,
@@ -1338,6 +1451,7 @@ export default function AdminPricePage() {
       <VendorWorkspaceHeader active="price" />
       <main className="mx-auto max-w-[1500px] px-5 py-7 lg:px-8">
         <PriceUploadPanel />
+        <BulkApprovalPanel />
         <SnapshotReadinessPanel />
         <div className="mb-7 grid w-full grid-cols-3 rounded-xl border border-[#E2D3C8] bg-white p-1 sm:inline-grid sm:w-auto">
           <button type="button" onClick={() => setView("prices")} className={`min-h-10 whitespace-nowrap rounded-lg px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "prices" ? "bg-[#36534E] text-white" : "text-[#6D806E]"}`}>개별 가격</button>
