@@ -9,8 +9,10 @@ import {
   beginPaidCallIntent,
   listPendingPaidCallIntents,
   persistCheckpointThenSettlePaidCallIntents,
+  reconcileFailedPaidCallIntent,
   settlePaidCallIntent,
 } from "../paid-call-journal.js";
+import { appendAiLedgerEntry, createLedgerId, estimateExtractionCostUsd } from "../ledger.js";
 
 function input() {
   return {
@@ -120,4 +122,109 @@ test("all retry intents remain pending until checkpoint persistence succeeds", a
   });
   assert.equal(persisted, true);
   assert.deepEqual(await listPendingPaidCallIntents(stateDir), []);
+});
+
+test("an exact durable failed production ledger row safely reconciles its local intent", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-intent-failed-"));
+  t.after(() => rm(stateDir, { recursive: true, force: true }));
+  const intent = await beginPaidCallIntent(stateDir, input());
+  const inputTokens = 10;
+  const outputTokens = 5;
+  await appendAiLedgerEntry(stateDir, {
+    schema_version: 3,
+    provider_mode: "production_paid",
+    paid_plan_sha256: intent.paid_plan_sha256,
+    ledger_id: createLedgerId(
+      intent.run_id,
+      intent.extraction_fingerprint,
+      intent.batch_index,
+      intent.attempt,
+    ),
+    run_id: intent.run_id,
+    unit_id: intent.unit_id,
+    fingerprint: intent.extraction_fingerprint,
+    prompt_version: "test",
+    model: intent.model,
+    batch_index: intent.batch_index,
+    attempt: intent.attempt,
+    request_hash: intent.request_hash,
+    request_id: "req_failed_intent",
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cached_input_tokens: 0,
+    cache_write_input_tokens: 0,
+    estimated_cost_usd: estimateExtractionCostUsd(intent.model, inputTokens, outputTokens, {
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+    }),
+    reserved_cost_usd: intent.reserved_cost_usd,
+    charge_basis: "usage_reported",
+    latency_ms: 1,
+    success: false,
+    error_category: "invalid_response",
+    attempted_at: "2026-07-20T00:00:01.000Z",
+  });
+
+  await reconcileFailedPaidCallIntent(stateDir, intent);
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), []);
+});
+
+test("failed-intent reconciliation never deletes an intent without its exact ledger proof", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-intent-no-ledger-"));
+  t.after(() => rm(stateDir, { recursive: true, force: true }));
+  const intent = await beginPaidCallIntent(stateDir, input());
+
+  await assert.rejects(
+    reconcileFailedPaidCallIntent(stateDir, intent),
+    /requires_one_exact_failed_ledger_row/u,
+  );
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), [intent]);
+});
+
+test("failed-intent reconciliation cannot remove an intent backed by a successful ledger row", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-intent-success-"));
+  t.after(() => rm(stateDir, { recursive: true, force: true }));
+  const intent = await beginPaidCallIntent(stateDir, input());
+  const inputTokens = 10;
+  const outputTokens = 5;
+  await appendAiLedgerEntry(stateDir, {
+    schema_version: 3,
+    provider_mode: "production_paid",
+    paid_plan_sha256: intent.paid_plan_sha256,
+    ledger_id: createLedgerId(
+      intent.run_id,
+      intent.extraction_fingerprint,
+      intent.batch_index,
+      intent.attempt,
+    ),
+    run_id: intent.run_id,
+    unit_id: intent.unit_id,
+    fingerprint: intent.extraction_fingerprint,
+    prompt_version: "test",
+    model: intent.model,
+    batch_index: intent.batch_index,
+    attempt: intent.attempt,
+    request_hash: intent.request_hash,
+    request_id: "req_success_intent",
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cached_input_tokens: 0,
+    cache_write_input_tokens: 0,
+    estimated_cost_usd: estimateExtractionCostUsd(intent.model, inputTokens, outputTokens, {
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+    }),
+    reserved_cost_usd: intent.reserved_cost_usd,
+    charge_basis: "usage_reported",
+    latency_ms: 1,
+    success: true,
+    error_category: null,
+    attempted_at: "2026-07-20T00:00:01.000Z",
+  });
+
+  await assert.rejects(
+    reconcileFailedPaidCallIntent(stateDir, intent),
+    /requires_one_exact_failed_ledger_row/u,
+  );
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), [intent]);
 });

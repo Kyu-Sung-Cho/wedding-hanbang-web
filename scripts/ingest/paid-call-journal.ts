@@ -15,6 +15,7 @@ import {
   syncDirectoryMetadata,
   unlinkFileDurably,
 } from "./io.js";
+import { readAiLedgerState } from "./ledger.js";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 
@@ -259,6 +260,41 @@ export async function settlePaidCallIntent(
     throw new Error("paid_call_intent_changed_before_settlement");
   }
   await unlinkFileDurably(artifactPath);
+}
+
+export async function reconcileFailedPaidCallIntent(
+  stateDir: string,
+  intentValue: PaidCallIntent,
+): Promise<void> {
+  const intent = PaidCallIntentSchema.parse(intentValue);
+  const persisted = await readVerifiedIntent(
+    stateDir,
+    intentPath(stateDir, intent.intent_id),
+    intent.intent_id,
+  );
+  if (persisted.content_sha256 !== intent.content_sha256) {
+    throw new Error("paid_call_intent_changed_before_failed_reconciliation");
+  }
+  const ledgerState = await readAiLedgerState(stateDir);
+  const matchingRows = ledgerState.entries.filter((entry) =>
+    entry.schema_version === 3
+    && entry.provider_mode === "production_paid"
+    && entry.paid_plan_sha256 === persisted.paid_plan_sha256
+    && entry.run_id === persisted.run_id
+    && entry.unit_id === persisted.unit_id
+    && entry.fingerprint === persisted.extraction_fingerprint
+    && entry.batch_index === persisted.batch_index
+    && entry.attempt === persisted.attempt
+    && entry.request_hash === persisted.request_hash
+    && entry.model === persisted.model
+    && entry.reserved_cost_usd === persisted.reserved_cost_usd
+  );
+  if (matchingRows.length !== 1 || matchingRows[0]?.success !== false) {
+    throw new Error(
+      `paid_call_intent_failed_reconciliation_requires_one_exact_failed_ledger_row:${intent.intent_id}`,
+    );
+  }
+  await settlePaidCallIntent(stateDir, persisted);
 }
 
 /** Keep all attempt intents pending until the successful checkpoint is durable. */

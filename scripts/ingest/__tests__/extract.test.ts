@@ -18,6 +18,7 @@ import { convertManifest } from "../convert.js";
 import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "../io.js";
 import {
   acquireExtractionLock,
+  assertOpenAIProviderModel,
   assertPaidProviderUsageWithinReservation,
   buildOpenAIResponseRequest,
   computeRetryDelayMilliseconds,
@@ -196,28 +197,32 @@ test("an arbitrary test provider cannot enter production-paid mode", async () =>
   assert.equal(calls, 0);
 });
 
-test("CLI authorization refuses anything except the exact fixed-eight order", async (t) => {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-fixed8-auth-"));
+test("production planning authorizes an exact caller-selected batch of up to 25 units", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-batch-auth-"));
   const stateDir = `${rootDir}-state`;
+  const authorityRoot = `${rootDir}-authority`;
   t.after(async () => Promise.all([
     rm(rootDir, { recursive: true, force: true }),
     rm(stateDir, { recursive: true, force: true }),
+    rm(authorityRoot, { recursive: true, force: true }),
+    rm(`${authorityRoot}.initialized.json`, { force: true }),
   ]));
   const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
   await mkdir(regionDir, { recursive: true });
   await writeDummyDocx(path.join(regionDir, "unapproved.docx"));
   const scanned = await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
-  await assert.rejects(
-    extractManifestWithPaidGate(
-      {
-        stateDir,
-        unitIds: [scanned.units[0].unit_id],
-      },
-      { env: {} },
-    ),
-    /fixed_eight_paid_pilot_requires_exact_approved_units_and_order/u,
-  );
+  await initializePaidExecutionDomainForTests(stateDir, { authorityRoot });
+
+  const plan = await planExtractionForTests({
+    stateDir,
+    unitIds: [scanned.units[0].unit_id],
+    enforcePilotAuthorization: true,
+  }, {}, { authorityRoot });
+
+  assert.equal(plan.units.length, 1);
+  assert.equal(plan.approval_status, "approved_sequential_runtime_fence");
+  assert.match(plan.approval_plan_sha256 ?? "", /^[a-f0-9]{64}$/u);
 });
 
 test("automatic pilot selection is deterministic and stratifies formats instead of taking manifest order", () => {
@@ -446,7 +451,7 @@ test("fixed-eight planning reports an over-budget maximum without issuing approv
       unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
       enforcePilotAuthorization: true,
     }, { env: {} }),
-    /fixed_eight_paid_pilot_requires_approved_plan_sha256/u,
+    /paid_extraction_batch_requires_approved_plan_sha256/u,
   );
 });
 
@@ -600,11 +605,237 @@ test("the exact-eight paid path binds plan, intents, ledger, checkpoints, cache,
     { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
   );
   const replayBlocked = replayBlockedExecution.manifest;
-  assert.equal(replayBlockedExecution.providerCalls, 0);
+  assert.equal(
+    replayBlockedExecution.providerCalls,
+    0,
+    "a failed attempt completed by a later success checkpoint must not be replayed",
+  );
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), []);
   assert.ok(replayBlocked.units.every((unit) => unit.stage === "error"));
   assert.ok(replayBlocked.units.every((unit) => unit.notices.some(
     (notice) => /cross_plan_replay/u.test(notice),
   )));
+});
+
+test("a conservatively settled timeout does not poison same-plan continuation or resume", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-timeout-resume-"));
+  const stateDir = `${rootDir}-state`;
+  const authorityRoot = `${rootDir}-authority`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+    rm(authorityRoot, { recursive: true, force: true }),
+    rm(`${authorityRoot}.initialized.json`, { force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
+  await mkdir(regionDir, { recursive: true });
+  for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
+    await writeDummyDocx(
+      path.join(regionDir, `(제주)_paid-timeout-${index}.docx`),
+      `paid timeout fixture ${index} 더미 기본 패키지 290만원`,
+    );
+  }
+  await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+  const manifestPath = path.join(stateDir, "manifest.json");
+  const manifest = await readJsonFile(manifestPath) as IngestManifest;
+  manifest.units.sort((left, right) => left.unit_id.localeCompare(right.unit_id, "en"));
+  manifest.units.forEach((unit, index) => {
+    unit.unit_id = FIXED_EIGHT_ORDERED_UNIT_IDS[index] as string;
+  });
+  await writeJsonFile(manifestPath, manifest);
+  await initializePaidExecutionDomainForTests(stateDir, { authorityRoot });
+
+  const options = {
+    stateDir,
+    unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
+    enforcePilotAuthorization: true,
+  };
+  const plan = await planExtractionForTests(options, {}, { authorityRoot });
+  assert.match(plan.approval_plan_sha256 ?? "", /^[a-f0-9]{64}$/u);
+  const responsesByCanonicalName = Object.fromEntries(manifest.units.map((unit) => [
+    unit.parsed.raw_name,
+    dummyExtraction(unit.parsed.raw_name),
+  ]));
+  const runOptions = {
+    ...options,
+    approvedPlanSha256: plan.approval_plan_sha256 as string,
+  };
+
+  const interrupted = await extractFixedEightWithScriptedProviderForTests(
+    runOptions,
+    {
+      responsesByCanonicalName,
+      failFirstAmbiguousTimeouts: 1,
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "paid-timeout-first",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  assert.equal(interrupted.providerCalls, 8);
+  assert.equal(interrupted.manifest.units.filter((unit) => unit.stage === "error").length, 1);
+  assert.equal(interrupted.manifest.units.filter((unit) => unit.stage === "extracted").length, 7);
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), []);
+
+  const resumed = await extractFixedEightWithScriptedProviderForTests(
+    runOptions,
+    {
+      responsesByCanonicalName,
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "paid-timeout-resume",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  assert.equal(resumed.providerCalls, 1, JSON.stringify(resumed.manifest.units.map((unit) => ({
+    unit_id: unit.unit_id,
+    stage: unit.stage,
+    notices: unit.notices,
+  }))));
+  assert.ok(resumed.manifest.units.every((unit) => unit.stage === "extracted"));
+  const ledgerRows = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
+    .trim().split("\n").map((line) => JSON.parse(line));
+  const timeout = ledgerRows.find((row) => row.success === false);
+  assert.equal(timeout?.error_category, "timeout");
+  assert.equal(timeout?.charge_basis, "reservation_upper_bound");
+  assert.equal(timeout?.input_tokens, 0);
+  assert.equal(timeout?.output_tokens, 0);
+  assert.equal(timeout?.request_id, null);
+  const resumedUnitRows = ledgerRows.filter((row) => row.unit_id === FIXED_EIGHT_ORDERED_UNIT_IDS[0]);
+  assert.deepEqual(resumedUnitRows.map((row) => row.attempt), [1, 2]);
+  assert.deepEqual(resumedUnitRows.map((row) => row.success), [false, true]);
+  assert.equal(resumedUnitRows[0]?.run_id, resumedUnitRows[1]?.run_id);
+  const checkpointDirectory = path.join(stateDir, ".cache", "extract-batches");
+  const resumedCheckpoint = await Promise.all(
+    (await readdir(checkpointDirectory)).filter((name) => name.endsWith(".json"))
+      .map((name) => readJsonFile(path.join(checkpointDirectory, name))),
+  ).then((checkpoints) => checkpoints.find((checkpoint) =>
+    (checkpoint as { unit_id?: string }).unit_id === FIXED_EIGHT_ORDERED_UNIT_IDS[0]
+  ) as { attempts: number; attempt_request_hashes: string[] } | undefined);
+  assert.equal(resumedCheckpoint?.attempts, 2);
+  assert.equal(resumedCheckpoint?.attempt_request_hashes.length, 2);
+  assert.equal(
+    resumedCheckpoint?.attempt_request_hashes[0],
+    resumedCheckpoint?.attempt_request_hashes[1],
+  );
+
+  const idempotent = await extractFixedEightWithScriptedProviderForTests(
+    runOptions,
+    {
+      responsesByCanonicalName,
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "paid-timeout-idempotent",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  assert.equal(idempotent.providerCalls, 0);
+  assert.ok(idempotent.manifest.units.every((unit) => unit.stage === "extracted"));
+});
+
+test("a conservatively settled 5xx after an invalid response resumes the repaired request at attempt three", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-5xx-resume-"));
+  const stateDir = `${rootDir}-state`;
+  const authorityRoot = `${rootDir}-authority`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+    rm(authorityRoot, { recursive: true, force: true }),
+    rm(`${authorityRoot}.initialized.json`, { force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "제주");
+  await mkdir(regionDir, { recursive: true });
+  for (let index = 0; index < FIXED_EIGHT_ORDERED_UNIT_IDS.length; index += 1) {
+    await writeDummyDocx(
+      path.join(regionDir, `(제주)_paid-5xx-${index}.docx`),
+      `paid 5xx fixture ${index} 더미 기본 패키지 290만원`,
+    );
+  }
+  await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+  const manifestPath = path.join(stateDir, "manifest.json");
+  const manifest = await readJsonFile(manifestPath) as IngestManifest;
+  manifest.units.sort((left, right) => left.unit_id.localeCompare(right.unit_id, "en"));
+  manifest.units.forEach((unit, index) => {
+    unit.unit_id = FIXED_EIGHT_ORDERED_UNIT_IDS[index] as string;
+  });
+  await writeJsonFile(manifestPath, manifest);
+  await initializePaidExecutionDomainForTests(stateDir, { authorityRoot });
+
+  const options = {
+    stateDir,
+    unitIds: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
+    enforcePilotAuthorization: true,
+  };
+  const plan = await planExtractionForTests(options, {}, { authorityRoot });
+  const runOptions = {
+    ...options,
+    approvedPlanSha256: plan.approval_plan_sha256 as string,
+  };
+  const responsesByCanonicalName = Object.fromEntries(manifest.units.map((unit) => [
+    unit.parsed.raw_name,
+    dummyExtraction(unit.parsed.raw_name),
+  ]));
+  const interrupted = await extractFixedEightWithScriptedProviderForTests(
+    runOptions,
+    {
+      responsesByCanonicalName,
+      failFirstInvalidResponses: 1,
+      failProvider5xxOnCalls: [2],
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "paid-5xx-first",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  assert.equal(interrupted.providerCalls, 9);
+  assert.equal(interrupted.manifest.units.filter((unit) => unit.stage === "error").length, 1);
+  assert.equal(interrupted.manifest.units.filter((unit) => unit.stage === "extracted").length, 7);
+  assert.deepEqual(await listPendingPaidCallIntents(stateDir), []);
+
+  const resumed = await extractFixedEightWithScriptedProviderForTests(
+    runOptions,
+    {
+      responsesByCanonicalName,
+      inputTokens: 12,
+      outputTokens: 7,
+      requestIdPrefix: "paid-5xx-resume",
+    },
+    { env: {}, paidExecutionDomainAuthorityRoot: authorityRoot },
+  );
+  assert.equal(resumed.providerCalls, 1);
+  assert.ok(resumed.manifest.units.every((unit) => unit.stage === "extracted"));
+  const ledgerRows = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
+    .trim().split("\n").map((line) => JSON.parse(line));
+  const resumedUnitRows = ledgerRows.filter((row) => row.unit_id === FIXED_EIGHT_ORDERED_UNIT_IDS[0]);
+  assert.deepEqual(resumedUnitRows.map((row) => row.attempt), [1, 2, 3]);
+  assert.deepEqual(resumedUnitRows.map((row) => row.success), [false, false, true]);
+  assert.deepEqual(resumedUnitRows.map((row) => row.error_category), [
+    "invalid_response",
+    "provider_5xx",
+    null,
+  ]);
+  assert.equal(resumedUnitRows[0]?.run_id, resumedUnitRows[2]?.run_id);
+  assert.notEqual(resumedUnitRows[0]?.request_hash, resumedUnitRows[1]?.request_hash);
+  assert.equal(resumedUnitRows[1]?.request_hash, resumedUnitRows[2]?.request_hash);
+  const checkpointDirectory = path.join(stateDir, ".cache", "extract-batches");
+  const resumedCheckpoint = await Promise.all(
+    (await readdir(checkpointDirectory)).filter((name) => name.endsWith(".json"))
+      .map((name) => readJsonFile(path.join(checkpointDirectory, name))),
+  ).then((checkpoints) => checkpoints.find((checkpoint) =>
+    (checkpoint as { unit_id?: string }).unit_id === FIXED_EIGHT_ORDERED_UNIT_IDS[0]
+  ) as { attempts: number; attempt_request_hashes: string[] } | undefined);
+  assert.equal(resumedCheckpoint?.attempts, 3);
+  assert.equal(resumedCheckpoint?.attempt_request_hashes.length, 3);
+  assert.notEqual(
+    resumedCheckpoint?.attempt_request_hashes[0],
+    resumedCheckpoint?.attempt_request_hashes[1],
+  );
+  assert.equal(
+    resumedCheckpoint?.attempt_request_hashes[1],
+    resumedCheckpoint?.attempt_request_hashes[2],
+  );
 });
 
 test("raising the runtime env limit cannot spend beyond the approved plan ceiling", async (t) => {
@@ -1079,7 +1310,7 @@ test("workbook extraction carries a vertically merged vendor identity into each 
   assert.doesNotMatch(rowFourOwner, /^가격표!A4:/mu);
 });
 
-test("extract accepts a bounded multi-file unit that needs more than ten text chunks", async (t) => {
+test("extract accepts a bounded large unit that needs more than 96 text chunks", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-large-unit-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([rm(rootDir, { recursive: true, force: true }), rm(stateDir, { recursive: true, force: true })]));
@@ -1087,7 +1318,10 @@ test("extract accepts a bounded multi-file unit that needs more than ten text ch
   await mkdir(regionDir, { recursive: true });
   await writeFile(path.join(regionDir, "(제주)_샘플대형홀.pdf"), "%PDF generated fixture");
   await scanSources({ rootDir, stateDir });
-  const longText = "샘플 공시 100만원\n".repeat(5_000);
+  const longText = Array.from(
+    { length: 120 },
+    (_, index) => `샘플 공시 100만원 ${index} ${"안내".repeat(1_000)}`,
+  ).join("\n");
   await convertManifest({ stateDir }, {
     extractPdfText: async () => longText,
     rasterizePdf: rasterizeGeneratedPdf,
@@ -1111,8 +1345,8 @@ test("extract accepts a bounded multi-file unit that needs more than ten text ch
     },
   );
 
-  assert.ok(requests > 10 && requests <= 96);
-  assert.equal(result.units[0].stage, "extracted");
+  assert.ok(requests > 96 && requests <= 256);
+  assert.equal(result.units[0].stage, "extracted", result.units[0].notices.join("\n"));
 });
 
 test("extract rejects every model outside the Luna/Terra allowlist", () => {
@@ -1122,12 +1356,13 @@ test("extract rejects every model outside the Luna/Terra allowlist", () => {
   );
 });
 
-test("paid-call cost limit can only lower the approved twenty-dollar ceiling", () => {
+test("paid-call cost limit keeps the legacy default and permits the explicit fifty-dollar run cap", () => {
   assert.equal(resolveUncachedPaidCallLimitUsd({}), 20);
   assert.equal(resolveUncachedPaidCallLimitUsd({ INGEST_MAX_UNCACHED_COST_USD: "7.5" }), 7.5);
+  assert.equal(resolveUncachedPaidCallLimitUsd({ INGEST_MAX_UNCACHED_COST_USD: "50" }), 50);
   assert.throws(
-    () => resolveUncachedPaidCallLimitUsd({ INGEST_MAX_UNCACHED_COST_USD: "20.01" }),
-    /between 0 and 20/u,
+    () => resolveUncachedPaidCallLimitUsd({ INGEST_MAX_UNCACHED_COST_USD: "50.01" }),
+    /between 0 and 50/u,
   );
 });
 
@@ -1370,7 +1605,7 @@ test("an invalid batch checkpoint fails closed before another provider charge", 
   assert.match(retried.units[0].notices.join("\n"), /batch_checkpoint_invalid/u);
 });
 
-test("a text batch cannot cite an XLSX cell that was absent from that request", async (t) => {
+test("an absent XLSX citation is repaired once, then removed while valid data survives", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-batch-evidence-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -1398,6 +1633,14 @@ test("a text batch cannot cite an XLSX cell that was absent from that request", 
         captured.push(request);
         const data = dummyExtraction("청크근거테스트");
         data.agency_packages[0].source_quote = "가격표!B99: 290";
+        if (captured.length === 2) {
+          data.agency_packages.push({
+            ...data.agency_packages[0],
+            package_name: "검증된 패키지",
+            source_quote: "가격표!B3: 290",
+          });
+          data.extraction_notes = "provider note preserved";
+        }
         return { data, inputTokens: 10, outputTokens: 10 };
       },
     },
@@ -1427,8 +1670,21 @@ test("a text batch cannot cite an XLSX cell that was absent from that request", 
   assert.equal(ledger[0].allowed_locator_count, captured[1].repair?.allowedXlsxLocators.length);
   assert.equal(ledger[0].allowed_locator_set_sha256, captured[1].repair?.allowedLocatorSetSha256);
   assert.equal(JSON.stringify(ledger[0]).includes("가격표!B99: 290"), false);
-  assert.equal(result.units[0].stage, "error");
-  assert.match(result.units[0].notices.join("\n"), /현재 요청에 없는 XLSX 셀/u);
+  assert.equal(result.units[0].stage, "extracted");
+  const artifact = JSON.parse(
+    await readFile(result.units[0].extraction!.artifact_path, "utf8"),
+  );
+  assert.deepEqual(
+    artifact.data.agency_packages.map((item: { package_name: string }) => item.package_name),
+    ["검증된 패키지"],
+  );
+  assert.equal(JSON.stringify(artifact.data).includes("가격표!B99: 290"), false);
+  assert.match(artifact.data.extraction_notes, /provider note preserved/u);
+  assert.match(
+    artifact.data.extraction_notes,
+    /local_evidence_guard.*xlsx_source_quote:1.*agency_packages\[0\]/u,
+  );
+  assert.equal(ledger[1].success, true);
 });
 
 test("an XLSX ownership repair retry can re-emit using only the exact allowlisted cell", async (t) => {
@@ -1621,7 +1877,7 @@ test("XLSX ownership accepts request-scoped drawing and formula evidence and rep
   assert.equal(result.units[0].stage, "extracted");
 });
 
-test("a foreign source_file_id gets a request-scoped allowlist repair", async (t) => {
+test("a repeated foreign source_file_id failure removes every invalid nested record", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-source-id-repair-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -1652,6 +1908,36 @@ test("a foreign source_file_id gets a request-scoped allowlist repair", async (t
         data.agency_packages[0].source_quote = "가격표!B2: 290만원";
         data.agency_packages[0].source_file_ids = [calls === 1 ? "f".repeat(64) : allowedSourceId];
         if (calls === 2) {
+          data.agency_packages[0].options = [{
+            name: "유효 옵션",
+            price_min_krw: null,
+            price_max_krw: null,
+            unit: null,
+            condition: null,
+            raw_text: "유효 옵션",
+            source_quote: "가격표!B2: 290만원",
+            source_file_ids: [allowedSourceId],
+          }, {
+            name: "외부 옵션 1",
+            price_min_krw: null,
+            price_max_krw: null,
+            unit: null,
+            condition: null,
+            raw_text: "외부 옵션 1",
+            source_quote: "가격표!B2: 290만원",
+            source_file_ids: ["e".repeat(64)],
+          }, {
+            name: "외부 옵션 2",
+            price_min_krw: null,
+            price_max_krw: null,
+            unit: null,
+            condition: null,
+            raw_text: "외부 옵션 2",
+            source_quote: "가격표!B2: 290만원",
+            source_file_ids: ["d".repeat(64)],
+          }];
+        }
+        if (calls === 2) {
           assert.equal(request.repair?.reason, "source_file_ownership");
           if (request.repair?.reason === "source_file_ownership") {
             assert.equal(request.repair.rejectedSourceFileId, "f".repeat(64));
@@ -1666,9 +1952,111 @@ test("a foreign source_file_id gets a request-scoped allowlist repair", async (t
 
   assert.equal(calls, 2, result.units[0].notices.join(" | "));
   assert.equal(result.units[0].stage, "extracted", result.units[0].notices.join(" | "));
+  const artifact = JSON.parse(await readFile(result.units[0].extraction!.artifact_path, "utf8"));
+  assert.deepEqual(
+    artifact.data.agency_packages[0].options.map((option: { name: string }) => option.name),
+    ["유효 옵션"],
+  );
+  assert.match(artifact.data.extraction_notes, /local_evidence_guard.*2 record/u);
+  assert.match(artifact.data.extraction_notes, /agency_packages\[0\]\.options\[1\]/u);
+  assert.match(artifact.data.extraction_notes, /agency_packages\[0\]\.options\[2\]/u);
 });
 
-test("structured hall prices must be supported by their own quote and receive a cell-split repair", async (t) => {
+test("a repeated XLSX source-quote failure removes all invalid nested records", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-nested-xlsx-record-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "결혼준비대행서비스", "서울");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "(서울)_중첩근거테스트.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ["업체", "기본가", "옵션", "정책"],
+    ["업체A", "100만원", "옵션 10만원", "환불 규정"],
+  ]), "Prices");
+  await writeFile(sourcePath, XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+  await scanSources({ rootDir, stateDir });
+  await convertManifest({ stateDir });
+
+  let calls = 0;
+  const result = await extractManifest({ stateDir }, {
+    env: {},
+    provider: {
+      extract: async (request) => {
+        calls += 1;
+        const sourceId = /^source_file_id:\s*([a-f0-9]{64})$/gmu.exec(request.text)?.[1];
+        assert.ok(sourceId);
+        const data = dummyExtraction("중첩근거테스트");
+        data.agency_packages = [];
+        data.partner_vendors = [{
+          vendor_name: "업체A",
+          old_names: [],
+          category: "studio",
+          price_min_krw: 1_000_000,
+          price_max_krw: 1_000_000,
+          base_spec: null,
+          price_note: null,
+          options: [{
+            name: "옵션",
+            price_min_krw: 100_000,
+            price_max_krw: 100_000,
+            unit: null,
+            condition: null,
+            raw_text: "옵션 10만원",
+            source_quote: calls === 1
+              ? "Synthetic!Z99: 옵션 10만원"
+              : "Prices!C2: 옵션 10만원",
+            source_file_ids: [sourceId],
+          }, ...(calls === 2 ? [{
+            name: "합성 옵션",
+            price_min_krw: null,
+            price_max_krw: null,
+            unit: null,
+            condition: null,
+            raw_text: "합성 옵션",
+            source_quote: "Synthetic!Z97: 합성 옵션",
+            source_file_ids: [sourceId],
+          }] : [])],
+          policies: [{
+            policy_type: "refund",
+            raw_text: "환불 규정",
+            source_quote: calls === 2
+              ? "Synthetic!Z98: 환불 규정"
+              : "Prices!D2: 환불 규정",
+            source_file_ids: [calls === 2 ? "e".repeat(64) : sourceId],
+          }],
+          source_quote: "Prices!B2: 100만원",
+          source_file_ids: [sourceId],
+          confidence: 0.95,
+          needs_review: false,
+        }];
+        if (calls === 2) assert.equal(request.repair?.reason, "xlsx_locator_ownership");
+        return { data, inputTokens: 10, outputTokens: 10 };
+      },
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result.units[0].stage, "extracted", result.units[0].notices.join(" | "));
+  const artifact = JSON.parse(await readFile(result.units[0].extraction!.artifact_path, "utf8"));
+  assert.equal(artifact.data.partner_vendors.length, 1);
+  assert.equal(artifact.data.partner_vendors[0].options.length, 1);
+  assert.equal(artifact.data.partner_vendors[0].policies.length, 0);
+  assert.match(artifact.data.extraction_notes, /local_evidence_guard.*2 record/u);
+  assert.match(
+    artifact.data.extraction_notes,
+    /partner_vendors\[0\]\.options\[1\]/u,
+  );
+  assert.match(
+    artifact.data.extraction_notes,
+    /local_evidence_guard.*partner_vendors\[0\]\.policies\[0\]/u,
+  );
+});
+
+test("a second structured ownership failure sanitizes its own path even when the first path differed", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-hall-evidence-repair-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -1703,14 +2091,32 @@ test("structured hall prices must be supported by their own quote and receive a 
           guarantee_min: null,
           meal_price_min_krw: 75_000,
           meal_price_max_krw: 99_000,
-          venue_fee_min_krw: calls === 1 ? 3_000_000 : null,
-          venue_fee_max_krw: calls === 1 ? 3_000_000 : null,
+          venue_fee_min_krw: calls === 2 ? 3_000_000 : null,
+          venue_fee_max_krw: calls === 2 ? 3_000_000 : null,
           venue_fee_note: null,
           decoration_fee_min_krw: null,
           decoration_fee_max_krw: null,
           decoration_note: null,
           options: [],
-          source_quote: calls === 1 ? "가격표!A2: 그랜드홀 1관" : "가격표!B2: 75,000원~99,000원",
+          source_quote: "가격표!B2: 75,000원~99,000원",
+          source_file_ids: [sourceId],
+          confidence: 0.95,
+          needs_review: false,
+        }, {
+          hall_name: "Second hall",
+          guarantee_min: null,
+          meal_price_min_krw: 75_000,
+          meal_price_max_krw: 99_000,
+          venue_fee_min_krw: calls === 2 ? 4_000_000 : null,
+          venue_fee_max_krw: calls === 2 ? 4_000_000 : null,
+          venue_fee_note: null,
+          decoration_fee_min_krw: null,
+          decoration_fee_max_krw: null,
+          decoration_note: null,
+          options: [],
+          source_quote: calls === 1
+            ? "가격표!A2: 그랜드홀 1관"
+            : "가격표!B2: 75,000원~99,000원",
           source_file_ids: [sourceId],
           confidence: 0.95,
           needs_review: false,
@@ -1718,19 +2124,43 @@ test("structured hall prices must be supported by their own quote and receive a 
         if (calls === 2) {
           assert.equal(request.repair?.reason, "structured_numeric_evidence");
           if (request.repair?.reason === "structured_numeric_evidence") {
-            assert.equal(request.repair.rejectedPath, "halls[0]");
+            assert.equal(request.repair.rejectedPath, "halls[1]");
           }
         }
-        return { data, inputTokens: 10, outputTokens: 10 };
+        return {
+          data,
+          inputTokens: 10,
+          outputTokens: 10,
+          providerModel: "gpt-5.6-luna-2026-07-15",
+        };
       },
     },
   });
 
   assert.equal(calls, 2);
   assert.equal(result.units[0].stage, "extracted");
+  const artifact = JSON.parse(await readFile(result.units[0].extraction!.artifact_path, "utf8"));
+  assert.equal(artifact.data.halls[0].meal_price_min_krw, 75_000);
+  assert.equal(artifact.data.halls[0].meal_price_max_krw, 99_000);
+  assert.equal(artifact.data.halls[0].venue_fee_min_krw, null);
+  assert.equal(artifact.data.halls[0].venue_fee_max_krw, null);
+  assert.equal(artifact.data.halls[1].meal_price_min_krw, 75_000);
+  assert.equal(artifact.data.halls[1].meal_price_max_krw, 99_000);
+  assert.equal(artifact.data.halls[1].venue_fee_min_krw, null);
+  assert.equal(artifact.data.halls[1].venue_fee_max_krw, null);
+  assert.equal(artifact.data.halls[1].needs_review, true);
+  assert.match(artifact.data.extraction_notes, /local_evidence_guard.*4 field/u);
+  assert.match(artifact.data.extraction_notes, /halls\[0\]/u);
+  assert.match(artifact.data.extraction_notes, /halls\[1\]/u);
+  const ledger = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.equal(ledger[0].success, false);
+  assert.equal(ledger[0].provider_model, "gpt-5.6-luna-2026-07-15");
 });
 
-test("an image percentage without a currency marker is rejected and receives a targeted repair retry", async (t) => {
+test("a repeated image evidence failure removes every invalid occurrence on the second attempt", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-image-percent-repair-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -1759,7 +2189,28 @@ test("an image percentage without a currency marker is rejected and receives a t
               kind: "other_money",
               needs_review: false,
             }]
-          : [];
+          : [{
+              amount_krw: 100,
+              raw_text: "100%",
+              source_quote: "customer satisfaction 100%",
+              source_file_ids: [request.imageSourceRefs[0].sources[0].sourceFileId],
+              kind: "other_money",
+              needs_review: false,
+            }, {
+              amount_krw: 20_000,
+              raw_text: "20,000원",
+              source_quote: "다른 금액 30,000원",
+              source_file_ids: [request.imageSourceRefs[0].sources[0].sourceFileId],
+              kind: "price",
+              needs_review: false,
+            }, {
+              amount_krw: 50_000,
+              raw_text: "50,000원",
+              source_quote: "추가 비용 50,000원",
+              source_file_ids: [request.imageSourceRefs[0].sources[0].sourceFileId],
+              kind: "price",
+              needs_review: false,
+            }];
         if (calls === 2) {
           assert.equal(request.repair?.reason, "image_non_currency_percentage");
           if (request.repair?.reason === "image_non_currency_percentage") {
@@ -1773,6 +2224,14 @@ test("an image percentage without a currency marker is rejected and receives a t
 
   assert.equal(calls, 2);
   assert.equal(result.units[0].stage, "extracted");
+  const artifact = JSON.parse(await readFile(result.units[0].extraction!.artifact_path, "utf8"));
+  assert.deepEqual(
+    artifact.data.money_occurrences.map((occurrence: { amount_krw: number }) => occurrence.amount_krw),
+    [50_000],
+  );
+  assert.match(artifact.data.extraction_notes, /local_evidence_guard.*2 occurrence/u);
+  assert.match(artifact.data.extraction_notes, /money_occurrences\[0\]/u);
+  assert.match(artifact.data.extraction_notes, /money_occurrences\[1\]/u);
   const ledger = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
     .trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(ledger[0].rejected_occurrence_index, 0);
@@ -1895,7 +2354,7 @@ test("image range endpoints use the full shared-unit expression so zero remains 
   assert.equal(result.units[0].stage, "extracted", result.units[0].notices.join(" | "));
 });
 
-test("non-XLSX text evidence rejects disjoint paragraph synthesis and requests a contiguous repair", async (t) => {
+test("non-XLSX text evidence removes all repeated disjoint records after one repair", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-text-quote-repair-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -1922,6 +2381,36 @@ test("non-XLSX text evidence rejects disjoint paragraph synthesis and requests a
           ? "더미 기본 패키지 290만원 환불 규정은 계약서를 따릅니다"
           : "더미 기본 패키지 290만원";
         if (calls === 2) {
+          data.sections = [{
+            section_type: "notice",
+            title: "유효 안내",
+            content_verbatim: "중간에 별도 안내가 있으며",
+            summary: "유효 안내",
+            source_quote: "중간에 별도 안내가 있으며",
+            source_file_ids: [],
+            confidence: 0.95,
+            needs_review: false,
+          }, {
+            section_type: "refund_policy",
+            title: "합성 규정 1",
+            content_verbatim: "없는 규정 1",
+            summary: "합성 규정",
+            source_quote: "원문에 없는 합성 규정 1",
+            source_file_ids: [],
+            confidence: 0.95,
+            needs_review: false,
+          }, {
+            section_type: "refund_policy",
+            title: "합성 규정 2",
+            content_verbatim: "없는 규정 2",
+            summary: "합성 규정",
+            source_quote: "원문에 없는 합성 규정 2",
+            source_file_ids: [],
+            confidence: 0.95,
+            needs_review: false,
+          }];
+        }
+        if (calls === 2) {
           assert.equal(request.repair?.reason, "text_quote_contiguity");
           if (request.repair?.reason === "text_quote_contiguity") {
             assert.equal(request.repair.rejectedPath, "agency_packages[0]");
@@ -1934,6 +2423,14 @@ test("non-XLSX text evidence rejects disjoint paragraph synthesis and requests a
 
   assert.equal(calls, 2, result.units[0].notices.join(" | "));
   assert.equal(result.units[0].stage, "extracted", result.units[0].notices.join(" | "));
+  const artifact = JSON.parse(await readFile(result.units[0].extraction!.artifact_path, "utf8"));
+  assert.deepEqual(
+    artifact.data.sections.map((section: { title: string }) => section.title),
+    ["유효 안내"],
+  );
+  assert.match(artifact.data.extraction_notes, /local_evidence_guard.*2 record/u);
+  assert.match(artifact.data.extraction_notes, /sections\[1\]/u);
+  assert.match(artifact.data.extraction_notes, /sections\[2\]/u);
 });
 
 test("invalid structured output keeps billable usage and request id in the attempt ledger", async (t) => {
@@ -1988,7 +2485,12 @@ test("invalid structured output keeps billable usage and request id in the attem
           },
         );
       }
-      return { data: dummyExtraction("사용량더미"), inputTokens: 10, outputTokens: 5 };
+      return {
+        data: dummyExtraction("사용량더미"),
+        inputTokens: 10,
+        outputTokens: 5,
+        providerModel: "gpt-5.6-luna-2026-07-15",
+      };
     },
   };
 
@@ -1999,6 +2501,7 @@ test("invalid structured output keeps billable usage and request id in the attem
   const entries = (await readFile(path.join(stateDir, ".cache", "ai-ledger.ndjson"), "utf8"))
     .trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(entries[0].success, false);
+  assert.match(entries[0].error_detail, /generated invalid/u);
   assert.equal(entries[0].request_id, "req_generated_invalid");
   assert.equal(entries[0].input_tokens, 123);
   assert.equal(entries[0].output_tokens, 45);
@@ -2007,6 +2510,8 @@ test("invalid structured output keeps billable usage and request id in the attem
   assert.equal(entries[0].estimated_cost_usd, (73 + (30 * 1.25) + (20 * 0.1) + (45 * 6)) / 1_000_000);
   assert.equal(entries[1].cached_input_tokens, null);
   assert.equal(entries[1].cache_write_input_tokens, null);
+  assert.equal(entries[1].provider_model, "gpt-5.6-luna-2026-07-15");
+  assert.equal(entries[1].error_detail, null);
   assert.equal(entries[1].estimated_cost_usd, ((10 * 1.25) + (5 * 6)) / 1_000_000);
 });
 
@@ -2082,6 +2587,82 @@ test("Responses usage captures cache reads and writes but fails conservative on 
   assert.equal(conflictingTotals.cachedInputTokens, null);
   assert.equal(conflictingTotals.cacheWriteInputTokens, null);
   assert.equal(conflictingTotals.usageReported, false);
+});
+
+test("Responses parsing preserves the actual provider model identifier", () => {
+  const parsed = parseOpenAIExtractionResponse({
+    model: "gpt-5.6-luna",
+    output_text: JSON.stringify(dummyExtraction("실제모델")),
+    usage: { input_tokens: 10, output_tokens: 5 },
+  }, "req-provider-model");
+
+  assert.equal(parsed.providerModel, "gpt-5.6-luna");
+  assert.equal(assertOpenAIProviderModel(parsed, "gpt-5.6-luna"), "gpt-5.6-luna");
+  assert.throws(
+    () => assertOpenAIProviderModel({
+      data: dummyExtraction("모델누락"),
+      inputTokens: 10,
+      outputTokens: 5,
+    }, "gpt-5.6-luna"),
+    /provider_model_missing/u,
+  );
+
+  assert.throws(
+    () => parseOpenAIExtractionResponse({
+      model: "gpt-5.6-luna-2026-07-15",
+      output_text: "{\"not\":\"the extraction schema\"}",
+      usage: { input_tokens: 11, output_tokens: 6 },
+    }, "req-invalid-with-model"),
+    (error: unknown) => error instanceof ExtractionProviderResponseError
+      && error.providerModel === "gpt-5.6-luna-2026-07-15",
+  );
+});
+
+test("Responses parsing rejects a non-exact provider model without trusting its usage", () => {
+  for (const providerModel of [
+    "gpt-5.6-terra",
+    "gpt-5.6-luna-2026-07-15",
+    " gpt-5.6-luna ",
+  ]) {
+    assert.throws(
+      () => parseOpenAIExtractionResponse({
+        model: providerModel,
+        output_text: JSON.stringify(dummyExtraction("모델불일치")),
+        usage: { input_tokens: 10, output_tokens: 5 },
+      }, "req-provider-model-mismatch", "gpt-5.6-luna"),
+      (error: unknown) => error instanceof ExtractionProviderResponseError
+        && error.message === "provider_model_mismatch"
+        && error.providerModel === providerModel
+        && error.requestId === "req-provider-model-mismatch"
+        && error.inputTokens === 0
+        && error.outputTokens === 0
+        && error.usageReported === false,
+    );
+  }
+
+  const exact = parseOpenAIExtractionResponse({
+    model: "gpt-5.6-luna",
+    output_text: JSON.stringify(dummyExtraction("정확한모델")),
+    usage: { input_tokens: 10, output_tokens: 5 },
+  }, "req-provider-model-exact", "gpt-5.6-luna");
+  assert.equal(exact.providerModel, "gpt-5.6-luna");
+  assert.equal(exact.usageReported, true);
+});
+
+test("Responses model identity is checked before malformed output usage can be trusted", () => {
+  assert.throws(
+    () => parseOpenAIExtractionResponse({
+      model: "gpt-5.6-terra",
+      output_text: "not-json",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }, "req-wrong-model-invalid-output", "gpt-5.6-luna"),
+    (error: unknown) => error instanceof ExtractionProviderResponseError
+      && error.message === "provider_model_mismatch"
+      && error.providerModel === "gpt-5.6-terra"
+      && error.inputTokens === 0
+      && error.outputTokens === 0
+      && error.usageReported === false,
+  );
 });
 
 test("text and image evidence expose stable source-file labels to the model request", async (t) => {
@@ -2692,6 +3273,21 @@ test("chunk merge never chooses one of conflicting non-null numeric values silen
   assert.equal(merged.hall.needs_review, true);
   assert.equal(merged.agency_packages.every((item) => item.needs_review), true);
   assert.match(merged.extraction_notes, /자동 선택하지 않고 needs_review/u);
+});
+
+test("chunk merge preserves a later sanitizer guard marker ahead of a truncated long note", () => {
+  const first = dummyExtraction("guard marker merge");
+  first.extraction_notes = "x".repeat(3_999);
+  const second = structuredClone(first);
+  const guardMarker = "[local_evidence_guard] removed unsupported later chunk record";
+  second.extraction_notes = guardMarker;
+  const third = structuredClone(second);
+
+  const merged = mergeExtractionChunks([first, second, third]);
+
+  assert.equal(merged.extraction_notes.startsWith(guardMarker), true);
+  assert.equal(merged.extraction_notes.match(/\[local_evidence_guard\]/gu)?.length, 1);
+  assert.equal(merged.extraction_notes.length, 4_000);
 });
 
 test("chunk merge fails closed when canonical business or region identity conflicts", () => {

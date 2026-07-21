@@ -3,6 +3,8 @@ import type { ExtractionModel } from "./extraction-contract.js";
 
 export const MAX_FIXED_EIGHT_APPROVED_COST_USD = 20;
 export const MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD = 20_000_000_000;
+export const MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD = 50;
+export const MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD = 50_000_000_000;
 export const PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH = 4;
 // Deliberately conservative cost-reservation bound: use the whole documented
 // 1.05M context window as input even though the current Luna/Terra model pages

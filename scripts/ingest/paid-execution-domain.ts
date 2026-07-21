@@ -22,6 +22,7 @@ import {
 import {
   assertAiLedgerSnapshotIsExactPrefix,
   AiLedgerSnapshotSchema,
+  isConservativelySettledAmbiguousFailure,
   readAiLedgerState,
   type AiLedgerState,
 } from "./ledger.js";
@@ -32,13 +33,15 @@ import {
 } from "./schemas.js";
 import { listPendingPaidCallIntents } from "./paid-call-journal.js";
 import type {
-  PaidExtractionPlanApproval,
+  AnyPaidExtractionPlanApproval,
   PaidExtractionPlanUnit,
 } from "./paid-extraction-plan.js";
 import {
   costUsdToNanoUsdCeil,
   limitUsdToNanoUsdFloor,
-  MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD,
+  PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
   nanoUsdToUsd,
   providerBoundReservation,
 } from "./paid-extraction-budget.js";
@@ -108,11 +111,11 @@ export const PaidExecutionClaimSchema = z.object({
   reserved_cost_usd: z.number().finite().nonnegative(),
   reserved_cost_nano_usd: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   plan_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
-    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
+    .max(MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD),
   runtime_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
-    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
+    .max(MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD),
   effective_absolute_cost_limit_nano_usd: z.number().int().nonnegative()
-    .max(MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD),
+    .max(MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD),
   created_at: z.string().datetime(),
 }).strict();
 
@@ -174,11 +177,17 @@ function authorityRoot(options: PaidExecutionDomainLocationOptions): string {
   );
 }
 
-function productionRuntimeAbsoluteCostLimitUsd(): number {
-  const raw = process.env.INGEST_MAX_UNCACHED_COST_USD?.trim();
+export function resolvePaidExecutionRuntimeAbsoluteCostLimitUsd(
+  env: Readonly<{ INGEST_MAX_UNCACHED_COST_USD?: string }> = process.env,
+): number {
+  const raw = env.INGEST_MAX_UNCACHED_COST_USD?.trim();
   if (!raw) return 20;
   const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0 || value > 20) {
+  if (
+    !Number.isFinite(value)
+    || value < 0
+    || value > MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD
+  ) {
     throw new Error("paid_execution_runtime_absolute_cost_limit_invalid");
   }
   return value;
@@ -545,7 +554,7 @@ async function readClaims(
       || claim.effective_absolute_cost_limit_nano_usd !== Math.min(
         claim.plan_absolute_cost_limit_nano_usd,
         claim.runtime_absolute_cost_limit_nano_usd,
-        MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+        MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD,
       )
     ) {
       throw new Error("paid_execution_claim_identity_mismatch");
@@ -774,8 +783,11 @@ async function contextFor(
       throw new Error("paid_execution_claim_has_multiple_ledger_rows_manual_reconciliation");
     }
     const ledgerEntry = matchingLedgerRows[0];
-    const completed = ledgerEntry !== undefined && checkpoints.some(
-      (checkpoint) => checkpointDurablyCompletesClaim(checkpoint, claim, ledgerEntry),
+    const completed = ledgerEntry !== undefined && (
+      !ledgerEntry.success
+      || checkpoints.some(
+        (checkpoint) => checkpointDurablyCompletesClaim(checkpoint, claim, ledgerEntry),
+      )
     );
     if (
       ledgerEntry
@@ -824,7 +836,7 @@ async function verifyClaimAgainstPlanArtifact(
   expectedBinding: PaidExecutionDomainBinding,
   input: ClaimPaidExecutionAttemptInput,
 ): Promise<{
-  plan: PaidExtractionPlanApproval;
+  plan: AnyPaidExtractionPlanApproval;
   unit: PaidExtractionPlanUnit;
   planAbsoluteCostLimitNanoUsd: number;
   runtimeAbsoluteCostLimitNanoUsd: number;
@@ -833,10 +845,10 @@ async function verifyClaimAgainstPlanArtifact(
   domainCommittedAtPlanNanoUsd: number;
   authorizedIncrementalNanoUsd: number;
 }> {
-  const { readFixedEightPaidExtractionPlanApproval } = await import(
+  const { readPaidExtractionPlanApproval } = await import(
     "./paid-extraction-plan.js"
   );
-  const plan = await readFixedEightPaidExtractionPlanApproval(
+  const plan = await readPaidExtractionPlanApproval(
     stateDir,
     input.paidPlanSha256,
   );
@@ -873,7 +885,7 @@ async function verifyClaimAgainstPlanArtifact(
   const effectiveAbsoluteCostLimitNanoUsd = Math.min(
     planAbsoluteCostLimitNanoUsd,
     runtimeAbsoluteCostLimitNanoUsd,
-    MAX_FIXED_EIGHT_ABSOLUTE_COST_NANO_USD,
+    MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD,
   );
   return {
     plan,
@@ -922,7 +934,9 @@ function assertClaimAttemptSequence(
     ? authorizedHashes[1]
     : priorRows[0].error_category === "rate_limit"
       ? priorClaim.request_hash
-      : null;
+      : isConservativelySettledAmbiguousFailure(priorRows[0])
+        ? priorClaim.request_hash
+        : null;
   if (!expectedRequestHash || input.requestHash !== expectedRequestHash) {
     throw new Error("paid_execution_retry_request_hash_does_not_follow_failure_sequence");
   }
@@ -969,11 +983,14 @@ async function claimPaidExecutionAttemptInternal(
       const rows = ledgerDelta.filter((entry) => ledgerRowMatchesClaim(entry, claim));
       if (
         rows.length === 1
-        && checkpoints.some((checkpoint) => checkpointDurablyCompletesClaim(
-          checkpoint,
-          claim,
-          rows[0] as AiLedgerState["entries"][number],
-        ))
+        && (
+          rows[0]?.success === false
+          || checkpoints.some((checkpoint) => checkpointDurablyCompletesClaim(
+            checkpoint,
+            claim,
+            rows[0] as AiLedgerState["entries"][number],
+          ))
+        )
       ) return false;
       const row = rows[0];
       const hasExactLocalIntent = localIntents.some((intent) =>
@@ -1003,7 +1020,7 @@ async function claimPaidExecutionAttemptInternal(
     }
     assertClaimAttemptSequence(input, authorization.unit, claims, ledgerDelta);
 
-    const crossPlanReplay = claims.find((existing) =>
+    const crossPlanReplays = claims.filter((existing) =>
       existing.paid_plan_sha256 !== input.paidPlanSha256
       && existing.unit_id === input.unitId
       && existing.extraction_fingerprint === input.extractionFingerprint
@@ -1011,9 +1028,48 @@ async function claimPaidExecutionAttemptInternal(
       && existing.attempt === input.attempt
       && existing.request_hash === input.requestHash
     );
-    if (crossPlanReplay) {
+    if (crossPlanReplays.length > 0) {
+      const exactPriorClaim = crossPlanReplays.length === 1
+        && crossPlanReplays[0]?.model === input.model
+        && crossPlanReplays[0]?.maximum_input_tokens === input.maximumInputTokens
+        && crossPlanReplays[0]?.maximum_output_tokens === input.maximumOutputTokens
+        && crossPlanReplays[0]?.reserved_cost_usd === input.reservedCostUsd
+        ? crossPlanReplays[0]
+        : null;
+      const exactPriorRows = exactPriorClaim
+        ? ledgerDelta.filter((entry) => ledgerRowMatchesClaim(entry, exactPriorClaim))
+        : [];
+      const priorFailureWasCompletedByCheckpoint = exactPriorClaim
+        && exactPriorRows.length === 1
+        && exactPriorRows[0]?.success === false
+        ? checkpoints.some((checkpoint) => checkpointDurablyCompletesClaim(
+            checkpoint,
+            exactPriorClaim,
+            exactPriorRows[0] as AiLedgerState["entries"][number],
+          ))
+        : false;
+      if (
+        exactPriorRows.length !== 1
+        || exactPriorRows[0]?.success !== false
+        || (
+          exactPriorRows[0]?.error_category !== "rate_limit"
+          && !isConservativelySettledAmbiguousFailure(exactPriorRows[0])
+        )
+        || priorFailureWasCompletedByCheckpoint
+      ) {
+        throw new Error(
+          `paid_execution_cross_plan_replay_requires_manual_reconciliation:${crossPlanReplays.map((claim) => claim.claim_id).join(",")}`,
+        );
+      }
+    }
+    const priorBatchAttemptCount = claims.filter((claim) =>
+      claim.unit_id === input.unitId
+      && claim.extraction_fingerprint === input.extractionFingerprint
+      && claim.batch_index === input.batchIndex
+    ).length;
+    if (priorBatchAttemptCount >= PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH) {
       throw new Error(
-        `paid_execution_cross_plan_replay_requires_manual_reconciliation:${crossPlanReplay.claim_id}`,
+        `paid_execution_batch_attempt_limit_exhausted: prior_attempts=${priorBatchAttemptCount} limit=${PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH}`,
       );
     }
     if (
@@ -1207,7 +1263,7 @@ export async function claimPaidExecutionAttempt(
 ): Promise<PaidExecutionClaim> {
   return claimPaidExecutionAttemptInternal(stateDir, expectedBindingValue, {
     ...input,
-    runtimeAbsoluteCostLimitUsd: productionRuntimeAbsoluteCostLimitUsd(),
+    runtimeAbsoluteCostLimitUsd: resolvePaidExecutionRuntimeAbsoluteCostLimitUsd(),
   });
 }
 

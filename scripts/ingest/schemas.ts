@@ -444,8 +444,8 @@ export const StrictExtractionArtifactSchema = z.object({
   input_tokens: z.number().int().nonnegative(),
   output_tokens: z.number().int().nonnegative(),
   evidence_modalities: z.array(ExtractionEvidenceModalitySchema).max(10_000).optional(),
-  batch_checkpoint_fingerprints: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(96),
-  batch_checkpoint_result_hashes: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(96),
+  batch_checkpoint_fingerprints: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(256),
+  batch_checkpoint_result_hashes: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1).max(256),
   created_at: z.string().datetime(),
 }).strict().superRefine((artifact, context) => {
   if (artifact.provider_mode === "production_paid" && artifact.paid_plan_sha256 === null) {

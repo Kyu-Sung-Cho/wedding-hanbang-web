@@ -18,6 +18,9 @@ const AiLedgerEntryFields = {
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   prompt_version: z.string().max(100),
   model: z.enum(["gpt-5.6-luna", "gpt-5.6-terra"]),
+  // Optional for backward-compatible reads; every new Responses API success
+  // records the literal identifier returned by OpenAI.
+  provider_model: z.string().min(1).max(200).nullable().optional(),
   batch_index: z.number().int().nonnegative(),
   attempt: z.number().int().positive().max(4),
   request_hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
@@ -37,6 +40,7 @@ const AiLedgerEntryFields = {
     "invalid_response",
     "unknown",
   ]).nullable(),
+  error_detail: z.string().min(1).max(500).nullable().optional(),
   // Ownership failures intentionally retain only locator metadata. Never put
   // the source_quote payload or source cell value in the audit ledger.
   rejected_locator: z.string().min(1).max(500).regex(/^[^\r\n]+$/u).nullable().optional(),
@@ -107,6 +111,17 @@ export const AiLedgerEntrySchema = z.union([
 
 export type AiLedgerEntry = z.infer<typeof AiLedgerEntrySchema>;
 export type NewAiLedgerEntry = z.infer<typeof NewAiLedgerEntrySchema>;
+
+export function isConservativelySettledAmbiguousFailure(entry: AiLedgerEntry): boolean {
+  return entry.schema_version === 3
+    && entry.success === false
+    && ["provider_5xx", "timeout", "network"].includes(entry.error_category ?? "")
+    && entry.charge_basis === "reservation_upper_bound"
+    && entry.input_tokens === 0
+    && entry.output_tokens === 0
+    && entry.request_id === null
+    && entry.provider_model === null;
+}
 
 export const AiLedgerSnapshotSchema = z.object({
   relative_path: z.literal(".cache/ai-ledger.ndjson"),

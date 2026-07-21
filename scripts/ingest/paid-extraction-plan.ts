@@ -24,6 +24,8 @@ import { AiLedgerSnapshotSchema, type AiLedgerSnapshot } from "./ledger.js";
 import { FIXED_EIGHT_ORDERED_UNIT_IDS } from "./pilot-pass-receipt.js";
 import {
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD,
   PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
   PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
   PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
@@ -37,11 +39,16 @@ import {
 
 export {
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD,
   PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
   PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
   PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
 };
 export const PAID_EXTRACTION_PRICING_SCHEDULE = "openai-standard-long-context-2026-07-20" as const;
+export const MAX_PAID_EXTRACTION_BATCH_UNITS = 25;
+export const MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT = 256;
+const MAX_FIXED_EIGHT_REQUESTS_PER_UNIT = 96;
 
 const APPROVAL_DIRECTORY = "paid-extraction-plans";
 const MAX_APPROVAL_BYTES = 2 * 1024 * 1024;
@@ -116,15 +123,17 @@ export const PaidExtractionPlanUnitSchema = z.object({
   source_fingerprint: Sha256Schema,
   artifact_fingerprint: Sha256Schema,
   converter_version: z.string().min(1).max(100),
-  request_count: z.number().int().min(1).max(96),
-  request_hashes: z.array(Sha256Schema).min(1).max(96),
+  request_count: z.number().int().min(1).max(MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
+  request_hashes: z.array(Sha256Schema).min(1).max(MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
   authorized_request_hashes_by_batch: z.array(
     z.array(Sha256Schema).min(1).max(4),
-  ).min(1).max(96),
+  ).min(1).max(MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
   authorized_request_reservations_by_batch: z.array(
     z.array(PaidExtractionAuthorizedRequestReservationSchema).min(1).max(4),
-  ).min(1).max(96),
-  planned_request_estimates: z.array(PaidExtractionPlannedRequestEstimateSchema).min(1).max(96),
+  ).min(1).max(MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
+  planned_request_estimates: z.array(PaidExtractionPlannedRequestEstimateSchema)
+    .min(1)
+    .max(MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
   estimated_input_tokens: SafeCountSchema,
   estimated_output_tokens: SafeCountSchema,
   maximum_input_tokens: SafeCountSchema,
@@ -257,8 +266,10 @@ const PaidExtractionCostSchema = z.object({
   long_context_input_threshold_tokens: z.literal(GPT_5_6_LONG_CONTEXT_INPUT_THRESHOLD_TOKENS),
   long_context_input_price_multiplier: z.literal(GPT_5_6_LONG_CONTEXT_INPUT_PRICE_MULTIPLIER),
   long_context_output_price_multiplier: z.literal(GPT_5_6_LONG_CONTEXT_OUTPUT_PRICE_MULTIPLIER),
-  authorized_ceiling_usd: z.number().finite().nonnegative().max(MAX_FIXED_EIGHT_APPROVED_COST_USD),
-  request_count: z.number().int().min(1).max(8 * 96),
+  authorized_ceiling_usd: z.number().finite().nonnegative()
+    .max(MAX_FIXED_EIGHT_APPROVED_COST_USD),
+  request_count: z.number().int().min(1)
+    .max(MAX_PAID_EXTRACTION_BATCH_UNITS * MAX_PAID_EXTRACTION_REQUESTS_PER_UNIT),
   estimated_input_tokens: SafeCountSchema,
   estimated_output_tokens: SafeCountSchema,
   maximum_input_tokens: SafeCountSchema,
@@ -268,7 +279,7 @@ const PaidExtractionCostSchema = z.object({
   maximum_single_attempt_cost_usd: CostSchema,
   maximum_single_attempt_cost_nano_usd: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   absolute_domain_limit_nano_usd: z.number().int().nonnegative()
-    .max(MAX_FIXED_EIGHT_APPROVED_COST_USD * 1_000_000_000),
+    .max(MAX_PAID_EXTRACTION_ABSOLUTE_COST_NANO_USD),
   domain_committed_at_plan_nano_usd: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   authorized_incremental_nano_usd: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   completion_not_guaranteed: z.boolean(),
@@ -277,7 +288,7 @@ const PaidExtractionCostSchema = z.object({
 export const PaidExtractionPlanPayloadSchema = z.object({
   execution_domain: PaidExecutionDomainBindingSchema,
   prior_durable_ledger: AiLedgerSnapshotSchema,
-  ordered_unit_ids: z.array(Sha256Schema).length(8),
+  ordered_unit_ids: z.array(Sha256Schema).min(1).max(MAX_PAID_EXTRACTION_BATCH_UNITS),
   model: ModelSchema,
   prompt_version: z.string().min(1).max(100),
   prompt_hash: Sha256Schema,
@@ -291,7 +302,7 @@ export const PaidExtractionPlanPayloadSchema = z.object({
     tools_enabled: z.literal(false),
     cache_write_input_price_multiplier: z.literal(1.25),
   }).strict(),
-  units: z.array(PaidExtractionPlanUnitSchema).length(8),
+  units: z.array(PaidExtractionPlanUnitSchema).min(1).max(MAX_PAID_EXTRACTION_BATCH_UNITS),
   cost: PaidExtractionCostSchema,
 }).strict().superRefine((payload, context) => {
   const genesis = payload.execution_domain.genesis_ledger;
@@ -320,18 +331,16 @@ export const PaidExtractionPlanPayloadSchema = z.object({
       "paid extraction approval ledger at genesis must exactly match the execution domain",
     );
   }
-  const expectedIds = [...FIXED_EIGHT_ORDERED_UNIT_IDS];
-  const orderedIdsMatch = payload.ordered_unit_ids.every(
-    (unitId, index) => unitId === expectedIds[index],
-  );
-  if (!orderedIdsMatch) {
-    addMismatch(context, ["ordered_unit_ids"], "paid extraction approval requires the exact fixed-eight order");
-  }
-  const unitIdsMatch = payload.units.every(
-    (unit, index) => unit.unit_id === expectedIds[index],
-  );
-  if (!unitIdsMatch) {
-    addMismatch(context, ["units"], "paid extraction approval units must match the exact fixed-eight order");
+  const orderedIdsMatch = payload.ordered_unit_ids.length === payload.units.length
+    && payload.units.every(
+      (unit, index) => unit.unit_id === payload.ordered_unit_ids[index],
+    );
+  if (!orderedIdsMatch || new Set(payload.ordered_unit_ids).size !== payload.ordered_unit_ids.length) {
+    addMismatch(
+      context,
+      ["ordered_unit_ids"],
+      "paid extraction approval units must exactly match the unique caller-selected order",
+    );
   }
   if (
     payload.prompt_version !== EXTRACTION_PROMPT_VERSION
@@ -472,7 +481,7 @@ export const PaidExtractionPlanPayloadSchema = z.object({
     && payload.cost.completion_not_guaranteed
       === (expectedMaximumCost > payload.cost.authorized_ceiling_usd);
   if (!exactTotals) {
-    addMismatch(context, ["cost"], "aggregate cost and token totals must be exactly derived from the eight units");
+    addMismatch(context, ["cost"], "aggregate cost and token totals must be exactly derived from the selected units");
   }
   if (payload.cost.maximum_cost_usd < payload.cost.estimated_cost_usd) {
     addMismatch(context, ["cost", "maximum_cost_usd"], "maximum cost cannot be below the estimate");
@@ -518,9 +527,49 @@ export const PaidExtractionPlanPayloadSchema = z.object({
   }
 });
 
+const FixedEightPaidExtractionPlanPayloadSchema = PaidExtractionPlanPayloadSchema.superRefine(
+  (payload, context) => {
+    const expectedIds = [...FIXED_EIGHT_ORDERED_UNIT_IDS];
+    const exactOrder = payload.ordered_unit_ids.length === expectedIds.length
+      && payload.ordered_unit_ids.every((unitId, index) => unitId === expectedIds[index]);
+    if (!exactOrder) {
+      addMismatch(
+        context,
+        ["ordered_unit_ids"],
+        "paid extraction approval requires the exact fixed-eight order",
+      );
+    }
+    if (payload.units.some((unit) => unit.request_count > MAX_FIXED_EIGHT_REQUESTS_PER_UNIT)) {
+      addMismatch(
+        context,
+        ["units"],
+        "fixed-eight paid extraction approval exceeds its historical per-unit request limit",
+      );
+    }
+    if (
+      payload.cost.authorized_ceiling_usd > MAX_FIXED_EIGHT_APPROVED_COST_USD
+      || payload.cost.absolute_domain_limit_nano_usd
+        > MAX_FIXED_EIGHT_APPROVED_COST_USD * 1_000_000_000
+    ) {
+      addMismatch(
+        context,
+        ["cost"],
+        "fixed-eight paid extraction approval exceeds its historical $20 limit",
+      );
+    }
+  },
+);
+
 export const PaidExtractionPlanApprovalSchema = z.object({
   schema_version: z.literal(4),
   kind: z.literal("fixed_eight_paid_extraction_plan_approval"),
+  payload: FixedEightPaidExtractionPlanPayloadSchema,
+  plan_sha256: Sha256Schema,
+}).strict();
+
+export const PaidExtractionBatchPlanApprovalSchema = z.object({
+  schema_version: z.literal(5),
+  kind: z.literal("paid_extraction_batch_plan_approval"),
   payload: PaidExtractionPlanPayloadSchema,
   plan_sha256: Sha256Schema,
 }).strict();
@@ -546,6 +595,20 @@ const HistoricalPaidExtractionPlanApprovalEnvelopeSchema = z.object({
 export type PaidExtractionPlanUnit = z.infer<typeof PaidExtractionPlanUnitSchema>;
 export type PaidExtractionPlanPayload = z.infer<typeof PaidExtractionPlanPayloadSchema>;
 export type PaidExtractionPlanApproval = z.infer<typeof PaidExtractionPlanApprovalSchema>;
+export type PaidExtractionBatchPlanApproval = z.infer<
+  typeof PaidExtractionBatchPlanApprovalSchema
+>;
+export type AnyPaidExtractionPlanApproval =
+  | PaidExtractionPlanApproval
+  | PaidExtractionBatchPlanApproval;
+
+function paidExtractionBatchPlanSha256(payload: PaidExtractionPlanPayload): string {
+  return canonicalSha256({
+    schema_version: 5,
+    kind: "paid_extraction_batch_plan_approval",
+    payload,
+  });
+}
 export interface PaidExtractionAttemptReservation {
   maximumInputTokens: number;
   maximumOutputTokens: number;
@@ -591,6 +654,11 @@ export interface CreatePaidExtractionPlanApprovalInput {
 }
 
 function approvalPayload(input: CreatePaidExtractionPlanApprovalInput): PaidExtractionPlanPayload {
+  if (input.units.length < 1 || input.units.length > MAX_PAID_EXTRACTION_BATCH_UNITS) {
+    throw new Error(
+      `paid extraction batch must contain at least 1 and at most ${MAX_PAID_EXTRACTION_BATCH_UNITS} units`,
+    );
+  }
   const units = input.units.map((unit) => {
     const authorizedRequestReservationsByBatch = unit.authorizedRequestReservationsByBatch.map(
       (batch) => batch.map((request) => ({
@@ -676,7 +744,7 @@ function approvalPayload(input: CreatePaidExtractionPlanApprovalInput): PaidExtr
   return PaidExtractionPlanPayloadSchema.parse({
     execution_domain: input.executionDomain,
     prior_durable_ledger: input.priorDurableLedger,
-    ordered_unit_ids: [...FIXED_EIGHT_ORDERED_UNIT_IDS],
+    ordered_unit_ids: input.units.map((unit) => unit.unitId),
     model: input.model,
     prompt_version: EXTRACTION_PROMPT_VERSION,
     prompt_hash: EXTRACTION_PROMPT_HASH,
@@ -730,6 +798,18 @@ export function createFixedEightPaidExtractionPlanApproval(
   });
 }
 
+export function createPaidExtractionBatchPlanApproval(
+  input: CreatePaidExtractionPlanApprovalInput,
+): PaidExtractionBatchPlanApproval {
+  const payload = approvalPayload(input);
+  return PaidExtractionBatchPlanApprovalSchema.parse({
+    schema_version: 5,
+    kind: "paid_extraction_batch_plan_approval",
+    payload,
+    plan_sha256: paidExtractionBatchPlanSha256(payload),
+  });
+}
+
 export function validateFixedEightPaidExtractionPlanApproval(
   value: unknown,
   expectedPlanSha256?: string,
@@ -746,6 +826,39 @@ export function validateFixedEightPaidExtractionPlanApproval(
     }
   }
   return approval;
+}
+
+export function validatePaidExtractionBatchPlanApproval(
+  value: unknown,
+  expectedPlanSha256?: string,
+): PaidExtractionBatchPlanApproval {
+  const approval = PaidExtractionBatchPlanApprovalSchema.parse(value);
+  const actualPlanSha256 = paidExtractionBatchPlanSha256(approval.payload);
+  if (actualPlanSha256 !== approval.plan_sha256) {
+    throw new Error("paid extraction batch plan SHA-256 does not match its canonical payload");
+  }
+  if (expectedPlanSha256 !== undefined) {
+    const expected = Sha256Schema.parse(expectedPlanSha256);
+    if (approval.plan_sha256 !== expected) {
+      throw new Error("paid extraction batch plan does not match the explicitly approved SHA-256");
+    }
+  }
+  return approval;
+}
+
+export function validatePaidExtractionPlanApproval(
+  value: unknown,
+  expectedPlanSha256?: string,
+): AnyPaidExtractionPlanApproval {
+  if (
+    typeof value === "object"
+    && value !== null
+    && "kind" in value
+    && value.kind === "fixed_eight_paid_extraction_plan_approval"
+  ) {
+    return validateFixedEightPaidExtractionPlanApproval(value, expectedPlanSha256);
+  }
+  return validatePaidExtractionBatchPlanApproval(value, expectedPlanSha256);
 }
 
 /**
@@ -813,6 +926,21 @@ export function assertFixedEightPaidExtractionPlanApprovalMatches(
   return approval;
 }
 
+export function assertPaidExtractionBatchPlanApprovalMatches(
+  value: unknown,
+  currentInput: CreatePaidExtractionPlanApprovalInput,
+  expectedPlanSha256?: string,
+): PaidExtractionBatchPlanApproval {
+  const approval = validatePaidExtractionBatchPlanApproval(value, expectedPlanSha256);
+  const current = createPaidExtractionBatchPlanApproval(currentInput);
+  if (approval.plan_sha256 !== current.plan_sha256) {
+    throw new Error(
+      "paid extraction batch plan no longer matches the current ordered sources, model, requests, or cost",
+    );
+  }
+  return approval;
+}
+
 function normalizedPlanSha256(value: string): string {
   return Sha256Schema.parse(value.trim());
 }
@@ -823,6 +951,13 @@ export function fixedEightPaidExtractionPlanPath(
 ): string {
   const normalized = normalizedPlanSha256(planSha256);
   return path.join(path.resolve(stateDir), APPROVAL_DIRECTORY, `${normalized}.json`);
+}
+
+export function paidExtractionBatchPlanPath(
+  stateDir: string,
+  planSha256: string,
+): string {
+  return fixedEightPaidExtractionPlanPath(stateDir, planSha256);
 }
 
 export async function writeFixedEightPaidExtractionPlanApproval(
@@ -848,6 +983,34 @@ export async function writeFixedEightPaidExtractionPlanApproval(
     const expectedBytes = Buffer.from(`${JSON.stringify(approval, null, 2)}\n`, "utf8");
     if (!existing.bytes.equals(expectedBytes)) {
       throw new Error("existing paid extraction plan bytes do not match the approved artifact");
+    }
+    return existing.path;
+  }
+}
+
+export async function writePaidExtractionBatchPlanApproval(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const approval = validatePaidExtractionBatchPlanApproval(value);
+  try {
+    return await writeContentAddressedJsonNoOverwrite(
+      stateDir,
+      APPROVAL_DIRECTORY,
+      `${approval.plan_sha256}.json`,
+      approval,
+    );
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") {
+      throw error;
+    }
+    const existing = await readPaidExtractionPlanApprovalBytes(
+      stateDir,
+      approval.plan_sha256,
+    );
+    const expectedBytes = Buffer.from(`${JSON.stringify(approval, null, 2)}\n`, "utf8");
+    if (!existing.bytes.equals(expectedBytes)) {
+      throw new Error("existing paid extraction batch plan bytes do not match the approved artifact");
     }
     return existing.path;
   }
@@ -891,12 +1054,47 @@ export async function readFixedEightPaidExtractionPlanApproval(
   )).approval;
 }
 
+async function readPaidExtractionPlanApprovalBytes(
+  stateDir: string,
+  expectedPlanSha256: string,
+): Promise<{ approval: AnyPaidExtractionPlanApproval; bytes: Buffer; path: string }> {
+  const normalized = normalizedPlanSha256(expectedPlanSha256);
+  const artifactPath = paidExtractionBatchPlanPath(stateDir, normalized);
+  const verifiedPath = await verifyDeterministicStateArtifactPath({
+    stateDir,
+    artifactPath,
+    expectedRelativePath: path.join(APPROVAL_DIRECTORY, `${normalized}.json`),
+  });
+  const bytes = await readFile(verifiedPath);
+  if (bytes.byteLength > MAX_APPROVAL_BYTES) {
+    throw new Error(`paid extraction plan exceeds ${MAX_APPROVAL_BYTES} bytes`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("paid extraction plan is not valid JSON");
+  }
+  return {
+    approval: validatePaidExtractionPlanApproval(raw, normalized),
+    bytes,
+    path: verifiedPath,
+  };
+}
+
+export async function readPaidExtractionPlanApproval(
+  stateDir: string,
+  expectedPlanSha256: string,
+): Promise<AnyPaidExtractionPlanApproval> {
+  return (await readPaidExtractionPlanApprovalBytes(stateDir, expectedPlanSha256)).approval;
+}
+
 export function assertPaidExtractionPlannedRequestHashes(
-  approvalValue: PaidExtractionPlanApproval,
+  approvalValue: AnyPaidExtractionPlanApproval,
   unitId: string,
   requestHashes: readonly string[],
 ): PaidExtractionPlanUnit {
-  const approval = validateFixedEightPaidExtractionPlanApproval(
+  const approval = validatePaidExtractionPlanApproval(
     approvalValue,
     approvalValue.plan_sha256,
   );
@@ -910,12 +1108,12 @@ export function assertPaidExtractionPlannedRequestHashes(
 }
 
 export function assertPaidExtractionAttemptRequestAuthorized(
-  approvalValue: PaidExtractionPlanApproval,
+  approvalValue: AnyPaidExtractionPlanApproval,
   unitId: string,
   batchIndex: number,
   requestHash: string,
 ): void {
-  const approval = validateFixedEightPaidExtractionPlanApproval(
+  const approval = validatePaidExtractionPlanApproval(
     approvalValue,
     approvalValue.plan_sha256,
   );
@@ -927,13 +1125,13 @@ export function assertPaidExtractionAttemptRequestAuthorized(
 }
 
 export function assertPaidExtractionAttemptReservationAuthorized(
-  approvalValue: PaidExtractionPlanApproval,
+  approvalValue: AnyPaidExtractionPlanApproval,
   unitId: string,
   batchIndex: number,
   requestHash: string,
   reservation: PaidExtractionAttemptReservation,
 ): void {
-  const approval = validateFixedEightPaidExtractionPlanApproval(
+  const approval = validatePaidExtractionPlanApproval(
     approvalValue,
     approvalValue.plan_sha256,
   );

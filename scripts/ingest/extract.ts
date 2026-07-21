@@ -34,6 +34,7 @@ import {
   assertAiLedgerSnapshotIsExactPrefix,
   createLedgerId,
   estimateExtractionCostUsd,
+  isConservativelySettledAmbiguousFailure,
   readAiLedger,
   readAiLedgerState,
   type AiLedgerEntry,
@@ -45,22 +46,30 @@ import { decodeEvidenceQuote, encodeMergedEvidenceQuote } from "./merge-evidence
 import {
   assertNoOrphanedPaidCallIntents,
   beginPaidCallIntent,
+  listPendingPaidCallIntents,
   persistCheckpointThenSettlePaidCallIntents,
+  reconcileFailedPaidCallIntent,
   type PaidCallIntent,
 } from "./paid-call-journal.js";
 import {
+  assertPaidExtractionBatchPlanApprovalMatches,
   assertFixedEightPaidExtractionPlanApprovalMatches,
   assertPaidExtractionAttemptReservationAuthorized,
   assertPaidExtractionPlannedRequestHashes,
+  createPaidExtractionBatchPlanApproval,
   createFixedEightPaidExtractionPlanApproval,
+  MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD,
+  MAX_PAID_EXTRACTION_BATCH_UNITS,
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
   PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH,
   PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
   PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+  readPaidExtractionPlanApproval,
   readFixedEightPaidExtractionPlanApproval,
+  writePaidExtractionBatchPlanApproval,
   writeFixedEightPaidExtractionPlanApproval,
+  type AnyPaidExtractionPlanApproval,
   type CreatePaidExtractionPlanApprovalInput,
-  type PaidExtractionPlanApproval,
   type PaidExtractionPlanUnitInput,
 } from "./paid-extraction-plan.js";
 import {
@@ -107,13 +116,15 @@ const MAX_IMAGES_PER_REQUEST = 5;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_REQUEST_RAW_BYTES = 40 * 1024 * 1024;
 const MAX_IMAGE_REQUEST_BASE64_CHARACTERS = 50 * 1024 * 1024;
-const MAX_REQUESTS_PER_UNIT = 96;
+const MAX_REQUESTS_PER_UNIT = 256;
 const MAX_OUTPUT_TOKENS = PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP;
 const MAX_EXTRACTION_ATTEMPTS = PAID_EXTRACTION_MAX_ATTEMPTS_PER_BATCH;
 const DEFAULT_UNCACHED_PAID_CALL_LIMIT_USD = MAX_FIXED_EIGHT_APPROVED_COST_USD;
 const ESTIMATED_IMAGE_INPUT_TOKENS = 4_096;
 const MAXIMUM_IMAGE_INPUT_TOKENS = 16_384;
 const TARGET_EXTRACTION_PAYLOAD_CHARACTERS = 3_000;
+const MAX_EXTRACTION_NOTES_CHARACTERS = 4_000;
+const LOCAL_EVIDENCE_GUARD_MARKER = "[local_evidence_guard]";
 export type { ExtractionModel } from "./extraction-contract.js";
 
 export interface ExtractionSourceReference {
@@ -171,6 +182,8 @@ export type ExtractionRepairConstraints = {
 
 export interface ExtractionProviderResult {
   data: DisclosureExtraction;
+  /** Literal model identifier returned by the provider, when available. */
+  providerModel?: string;
   inputTokens: number;
   outputTokens: number;
   /** Null means the provider omitted or contradicted its cache breakdown. */
@@ -194,6 +207,7 @@ type ProviderUsageAudit = Partial<NormalizedProviderUsage> & {
   inputTokens: number;
   outputTokens: number;
   requestId?: string;
+  providerModel?: string;
 };
 
 export interface ExtractionProvider {
@@ -208,6 +222,8 @@ export interface ExtractionProvider {
 export interface FixedEightScriptedProviderScenarioForTests {
   responsesByCanonicalName: Readonly<Record<string, DisclosureExtraction>>;
   failFirstInvalidResponses?: number;
+  failFirstAmbiguousTimeouts?: number;
+  failProvider5xxOnCalls?: readonly number[];
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number | null;
@@ -232,7 +248,9 @@ export class ExtractionProviderResponseError extends Error {
   readonly cacheWriteInputTokens: number | null;
   readonly usageReported: boolean;
   readonly requestId?: string;
+  readonly providerModel?: string;
   readonly rejectedLocator?: string;
+  readonly rejectedRecordPath?: string;
   readonly allowedLocatorCount?: number;
   readonly allowedLocatorSetSha256?: string;
   readonly locatorViolation?: "not_in_request" | "not_exact_single_cell";
@@ -252,6 +270,7 @@ export class ExtractionProviderResponseError extends Error {
       allowedLocatorCount: number;
       allowedLocatorSetSha256: string;
       locatorViolation: "not_in_request" | "not_exact_single_cell";
+      rejectedRecordPath?: string;
     },
     imageAudit?: {
       rejectedOccurrenceIndex: number;
@@ -261,6 +280,7 @@ export class ExtractionProviderResponseError extends Error {
       rejectedSourceFileId: string;
       allowedSourceFileCount: number;
       allowedSourceFileSetSha256: string;
+      rejectedRecordPath?: string;
     },
     structuredEvidenceAudit?: { rejectedPath: string },
     textEvidenceAudit?: { rejectedPath: string },
@@ -274,11 +294,15 @@ export class ExtractionProviderResponseError extends Error {
     this.cacheWriteInputTokens = usage.cacheWriteInputTokens;
     this.usageReported = usage.usageReported;
     if (audit.requestId?.trim()) this.requestId = audit.requestId.slice(0, 200);
+    if (audit.providerModel?.trim()) this.providerModel = audit.providerModel.slice(0, 200);
     if (ownershipAudit) {
       this.rejectedLocator = ownershipAudit.rejectedLocator;
       this.allowedLocatorCount = ownershipAudit.allowedLocatorCount;
       this.allowedLocatorSetSha256 = ownershipAudit.allowedLocatorSetSha256;
       this.locatorViolation = ownershipAudit.locatorViolation;
+      if (ownershipAudit.rejectedRecordPath) {
+        this.rejectedRecordPath = ownershipAudit.rejectedRecordPath.slice(0, 500);
+      }
     }
     if (imageAudit && Number.isSafeInteger(imageAudit.rejectedOccurrenceIndex) && imageAudit.rejectedOccurrenceIndex >= 0) {
       this.rejectedOccurrenceIndex = imageAudit.rejectedOccurrenceIndex;
@@ -288,6 +312,9 @@ export class ExtractionProviderResponseError extends Error {
       this.rejectedSourceFileId = sourceOwnershipAudit.rejectedSourceFileId;
       this.allowedSourceFileCount = sourceOwnershipAudit.allowedSourceFileCount;
       this.allowedSourceFileSetSha256 = sourceOwnershipAudit.allowedSourceFileSetSha256;
+      if (sourceOwnershipAudit.rejectedRecordPath) {
+        this.rejectedRecordPath = sourceOwnershipAudit.rejectedRecordPath.slice(0, 500);
+      }
     }
     if (structuredEvidenceAudit?.rejectedPath) {
       this.structuredEvidencePath = structuredEvidenceAudit.rejectedPath.slice(0, 500);
@@ -367,6 +394,11 @@ function isExtractionModel(value: string): value is ExtractionModel {
   return ALLOWED_EXTRACTION_MODELS.some((model) => model === value);
 }
 
+function isExactFixedEightOrder(unitIds: readonly string[]): boolean {
+  return unitIds.length === FIXED_EIGHT_ORDERED_UNIT_IDS.length
+    && unitIds.every((unitId, index) => unitId === FIXED_EIGHT_ORDERED_UNIT_IDS[index]);
+}
+
 export function resolveExtractionModel(env: NodeJS.ProcessEnv = process.env): ExtractionModel {
   const configured = env.EXTRACTION_MODEL?.trim() || "gpt-5.6-luna";
   if (!isExtractionModel(configured)) {
@@ -384,10 +416,10 @@ export function resolveUncachedPaidCallLimitUsd(env: NodeJS.ProcessEnv = process
   if (
     !Number.isFinite(parsed)
     || parsed < 0
-    || parsed > DEFAULT_UNCACHED_PAID_CALL_LIMIT_USD
+    || parsed > MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD
   ) {
     throw new Error(
-      `INGEST_MAX_UNCACHED_COST_USD must be between 0 and ${DEFAULT_UNCACHED_PAID_CALL_LIMIT_USD}`,
+      `INGEST_MAX_UNCACHED_COST_USD must be between 0 and ${MAX_PAID_EXTRACTION_ABSOLUTE_COST_USD}`,
     );
   }
   return parsed;
@@ -910,6 +942,388 @@ function locatedEvidenceRecords(
   return result;
 }
 
+function structuredCurrencyValueSupported(
+  record: Record<string, unknown>,
+  value: number,
+  request: ExtractionRequest,
+  targetMoneyOccurrences: ReturnType<typeof scanSourceMoneyOccurrences>,
+  targetAuxiliary: ReturnType<typeof indexXlsxAuxiliaryEvidence>,
+): boolean {
+  const sourceQuote = String(record.source_quote);
+  const sourceQuoteContent = parseXlsxAuxiliaryEvidencePayload(sourceQuote)
+    ?? /^.+?![A-Z]+\d+:\s*(.*)$/iu.exec(sourceQuote)?.[1]
+    ?? sourceQuote;
+  const quotedAmounts = parseKoreanMoneyAmounts(sourceQuote);
+  if (quotedAmounts.includes(value)) return true;
+  if (request.imagePaths.length > 0 && !request.text.trim()) return false;
+  const normalizedQuoteContent = normalizeEvidenceText(sourceQuoteContent);
+  const auxiliaryLocatorMatch = matchSingleXlsxAuxiliaryEvidenceQuote(
+    sourceQuote,
+    targetAuxiliary,
+  );
+  const quoteLocatorMatch = /^(.+?)!([A-Z]+\d+):/iu.exec(normalizeEvidenceText(sourceQuote));
+  const quoteLocator = auxiliaryLocatorMatch.kind === "match"
+    ? auxiliaryLocatorMatch.locator
+    : quoteLocatorMatch
+      ? `${quoteLocatorMatch[1].normalize("NFKC")}!${quoteLocatorMatch[2].toUpperCase()}`
+      : null;
+  return targetMoneyOccurrences.some((occurrence) =>
+    occurrence.krw === value
+    && (!quoteLocator || occurrence.source_locator === quoteLocator)
+    && normalizedQuoteContent.includes(normalizeEvidenceText(occurrence.raw))
+  );
+}
+
+interface UnsupportedStructuredCurrencyRecord {
+  path: string;
+  record: Record<string, unknown>;
+  keys: string[];
+}
+
+function unsupportedStructuredCurrencyRecords(
+  data: DisclosureExtraction,
+  request: ExtractionRequest,
+): UnsupportedStructuredCurrencyRecord[] {
+  const targetText = currentExtractionTarget(request.text);
+  const targetMoneyOccurrences = targetText.trim()
+    ? scanSourceMoneyOccurrences(targetText)
+    : [];
+  const targetAuxiliary = allowedXlsxAuxiliaryEvidence(request);
+  return locatedEvidenceRecords(data).flatMap((located) => {
+    const isNonAuthoritativeTextOccurrence = request.imagePaths.length === 0
+      && typeof located.record.amount_krw === "number"
+      && typeof located.record.kind === "string";
+    if (isNonAuthoritativeTextOccurrence) return [];
+    const keys = Object.entries(located.record).flatMap(([key, value]) =>
+      /(?:price|fee|amount).*_krw$/u.test(key)
+        && typeof value === "number"
+        && Number.isSafeInteger(value)
+        && value > 0
+        && !structuredCurrencyValueSupported(
+          located.record,
+          value,
+          request,
+          targetMoneyOccurrences,
+          targetAuxiliary,
+        )
+        ? [key]
+        : []
+    );
+    return keys.length > 0 ? [{ ...located, keys }] : [];
+  });
+}
+
+function sanitizeUnsupportedStructuredCurrency(
+  data: DisclosureExtraction,
+  request: ExtractionRequest,
+  rejectedPath: string,
+): DisclosureExtraction {
+  const sanitized = structuredClone(data);
+  const unsupportedRecords = unsupportedStructuredCurrencyRecords(sanitized, request);
+  if (!unsupportedRecords.some((item) => item.path === rejectedPath)) {
+    throw new Error(`structured_currency_sanitize_path_missing:${rejectedPath}`);
+  }
+  let removed = 0;
+  const changedPaths: string[] = [];
+  for (const located of unsupportedRecords) {
+    for (const key of located.keys) located.record[key] = null;
+    removed += located.keys.length;
+    if (typeof located.record.needs_review === "boolean") located.record.needs_review = true;
+    changedPaths.push(located.path);
+  }
+  if (removed === 0) {
+    throw new Error(`structured_currency_sanitize_no_unsupported_value:${rejectedPath}`);
+  }
+  appendLocalEvidenceGuardNote(
+    sanitized,
+    `unsupported numeric KRW ${removed} field(s) -> null; paths=${boundedGuardPaths(changedPaths)}`,
+  );
+  return DisclosureExtractionSchema.parse(sanitized);
+}
+
+function boundedGuardPaths(paths: string[]): string {
+  const unique = [...new Set(paths)];
+  const shown = unique.slice(0, 50);
+  const suffix = unique.length > shown.length ? `,+${unique.length - shown.length} more` : "";
+  return `${shown.join(",")}${suffix}`.slice(0, 1_500);
+}
+
+function appendLocalEvidenceGuardNote(data: DisclosureExtraction, detail: string): void {
+  const marker = `${LOCAL_EVIDENCE_GUARD_MARKER} ${detail}`.slice(0, 2_000);
+  const existing = data.extraction_notes.trim();
+  const existingLimit = Math.max(
+    0,
+    MAX_EXTRACTION_NOTES_CHARACTERS - marker.length - (existing ? 1 : 0),
+  );
+  data.extraction_notes = [existing.slice(0, existingLimit), marker]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mergeExtractionNotes(notes: Array<string | null | undefined>): string {
+  const guardNotes: string[] = [];
+  const generalNotes: string[] = [];
+  for (const note of notes) {
+    if (!note) continue;
+    const generalLines: string[] = [];
+    for (const line of note.split(/\r?\n/u)) {
+      if (line.startsWith(LOCAL_EVIDENCE_GUARD_MARKER)) guardNotes.push(line);
+      else generalLines.push(line);
+    }
+    const generalNote = generalLines.join("\n").trim();
+    if (generalNote) generalNotes.push(generalNote);
+  }
+
+  const guardBlock = [...new Set(guardNotes)].join("\n");
+  if (guardBlock.length >= MAX_EXTRACTION_NOTES_CHARACTERS) {
+    return guardBlock.slice(0, MAX_EXTRACTION_NOTES_CHARACTERS);
+  }
+
+  const generalBlock = generalNotes.join("\n");
+  if (!guardBlock) return generalBlock.slice(0, MAX_EXTRACTION_NOTES_CHARACTERS);
+  if (!generalBlock) return guardBlock;
+  const generalLimit = MAX_EXTRACTION_NOTES_CHARACTERS - guardBlock.length - 1;
+  return generalLimit > 0
+    ? `${guardBlock}\n${generalBlock.slice(0, generalLimit)}`
+    : guardBlock;
+}
+
+function imageMoneyOccurrenceViolation(
+  occurrence: NonNullable<DisclosureExtraction["money_occurrences"]>[number],
+): "non_currency_percentage" | "amount_quote_mismatch" | null {
+  const rawText = occurrence.raw_text.normalize("NFKC");
+  if (/%/u.test(rawText) && !/(?:원|KRW|₩)/iu.test(rawText)) {
+    return "non_currency_percentage";
+  }
+  const rawAmounts = parseKoreanMoneyAmounts(occurrence.raw_text);
+  const quoteAmounts = parseKoreanMoneyAmounts(occurrence.source_quote);
+  return rawAmounts.includes(occurrence.amount_krw) && quoteAmounts.includes(occurrence.amount_krw)
+    ? null
+    : "amount_quote_mismatch";
+}
+
+function sanitizeAllRejectedImageMoneyOccurrences(
+  data: DisclosureExtraction,
+  rejectedOccurrenceIndex: number,
+): DisclosureExtraction {
+  const sanitized = structuredClone(data);
+  const occurrences = sanitized.money_occurrences ?? [];
+  if (
+    !Number.isSafeInteger(rejectedOccurrenceIndex)
+    || rejectedOccurrenceIndex < 0
+    || rejectedOccurrenceIndex >= occurrences.length
+  ) {
+    throw new Error(`image_money_occurrence_sanitize_index_missing:${rejectedOccurrenceIndex}`);
+  }
+  const removedPaths: string[] = [];
+  sanitized.money_occurrences = occurrences.filter((occurrence, index) => {
+    if (!imageMoneyOccurrenceViolation(occurrence)) return true;
+    removedPaths.push(`money_occurrences[${index}]`);
+    return false;
+  });
+  if (removedPaths.length === 0) {
+    throw new Error(`image_money_occurrence_sanitize_no_invalid_value:${rejectedOccurrenceIndex}`);
+  }
+  appendLocalEvidenceGuardNote(
+    sanitized,
+    `removed ${removedPaths.length} occurrence(s) with invalid image money evidence; paths=${boundedGuardPaths(removedPaths)}`,
+  );
+  return DisclosureExtractionSchema.parse(sanitized);
+}
+
+function xlsxEvidenceRecordMatchesRequest(
+  record: Record<string, unknown>,
+  targetLines: ReturnType<typeof allowedXlsxEvidenceLines>,
+  targetAuxiliary: ReturnType<typeof allowedXlsxAuxiliaryEvidence>,
+): boolean {
+  const sourceQuote = String(record.source_quote);
+  const auxiliaryMatch = matchSingleXlsxAuxiliaryEvidenceQuote(sourceQuote, targetAuxiliary);
+  if (auxiliaryMatch.kind === "reject") return false;
+  const cellMatch = matchSingleXlsxEvidenceQuote(sourceQuote, targetLines);
+  if (cellMatch.kind === "reject") return false;
+  return auxiliaryMatch.kind === "match" || cellMatch.kind === "match";
+}
+
+function invalidLocatedEvidenceReason(
+  record: Record<string, unknown>,
+  request: ExtractionRequest,
+  allowedSourceIds: ReadonlySet<string>,
+  targetLines: ReturnType<typeof allowedXlsxEvidenceLines>,
+  targetAuxiliary: ReturnType<typeof allowedXlsxAuxiliaryEvidence>,
+  normalizedTargetText: string,
+): "source_file_id" | "xlsx_source_quote" | "text_source_quote" | null {
+  const isMoneyOccurrence = typeof record.amount_krw === "number" && typeof record.kind === "string";
+  if (isMoneyOccurrence && request.imagePaths.length === 0) return null;
+  const sourceFileIds = Array.isArray(record.source_file_ids)
+    ? record.source_file_ids.filter((value): value is string => typeof value === "string")
+    : [];
+  if (sourceFileIds.some((sourceId) => !allowedSourceIds.has(sourceId))) return "source_file_id";
+  if (isMoneyOccurrence) return null;
+  const hasXlsxEvidence = Object.keys(targetLines).length > 0 || Object.keys(targetAuxiliary).length > 0;
+  if (hasXlsxEvidence) {
+    return xlsxEvidenceRecordMatchesRequest(record, targetLines, targetAuxiliary)
+      ? null
+      : "xlsx_source_quote";
+  }
+  const sourceQuote = normalizeEvidenceText(String(record.source_quote));
+  return normalizedTargetText && sourceQuote && !normalizedTargetText.includes(sourceQuote)
+    ? "text_source_quote"
+    : null;
+}
+
+function invalidLocatedEvidenceRecords(
+  data: DisclosureExtraction,
+  request: ExtractionRequest,
+): Array<LocatedEvidenceRecord & {
+  reason: "source_file_id" | "xlsx_source_quote" | "text_source_quote";
+}> {
+  const allowedSourceIds = new Set(allowedSourceFileIds(request));
+  const targetLines = allowedXlsxEvidenceLines(request);
+  const targetAuxiliary = allowedXlsxAuxiliaryEvidence(request);
+  const normalizedTargetText = normalizeEvidenceText(currentExtractionTarget(request.text));
+  return locatedEvidenceRecords(data).flatMap((located) => {
+    const reason = invalidLocatedEvidenceReason(
+      located.record,
+      request,
+      allowedSourceIds,
+      targetLines,
+      targetAuxiliary,
+      normalizedTargetText,
+    );
+    return reason ? [{ ...located, reason }] : [];
+  });
+}
+
+function removeExactLocatedEvidenceRecords(
+  data: DisclosureExtraction,
+  targets: ReadonlySet<Record<string, unknown>>,
+): number {
+  const removeFrom = (value: unknown): number => {
+    if (Array.isArray(value)) {
+      let removed = 0;
+      for (let index = value.length - 1; index >= 0; index -= 1) {
+        const item = recordValue(value[index]);
+        if (item && targets.has(item)) {
+          value.splice(index, 1);
+          removed += 1;
+        } else {
+          removed += removeFrom(value[index]);
+        }
+      }
+      return removed;
+    }
+    const record = recordValue(value);
+    return record
+      ? Object.values(record).reduce<number>((count, child) => count + removeFrom(child), 0)
+      : 0;
+  };
+  return removeFrom(data);
+}
+
+function sanitizeAllRejectedLocatedEvidenceRecords(
+  data: DisclosureExtraction,
+  request: ExtractionRequest,
+  rejectedPath: string,
+): DisclosureExtraction {
+  const sanitized = structuredClone(data);
+  const locatedRecords = locatedEvidenceRecords(sanitized);
+  if (!locatedRecords.some((item) => item.path === rejectedPath)) {
+    throw new Error(`located_record_sanitize_path_missing:${rejectedPath}`);
+  }
+  const invalidRecords = invalidLocatedEvidenceRecords(sanitized, request);
+  if (invalidRecords.length === 0) {
+    throw new Error(`located_record_sanitize_no_invalid_record:${rejectedPath}`);
+  }
+  const removed = removeExactLocatedEvidenceRecords(
+    sanitized,
+    new Set(invalidRecords.map((item) => item.record)),
+  );
+  if (removed === 0) {
+    throw new Error(`located_record_sanitize_parent_array_missing:${rejectedPath}`);
+  }
+  const reasonCounts = new Map<string, number>();
+  for (const item of invalidRecords) {
+    reasonCounts.set(item.reason, (reasonCounts.get(item.reason) ?? 0) + 1);
+  }
+  appendLocalEvidenceGuardNote(
+    sanitized,
+    `removed ${invalidRecords.length} record(s) with invalid evidence; reasons=${[...reasonCounts.entries()]
+      .map(([reason, count]) => `${reason}:${count}`)
+      .join(",")}; paths=${boundedGuardPaths(invalidRecords.map((item) => item.path))}`,
+  );
+  return DisclosureExtractionSchema.parse(sanitized);
+}
+
+function sanitizeSecondAttemptOwnershipFailures(
+  data: DisclosureExtraction,
+  request: ExtractionRequest,
+  error: ExtractionProviderResponseError,
+): DisclosureExtraction {
+  const rejectedPath = error.structuredEvidencePath
+    ?? error.textQuoteEvidencePath
+    ?? error.rejectedRecordPath;
+  const hasImageFailure = error.rejectedOccurrenceIndex !== undefined
+    && (
+      error.imageEvidenceViolation === "non_currency_percentage"
+      || error.imageEvidenceViolation === "amount_quote_mismatch"
+    );
+  const hasLocatedRecordFailure = Boolean(rejectedPath)
+    && Boolean(
+      error.structuredEvidencePath
+      || error.textQuoteEvidencePath
+      || error.rejectedLocator
+      || error.rejectedSourceFileId,
+    );
+  if (!hasImageFailure && !hasLocatedRecordFailure) throw error;
+
+  const originalLocatedPaths = new Set(locatedEvidenceRecords(data).map((item) => item.path));
+  if (rejectedPath && !originalLocatedPaths.has(rejectedPath)) {
+    throw new Error(`ownership_sanitize_rejected_path_missing:${rejectedPath}`);
+  }
+  if (
+    hasImageFailure
+    && (
+      !Number.isSafeInteger(error.rejectedOccurrenceIndex)
+      || error.rejectedOccurrenceIndex! < 0
+      || error.rejectedOccurrenceIndex! >= (data.money_occurrences ?? []).length
+    )
+  ) {
+    throw new Error(`ownership_sanitize_rejected_occurrence_missing:${error.rejectedOccurrenceIndex}`);
+  }
+
+  let sanitized = data;
+  let changed = false;
+  const invalidImageIndex = request.imagePaths.length > 0
+    ? (sanitized.money_occurrences ?? []).findIndex((occurrence) =>
+        imageMoneyOccurrenceViolation(occurrence) !== null
+      )
+    : -1;
+  if (invalidImageIndex >= 0) {
+    sanitized = sanitizeAllRejectedImageMoneyOccurrences(sanitized, invalidImageIndex);
+    changed = true;
+  }
+  const invalidRecords = invalidLocatedEvidenceRecords(sanitized, request);
+  if (invalidRecords.length > 0) {
+    sanitized = sanitizeAllRejectedLocatedEvidenceRecords(
+      sanitized,
+      request,
+      invalidRecords[0].path,
+    );
+    changed = true;
+  }
+  const unsupportedRecords = unsupportedStructuredCurrencyRecords(sanitized, request);
+  if (unsupportedRecords.length > 0) {
+    sanitized = sanitizeUnsupportedStructuredCurrency(
+      sanitized,
+      request,
+      unsupportedRecords[0].path,
+    );
+    changed = true;
+  }
+  if (!changed) throw new Error("ownership_sanitize_no_invalid_evidence");
+  return sanitized;
+}
+
 function evidenceIdentity(sourceQuote: unknown, sourceFileIds: unknown): string | null {
   if (typeof sourceQuote !== "string" || !sourceQuote.trim()) return null;
   const ids = Array.isArray(sourceFileIds)
@@ -1013,12 +1427,14 @@ function assertBatchEvidenceOwnership(
   const rejectXlsxQuote = (
     rejectedLocator: string,
     locatorViolation: "not_in_request" | "not_exact_single_cell",
+    rejectedRecordPath: string,
   ): never => {
     const ownershipAudit = {
       rejectedLocator,
       allowedLocatorCount: allowed.length,
       allowedLocatorSetSha256: sha256Text(allowed.join("\n")),
       locatorViolation,
+      rejectedRecordPath,
     };
     const reason = locatorViolation === "not_in_request"
       ? "현재 요청에 없는 XLSX 셀·도형·수식 locator"
@@ -1038,8 +1454,8 @@ function assertBatchEvidenceOwnership(
 
   if (request.imagePaths.length > 0) {
     for (const [index, occurrence] of (data.money_occurrences ?? []).entries()) {
-      const rawText = occurrence.raw_text.normalize("NFKC");
-      if (/%/u.test(rawText) && !/(?:원|KRW|₩)/iu.test(rawText)) {
+      const violation = imageMoneyOccurrenceViolation(occurrence);
+      if (violation === "non_currency_percentage") {
         throw new ExtractionProviderResponseError(
           `OpenAI 구조화 출력 검증에 실패했습니다: 통화 표기 없는 퍼센트를 image money_occurrence로 추출함 (occurrence_index=${index})`,
           audit,
@@ -1047,9 +1463,7 @@ function assertBatchEvidenceOwnership(
           { rejectedOccurrenceIndex: index, violation: "non_currency_percentage" },
         );
       }
-      const rawAmounts = parseKoreanMoneyAmounts(occurrence.raw_text);
-      const quoteAmounts = parseKoreanMoneyAmounts(occurrence.source_quote);
-      if (!rawAmounts.includes(occurrence.amount_krw) || !quoteAmounts.includes(occurrence.amount_krw)) {
+      if (violation === "amount_quote_mismatch") {
         throw new ExtractionProviderResponseError(
           `OpenAI 구조화 출력 검증에 실패했습니다: image money_occurrence 금액과 raw_text/source_quote 불일치 (occurrence_index=${index})`,
           audit,
@@ -1082,6 +1496,7 @@ function assertBatchEvidenceOwnership(
           rejectedSourceFileId,
           allowedSourceFileCount: allowedSourceFileIdList.length,
           allowedSourceFileSetSha256: sha256Text(allowedSourceFileIdList.join("\n")),
+          rejectedRecordPath: recordPath,
         },
       );
     }
@@ -1101,16 +1516,17 @@ function assertBatchEvidenceOwnership(
           auxiliaryMatch.violation === "not_in_request"
             ? "not_in_request"
             : "not_exact_single_cell",
+          recordPath,
         );
       }
       if (auxiliaryMatch.kind === "match") matchedXlsxEvidence = true;
       const cellMatch = matchSingleXlsxEvidenceQuote(sourceQuote, targetLines);
       if (cellMatch.kind === "reject") {
-        rejectXlsxQuote(cellMatch.locator, cellMatch.violation);
+        rejectXlsxQuote(cellMatch.locator, cellMatch.violation, recordPath);
       }
       if (cellMatch.kind === "match") matchedXlsxEvidence = true;
       if (!matchedXlsxEvidence) {
-        rejectXlsxQuote("missing_xlsx_locator", "not_exact_single_cell");
+        rejectXlsxQuote("missing_xlsx_locator", "not_exact_single_cell", recordPath);
       }
     }
     const structuredCurrencyValues = [...new Set(Object.entries(record).flatMap(([key, value]) =>
@@ -1177,18 +1593,51 @@ function assertBatchEvidenceOwnership(
   }
 }
 
+function assertExactOpenAIProviderModel(
+  providerModel: string | undefined,
+  configuredModel: ExtractionModel,
+  requestId?: string,
+): string {
+  if (!providerModel || providerModel.length > 200) {
+    throw new ExtractionProviderResponseError("provider_model_missing_or_invalid", {
+      inputTokens: 0,
+      outputTokens: 0,
+      usageReported: false,
+      ...(requestId ? { requestId } : {}),
+    });
+  }
+  if (providerModel !== configuredModel) {
+    throw new ExtractionProviderResponseError("provider_model_mismatch", {
+      inputTokens: 0,
+      outputTokens: 0,
+      usageReported: false,
+      ...(requestId ? { requestId } : {}),
+      providerModel,
+    });
+  }
+  return providerModel;
+}
+
 export function parseOpenAIExtractionResponse(
   responseData: unknown,
   requestId?: string,
+  configuredModel?: ExtractionModel,
 ): ExtractionProviderResult {
   const response = recordValue(responseData);
   const usage = parseOpenAIResponseUsage(response?.usage);
   const responseRequestId = requestId?.trim()
     || (typeof response?._request_id === "string" ? response._request_id : undefined);
+  const providerModel = typeof response?.model === "string" && response.model.trim()
+    ? response.model
+    : undefined;
   const audit = {
     ...usage,
     ...(responseRequestId ? { requestId: responseRequestId } : {}),
+    ...(providerModel ? { providerModel } : {}),
   };
+  if (configuredModel) {
+    assertExactOpenAIProviderModel(providerModel, configuredModel, responseRequestId);
+  }
   if (typeof response?.output_text !== "string" || !response.output_text.trim()) {
     throw new ExtractionProviderResponseError("OpenAI 구조화 출력 검증에 실패했습니다: output_text 없음", audit);
   }
@@ -1205,7 +1654,19 @@ export function parseOpenAIExtractionResponse(
       audit,
     );
   }
-  return { data: parsed.data, ...audit };
+  const result = { data: parsed.data, ...audit, ...(providerModel ? { providerModel } : {}) };
+  return result;
+}
+
+export function assertOpenAIProviderModel(
+  result: ExtractionProviderResult,
+  configuredModel: ExtractionModel,
+): string {
+  return assertExactOpenAIProviderModel(
+    result.providerModel,
+    configuredModel,
+    result.requestId,
+  );
 }
 
 function openAIExtractionProviderConfig(env: NodeJS.ProcessEnv): {
@@ -1260,7 +1721,11 @@ function createOpenAIExtractionProvider(env: NodeJS.ProcessEnv = process.env): E
     extract: async (request) => {
       const promise = client.responses.create(await buildOpenAIResponseRequest(request));
       const response = await promise.withResponse();
-      return parseOpenAIExtractionResponse(response.data, response.request_id ?? undefined);
+      return parseOpenAIExtractionResponse(
+        response.data,
+        response.request_id ?? undefined,
+        request.model,
+      );
     },
   };
 }
@@ -2446,10 +2911,10 @@ export function mergeExtractionChunks(results: DisclosureExtraction[]): Disclosu
       confidence: Math.min(...hallSources.map((hall) => hall.confidence)),
       needs_review: hasConflict || hallSources.some((hall) => hall.needs_review),
     },
-    extraction_notes: [
+    extraction_notes: mergeExtractionNotes([
       ...results.map((result) => result.extraction_notes).filter(Boolean),
       conflictNote,
-    ].filter(Boolean).join("\n").slice(0, 4_000),
+    ]),
   };
 }
 
@@ -2536,6 +3001,18 @@ function safeRequestId(error: unknown): string | null {
   if ("request_id" in error && typeof error.request_id === "string") return error.request_id.slice(0, 200);
   if ("requestId" in error && typeof error.requestId === "string") return error.requestId.slice(0, 200);
   return null;
+}
+
+function safeProviderModel(error: unknown): string | null {
+  return error instanceof ExtractionProviderResponseError
+    ? error.providerModel ?? null
+    : null;
+}
+
+function safeProviderValidationErrorDetail(error: unknown): string | null {
+  if (!(error instanceof ExtractionProviderResponseError)) return null;
+  const detail = error.message.replace(/[\r\n]+/gu, " ").trim();
+  return detail ? detail.slice(0, 500) : null;
 }
 
 function safeProviderUsage(error: unknown): NormalizedProviderUsage {
@@ -2680,8 +3157,20 @@ function safeErrorCategory(error: unknown): "rate_limit" | "provider_5xx" | "tim
   if (isPermanentProviderBillingFailure(error)) return "unknown";
   if (status === 429) return "rate_limit";
   if (status !== null && status >= 500 && status <= 599) return "provider_5xx";
-  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) return "timeout";
-  if (error instanceof Error && ["ECONNRESET", "ENOTFOUND", "ETIMEDOUT"].some((code) => error.message.includes(code))) return "network";
+  if (
+    status === null
+    && error instanceof Error
+    && (
+      error.name === "AbortError"
+      || error.name === "TimeoutError"
+      || /\b(?:request\s+)?timed\s*out\b|\btimeout\b/iu.test(error.message)
+    )
+  ) return "timeout";
+  if (
+    status === null
+    && error instanceof Error
+    && ["ECONNRESET", "ENOTFOUND", "ETIMEDOUT"].some((code) => error.message.includes(code))
+  ) return "network";
   if (error instanceof Error && /구조화 출력|검증/u.test(error.message)) return "invalid_response";
   return "unknown";
 }
@@ -2822,6 +3311,16 @@ interface PaidCallAttemptHooks {
     requestHash: string;
     reservation: PaidCallCostReservation;
   }): Promise<PaidCallIntent>;
+  settleFailed(intent: PaidCallIntent): Promise<void>;
+}
+
+interface ConservativelySettledRetryResume {
+  runId: string;
+  attemptRequestHashes: string[];
+  billedInputTokens: number;
+  billedOutputTokens: number;
+  invalidResponseRetries: number;
+  serverRetries: number;
 }
 
 async function extractWithRetry(
@@ -2833,6 +3332,7 @@ async function extractWithRetry(
   hashRequest: (request: ExtractionRequest) => Promise<string>,
   invalidResponseRepair: (request: ExtractionRequest, error: unknown) => ExtractionRequest,
   paidCallHooks?: PaidCallAttemptHooks,
+  resume?: ConservativelySettledRetryResume,
 ): Promise<{
   result: ExtractionProviderResult;
   attempts: number;
@@ -2843,14 +3343,18 @@ async function extractWithRetry(
   paidCallIntents: PaidCallIntent[];
   successLedgerId: string;
 }> {
-  let serverRetries = 0;
-  let invalidResponseRetries = 0;
-  let billedInputTokens = 0;
-  let billedOutputTokens = 0;
+  let serverRetries = resume?.serverRetries ?? 0;
+  let invalidResponseRetries = resume?.invalidResponseRetries ?? 0;
+  let billedInputTokens = resume?.billedInputTokens ?? 0;
+  let billedOutputTokens = resume?.billedOutputTokens ?? 0;
   let attemptRequest = request;
-  const attemptRequestHashes: string[] = [];
+  const attemptRequestHashes = [...(resume?.attemptRequestHashes ?? [])];
   const paidCallIntents: PaidCallIntent[] = [];
-  for (let attempt = 1; attempt <= MAX_EXTRACTION_ATTEMPTS; attempt += 1) {
+  for (
+    let attempt = attemptRequestHashes.length + 1;
+    attempt <= MAX_EXTRACTION_ATTEMPTS;
+    attempt += 1
+  ) {
     const attemptRequestHash = await hashRequest(attemptRequest);
     attemptRequestHashes.push(attemptRequestHash);
     const costReservation = costFence.reserve(attemptRequest, paidCallHooks !== undefined);
@@ -2874,19 +3378,36 @@ async function extractWithRetry(
           `OpenAI 구조화 출력 검증에 실패했습니다: ${parsed.error.issues[0]?.message ?? "unknown"}`,
           {
             ...candidateUsage,
-            requestId: candidate.requestId,
+            ...(candidate.requestId ? { requestId: candidate.requestId } : {}),
+            ...(candidate.providerModel ? { providerModel: candidate.providerModel } : {}),
           },
         );
       }
       result = { ...candidate, ...candidateUsage, data: parsed.data };
-      assertBatchEvidenceOwnership(result.data, attemptRequest, {
+      const ownershipAudit = {
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
         cachedInputTokens: result.cachedInputTokens,
         cacheWriteInputTokens: result.cacheWriteInputTokens,
         usageReported: result.usageReported,
         ...(result.requestId ? { requestId: result.requestId } : {}),
-      });
+        ...(result.providerModel ? { providerModel: result.providerModel } : {}),
+      };
+      try {
+        assertBatchEvidenceOwnership(result.data, attemptRequest, ownershipAudit);
+      } catch (ownershipError) {
+        if (attempt <= 1) throw ownershipError;
+        if (!(ownershipError instanceof ExtractionProviderResponseError)) throw ownershipError;
+        result = {
+          ...result,
+          data: sanitizeSecondAttemptOwnershipFailures(
+            result.data,
+            attemptRequest,
+            ownershipError,
+          ),
+        };
+        assertBatchEvidenceOwnership(result.data, attemptRequest, ownershipAudit);
+      }
       if (paidCallHooks) assertPaidProviderUsageWithinReservation(
         costFence.modelForUsageValidation(),
         result,
@@ -2905,6 +3426,13 @@ async function extractWithRetry(
         result: null,
         error,
       });
+      if (paidCallIntent && paidCallHooks) {
+        await paidCallHooks.settleFailed(paidCallIntent);
+        const pendingIndex = paidCallIntents.findIndex(
+          (intent) => intent.intent_id === paidCallIntent.intent_id,
+        );
+        if (pendingIndex >= 0) paidCallIntents.splice(pendingIndex, 1);
+      }
       const category = safeErrorCategory(error);
       if (category === "invalid_response" && invalidResponseRetries < 1) {
         invalidResponseRetries += 1;
@@ -3022,9 +3550,9 @@ async function readCache(
     ) {
       throw new Error("extract_cache_invalid:identity_mismatch");
     }
-    let paidPlanUnit: PaidExtractionPlanApproval["payload"]["units"][number] | null = null;
+    let paidPlanUnit: AnyPaidExtractionPlanApproval["payload"]["units"][number] | null = null;
     if (expected.providerMode === "production_paid" && expected.paidPlanSha256) {
-      const paidPlan = await readFixedEightPaidExtractionPlanApproval(
+      const paidPlan = await readPaidExtractionPlanApproval(
         expected.stateDir,
         expected.paidPlanSha256,
       );
@@ -3713,7 +4241,7 @@ async function currentPaidPlanInput(
 
 async function assertPaidPlanLedgerSnapshotAndResumeState(
   stateDir: string,
-  approval: PaidExtractionPlanApproval,
+  approval: AnyPaidExtractionPlanApproval,
   manifest: IngestManifest,
   selectedUnits: ManifestUnit[],
 ): Promise<Awaited<ReturnType<typeof readAiLedgerState>>> {
@@ -3757,7 +4285,11 @@ async function assertPaidPlanLedgerSnapshotAndResumeState(
       || !authorizedHashes?.includes(entry.request_hash)) {
       throw new Error("paid_plan_ledger_delta_request_mismatch");
     }
-    if (!entry.success && !["rate_limit", "invalid_response"].includes(entry.error_category ?? "")) {
+    if (
+      !entry.success
+      && !["rate_limit", "invalid_response"].includes(entry.error_category ?? "")
+      && !isConservativelySettledAmbiguousFailure(entry)
+    ) {
       throw new Error("paid_plan_ledger_delta_is_not_a_recognized_durable_retry_state");
     }
   }
@@ -3832,12 +4364,22 @@ async function assertPaidPlanLedgerSnapshotAndResumeState(
   return ledgerState;
 }
 
+async function reconcileDurableFailedPaidCallIntents(stateDir: string): Promise<void> {
+  const pending = await listPendingPaidCallIntents(stateDir);
+  for (const intent of pending) {
+    await reconcileFailedPaidCallIntent(stateDir, intent);
+  }
+}
+
 async function planExtractionInternal(
   options: ExtractOptions,
   env: NodeJS.ProcessEnv = process.env,
   paidExecutionDomainAccess: PaidExecutionDomainAccess = productionPaidExecutionDomainAccess,
 ): Promise<ExtractionPlan> {
   const model = resolveExtractionModel(env);
+  if (options.enforcePilotAuthorization) {
+    await reconcileDurableFailedPaidCallIntents(options.stateDir);
+  }
   const manifest = await loadManifest(options.stateDir);
   const selected = selectExtractionUnits(manifest, {
     model,
@@ -3847,11 +4389,10 @@ async function planExtractionInternal(
   });
   if (options.enforcePilotAuthorization) {
     const selectedIds = selected.map((unit) => unit.unit_id);
-    if (
-      selectedIds.length !== FIXED_EIGHT_ORDERED_UNIT_IDS.length
-      || selectedIds.some((unitId, index) => unitId !== FIXED_EIGHT_ORDERED_UNIT_IDS[index])
-    ) {
-      throw new Error("fixed_eight_paid_pilot_requires_exact_approved_units_and_order");
+    if (selectedIds.length < 1 || selectedIds.length > MAX_PAID_EXTRACTION_BATCH_UNITS) {
+      throw new Error(
+        `paid_extraction_batch_requires_1_to_${MAX_PAID_EXTRACTION_BATCH_UNITS}_units`,
+      );
     }
   }
   const units: ExtractionPlanUnit[] = [];
@@ -3947,7 +4488,7 @@ async function planExtractionInternal(
       estimatedCostUsd <= approvalAuthorizedCeilingUsd
       && maximumSingleAttemptCostUsd <= approvalAuthorizedCeilingUsd
     ) {
-      const approval = createFixedEightPaidExtractionPlanApproval({
+      const approvalInput = {
         executionDomain: executionDomain.binding,
         model,
         scannerParserVersion: manifest.scanner_parser_version,
@@ -3955,11 +4496,14 @@ async function planExtractionInternal(
         domainCommittedCostNanoUsd: executionDomain.cumulative_committed_cost_nano_usd,
         priorDurableLedger: priorLedgerState.snapshot,
         units: approvalUnits,
-      });
-      approvalPlanPath = await writeFixedEightPaidExtractionPlanApproval(
-        options.stateDir,
-        approval,
-      );
+      };
+      const selectedIds = selected.map((unit) => unit.unit_id);
+      const approval = isExactFixedEightOrder(selectedIds)
+        ? createFixedEightPaidExtractionPlanApproval(approvalInput)
+        : createPaidExtractionBatchPlanApproval(approvalInput);
+      approvalPlanPath = approval.kind === "fixed_eight_paid_extraction_plan_approval"
+        ? await writeFixedEightPaidExtractionPlanApproval(options.stateDir, approval)
+        : await writePaidExtractionBatchPlanApproval(options.stateDir, approval);
       approvalPlanSha256 = approval.plan_sha256;
       approvalStatus = "approved_sequential_runtime_fence";
     } else {
@@ -4162,20 +4706,24 @@ export async function acquireExtractionLock(stateDir: string): Promise<() => Pro
 async function extractManifestUnlocked(
   options: ExtractOptions,
   dependencies: ExtractInternalDependencies = {},
-  authorization: "fixed_eight" | "test_only_injected_provider" = "fixed_eight",
+  authorization: "production_batch" | "fixed_eight_scripted" | "test_only_injected_provider" = "production_batch",
 ): Promise<IngestManifest> {
   const env = dependencies.env ?? process.env;
   const paidExecutionDomainAccess = dependencies.paidExecutionDomainAccess
     ?? productionPaidExecutionDomainAccess;
   const model = resolveExtractionModel(env);
   const manifest = await loadManifest(options.stateDir);
+  const productionPaid = authorization !== "test_only_injected_provider";
+  if (productionPaid) {
+    await reconcileDurableFailedPaidCallIntents(options.stateDir);
+  }
   const selectedUnits = selectExtractionUnits(manifest, {
     model,
-    providerMode: authorization === "fixed_eight" ? "production_paid" : "test_only",
+    providerMode: productionPaid ? "production_paid" : "test_only",
     ...(options.unitIds ? { unitIds: options.unitIds } : {}),
     ...(!options.unitIds && options.limit !== undefined ? { sampleSize: options.limit } : {}),
   });
-  if (authorization === "fixed_eight") {
+  if (authorization === "fixed_eight_scripted") {
     const selectedIds = selectedUnits.map((unit) => unit.unit_id);
     if (
       selectedIds.length !== FIXED_EIGHT_ORDERED_UNIT_IDS.length
@@ -4184,26 +4732,26 @@ async function extractManifestUnlocked(
       throw new Error("fixed_eight_paid_pilot_requires_exact_approved_units_and_order");
     }
   }
-  if (selectedUnits.length > 8) {
-    throw new Error("pilot_gate_required_before_more_than_8_units");
+  if (productionPaid && (selectedUnits.length < 1 || selectedUnits.length > MAX_PAID_EXTRACTION_BATCH_UNITS)) {
+    throw new Error(`paid_extraction_batch_requires_1_to_${MAX_PAID_EXTRACTION_BATCH_UNITS}_units`);
   }
   const sleep = dependencies.sleep ?? ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   const runId = randomUUID();
   const paidCallLimitUsd = resolveUncachedPaidCallLimitUsd(env);
-  const providerMode: ExtractionProviderMode = authorization === "fixed_eight"
+  const providerMode: ExtractionProviderMode = productionPaid
     ? "production_paid"
     : "test_only";
-  let approvedPlan: PaidExtractionPlanApproval | null = null;
+  let approvedPlan: AnyPaidExtractionPlanApproval | null = null;
   let priorDurableLedgerCostUsd = 0;
-  if (authorization === "fixed_eight") {
+  let initialPaidPlanLedgerEntries: NewAiLedgerEntry[] = [];
+  if (productionPaid) {
     const approvedPlanSha256 = options.approvedPlanSha256?.trim();
     if (!approvedPlanSha256) {
-      throw new Error("fixed_eight_paid_pilot_requires_approved_plan_sha256_from_extract_plan");
+      throw new Error("paid_extraction_batch_requires_approved_plan_sha256_from_extract_plan");
     }
-    approvedPlan = await readFixedEightPaidExtractionPlanApproval(
-      options.stateDir,
-      approvedPlanSha256,
-    );
+    approvedPlan = authorization === "fixed_eight_scripted"
+      ? await readFixedEightPaidExtractionPlanApproval(options.stateDir, approvedPlanSha256)
+      : await readPaidExtractionPlanApproval(options.stateDir, approvedPlanSha256);
     await assertNoOrphanedPaidCallIntents(options.stateDir);
     const executionDomain = await paidExecutionDomainAccess.verifyForPlan(
       options.stateDir,
@@ -4219,11 +4767,19 @@ async function extractManifestUnlocked(
       approvedPlan.payload.prior_durable_ledger,
       executionDomain.binding,
     );
-    assertFixedEightPaidExtractionPlanApprovalMatches(
-      approvedPlan,
-      currentPlanInput,
-      approvedPlanSha256,
-    );
+    if (approvedPlan.kind === "fixed_eight_paid_extraction_plan_approval") {
+      assertFixedEightPaidExtractionPlanApprovalMatches(
+        approvedPlan,
+        currentPlanInput,
+        approvedPlanSha256,
+      );
+    } else {
+      assertPaidExtractionBatchPlanApprovalMatches(
+        approvedPlan,
+        currentPlanInput,
+        approvedPlanSha256,
+      );
+    }
     const currentLedgerState = await assertPaidPlanLedgerSnapshotAndResumeState(
       options.stateDir,
       approvedPlan,
@@ -4231,6 +4787,9 @@ async function extractManifestUnlocked(
       selectedUnits,
     );
     priorDurableLedgerCostUsd = currentLedgerState.snapshot.cumulative_cost_usd;
+    initialPaidPlanLedgerEntries = currentLedgerState.entries
+      .slice(approvedPlan.payload.prior_durable_ledger.row_count)
+      .filter(isNewLedgerEntry);
   }
   const runtimeTotalPaidCallLimitUsd = approvedPlan
     ? Math.min(
@@ -4381,7 +4940,66 @@ async function extractManifestUnlocked(
           continue;
         }
         if (!provider) throw new Error("extraction_provider_unavailable");
-        const extracted = await extractWithRetry(provider, batch.request, sleep, async (audit) => {
+        const priorBatchFailures = approvedPlan
+          ? initialPaidPlanLedgerEntries.filter((entry) =>
+              entry.paid_plan_sha256 === approvedPlan?.plan_sha256
+              && entry.unit_id === unit.unit_id
+              && entry.fingerprint === fingerprint
+              && entry.batch_index === batch.batchIndex
+              && entry.success === false
+            ).sort((left, right) => left.attempt - right.attempt)
+          : [];
+        const repairedRequest = staticValidationRetryRequest(batch.request);
+        const repairedRequestHash = await extractionRequestHash(repairedRequest, {
+          scannerParserVersion: manifest.scanner_parser_version,
+          converterVersion,
+        });
+        let expectedResumeRequestHash = batch.requestHash;
+        let resumeChainIsExact = priorBatchFailures.length > 0
+          && priorBatchFailures.length < MAX_EXTRACTION_ATTEMPTS;
+        let priorInvalidResponseCount = 0;
+        let priorRateLimitCount = 0;
+        for (const [index, entry] of priorBatchFailures.entries()) {
+          if (
+            entry.attempt !== index + 1
+            || entry.run_id !== priorBatchFailures[0]?.run_id
+            || entry.request_hash !== expectedResumeRequestHash
+            || !(
+              entry.error_category === "invalid_response"
+              || entry.error_category === "rate_limit"
+              || isConservativelySettledAmbiguousFailure(entry)
+            )
+          ) {
+            resumeChainIsExact = false;
+            break;
+          }
+          if (entry.error_category === "invalid_response") {
+            priorInvalidResponseCount += 1;
+            expectedResumeRequestHash = repairedRequestHash;
+          } else if (entry.error_category === "rate_limit") {
+            priorRateLimitCount += 1;
+          }
+        }
+        const canResumeConservativeFailure = resumeChainIsExact
+          && priorInvalidResponseCount <= 1
+          && priorRateLimitCount <= 3
+          && (approvedPlanUnit?.authorized_request_hashes_by_batch[batch.batchIndex]
+            ?.includes(expectedResumeRequestHash) ?? false);
+        const conservativeResume: ConservativelySettledRetryResume | undefined = canResumeConservativeFailure
+          ? {
+              runId: priorBatchFailures[0]!.run_id,
+              attemptRequestHashes: priorBatchFailures.map((entry) => entry.request_hash),
+              billedInputTokens: priorBatchFailures.reduce((sum, entry) => sum + entry.input_tokens, 0),
+              billedOutputTokens: priorBatchFailures.reduce((sum, entry) => sum + entry.output_tokens, 0),
+              invalidResponseRetries: priorInvalidResponseCount,
+              serverRetries: priorRateLimitCount,
+            }
+          : undefined;
+        const attemptRunId = conservativeResume?.runId ?? runId;
+        const resumeRequest = conservativeResume && expectedResumeRequestHash === repairedRequestHash
+          ? repairedRequest
+          : batch.request;
+        const extracted = await extractWithRetry(provider, resumeRequest, sleep, async (audit) => {
           const { usage, costUsd: usageReportedCostUsd } = usageReportedExtractionCostUsd(
             model,
             audit.result ?? safeProviderUsage(audit.error),
@@ -4389,17 +5007,18 @@ async function extractManifestUnlocked(
           const chargedCostUsd = usageReportedCostUsd !== null && usageReportedCostUsd > 0
             ? usageReportedCostUsd
             : audit.reservedCostUsd;
-          const ledgerId = createLedgerId(runId, fingerprint, batch.batchIndex, audit.attempt);
+          const ledgerId = createLedgerId(attemptRunId, fingerprint, batch.batchIndex, audit.attempt);
           await appendAiLedgerEntry(options.stateDir, {
             schema_version: 3,
             provider_mode: providerMode,
             paid_plan_sha256: approvedPlan?.plan_sha256 ?? null,
             ledger_id: ledgerId,
-            run_id: runId,
+            run_id: attemptRunId,
             unit_id: unit.unit_id,
             fingerprint,
             prompt_version: EXTRACTION_PROMPT_VERSION,
             model,
+            provider_model: audit.result?.providerModel ?? safeProviderModel(audit.error),
             batch_index: batch.batchIndex,
             attempt: audit.attempt,
             request_hash: audit.requestHash,
@@ -4416,6 +5035,7 @@ async function extractManifestUnlocked(
             latency_ms: Math.max(0, audit.latencyMs),
             success: audit.result !== null,
             error_category: audit.result ? null : safeErrorCategory(audit.error),
+            error_detail: audit.result ? null : safeProviderValidationErrorDetail(audit.error),
             ...safeOwnershipAudit(audit.error),
             attempted_at: new Date().toISOString(),
           });
@@ -4423,10 +5043,10 @@ async function extractManifestUnlocked(
         }, paidCallCostFence, (attemptRequest) => extractionRequestHash(attemptRequest, {
           scannerParserVersion: manifest.scanner_parser_version,
           converterVersion,
-        }), authorization === "fixed_eight"
+        }), productionPaid
           ? (initialRequest) => staticValidationRetryRequest(initialRequest)
           : repairRequestForInvalidResponse,
-        authorization === "fixed_eight" ? {
+        productionPaid ? {
           begin: async ({ attempt, requestHash, reservation }) => {
             if (!approvedPlan || !approvedPlanUnit) {
               throw new Error("paid_plan_not_in_scope_before_provider_call");
@@ -4448,7 +5068,7 @@ async function extractManifestUnlocked(
               options.stateDir,
               approvedPlan.payload.execution_domain,
               {
-                runId,
+                runId: attemptRunId,
                 unitId: unit.unit_id,
                 extractionFingerprint: fingerprint,
                 batchIndex: batch.batchIndex,
@@ -4463,7 +5083,7 @@ async function extractManifestUnlocked(
               },
             );
             return beginPaidCallIntent(options.stateDir, {
-              runId,
+              runId: attemptRunId,
               unitId: unit.unit_id,
               extractionFingerprint: fingerprint,
               batchIndex: batch.batchIndex,
@@ -4474,7 +5094,8 @@ async function extractManifestUnlocked(
               reservedCostUsd: reservation.maximumCostUsd,
             });
           },
-        } : undefined);
+          settleFailed: (intent) => reconcileFailedPaidCallIntent(options.stateDir, intent),
+        } : undefined, conservativeResume);
         const checkpointCandidate = {
           schema_version: 3 as const,
           provider_mode: providerMode,
@@ -4617,7 +5238,7 @@ async function extractManifestUnlocked(
         await saveManifest(manifest);
         throw error;
       }
-      if (authorization === "fixed_eight") {
+      if (productionPaid) {
         // An ambiguous provider outcome or any failure between a paid response
         // and its durable checkpoint leaves an intent behind. Never continue
         // to another paid unit until a human reconciles that request.
@@ -4639,16 +5260,10 @@ export async function extractManifest(
   }
   const releaseLock = await acquireExtractionLock(options.stateDir);
   try {
-    const manifest = await extractManifestUnlocked(options, dependencies);
-    const byId = new Map(manifest.units.map((unit) => [unit.unit_id, unit]));
-    const incompleteUnitIds = FIXED_EIGHT_ORDERED_UNIT_IDS.filter((unitId) => {
-      const unit = byId.get(unitId);
-      return !unit || unit.stage !== "extracted" || !unit.extraction;
-    });
-    if (incompleteUnitIds.length > 0) {
-      throw new Error(`fixed_eight_extraction_incomplete:${incompleteUnitIds.join(",")}`);
-    }
-    return manifest;
+    // Unit failures remain explicit in the manifest so the 25-unit
+    // orchestrator can measure the batch failure ratio and continue/stop by
+    // policy instead of hiding the remaining successfully processed units.
+    return await extractManifestUnlocked(options, dependencies);
   } finally {
     await releaseLock();
   }
@@ -4763,12 +5378,27 @@ export async function extractFixedEightWithScriptedProviderForTests(
     );
   }
   const failFirstInvalidResponses = scenario.failFirstInvalidResponses ?? 0;
+  const failFirstAmbiguousTimeouts = scenario.failFirstAmbiguousTimeouts ?? 0;
+  const failProvider5xxOnCalls = new Set(scenario.failProvider5xxOnCalls ?? []);
   if (
     !Number.isSafeInteger(failFirstInvalidResponses)
     || failFirstInvalidResponses < 0
     || failFirstInvalidResponses >= MAX_EXTRACTION_ATTEMPTS
   ) {
     throw new Error("fixed_eight_scripted_provider_failure_count_invalid");
+  }
+  if (
+    !Number.isSafeInteger(failFirstAmbiguousTimeouts)
+    || failFirstAmbiguousTimeouts < 0
+    || failFirstAmbiguousTimeouts >= MAX_EXTRACTION_ATTEMPTS
+  ) {
+    throw new Error("fixed_eight_scripted_provider_timeout_count_invalid");
+  }
+  if (
+    failProvider5xxOnCalls.size !== (scenario.failProvider5xxOnCalls?.length ?? 0)
+    || [...failProvider5xxOnCalls].some((call) => !Number.isSafeInteger(call) || call < 1 || call > 256)
+  ) {
+    throw new Error("fixed_eight_scripted_provider_5xx_calls_invalid");
   }
   const requestIdPrefix = scenario.requestIdPrefix ?? "fixed-eight-scripted";
   if (!/^[A-Za-z0-9._:-]{1,80}$/u.test(requestIdPrefix)) {
@@ -4791,6 +5421,9 @@ export async function extractFixedEightWithScriptedProviderForTests(
       providerCalls += 1;
       observedRepairs.push(request.repair);
       const requestId = `${requestIdPrefix}-${providerCalls}`;
+      if (providerCalls <= failFirstAmbiguousTimeouts) {
+        throw new Error("Request timed out.");
+      }
       if (providerCalls <= failFirstInvalidResponses) {
         throw new ExtractionProviderResponseError(
           "scripted_invalid_response_for_fixed_eight_test",
@@ -4803,6 +5436,9 @@ export async function extractFixedEightWithScriptedProviderForTests(
             requestId,
           },
         );
+      }
+      if (failProvider5xxOnCalls.has(providerCalls)) {
+        throw Object.assign(new Error("503 upstream connection termination"), { status: 503 });
       }
       const data = responsesByCanonicalName.get(request.canonicalName);
       if (!data) {
@@ -4837,7 +5473,7 @@ export async function extractFixedEightWithScriptedProviderForTests(
           authorityRoot: dependencies.paidExecutionDomainAuthorityRoot,
         }),
       },
-      "fixed_eight",
+      "fixed_eight_scripted",
     );
     return { manifest, providerCalls, observedRepairs };
   } finally {

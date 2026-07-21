@@ -6,18 +6,23 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  assertPaidExtractionBatchPlanApprovalMatches,
   assertFixedEightPaidExtractionPlanApprovalMatches,
   assertPaidExtractionAttemptRequestAuthorized,
   assertPaidExtractionAttemptReservationAuthorized,
   assertPaidExtractionPlannedRequestHashes,
+  createPaidExtractionBatchPlanApproval,
   createFixedEightPaidExtractionPlanApproval,
   fixedEightPaidExtractionPlanPath,
   MAX_FIXED_EIGHT_APPROVED_COST_USD,
   PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
   PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
   readFixedEightPaidExtractionPlanApproval,
+  readPaidExtractionPlanApproval,
+  validatePaidExtractionBatchPlanApproval,
   validateFixedEightPaidExtractionPlanApproval,
   writeFixedEightPaidExtractionPlanApproval,
+  writePaidExtractionBatchPlanApproval,
   type CreatePaidExtractionPlanApprovalInput,
 } from "../paid-extraction-plan.js";
 import { canonicalSha256 } from "../gate-integrity.js";
@@ -97,6 +102,42 @@ function validInput(): CreatePaidExtractionPlanApprovalInput {
   };
 }
 
+function selectedBatchInput(unitCount: number): CreatePaidExtractionPlanApprovalInput {
+  const input = validInput();
+  const template = input.units[0]!;
+  input.authorizedCostCeilingUsd = 20;
+  input.units = Array.from({ length: unitCount }, (_, index) => {
+    const requestHashes = template.requestHashes.map((_, requestIndex) =>
+      hash(`selected:${index}:request:${requestIndex}`));
+    const unit = structuredClone(template);
+    unit.unitId = hash(`selected:${index}:unit`);
+    unit.extractionFingerprint = hash(`selected:${index}:extraction`);
+    unit.sourceFingerprint = hash(`selected:${index}:source`);
+    unit.artifactFingerprint = hash(`selected:${index}:artifact`);
+    unit.requestHashes = requestHashes;
+    unit.authorizedRequestReservationsByBatch = requestHashes.map((requestHash) => [{
+      requestHash,
+      maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+      maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+    }]);
+    unit.plannedRequestEstimates = requestHashes.map((requestHash, requestIndex) => ({
+      requestHash,
+      estimatedInputTokens: 100 + index + requestIndex,
+      estimatedOutputTokens: 50 + index + requestIndex,
+    }));
+    unit.estimatedInputTokens = unit.plannedRequestEstimates.reduce(
+      (sum, request) => sum + request.estimatedInputTokens,
+      0,
+    );
+    unit.estimatedOutputTokens = unit.plannedRequestEstimates.reduce(
+      (sum, request) => sum + request.estimatedOutputTokens,
+      0,
+    );
+    return unit;
+  });
+  return input;
+}
+
 test("fixed-eight paid approval deterministically binds source, model, requests, and token-derived cost", () => {
   const input = validInput();
   const first = createFixedEightPaidExtractionPlanApproval(input);
@@ -122,6 +163,105 @@ test("fixed-eight paid approval deterministically binds source, model, requests,
   assert.equal(first.payload.cost.approval_policy, "sequential_runtime_fence_v1");
   assert.ok(first.payload.cost.estimated_cost_usd < first.payload.cost.authorized_ceiling_usd);
   assert.doesNotMatch(JSON.stringify(first), /OPENAI_API_KEY|source_path/iu);
+});
+
+test("caller-selected paid batch approval binds the exact ordered 1..25 unit selection", () => {
+  const input = validInput();
+  input.units = [input.units[3]!, input.units[1]!, input.units[6]!];
+
+  const approval = createPaidExtractionBatchPlanApproval(input);
+
+  assert.equal(approval.schema_version, 5);
+  assert.equal(approval.kind, "paid_extraction_batch_plan_approval");
+  assert.deepEqual(
+    approval.payload.ordered_unit_ids,
+    input.units.map((unit) => unit.unitId),
+  );
+  assert.deepEqual(
+    approval.payload.units.map((unit) => unit.unit_id),
+    input.units.map((unit) => unit.unitId),
+  );
+  assert.equal(approval.plan_sha256, canonicalSha256({
+    schema_version: approval.schema_version,
+    kind: approval.kind,
+    payload: approval.payload,
+  }));
+});
+
+test("caller-selected paid batch accepts 25 units and rejects empty, oversized, or reordered payloads", () => {
+  const approval = createPaidExtractionBatchPlanApproval(selectedBatchInput(25));
+  assert.equal(approval.payload.units.length, 25);
+
+  assert.throws(
+    () => createPaidExtractionBatchPlanApproval(selectedBatchInput(0)),
+    /too_small|at least 1|Array must contain/iu,
+  );
+  assert.throws(
+    () => createPaidExtractionBatchPlanApproval(selectedBatchInput(26)),
+    /too_big|at most 25|Array must contain/iu,
+  );
+
+  const reordered = structuredClone(approval);
+  [reordered.payload.ordered_unit_ids[0], reordered.payload.ordered_unit_ids[1]] = [
+    reordered.payload.ordered_unit_ids[1]!,
+    reordered.payload.ordered_unit_ids[0]!,
+  ];
+  reordered.plan_sha256 = canonicalSha256(reordered.payload);
+  assert.throws(
+    () => validatePaidExtractionBatchPlanApproval(reordered),
+    /caller-selected order/u,
+  );
+});
+
+test("caller-selected paid batch supports a bounded 256 request chunks per unit", () => {
+  const input = selectedBatchInput(1);
+  const unit = input.units[0]!;
+  const requestHashes = Array.from({ length: 256 }, (_, index) =>
+    hash(`large-unit:request:${index}`));
+  unit.requestHashes = requestHashes;
+  unit.authorizedRequestReservationsByBatch = requestHashes.map((requestHash) => [{
+    requestHash,
+    maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+    maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+  }]);
+  unit.plannedRequestEstimates = requestHashes.map((requestHash) => ({
+    requestHash,
+    estimatedInputTokens: 1,
+    estimatedOutputTokens: 1,
+  }));
+  unit.estimatedInputTokens = requestHashes.length;
+  unit.estimatedOutputTokens = requestHashes.length;
+  unit.maximumInputTokens = requestHashes.length
+    * PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND
+    * 4;
+  unit.maximumOutputTokens = requestHashes.length
+    * PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP
+    * 4;
+
+  assert.equal(
+    createPaidExtractionBatchPlanApproval(input).payload.units[0]!.request_count,
+    256,
+  );
+
+  unit.requestHashes.push(hash("large-unit:request:256"));
+  unit.authorizedRequestReservationsByBatch.push([{
+    requestHash: unit.requestHashes[256]!,
+    maximumInputTokens: PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND,
+    maximumOutputTokens: PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP,
+  }]);
+  unit.plannedRequestEstimates.push({
+    requestHash: unit.requestHashes[256]!,
+    estimatedInputTokens: 1,
+    estimatedOutputTokens: 1,
+  });
+  unit.estimatedInputTokens += 1;
+  unit.estimatedOutputTokens += 1;
+  unit.maximumInputTokens += PAID_EXTRACTION_PROVIDER_INPUT_TOKEN_BOUND * 4;
+  unit.maximumOutputTokens += PAID_EXTRACTION_PROVIDER_OUTPUT_TOKEN_CAP * 4;
+  assert.throws(
+    () => createPaidExtractionBatchPlanApproval(input),
+    /too_big|at most 256|Array must contain/iu,
+  );
 });
 
 test("approval creation rejects selection drift, estimates above the ceiling, and a single unaffordable attempt", () => {
@@ -361,6 +501,39 @@ test("planned and attempted request hashes fail closed outside the exact per-bat
   );
 });
 
+test("request and reservation authorization helpers accept a generic batch plan", () => {
+  const input = selectedBatchInput(2);
+  const approval = createPaidExtractionBatchPlanApproval(input);
+  const unit = approval.payload.units[1]!;
+  const reservation = unit.authorized_request_reservations_by_batch[0]![0]!;
+
+  assert.equal(
+    assertPaidExtractionPlannedRequestHashes(
+      approval,
+      unit.unit_id,
+      unit.request_hashes,
+    ).unit_id,
+    unit.unit_id,
+  );
+  assert.doesNotThrow(() => assertPaidExtractionAttemptRequestAuthorized(
+    approval,
+    unit.unit_id,
+    0,
+    reservation.request_hash,
+  ));
+  assert.doesNotThrow(() => assertPaidExtractionAttemptReservationAuthorized(
+    approval,
+    unit.unit_id,
+    0,
+    reservation.request_hash,
+    {
+      maximumInputTokens: reservation.maximum_input_tokens,
+      maximumOutputTokens: reservation.maximum_output_tokens,
+      maximumCostUsd: reservation.maximum_cost_usd,
+    },
+  ));
+});
+
 test("approval publication is content-addressed, exact-hash read-only, and idempotent only for exact bytes", async (t) => {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-plan-"));
   t.after(async () => rm(stateDir, { recursive: true, force: true }));
@@ -386,6 +559,46 @@ test("approval publication is content-addressed, exact-hash read-only, and idemp
   await assert.rejects(
     readFixedEightPaidExtractionPlanApproval(stateDir, approval.plan_sha256),
     /SHA-256/u,
+  );
+});
+
+test("generic batch publication is content-addressed and the shared reader preserves fixed-eight compatibility", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-batch-plan-"));
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+  const input = selectedBatchInput(3);
+  const approval = createPaidExtractionBatchPlanApproval(input);
+
+  await writePaidExtractionBatchPlanApproval(stateDir, approval);
+  assert.deepEqual(
+    await readPaidExtractionPlanApproval(stateDir, approval.plan_sha256),
+    approval,
+  );
+  assert.deepEqual(
+    assertPaidExtractionBatchPlanApprovalMatches(approval, input, approval.plan_sha256),
+    approval,
+  );
+
+  const fixed = createFixedEightPaidExtractionPlanApproval(validInput());
+  await writeFixedEightPaidExtractionPlanApproval(stateDir, fixed);
+  assert.deepEqual(
+    await readPaidExtractionPlanApproval(stateDir, fixed.plan_sha256),
+    fixed,
+  );
+});
+
+test("generic and historical envelopes cannot collide when their payloads are otherwise identical", async (t) => {
+  const stateDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-paid-plan-domain-separation-"));
+  t.after(async () => rm(stateDir, { recursive: true, force: true }));
+  const input = validInput();
+  const fixed = createFixedEightPaidExtractionPlanApproval(input);
+  const generic = createPaidExtractionBatchPlanApproval(input);
+
+  assert.notEqual(generic.plan_sha256, fixed.plan_sha256);
+  await writeFixedEightPaidExtractionPlanApproval(stateDir, fixed);
+  await writePaidExtractionBatchPlanApproval(stateDir, generic);
+  assert.deepEqual(
+    await readPaidExtractionPlanApproval(stateDir, generic.plan_sha256),
+    generic,
   );
 });
 
