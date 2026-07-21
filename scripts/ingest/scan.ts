@@ -24,7 +24,7 @@ import {
 const DEFAULT_AGENCY_DIRECTORY = "결혼준비대행서비스";
 const DEFAULT_HALL_DIRECTORY = "예식장";
 const supportedExtensions = new Set<string>(SUPPORTED_SOURCE_EXTENSIONS);
-export const SCANNER_PARSER_VERSION = "v3-vendor-identity-dedup";
+export const SCANNER_PARSER_VERSION = "v4-convertible-content-duplicates";
 export const DUPLICATE_SOURCE_NOTICE_PREFIX = "duplicate_source_content:";
 
 function deterministicTextCompare(left: string, right: string): number {
@@ -339,7 +339,7 @@ async function scanKindRoot(
   return units;
 }
 
-function blockDuplicateCompleteSourceSets(units: ManifestUnit[]): void {
+function markDuplicateCompleteSourceSets(units: ManifestUnit[]): void {
   const unitsByContentSet = new Map<string, ManifestUnit[]>();
   for (const unit of units) {
     const contentSet = unit.source_files
@@ -356,9 +356,8 @@ function blockDuplicateCompleteSourceSets(units: ManifestUnit[]): void {
     const matchingUnitIds = matchingUnits
       .map((unit) => unit.unit_id)
       .sort(deterministicTextCompare);
-    const notice = `${DUPLICATE_SOURCE_NOTICE_PREFIX} identical complete source set across unit_ids=${matchingUnitIds.join(",")}; immutable paths retained and automatic merge/load blocked pending manual resolution.`;
+    const notice = `${DUPLICATE_SOURCE_NOTICE_PREFIX} identical complete source set across unit_ids=${matchingUnitIds.join(",")}; immutable paths retained and automatic merge/approval excluded pending manual resolution.`;
     for (const unit of matchingUnits) {
-      unit.stage = "error";
       unit.notices = Array.from(new Set([...unit.notices, notice]));
     }
   }
@@ -400,7 +399,7 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
     ...(await scanKindRoot(rootDir, agencyRoot, "agency")),
     ...(await scanKindRoot(rootDir, hallRoot, "hall")),
   ].sort((left, right) => left.display_name.localeCompare(right.display_name, "ko"));
-  blockDuplicateCompleteSourceSets(scannedUnits);
+  markDuplicateCompleteSourceSets(scannedUnits);
   if (scannedUnits.length === 0) {
     throw new Error("No supported source files were found. Check the raw root and its agency/hall directories.");
   }
@@ -421,12 +420,15 @@ export async function scanSources(options: ScanOptions): Promise<IngestManifest>
   const existingById = new Map(existingManifest?.units.map((unit) => [unit.unit_id, unit]));
   const units = scannedUnits.map((unit) => {
     const previous = existingById.get(unit.unit_id);
-    const previousDuplicateBlock = previous?.notices.some(
+    const previousDuplicateNotice = previous?.notices.find(
       (notice) => notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX),
-    ) ?? false;
+    );
+    const currentDuplicateNotice = unit.notices.find(
+      (notice) => notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX),
+    );
     if (
       unit.stage === "error"
-      || previousDuplicateBlock
+      || previousDuplicateNotice !== currentDuplicateNotice
       || !mayReuseDownstream
       || !previous
       || previous.source_fingerprint !== unit.source_fingerprint

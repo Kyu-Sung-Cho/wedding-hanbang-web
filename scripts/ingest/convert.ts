@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
@@ -10,11 +11,10 @@ import * as XLSX from "xlsx";
 
 import { sha256File, sha256Text, writeJsonFile } from "./io.js";
 import { loadManifest, saveManifest } from "./manifest.js";
-import { DUPLICATE_SOURCE_NOTICE_PREFIX } from "./scan.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
 import { encodeXlsxSheetName } from "./xlsx-aux-evidence.js";
 
-export const CONVERTER_VERSION = "v6-complete-xlsx-drawing-formula-evidence";
+export const CONVERTER_VERSION = "v8-xlsx-emf-notice-reconcile";
 export const CONVERSION_FAILURE_IDENTITY_NOTICE_PREFIX = "convert_failure_identity:";
 const CONVERSION_CACHE_CLEANUP_BLOCKED_NOTICE_PREFIX = "convert_cache_cleanup_blocked:";
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/u;
@@ -30,6 +30,11 @@ const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 const MAX_XLSX_MEDIA_COUNT = 100;
 const MAX_XLSX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_XLSX_MEDIA_TOTAL_BYTES = 50 * 1024 * 1024;
+const MAX_XLSX_EMF_PNG_BYTES = 20 * 1024 * 1024;
+const MAX_XLSX_EMF_DIMENSION = 8_192;
+const MAX_XLSX_EMF_PIXELS = 40_000_000;
+const MAX_XLSX_EMF_RASTER_PROCESS_MS = 30_000;
+const MAX_XLSX_EMF_RASTER_STDERR_BYTES = 8 * 1024;
 const MAX_XLSX_DRAWING_PARTS = 1_000;
 const MAX_XLSX_DRAWING_TEXT_NODES = 10_000;
 const MAX_XLSX_FORMULA_COUNT = 10_000;
@@ -135,6 +140,7 @@ function clearPriorConversionFailureNotices(unit: ManifestUnit): void {
   unit.notices = unit.notices.filter((notice) =>
     !notice.startsWith(CONVERSION_FAILURE_IDENTITY_NOTICE_PREFIX)
     && !notice.startsWith("convert 실패")
+    && !notice.startsWith(PDF_RASTER_GUIDANCE)
     && notice !== OFFICE_MEDIA_FORMAT_GUIDANCE,
   );
 }
@@ -160,7 +166,9 @@ function recordConversionFailure(
 }
 
 function assertSupportedOfficeMedia(name: string, format: "docx" | "xlsx"): void {
-  if (!/\.(?:png|jpe?g|webp|gif)$/iu.test(name)) {
+  const supported = /\.(?:png|jpe?g|webp|gif)$/iu.test(name)
+    || (format === "xlsx" && /\.emf$/iu.test(name));
+  if (!supported) {
     throw new IngestConversionLimitError(`${format}_media_format_unsupported`);
   }
 }
@@ -189,7 +197,13 @@ export interface ConvertOptions {
 export interface ConvertDependencies {
   extractPdfText?: (sourcePath: string) => Promise<string>;
   rasterizePdf?: (sourcePath: string, outputDirectory: string) => Promise<string[]>;
+  rasterizeXlsxEmf?: XlsxEmfRasterizer;
 }
+
+export type XlsxEmfRasterizer = (
+  content: Buffer,
+  scratchDirectory: string,
+) => Promise<Buffer>;
 
 export class PdfRasterizerUnavailableError extends Error {
   constructor(message = PDF_RASTER_GUIDANCE) {
@@ -1406,10 +1420,194 @@ function serializeXlsxFormulaEvidence(record: XlsxFormulaRecord): string {
   return `${locator}: expression=${escapeMarkdownCell(record.expression)}${formulaFlags} | cached_value_locator=${cachedValueLocator} | evaluation=not_executed`;
 }
 
+function validateXlsxEmfPng(content: Buffer): void {
+  if (content.byteLength > MAX_XLSX_EMF_PNG_BYTES) {
+    throw new IngestConversionLimitError("xlsx_emf_png_output_limit");
+  }
+  if (
+    content.byteLength < 24
+    || !content.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    || content.readUInt32BE(8) !== 13
+    || content.subarray(12, 16).toString("ascii") !== "IHDR"
+  ) {
+    throw new IngestConversionLimitError("xlsx_emf_png_signature_invalid");
+  }
+  const width = content.readUInt32BE(16);
+  const height = content.readUInt32BE(20);
+  if (
+    width < 1
+    || height < 1
+    || width > MAX_XLSX_EMF_DIMENSION
+    || height > MAX_XLSX_EMF_DIMENSION
+  ) {
+    throw new IngestConversionLimitError("xlsx_emf_png_dimension_limit");
+  }
+  if (width * height > MAX_XLSX_EMF_PIXELS) {
+    throw new IngestConversionLimitError("xlsx_emf_png_pixel_limit");
+  }
+}
+
+const SYSTEM_DRAWING_EMF_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+$inputPath = $env:HANBANG_EMF_INPUT
+$outputPath = $env:HANBANG_EMF_OUTPUT
+if ([string]::IsNullOrWhiteSpace($inputPath) -or [string]::IsNullOrWhiteSpace($outputPath)) {
+  throw 'missing bounded EMF paths'
+}
+$image = [System.Drawing.Image]::FromFile($inputPath)
+try {
+  $width = [int]$image.Width
+  $height = [int]$image.Height
+  if ($width -lt 1 -or $height -lt 1 -or $width -gt 8192 -or $height -gt 8192) {
+    throw 'EMF dimensions exceed bounds'
+  }
+  if (([int64]$width * [int64]$height) -gt 40000000) {
+    throw 'EMF pixel count exceeds bounds'
+  }
+  $bitmap = [System.Drawing.Bitmap]::new(
+    $width,
+    $height,
+    [System.Drawing.Imaging.PixelFormat]::Format32bppArgb
+  )
+  try {
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+      $graphics.Clear([System.Drawing.Color]::Transparent)
+      $graphics.DrawImage($image, 0, 0, $width, $height)
+      $bitmap.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+      $graphics.Dispose()
+    }
+  } finally {
+    $bitmap.Dispose()
+  }
+} finally {
+  $image.Dispose()
+}
+`;
+
+function xlsxEmfTemporaryRoot(scratchDirectory: string): string {
+  let cursor = path.dirname(path.resolve(scratchDirectory));
+  while (path.dirname(cursor) !== cursor) {
+    if (path.basename(cursor) === ".converted") {
+      return path.join(cursor, ".emf-raster-tmp");
+    }
+    cursor = path.dirname(cursor);
+  }
+  return scratchDirectory;
+}
+
+async function rasterizeXlsxEmfWithSystemDrawing(
+  content: Buffer,
+  scratchDirectory: string,
+): Promise<Buffer> {
+  if (process.platform !== "win32") {
+    throw new IngestConversionLimitError("xlsx_emf_rasterizer_platform_unsupported");
+  }
+  const systemRoot = process.env.SystemRoot?.trim() || process.env.WINDIR?.trim();
+  if (!systemRoot || !path.win32.isAbsolute(systemRoot)) {
+    throw new IngestConversionLimitError("xlsx_emf_rasterizer_system_root_invalid");
+  }
+  const executable = path.win32.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  const temporaryRoot = xlsxEmfTemporaryRoot(scratchDirectory);
+  await mkdir(temporaryRoot, { recursive: true });
+  const temporaryDirectory = await mkdtemp(path.join(temporaryRoot, "emf-"));
+  const inputPath = path.join(temporaryDirectory, "source.emf");
+  const outputPath = path.join(temporaryDirectory, "raster.png");
+  await writeFile(inputPath, content);
+  try {
+    const result = await new Promise<{ exitCode: number | null; stderr: string; timedOut: boolean }>((resolve) => {
+      const child = spawn(executable, [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-EncodedCommand",
+        Buffer.from(SYSTEM_DRAWING_EMF_SCRIPT, "utf16le").toString("base64"),
+      ], {
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+        env: {
+          SystemRoot: systemRoot,
+          WINDIR: systemRoot,
+          TEMP: process.env.TEMP ?? temporaryDirectory,
+          TMP: process.env.TMP ?? temporaryDirectory,
+          HANBANG_EMF_INPUT: inputPath,
+          HANBANG_EMF_OUTPUT: outputPath,
+        },
+      });
+      const stderrChunks: Buffer[] = [];
+      let stderrBytes = 0;
+      let timedOut = false;
+      let settled = false;
+      let timer: NodeJS.Timeout | null = null;
+      let forcedSettleTimer: NodeJS.Timeout | null = null;
+      const finish = (exitCode: number | null, stderr = ""): void => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        if (forcedSettleTimer) clearTimeout(forcedSettleTimer);
+        resolve({
+          exitCode,
+          stderr: stderr || Buffer.concat(stderrChunks).toString("utf8"),
+          timedOut,
+        });
+      };
+      child.stderr.on("data", (chunk: Buffer | string) => {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        const remaining = MAX_XLSX_EMF_RASTER_STDERR_BYTES - stderrBytes;
+        if (remaining > 0) {
+          const kept = bytes.subarray(0, remaining);
+          stderrChunks.push(kept);
+          stderrBytes += kept.byteLength;
+        }
+      });
+      child.once("error", (error) => finish(
+        null,
+        error instanceof Error ? error.name : "spawn_error",
+      ));
+      child.once("close", (code) => finish(code));
+      timer = setTimeout(() => {
+        timedOut = true;
+        const signalled = child.kill("SIGKILL");
+        if (!signalled) {
+          finish(null);
+          return;
+        }
+        forcedSettleTimer = setTimeout(() => finish(null), 5_000);
+      }, MAX_XLSX_EMF_RASTER_PROCESS_MS);
+    });
+    if (result.timedOut) {
+      throw new IngestConversionLimitError("xlsx_emf_raster_process_timeout");
+    }
+    if (result.exitCode !== 0) {
+      throw new IngestConversionLimitError("xlsx_emf_raster_process_failed");
+    }
+    const outputMetadata = await stat(outputPath);
+    if (outputMetadata.size > MAX_XLSX_EMF_PNG_BYTES) {
+      throw new IngestConversionLimitError("xlsx_emf_png_output_limit");
+    }
+    const png = await readFile(outputPath);
+    validateXlsxEmfPng(png);
+    return png;
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
 async function extractXlsxMedia(
   sourcePath: string,
   outputDirectory: string,
   sourceIndex: number,
+  rasterizeEmf: XlsxEmfRasterizer,
 ): Promise<string[]> {
   const zip = await JSZip.loadAsync(await readFile(sourcePath));
   const mediaEntries = Object.values(zip.files).filter(
@@ -1427,7 +1625,6 @@ async function extractXlsxMedia(
   for (const entry of mediaEntries) {
     const fileName = path.posix.basename(entry.name);
     assertSupportedOfficeMedia(fileName, "xlsx");
-    const outputPath = path.join(mediaDirectory, fileName);
     const content = await entry.async("nodebuffer");
     if (content.byteLength > MAX_XLSX_MEDIA_BYTES) {
       throw new IngestConversionLimitError("xlsx_media_item_size_limit");
@@ -1436,7 +1633,16 @@ async function extractXlsxMedia(
     if (extractedBytes > MAX_XLSX_MEDIA_TOTAL_BYTES) {
       throw new IngestConversionLimitError("xlsx_media_total_size_limit");
     }
-    await writeFile(outputPath, content);
+    const isEmf = /\.emf$/iu.test(fileName);
+    const outputContent = isEmf
+      ? await rasterizeEmf(content, mediaDirectory)
+      : content;
+    if (isEmf) validateXlsxEmfPng(outputContent);
+    const outputName = isEmf
+      ? `${createHash("sha256").update(content).digest("hex")}.png`
+      : fileName;
+    const outputPath = path.join(mediaDirectory, outputName);
+    await writeFile(outputPath, outputContent);
     outputPaths.push(outputPath);
   }
   return outputPaths;
@@ -1446,6 +1652,7 @@ async function convertXlsx(
   sourcePath: string,
   outputDirectory: string,
   index: number,
+  rasterizeEmf: XlsxEmfRasterizer,
 ): Promise<XlsxConversion> {
   await assertXlsxArchiveLimits(sourcePath);
   const workbook = XLSX.readFile(sourcePath, { cellDates: true, cellText: true });
@@ -1482,6 +1689,7 @@ async function convertXlsx(
     sourcePath,
     outputDirectory,
     index,
+    rasterizeEmf,
   );
   return { textPath, textCharacters: completeMarkdown.length, cellCount, imagePaths };
 }
@@ -1765,19 +1973,6 @@ export async function convertManifest(
 
   for (const unit of manifest.units) {
     if (unit.parsed.region_code === "unknown") continue;
-    if (unit.notices.some((notice) => notice.startsWith(DUPLICATE_SOURCE_NOTICE_PREFIX))) {
-      // The scanner preserves both immutable paths but deliberately blocks
-      // byte-identical unit copies. Conversion must not turn that scan error
-      // back into an apparently healthy downstream state. Its deterministic,
-      // regenerable cache is invalid too; raw source paths are never cleanup
-      // targets.
-      await invalidateGeneratedConversionCache(options.stateDir, unit);
-      unit.stage = "error";
-      delete unit.conversion;
-      delete unit.extraction;
-      delete unit.validation;
-      continue;
-    }
     const hwpFiles = unit.source_files.filter((source) => source.ext === "hwp");
     const replacementPdfStems = new Set(
       unit.source_files.filter((source) => source.ext === "pdf").map((source) => sourceStemKey(source.path)),
@@ -1841,7 +2036,12 @@ export async function convertManifest(
       try {
         await assertSourceSizeLimit(source.absolute_path, source.bytes);
         if (source.ext === "xlsx") {
-          const converted = await convertXlsx(source.absolute_path, outputDirectory, index);
+          const converted = await convertXlsx(
+            source.absolute_path,
+            outputDirectory,
+            index,
+            dependencies.rasterizeXlsxEmf ?? rasterizeXlsxEmfWithSystemDrawing,
+          );
           textArtifacts.push(converted.textPath);
           imageArtifacts.push(...converted.imagePaths);
           textCharacters += converted.textCharacters;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -45,7 +46,7 @@ test("convert sends an HWP-only unit to the manual conversion queue", async (t) 
   assert.match(queue, /샘플전라웨딩\.hwp/u);
 });
 
-test("convert preserves a scanner duplicate-content block instead of laundering it", async (t) => {
+test("convert processes duplicate-content units while preserving their provenance notice", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-duplicate-convert-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -59,34 +60,28 @@ test("convert preserves a scanner duplicate-content block instead of laundering 
     writeFile(path.join(regionDir, "샘플홀 (1).pdf"), "%PDF identical fixture"),
   ]);
   const scanned = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
-  assert.ok(scanned.units.every((unit) => unit.stage === "error"));
-  const staleArtifacts = await Promise.all(scanned.units.map(async (unit) => {
-    const staleDirectory = path.join(
-      stateDir,
-      ".converted",
-      unit.unit_id,
-      unit.source_fingerprint,
-    );
-    const staleArtifact = path.join(staleDirectory, "1-sheets.txt");
-    await mkdir(staleDirectory, { recursive: true });
-    await writeFile(staleArtifact, "stale generated conversion");
-    return staleArtifact;
-  }));
+  assert.ok(scanned.units.every((unit) => unit.stage === "scanned"));
   let extractionCalls = 0;
 
   const converted = await convertManifest({ stateDir }, {
     extractPdfText: async () => {
       extractionCalls += 1;
-      return "should not run";
+      return "duplicate source evidence";
+    },
+    rasterizePdf: async (_sourcePath, outputDirectory) => {
+      await mkdir(outputDirectory, { recursive: true });
+      const outputPath = path.join(outputDirectory, "page-1.png");
+      await writeFile(outputPath, Buffer.from("generated-page"));
+      return [outputPath];
     },
   });
 
-  assert.equal(extractionCalls, 0);
-  assert.ok(converted.units.every((unit) => unit.stage === "error"));
-  assert.ok(converted.units.every((unit) => unit.conversion === undefined));
-  for (const staleArtifact of staleArtifacts) {
-    await assert.rejects(readFile(staleArtifact), /ENOENT/u);
-  }
+  assert.equal(extractionCalls, 2);
+  assert.ok(converted.units.every((unit) => unit.stage === "converted"));
+  assert.ok(converted.units.every((unit) => unit.conversion !== undefined));
+  assert.ok(converted.units.every((unit) => unit.notices.some(
+    (notice) => notice.startsWith("duplicate_source_content:"),
+  )));
   assert.equal(await readFile(path.join(regionDir, "샘플홀.pdf"), "utf8"), "%PDF identical fixture");
   assert.equal(await readFile(path.join(regionDir, "샘플홀 (1).pdf"), "utf8"), "%PDF identical fixture");
 });
@@ -412,8 +407,8 @@ test("convert fails closed for malformed or unsupported XLSX drawing text", asyn
   }
 });
 
-test("convert fails closed with remediation when XLSX contains unsupported embedded media", async (t) => {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-emf-"));
+test("convert fails closed with remediation when XLSX contains unsupported WMF media", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-wmf-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
     rm(rootDir, { recursive: true, force: true }),
@@ -430,7 +425,7 @@ test("convert fails closed with remediation when XLSX contains unsupported embed
   );
   XLSX.writeFile(workbook, sourcePath);
   const zip = await JSZip.loadAsync(await readFile(sourcePath));
-  zip.file("xl/media/image1.emf", Buffer.from("generated-emf-fixture"));
+  zip.file("xl/media/image1.wmf", Buffer.from("generated-wmf-fixture"));
   await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
   const originalSource = await readFile(sourcePath);
   await scanSources({ rootDir, stateDir });
@@ -491,6 +486,84 @@ test("convert fails closed with remediation when XLSX contains unsupported embed
   assert.equal(status.stale_by_stage.error, 0);
   await assert.rejects(readFile(staleCurrentArtifact), /ENOENT/u);
   assert.deepEqual(await readFile(sourcePath), originalSource);
+});
+
+test("convert rasterizes embedded XLSX EMF media to a validated content-addressed PNG", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-emf-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "hall", "seoul_gangnam3");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "generated-emf.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([["venue fee", "10,000,000"]]),
+    "prices",
+  );
+  XLSX.writeFile(workbook, sourcePath);
+  const emf = Buffer.from("generated-emf-fixture");
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file("xl/media/image1.emf", emf);
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  let rasterCalls = 0;
+
+  const result = await convertManifest({ stateDir }, {
+    rasterizeXlsxEmf: async (content) => {
+      rasterCalls += 1;
+      assert.deepEqual(content, emf);
+      return png;
+    },
+  });
+  const imageArtifacts = result.units[0].conversion?.image_artifacts ?? [];
+  const contentHash = createHash("sha256").update(emf).digest("hex");
+
+  assert.equal(rasterCalls, 1);
+  assert.equal(result.units[0].stage, "converted");
+  assert.equal(imageArtifacts.length, 1);
+  assert.equal(path.basename(imageArtifacts[0]), `${contentHash}.png`);
+  assert.deepEqual(await readFile(imageArtifacts[0]), png);
+});
+
+test("convert fails closed when an XLSX EMF rasterizer returns an oversized PNG canvas", async (t) => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-xlsx-emf-bounds-"));
+  const stateDir = `${rootDir}-state`;
+  t.after(async () => Promise.all([
+    rm(rootDir, { recursive: true, force: true }),
+    rm(stateDir, { recursive: true, force: true }),
+  ]));
+  const regionDir = path.join(rootDir, "hall", "seoul_gangnam3");
+  await mkdir(regionDir, { recursive: true });
+  const sourcePath = path.join(regionDir, "generated-emf-bounds.xlsx");
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["price", "100"]]), "prices");
+  XLSX.writeFile(workbook, sourcePath);
+  const zip = await JSZip.loadAsync(await readFile(sourcePath));
+  zip.file("xl/media/image1.emf", Buffer.from("generated-emf-fixture"));
+  await writeFile(sourcePath, await zip.generateAsync({ type: "nodebuffer" }));
+  await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
+  const oversizedCanvas = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(oversizedCanvas);
+  oversizedCanvas.writeUInt32BE(13, 8);
+  oversizedCanvas.write("IHDR", 12, "ascii");
+  oversizedCanvas.writeUInt32BE(8_193, 16);
+  oversizedCanvas.writeUInt32BE(1, 20);
+
+  const result = await convertManifest({ stateDir }, {
+    rasterizeXlsxEmf: async () => oversizedCanvas,
+  });
+
+  assert.equal(result.units[0].stage, "error");
+  assert.equal(result.units[0].conversion, undefined);
+  assert.match(result.units[0].notices.join("\n"), /xlsx_emf_png_dimension_limit/u);
 });
 
 test("convert keeps embedded XLSX media source-scoped when one unit has multiple workbooks", async (t) => {
@@ -940,6 +1013,7 @@ test("convert retries a previously manual PDF after the rasterizer becomes avail
   assert.equal(rasterAttempts, 2);
   assert.equal(second.units[0].stage, "converted");
   assert.equal(second.units[0].conversion?.image_artifacts.length, 1);
+  assert.doesNotMatch(second.units[0].notices.join("\n"), /Poppler/u);
 });
 
 test("convert blocks the whole vendor unit when an HWP has no same-stem replacement PDF", async (t) => {
@@ -958,6 +1032,7 @@ test("convert blocks the whole vendor unit when an HWP has no same-stem replacem
 
   assert.equal(result.units[0].stage, "needs_manual_conversion");
   assert.ok(result.units[0].conversion);
+  assert.match(result.units[0].notices.join("\n"), /HWP/u);
   const queue = await readFile(path.join(stateDir, ".converted", "needs-manual-conversion.json"), "utf8");
   assert.match(queue, /original\.hwp/u);
 });

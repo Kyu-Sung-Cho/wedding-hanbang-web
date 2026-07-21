@@ -448,7 +448,7 @@ test("scan removes a filesystem copy suffix without removing a meaningful branch
   assert.equal(manifest.units[0].parsed.normalized_name, "셀레네하우스웨딩천안청주점");
 });
 
-test("scan preserves but blocks units with an identical complete source-content set", async (t) => {
+test("scan preserves duplicate complete source sets as convertible units with a durable notice", async (t) => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "hanbang-ingest-identical-copy-"));
   const stateDir = `${rootDir}-state`;
   t.after(async () => Promise.all([
@@ -470,7 +470,7 @@ test("scan preserves but blocks units with an identical complete source-content 
   assert.equal(manifest.units.length, 2, "scanner must not destroy either immutable provenance path");
   assert.equal(new Set(manifest.units.map((unit) => unit.unit_id)).size, 2);
   for (const unit of manifest.units) {
-    assert.equal(unit.stage, "error");
+    assert.equal(unit.stage, "scanned");
     assert.match(unit.notices.join("\n"), /duplicate_source_content/u);
   }
 });
@@ -515,7 +515,7 @@ test("scan clears its duplicate block after the extra immutable path is removed"
     writeFile(copyPath, "same source"),
   ]);
   const blocked = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
-  assert.ok(blocked.units.every((unit) => unit.stage === "error"));
+  assert.ok(blocked.units.every((unit) => unit.stage === "scanned"));
 
   await rm(copyPath);
   const resolved = await scanSources({ rootDir, stateDir, agencyDir: "agency", hallDir: "hall" });
