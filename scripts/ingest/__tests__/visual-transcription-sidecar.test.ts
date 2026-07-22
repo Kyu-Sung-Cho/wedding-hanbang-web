@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { canonicalJsonSha256ExcludingField } from "../artifact-integrity.js";
+import {
+  ArtifactIntegrityError,
+  canonicalJsonSha256ExcludingField,
+} from "../artifact-integrity.js";
 import { CONVERTER_VERSION } from "../convert.js";
 import { sha256File, sha256Text, writeJsonFile } from "../io.js";
 import { loadValidated } from "../load.js";
@@ -676,7 +679,8 @@ test("the deterministic sidecar path cannot be redirected by a symlink", async (
       manifest: fixture.manifest,
       unitId: fixture.manifest.units[0]!.unit_id,
     }),
-    /artifact path must not contain a symbolic link/u,
+    (error: unknown) => error instanceof ArtifactIntegrityError
+      && error.code === "artifact_path_outside_state",
   );
 });
 
