@@ -1,0 +1,1499 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-21T18:06:11.200Z",
+  "base_ground_truth_sha256": "17a927f52d51774c9f3e149a3dba6fb3acfa0c5f79587d010089a00ac1988d75",
+  "decisions": [
+    {
+      "decision_id": "direct-non-money-counts-times-and-clauses",
+      "action": "exclude_non_money",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!D31",
+          "raw": "00~15",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!D31",
+          "raw": "10",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!D32",
+          "raw": "1",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!D35",
+          "raw": "1",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!D40",
+          "raw": "1",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A58",
+          "raw": "2",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "1",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "2",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "3",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "4",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "5",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!A59",
+          "raw": "6",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "메이크업!A21",
+          "raw": "187",
+          "ordinal": 1
+        }
+      ],
+      "reason": "원문 대조 결과 시간, 선택 수량, 조항 번호, 업체명 일부이며 금액이 아니다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-0a7e35c8-드레스-G6-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "드레스!G6",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "드레스!G6",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!G6: 투어 계약 후 (계약 후 기간과 상관없음) <br>계약서 작성 이후 계약 당일 ~ 가봉(셀렉) 또는 가봉스냅 이전 계약 취소 시 총 견적의 10% 위약금 <br>지정 계약 후 (계약 후 기간과 상관없음) <br>첫 방문 이전 계약 취소 시 예약금 30만원 환불 불가 <br>첫 방문 이후 계약 취소 시 예약금 30만원 환불 불가, 피팅비 5만5천원 발생 <br>촬영 가봉(셀렉)/가봉스냅 이후 계약 취소 시 촬영 진행 여부와 상관없이 결제된 금액 환불 불가 <br>촬영/가봉스냅 후 <br>본식 가봉(셀렉) 이전 계약 취소 시 결제된 금액 환불 불가 <br>본식 가봉(셀렉) 이후 계약 취소 시 본식 진행 여부와 상관없이 결제된 금액 환불 불가 <br>(애프터드레스 가봉(셀렉) 후 <br>확정 가봉 이전 애프터드레스 취소 시 애프터드레스 금액 환불 가능, 피팅비 5만5천원 발생  <br>확정 가봉 이후 애프터드레스 취소 시 결제된 금액 환불 불가",
+        "source_locator": "드레스!G6",
+        "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-0a7e35c8-드레스-G6-2",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "드레스!G6",
+          "raw": "5만",
+          "ordinal": 2
+        },
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "드레스!G6",
+          "raw": "5천원",
+          "ordinal": 2
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!G6: 투어 계약 후 (계약 후 기간과 상관없음) <br>계약서 작성 이후 계약 당일 ~ 가봉(셀렉) 또는 가봉스냅 이전 계약 취소 시 총 견적의 10% 위약금 <br>지정 계약 후 (계약 후 기간과 상관없음) <br>첫 방문 이전 계약 취소 시 예약금 30만원 환불 불가 <br>첫 방문 이후 계약 취소 시 예약금 30만원 환불 불가, 피팅비 5만5천원 발생 <br>촬영 가봉(셀렉)/가봉스냅 이후 계약 취소 시 촬영 진행 여부와 상관없이 결제된 금액 환불 불가 <br>촬영/가봉스냅 후 <br>본식 가봉(셀렉) 이전 계약 취소 시 결제된 금액 환불 불가 <br>본식 가봉(셀렉) 이후 계약 취소 시 본식 진행 여부와 상관없이 결제된 금액 환불 불가 <br>(애프터드레스 가봉(셀렉) 후 <br>확정 가봉 이전 애프터드레스 취소 시 애프터드레스 금액 환불 가능, 피팅비 5만5천원 발생  <br>확정 가봉 이후 애프터드레스 취소 시 결제된 금액 환불 불가",
+        "source_locator": "드레스!G6",
+        "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+        "ordinal": 2
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K71-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K71",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K71",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K71: 투어후 가봉전 22만원/ 가봉후 취소 33만원/ 일주일,당일취소 44만원<br>당일취소시 이모님 비용발생(촬영,예식 동일)<br>일주일 전 투어 취소 위약금 5만5천원<br>가봉당일 취소 위약금 5만5천원",
+        "source_locator": "드레스!K71",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K71-2",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K71",
+          "raw": "5만",
+          "ordinal": 2
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K71",
+          "raw": "5천원",
+          "ordinal": 2
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K71: 투어후 가봉전 22만원/ 가봉후 취소 33만원/ 일주일,당일취소 44만원<br>당일취소시 이모님 비용발생(촬영,예식 동일)<br>일주일 전 투어 취소 위약금 5만5천원<br>가봉당일 취소 위약금 5만5천원",
+        "source_locator": "드레스!K71",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K95-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K95",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K95",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K95: 투어취소: 일주일전 5만5천원 / 당일 20만원(25년3월25일 이전까지만 적용)<br>현장 계약 확정 후 당일 취소: 22만원<br>지정발주 일주질 후 취소: 11만원<br>투어발주 일주일 후 취소: 22만원<br>촬영 가봉 후 취소: 33만원<br>촬영 7일 이내 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 전 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 후 취소: 촬영상품가의 100%<br>본식만 진행시 본식 가봉 후 취소: 33만원<br>예식 7일 이내 취소: 상품가의 100%<br>애프터드레스 가봉 후 취소: 5만5천원<br>가봉스냅 7일 이내 취소: 렌탈비용 100%",
+        "source_locator": "드레스!K95",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K95-2",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K95",
+          "raw": "5만",
+          "ordinal": 2
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K95",
+          "raw": "5천원",
+          "ordinal": 2
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K95: 투어취소: 일주일전 5만5천원 / 당일 20만원(25년3월25일 이전까지만 적용)<br>현장 계약 확정 후 당일 취소: 22만원<br>지정발주 일주질 후 취소: 11만원<br>투어발주 일주일 후 취소: 22만원<br>촬영 가봉 후 취소: 33만원<br>촬영 7일 이내 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 전 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 후 취소: 촬영상품가의 100%<br>본식만 진행시 본식 가봉 후 취소: 33만원<br>예식 7일 이내 취소: 상품가의 100%<br>애프터드레스 가봉 후 취소: 5만5천원<br>가봉스냅 7일 이내 취소: 렌탈비용 100%",
+        "source_locator": "드레스!K95",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K125-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K125",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K125",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K125: 투어취소: 일주일전 5만5천원 / 당일 20만원(25년3월25일 이전까지만 적용)<br>현장 계약 확정 후 당일 취소: 22만원<br>지정발주 일주질 후 취소: 11만원<br>투어발주 일주일 후 취소: 22만원<br>촬영 가봉 후 취소: 33만원<br>촬영 7일 이내 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 전 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 후 취소: 촬영상품가의 100%<br>본식만 진행시 본식 가봉 후 취소: 33만원<br>예식 7일 이내 취소: 상품가의 100%<br>애프터드레스 가봉 후 취소: 5만5천원<br>가봉스냅 7일 이내 취소: 렌탈비용 100%",
+        "source_locator": "드레스!K125",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K125-2",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K125",
+          "raw": "5만",
+          "ordinal": 2
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K125",
+          "raw": "5천원",
+          "ordinal": 2
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K125: 투어취소: 일주일전 5만5천원 / 당일 20만원(25년3월25일 이전까지만 적용)<br>현장 계약 확정 후 당일 취소: 22만원<br>지정발주 일주질 후 취소: 11만원<br>투어발주 일주일 후 취소: 22만원<br>촬영 가봉 후 취소: 33만원<br>촬영 7일 이내 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 전 취소: 촬영상품가의 100%<br>촬영 후 본식 가봉 후 취소: 촬영상품가의 100%<br>본식만 진행시 본식 가봉 후 취소: 33만원<br>예식 7일 이내 취소: 상품가의 100%<br>애프터드레스 가봉 후 취소: 5만5천원<br>가봉스냅 7일 이내 취소: 렌탈비용 100%",
+        "source_locator": "드레스!K125",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K137-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K137",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K137",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K137: 본가/촬가 일주일 전부터 당일까지 변경 및 취소시 위약금 5만5천원<br>투어 일주일전부터 투어전날까지 변경 및 취소시 위약금 5만5천원<br>투어 당일 취소시 위약금 11만원",
+        "source_locator": "드레스!K137",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-드레스-K137-2",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K137",
+          "raw": "5만",
+          "ordinal": 2
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!K137",
+          "raw": "5천원",
+          "ordinal": 2
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K137: 본가/촬가 일주일 전부터 당일까지 변경 및 취소시 위약금 5만5천원<br>투어 일주일전부터 투어전날까지 변경 및 취소시 위약금 5만5천원<br>투어 당일 취소시 위약금 11만원",
+        "source_locator": "드레스!K137",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "merge-fb24bede-계약서-B18-1",
+      "action": "merge_components",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "계약서!B18",
+          "raw": "5만",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "계약서!B18",
+          "raw": "5천원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "계약서!B18: \\| 피팅비<br>피팅비 5만5천원<br><br>\\| 추가비<br>업그레이드 110만원 (더레이, 수입럭스, 퍼스트웨어)<br>컬러추가 55만원 / 화이트추가 77만원~<br><br>\\| 헬퍼비<br>헬퍼비용 25만원<br>5시 이후 촬영 스타트 5만원 / 5시간 인상 촬영 +5만원 / 스튜디오 야외이동 촬영 +5만원 / 강남외 지역 + 5만원                                                                          본식: 에프터 진행시 +5만원 / 폐백 진행시 +5만원",
+        "source_locator": "계약서!B18",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "한 원문 토큰 5만5천원을 5만원과 5천원으로 이중 분리한 기존 채점표를 55,000원 1건으로 병합한다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "blanc-makeup-d6-165k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "16.5만원",
+        "krw": 165000,
+        "line_context": "메이크업!D6: 사용료 16.5만원+보증금(현금/계좌입금)11만원<br>(3일 이내 피스 반납 시 보증금 환불)",
+        "source_locator": "메이크업!D6",
+        "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "blanc-makeup-d6-110k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "11만원",
+        "krw": 110000,
+        "line_context": "메이크업!D6: 사용료 16.5만원+보증금(현금/계좌입금)11만원<br>(3일 이내 피스 반납 시 보증금 환불)",
+        "source_locator": "메이크업!D6",
+        "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-1",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-2",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "11만원",
+        "krw": 110000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-3",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "22만원",
+        "krw": 220000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-4",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "55,000원",
+        "krw": 55000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-5",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "33만원",
+        "krw": 330000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-6",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "55만원",
+        "krw": 550000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K11-7",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K11: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K11",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-1",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-2",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "11만원",
+        "krw": 110000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-3",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "22만원",
+        "krw": 220000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-4",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "55,000원",
+        "krw": 55000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-5",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "33만원",
+        "krw": 330000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-6",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "55만원",
+        "krw": 550000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K17-7",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "5만5천원",
+        "krw": 55000,
+        "line_context": "드레스!K17: * 피팅비(투어) 5만5천원 / 재피팅비 11만원-재피팅시 홀딩드레스 풀림<br>＊투어 당일취소 22만원 / 일주일~ 전날 취소 55,000원<br>＊투어완료(일정예약) 발주 후 취소<br>->지정 예약 (전화예약) 발주후 취소 더화이트 33만원/ 시그니처 55만원<br>＊애프터드레스 가봉후 취소 5만5천원<br>＊촬영만/본식만 진행시 가봉 후 취소->촬영 가봉 후 취소 상품가의 50%<br>＊촬영 후 본식 가봉 전 취소 : 촬영상품가의 100%<br>＊본식 가봉 후 취소 : 상품가의 100%",
+        "source_locator": "드레스!K17",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-1",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "22만원",
+        "krw": 220000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-2",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "5.5만원",
+        "krw": 55000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-3",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "11만원",
+        "krw": 110000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-4",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "44만원",
+        "krw": 440000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-5",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "44만원",
+        "krw": 440000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 2
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-6",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "-11만원",
+        "krw": 110000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-7",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "176만원",
+        "krw": 1760000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-드레스-K29-8",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "165만원",
+        "krw": 1650000,
+        "line_context": "드레스!K29: 1. 투어 결정 후 취소 당일부터 22만원<br>2. 당일 투어 취소, 당일 스케줄 변경 5.5만원(기존과 동일)<br>3. 지정 가봉 예약 후 취소 11만원(기존과 동일)<br>4. 촬영 가봉 진행 후 촬영 전 취소 44만원<br>5. 본식만 진행시 본식 가봉 후 취소 44만원<br>6. 촬영 진행 후 본식 가봉 전 취소시 위약금 없이, 촬영만 진행한 업체가 금액<br>7. 촬영 진행 후 본식 가봉 후 취소시 전체 업체가 금액의 -11만원 제외 후 전액(예176만원 신부->165만원)<br>8. 촬영 진행 후 본식 가봉 후 본식날짜 기준 일주일 내 취소시 업체가 전액 발생",
+        "source_locator": "드레스!K29",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-terms-a35-deposit",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "50만원",
+        "krw": 500000,
+        "line_context": "약관!A35: 1) 계약금은 50만원이며, 당사의 계약서 상에 지정된 계좌로 입금하며 현금영수증 의무발행업체입니다.",
+        "source_locator": "약관!A35",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "변환된 원본 셀 전수 대조에서 확인된 기존 채점표 누락 금액이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-20T00:00:00.000Z"
+    },
+    {
+      "decision_id": "kate-snapshot-d90-unit-unknown",
+      "action": "add_missing",
+      "verification": "human_required",
+      "references": [],
+      "result": {
+        "raw": "10",
+        "krw": 100000,
+        "line_context": "본식 스냅!D90: 작가추가 +10",
+        "source_locator": "본식 스냅!D90",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "숫자는 보이지만 적용 단위 선언이 없어 사람이 원본 의미를 확정해야 한다."
+    },
+    {
+      "decision_id": "direct-source-typos",
+      "action": "quarantine_source_anomaly",
+      "verification": "human_required",
+      "references": [
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!E30",
+          "raw": "5.5천원",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+          "source_locator": "스튜디오!E40",
+          "raw": "16,500",
+          "ordinal": 1
+        }
+      ],
+      "reason": "원문 표기와 시트 단위/상품 문맥이 충돌하여 금액을 자동 확정할 수 없다."
+    },
+    {
+      "decision_id": "blanc-source-typos",
+      "action": "quarantine_source_anomaly",
+      "verification": "human_required",
+      "references": [
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "메이크업!B16",
+          "raw": "120원",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+          "source_locator": "메이크업!B18",
+          "raw": "110원",
+          "ordinal": 1
+        }
+      ],
+      "reason": "원문은 원 단위로 쓰였지만 주변 가격 문맥상 만원 오기 가능성이 있어 사람이 확인해야 한다."
+    },
+    {
+      "decision_id": "kate-source-typos",
+      "action": "quarantine_source_anomaly",
+      "verification": "human_required",
+      "references": [
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "드레스!B89",
+          "raw": "382,5만원",
+          "ordinal": 1
+        },
+        {
+          "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+          "source_locator": "메이크업!F23",
+          "raw": "330.000원",
+          "ordinal": 1
+        }
+      ],
+      "reason": "쉼표/마침표 표기가 비표준이고 문맥상 다른 금액일 가능성이 있어 사람이 확인해야 한다."
+    },
+    {
+      "decision_id": "v2-kate-snapshot-h70-500k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "50만원",
+        "krw": 500000,
+        "line_context": "본식 스냅!H70: 50만원",
+        "source_locator": "본식 스냅!H70",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-c12-1210k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩1,210,000",
+        "krw": 1210000,
+        "line_context": "계약서!C12: ₩1,210,000",
+        "source_locator": "계약서!C12",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-c14-1850k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩1,850,000",
+        "krw": 1850000,
+        "line_context": "계약서!C14: ₩1,850,000",
+        "source_locator": "계약서!C14",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-c16-1100k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩1,100,000",
+        "krw": 1100000,
+        "line_context": "계약서!C16: ₩1,100,000",
+        "source_locator": "계약서!C16",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-b20-4160k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩4,160,000",
+        "krw": 4160000,
+        "line_context": "계약서!B20: ₩4,160,000",
+        "source_locator": "계약서!B20",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-b24-500k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩500,000",
+        "krw": 500000,
+        "line_context": "계약서!B24: ₩500,000",
+        "source_locator": "계약서!B24",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-b25-2196k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩2,196,000",
+        "krw": 2196000,
+        "line_context": "계약서!B25: ₩2,196,000",
+        "source_locator": "계약서!B25",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-kate-contract-b26-1464k",
+      "action": "add_missing",
+      "verification": "verified",
+      "references": [],
+      "result": {
+        "raw": "₩1,464,000",
+        "krw": 1464000,
+        "line_context": "계약서!B26: ₩1,464,000",
+        "source_locator": "계약서!B26",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "현재 원본 변환물의 정확한 셀과 금액을 재대조해 확인한 기존 채점표 누락이다.",
+      "reviewed_by": "Codex source audit",
+      "reviewed_at": "2026-07-21T08:20:00.000Z"
+    },
+    {
+      "decision_id": "v2-direct-e40-current-scanner-quarantine",
+      "action": "add_missing",
+      "verification": "human_required",
+      "references": [],
+      "result": {
+        "raw": "16,500",
+        "krw": 16500,
+        "line_context": "스튜디오!E40: 16,500",
+        "source_locator": "스튜디오!E40",
+        "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+        "ordinal": 1
+      },
+      "reason": "명시 단위와 시트 단위가 충돌해 현재 스캐너 해석도 별도 감사 격리하며 구조화에는 사용하지 않는다."
+    },
+    {
+      "decision_id": "v2-kate-f23-current-scanner-quarantine",
+      "action": "add_missing",
+      "verification": "human_required",
+      "references": [],
+      "result": {
+        "raw": "330.000원",
+        "krw": 330000,
+        "line_context": "메이크업!F23: 330.000원",
+        "source_locator": "메이크업!F23",
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "ordinal": 1
+      },
+      "reason": "마침표 천 단위 표기가 비표준이며 기존 채점표 해석과 충돌해 현재 스캐너 해석도 감사 격리하고 구조화에는 사용하지 않는다."
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-1",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:51",
+          "raw": "99만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "99만원",
+        "krw": 990000,
+        "line_context": "table:1!C3: 20P 1권, 20R 액자 1개<br>99만원",
+        "source_locator": "table:1!C3",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-2",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:73",
+          "raw": "11만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "11만원",
+        "krw": 110000,
+        "line_context": "table:1!D3: 야간씬, 야외/로드씬, 한옥씬 등<br>옵션 추가비 별도<br>(11만원~22만원 업체별 상이)",
+        "source_locator": "table:1!D3",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-3",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:73",
+          "raw": "22만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "22만원",
+        "krw": 220000,
+        "line_context": "table:1!D3: 야간씬, 야외/로드씬, 한옥씬 등<br>옵션 추가비 별도<br>(11만원~22만원 업체별 상이)",
+        "source_locator": "table:1!D3",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-4",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:85",
+          "raw": "25만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "25만원",
+        "krw": 250000,
+        "line_context": "table:1!E3: 헬퍼비<br>( 25만원~<br>촬영시간에 따라 상이)",
+        "source_locator": "table:1!E3",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-5",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:95",
+          "raw": "110만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "110만원",
+        "krw": 1100000,
+        "line_context": "table:1!C4: 20P 1권, 20R 액자 1개<br>110만원",
+        "source_locator": "table:1!C4",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-6",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:107",
+          "raw": "121만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "121만원",
+        "krw": 1210000,
+        "line_context": "table:1!C5: 20P 1권, 20R 액자 1개<br>121만원",
+        "source_locator": "table:1!C5",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-7",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:115",
+          "raw": "3.3만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "3.3만원",
+        "krw": 33000,
+        "line_context": "table:1!E6: 사진 추가<br>선택 비용 별도<br>(컷당 3.3만원~<br>업체별 상이)",
+        "source_locator": "table:1!E6",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-8",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:125",
+          "raw": "121만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "121만원",
+        "krw": 1210000,
+        "line_context": "table:1!C7: 20P 1권, 20R 액자 1개<br>121만원",
+        "source_locator": "table:1!C7",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-9",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:137",
+          "raw": "121만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "121만원",
+        "krw": 1210000,
+        "line_context": "table:1!C8: 20P 1권, 20R 액자 1개<br>121만원",
+        "source_locator": "table:1!C8",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-10",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:153",
+          "raw": "132만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "132만원",
+        "krw": 1320000,
+        "line_context": "table:1!C10: 20P 1권, 20R 액자 1개<br>132만원",
+        "source_locator": "table:1!C10",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-11",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:169",
+          "raw": "165만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "165만원",
+        "krw": 1650000,
+        "line_context": "table:1!C11: 촬영: (  4  ) 벌<br>본식: (  1  ) 벌<br>피팅비 포함<br>165만원",
+        "source_locator": "table:1!C11",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-12",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:175",
+          "raw": "25만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "25만원",
+        "krw": 250000,
+        "line_context": "table:1!D11: 헬퍼비<br>(25만원~예식지역에 따라 상이)",
+        "source_locator": "table:1!D11",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-13",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:197",
+          "raw": "44만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "44만원",
+        "krw": 440000,
+        "line_context": "table:1!C12: 헤어&메이크업<br>( 1회:44만원 / 신랑포함 )<br>( 2회:77만원 / 신랑포함)",
+        "source_locator": "table:1!C12",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-14",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:199",
+          "raw": "77만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "77만원",
+        "krw": 770000,
+        "line_context": "table:1!C12: 헤어&메이크업<br>( 1회:44만원 / 신랑포함 )<br>( 2회:77만원 / 신랑포함)",
+        "source_locator": "table:1!C12",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-15",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:207",
+          "raw": "10만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "10만원",
+        "krw": 100000,
+        "line_context": "table:1!D12: 헤어피스 (10만원~길이별 상이)<br>혼주 메이크업 비용 (여성 22만원/ 남성 5.5만원)",
+        "source_locator": "table:1!D12",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-16",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:209",
+          "raw": "22만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "22만원",
+        "krw": 220000,
+        "line_context": "table:1!D12: 헤어피스 (10만원~길이별 상이)<br>혼주 메이크업 비용 (여성 22만원/ 남성 5.5만원)",
+        "source_locator": "table:1!D12",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    },
+    {
+      "decision_id": "docx2-locator-cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29-17",
+      "action": "replace_amount",
+      "verification": "verified",
+      "references": [
+        {
+          "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+          "source_locator": "line:209",
+          "raw": "5.5만원",
+          "ordinal": 1
+        }
+      ],
+      "result": {
+        "raw": "5.5만원",
+        "krw": 55000,
+        "line_context": "table:1!D12: 헤어피스 (10만원~길이별 상이)<br>혼주 메이크업 비용 (여성 22만원/ 남성 5.5만원)",
+        "source_locator": "table:1!D12",
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "ordinal": 1
+      },
+      "reason": "converter-authenticated DOCX v2 locator migration; source_fingerprint=6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "reviewed_by": "canonical-docx-locator-migration-v1",
+      "reviewed_at": "2026-07-21T18:06:11.200Z"
+    }
+  ]
+}

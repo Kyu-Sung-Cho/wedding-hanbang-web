@@ -29,19 +29,31 @@ import {
   type LocalTextEvidence,
 } from "./local-extract.js";
 import { loadManifest, saveManifest } from "./manifest.js";
-import { sourceFileId, sourceFilesForArtifact } from "./provenance.js";
+import {
+  prepareStructuredEvidenceText,
+  resolveArtifactSourceProvenance,
+  sourceFileId,
+  sourceFilesForArtifact,
+} from "./provenance.js";
 import {
   DisclosureExtractionSchema,
   LocalDeterministicExtractionArtifactSchema,
   type DisclosureExtraction,
   type LocalDeterministicExtractionArtifact,
+  type VisualTranscriptionExtractionBinding,
 } from "./schemas.js";
-import type { IngestManifest, ManifestUnit } from "./types.js";
+import type { IngestManifest, ManifestUnit, SourceFile } from "./types.js";
+import {
+  loadVisualTranscriptionSidecar,
+  visualTranscriptionBoundLocalExtractionFingerprint,
+  visualTranscriptionExtractionBinding,
+} from "./visual-transcription-sidecar.js";
 
 export interface LocalExtractOptions {
   stateDir: string;
   limit?: number;
   unitIds?: string[];
+  allowPaidReviewOnly?: boolean;
 }
 
 export interface LocalExtractionRunResult {
@@ -52,9 +64,12 @@ export interface LocalExtractionRunResult {
   failed_units: number;
 }
 
+const LOCAL_PROVENANCE_NOTICE_PREFIX = "local evidence review:";
+
 interface VerifiedLocalInputs {
   textEvidence: LocalTextEvidence[];
   conversionArtifacts: LocalDeterministicExtractionArtifact["conversion_artifacts"];
+  provenanceNotices: string[];
 }
 
 export interface VerifiedLocalReviewCandidate {
@@ -84,11 +99,11 @@ function localStratum(unit: ManifestUnit): number {
   return 5;
 }
 
-function isLocallyExtractable(unit: ManifestUnit): boolean {
+function isLocallyExtractable(unit: ManifestUnit, allowPaidReviewOnly = false): boolean {
   if (!unit.conversion || ["scanned", "needs_manual_conversion", "loaded"].includes(unit.stage)) {
     return false;
   }
-  if (unit.extraction) return false;
+  if (unit.extraction && !allowPaidReviewOnly) return false;
   if (unit.stage === "validated") {
     const local = unit.local_extraction;
     return Boolean(
@@ -106,15 +121,22 @@ function isLocallyExtractable(unit: ManifestUnit): boolean {
 
 export function selectLocalExtractionUnits(
   manifest: IngestManifest,
-  options: Pick<LocalExtractOptions, "limit" | "unitIds">,
+  options: Pick<LocalExtractOptions, "limit" | "unitIds" | "allowPaidReviewOnly">,
 ): ManifestUnit[] {
-  const eligible = manifest.units.filter(isLocallyExtractable);
+  if (options.allowPaidReviewOnly && !options.unitIds) {
+    throw new Error("allow_paid_review_only_requires_explicit_units");
+  }
+  const eligible = manifest.units.filter((unit) => (
+    isLocallyExtractable(unit, options.allowPaidReviewOnly === true)
+  ));
   if (options.unitIds) {
     const byId = new Map(manifest.units.map((unit) => [unit.unit_id, unit]));
     const unknown = options.unitIds.find((unitId) => !byId.has(unitId));
     if (unknown) throw new Error(`unknown_unit_id:${unknown}`);
     const selected = options.unitIds.map((unitId) => byId.get(unitId)!);
-    const blocked = selected.find((unit) => !isLocallyExtractable(unit));
+    const blocked = selected.find((unit) => (
+      !isLocallyExtractable(unit, options.allowPaidReviewOnly === true)
+    ));
     if (blocked) throw new Error(`local_unit_not_extractable:${blocked.unit_id}`);
     return selected;
   }
@@ -136,6 +158,60 @@ export function selectLocalExtractionUnits(
       if (selected.length === options.limit) break;
     }
     if (!madeProgress) break;
+  }
+  return selected;
+}
+
+async function hasVerifiedStaleVisualTranscriptionBinding(
+  unit: ManifestUnit,
+  manifest: IngestManifest,
+  stateDir: string,
+): Promise<boolean> {
+  const local = unit.local_extraction;
+  if (
+    unit.stage !== "validated"
+    || unit.extraction
+    || !unit.conversion
+    || !local
+    || local.provider_mode !== LOCAL_DETERMINISTIC_PROVIDER_MODE
+    || local.model !== LOCAL_DETERMINISTIC_MODEL
+    || local.engine_version !== LOCAL_DETERMINISTIC_ENGINE_VERSION
+    || local.engine_hash !== LOCAL_DETERMINISTIC_ENGINE_HASH
+  ) {
+    return false;
+  }
+  await verifyLocalInputs(unit, manifest);
+  const sidecar = await loadVisualTranscriptionSidecar({
+    stateDir,
+    manifest,
+    unitId: unit.unit_id,
+  });
+  const currentBinding = sidecar
+    ? visualTranscriptionExtractionBinding(sidecar)
+    : null;
+  return !isDeepStrictEqual(
+    local.visual_transcription ?? null,
+    currentBinding,
+  );
+}
+
+async function selectLocalExtractionUnitsForRun(
+  manifest: IngestManifest,
+  options: LocalExtractOptions,
+): Promise<ManifestUnit[]> {
+  if (!options.unitIds) return selectLocalExtractionUnits(manifest, options);
+  const byId = new Map(manifest.units.map((unit) => [unit.unit_id, unit]));
+  const unknown = options.unitIds.find((unitId) => !byId.has(unitId));
+  if (unknown) throw new Error(`unknown_unit_id:${unknown}`);
+  const selected = options.unitIds.map((unitId) => byId.get(unitId)!);
+  for (const unit of selected) {
+    if (isLocallyExtractable(unit, options.allowPaidReviewOnly === true)) continue;
+    if (await hasVerifiedStaleVisualTranscriptionBinding(
+      unit,
+      manifest,
+      options.stateDir,
+    )) continue;
+    throw new Error(`local_unit_not_extractable:${unit.unit_id}`);
   }
   return selected;
 }
@@ -191,6 +267,12 @@ async function verifyLocalInputs(
   ].sort((left, right) => left.artifactPath.localeCompare(right.artifactPath, "en"));
   if (allArtifacts.length === 0) throw new Error("local_conversion_artifacts_missing");
   const fingerprintRecords: string[] = [];
+  const verifiedArtifacts: Array<{
+    artifactPath: string;
+    artifactRealPath: string;
+    kind: "text" | "image";
+    sha256: string;
+  }> = [];
   for (const artifact of allArtifacts) {
     const resolvedPath = path.resolve(artifact.artifactPath);
     const artifactRealPath = await realpath(resolvedPath);
@@ -219,24 +301,91 @@ async function verifyLocalInputs(
       bytes: digest.bytes,
       kind: artifact.kind,
     });
-    if (artifact.kind === "text") {
-      const text = await readFile(artifactRealPath, "utf8");
-      for (const source of sourceFilesForArtifact(unit, resolvedPath)) {
-        const id = sourceFileId(source);
-        textEvidenceBySource.set(id, [...(textEvidenceBySource.get(id) ?? []), text]);
-      }
-    }
+    verifiedArtifacts.push({
+      artifactPath: resolvedPath,
+      artifactRealPath,
+      kind: artifact.kind,
+      sha256: digest.sha256,
+    });
   }
   if (sha256Text(fingerprintRecords.join("\n")) !== conversion.artifact_fingerprint) {
     throw new Error("local_conversion_artifact_changed");
   }
+
+  const sourceImageSourcesBySha256 = new Map<string, SourceFile[]>();
+  for (const artifact of verifiedArtifacts) {
+    if (artifact.kind !== "image") continue;
+    const resolution = resolveArtifactSourceProvenance(unit, artifact.artifactPath);
+    if (!resolution.authoritative || resolution.sources.length !== 1) continue;
+    const current = sourceImageSourcesBySha256.get(artifact.sha256) ?? [];
+    const source = resolution.sources[0]!;
+    if (!current.some((candidate) => sourceFileId(candidate) === sourceFileId(source))) {
+      current.push(source);
+    }
+    sourceImageSourcesBySha256.set(artifact.sha256, current);
+  }
+
+  const provenanceNotices: string[] = [];
+  let ambiguousOcrArtifacts = 0;
+  let excludedOcrReviewArtifacts = 0;
+  let excludedContactLines = 0;
+  let excludedOcrMetadataLines = 0;
+  for (const artifact of verifiedArtifacts) {
+    if (artifact.kind !== "text") continue;
+    const resolution = resolveArtifactSourceProvenance(unit, artifact.artifactPath, {
+      sourceImageSourcesBySha256,
+    });
+    // A raster digest may prove which source produced an OCR artifact, but it
+    // never upgrades the converter's non-authoritative review-only evidence.
+    if (resolution.ocr_review) {
+      if (!resolution.authoritative || resolution.sources.length !== 1) {
+        ambiguousOcrArtifacts += 1;
+      } else {
+        excludedOcrReviewArtifacts += 1;
+      }
+      continue;
+    }
+    const rawText = await readFile(artifact.artifactRealPath, "utf8");
+    const prepared = prepareStructuredEvidenceText(rawText, {
+      ocrReviewArtifact: resolution.ocr_review,
+    });
+    excludedContactLines += prepared.excluded_contact_lines;
+    excludedOcrMetadataLines += prepared.excluded_ocr_metadata_lines;
+    const sources = resolution.authoritative
+      ? resolution.sources
+      : sourceFilesForArtifact(unit, artifact.artifactPath);
+    for (const source of sources) {
+      const id = sourceFileId(source);
+      textEvidenceBySource.set(id, [
+        ...(textEvidenceBySource.get(id) ?? []),
+        prepared.text,
+      ]);
+    }
+  }
+  if (ambiguousOcrArtifacts > 0) {
+    provenanceNotices.push(
+      `ocr_shared_artifact_not_source_mapped:${ambiguousOcrArtifacts}`,
+    );
+  }
+  if (excludedOcrReviewArtifacts > 0) {
+    provenanceNotices.push(`ocr_review_artifact_excluded:${excludedOcrReviewArtifacts}`);
+  }
+  if (excludedOcrMetadataLines > 0) {
+    provenanceNotices.push(`ocr_metadata_lines_excluded:${excludedOcrMetadataLines}`);
+  }
+  if (excludedContactLines > 0) {
+    provenanceNotices.push(`public_contact_lines_excluded:${excludedContactLines}`);
+  }
   const textEvidence = [...textEvidenceBySource.entries()]
     .sort(([left], [right]) => left.localeCompare(right, "en"))
     .map(([id, texts]) => ({ sourceFileId: id, text: texts.join("\n") }));
-  return { textEvidence, conversionArtifacts };
+  return { textEvidence, conversionArtifacts, provenanceNotices };
 }
 
-function forceReviewOnly(data: DisclosureExtraction): ReturnType<typeof DisclosureExtractionSchema.parse> {
+function forceReviewOnly(
+  data: DisclosureExtraction,
+  provenanceNotices: readonly string[] = [],
+): ReturnType<typeof DisclosureExtractionSchema.parse> {
   const result = DisclosureExtractionSchema.parse(structuredClone(data));
   for (const row of result.agency_packages) {
     row.needs_review = true;
@@ -261,9 +410,12 @@ function forceReviewOnly(data: DisclosureExtraction): ReturnType<typeof Disclosu
     row.needs_review = true;
     row.confidence = Math.min(row.confidence, 0.5);
   }
-  if (!result.extraction_notes.startsWith(LOCAL_EXTRACTION_GUARD)) {
-    result.extraction_notes = `${LOCAL_EXTRACTION_GUARD}\n${result.extraction_notes}`.slice(0, 4_000);
-  }
+  const reviewNotices = provenanceNotices.map((notice) => `[provenance_review] ${notice}`);
+  result.extraction_notes = [
+    LOCAL_EXTRACTION_GUARD,
+    ...reviewNotices,
+    result.extraction_notes.replace(`${LOCAL_EXTRACTION_GUARD}\n`, ""),
+  ].filter(Boolean).join("\n").slice(0, 4_000);
   return result;
 }
 
@@ -277,7 +429,19 @@ function deriveLocalReviewData(
     kindHint: unit.parsed.kind_hint,
     hasImages: (unit.conversion?.image_artifacts.length ?? 0) > 0,
     sources: inputs.textEvidence,
-  }));
+  }), inputs.provenanceNotices);
+}
+
+function applyLocalProvenanceNotices(
+  unit: ManifestUnit,
+  notices: readonly string[],
+): void {
+  unit.notices = Array.from(new Set([
+    ...unit.notices.filter((notice) =>
+      !notice.startsWith(LOCAL_PROVENANCE_NOTICE_PREFIX)
+    ),
+    ...notices.map((notice) => `${LOCAL_PROVENANCE_NOTICE_PREFIX} ${notice}`),
+  ]));
 }
 
 /**
@@ -299,6 +463,7 @@ function localMetadata(
   artifact: LocalDeterministicExtractionArtifact,
   artifactPath: string,
   cacheHit: boolean,
+  paidReviewOnlyOverride = false,
 ): NonNullable<ManifestUnit["local_extraction"]> {
   return {
     provider_mode: LOCAL_DETERMINISTIC_PROVIDER_MODE,
@@ -320,6 +485,10 @@ function localMetadata(
     review_status: "pending",
     needs_review: true,
     bulk_approval_eligible: false,
+    ...(artifact.visual_transcription
+      ? { visual_transcription: artifact.visual_transcription }
+      : {}),
+    ...(paidReviewOnlyOverride ? { paid_review_only_override: true as const } : {}),
     extracted_at: artifact.created_at,
   };
 }
@@ -332,6 +501,7 @@ async function readLocalCache(
     manifest: IngestManifest;
     fingerprint: string;
     verifiedInputs: VerifiedLocalInputs;
+    visualTranscription: VisualTranscriptionExtractionBinding | null;
   },
 ): Promise<LocalDeterministicExtractionArtifact | null> {
   try {
@@ -363,6 +533,10 @@ async function readLocalCache(
       || JSON.stringify(artifact.source_files) !== JSON.stringify(expectedSourceFiles)
       || JSON.stringify(artifact.conversion_artifacts)
         !== JSON.stringify(expected.verifiedInputs.conversionArtifacts)
+      || !isDeepStrictEqual(
+        artifact.visual_transcription ?? null,
+        expected.visualTranscription,
+      )
     ) {
       throw new Error("local_extraction_cache_provenance_mismatch");
     }
@@ -395,7 +569,15 @@ export async function verifyCurrentLocalExtractionCacheForUnit(
     throw new Error("local_extraction_cache_metadata_missing");
   }
   const verifiedInputs = await verifyLocalInputs(unit, manifest);
-  const fingerprint = currentLocalExtractionFingerprint({
+  const sidecar = await loadVisualTranscriptionSidecar({
+    stateDir,
+    manifest,
+    unitId: unit.unit_id,
+  });
+  const visualTranscription = sidecar
+    ? visualTranscriptionExtractionBinding(sidecar)
+    : null;
+  const baseFingerprint = currentLocalExtractionFingerprint({
     scannerParserVersion: manifest.scanner_parser_version,
     converterVersion: conversion.converter_version ?? "v1-legacy",
     rawName: unit.parsed.raw_name,
@@ -404,8 +586,16 @@ export async function verifyCurrentLocalExtractionCacheForUnit(
     sourceFingerprint: unit.source_fingerprint,
     artifactFingerprint: conversion.artifact_fingerprint,
   });
+  const fingerprint = visualTranscriptionBoundLocalExtractionFingerprint(
+    baseFingerprint,
+    visualTranscription,
+  );
   const artifactPath = path.join(path.resolve(stateDir), ".cache", "extract-local", `${fingerprint}.json`);
-  if (path.resolve(metadata.artifact_path) !== artifactPath || metadata.fingerprint !== fingerprint) {
+  if (
+    path.resolve(metadata.artifact_path) !== artifactPath
+    || metadata.fingerprint !== fingerprint
+    || !isDeepStrictEqual(metadata.visual_transcription ?? null, visualTranscription)
+  ) {
     throw new Error("local_extraction_cache_manifest_identity_mismatch");
   }
   const artifact = await readLocalCache(stateDir, artifactPath, {
@@ -413,6 +603,7 @@ export async function verifyCurrentLocalExtractionCacheForUnit(
     manifest,
     fingerprint,
     verifiedInputs,
+    visualTranscription,
   });
   if (!artifact || artifact.content_sha256 !== metadata.content_sha256) {
     throw new Error("local_extraction_cache_replay_failed");
@@ -424,7 +615,7 @@ async function extractManifestLocallyUnlocked(
   options: LocalExtractOptions,
 ): Promise<LocalExtractionRunResult> {
   const manifest = await loadManifest(options.stateDir);
-  const selected = selectLocalExtractionUnits(manifest, options);
+  const selected = await selectLocalExtractionUnitsForRun(manifest, options);
   let processedUnits = 0;
   let cacheHits = 0;
   let failedUnits = 0;
@@ -433,8 +624,16 @@ async function extractManifestLocallyUnlocked(
       const conversion = unit.conversion;
       if (!conversion) throw new Error("local_conversion_missing");
       const inputs = await verifyLocalInputs(unit, manifest);
+      const sidecar = await loadVisualTranscriptionSidecar({
+        stateDir: options.stateDir,
+        manifest,
+        unitId: unit.unit_id,
+      });
+      const visualTranscription = sidecar
+        ? visualTranscriptionExtractionBinding(sidecar)
+        : null;
       const converterVersion = conversion.converter_version ?? "v1-legacy";
-      const fingerprint = currentLocalExtractionFingerprint({
+      const baseFingerprint = currentLocalExtractionFingerprint({
         scannerParserVersion: manifest.scanner_parser_version,
         converterVersion,
         rawName: unit.parsed.raw_name,
@@ -443,6 +642,10 @@ async function extractManifestLocallyUnlocked(
         sourceFingerprint: unit.source_fingerprint,
         artifactFingerprint: conversion.artifact_fingerprint,
       });
+      const fingerprint = visualTranscriptionBoundLocalExtractionFingerprint(
+        baseFingerprint,
+        visualTranscription,
+      );
       const artifactPath = path.join(
         path.resolve(options.stateDir),
         ".cache",
@@ -454,15 +657,22 @@ async function extractManifestLocallyUnlocked(
         manifest,
         fingerprint,
         verifiedInputs: inputs,
+        visualTranscription,
       });
       if (cached) {
-        unit.local_extraction = localMetadata(cached, artifactPath, true);
+        unit.local_extraction = localMetadata(
+          cached,
+          artifactPath,
+          true,
+          options.allowPaidReviewOnly === true,
+        );
         unit.stage = "extracted";
         delete unit.validation;
         unit.notices = unit.notices.filter((notice) =>
           !notice.startsWith("local extract failed:")
           && !notice.startsWith("validate failed:")
         );
+        applyLocalProvenanceNotices(unit, inputs.provenanceNotices);
         cacheHits += 1;
         processedUnits += 1;
         await saveManifest(manifest);
@@ -497,6 +707,9 @@ async function extractManifestLocallyUnlocked(
         review_status: "pending" as const,
         needs_review: true as const,
         bulk_approval_eligible: false as const,
+        ...(visualTranscription
+          ? { visual_transcription: visualTranscription }
+          : {}),
         created_at: new Date().toISOString(),
       };
       artifactCandidate.content_sha256 = canonicalJsonSha256ExcludingField(
@@ -510,13 +723,19 @@ async function extractManifestLocallyUnlocked(
         expectedRelativePath: path.join(".cache", "extract-local", `${fingerprint}.json`),
       });
       await writeJsonFile(artifactPath, artifact);
-      unit.local_extraction = localMetadata(artifact, artifactPath, false);
+      unit.local_extraction = localMetadata(
+        artifact,
+        artifactPath,
+        false,
+        options.allowPaidReviewOnly === true,
+      );
       unit.stage = "extracted";
       delete unit.validation;
       unit.notices = unit.notices.filter((notice) =>
         !notice.startsWith("local extract failed:")
         && !notice.startsWith("validate failed:")
       );
+      applyLocalProvenanceNotices(unit, inputs.provenanceNotices);
       processedUnits += 1;
     } catch (error) {
       failedUnits += 1;

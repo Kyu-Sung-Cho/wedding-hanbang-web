@@ -109,6 +109,10 @@
   --sage-500: #6D806E;
   --sage-pale: #C7D1C2;
 
+  /* Semantic danger */
+  --danger-500: #D95F5F;
+  --danger-700: #9F3535;
+
   /* Champagne Taupe */
   --gold: #B89785;
   --gold-light: #E2D3C8;
@@ -142,6 +146,9 @@
 
   --color-sage-500: #6D806E;
   --color-sage-pale: #C7D1C2;
+
+  --color-danger-500: #D95F5F;
+  --color-danger-700: #9F3535;
 
   --color-gold: #B89785;
   --color-gold-light: #E2D3C8;
@@ -1012,4 +1019,3 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(8,22,38"] {
   box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
-

@@ -1,0 +1,3022 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "vendor_disclosure_source_object_manifest",
+  "content_sha256": "2cb6b2b8a6aabf478ad78e4d28cb84be8f56dcd122098fff809f1e8b3c97324f",
+  "ordered_binding_sha256": "73d08cfa147c2c86b3dc7527f24b14378962bdd404a98de5840fdbdeceaead4b",
+  "unit_count": 249,
+  "source_object_count": 253,
+  "units": [
+    {
+      "unit_id": "20a3554ef57e7fc84e60468d70ae360a5b0a67ff6b6160df465bfafdb415b529",
+      "source_fingerprint": "caa4e87ec79e978943c33609f12e3de1ca6d0af060bf381aae7ada5fa804cdce",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강원도/(강원)_강남웨딩컨설팅 속초.xlsx",
+          "ext": "xlsx",
+          "sha256": "0cad778a822025f969f55f0b85a98f8b25f34b5810f37c8f366588c506f0c578",
+          "bytes": 23622
+        }
+      ]
+    },
+    {
+      "unit_id": "ccf8b91241e9b5d240372b810e4e9131d6aace4ab977a7123bf8fcae8e6313a6",
+      "source_fingerprint": "9ab02ef84aa69f4e31defcc530fcb159f2f5221918d660ff61f0f121f09acb90",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강원도/(강원)_산과바다 베키니아호텔 주문진리조트_결혼준비대행.hwp",
+          "ext": "hwp",
+          "sha256": "308c296dd111791685b3daf785a4a848c3c12c5338ae5238af396897c77b3522",
+          "bytes": 34816
+        }
+      ]
+    },
+    {
+      "unit_id": "bcdf3605601f20a7ad0279aa0b57b7e0c33f28230f81e74e43c06ac2368e009b",
+      "source_fingerprint": "ad08cd4ece0ca6f9d52a0809b97c08b8a1831ffbc578434e0322327c935f1b39",
+      "source_files": [
+        {
+          "path": "예식장/강원도/(강원)_산과바다 베키니아호텔 주문진리조트_예식장.hwp",
+          "ext": "hwp",
+          "sha256": "03c426a60aa3336492de076edd1d18d1a75670da860c9dacb7dd06c21e5820ee",
+          "bytes": 44032
+        }
+      ]
+    },
+    {
+      "unit_id": "9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7",
+      "source_fingerprint": "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강원도/(강원도)_메이브라이드.png",
+          "ext": "png",
+          "sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+          "bytes": 51160
+        }
+      ]
+    },
+    {
+      "unit_id": "ccae28bfa6629dfd4f3b6bce9fdb270331dbd5b78b9c0481b9289165a47aeefb",
+      "source_fingerprint": "dbb68eb5e28faf773034ddae31d77f2f51bde17fb00f7f8f8ed1f1c1c0f5d7cd",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강원도/(강원도)_바오드레브.xlsx",
+          "ext": "xlsx",
+          "sha256": "6f069a365dafc8674d87bdd1f9f8abc50075d0966470e5d672c5c66d494bd8ee",
+          "bytes": 18518
+        }
+      ]
+    },
+    {
+      "unit_id": "550340ff6a8ba94c08ee3ef38a51477f8b4bf64b384c85dd202548c2702125fd",
+      "source_fingerprint": "f1c1b36a74d242b16338260771ba1a2229ff51ffedea34b7a6b9a76b86218966",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강원도/(강원도)_베로나지디_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "82085a4326edfa53b7b42d7df19a650bffb897b0260bcec84d843c86b5d0649f",
+          "bytes": 17149
+        }
+      ]
+    },
+    {
+      "unit_id": "d66b7ac4e9fb1623057505d482df5096c181b0a0306d76ac70fc54fc73fad013",
+      "source_fingerprint": "6ab507646222d4cb616f14a6717abdfcccb7902ac6e850fd3c6af2adb26772f5",
+      "source_files": [
+        {
+          "path": "예식장/강원도/(강원도)_베로나지디_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "e7828bcce3a177b43d042da3b76ce024dc4a734fb79bafc9a28b5fcbb375c1c3",
+          "bytes": 14484
+        }
+      ]
+    },
+    {
+      "unit_id": "3eaf5506fb6b4d9296dbb6cd67a65c795d9c648dc8bb050227813bbfe0a9afc2",
+      "source_fingerprint": "b7a4c8a8cb2ddf3c4dd5a1521b90170757a169e86c6f8a0f9122e7a0e3df2e48",
+      "source_files": [
+        {
+          "path": "예식장/강원도/(강원도)_쏠비치 삼척.xlsx",
+          "ext": "xlsx",
+          "sha256": "02b28a0e143985f83ac2af305978c1bc8cda433736cccb88f10e1024746695f3",
+          "bytes": 11636
+        }
+      ]
+    },
+    {
+      "unit_id": "bb6539997d2398995a6e777152a22fd357a1697666fc3d933bc66423752cd50b",
+      "source_fingerprint": "53f529d112a5ad9ecc9d3017824336f4eb711031847a6d228661cfe1908a8dfe",
+      "source_files": [
+        {
+          "path": "예식장/강원도/(강원도)_호텔탑스텐.pdf",
+          "ext": "pdf",
+          "sha256": "4e6be590e47ea2eb47e808b5c6dd376dc2ca5936cfa99c478bd72232c807b841",
+          "bytes": 73857
+        }
+      ]
+    },
+    {
+      "unit_id": "f9fc5ef5af0d68ec075d90af4e094fb201203c79218cad1fdc9b260e94b2e119",
+      "source_fingerprint": "cfd59d902c8754ec41fdeaf38ebe3f984c20cb6be4b23fac2a12075e6bf7a4ec",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_(주)라비돌.xlsx",
+          "ext": "xlsx",
+          "sha256": "e0feee9c9d02e60e46bf71137044136740f793d34640e2249fad76bd85cec82c",
+          "bytes": 92328
+        }
+      ]
+    },
+    {
+      "unit_id": "98343857795af729ba51d4c69cedf74acf2b6687219afe00936c2af2bde5036f",
+      "source_fingerprint": "3aef111d78ff6cb24951cd83b468d2bd4565749d6626c569721d150f40c0b253",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_고려호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "33a5a6c48bf04fa06a684c0466875a5fb5b69d9ee7ff188e6dd345e88353a363",
+          "bytes": 13336
+        }
+      ]
+    },
+    {
+      "unit_id": "e9d0d45674647615edcdf4fd6eb229d2147665c9ac96baf236768e728fd1ee93",
+      "source_fingerprint": "18a83e3a57316b24093c7c3f2251194648eab02a46737dde2fcdca3a979f7cdc",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_규수당 운정점.xlsx",
+          "ext": "xlsx",
+          "sha256": "db37cfd062457cb6401d9f887d0d1cacd93953adb440bed4726e41cff1ca9517",
+          "bytes": 13068
+        }
+      ]
+    },
+    {
+      "unit_id": "fb50a992c8b05d7069bd232269be4ee6decf4d72efb0c2d879c1ecadd9422e90",
+      "source_fingerprint": "9d223b16b86ef4e85564784fd0d92d32f10b1d429e524b04f832815051ebfd15",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_더마레보호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "f243ca27b62f65d8e123a2e6ba6871ae14d674ea90424ea93287423b0abec2f8",
+          "bytes": 46406
+        }
+      ]
+    },
+    {
+      "unit_id": "2a2d860d13d6f3c6fe7295b461a728002779a08cb2d5ce53b4770140313cfb7f",
+      "source_fingerprint": "ae9304d77065c64598f2d71e2ab151c52fff6aa64539e2e0aebde1557d149734",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_센트리움웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "ae652d5ffc1122dd4a32240fcdc370c7d1099a440ec6ab26cd91fc5e13daf33f",
+          "bytes": 13890
+        }
+      ]
+    },
+    {
+      "unit_id": "878d702e282bd4de03658d959c89820dcf9bceca3b3ab750c8e8fcd77e183176",
+      "source_fingerprint": "d5cb8324657881d349b40a3445c9007bb3072205e124a8c6a62d3f59490da598",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_아이티컨벤션 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "5ba340ea49f9cdd0df99e5f1ac2c03f50d731c8dbc7f4da41b435974f8ec1bcc",
+          "bytes": 648843
+        }
+      ]
+    },
+    {
+      "unit_id": "a22957acc848e31c1d0a678b1e74876b9303762d005f1dd36dca2c2e17617321",
+      "source_fingerprint": "c7f9254dd9bfd3d6aa1b65f93e61a30d7c0e5f1dffe05837e21ba67fd4a53ba6",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_푸르미르호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "05bc1990ac5c5c874fda0d2c268afec15efa50bbc6647047ae35a4f0e9a07712",
+          "bytes": 126700
+        }
+      ]
+    },
+    {
+      "unit_id": "c87cd3228081b84b40eebed95e6177d16df0180f2fea3f8579ad4f099c3bbf5a",
+      "source_fingerprint": "5b5c3981f82d7119dcbb36ca03795a3cc41629b200f05a7402020274e8f24fdc",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_호텔라뷔포레.pdf",
+          "ext": "pdf",
+          "sha256": "778aea84be482d90e181fd5c9e87228e126d0b911c035d675cd631cdf21dc43c",
+          "bytes": 46695
+        }
+      ]
+    },
+    {
+      "unit_id": "ca450e6520c361a63d8e9c3a3fea755e4b21404c29fb3e39085343d28346b0f8",
+      "source_fingerprint": "d8d1a1c6f5e6d5f3298b0461118c2a9e4c7d0a48b67bf14e2b70f04f40953d6b",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기)_L7광명바이롯데호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "4e8eab31bd3df1f75d0af2c3e4b8de86942310c7a9873a3a0e989af308a49457",
+          "bytes": 13649
+        }
+      ]
+    },
+    {
+      "unit_id": "cdac9d7e00d490ec41eb7be02fc60e7e1e6daf07830ab8eec0cd930ad1c71043",
+      "source_fingerprint": "f8c7aa2097f7ad5422b4717292a455773e5cd061a01fac9266fb321f0acb9651",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_더메리든.xlsx",
+          "ext": "xlsx",
+          "sha256": "e8c92d1da49dec420646abfea040622bcdaf2b6d84ac9b6ced5d99cf8352d03f",
+          "bytes": 11648
+        }
+      ]
+    },
+    {
+      "unit_id": "07db9c84af763228779585b110ec3c1c221160e9a8cc8819272452130148c37b",
+      "source_fingerprint": "191082847ac79198435726272a27ba1c2e1be720c1625b872d16e85fe3ad9e40",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_더블트리바이힐튼서울판교.xlsx",
+          "ext": "xlsx",
+          "sha256": "f7c83d18c4139ff484b7056b63fd84f47c4def74536b76f9f2a818dc9b2c429f",
+          "bytes": 11867
+        }
+      ]
+    },
+    {
+      "unit_id": "c64dc7f0f3ed1ba01f05e1f1e5ad6ef83c827d490568a114ea6762949b26d0b7",
+      "source_fingerprint": "6969ef3e12c211aa9f0aaa22b9779d782ccf7c2c3bcc5beb73fe65e39387ce17",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_더시그니처클래스.xlsx",
+          "ext": "xlsx",
+          "sha256": "91d4faffc72216aa1a3450e828866bb46fc8610c77592b889b9780d233061790",
+          "bytes": 11970
+        }
+      ]
+    },
+    {
+      "unit_id": "7faf73c050347bec97cfbdc3d69a5ca89a70f089085196a187c8dda1ea2f0115",
+      "source_fingerprint": "d5b3f4b5e8643ceb177ff60997a1e8b467cc68d0f9f7beb9cd090aee9696b975",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_더테라스 웨딩&파티.xlsx",
+          "ext": "xlsx",
+          "sha256": "419d457251d8db156a95fdb0af4b64dbf619a0788196090be9583c5b3bd5e444",
+          "bytes": 12821
+        }
+      ]
+    },
+    {
+      "unit_id": "c4e71ada35da49edca6c3f1e168f4f99ba191c3e3397568c76b02dc5f74fcb4a",
+      "source_fingerprint": "83aecd0c64eb55bb90e2a505dc3caddc1c1cb53cd3c93e74b0f9314b6966b79b",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_동서울웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "a918cf872eef3bbf0a505aa843351a85765f3c3a4d19062fc9e04a3d671ea9da",
+          "bytes": 16160
+        }
+      ]
+    },
+    {
+      "unit_id": "3ab0b51a041a2501e1d913c31d83b17bc7e10638b7298f3b34626624202313ef",
+      "source_fingerprint": "3d00f221f35a874aeb38e31fa67333ff1fa38f8cb8f32a9bd15c5db65fcf73d4",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_라온제나 분당.xlsx",
+          "ext": "xlsx",
+          "sha256": "d94cae236697bbebe50e7ba2b0d766ea2d7c320198bed22bbfbc179d74938e2b",
+          "bytes": 14222
+        }
+      ]
+    },
+    {
+      "unit_id": "00ac534cd8d83f6daf4ea5f582086474cad1b1cf1e2bef7b12722c2a937956ad",
+      "source_fingerprint": "7a6cf9e3d005e71940048ff3ce714ca652c14d97f70076a95e3cf695870750b5",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_루시아웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "6ba9a5f414dc81d838ca59e387e54a7b64ddd2779ac1aca2e7e840874d875585",
+          "bytes": 12688
+        }
+      ]
+    },
+    {
+      "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+      "source_fingerprint": "6bea381cbfba8f245b9b81f435e3722a8c00f63d55a48f3fc0d7dd81d5151680",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/경기도/(경기도)_마띠모웨딩.docx",
+          "ext": "docx",
+          "sha256": "2337b5e9e5a48329a7730d5157b05a2fe2565df4e27cb415c161693b320578ab",
+          "bytes": 29567
+        }
+      ]
+    },
+    {
+      "unit_id": "05721efec4e9f08f1d9012d967628348b34d3b69d960cc49321e8974ab2ca766",
+      "source_fingerprint": "1b420a2c555958e3280e97023da234070be4d970a73c1ac70bf9a9142373c997",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_빌라드지디 안산(지디스타일 안산점).xlsx",
+          "ext": "xlsx",
+          "sha256": "dfda2f480e294356bf3b442da80f750857340f605616bc16657a4fc3ac61f8f7",
+          "bytes": 15005
+        }
+      ]
+    },
+    {
+      "unit_id": "fce50c0a0bfc413ecca3ad1fc68aeb4834baf6f3c573352ee8bca500b5f6b8bb",
+      "source_fingerprint": "8719b245ea3f8b8c1a6587fa179d8011829c3209c7d7b6569faed813ef332f2a",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_빌라드지디 안양((주)마레보&빌라드지디).xlsx",
+          "ext": "xlsx",
+          "sha256": "278df931900fee8474e522f24f36f40c8140d7c9ff77085de0a482810bb2dfc3",
+          "bytes": 14674
+        }
+      ]
+    },
+    {
+      "unit_id": "bc52ce4cf7cd894207be28d7831ad15e069fe5d762f11174f8581a2003e4e1fb",
+      "source_fingerprint": "a56e4201eec759bd7e319fd40a309c35a289104ef605534f0c527aa856fa381d",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_소노캄 고양.xlsx",
+          "ext": "xlsx",
+          "sha256": "11bc1ff309dc148b924e6e452fa96ea11bab708b996630632ce72b59e7fec876",
+          "bytes": 12987
+        }
+      ]
+    },
+    {
+      "unit_id": "3cfae0cc242355ff4a2e657d596fac3498e6f18927e791cd013e29b3de956c06",
+      "source_fingerprint": "6029dc7171b15f5da3cce1eafaa6caefdb26a3771ea8e4a066305afcea1104d1",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/경기도/(경기도)_소풍컨벤션웨딩_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "53c69e9c8f8f64304bae990bd7315822cba731c9d2e8ee664bb71f9305695309",
+          "bytes": 13116
+        }
+      ]
+    },
+    {
+      "unit_id": "cde22af83933421a06482b0e2b9b97af9a20471018915c8f647e24e3af06fef5",
+      "source_fingerprint": "a59db27bf07875d6993200e8a0e155b45fa05695de5c778e5586e426c45de524",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_소풍컨벤션웨딩_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "8cefa78c88118c4e4616f2ca74f50b4ab47c5fcab41a1ca7d086e325c1ceb0ee",
+          "bytes": 12892
+        }
+      ]
+    },
+    {
+      "unit_id": "99343e06eb34db3af37a03ce89882cae361d05382a2dddb9b623db61c7d261db",
+      "source_fingerprint": "fb3afd760db3ad00a35b1e0906c859057202c1c0bdecf72ca8293ffd952e8207",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_웨딩더낙원.xlsx",
+          "ext": "xlsx",
+          "sha256": "67ab4fbcdb9cea985266f71098e5cd3b1cdc268f1cda9a5b555e2c85b6b96548",
+          "bytes": 500470
+        }
+      ]
+    },
+    {
+      "unit_id": "aeebcac9a1a9deac4c71df089f0ffb6cfb476be322ccc52437c27e4ae58f281c",
+      "source_fingerprint": "f5ae49d6ae196111a37514e3b9ced269e21e28c74c66c354cffbd034e513c813",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_티웨딩홀.pdf",
+          "ext": "pdf",
+          "sha256": "97cbc1670d10e3746ebbf18758b929bc9d4f7df4736419319b28bc02d0f7a8a1",
+          "bytes": 118473
+        }
+      ]
+    },
+    {
+      "unit_id": "8558adf1ef389259a4f78939a4daa888fecc41bffc6614ab69136f3d5a74b524",
+      "source_fingerprint": "695644541a68f40c32dd75c73c9a5f90a9d7219bdab7eeb519f65167d4ded569",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_퍼스트가든 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "70e5bbfc011505d81503e13354c01c26c1ed208a02cfc724b53c789f5c7f0826",
+          "bytes": 15411
+        }
+      ]
+    },
+    {
+      "unit_id": "acb503355810b1edeb88b2bbdc1ab73214034e0abc6ead76f2af644b37c89a71",
+      "source_fingerprint": "99e001ceaf226a020f9ba34bac03b5c048bc9b7b9f39e19ffa7a0c93841313e0",
+      "source_files": [
+        {
+          "path": "예식장/경기도/(경기도)_페이지웨딩&파티.xlsx",
+          "ext": "xlsx",
+          "sha256": "140d5ea6d76093bbd3519b396a648f089978286bf036933f94fc2155989fc263",
+          "bytes": 275070
+        }
+      ]
+    },
+    {
+      "unit_id": "26a06b1ff83ca879c05a15112a775e6e032ec5a14aa535b833e19206dd831954",
+      "source_fingerprint": "75c7e838bc4c3202050e58263f564622713f84cf3a3c4553b1bb4660b79f7015",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경남)_더지펠리체 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "e4b59f3ae5f42fe5c57dc6f20de76541b0246a4491cc64298db0608faa7b1429",
+          "bytes": 11649
+        }
+      ]
+    },
+    {
+      "unit_id": "b98be51a12ede08ed21629bc3dd93721d479603fcf5c4241a1a98c7c64a4d35f",
+      "source_fingerprint": "ff03735342cdfa919d9e9febc9425faad020839516f366e423fd77ab6461dcf0",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/경상도/(경남)_MBC컨벤션진주_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "3fc0a4226e2913ad39f642f341c92ef0e7cd77e3e14250cbb57699973363c313",
+          "bytes": 361840
+        }
+      ]
+    },
+    {
+      "unit_id": "582753587baace19c88d2cb7b8962804a74769da5f3e1c070669f9f40438c843",
+      "source_fingerprint": "24218de3d7d2ce80819d52d86d0fe08623ee65fd151c354c7ebaea646a226f1d",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경남)_MBC컨벤션진주_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "d7cf4e1e99b9a588b84b81c9336e72ef9932f581dd99aeb931f112d4da54b32b",
+          "bytes": 495402
+        }
+      ]
+    },
+    {
+      "unit_id": "6e787512ce52962e1786930e0c922219cbde638f6ed6e8b1f1220d20b9ada3ef",
+      "source_fingerprint": "694dcbd5000e5194ef4a528d5f6280792b371f660043d0f01cef792d497d69d5",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_더 리움 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "d4b2a0c8d78e09849f8a4d633b24e5a249da1712c228da36317b82462495e7d5",
+          "bytes": 48756
+        }
+      ]
+    },
+    {
+      "unit_id": "f47fd5321ff7600e204a966556eca3b57ac2f78277bcc18c854b56246aab2580",
+      "source_fingerprint": "382a03a653d1611f23682744aa068912a16117ab8e4b0023f1230a9226ad3bdb",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/경상도/(경상도)_더 퀸_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "e3259c9e2ba4f22d78062c48128ed5a84934cf8cc3e5514916110e11058830d1",
+          "bytes": 11905
+        }
+      ]
+    },
+    {
+      "unit_id": "0f56da9054994547d9866fea30ecba795f562e8a6847253fa49cb6691417c343",
+      "source_fingerprint": "97b9b7e6e91df509d1acd51b7227373a337bec05bbd9d7353f3ac5e8c495caaa",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_더 퀸_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "65b0ba9acf526354de2ebfe72941c3af6b7085db6cef86e08845f1379e425a52",
+          "bytes": 11707
+        }
+      ]
+    },
+    {
+      "unit_id": "404480e8938f52b2da36c47d5613b87a93167847fc3a7dd111bbb904a2b4eee8",
+      "source_fingerprint": "1e8d0fd9b2f464ad4a5f74b761c7e7ebce42b20925bfd12397eeeec679329eac",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_더파티 김해점(더리본(주)더파티김해점).xlsx",
+          "ext": "xlsx",
+          "sha256": "74c9979db3876d68d25d3fa384cec18e025e6c42baef8d4f93bc696be367f6c1",
+          "bytes": 62862
+        }
+      ]
+    },
+    {
+      "unit_id": "ebbf2ecda886955a604cf1b951b926b69db0a5628000cb0a187c057b39962782",
+      "source_fingerprint": "c03859b3bffd7b90fa65cf3b830ce2cb6c9ef8b3c8afdd5a8b95cef585894fb6",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_로터스101.xlsx",
+          "ext": "xlsx",
+          "sha256": "abc07a3c3a768c308b73175a4e186f3b3e2262feb038b5b38510b159691404e0",
+          "bytes": 11740
+        }
+      ]
+    },
+    {
+      "unit_id": "db33dc7699ff45563074133805ae872c535e59063b3dea59f587c1f434f55ffa",
+      "source_fingerprint": "364545ff41d83fa50342054dc094fb8d5b62556bea8d7cdfd7a20e278110fda3",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_마리앙스웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "15bd940aa2188e02aa1f66468cd0297361b2017d10ef5616d667d976244850f1",
+          "bytes": 12021
+        }
+      ]
+    },
+    {
+      "unit_id": "8ea07dad613765a6cf87dfbe56cb5fc245957b5eecf20479c5f120f25a720bcc",
+      "source_fingerprint": "f3d4f0f9cb0e1b3f68046fc0ffb42d87a9149a85cbee304986b89feccdd410a7",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_아이스퀘어호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "a5b50c6f193394010faee7967fec8e57b6993f3427e981e8457df04cb6ede8d4",
+          "bytes": 13073
+        }
+      ]
+    },
+    {
+      "unit_id": "fa01a605b395a5c46c509dc676b08e255ae66b10e1d0914f8e8565cf8608dce1",
+      "source_fingerprint": "7ed3f96bdddd7e68b51540e95d23a4151d473069d37fa233a3d1c0d988368b0f",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/경상도/(경상도)_안동 그랜드호텔웨딩_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "6734b047e8c34862d6075f6fea62a47ffed3f4311f00f580f8736fd083d7955d",
+          "bytes": 12699
+        }
+      ]
+    },
+    {
+      "unit_id": "8118d4274f5af3eb87f28113b0cd52745ecb3db91c091b9a386750f76f002341",
+      "source_fingerprint": "587b37b72499d496bd59bf8630843f8a95d6dd300311d20da0670b4078ece7b3",
+      "source_files": [
+        {
+          "path": "예식장/경상도/(경상도)_안동 그랜드호텔웨딩_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "75684ab2c48c8aaa8927fcd19746a815588a064d5c6646145cd361a06dae85fc",
+          "bytes": 15037
+        }
+      ]
+    },
+    {
+      "unit_id": "6c81da4827ac8a4ec373d4218c64bfc3465ba90e2fca6effcfb73066d2d6ed68",
+      "source_fingerprint": "3081d7e0c0b4d830a38771abbdfa8aa814c3d073e0bd9c05edd4bf7de0002871",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/광주/(광주)_광주정우웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "5e44a4e5ebfc2851d61d6a235a04133c3c52065f5254d94142888eeb20b8762f",
+          "bytes": 16419
+        }
+      ]
+    },
+    {
+      "unit_id": "28d4c29bf6d21391236a00722ed1d3a337f3e2ba63a9b434ec81761b28f634ec",
+      "source_fingerprint": "0ad5c1f8c3d7b819ea6acfd170cb91a5e7f285334f7143b27f9fe3e1bdd15880",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_까사디루체.xlsx",
+          "ext": "xlsx",
+          "sha256": "999caad92e6e1fc3e11f35a13a3d1e27dae54d0138262d02e925a7ad111b1032",
+          "bytes": 13139
+        }
+      ]
+    },
+    {
+      "unit_id": "722425388c9c592218f1cfd0862fff614cefc6e655a3a6b997feaa46151773b1",
+      "source_fingerprint": "24374650ab33c3c4930ba963974720d50a75f7fb244ee46723095d97021169f1",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/광주/(광주)_더시그너스웨딩_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "79259dad16c8c05a776341ee9914933b1fc74996cc8296444bb0e16881ecaa25",
+          "bytes": 16437
+        }
+      ]
+    },
+    {
+      "unit_id": "367cbe78a1e01e8923df24856f0f481b198fd4a9a116f686312c4dea6657e594",
+      "source_fingerprint": "611cadd35689a26a94d89146baaaf769c056c0bddaa43fc95aa2d53dd998660e",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_더시그너스웨딩_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "6cf8ea96f4ef56c40193f655f31d3e4ec8cac1daa67d369d9491f74c62a9f1bc",
+          "bytes": 11904
+        }
+      ]
+    },
+    {
+      "unit_id": "311079af4016d9b9ede0034b4c6f9eec09f468e3e39406c642f90091a27359e3",
+      "source_fingerprint": "6c7c9537bdb9592578b571e8d99dad8a97ec96dfa9e2275e523696e748707214",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_드메르웨딩홀 광주.xlsx",
+          "ext": "xlsx",
+          "sha256": "412d544990357a937596eaa45b019a5f650ad1fd649b0863a4839a3e6c2ea376",
+          "bytes": 13215
+        }
+      ]
+    },
+    {
+      "unit_id": "10e5d1c83d047e39ae83189a2a117a1fcb9ff7f2cd2fd62544984e84505b0f57",
+      "source_fingerprint": "e69caf94633aabf97c4661e6c245415b9633fa446370de4e865c470ab48a4125",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_라부쏠라.pdf",
+          "ext": "pdf",
+          "sha256": "7e42cbc84d3927de2fe58e3ff1030da1627219e2392854aa01d054bdd179e3c7",
+          "bytes": 62178
+        }
+      ]
+    },
+    {
+      "unit_id": "4dd07ff94390870c9035091f25e2732a2745829e01ed73e4ea5b7d0366142542",
+      "source_fingerprint": "86f1c8e6b9639be8dd5537ba3c3aeed74969da4456f8d74d2097d59bf8392f9a",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_라붐웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "7cc1d351c21a0efe31801e0488381f41c67649301b1995b4b1f11b45cecaaba4",
+          "bytes": 11962
+        }
+      ]
+    },
+    {
+      "unit_id": "12cd5ce7f065550d026b0f6786d4274417a5b5869b12875349a99b2b911f7c1a",
+      "source_fingerprint": "4bf647f372c3daed11f880b35a2644b43616f9bebc62f78e2d0cdc649bd6c27b",
+      "source_files": [
+        {
+          "path": "예식장/광주/(광주)_웨딩그룹위더스 광주.hwp",
+          "ext": "hwp",
+          "sha256": "31ccec6b38330b5000ba665aef99eaaf3543150140f7c6565652b7b68cabe02d",
+          "bytes": 58368
+        }
+      ]
+    },
+    {
+      "unit_id": "be953d96469d0b6c24f3d499d47de2390de546c1fbbbea480dc31bb4aa464fc2",
+      "source_fingerprint": "41a8c878ea8607c5cf174bef6e9eb2e8460bb230206ca2fa8efbf80797cdcf29",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/광주/(광주)_정우웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "2444701d1ac714243f2359e95adb8e9a505a9a9b1a0e83ea2e13d75704abd7b5",
+          "bytes": 16312
+        }
+      ]
+    },
+    {
+      "unit_id": "aa1bc48813411d80f2884895a22bd1888b441651380ed1779134d12514f5abae",
+      "source_fingerprint": "724159c0c6f0b12552768a0c3d0dc96bc452c7236afcc2c95c1832e745a2b82b",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_노비아갈라 동촌점.xlsx",
+          "ext": "xlsx",
+          "sha256": "1ee524da7617e18667cfb62d514c1a2654f4316e539dca414b22b53dfadb73c5",
+          "bytes": 12135
+        }
+      ]
+    },
+    {
+      "unit_id": "f4972d3d511c9c4cf872ea6cfad1a5cd5bef529b736465008f97c07698d5fb94",
+      "source_fingerprint": "109baa7c5d4f9a00e51b3a51de606af1b707991a1bad7a286b8d18cc7a5b9a3c",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_노비아갈라 전자관점.xlsx",
+          "ext": "xlsx",
+          "sha256": "5fd6b64f82da17936d832efd772af9502cb28403517c044b03b79a27b9133af1",
+          "bytes": 11642
+        }
+      ]
+    },
+    {
+      "unit_id": "cc784cbf3e9f8f272559e1e015c197c106178f38047b5d79bdaa385c496a9d66",
+      "source_fingerprint": "2aef6a138873b50ea642caaf75c6931f79b72f56b8c0c946612c0d47ba8b1a9c",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_엘파소하우스웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "e2a2ee25205e2fa25dc499b8c7f0817c656eec389a456b097e842a74818f83dc",
+          "bytes": 14389
+        }
+      ]
+    },
+    {
+      "unit_id": "148aabd848065d2a2f05709dee805f0b0db198495c922e462ae32de0001ec7b9",
+      "source_fingerprint": "a05b37dfd2711ea959a984b3d9fc9aff7c81bbc388ca9b91375c7f277500961c",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_파라다이스웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "62f42c0e2f83c4c5509545ac2778265ca677e0089bcfe0e916cb1161522059f3",
+          "bytes": 12854
+        }
+      ]
+    },
+    {
+      "unit_id": "d0c4024e177e87640a8a7e3b40d80c1b64bfef18b8f56e8bac13449363b1565c",
+      "source_fingerprint": "da4a58d2b82301aadbfd89f403cf34f119c42806d613f04e3b4ce8f8bfd9604f",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_AW호텔웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "87d44b8326d8d8d8f511985aca48e2d26a6dd721a0435b2ecad522782576cfbd",
+          "bytes": 12485
+        }
+      ]
+    },
+    {
+      "unit_id": "9f3c1d6aabd51bd8d385249a3b94b64a2e0bb0eeb2cddfbc55e2b65c5eef5897",
+      "source_fingerprint": "a4ee712524ddd9880395fe7116c00103ef2a47df6c5b315313e9eb7ff0031769",
+      "source_files": [
+        {
+          "path": "예식장/대구/(대구)_MH컨벤션.hwp",
+          "ext": "hwp",
+          "sha256": "3be554253a61072bf075e38db6f96d8b03d38935936036669b584925ea480519",
+          "bytes": 1960448
+        }
+      ]
+    },
+    {
+      "unit_id": "0cf8cfcb7e3c72d7f51a9aadf0ade3cef19371888c5a322520ce30530ac1ee4c",
+      "source_fingerprint": "11bd164c6a59fa20f67321e703d2600a16407da59099283b1d835856b43f2b7f",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_계룡 스파텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "58952c9d466fb402207aaa7ab1934f4fcb8782a078d4cd23d3d33c41d9c71f71",
+          "bytes": 17507
+        }
+      ]
+    },
+    {
+      "unit_id": "df21324723e47e724749e87d67275de6e03458e2218d4662dd2e2e128a7ccc23",
+      "source_fingerprint": "3132eabe46b7729c80d7f2e17ad8cba219b759b22422900546f23fd09efda927",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_라도무스아트센터웨딩홀((주)해태산업).xlsx",
+          "ext": "xlsx",
+          "sha256": "4e2a7a72c6390b61c9b89b3577e5ef3cef0aa4d2c3c61dc5d626855508dd1569",
+          "bytes": 35405
+        }
+      ]
+    },
+    {
+      "unit_id": "3188857cf3de5040ee56f407c880a0407bf2b8751a3a817077ad2853902f01db",
+      "source_fingerprint": "22d3c2dc0a3f8e595f2990372ecabdff3052736501a19ac63d474054116ca4e0",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/대전/(대전)_라메종블랑쉬((주)해라).xlsx",
+          "ext": "xlsx",
+          "sha256": "de357d89586330518a7926921a7c6fbb8ad5a37b077771e69e97c5ffdba6dc8d",
+          "bytes": 10902
+        }
+      ]
+    },
+    {
+      "unit_id": "7fa4eb11ee924044e89dafdb3b9f0d8bc87a3254d3010e9ced35b85f20de83c7",
+      "source_fingerprint": "031f7ef83f426208cb91a3841881d9fd6d5b4a81efab3e87ad9bf3922d88c1fa",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_라미컨벤션웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "9c0335a13bfffe8fc5a4672635b4f6d560f215c35f05ce7ce77d955dfe65c222",
+          "bytes": 11784
+        }
+      ]
+    },
+    {
+      "unit_id": "77cc4c2fde64cbb9c1c055867131e209a4a375af957e3822fde71a1fb9cf0316",
+      "source_fingerprint": "e9042261eaa6f83c04dd63a6ad31df666d1a9f929b2da69ad2a6d38e0c004a38",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_라비에벨웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "7d3390fd7fd2678396bcbca425196d62ec1a18565b1ed5852d0ce97c0dd4b5a1",
+          "bytes": 11961
+        }
+      ]
+    },
+    {
+      "unit_id": "1ba66b75108cd25613e5ca689baaaa59d7bfe9b68d7013672daca5952f7495a3",
+      "source_fingerprint": "1e1e2514e984c48b22c5a70c5d89feb9cb7efb4131f47de9d8803705b417cb9a",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_롯데시티호텔 대전.xlsx",
+          "ext": "xlsx",
+          "sha256": "1aa4051861f12bee36ff80eb5ac2245269aa4155eafba342a1cbc3087a55af3b",
+          "bytes": 15105
+        }
+      ]
+    },
+    {
+      "unit_id": "d4c8f53945e28d5e8cbde20a5c4b1f0f19c16933210d032239fea5cc3e188e60",
+      "source_fingerprint": "dbbab36977b5d22ffb6dcf3dfde5f1642a11b5915afb16298c1d474eb43f230e",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_루이비스컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "1615d4f7f2aeee7af905a89edf1ceaefa67fe7b303492ddae398320db18ce2d3",
+          "bytes": 12752
+        }
+      ]
+    },
+    {
+      "unit_id": "bac70162fd87c7524996c65d224f3d9108904ba21b8f84e3d225f5d0c479ad3a",
+      "source_fingerprint": "a20a38b6011e9ae652b9ee1261d25d7437514a9c8b6b7fc118fdc5709a79b126",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/대전/(대전)_바비블랑브라이드.xlsx",
+          "ext": "xlsx",
+          "sha256": "ee19c86e45f2cd59aa3024cae54ecfdc5e6db34cc27f23c186e0a7b5616c290e",
+          "bytes": 100909
+        }
+      ]
+    },
+    {
+      "unit_id": "3515fd049df4345e3bfc61dc11bb633a945d40e6a249c7fa9a9b3db813f53688",
+      "source_fingerprint": "32fd46582cc1e8e84c7780040e8936ba62d0bf643ac93d702e53648430aba660",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_빌라 드 알티오라.xlsx",
+          "ext": "xlsx",
+          "sha256": "3442d1506cfa8653e0d8da8a847533754c37b2b7c0cba5cf60310afd4d6375ba",
+          "bytes": 12209
+        }
+      ]
+    },
+    {
+      "unit_id": "f6fbe0c8db156135cd3ee4faeb69faa3005bdec3308dd11d84d42b3918e04aac",
+      "source_fingerprint": "3b25ae4c51103e819d76e5121fafbf7f18cec988d62f0674cbe3a15643ae2cfb",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_씨엘드레브.xlsx",
+          "ext": "xlsx",
+          "sha256": "98095ac6ea2875e785f0298907cc1af07a0d0917e63aa1a9e26ef696f5ed7fa8",
+          "bytes": 12342
+        }
+      ]
+    },
+    {
+      "unit_id": "1e0a3a0bd52101929bbbdb30d19c3562ee9c293a48571250390b5f429e5d0137",
+      "source_fingerprint": "bf687c6d5dc3bfeaba4b3d129136cfb9c3362732b13ef5efa387654a23dd6b48",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_에스가든웨딩 대전.xlsx",
+          "ext": "xlsx",
+          "sha256": "446481fba5040930d5d16f6788298875984f6e0073da2f623f12e81f8ccb76f0",
+          "bytes": 12135
+        }
+      ]
+    },
+    {
+      "unit_id": "6712bc8bcb79cc843e790d4202c4033a7bde4dc17a65e61cf44f56b0d4070335",
+      "source_fingerprint": "574ba562f5c7bb41c862a3463c7e4cb4aa034391cbddd57691fc61bd04187510",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_팔레드오페라.xlsx",
+          "ext": "xlsx",
+          "sha256": "2cb6c754693319b83219ffd010acf5dd0b269cec536c17a24330bc9b3880a375",
+          "bytes": 23762
+        }
+      ]
+    },
+    {
+      "unit_id": "d915968535ac187ee925b8b917f98197a7c2ba4a911a235b475b3b226d902e0d",
+      "source_fingerprint": "cf7ae4bd8d0c74b1ed368aaff52779c160b7d172d4de598347c820aab55a11ee",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_호텔ICC웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "ed0c8b9601963de9e1418144dad2217228aad97a78f3beacaa4ed0c64a0839d4",
+          "bytes": 50019
+        }
+      ]
+    },
+    {
+      "unit_id": "7e0d4444227418ad0c0d753f02a48bde453078b98284ebbfb5a337fc94f39ff5",
+      "source_fingerprint": "961b1cf0fbcf327f87a0d87e2a656fa37a4e8e71a3ea487a64f10093680620f7",
+      "source_files": [
+        {
+          "path": "예식장/대전/(대전)_BMK웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "6e45806d81dff677bdd97f0433844067d21368483839e0102b510e8d3cfdefe1",
+          "bytes": 11954
+        }
+      ]
+    },
+    {
+      "unit_id": "e6dc22a09979f9c03509a594bc369bbc1b3bf8335bd352774868c5811e41b46b",
+      "source_fingerprint": "5294b6d22d394e97de15093eb57c72ebd076a93d10b29b29b1f1b1c04974d5ac",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/부산/(부산)_(주)더리본.xlsx",
+          "ext": "xlsx",
+          "sha256": "9a9e448c1fde913020a3589b115ea6333b32816ba52f52cfb0aacea9e1314327",
+          "bytes": 155573
+        }
+      ]
+    },
+    {
+      "unit_id": "c2221760af2b5425ae04f02f708be4907e62881ed8d09f79b07d75fa0e3622f8",
+      "source_fingerprint": "5bff1c11833596432e29bfc935619656deac72275599b47957a7db1456cdd390",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/부산/(부산)_(주)더블유웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "1ae42d48626afd5f5072e9c0c4578d75850c3ccd43124ac2305e1401a98a3978",
+          "bytes": 155494
+        }
+      ]
+    },
+    {
+      "unit_id": "205ecb95d6713e3c0ce5b3fd50317283120e0e16929bdbfc6c6b96cff72eb27a",
+      "source_fingerprint": "bdd2818e2bd44ed0caaf5338f738588ab5ffa851393770045b896bb7323c21da",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/부산/(부산)_(주)웨딩파티플랜.xlsx",
+          "ext": "xlsx",
+          "sha256": "89adb8d41394b8a1a3f590f1d9cef8f8ff70850e699805741eb487748ed0bc1d",
+          "bytes": 155606
+        }
+      ]
+    },
+    {
+      "unit_id": "9d14f55abf408b15b51f1035c833826214ccbe3aeb70a64eb9fc127fc763ae5a",
+      "source_fingerprint": "861f6f8f9fc40ec0eb519ad2e74db277873f6a857627401824b45e45ac90037d",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_더파티 센텀점(더리본㈜더파티센텀).xlsx",
+          "ext": "xlsx",
+          "sha256": "5529eaea7dd08fb781a3129a11f51a734ce3c739036860ed190a163014418aa0",
+          "bytes": 62902
+        }
+      ]
+    },
+    {
+      "unit_id": "c38df788e5cba2f0600239a36d327190e8d38b34d1c28a1dd3b18515611adbca",
+      "source_fingerprint": "2b4c9c91900f05b65502ed8cbaf3334f8cfa1c7010aa92c077e0a4cc4b4921f6",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_디엘웨딩홀.pdf",
+          "ext": "pdf",
+          "sha256": "4aca14baf6f3cfec4eead54245cb7902548fa4b992780e0966cf9baebdc90163",
+          "bytes": 50155
+        }
+      ]
+    },
+    {
+      "unit_id": "d89c65c306c808a00b31f882d5222514146400ac6301b581e77f6c49557f125c",
+      "source_fingerprint": "f16eccb267c9d7d91562e21a70deb5b80331ebdbed3e8abfe31d9886a7eaf4f8",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_롯데호텔 부산.xlsx",
+          "ext": "xlsx",
+          "sha256": "1c29bb6685eb7b960b0aa25c6ce928eaaa6b397e2aed18d9fec335d3ffb3dafe",
+          "bytes": 15794
+        }
+      ]
+    },
+    {
+      "unit_id": "55f8c481501450266a2df240f31fb0b95aed61277ba45ac86b5a2e93200b3e7d",
+      "source_fingerprint": "e8c2906d423277ca9b9f0f7a18304ee688c236ea78b5e2001241db5bd1b6ea26",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/부산/(부산)_린하람웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "64d1fea84e5e5d013a532a87e2894f1e6746120a269d6e0852346dd9db9c009a",
+          "bytes": 97660
+        }
+      ]
+    },
+    {
+      "unit_id": "ab4bf207c24d512a8af1b824bfa105698bb4082c5ad31f1149f0bdca2bbd8a8e",
+      "source_fingerprint": "fc8c8a598601ebff861dc3cc7e620913255059c1b5a041f320cd0e2b8a250926",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_목장원((주)푸드웨이).hwp",
+          "ext": "hwp",
+          "sha256": "357cd3fdd57b7a8b29d200f3cfb281f962d8e334577dd42108c45b9f123bf4da",
+          "bytes": 43008
+        }
+      ]
+    },
+    {
+      "unit_id": "960d94ce508f9dfaab59daba40dbe4799ac49e2a6957c2720a948ef32335de92",
+      "source_fingerprint": "cc0afb74ffb83adadf4e75afef7c0a192fb4f7352e34fffd0dfce37412fdfabf",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_목화웨딩컨벤션(더리본㈜더파티아이목화점).xlsx",
+          "ext": "xlsx",
+          "sha256": "b90743d0b24a285a9f96b9639b210c612009ad7f18e824d3117d84d388ea8480",
+          "bytes": 62846
+        }
+      ]
+    },
+    {
+      "unit_id": "d82ca1611ea7825e56bca760009f7857e8c89000af13f946c25e211220544fae",
+      "source_fingerprint": "76a50fbb35a74524a1e4ec9a36dde4d64ecaba17d1333bc37f5f0355781cc862",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_부산호텔컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "562737fcec9e8640d905451d3ffaf601dfc156575236498a859a3bbbd226155e",
+          "bytes": 11757
+        }
+      ]
+    },
+    {
+      "unit_id": "e3835dab5c2429bd894ca90ef87031110252284c07da59e12d672984bd52d84f",
+      "source_fingerprint": "7e2333e60fed87dacf0798da0c69dc44108d3da7d4fcbe2a615bb83b86a52dde",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_사학연금S웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "d2876b40c91e4a060f596c9e65233c9950c0c7717a66baa47e95b7ef8d01bcf5",
+          "bytes": 10634
+        }
+      ]
+    },
+    {
+      "unit_id": "b3d0343d1bb706cff44ab373e91a61fb2a483d387d45441e23ef0bfea5271ea8",
+      "source_fingerprint": "68867d0d4a9268b35f2e309dff6f19b526a455a4bc077b56836b11984236f950",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_시그니엘 부산.xlsx",
+          "ext": "xlsx",
+          "sha256": "74a0aaeb6b75937a39ba852dc7736c82c8255dda1637aeb5c3360345adf3eece",
+          "bytes": 15452
+        }
+      ]
+    },
+    {
+      "unit_id": "8be6b4a2b6a0e5237250b14eaa1ba0d3fac16fb4702e9739f860a7f3cbe5cfe3",
+      "source_fingerprint": "86aef59883575987cba43a2abf25567380141f06ec4aa2264fd68062d2243aec",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_아바니 센트럴 부산 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "b0d53275970b1402b650615553b49375d4e8de87cf8f05ccb42ecb147c8e5612",
+          "bytes": 91006
+        }
+      ]
+    },
+    {
+      "unit_id": "100b9a9ae55319f0d0fda40342141354c02cb52cc54a02ed4265ecda4091d972",
+      "source_fingerprint": "83813d520fc19af83122f599ca191bfbc0e9920fe81241b3457fcf7e9dd3394a",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_코모도호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "bb5d79cff835afe495f2c075bcb9be622b19f7f2b5c776742a58f131dae40e88",
+          "bytes": 59010
+        }
+      ]
+    },
+    {
+      "unit_id": "b7a10a3826b27b8bf76604519cbef297d2c9b1f26b92fcee9a46ccb7b585b565",
+      "source_fingerprint": "be505e48b72d321e4d061f60f316562cba45619c555aa70dd1caf70f7160c4a1",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_파티더풀문((주)대보름오시리아).xlsx",
+          "ext": "xlsx",
+          "sha256": "cf4587e825ef6a1c7bb552f6aa91b1d32be0af1ada10998f255db9120c480a77",
+          "bytes": 92466
+        }
+      ]
+    },
+    {
+      "unit_id": "13f1715b926065832901d169c7ef6853acce65b59af687f8c61cdaa9f9beacda",
+      "source_fingerprint": "930fc278ca328652dcdc6d5187682907de57f237478933d0634df5d845b4456e",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W스퀘어웨딩홀(주식회사 더블유웨딩 더블유스퀘어지점).xlsx",
+          "ext": "xlsx",
+          "sha256": "6204909ac4a69df38aab78594612d57dfe35a5532622746eee72d01827f3be61",
+          "bytes": 62916
+        }
+      ]
+    },
+    {
+      "unit_id": "17554d5cadeb490dc346aca9a33ded8d85e065190949a2086e28af7146e9306d",
+      "source_fingerprint": "4d11c061d8baad5d67afa90f58c2e3b25b1a0003dc86e81cf10c8f7d550d7b0f",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 국민연금웨딩홀(㈜더블유웨딩).xlsx",
+          "ext": "xlsx",
+          "sha256": "57284f90250f7f64aa213325afec76b5c4988bdc07338523cb3aeb02aa433517",
+          "bytes": 62893
+        }
+      ]
+    },
+    {
+      "unit_id": "3bfed97d21e4094cdf421a17d059f70889bb830a8eaf6bed3185ce17d124d803",
+      "source_fingerprint": "ae0c38537d1b8a7debef958c48a69af9ede00feb9514d080d11068dab624e8f3",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 더에스웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "9733b92a102681679394670f7f8b5401263f570a1c72438b37cafd6ce4b5a997",
+          "bytes": 62920
+        }
+      ]
+    },
+    {
+      "unit_id": "39e5b93c0dddf961eace7ed7dcaaa8bc532491ee737f3ab47f1aeb73ad73c368",
+      "source_fingerprint": "f9337a6e9e96f9e11e1102aab6d083408b14211fbe402cc6dd4f3e5850f09b8e",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 더펄웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "d51cc7efbba049c9429cccd8479716061a8ca9f865169a51545c43f090a2014a",
+          "bytes": 71524
+        }
+      ]
+    },
+    {
+      "unit_id": "142e59a96097c4076128d62d47d91f6028c48a85a2de8c48601b98ed3e6eaca9",
+      "source_fingerprint": "203805500a3cefef2dc20f200bbb2eaa44348a0b431c5bcba6925ae8c019245e",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 마리나컨벤션웨딩홀(더리본(주)마리나웨딩지점).xlsx",
+          "ext": "xlsx",
+          "sha256": "a4ccfd424b1d0082eb34fb60a4c854a7e9b84e488897623ff4da5733a890343c",
+          "bytes": 62926
+        }
+      ]
+    },
+    {
+      "unit_id": "ee3d6cd0a499143ced232a765348d94079ff28db5ce7a401cf1a099c3848a80d",
+      "source_fingerprint": "f079647ad59c2060ed9c15886a9de8a0e27c2fac3c8eb819b7c340c74723af18",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 벡스코웨딩홀((주)더블유웨딩 벡스코지점).xlsx",
+          "ext": "xlsx",
+          "sha256": "75c6832746cb6778ae00a735f1ccf8d4742f4e5a01537e007d5bce671a52fd54",
+          "bytes": 62855
+        }
+      ]
+    },
+    {
+      "unit_id": "1ba2313fc7e37f4ee887ec6e271b483edf2ace19f5a8edba59931aff63ed2769",
+      "source_fingerprint": "321b7f62e3169691dc12fbf2257ae9d5449af7dabce6216e51e17595e931b864",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 팔레드시즈웨딩홀(더리본㈜더파티해운대지점).xlsx",
+          "ext": "xlsx",
+          "sha256": "a7ea3b24781502a9b6f2d72171969bd53d541e62b2012e7812e56551788cce47",
+          "bytes": 62973
+        }
+      ]
+    },
+    {
+      "unit_id": "d3f3ba23015ff6fd8468387748a2476e0615b932106865f8fd683b202843bb6f",
+      "source_fingerprint": "e99a2eb8983090454057fdc0a56b98de51607657287609b9edef52d391471706",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩 K웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "31c630eb98e1b904cd1b3fe60891212bc614672eec72b5886a7ec44c8054870d",
+          "bytes": 62921
+        }
+      ]
+    },
+    {
+      "unit_id": "252b9d769f07e873e6aa7c8be543a78e952de52829b0ba5aff203001de3de56b",
+      "source_fingerprint": "e46d601ccfba70628ec85b33dbbc4492ce75aa6badcd87dc37b25637124f6fca",
+      "source_files": [
+        {
+          "path": "예식장/부산/(부산)_W웨딩시티 웨딩홀(더리본(주)누리엔웨딩지점).xlsx",
+          "ext": "xlsx",
+          "sha256": "68d3ea09e173d44edb2590ddf698a48dccd21402b108a3d79817398a4778365f",
+          "bytes": 62933
+        }
+      ]
+    },
+    {
+      "unit_id": "a6b3da1733928a9e615d2feddf0d7ae2b02acb85fe1932e4e6ca16ad88a17948",
+      "source_fingerprint": "d0984edbf8da178f6912b9fa2bb7e7557e64a5b23366a30e3ddd6d8aa87ed40b",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/울산/(울산)_(주)더파티플러스.xlsx",
+          "ext": "xlsx",
+          "sha256": "d011e97d9035ffd77a32ff907ddff7a4cc6edec36bd670dc25faee0378352278",
+          "bytes": 155840
+        }
+      ]
+    },
+    {
+      "unit_id": "df525de3771cee5cf56b39e7ef0a25358480c3538585a8d17bebf35d62367eb0",
+      "source_fingerprint": "c0945537d4b73311fbd035f5d4b4e58d8289ef82ad58f5dc58268573efee00a7",
+      "source_files": [
+        {
+          "path": "예식장/울산/(울산)_문수컨벤션웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "f8f1e74a29dfd6ba3c3530ef3452a8d95c0a1e54cc6743b7c1528d07667abd6c",
+          "bytes": 19184
+        }
+      ]
+    },
+    {
+      "unit_id": "a8a8d46b43a3b35422ecc841a019353307361e3827ee8ce1f446103728ce8310",
+      "source_fingerprint": "1475d86525ec5684f6ba0213a7d996116e55293137616df53547f7d4986d5a65",
+      "source_files": [
+        {
+          "path": "예식장/울산/(울산)_보람컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "9ca2dbe6210336d35b5a6033f69375e7cbf489c979d48196608e4aa409491802",
+          "bytes": 11955
+        }
+      ]
+    },
+    {
+      "unit_id": "c3813476b2e138ce4aa1f345ecae9df657a8674766661082d181528423220bf6",
+      "source_fingerprint": "e4b9a594389f6d736591bc95325dc92f5990fc95b517d03168bd11fe88769484",
+      "source_files": [
+        {
+          "path": "예식장/울산/(울산)_타니베이호텔 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "93aba71787b593194d23d1b47db3e817f6c18e16cc0dca0b8a103690bdfc96e7",
+          "bytes": 12727
+        }
+      ]
+    },
+    {
+      "unit_id": "08cf5964c8e8c41b009115a11c364de691da0640e659d9fb6c24b14418deb7db",
+      "source_fingerprint": "23c61686a5a4826e31583732577d96d4c24267ad09967a7da86bdd563b85c15d",
+      "source_files": [
+        {
+          "path": "예식장/울산/(울산)_W시티컨벤션((주)파티플러스).xlsx",
+          "ext": "xlsx",
+          "sha256": "6a6a14f6161e488b748140e612d6032e74fcc8234dbd3a2103abd337f89f53c0",
+          "bytes": 62825
+        }
+      ]
+    },
+    {
+      "unit_id": "e708836f132366013c4872c252add63c5090c3e6a1f7ee636c76aabc4918573e",
+      "source_fingerprint": "593236498e17da4d8fd6840e6327fab32d19749d32533662986d101913e3ef19",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/울산/(울산)_W웨딩(웨딩파티플랜 울산).xlsx",
+          "ext": "xlsx",
+          "sha256": "e056e82eeab7dba803571220d3e3649808e95e63effa786c02562c0b730185f9",
+          "bytes": 156869
+        }
+      ]
+    },
+    {
+      "unit_id": "47b7669a7b7b7c1533a90cc83ea85eacf49f6e63d99bd83604c1c4e83d1c6a27",
+      "source_fingerprint": "337b48f3e2ae0a2a5195f8af4d486ac8e3497d3ca8aabcb7f880cdd00ede515b",
+      "source_files": [
+        {
+          "path": "예식장/인천/(인천)_쉐라톤 그랜드 인천 호텔((주)대우송도호텔).xlsx",
+          "ext": "xlsx",
+          "sha256": "efa695e06b22e3e0fa5f50e5d16d63886b3cdd7949a5095a2e3fd67393004213",
+          "bytes": 12428
+        }
+      ]
+    },
+    {
+      "unit_id": "dcc5b412f1e7742d7552a8054b8ae9cb434f9a50a71f2b5bfbc96f8220195a77",
+      "source_fingerprint": "f5329ddbe29dc2b1e9a674c54e2b7f77ee627d00b04d0fef70a44c41a21bda12",
+      "source_files": [
+        {
+          "path": "예식장/인천/(인천)_아레나파크웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "7dcaa1e37dc77ada0ad480b1b5b6163034803d7d8c198768a626ebc285df3e69",
+          "bytes": 12871
+        }
+      ]
+    },
+    {
+      "unit_id": "32ae7b89ced0ff0f16e2d172c3d089a8dc978d26e7e3fb0bf6063e076846ee4d",
+      "source_fingerprint": "58b159ee1c3facd6111d487648a958b0e3db0ac5515c9ca35f098484ba681e49",
+      "source_files": [
+        {
+          "path": "예식장/인천/(인천)_오라카이호텔웨딩(3층 테라스 야외홀).xlsx",
+          "ext": "xlsx",
+          "sha256": "09d75b5ef201ad5d48908507280b91845b06ffe7a4367f7371b741474475ed6f",
+          "bytes": 11654
+        }
+      ]
+    },
+    {
+      "unit_id": "a4c5f828f6662808762ff52da14ccc9d20fd532f7c1fb15c9e8e41c5e79eb09f",
+      "source_fingerprint": "11e410938898e2933ad5447ff1b1ca5ad74d5d88a97e81b6cd1052b5070a9584",
+      "source_files": [
+        {
+          "path": "예식장/인천/(인천)_하버파크 호텔 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "267b2259ac5454a423b035359f657aa17e0ce3f32b272de122c17119ad5a6cfa",
+          "bytes": 85275
+        }
+      ]
+    },
+    {
+      "unit_id": "e513eccd20684d6541ff6771f825d92c8e01c4e67b3e91cf74c26ed23608e670",
+      "source_fingerprint": "e55082fbca602913262d467d09f84b82311beea908adfcdd4ed69102462205b2",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전남)_호텔 JCS 여수.xlsx",
+          "ext": "xlsx",
+          "sha256": "6e56043aa820c4f372d3822e7acf1ba1d2f2703492e8a794296158e0778fdf11",
+          "bytes": 11261
+        }
+      ]
+    },
+    {
+      "unit_id": "83c0345fbd15dd1603c5c8e38027f0e17494fd494e4fd7925f54ed4d9a9c28e5",
+      "source_fingerprint": "b4de3f908bfa3d363b60b7ca5c01b380d64b48eff71391eea39d6b2e1ccde61b",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_(유)아름다운컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "ef69d4dd338ee87deca8958b81cb577920f32087c98520546bbc8d82d42283b1",
+          "bytes": 13471
+        }
+      ]
+    },
+    {
+      "unit_id": "9f2bcbb15561664321765df9d30024171e8c02afbbf4e6888e79f1c5227e6937",
+      "source_fingerprint": "2ae947dafcfefa1c8f53d3e9140d5a9435486fa7405237b3c3517681c742a221",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_그랜드힐스턴호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "35b0879e9d426830c68ebad0e8bf27726df9b8d0c82ffc7bd41eac7351539dc7",
+          "bytes": 14052
+        }
+      ]
+    },
+    {
+      "unit_id": "9876ef973e210029594b60c8600fb1b01c276aef35659bfc534eff4d03212e39",
+      "source_fingerprint": "5c9f1f241035cf854fd4594b26375861f9e4a8d5bc85300cb2721636fb1440d5",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_더케이웨딩홀 전주.xlsx",
+          "ext": "xlsx",
+          "sha256": "2edf156a951a977ae8223fac1968092a465236ef29297834f9158071ab2acc15",
+          "bytes": 12148
+        }
+      ]
+    },
+    {
+      "unit_id": "ad0545e8d9f7634977ec42d7f042f449e0b61dc17fff8c7cd35cb3b19bc36922",
+      "source_fingerprint": "900f35f20a3b8447b56646059210ae1ba3104a33818fd4e9197a777092338342",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_더헤윰웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "8bb5d933442a1b1fdcb3f0fe9a981e9a4f4d5280548ff4aa48c8dd8a78e9e42e",
+          "bytes": 12063
+        }
+      ]
+    },
+    {
+      "unit_id": "d40f51ecdce6cb9100f5dcffc18095c83c91d874f89963ae937f2f01ff41735a",
+      "source_fingerprint": "69daa398e321a37821e23af30b38995e2aa2f80c6267dde68a3a72340b04e962",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_리얼웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "a4f6afd73efd0b633acb6c0b75f1b8de201ad210b53277aa1cba3c1256280f76",
+          "bytes": 313047
+        }
+      ]
+    },
+    {
+      "unit_id": "214721f6b54c69d92b7c42ddd6fff1fbfa7646ccd5f5e4e9fd4f0e2f104d643c",
+      "source_fingerprint": "9869939d163c49a9fa081f9e48f3cac42b1391925100d4cef66aab4c5c48b534",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_마리나웨딩홀여수_결혼준비대행.pdf",
+          "ext": "pdf",
+          "sha256": "ee3aba8cefc3d800c65cc7a3c913d60e0ab5309caeed8013e27c8f734b626de3",
+          "bytes": 1755883
+        }
+      ]
+    },
+    {
+      "unit_id": "5e7f17b8a1324952337db9705301c92de8127a08dbe0db72b5565c7b52bf59d7",
+      "source_fingerprint": "45cf5ea7cc46728c8c8183224d83c9be67aba11dde300af193579471ece37eef",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_마리나웨딩홀여수_예식장.pdf",
+          "ext": "pdf",
+          "sha256": "ea93f37eb396fb37864c5cb4271aa0b31a1b26336f3ef81d6f116b60770ec1cc",
+          "bytes": 380593
+        }
+      ]
+    },
+    {
+      "unit_id": "ad92c7a41ca9a8583cff776c26235d829936f2ba576177071783b92e8cf8d6bd",
+      "source_fingerprint": "8c79b95eced61fb6d480bfe55d6c820d10a18ac8578dc55c646b75b1f941acbb",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_모니카블랑.hwp",
+          "ext": "hwp",
+          "sha256": "eab302be054e68a26611c5d49aae91645ddd5d7f3dafa2cf86a08e389124d3e2",
+          "bytes": 62464
+        }
+      ]
+    },
+    {
+      "unit_id": "ef0e9873249c9db3ca82ba7f5a33b01d3191ffb2780d77a7e790fd320e5f98af",
+      "source_fingerprint": "05bd94a7a10dcbb426f3daa4d1432afa732cc17308276810e35ce8d48c44ea31",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_봄날.xlsx",
+          "ext": "xlsx",
+          "sha256": "58c33037ab4376c100d59933aa207c6964ea46e63a494f6651f977d0467cad07",
+          "bytes": 12174
+        }
+      ]
+    },
+    {
+      "unit_id": "d2753a64e3021372cbdc007b235731ee712a7ab4030daeff86c0a7a0b26d834c",
+      "source_fingerprint": "b74f928b10dfbba11d71b8e6ff88b161eca087345d4ba06df042824952917b6a",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_순천 마리나웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "1742f6fefc8daed82e14631b10e286fd249020252b54d8ee9793a9bb355deee7",
+          "bytes": 11636
+        }
+      ]
+    },
+    {
+      "unit_id": "732078ac12c569249ac9f3237273c1b2ff5b213f3d18995ad826ed6c6a72f067",
+      "source_fingerprint": "966999ec7aa098f79c20afe8a477280ecbd41c4d7844f672f62b763a917903b1",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_스테이웨딩앤호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "330d8facaacb465aafe2a45e79320fa0e291f6134a65b17bf1eaa1042e0e7e44",
+          "bytes": 12086
+        }
+      ]
+    },
+    {
+      "unit_id": "309845cf243f48a9f572bcdbbad6d4ae4e4d0657de1a8159377f854a5705eb9a",
+      "source_fingerprint": "7f2940b93d50c2181d803151763177dcaaa72b879e83085218b83dfacc702310",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_신부야바이웨디언.xlsx",
+          "ext": "xlsx",
+          "sha256": "c2f3c9c0c5e27db5230f51d1f067a56f52f6c70a4e9e0ea21bb2970a1bffe381",
+          "bytes": 18411
+        }
+      ]
+    },
+    {
+      "unit_id": "7d82b2808a0f23cf860b869aee135bde8ab59b81a09a5d5e4124295bc9d77e08",
+      "source_fingerprint": "25280d8eb71a113c5da3ce556ae5f953251a36ed538ee611e33e073f16ea1621",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_아네스웨딩홀.pdf",
+          "ext": "pdf",
+          "sha256": "42fc72f0380c723ecc1e4d26ceed029107c776a9a7093e0b6ecf3fa70df2ec42",
+          "bytes": 58246
+        }
+      ]
+    },
+    {
+      "unit_id": "828218a084e93ce7d6806a96bdd2440337cc76cfaaa92e917e9db47986353afe",
+      "source_fingerprint": "0877a00daf43623c101412f35b1fc0708f8f7af569b9a90e5c39df414405acf8",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_알펜시아웨딩컨벤션.pdf",
+          "ext": "pdf",
+          "sha256": "6c769c53914348970d3636b81a1bfccd90b80ba386fa3ba9084cae4623604e33",
+          "bytes": 121940
+        }
+      ]
+    },
+    {
+      "unit_id": "2f1827c1d846145983989e058463535967cd1ec627f259a994ff98676a695a98",
+      "source_fingerprint": "8ea7007ee15e562b21d452158cf663c04494eb21f3c003855085ce8803d308c8",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_에메랄드웨딩홀.pdf",
+          "ext": "pdf",
+          "sha256": "d89231c6b951fab407c379f7c85d026556a93cbbb0f795001a02bde1ee081448",
+          "bytes": 76637
+        }
+      ]
+    },
+    {
+      "unit_id": "652128cbb4f04bb768309d8a5767888007084ed242e6b681490dd9becb8832b0",
+      "source_fingerprint": "f60bf4cadfa73adbc9ed8cb11e574c2e7dcdab7e9df94956364478f303909c7e",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_에뿌제웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "343111a12865e51cbac7b0dd0473050197abe91a078f7acdbfb23f5ec347e3e9",
+          "bytes": 12245
+        }
+      ]
+    },
+    {
+      "unit_id": "fada4d32252b34c0879141877cfd001b4f2b5b1b86d1c194497a2966a58406a3",
+      "source_fingerprint": "2d6814d7d8a64703bcd3808a3d4036623943a199a6455b6c5be5a85f8e88f3f9",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_에이본 호텔 군산.xlsx",
+          "ext": "xlsx",
+          "sha256": "3a9558db33faba638aec72bb6a03b6b7e69c1da55024af262b0abedb43404b3a",
+          "bytes": 12503
+        }
+      ]
+    },
+    {
+      "unit_id": "a0d357bea1d56fa2ed50f4fc23c5844d6dd2adae507370f081744deff6f88141",
+      "source_fingerprint": "9ffe3471aeb23dc8f5649be0bd29596b4dcdede6a1d832cd0731552b9aa85744",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_웨스턴라이프호텔&컨벤션(㈜디에스에이치글로벌 익산지점)_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "fc605ced1385286fc27d372fdfe5343c0c51fe90f8252817fbab099a25746b46",
+          "bytes": 13492
+        }
+      ]
+    },
+    {
+      "unit_id": "bd046a2e69cadedc62924ed93a5f2d8986ee3d0c0605d389af55e85d7b1167af",
+      "source_fingerprint": "a43993de9715602ce6c492e74a96e0e9f69b30853fbe17f1dab9aebbbdb003f2",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_웨스턴라이프호텔&컨벤션(㈜디에스에이치글로벌 익산지점)_예식장.xlsx",
+          "ext": "xlsx",
+          "sha256": "5d23a52412e084b5a1218d3ccead9be789e3f0e5677da9dc1c476ad3e9e04ce2",
+          "bytes": 12375
+        }
+      ]
+    },
+    {
+      "unit_id": "9edd70ed6c6f5adeb26016e6b37ac4787ef6bee81bef09b7b839a088d2b4099e",
+      "source_fingerprint": "e717923436d1c7d1e3530db8d85b9fbf187cb5c2074923c91ddc5816d39f3df1",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/전라도/(전라도)_유탑 마리나호텔_결혼준비대행.docx",
+          "ext": "docx",
+          "sha256": "2d46f13d8600479ea679972a68d64d399475432ab2e2a1154b03b4ba43d7d295",
+          "bytes": 15364
+        }
+      ]
+    },
+    {
+      "unit_id": "31d16ce26eb0959828c3a4d61c05d2cabf56fe1fbc53bbc26344f2b02a0ccab0",
+      "source_fingerprint": "e78797f3fd45ecde77e9274909348acc115c65842b6f7cd7e330566d8b895325",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_유탑 마리나호텔_예식장.docx",
+          "ext": "docx",
+          "sha256": "a09b61ddae267f312e29873f9b7127499ce75834d76940bcfd524aaa8d8f09c3",
+          "bytes": 16695
+        }
+      ]
+    },
+    {
+      "unit_id": "f60317ee5c0da4fdbb97184c57d210af9584293a41ffd76a476214576f0a83ad",
+      "source_fingerprint": "f73934444b6c6bb3a0bddad5ad96583039a47927952bc00140bdbeaf70ea8cac",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_전주웨딩의전당.xlsx",
+          "ext": "xlsx",
+          "sha256": "55dc0bc80c0a09fda4fe19e061b75e0168da7640cba03b947de8a73166002da1",
+          "bytes": 12156
+        }
+      ]
+    },
+    {
+      "unit_id": "aaf0dd3e682c5866b3bc7c168f2ca177f3c6b2a4dad0b53503a0a387f13e4209",
+      "source_fingerprint": "6018e289a07af04823ce156434cc737463a09ee3178e9bc08d7a62c33733d684",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_한원컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "907603d487c6d2593b33fbdd962cfbb37e4e284e37da7f1b6bd0a20845b65efb",
+          "bytes": 11762
+        }
+      ]
+    },
+    {
+      "unit_id": "4be4e417ffd17a4f63958be7ab67f8a6b260c73bb2ea1156ab77ed784ed9b78b",
+      "source_fingerprint": "c24e1f7fa2b1bab538313e081c1860aeee61aa98ce6eb4be5294cebd71ba27b8",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_해리스가든하우스웨딩앤파티.xlsx",
+          "ext": "xlsx",
+          "sha256": "d94aa8e368623fd37c5d03e799c76e92e47906eb8990bd6cffd5ea5dc4345de5",
+          "bytes": 11732
+        }
+      ]
+    },
+    {
+      "unit_id": "88a8d4a59b86f004f5dd3a8a41c2d72234c89627145152be6922f9b227104a17",
+      "source_fingerprint": "a4d22b0f08da2d01334c08c0143c2ad6c190f11b8ac598aa23ced26cb19fb8c8",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_히든베이호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "eea7b11aee2340eea7af1048bc27802b1a8fe1ef6bf94b1455f8bfdf2d7ba4ab",
+          "bytes": 11191
+        }
+      ]
+    },
+    {
+      "unit_id": "1f43b6d3e81490199a68ca0fd3ec2d9932d57533fe6e849c2e7964175eaa63fc",
+      "source_fingerprint": "18f404f80997e98a86d523d2239ae5c4e4112ee31b82d96d7d56a5499177e954",
+      "source_files": [
+        {
+          "path": "예식장/전라도/(전라도)_힐스코트(태성산업(주)).xlsx",
+          "ext": "xlsx",
+          "sha256": "97fc076819d445194f24fe827d6a4b0feb3ceada8b9655b62135eb7903cafc9a",
+          "bytes": 11679
+        }
+      ]
+    },
+    {
+      "unit_id": "b7e44a45554bff1075cb921e9fe9727cbd8c507126226a884a20e55626e4c95c",
+      "source_fingerprint": "10e55d76902465126e72953bd6ed5fb5d41406fe354a17025d5982b0e9f83757",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주)_노팅힐웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "de361e9d2110c8ad8e19b0d21b6d19b55623595b5d21127024e1f4cbcd55bfd7",
+          "bytes": 13758
+        }
+      ]
+    },
+    {
+      "unit_id": "bed41273cb7d32388ae995fd3d79ef45eb1d73d3ed7d3c74d2d7c8ceb0dd5a6d",
+      "source_fingerprint": "7231fdd43cbcf2aebecdf24258785e0e28707131d63a52ae6ae449f9df2e3649",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주)_메종 글래드 제주웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "69873216f5639b3dac05029fca8c7f33e06b759c30a631dd62444c34d9faae94",
+          "bytes": 11682
+        }
+      ]
+    },
+    {
+      "unit_id": "c7f3f93cdac60644db409f62fdd83cdaf5ae0361dcf600cd42b5bdd8d9a30cf6",
+      "source_fingerprint": "9876a908aaa11b2e4096349759bce98acf5f4d6082e692c581d32b66bf46a9f3",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주)_오션스위츠.xlsx",
+          "ext": "xlsx",
+          "sha256": "4fb848ad5535dbc1571254a785cb6b0fddfe2616efb53b722387f113b72daf09",
+          "bytes": 11730
+        }
+      ]
+    },
+    {
+      "unit_id": "1f0c8bc2a279c3f6b95fa10ecdc1d46ea4d06d5cc97cf4c0527aa497b6146e8b",
+      "source_fingerprint": "a0404a01f25f6d8c425f6b724780259bdfe8c772942afbd009f49c0b4c04b348",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주)_화목원 웨딩홀(농업회사법인마중물(주)).xlsx",
+          "ext": "xlsx",
+          "sha256": "1ed4b3a227f062630c474e38698d678143efdb433554a34515ef3c95f7a695b3",
+          "bytes": 11821
+        }
+      ]
+    },
+    {
+      "unit_id": "564eaa0d94dd755b397229a00ee84bfa4162a1bb5ca19e85e4470d358d66f40c",
+      "source_fingerprint": "b4d2de2fd227526c4bf7ebdf5b3f0fe334fc402f185c56cdf585e479b38f3823",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주도)_다인오세아노 호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "37ed08767365e50d4cdaaa3c2c4ad55b28fbc52a4eb1bfff16d94abe0d848989",
+          "bytes": 12374
+        }
+      ]
+    },
+    {
+      "unit_id": "80dca31463a3912a4824ff8161af9bcac242d3923f8ff06557b69a27a9fddaae",
+      "source_fingerprint": "5690add71ba6f662a5b302e9ea3cbcc8982e6a85d53e0a8f466933a0b21bcdde",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주도)_더 컨벤션 제주.xlsx",
+          "ext": "xlsx",
+          "sha256": "5a8beb2236435a8c794782563de5fa849abe6a28306d7525cd9a1d3a712a1b5d",
+          "bytes": 14657
+        }
+      ]
+    },
+    {
+      "unit_id": "3b0f90bc01ac87ec71e5b5026193d1eeca81bf18607e4f6f01fcfece9989fd23",
+      "source_fingerprint": "a5561961388a6748cf5636b2d2c481327b4b5bb2942ae70280a5444d5dabcb6c",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/제주도/(제주도)_비비드블랑.xlsx",
+          "ext": "xlsx",
+          "sha256": "9b7f1a5f20c64610035f6e883cbf4b5931acfb8ed8a13a8fa03d2d4825ae0c9c",
+          "bytes": 12101
+        }
+      ]
+    },
+    {
+      "unit_id": "e0bf2fee2c07fd265ed50c4a1efc465a72161e267672b44e40866c7d70a2e212",
+      "source_fingerprint": "5f233e467c8da57a2191c8189a8133d34245a8e84e0fcacaa66a6a8f4833edea",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주도)_아라캐슬웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "0bfd34064851dadec6d35d163bba6fdf5735ccea8fd02ac34dd23c80076794e0",
+          "bytes": 11887
+        }
+      ]
+    },
+    {
+      "unit_id": "8c9aefdb89c320318f8a75f89bfe1d02c16b7ed407bf53610ff8395c96119852",
+      "source_fingerprint": "5028ab6653f9b0994637a61fb7b05d34d54af891d6bdf3121600ecf522727af7",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주도)_오리엔탈호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "ab7e3fe1291c5a48cd65404a4b6e75ba5874afc6ffbf2b2f2dab67cff51e4e17",
+          "bytes": 12165
+        }
+      ]
+    },
+    {
+      "unit_id": "de1e8cd8fd1a386402c87969951f27afe8634939a6ddb0250c8acdb6ca472813",
+      "source_fingerprint": "d60cb864c57f99916e58776bd2fd10e9198320e17e140d8d95da57aa78894888",
+      "source_files": [
+        {
+          "path": "예식장/제주도/(제주도)_파라다이스 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "38e6d575377d54dc78b8afb608437301dc26a29f1af24124372269d4ae7cfdea",
+          "bytes": 11875
+        }
+      ]
+    },
+    {
+      "unit_id": "9845a207cce6630c15795e783ed24a4a5e0f94f0b6e8cc1c47626f978f0d486f",
+      "source_fingerprint": "f428e76d6527a6d509f429d3b64db668129c94ae4c60149b44c68d3224c4f5cd",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_강남웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "6d438e46b0cbbbdabdb50f74dad83b009b795dd0071e46888719541c00e401fc",
+          "bytes": 23448
+        }
+      ]
+    },
+    {
+      "unit_id": "6d12aab0e59404966060bdbc14b362547efb0dba83e1155b44c197e3e99d79d4",
+      "source_fingerprint": "97b9352804e4466f1f6e3b5b4151f7b2912f342c78f69d7bf6636f7ec3e06b92",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_국현우리옷 청주점, 메리다점.xlsx",
+          "ext": "xlsx",
+          "sha256": "fff392f1e79fc09b6b15afc0409ca8cec2dbff52e3581f9a79eafbd10604ee3b",
+          "bytes": 54204
+        }
+      ]
+    },
+    {
+      "unit_id": "b830d4a318af709934b3f2501bcb1e2bf055c75d91961b8ad5004b2b35997c9f",
+      "source_fingerprint": "895ac25a2ef1ae1d84363c8638876bfc295176eca0bd8ce0756d019eae27c2a8",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_더빈컨벤션웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "204b594b82a88418345962070c1d68d47eef7f7463ae4e8c6d768d6de14b5e44",
+          "bytes": 12806
+        }
+      ]
+    },
+    {
+      "unit_id": "4179b25b2346db61afe532b18810321dc09276b8a147bc787833f772f97c3ed3",
+      "source_fingerprint": "ddc3f0142b2dadf5e150bf2552b4498992cbfa0ec52bf42a60ccd7b3f09eb045",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_더포레 예산.xlsx",
+          "ext": "xlsx",
+          "sha256": "64bc6e2ffbfaecb5ef9e22bd5186be9eed70054631e9187e0e7e3aeb87aa7981",
+          "bytes": 13139
+        }
+      ]
+    },
+    {
+      "unit_id": "3ede5124eb1078497fb4b2e28e3b73c5528cea6d3c9507638db06547b744e5e7",
+      "source_fingerprint": "4c7a020c053bd44cc137774dc2a580e8396244fbbee636588164f13ec8603377",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_더포레천안웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "463c545084215e2c573ac14b6185a3d330ad833ef3bf7af36987f073b40b19c5",
+          "bytes": 12123
+        }
+      ]
+    },
+    {
+      "unit_id": "e9f7ca0f329dd3e8d5db1eb6b3cc72847132c06c00154193c24976fb1e05f00e",
+      "source_fingerprint": "e1136a40f83804876a75b6e6ccb9f15dd621dfe8c0c3d9a6d3d5c600589fe43c",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_디올라페니체.xlsx",
+          "ext": "xlsx",
+          "sha256": "aca66b923afd6c60272363c78c29e8fc40dde3ff28eebd7bf001c64cf5ada3b6",
+          "bytes": 13871
+        }
+      ]
+    },
+    {
+      "unit_id": "d28cbc2a3db221f08b6893cbe744ccf45943ddf638b1ccafdfe4e09ee8e1c3d1",
+      "source_fingerprint": "642b955ba74b4e32f9a11b39d3a182188e7c6b15d39d84b36f3ed556ee4d2ded",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_롯데리조트부여점.xlsx",
+          "ext": "xlsx",
+          "sha256": "ffd7ef4fc3469a92f464d37379124622c1f263fae1186ab464071f5342b32613",
+          "bytes": 12677
+        }
+      ]
+    },
+    {
+      "unit_id": "8c46d5a7e9ec9b59643a46876c15bbf8f522e7f336a88ab59d52c1f6a114e031",
+      "source_fingerprint": "2f6b07108d064d1f825c0e7bafd6a92fb025ca18fdece1ad45cfc228354b3424",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_리첸시아웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "76c09afb0661aed95637db3601c0ec91b9896bf3f6524c437e5011df2330e550",
+          "bytes": 12931
+        }
+      ]
+    },
+    {
+      "unit_id": "89b9d4a7e2a229250981f4e7056a41699465b4983ead4b0325f4fb759bb30a50",
+      "source_fingerprint": "8b7eb4088f50b8f01a1647a75d73608567cd69d377ffbdc186368d1e299700cf",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_메리다웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "7c8344458f22b6dca53975ed553701d673995ca937e8fa1b72a264daa4c6d378",
+          "bytes": 13336
+        }
+      ]
+    },
+    {
+      "unit_id": "7f77032b868ac41f6179d40e87606ca2190b05c707237021e8430a6846f12526",
+      "source_fingerprint": "f34e429f27cbec18dc224e7dd682210a0744226f77e8f8d162d12beb5aad6f95",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_메종 드 호암.xlsx",
+          "ext": "xlsx",
+          "sha256": "edffafe99136eefe6d1147535b91b055e626c2b8181216c83b164e5b3ff817a4",
+          "bytes": 12800
+        }
+      ]
+    },
+    {
+      "unit_id": "42dd1919903d6d883673825433520eceaa08528f0ff9b5009ee2d95fa714e10a",
+      "source_fingerprint": "a44bc78db5d0aaf485633ccd00ce4a58b9ff72332e36b8a68e86cf5c8c3518a0",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_모나밸리 웨딩홀.pdf",
+          "ext": "pdf",
+          "sha256": "aba532caac162ac3cd1776eb90c25ef755a2d9213c872ad77d7cd4bd9a3e810d",
+          "bytes": 639761
+        }
+      ]
+    },
+    {
+      "unit_id": "332aeaffdfa6eaccd9c68b8ff10c280c5753d2dbeeea75e0e1d18dfede3f81e5",
+      "source_fingerprint": "2d1993f598682a315e708bc9ff401505fcc5ea3a04085deb6808e25ae3a384b7",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_베니키아호텔 서산 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "3faaf054739488b6bd9dbd36f45bd1297c18d150f9369c14d5f46f9cee2bd9c4",
+          "bytes": 12806
+        }
+      ]
+    },
+    {
+      "unit_id": "e00706594bbf8be754111cbe94f63f83acb9e1189f805d471114af030c4dabc9",
+      "source_fingerprint": "4ace7ce035cd40419b498469512015d71006aaed83f2c26108d3d88e27d65adc",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_베리컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "73e91caf66ad7ad1af36aeeaa76f2bf3489ace387ca6733a78d37d1ea18d3993",
+          "bytes": 12087
+        }
+      ]
+    },
+    {
+      "unit_id": "c3e6cd7752f0be681a026c1e40a8a40256442fd11b93ae14d15047f817faf161",
+      "source_fingerprint": "f2fd7a13d15e3f8a58f1c61d08ad17295b79d43e9fd69dc1d48bcd0a51d6da5a",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_비마이스튜디오 청주점((주)양군네사진관).xlsx",
+          "ext": "xlsx",
+          "sha256": "a1623a1f526d4b28c1882599dc2cd1c64bffc001647f23c8c30579f486d7c453",
+          "bytes": 13564
+        }
+      ]
+    },
+    {
+      "unit_id": "03cfc5cd69d809027a96687d6be6f98351a94be01ae82f5533e791f0c22a20cf",
+      "source_fingerprint": "947f6fabc543c5a0d6d0d2633d86a52e7f1235d2ac1879b29c6c02af6c079aee",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_셀레네하우스웨딩(천안, 청주점) (1).xlsx",
+          "ext": "xlsx",
+          "sha256": "0afd7d0ac57887f797904ba5a425486b385101328213417fb513f1c5230e085b",
+          "bytes": 12790
+        }
+      ]
+    },
+    {
+      "unit_id": "bfc0bf5443466454e34ac97340dfdcd696d7b0b878211e6735da935ee642f2c1",
+      "source_fingerprint": "2cedaf3f7056de1de942de8acbd856f57135dfe1d17e47e07994c9bb051a7f6c",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_셀레네하우스웨딩(천안, 청주점).xlsx",
+          "ext": "xlsx",
+          "sha256": "0afd7d0ac57887f797904ba5a425486b385101328213417fb513f1c5230e085b",
+          "bytes": 12790
+        }
+      ]
+    },
+    {
+      "unit_id": "6164a3e4e30aae6399e30c4589c10b9b84afe823247b13c70ed90b239586c7d6",
+      "source_fingerprint": "d238fc13e4a662f2077e92a1f1727932b8d7031e5050cb0718941db8ccdb09b6",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_숲속웨딩공원.xlsx",
+          "ext": "xlsx",
+          "sha256": "3154af339b3f5c55b0162e9e9cf239361d89f671e5487fb3bc63d993a55a394a",
+          "bytes": 13645
+        }
+      ]
+    },
+    {
+      "unit_id": "5a6fb5377f90004b55ff55138b654320b6ec65db111cb4ddaf93da4ce812380d",
+      "source_fingerprint": "031eea84bc8fe7c099befdd28f8f8d7cd163abba51562cc73946188a311e2013",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_스완웨딩((주)스완).xlsx",
+          "ext": "xlsx",
+          "sha256": "7a48ba18a7b76174e22585e711f8bb60e0a9537d4a62a8b8f21e2412e99024d0",
+          "bytes": 12806
+        }
+      ]
+    },
+    {
+      "unit_id": "64ebb597d756ae1f28e0aa8a8ca00b6d91138bff92fefc0a78766726a76b07fc",
+      "source_fingerprint": "0537b482149986dc0f91fdf1b9978361a9ebb7bcafc5c4b1e909f465e76c803b",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_아르델웨딩컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "f265c4a860ff6ffd22ef3913c32c42450c967f7e843a18b2b17603ca7e632fc0",
+          "bytes": 12425
+        }
+      ]
+    },
+    {
+      "unit_id": "72fe07f23831504a0114cb458f864e14e7924d198b3f29d6f0af952c7134003d",
+      "source_fingerprint": "952a26156ead115541498946bd1b02d556448e5c09d5d9fc453f1c2024992e81",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_아모르아트컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "299f9612c708ad14d0ad372fbd269ad6a0f57b3127ed26b5ecf333ab49db10e2",
+          "bytes": 13016
+        }
+      ]
+    },
+    {
+      "unit_id": "88d4afd2b48a8a3e4005f49cdf5aeacd2fe0db448a6258810a15c0825e4ee09c",
+      "source_fingerprint": "3006d72c9511a4213e658a65991ccf7525bd3232bab6d03ec9d97f06d62fbfd7",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_아산터미널웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "0b7dd94fe9255b99ea8e52c0aade4c2ea4343853881a124b4d4a6466b3ba15aa",
+          "bytes": 12739
+        }
+      ]
+    },
+    {
+      "unit_id": "ac2cfeb8712edaaedb15bd53a1250a4ab44785c7a84c906595ebc99d5a511690",
+      "source_fingerprint": "64498d6572f45b69e42f5ad1508a35b976024a8fa758fde094d18875034f7aad",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_아이브 브라이드.pdf",
+          "ext": "pdf",
+          "sha256": "d72ab23ca1c90288e734b9e988463ff81b3546ae6df16696dd008f24e4b33e71",
+          "bytes": 268810
+        }
+      ]
+    },
+    {
+      "unit_id": "3683bad9654b5f9a638a6561fc89234757aa0713c77f640a0cfd329990379fe9",
+      "source_fingerprint": "3e22e8b40f3789a725a1fc811f32bc9b60eb44fb68a75e9af2af3dd2086a5a3e",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_에스가든웨딩 청주.xlsx",
+          "ext": "xlsx",
+          "sha256": "ef5f95175321cf4336a12da4c6e50616cb9df81d1464983a7b3e7f1918371d18",
+          "bytes": 11867
+        }
+      ]
+    },
+    {
+      "unit_id": "9874efb5b5778a4c32b4918ed6c2d47987db6ec8871decd33bbc267339035e2b",
+      "source_fingerprint": "a0a111223b447a2aeabb04641ea91083b3a05260b1f772e5a0da7518e51587f6",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_오드 스튜디오.hwp",
+          "ext": "hwp",
+          "sha256": "211f50b75a71138f167cf3939bb7323bdace2e9006e1723419e730d3394adedd",
+          "bytes": 35840
+        }
+      ]
+    },
+    {
+      "unit_id": "ba1eaceceaefd3d25d21d4ef1e79b271413dc5b247dc998428ea4a3e4bd3fb36",
+      "source_fingerprint": "eaf739af9bd4492532f852e6b78890f5b0c06aa2862732f0d1c9a37eb51cb955",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_청주상의원.xlsx",
+          "ext": "xlsx",
+          "sha256": "5df870c59d5bb6415a2c61d61340ecaeb110f9bb4aa8ce14a95662e9173cb6d0",
+          "bytes": 13731
+        }
+      ]
+    },
+    {
+      "unit_id": "49a0ffc4daaa99cc8cc48e408928b314932b00591dcef42890fc859a1543e191",
+      "source_fingerprint": "0fd3fa459452fe6743b9e5a62634b5969ba31a0dfcc891ccd34bd6f5dbf78be4",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_충주컨벤션센터 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "8dce0369ac2c9944b667b0cfb78efd4e01aed45a3c3df9470cf4d54bac661e25",
+          "bytes": 13267
+        }
+      ]
+    },
+    {
+      "unit_id": "ec388f724e1754717c4d18413fa6690344188fe84c1497b9d8daeb4bc5f34286",
+      "source_fingerprint": "59e2adad8ec4c8755f549f00d01e9eba28ed2c631543bc8080b576c953b28280",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_티웨딩 천안.pdf",
+          "ext": "pdf",
+          "sha256": "f5ba7d310b7b6ea3d6d2233a4be8c3e6515ab2b54a497bf622a596d3e05188e4",
+          "bytes": 112531
+        }
+      ]
+    },
+    {
+      "unit_id": "fd52a3a2b04b51a8e6ea4e9ecf97ca5855b2ceec22975bdde0494093748a29f6",
+      "source_fingerprint": "2076d6be799a0acc29e121c1c905d216dcbc1a4a6201696645b6cf8aa36409db",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_포레스트 한울.xlsx",
+          "ext": "xlsx",
+          "sha256": "4874c146e4d4db4e169d0a9e7b8c20f656a8d1e37ff5db154163ea0faa436744",
+          "bytes": 12302
+        }
+      ]
+    },
+    {
+      "unit_id": "27f7a57807865aa97112c6cd5066205266d467747ae70e63335ca660a7400bda",
+      "source_fingerprint": "fb69b830fc7a22a8c902857a8cbd3cc8716a79971b6f30bb10195d8a6e485f63",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_플로렌스 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "0369e46e07a677bc6cf1f3be538322ab062c09843efd026c4e556c3e54916b40",
+          "bytes": 13731
+        }
+      ]
+    },
+    {
+      "unit_id": "aed12a079347d8251ed12958dfefdff448a4b70cf4ec1fd3248187682f64fe23",
+      "source_fingerprint": "1e1b9d5329acc3cdd9df940fc4985e639c8bb7e06a873e0f53e81554d4fd6c1e",
+      "source_files": [
+        {
+          "path": "예식장/충청도/(충청도)_호서웨딩프라자.xlsx",
+          "ext": "xlsx",
+          "sha256": "dba226add3624fd37ec8ad497025f0aed9e797c2a22c3a61cee9aa9d05113874",
+          "bytes": 11597
+        }
+      ]
+    },
+    {
+      "unit_id": "b7173abbf8f3793d2f905829e29c2403e74806cac50be0daf85b23b72aaef384",
+      "source_fingerprint": "d8058f7417a95ca0fca52858ccc49c4b1e5fcd64b4fd6234d483254b8716307a",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_BBB웨딩((주)더메이트).xlsx",
+          "ext": "xlsx",
+          "sha256": "9d84bca54a79c136f132318591419836aed37f65176fb20338ed1c0c1d4b7995",
+          "bytes": 14564
+        }
+      ]
+    },
+    {
+      "unit_id": "302775780523c324bb7c4b7e527b7fe6f20a2b596fa9d84702ddba3add17f7f4",
+      "source_fingerprint": "7c9c5a7f244ad08678335fe5960c54d7b7e224289ea009a6752db72dc0f106ad",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/충청도/(충청도)_SHARP웨딩.pdf",
+          "ext": "pdf",
+          "sha256": "0d64a62b3bb32cd8191d563d7ef591567d3dfa46b5bc965a75383632aa88c932",
+          "bytes": 48005
+        }
+      ]
+    },
+    {
+      "unit_id": "c99f07385bffbcc692790c289ca238ae62b94e7f24ee751fc2d40446ff545624",
+      "source_fingerprint": "22d057c8ac4b1c4489ab78c3499a5ec37f2ff3876ef8b071865e236a26577176",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/서울(강남 외)/[서울(강남 외)]_(주)레브웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "6d0956197a68575d54f99dc251e9f7108a907166259a1abbd91e271b5fe9ce1d",
+          "bytes": 20161
+        }
+      ]
+    },
+    {
+      "unit_id": "768a08c58ae8f9b87e6a4bdefcee02c8888854bfe6b4dd537710377ec59a1039",
+      "source_fingerprint": "3dc8fa76d91f3896d2c7dc7c1ed8168d04821f16842d7aa8b874c4a15f89d7df",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_국방컨벤션센터.hwp",
+          "ext": "hwp",
+          "sha256": "aa84830f716c3b475605cf8a5c27b4cf45bc8539349539731ea9e6e624b73657",
+          "bytes": 111104
+        }
+      ]
+    },
+    {
+      "unit_id": "fa14bfe24a46f3e96b24f1b0c5d06d2f8a07c6639429519d16b8f0be73c8b8d7",
+      "source_fingerprint": "6a8868562a3f2aabf57a1701618e09865bc271b314986bed9263efe87707b9cd",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_나인트리 프리미어 로카우스호텔.pdf",
+          "ext": "pdf",
+          "sha256": "aa13a0ca34a5554254452582a990e491fa5cb2b385cf7038e201f277278b50cd",
+          "bytes": 81171
+        }
+      ]
+    },
+    {
+      "unit_id": "1b252b8d4df1ca1937413f96855002276729a1b13552ab81703cbac68769a8a2",
+      "source_fingerprint": "a3851c16f4b47c2cbd65bcc75a745f7577b8f6d1ef4fc1a395d307900e2659ea",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_더링크호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "f787524b887ef9d441754e202bdbe800b3a88ca51d3660cf9e616f1f73569dfa",
+          "bytes": 60238
+        }
+      ]
+    },
+    {
+      "unit_id": "d5901bf18ac1527260cc97a637a14ef818f2dfd29c0a840e24ca65bc3d7ad877",
+      "source_fingerprint": "9422ac431412614029aa05b45d4f37732d535d5d137ef17ae96df69add827df6",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_더컨벤션 영등포((유)제이더블유영등포).xlsx",
+          "ext": "xlsx",
+          "sha256": "e571f1060c4108156cd9b3b9a5d15e73d2d5ba1cd453eaaa3fc14e4f71cdb00e",
+          "bytes": 162805
+        }
+      ]
+    },
+    {
+      "unit_id": "dd7b97a72907459ab9e418ba3675c95c37f1408d10c094d056bdac24f53294b5",
+      "source_fingerprint": "cea681bcccff1660035508ce6c6add0f6aa52401614472213a63f5ae8bd002fe",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_더파티움.xlsx",
+          "ext": "xlsx",
+          "sha256": "d91c70e5057914c699b09332cf33cd2d336472316150f65dbaccef540ae662dd",
+          "bytes": 13412
+        }
+      ]
+    },
+    {
+      "unit_id": "c4241a23e338ad2c6409755761c483ff86d0feb7c61725699d04a31e7498859e",
+      "source_fingerprint": "1e13fe551c04e26bb57a0a64623183b7154d46c2fa938bb174a1ee6270cb37d0",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_라마다서울신도림호텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "a4f7ab1b61472d6f1ae5a5d4a1861ba3e226ce43a8573dff099d4cef4e1d7387",
+          "bytes": 12826
+        }
+      ]
+    },
+    {
+      "unit_id": "e214678a78d878223dbf62e6e93d1a5878434f4405b1435728a1b22590d9b315",
+      "source_fingerprint": "048df36141e0bfd11e2a3e4bcf7a32b3b2904d1acdbc945ccb5eca94a40c132d",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_로얄파크컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "5a2cf306204b810c325464beaa5105432dd0c8fd4d4a779473f68993621cbf27",
+          "bytes": 12253
+        }
+      ]
+    },
+    {
+      "unit_id": "4565b02c822acca94c328214286c6ea5bde3de0c16e00897e99f9332f7ce6c0f",
+      "source_fingerprint": "cabbee6d4c48e053f708b21ee72506574cd7b83eef8d2fc50deea8d26ba42801",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_롯데호텔 서울.xlsx",
+          "ext": "xlsx",
+          "sha256": "8f32b94b0ebd77d36a938c3e3dcef96001d743d2df73b9825ab2088f1ad81c65",
+          "bytes": 15777
+        }
+      ]
+    },
+    {
+      "unit_id": "1f6e3e857fc293a13bbee2be5a147f845932a4ff4ca305957a561446e7ebe0f6",
+      "source_fingerprint": "33c3b11ab77ddb2c965c1c5066d6659597ae0ec55ece35a4fc9f6110f8a49f72",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_루벨.xlsx",
+          "ext": "xlsx",
+          "sha256": "0dd9730b33d0baafb287e94571da462f1e032b2e1a4264ed0e9560d8b8a09d1f",
+          "bytes": 208667
+        }
+      ]
+    },
+    {
+      "unit_id": "09bbd9695f6d3283e0c1e724c690b9a5af2c0b206c2c48ad6e3052d9be6f66bc",
+      "source_fingerprint": "ba55f015bfb712d6a92a697091f351eb577d02a2231a1840b98c6ff51c9c2c58",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/서울(강남 외)/[서울(강남 외)]_마리아쥬제이_결혼준비대행.xlsx",
+          "ext": "xlsx",
+          "sha256": "1fb8582b0816bebf205a153e53e41cf2fbc3f96b4b393c67cc7b29ec82a46f50",
+          "bytes": 12733
+        }
+      ]
+    },
+    {
+      "unit_id": "55c73b12823f8fdc5034600ca7f1c210892746aeff324bc129ccb8d50be7eb40",
+      "source_fingerprint": "e7f097d4134ad8e80e21efbae4526eeea972a5dd4126a7cfec27310468d77e4d",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/서울(강남 외)/[서울(강남 외)]_보람상조 웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "08ac8e04f332d108ce8b670e6333d9ecea52f275a5d44e1256918c3a46fa4eed",
+          "bytes": 23794
+        }
+      ]
+    },
+    {
+      "unit_id": "1a3cede0059ccedcebede6adfc081ac436263b8d8c201a3b5aab3310f5573945",
+      "source_fingerprint": "4b514f01e5ab986c4b73b29a002c18091194a09e47c4102c7a84f3a8b3698352",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_보타닉파크웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "ed6117c7898fb074cc10bef9ef8a99578bfc73e529c7f7a7dbf74dfe6c9ea35c",
+          "bytes": 12592
+        }
+      ]
+    },
+    {
+      "unit_id": "39fc838d5499e4dc28780131d65fd72929393b046a53200a5619dc047da93244",
+      "source_fingerprint": "ed872758b4d902ff4e8b0bef0133e337a2ab0dbc47b08779abc18ee741de762b",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_삼청각.xlsx",
+          "ext": "xlsx",
+          "sha256": "88c219b60849f074da816dfcc7e0b77b6818bab114881fb7b0afdf1f621d6e0e",
+          "bytes": 13171
+        }
+      ]
+    },
+    {
+      "unit_id": "61bbaeded963114e06053aff7cffcf5e69fbe93e82f930b0cded7c4faae69f68",
+      "source_fingerprint": "940a2a13a6bb15d520ceaa20b674abcbe416cf70a7265e7d144090bf241e0019",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_서울대학교 교수회관(마리아쥬제이).xlsx",
+          "ext": "xlsx",
+          "sha256": "26dfcb2806360f8b44faf09bac0030febd7f5c1b67efba61c46ff14a001cfce8",
+          "bytes": 38242
+        }
+      ]
+    },
+    {
+      "unit_id": "61f5718f77eed9ff26352faef016434818a2bbb9884f7feddd5270d2644a6f65",
+      "source_fingerprint": "6737b8af5a0b11357bd46f205b1dc0d0689ef6216b31adfd37f6aaac6419aa3d",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_서울신라호텔((주)호텔신라).xlsx",
+          "ext": "xlsx",
+          "sha256": "b624b4edd4c76ec41120c88b63494aa495b6edbebba8df0100da919eefae7a55",
+          "bytes": 237497
+        }
+      ]
+    },
+    {
+      "unit_id": "d34386e4f0f59d060a1b4805d9504a7da156524d73084f0ccf9d47b280f885ea",
+      "source_fingerprint": "491501c0e918e5beec677df51b74f427a20c482b650d909a56e87c59f2a27fbd",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_서울올림픽파크텔.xlsx",
+          "ext": "xlsx",
+          "sha256": "f52bea5e8290b3e602a89b924e3478716755064825be1c866a0053368f464d3f",
+          "bytes": 12640
+        }
+      ]
+    },
+    {
+      "unit_id": "1f7971add2b52bef1fdb07951a5a7c52fd47efe27d36d7da56adb76b279f8736",
+      "source_fingerprint": "9a3cebf00a9c734daab8e3b0bae825fb163de046a1fc3e5ed6cf44475e99a33a",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_엘로라인가든.xlsx",
+          "ext": "xlsx",
+          "sha256": "e56358264deeab7846a1f03ee9281bd985ceff93099b9ebd947f18517a479f71",
+          "bytes": 14581
+        }
+      ]
+    },
+    {
+      "unit_id": "3175deae3160e1f905423c3205182a98dd6e7da8fe3340cfbaa5efdb39b61b3f",
+      "source_fingerprint": "77b5cab65ab61e69b6289d74cd31c40d4a03d73e738348b8b193e1b725d73fa1",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_월드컵컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "7c88339b428556219565c690a17dda86c82382078a3306fbf85714ecc11ba316",
+          "bytes": 13073
+        }
+      ]
+    },
+    {
+      "unit_id": "f9b52a711750748434eee6013ebd6a92c472ba45ca8ad19b6adc65b65410ef2e",
+      "source_fingerprint": "58cf02ac899b008deccfa2b471c4ad5c7d1fbdbbc516fc6a3390224e22ee0ab5",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/서울(강남 외)/[서울(강남 외)]_웨딩두잇 위드 이유스타일.xlsx",
+          "ext": "xlsx",
+          "sha256": "ef8a5ebbde504a88a744f2ef168a3aa2cd1e5557bcdf8579a37233122a87cf4e",
+          "bytes": 33089
+        }
+      ]
+    },
+    {
+      "unit_id": "2238d3c1c64d433915688c46ca957c50ea0913e125ca11af79faaacfe9bad2d7",
+      "source_fingerprint": "26f6a9b5e0aae07114e205b87debddf497285c36a481060b3c33051a0c147128",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_웨딩스퀘어 강변(티엠 웨딩스퀘어).xlsx",
+          "ext": "xlsx",
+          "sha256": "23c2a52610d0b7d4a76e7961ffebcad6431d62a572c74b8d1e5c73faa539bc40",
+          "bytes": 162850
+        }
+      ]
+    },
+    {
+      "unit_id": "d17222a5dbb66227ece2e607e29df22168891e919fd41b22f1e1e41b1b2c1ca3",
+      "source_fingerprint": "e546bb0767efedb0fdd18aa51ccfa658acddf649f62a640381eef519f929ed38",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_웨스턴베니비스 신도림.xlsx",
+          "ext": "xlsx",
+          "sha256": "98ad94bd1b62f1d9129cee74093cfa3632dedf95953ca4812a5c081d005290a6",
+          "bytes": 162917
+        }
+      ]
+    },
+    {
+      "unit_id": "3555cd5fada1ab7a8f941cc581e9b9d4b4dc09c2d4edbcefecec8e546f2e2d59",
+      "source_fingerprint": "17ca275f0c884992fe2187c68ac78ccf3015453a95bd4351ed996ed70d6ce8be",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_웨스턴베니비스 영등포.xlsx",
+          "ext": "xlsx",
+          "sha256": "3425d864c0fecb2a072c199adbe9a758875703eb89c3d9c6ef27d8812f30285d",
+          "bytes": 160792
+        }
+      ]
+    },
+    {
+      "unit_id": "8efde1e31da16f8b2d0fe7697a2ff7eb42374fa37aeb5dadac000b1b46b6d519",
+      "source_fingerprint": "8ba846022b2aca0d76b6665e3d1d23ce4598005e4f49a8bda1150a47123451a1",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_제이케이아트.xlsx",
+          "ext": "xlsx",
+          "sha256": "fbce92b3c4033d81481d34b65c02e014fa16361f3c85d1859226c53f9b5a5e7d",
+          "bytes": 150189
+        }
+      ]
+    },
+    {
+      "unit_id": "3561a8eaae1a8fefb984a77e939a02ac0f1cdc4cca84838706f86b86dd052d09",
+      "source_fingerprint": "d5257fcc9e0865ba4af2c36e772db0e35db8fbdda351250cdfd094a98754f077",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/서울(강남 외)/[서울(강남 외)]_체리쉬웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "5c4098494026347f50a075097dcb424e35271d85627c6dd8bc56efb00845b042",
+          "bytes": 35089
+        }
+      ]
+    },
+    {
+      "unit_id": "7200e1fb51904b50f3e054eb99609ffa433d962932c2acd02da0920b77fa1604",
+      "source_fingerprint": "a0318962e24092de0fca27e8f8cc4d049907dc8f49ca80642a878b2f06291750",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_패어몬트 앰배서더 서울.xlsx",
+          "ext": "xlsx",
+          "sha256": "3700b660ec3bf22609bc02c6d48f04453bcf5fa97b0a4da59b4b0dd9f2eb01d5",
+          "bytes": 20821
+        }
+      ]
+    },
+    {
+      "unit_id": "2aec8f30830e4166a12b724fd1eb707b982fa08b4eeb41edecdf0fd7bb18115d",
+      "source_fingerprint": "d3d12be99ffbdb93b44e3051f56c97fca9ffff3b7c30b733a41536d84687959c",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_DMC타워웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "baf2e0d5b6a2fe4ecd1a978e4d71469e23ea492d04e2b0ccedadaefbe674003d",
+          "bytes": 13110
+        }
+      ]
+    },
+    {
+      "unit_id": "def5d415796c3ad437766724f3504905d81547081950f499273c1e409091328a",
+      "source_fingerprint": "fbfb2da940ea62bba49bf8edc00024c4e461bb76572df18f859e453af948ee52",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_KDW웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "8b4eeb9263511e81c832084975523211804aecbd79d1467aaad19e0371aef8cf",
+          "bytes": 12118
+        }
+      ]
+    },
+    {
+      "unit_id": "7d489e7a8788e291a9d53e03b143b03c35f6f41c1031c5f22bd237b982231b24",
+      "source_fingerprint": "85cebb0c8d932416f684cc389ae930dac613739aa2c435f9739712e1d5f3f0c5",
+      "source_files": [
+        {
+          "path": "예식장/서울(강남 외)/[서울(강남 외)]_PJ호텔 웨딩홀(오일관광(주)).xlsx",
+          "ext": "xlsx",
+          "sha256": "b6af120d8bb40db10c899fcc32264aa6d227b034f33edb562811dc197ced5faa",
+          "bytes": 55479
+        }
+      ]
+    },
+    {
+      "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+      "source_fingerprint": "84735eff4d50a8e926cebc11f4f55ee27beb90ea9a7ced749885c95cbd63f4c2",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_(주)블랑드봄.xlsx",
+          "ext": "xlsx",
+          "sha256": "f85a2da171e2561d12f13bac8818d13153884f445a276795e1ebcb1651161876",
+          "bytes": 26372
+        }
+      ]
+    },
+    {
+      "unit_id": "0aea5091993fbb729d4c746d0e31ecb26ef40c7c44030349c2e255f2a0d4ee38",
+      "source_fingerprint": "d0e3feae2724edc5458969e89707db0163ca4c9e0fa89594aa654d1d9a429e71",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_(주)플로팅아일랜드.xlsx",
+          "ext": "xlsx",
+          "sha256": "5e5bf53fbe9bd93854ebbd75052011c363df08c07037a2235395c6494e64c40c",
+          "bytes": 13369
+        }
+      ]
+    },
+    {
+      "unit_id": "57dbc7d8aa830fc30fbab1fa8fae41c12254c7a49256b6ef12c06a41c7edc480",
+      "source_fingerprint": "3afc59ba972160d78ef30340ec68aa6f41ad58a23959ed25c3ac30c34b79c914",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_그래머시코엑스/(서울-강남구) 그래머시 코엑스 예식 가격표.pdf",
+          "ext": "pdf",
+          "sha256": "6f10c1e1029a2891a91e722a5ec91b48fa42e936048893653edd1a65abb62246",
+          "bytes": 121740
+        },
+        {
+          "path": "예식장/강남/[서울(강남)]_그래머시코엑스/(서울-강남구) 그래머시 코엑스 예식 이용약관.pdf",
+          "ext": "pdf",
+          "sha256": "9cfbd0c2317299bae8507a9b14ac32e33dc33af5aa56efac9bab392ddf24574f",
+          "bytes": 167876
+        }
+      ]
+    },
+    {
+      "unit_id": "14b69f16c1c3cfdb08f8a1b1bc3acc15571a6b2ef2080f26772d18f9b8d185a1",
+      "source_fingerprint": "2b8cf464857db5d6059ebd40384bdfb8166f1f3ee03d1de81302d4a4c30eaa4e",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_그랜드 머큐어 임피리얼 팰리스 서울 강남.xlsx",
+          "ext": "xlsx",
+          "sha256": "6cfda02c07f0f10715a728248e24036decc9ca3483ea0cee6ed1bff7baf75fd5",
+          "bytes": 12202
+        }
+      ]
+    },
+    {
+      "unit_id": "e50d8ed3d157841dbea29ac93adb120dd270d109f90bf77df14993b83f82bb7e",
+      "source_fingerprint": "99ed4b4aaefd9a7fb53a257854b44fc308423971cc1c9328220ced52ffd28fba",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_그랜드 인터컨티넨탈 서울 파르나스.pdf",
+          "ext": "pdf",
+          "sha256": "81a334add0acaceb4e6a61b17b7f9a624c3c3def347b3f0797e0a3e689e3c866",
+          "bytes": 88523
+        }
+      ]
+    },
+    {
+      "unit_id": "02a2cae699bbab563c959698acff47056c79ae96f83de82d08fe964c83a37700",
+      "source_fingerprint": "ef74a130268e9fe28f3b7c582396ab5a29e95ab05c8c49b7f6b79df81b46aec8",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_노보텔 앰배서더 서울 강남.xlsx",
+          "ext": "xlsx",
+          "sha256": "5595d72d1cd215b1143cc020deb624d21955ef12730ba8c1b43011f22784cd04",
+          "bytes": 11830
+        }
+      ]
+    },
+    {
+      "unit_id": "9cd5e12d7941a7175b2388164081bb1c3886ea4b2badee4c80fff0ea18f9831c",
+      "source_fingerprint": "577bc47263deb72c0681463eafd887dd74dea923750245c2640aa93e9eeffe4e",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_노블발렌티 대치점.xlsx",
+          "ext": "xlsx",
+          "sha256": "1610439924c092b4d99ee2f8b7172afe23df77d22b2f036808afa6421b1242e6",
+          "bytes": 13618
+        }
+      ]
+    },
+    {
+      "unit_id": "89f4e88d8fbf598094c68edf7e3686567982af9517b8f9d8baff0035ac550257",
+      "source_fingerprint": "b63f8921aa5c87f2d106e3d717a3a1a2b4393bf3ca33449e8ef98eee0fc8398e",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_노블발렌티 삼성점.xlsx",
+          "ext": "xlsx",
+          "sha256": "4fdaf3934f33110be97f666fdf5d60bfbf0254fee88b3b7ae96fa2977211225c",
+          "bytes": 12074
+        }
+      ]
+    },
+    {
+      "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+      "source_fingerprint": "a562ab42f2f4a97df73efbfabd142ea3583145a5f3cc7654aa03ac7f24444b5e",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_다이렉트결혼준비((주)다이렉트컴즈).xlsx",
+          "ext": "xlsx",
+          "sha256": "b64b83b1ba2d077d7f732120f3999dc81fc8a3656870a8ad45cb02406558ebf8",
+          "bytes": 40001
+        }
+      ]
+    },
+    {
+      "unit_id": "8d0a8c3b51200b2338b4a00d5e2eb7964998b929f7f1ba4e8d52ce4204c64312",
+      "source_fingerprint": "6426d1ab3cf630cfa7a0d6f2507b2980c33ca0fcc04e4e26edf22363ec6a9243",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_더컨벤션 반포((유)제이더블유반포).xlsx",
+          "ext": "xlsx",
+          "sha256": "a4e8a52716a11618a41315ea722b45c4bd968ca178264e469a7a2b82c41725e3",
+          "bytes": 162451
+        }
+      ]
+    },
+    {
+      "unit_id": "6908025c9c4007217e47b6cd297fc168c8da5e732987bf1647e55db70db78bfa",
+      "source_fingerprint": "139a27c92c9c6a659d78d106b2f232803d0f7e323487667e59e9fcd58a2259b3",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_더컨벤션 송파((유)제이더블유송파).xlsx",
+          "ext": "xlsx",
+          "sha256": "ce1ef25e73611bd41a2c5c2df843aac8e4bfd29320a2cb88472558df2b9688cd",
+          "bytes": 162618
+        }
+      ]
+    },
+    {
+      "unit_id": "7bede832ea22e7e378ba65a56b250a716e175a9cb871ea7ce5329f3d92ed0103",
+      "source_fingerprint": "3f652d5b257311aa098cd9260a989174922febe367a9e5ef520e2b1dd7501f58",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_더컨벤션 신사((유)제이더블유지).xlsx",
+          "ext": "xlsx",
+          "sha256": "1b71323e5da25c715a19a1ea0100d189c5e5a2035be3af4b9467df6aa6a89389",
+          "bytes": 162462
+        }
+      ]
+    },
+    {
+      "unit_id": "d5ed469362181b81ca114676c6918b4c7a90a518c13d2a35b377d1e935b23a2b",
+      "source_fingerprint": "9fe631f75dcc7887ef62f91685d7e1706e258ce6970e20a055b716cf70fa3295",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_더컨벤션 잠실(더컨벤션 교통회관).xlsx",
+          "ext": "xlsx",
+          "sha256": "b070bd92459511f511e94c778865fa6ed125959e047504c653be878fb7b19dfd",
+          "bytes": 162959
+        }
+      ]
+    },
+    {
+      "unit_id": "4ce4041d4e10e2d986b2bc3589c3aa34bc9a47a44ea0499e9719533df961adbf",
+      "source_fingerprint": "f304109122706f7852c72ed9aad20cb3da9e6f705097a054b74c24c155aa9c25",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_라움아트센터.xlsx",
+          "ext": "xlsx",
+          "sha256": "121ebf47ca6204905226398ab00fab549a52104ac6f64b81cfcae5645e20ecc0",
+          "bytes": 945469
+        }
+      ]
+    },
+    {
+      "unit_id": "42bbf92dd4eb9a0da5fa3f18cf8b8626bd0cdfbddf3cd7ba9c28e1aa8d8c6087",
+      "source_fingerprint": "19df287e11402ab2721544661644352c6f9def19c277cb5617ae73f239569198",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_롯데호텔 월드.xlsx",
+          "ext": "xlsx",
+          "sha256": "7ff43a2caa4135f14ea1c77c361de0ad139faa31c26c05232c3a910465b9a7d9",
+          "bytes": 63986
+        }
+      ]
+    },
+    {
+      "unit_id": "ac178eb9561923495264fb104d819b55520739efdc21052a8dfeea3fc2a2327c",
+      "source_fingerprint": "a1ca193123b34687acf2c48d96bf9972a2739a3dc0d91514183e600872bc63e4",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_마레보인웨이브.pdf",
+          "ext": "pdf",
+          "sha256": "f45f0b3e85ae0dc667401c49843f391711e17ee973003e344362ef67905fbeac",
+          "bytes": 89690
+        }
+      ]
+    },
+    {
+      "unit_id": "0e27ad6d1fbda1d1712f9e077bd4decc68c0bb8f1ca36561ac2caaf6307fb177",
+      "source_fingerprint": "6f6f49606da90fd3f4df3801921cb9b4e5f89efeb126326da25c33659c8462ad",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_마리나파크 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "62f860c7b54665e003b46848415ad481f80e5c157de9bfa02378ed4c0722f03f",
+          "bytes": 14465
+        }
+      ]
+    },
+    {
+      "unit_id": "2956613cbce8f56325bac5f929ad5482dc24b455db5bb14cb358b11c93a58bde",
+      "source_fingerprint": "99cac986c4d1cb257f2f35933052ad9113bdfce1b057b9100a3066da1980082a",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_메종드아나하.xlsx",
+          "ext": "xlsx",
+          "sha256": "7d737b5ebd6b0c5c345fb05833349ecb207c9809cacf55a2e63dbb2a0c23c883",
+          "bytes": 162513
+        }
+      ]
+    },
+    {
+      "unit_id": "27c95129bfc12466604134e23e2512e93c51b80d2ca79adc69bb3f1be0fbff7e",
+      "source_fingerprint": "b6255bbfb7cfa15dba960287711dc933ae2558ec4709b1dba440686493534190",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_베리굿웨딩((주)베리굿웨딩컴퍼니)/베리굿웨딩참가격 드레스 26년 05월.xlsx",
+          "ext": "xlsx",
+          "sha256": "a4d8d7d5c8044c38548e105988fa96b5a2e5702015b14faa949b9fd0128ef0fe",
+          "bytes": 26689
+        },
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_베리굿웨딩((주)베리굿웨딩컴퍼니)/베리굿웨딩참가격 메이크업 26년 5월.xlsx",
+          "ext": "xlsx",
+          "sha256": "3e487f73fec903c49574da4228e014615c00e5072476d9801ffe264a9143da66",
+          "bytes": 36088
+        },
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_베리굿웨딩((주)베리굿웨딩컴퍼니)/베리굿웨딩참가격 스튜디오 26년 05월.xlsx",
+          "ext": "xlsx",
+          "sha256": "946c80a57773101efe649ea16be66d4b37dd87b61e9da12d91b5d9bacf9e33fc",
+          "bytes": 32686
+        }
+      ]
+    },
+    {
+      "unit_id": "cd20bf3c058a7f2aab230bca9ac1f2ab67f46f9445ac108c23ea7a990801e28c",
+      "source_fingerprint": "56d71e225e10065e563e9ab80d65b647a8c14a2e7dc50888144b6e262cce084b",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_보코 서울 강남 웨딩홀.xlsx",
+          "ext": "xlsx",
+          "sha256": "884daee77f26edccc9b1e7e521982de904171645fca624650d8bbf827d4b1551",
+          "bytes": 11518
+        }
+      ]
+    },
+    {
+      "unit_id": "ecb24daff569e308cfa828db3cf193fc3273a7a8256dfee19c2ddb8b4f69011e",
+      "source_fingerprint": "9ae2946bd36746fc090aa809ca1d22dab148bd0829a7f12856e5ec46889d8742",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_빌라드지디 논현(라비에벨(주)).xlsx",
+          "ext": "xlsx",
+          "sha256": "3e1532c3d4f33d96333bef368833138c21f9ec610cbb9285933305d724db4786",
+          "bytes": 15038
+        }
+      ]
+    },
+    {
+      "unit_id": "9bc30401e8cc31b06076c18e8f3ea970d83c1c7507fd0932a77a29ebedb2caa5",
+      "source_fingerprint": "70073d4b416e4c2d36cbdad9a1b1d2fb7978750110c2890fbd021802f66a3012",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_빌라드지디 수서(더그레이스켈리수서).xlsx",
+          "ext": "xlsx",
+          "sha256": "f39c6c02823cf10f38b8f6275d8b7a547a1bc2ce72e00fc82bfc6dd59626966b",
+          "bytes": 14999
+        }
+      ]
+    },
+    {
+      "unit_id": "70df95333832fa7c1082fc3474bc9c220e42835244a6e863412646b20e8fe791",
+      "source_fingerprint": "8e91dc51757c4b690ba815318515e1640e730d4e450abcc817d05b4f586c8634",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_빌라드지디 청담((주)에이치케이웨딩).xlsx",
+          "ext": "xlsx",
+          "sha256": "c8c40ea792a1806fc12567db38f6e2eadf68edbd4392a3ed7e60dc322e1c5b47",
+          "bytes": 15124
+        }
+      ]
+    },
+    {
+      "unit_id": "a53d2eda50ff304dd20d9c3c570f6220ebce6613e2dc8ea3be23e61a93742ebb",
+      "source_fingerprint": "035c4790cdf51fde3045eb8b0a3eae8eadf2c0954ee39256cf05980e80346183",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_삼정호텔((주)삼정관광호텔).xlsx",
+          "ext": "xlsx",
+          "sha256": "73ac9631f215888347ae9b98eefff3aaf22020d4a3813b8736628cd97b49a7a2",
+          "bytes": 12700
+        }
+      ]
+    },
+    {
+      "unit_id": "74eda710e6d0e8fca0a3ceb9a1d3eb4848141d19b927fe2760a22e30cbaa0144",
+      "source_fingerprint": "f350cfbc00d58129d1aa83c42c8242bb4126bc2bf3682b8efbcea538e836942b",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_세인트메리스 강남.xlsx",
+          "ext": "xlsx",
+          "sha256": "8ea0dfe4b0f6f317b34e1fb319f61c14967f6f8f8a9694accbfd96842f6cd838",
+          "bytes": 12607
+        }
+      ]
+    },
+    {
+      "unit_id": "098b43bb7b5e80755cde1198b6822158f17f6be769611ae5261cadb6577c1368",
+      "source_fingerprint": "4238d2b9a7075fa8d592ff49a812f1c288acb019610f175557ae5b54656db7b4",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_세인트메리엘((유)희가진).xlsx",
+          "ext": "xlsx",
+          "sha256": "c7b7d496cb467a3e2ab0287bbfebe2a6af38bc413d25babcc4c4f2aa17494251",
+          "bytes": 162706
+        }
+      ]
+    },
+    {
+      "unit_id": "3d00e3abc27d427604db97e06563de712cc60615f0484b68d16f1bf8b427db9f",
+      "source_fingerprint": "03d371b2edc202f67e7cc6e3e96cc9170ee16052a72d3eb8634085c0bca48c17",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_세인트플래닝.xlsx",
+          "ext": "xlsx",
+          "sha256": "e1402e588d1fcd6838dcfc06f1e2addcf6a305d9a4529aae1b4a7519de4ba5c4",
+          "bytes": 48283
+        }
+      ]
+    },
+    {
+      "unit_id": "4300a5dd7b49c9dd68d6d2ee8fa62e5772378749887ce824e07595e7a40a6e63",
+      "source_fingerprint": "7bf0dceaf831e3ab2a6b46149603bc893dda60ca67c8829e2af268ff43ecaba6",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_소노펠리체 컨벤션.xlsx",
+          "ext": "xlsx",
+          "sha256": "1cabc78cca91223e272864aed521141d40945b9e923d72d68bd681def3f19c7e",
+          "bytes": 12856
+        }
+      ]
+    },
+    {
+      "unit_id": "42153aa438258843ce4ccaeea7cf26b5c272b3e4b7423975e294e40a6f859242",
+      "source_fingerprint": "2d0f7364b839b2dd22e04d5308cb40ff04e831a49023b990d307a63aaaff1d40",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_시그니엘 서울.xlsx",
+          "ext": "xlsx",
+          "sha256": "a9f3ffb8e0358a04e5ccba5cc97b81117aa4756f68c4b2bdf20a75977f5e1469",
+          "bytes": 15395
+        }
+      ]
+    },
+    {
+      "unit_id": "ca4961b22189b288914d96d8201a2a92416c897ac508a1aef9e85765d33f0440",
+      "source_fingerprint": "4a46802a8e31fb8cfc4a810f4a70e27b1021267b80226506169e9a9038b5dbac",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_아이웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "6ae598b3c8943e96a7e0c75841b3385874d6f0abf33d5862b703136d6ac1cbc6",
+          "bytes": 22558
+        }
+      ]
+    },
+    {
+      "unit_id": "467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead",
+      "source_fingerprint": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_에일린꾸뛰르.pdf",
+          "ext": "pdf",
+          "sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+          "bytes": 708446
+        }
+      ]
+    },
+    {
+      "unit_id": "7deab8229782db8d491bee4b3795746dfe9324b81b777cac560f25ca3ac23731",
+      "source_fingerprint": "febb7732f57a798247952f719aa66bd3e3a0d33b605ef34cc8d7ffb9887261f7",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_요즘웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "0d13a348f0c017d01d4dbf211905be3171b5aeedfac9527448966f9fa8ebb5b3",
+          "bytes": 314493
+        }
+      ]
+    },
+    {
+      "unit_id": "2cf105310cdd787be355a1735a4f21342e079bf244e5d7626c25314c8e893863",
+      "source_fingerprint": "fd3c687a4ed4d214c4797261cee9fa8831dca503007c1a52069e5c02ca9f7de0",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_웨스틴 서울 파르나스.xlsx",
+          "ext": "xlsx",
+          "sha256": "6e674b49a31ec04d971246c0e456fdfa5574d04c26f44db003513e7242abdd80",
+          "bytes": 13145
+        }
+      ]
+    },
+    {
+      "unit_id": "039157c6ca780c27c9e82bc2f68b3b01c0a77102949e2e3537c1731c2b9b3e5c",
+      "source_fingerprint": "810f0ccf4bb8ec68de03a4d36af8b500babd4b30df912e8476fe38a8d724e9d0",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_제이웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "284c8c037d237013642a529f80be58c599f8047ddb9f870ecd8ab352e1f8c715",
+          "bytes": 63514
+        }
+      ]
+    },
+    {
+      "unit_id": "8164a60feca89cf2a56764bcf9c6b505ada23a4a789f97518435190d703f366f",
+      "source_fingerprint": "05b236bded23a1e1c54d60147541437cac9e23634a1590c0f351f4fe3aa6ac22",
+      "source_files": [
+        {
+          "path": "예식장/강남/[서울(강남)]_조선 팰리스.xlsx",
+          "ext": "xlsx",
+          "sha256": "4b9cbd16c28139ed65d974096bc87a36dbba7bc995044930ca0aa9a79d8fe0ef",
+          "bytes": 15862
+        }
+      ]
+    },
+    {
+      "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+      "source_fingerprint": "993173594c241275c3197abf6cefc962111ff124ef272fb452199b3085aee471",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_케이트웨딩플랜.xlsx",
+          "ext": "xlsx",
+          "sha256": "c9bfe95318711172d8e5e801295bc3b517adc91ad409abfb074ebe60f8b052c0",
+          "bytes": 4682942
+        }
+      ]
+    },
+    {
+      "unit_id": "4d7a5194da5efb9c7861df07ebdd990c09f1cb93da963ef07ef9c0bd0f48931e",
+      "source_fingerprint": "79927cea65cf7f10801c6d3603b1e2c555bf7345c746cb642bfe00b8a539c0a4",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_플랜마주.xlsx",
+          "ext": "xlsx",
+          "sha256": "5bfa5af19002a0c60d4df32bbc33b9bcddf768a97fa1631666d27c1521f375b5",
+          "bytes": 67721
+        }
+      ]
+    },
+    {
+      "unit_id": "a1b1e29b4aec91626bec7e1c7d598fd71fdbd2755452dfcc02cf737665b8cbbd",
+      "source_fingerprint": "d0745426c10d18edccf7fa77ce90ef58bfe45126695186cec7221e4602d0be76",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_플랜온웨딩.xlsx",
+          "ext": "xlsx",
+          "sha256": "8e97b0ee8f9f3102cecea5215077d28ee0dfa8d114bc5259839f9f4076e1b6f7",
+          "bytes": 21112
+        }
+      ]
+    },
+    {
+      "unit_id": "c614437a1240ca5f2c760d7cd11dabbe50d7396ac02f840db9eb0d6ada65963b",
+      "source_fingerprint": "de5da57f36b2bc8dfe539def397e69a92a5e5190e70f2fa7960e43d64da72ea0",
+      "source_files": [
+        {
+          "path": "결혼준비대행서비스/강남/[서울(강남)]_하우투웨딩그룹.xlsx",
+          "ext": "xlsx",
+          "sha256": "237d8c0fc7cf8bbaba3363a902689e61e390f42c769935eb4dccbb7cf8151e89",
+          "bytes": 34582
+        }
+      ]
+    },
+    {
+      "unit_id": "83303b8ac045823771f7c80ccb28b065d770f9f7ebc775d260c92570c7d525fd",
+      "source_fingerprint": "3407ad0af83d8d78ef2b96545d21093de93122f474a2378bd72f1205aa2895cc",
+      "source_files": [
+        {
+          "path": "예식장/대전/대전_호텔인터시티/연회예식이용약관 (25년).pdf",
+          "ext": "pdf",
+          "sha256": "104517ab64bebc00f3a6d7c7b09dff9e7a75dbaa81e54a275b172e3fc4722f51",
+          "bytes": 116982
+        },
+        {
+          "path": "예식장/대전/대전_호텔인터시티/호텔인터시티.pdf",
+          "ext": "pdf",
+          "sha256": "504b8537184b3c39abe3b7884c4b401dcf3729a127d6c84da7fc751c8ad3cb4a",
+          "bytes": 52862
+        }
+      ]
+    },
+    {
+      "unit_id": "57bf6a2f0632037cdbc4f4d8f7fc87ba564cd1847a614c97750c4e38a443cef4",
+      "source_fingerprint": "5fe4e61d0b2f467a7d6bdb3838eaabc4042ea4881101eed84931d145c1fa1097",
+      "source_files": [
+        {
+          "path": "예식장/대구/스카이나인스 표준양식.xlsx",
+          "ext": "xlsx",
+          "sha256": "e62b02777b6c555af16337fd40a6f3dbb17d4a79724cd6120d7fbf4b1aed4d57",
+          "bytes": 11359
+        }
+      ]
+    }
+  ]
+}

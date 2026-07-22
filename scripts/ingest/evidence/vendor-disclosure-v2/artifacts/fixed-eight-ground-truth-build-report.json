@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-20T00:00:00.000Z",
+  "immutable_inputs": {
+    "base_ground_truth": {
+      "path": "manual-pilot-source-money-inventory.json",
+      "sha256": "17a927f52d51774c9f3e149a3dba6fb3acfa0c5f79587d010089a00ac1988d75",
+      "occurrences": 2342
+    },
+    "legacy_overlay": {
+      "path": "fixed-eight-ground-truth-overlay.json",
+      "sha256": "f2537c397b6d12a5965eceb35fea7a728e0a7962e979cf7eb963c9a1b9183ef6"
+    }
+  },
+  "outputs": {
+    "corrected_overlay": {
+      "path": "fixed-eight-ground-truth-overlay-v2.json",
+      "sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+      "eileen_readable_occurrences": 22,
+      "may_readable_occurrences": 45,
+      "may_human_required_occurrences": 2
+    },
+    "adjudication": {
+      "path": "fixed-eight-ground-truth-adjudication-v1.json",
+      "sha256": "7c746d70d3bfc9c31c1af9689792fd0613fbca82ce480712a617681c65276afc",
+      "decisions": 41,
+      "verified_removed_occurrences": 35,
+      "verified_added_occurrences": 36,
+      "human_required_quarantined_occurrences": 7
+    }
+  },
+  "gate_counts": {
+    "effective_text_occurrences": 2337,
+    "image_readable_occurrences": 67,
+    "fixed_eight_readable_occurrences": 2404
+  }
+}

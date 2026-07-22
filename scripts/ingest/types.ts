@@ -2,6 +2,24 @@ export const SUPPORTED_SOURCE_EXTENSIONS = ["xlsx", "docx", "hwp", "pdf", "png"]
 
 export type SourceExtension = (typeof SUPPORTED_SOURCE_EXTENSIONS)[number];
 export type DocumentKindHint = "agency" | "hall";
+
+export interface VisualTranscriptionExtractionBinding {
+  schema_version: 1;
+  content_sha256: string;
+  reviewer_kind: "codex_assisted_unconfirmed" | "human_confirmed";
+  reviewer_sha256: string;
+  evidence_sha256: string;
+  record_evidence_sha256: string;
+  coverage_gaps_sha256: string;
+  fragment_sha256: string;
+  validation_issue_codes: Array<
+    | "visual_transcription_requires_human_confirmation"
+    | "visual_transcription_human_confirmed_pending_admin_review"
+  >;
+  review_status: "pending";
+  needs_review: true;
+  bulk_approval_eligible: false;
+}
 export type UnitStage =
   | "scanned"
   | "converted"
@@ -44,6 +62,23 @@ export interface ManifestUnit {
     cell_count: number;
     artifact_fingerprint: string;
     converted_at: string;
+    ocr_review?: {
+      contract_version: string;
+      contract_hash: string;
+      language: "ko-KR";
+      review_only: true;
+      authoritative: false;
+      bulk_approval_eligible: false;
+      artifacts: Array<{
+        artifact_path: string;
+        source_image_sha256: string;
+        page: number;
+        engine_name: "Windows.Media.Ocr";
+        engine_version: string;
+        engine_hash: string;
+        line_count: number;
+      }>;
+    };
   };
   extraction?: {
     provider_mode?: "production_paid" | "test_only";
@@ -85,6 +120,8 @@ export interface ManifestUnit {
     review_status: "pending";
     needs_review: true;
     bulk_approval_eligible: false;
+    visual_transcription?: VisualTranscriptionExtractionBinding;
+    paid_review_only_override?: true;
     extracted_at: string;
   };
   validation?: {
@@ -98,6 +135,7 @@ export interface ManifestUnit {
     engine_hash?: string;
     needs_review?: true;
     bulk_approval_eligible?: false;
+    visual_transcription?: VisualTranscriptionExtractionBinding;
     artifact_path: string;
     review_status: "pending";
     issue_count: number;

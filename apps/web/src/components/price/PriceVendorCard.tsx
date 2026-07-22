@@ -6,7 +6,8 @@ import { useEffect, useRef } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
-import type { PriceVendor } from "@/lib/price/catalog";
+import { pricePolicyBadgeClass, pricePolicyLabel, type PriceVendor } from "@/lib/price/catalog";
+import { priceRegionLabel } from "@/lib/price/labels";
 
 type PriceVendorCardProps = {
   vendor: PriceVendor;
@@ -92,17 +93,22 @@ export function PriceVendorCard({
     >
       <div className="flex items-start justify-between gap-4 px-4 pb-4 pt-5 sm:px-6">
         <div className="min-w-0">
-          <Link
-            href={detailHref}
-            onClick={preview ? undefined : () => track("vendor_card_click", {
-              vendor_id: vendor.id,
-              surface: "price_list",
-              context: { category: vendor.category },
-            })}
-            className="rounded-sm text-xl font-bold tracking-[-0.025em] text-[#1D3557] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B5977A]"
-          >
-            {vendor.name}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={detailHref}
+              onClick={preview ? undefined : () => track("vendor_card_click", {
+                vendor_id: vendor.id,
+                surface: "price_list",
+                context: { category: vendor.category },
+              })}
+              className="rounded-sm text-xl font-bold tracking-[-0.025em] text-[#1D3557] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B5977A]"
+            >
+              {vendor.name}
+            </Link>
+            <span className="inline-flex rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/75">
+              {priceRegionLabel(vendor.regionCode)}
+            </span>
+          </div>
           {vendor.aliases.length > 0 ? (
             <p className="mt-1 truncate text-xs text-[#1D3557]/55">
               (구. {vendor.aliases.join(", ")})
@@ -232,6 +238,40 @@ export function PriceVendorCard({
                 ) : null}
               </div>
             )))}
+          </div>
+        </details>
+      ) : null}
+
+      {vendor.policies?.length ? (
+        <details className="group border-b border-[#1D3557]/10">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B5977A] sm:px-6">
+            <span className="flex flex-wrap gap-1.5">
+              {[...new Set(vendor.policies.map(({ type }) => type))].map((type) => (
+                <span
+                  key={type}
+                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${pricePolicyBadgeClass(type)}`}
+                >
+                  {pricePolicyLabel(type)}
+                </span>
+              ))}
+            </span>
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-[#1D3557] transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-3 bg-[#FBF8F2]/70 px-4 py-4 sm:px-6">
+            {vendor.policies.map((policy) => {
+              const content = policy.summary ?? policy.content;
+              const previewContent = content.length > 300 ? `${content.slice(0, 300)}…` : content;
+              return (
+                <div key={policy.id} className="text-sm">
+                  <p className="font-semibold text-[#1D3557]">
+                    {policy.title ?? pricePolicyLabel(policy.type)}
+                  </p>
+                  <p className="mt-1 whitespace-pre-line leading-6 text-[#1D3557]/70">
+                    {previewContent}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </details>
       ) : null}

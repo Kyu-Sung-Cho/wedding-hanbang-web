@@ -12,9 +12,11 @@ import { extractManifestForTests as extractManifest, type ExtractionProvider } f
 import { loadValidated } from "../load.js";
 import { scanSources } from "../scan.js";
 import { encodeMergedEvidenceQuote } from "../merge-evidence.js";
+import { prepareStructuredEvidenceText, sourceFileId } from "../provenance.js";
 import type { DisclosureExtraction } from "../schemas.js";
 import type { ManifestUnit } from "../types.js";
 import {
+  deriveValidatedPayloadForUnit,
   findCoverageGaps,
   indexXlsxCellEvidence,
   matchSingleXlsxEvidenceQuote,
@@ -22,6 +24,7 @@ import {
   parseKoreanMoneyAmounts,
   scanSourceMoneyOccurrences,
   validateExtractionForUnit,
+  validateLocalHallSemanticBindings,
   validateManifest,
 } from "../validate.js";
 import {
@@ -29,6 +32,95 @@ import {
   matchSingleXlsxAuxiliaryEvidenceQuote,
   parseXlsxAuxiliaryEvidencePayload,
 } from "../xlsx-aux-evidence.js";
+
+test("XLSX evidence canonicalizes converter whitespace before the cell locator", () => {
+  const cells = indexXlsxCellEvidence("시그니엘 부산 !A2: ① 가격(VAT 포함)");
+  assert.deepEqual(
+    matchSingleXlsxEvidenceQuote("시그니엘 부산!A2: ① 가격(VAT 포함)", cells),
+    { kind: "match", locator: "시그니엘 부산!A2" },
+  );
+});
+
+test("money scanning ignores OCR provenance hashes after a declared won unit", () => {
+  const source = [
+    "① 가격(단위:원, VAT 포함)",
+    "대관료 3,300,000원",
+    "[OCR_REVIEW_ONLY]",
+    "contract_hash: e52d16d0fa5375c3f741dd493a16b712d98b909aa315b934ae35f3ceda36aed3",
+    "source_image_sha256: 55596ba85f81220290383142759b4e8ad8c8b8a548b74206104c9b31510847e2",
+    "page: 1",
+    "engine_version: windows-10.0.26200.0|powershell-5.1.26100.8875",
+    "engine_hash: 867e91564507da1ba44209c413884736839a7137a0bb219f7b64b9e46a9eb55a",
+  ].join("\n");
+
+  assert.deepEqual(
+    scanSourceMoneyOccurrences(source).map(({ krw }) => krw),
+    [3_300_000],
+  );
+});
+
+test("money scanning retains an authoritative price on a metadata-looking line", () => {
+  assert.deepEqual(
+    scanSourceMoneyOccurrences("page: 1 대관료 3,300,000원").map(({ krw, source_locator }) => ({
+      krw,
+      source_locator,
+    })),
+    [{ krw: 3_300_000, source_locator: "line:1" }],
+  );
+});
+
+test("money scanning retains a declared-unit price after verified contact redaction", () => {
+  const raw = [
+    "가격표!A1: 금액 단위: 만원",
+    "가격표!A2: 기본가격 330 / 연락처 02-1234-5678",
+  ].join("\n");
+  const prepared = prepareStructuredEvidenceText(raw);
+
+  assert.match(prepared.text, /기본가격 330 \/ 문의 \[CONTACT_REDACTED\]/u);
+  assert.doesNotMatch(prepared.text, /연락처/u);
+  assert.deepEqual(
+    scanSourceMoneyOccurrences(prepared.text).map(({ krw, source_locator }) => ({
+      krw,
+      source_locator,
+    })),
+    [{ krw: 3_300_000, source_locator: "가격표!A2" }],
+  );
+});
+
+test("money scanning never treats unredacted contact or account digits as declared-unit prices", () => {
+  const contact = [
+    "가격표!A1: 금액 단위: 만원",
+    "가격표!A2: 기본가격 330 / 연락처 02-1234-5678",
+  ].join("\n");
+  const account = [
+    "가격표!A1: 금액 단위: 만원",
+    "가격표!A2: 기본가격 330 / 계좌 110-123-456789",
+  ].join("\n");
+  const spoofedMarker = [
+    "가격표!A1: 금액 단위: 만원",
+    "가격표!A2: 기본가격 330 / 연락처 [CONTACT_REDACTED]",
+  ].join("\n");
+
+  assert.deepEqual(scanSourceMoneyOccurrences(contact), []);
+  assert.deepEqual(scanSourceMoneyOccurrences(account), []);
+  assert.deepEqual(scanSourceMoneyOccurrences(spoofedMarker), []);
+});
+
+test("money scanning treats an exact outdoor-night column as a declared-unit option column", () => {
+  const source = [
+    "스튜디오!A2: ① 가격(단위: 만원, VAT 포함)",
+    "스튜디오!D5: 야외/야간",
+    "스튜디오!D6: 야간옥상씬(전구):16.5<br>야외로드씬:16.5",
+  ].join("\n");
+
+  assert.deepEqual(
+    scanSourceMoneyOccurrences(source).map(({ krw, source_locator }) => ({ krw, source_locator })),
+    [
+      { krw: 165_000, source_locator: "스튜디오!D6" },
+      { krw: 165_000, source_locator: "스튜디오!D6" },
+    ],
+  );
+});
 
 async function writeDummyDocx(filePath: string, text: string): Promise<void> {
   const docx = new JSZip();
@@ -78,6 +170,469 @@ function extraction(businessName: string): DisclosureExtraction {
     extraction_notes: "generated fixture",
   };
 }
+
+function hallUnit(): ManifestUnit {
+  return {
+    unit_id: "a".repeat(64),
+    display_name: "example hall.pdf",
+    parsed: {
+      region_code: "seoul_gangnam",
+      raw_name: "Example Hall",
+      normalized_name: "example hall",
+      corporate_name: null,
+      kind_hint: "hall",
+    },
+    source_files: [],
+    source_fingerprint: "b".repeat(64),
+    stage: "converted",
+    notices: [],
+  };
+}
+
+test("local hall semantic gate preserves the canonical source identity without inventing a hall", () => {
+  const data = extraction("Example Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [];
+
+  assert.deepEqual(
+    validateLocalHallSemanticBindings(hallUnit(), data).map(({ code, severity }) => ({ code, severity })),
+    [{ code: "local_hall_identity_only_from_canonical_source", severity: "warning" }],
+  );
+
+  data.business_name = null;
+  assert.deepEqual(
+    validateLocalHallSemanticBindings(hallUnit(), data).map(({ code, severity }) => ({ code, severity })),
+    [{ code: "local_hall_identity_missing", severity: "error" }],
+  );
+});
+
+test("local hall semantic gate blocks absent venue fees and collapsed adult-child meals", () => {
+  const sourceId = "c".repeat(64);
+  const data = extraction("Example Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "Grand Hall",
+    guarantee_min: null,
+    meal_price_min_krw: 50_000,
+    meal_price_max_krw: 121_000,
+    venue_fee_min_krw: 20_000_000,
+    venue_fee_max_krw: 20_000_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: 20_000_000,
+    decoration_fee_max_krw: 20_000_000,
+    decoration_note: null,
+    options: [],
+    source_quote: encodeMergedEvidenceQuote([{
+      source_file_id: sourceId,
+      quote: "line:1: Grand Hall",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:2: 대관비 없음, 장식비 20,000,000원",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:3: 성인 식대 121,000원",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:4: 소인 식대 50,000원",
+    }], 2_000)!,
+    source_file_ids: [sourceId],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+  const codes = validateLocalHallSemanticBindings(hallUnit(), data).map(({ code }) => code);
+  assert.ok(codes.includes("local_hall_venue_fee_contradicts_source"));
+  assert.ok(codes.includes("local_hall_combined_fee_misbinding"));
+  assert.ok(codes.includes("local_hall_meal_variants_collapsed"));
+});
+
+test("local hall semantic gate blocks ambiguous combined venue-decoration totals", () => {
+  const data = extraction("Example Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "Forest Hall",
+    guarantee_min: 150,
+    meal_price_min_krw: null,
+    meal_price_max_krw: null,
+    venue_fee_min_krw: 4_900_000,
+    venue_fee_max_krw: 7_900_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: null,
+    decoration_fee_max_krw: null,
+    decoration_note: null,
+    options: [],
+    source_quote: "line:1: Forest Hall 대관료, 장식비 4,900,000원~7,900,000원",
+    source_file_ids: ["c".repeat(64)],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+
+  assert.ok(validateLocalHallSemanticBindings(hallUnit(), data).some((issue) =>
+    issue.code === "local_hall_combined_fee_misbinding"
+    && issue.path === "halls[0].venue_fee"
+  ));
+});
+
+test("local hall semantic gate accepts separately labelled venue and decoration evidence", () => {
+  const sourceId = "d".repeat(64);
+  const data = extraction("Example Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "Grace Hall",
+    guarantee_min: null,
+    meal_price_min_krw: 88_000,
+    meal_price_max_krw: 110_000,
+    venue_fee_min_krw: 3_300_000,
+    venue_fee_max_krw: 3_300_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: 4_400_000,
+    decoration_fee_max_krw: 4_400_000,
+    decoration_note: null,
+    options: [],
+    source_quote: encodeMergedEvidenceQuote([{
+      source_file_id: sourceId,
+      quote: "line:1: Grace Hall",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:2: 식비 88,000원~110,000원",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:3: 대관료 3,300,000원",
+    }, {
+      source_file_id: sourceId,
+      quote: "line:4: 장식비 4,400,000원",
+    }], 2_000)!,
+    source_file_ids: [sourceId],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+
+  assert.deepEqual(validateLocalHallSemanticBindings(hallUnit(), data), []);
+});
+
+test("local validation quarantines combined fees, meal variants, and ungrounded options using full cells", async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "hanbang-semantic-quarantine-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const conversionRoot = path.join(temporaryRoot, ".converted", "unit", "source");
+  const textPath = path.join(conversionRoot, "prices-xlsx.txt");
+  await mkdir(conversionRoot, { recursive: true });
+  const sourceLines = [
+    "가격표!A1: Grand Hall 대관료 생화장식 3,300,000원",
+    "가격표!B1: Grand Hall 성인 식대 121,000원 / 소인 식대 50,000원",
+    "가격표!C1: Grand Hall 실제 생중계 220,000원",
+    "가격표!D1: 가격(단위: 만원)",
+    "가격표!E1: 추가비 11",
+  ];
+  await writeFile(textPath, sourceLines.join("\n"), "utf8");
+  const source = {
+    path: "hall/seoul/example.xlsx",
+    absolute_path: path.join(temporaryRoot, "example.xlsx"),
+    ext: "xlsx" as const,
+    sha256: "b".repeat(64),
+    bytes: 1,
+  };
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "Example Hall",
+    parsed: {
+      region_code: "seoul_gangnam",
+      raw_name: "Example Hall",
+      normalized_name: "example hall",
+      corporate_name: null,
+      kind_hint: "hall",
+    },
+    source_files: [source],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+    conversion: {
+      converter_version: "fixture",
+      source_fingerprint: "c".repeat(64),
+      text_artifacts: [textPath],
+      image_artifacts: [],
+      text_characters: sourceLines.join("\n").length,
+      cell_count: 5,
+      artifact_fingerprint: "d".repeat(64),
+      converted_at: new Date(0).toISOString(),
+    },
+  };
+  const evidenceSourceFileId = sourceFileId(source);
+  const hallQuote = encodeMergedEvidenceQuote([{
+    source_file_id: evidenceSourceFileId,
+    quote: "가격표!A1: Grand Hall",
+  }, {
+    source_file_id: evidenceSourceFileId,
+    quote: "가격표!B1: Grand Hall",
+  }], 2_000)!;
+  const data = extraction("Example Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "Grand Hall",
+    guarantee_min: null,
+    meal_price_min_krw: 50_000,
+    meal_price_max_krw: 121_000,
+    venue_fee_min_krw: 3_300_000,
+    venue_fee_max_krw: 3_300_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: null,
+    decoration_fee_max_krw: null,
+    decoration_note: null,
+    options: [{
+      name: "웨딩스토리",
+      price_min_krw: 220_000,
+      price_max_krw: 220_000,
+      unit: null,
+      condition: null,
+      raw_text: "웨딩스토리 220,000원",
+      source_quote: sourceLines[2]!,
+      source_file_ids: [evidenceSourceFileId],
+    }],
+    source_quote: hallQuote,
+    source_file_ids: [evidenceSourceFileId],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+  data.sections = [{
+    section_type: "other",
+    title: "Grand Hall 대관료 생화장식<br>- 원문 인용 경계를 넘는 긴 설명",
+    content_verbatim: "3,300,000원",
+    summary: "3,300,000원",
+    source_quote: sourceLines[0]!,
+    source_file_ids: [evidenceSourceFileId],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+  data.money_occurrences = [
+    [3_300_000, "3,300,000원", sourceLines[0]!],
+    [121_000, "121,000원", sourceLines[1]!],
+    [50_000, "50,000원", sourceLines[1]!],
+    [220_000, "220,000원", sourceLines[2]!],
+    [110_000, "11", sourceLines[4]!],
+  ].map(([amount, raw, quote]) => ({
+    amount_krw: amount as number,
+    raw_text: raw as string,
+    source_quote: quote as string,
+    source_file_ids: [evidenceSourceFileId],
+    kind: "price" as const,
+    needs_review: true,
+  }));
+
+  const result = await deriveValidatedPayloadForUnit(
+    unit,
+    { data },
+    { mode: "local_deterministic" },
+  );
+
+  assert.equal(result.data.halls?.[0]?.venue_fee_min_krw, null);
+  assert.equal(result.data.halls?.[0]?.venue_fee_max_krw, null);
+  assert.equal(result.data.halls?.[0]?.meal_price_min_krw, null);
+  assert.equal(result.data.halls?.[0]?.meal_price_max_krw, null);
+  assert.deepEqual(result.data.halls?.[0]?.options, []);
+  assert.equal(result.data.sections?.[0]?.title, "Grand Hall 대관료 생화장식");
+  assert.ok(result.issues.some(({ code }) => code === "local_hall_venue_fee_quarantined"));
+  assert.ok(result.issues.some(({ code }) => code === "local_hall_meal_variants_quarantined"));
+  assert.ok(result.issues.some(({ code }) => code === "local_ungrounded_option_quarantined"));
+  assert.ok(result.issues.some(({ code }) => code === "local_section_title_shortened_to_exact_source"));
+  assert.equal(result.issues.some(({ code }) => code === "local_hall_combined_fee_misbinding"), false);
+  assert.equal(result.data.money_occurrences?.length, 5);
+  assert.ok(result.issues.some(({ code }) => code === "local_unlinked_price_occurrences_preserved"));
+  assert.deepEqual(
+    result.coverageGaps.map(({ krw }) => krw),
+    [3_300_000, 121_000, 50_000, 220_000, 110_000],
+  );
+  assert.ok(result.data.sections?.some((section) => (
+    section.title === "11"
+    && section.source_quote.startsWith("__HANBANG_MERGED_EVIDENCE_V1__")
+  )));
+});
+
+test("local validation quarantines a venue amount whose nearest row label is 대관+생화장식", async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "hanbang-combined-row-label-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const conversionRoot = path.join(temporaryRoot, ".converted", "unit", "source");
+  const textPath = path.join(conversionRoot, "hall-xlsx.txt");
+  await mkdir(conversionRoot, { recursive: true });
+  const sourceLines = [
+    "Sheet1!A5: 단독홀",
+    "Sheet1!D3: 대관",
+    "Sheet1!D5: 대관+<br>생화장식",
+    "Sheet1!E5: 3,300,000원",
+  ];
+  await writeFile(textPath, sourceLines.join("\n"), "utf8");
+  const source = {
+    path: "hall/seoul/combined.xlsx",
+    absolute_path: path.join(temporaryRoot, "combined.xlsx"),
+    ext: "xlsx" as const,
+    sha256: "b".repeat(64),
+    bytes: 1,
+  };
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "Combined Hall",
+    parsed: {
+      region_code: "seoul_etc",
+      raw_name: "Combined Hall",
+      normalized_name: "combined hall",
+      corporate_name: null,
+      kind_hint: "hall",
+    },
+    source_files: [source],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+    conversion: {
+      converter_version: "fixture",
+      source_fingerprint: "c".repeat(64),
+      text_artifacts: [textPath],
+      image_artifacts: [],
+      text_characters: sourceLines.join("\n").length,
+      cell_count: sourceLines.length,
+      artifact_fingerprint: "d".repeat(64),
+      converted_at: new Date(0).toISOString(),
+    },
+  };
+  const evidenceSourceFileId = sourceFileId(source);
+  const data = extraction("Combined Hall");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "단독홀",
+    guarantee_min: null,
+    meal_price_min_krw: null,
+    meal_price_max_krw: null,
+    venue_fee_min_krw: 3_300_000,
+    venue_fee_max_krw: 3_300_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: null,
+    decoration_fee_max_krw: null,
+    decoration_note: null,
+    options: [],
+    source_quote: encodeMergedEvidenceQuote([{
+      source_file_id: evidenceSourceFileId,
+      quote: sourceLines[0]!,
+    }, {
+      source_file_id: evidenceSourceFileId,
+      quote: sourceLines[1]!,
+    }, {
+      source_file_id: evidenceSourceFileId,
+      quote: sourceLines[3]!,
+    }], 2_000)!,
+    source_file_ids: [evidenceSourceFileId],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+  data.money_occurrences = [{
+    amount_krw: 3_300_000,
+    raw_text: "3,300,000원",
+    source_quote: sourceLines[3]!,
+    source_file_ids: [evidenceSourceFileId],
+    kind: "price",
+    needs_review: true,
+  }];
+
+  const result = await deriveValidatedPayloadForUnit(
+    unit,
+    { data },
+    { mode: "local_deterministic" },
+  );
+
+  assert.equal(result.data.halls?.[0]?.venue_fee_min_krw, null);
+  assert.equal(result.data.halls?.[0]?.venue_fee_max_krw, null);
+  assert.ok(result.issues.some(({ code }) => code === "local_hall_venue_fee_quarantined"));
+});
+
+test("local validation rechecks merged line quotes inside their exact source file", async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "hanbang-source-scoped-lines-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const conversionRoot = path.join(temporaryRoot, ".converted", "unit", "source");
+  const termsPath = path.join(conversionRoot, "1-pdf.txt");
+  const pricePath = path.join(conversionRoot, "2-pdf.txt");
+  await mkdir(conversionRoot, { recursive: true });
+  await writeFile(termsPath, "이용약관\n계약금 환급 규정", "utf8");
+  await writeFile(pricePath, "호텔인터시티\n대관료 3,300,000원", "utf8");
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "호텔인터시티",
+    parsed: {
+      region_code: "daejeon",
+      raw_name: "호텔인터시티",
+      normalized_name: "호텔인터시티",
+      corporate_name: null,
+      kind_hint: "hall",
+    },
+    source_files: [{
+      path: "hall/daejeon/terms.pdf",
+      absolute_path: path.join(temporaryRoot, "terms.pdf"),
+      ext: "pdf",
+      sha256: "b".repeat(64),
+      bytes: 1,
+    }, {
+      path: "hall/daejeon/prices.pdf",
+      absolute_path: path.join(temporaryRoot, "prices.pdf"),
+      ext: "pdf",
+      sha256: "c".repeat(64),
+      bytes: 1,
+    }],
+    source_fingerprint: "d".repeat(64),
+    stage: "extracted",
+    notices: [],
+    conversion: {
+      converter_version: "fixture",
+      source_fingerprint: "d".repeat(64),
+      text_artifacts: [termsPath, pricePath],
+      image_artifacts: [],
+      text_characters: 1,
+      cell_count: 0,
+      artifact_fingerprint: "e".repeat(64),
+      converted_at: new Date(0).toISOString(),
+    },
+  };
+  const priceSourceId = sourceFileId(unit.source_files[1]!);
+  const sourceQuote = encodeMergedEvidenceQuote([{
+    source_file_id: priceSourceId,
+    quote: "line:1: 호텔인터시티",
+  }, {
+    source_file_id: priceSourceId,
+    quote: "line:2: 대관료 3,300,000원",
+  }], 2_000)!;
+  const data = extraction("호텔인터시티");
+  data.doc_kind = "hall_disclosure";
+  data.agency_packages = [];
+  data.halls = [{
+    hall_name: "호텔인터시티",
+    guarantee_min: null,
+    meal_price_min_krw: null,
+    meal_price_max_krw: null,
+    venue_fee_min_krw: 3_300_000,
+    venue_fee_max_krw: 3_300_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: null,
+    decoration_fee_max_krw: null,
+    decoration_note: null,
+    options: [],
+    source_quote: sourceQuote,
+    source_file_ids: [priceSourceId],
+    confidence: 0.45,
+    needs_review: true,
+  }];
+
+  const result = await deriveValidatedPayloadForUnit(
+    unit,
+    { data },
+    { mode: "local_deterministic" },
+  );
+  assert.equal(result.issues.some((issue) =>
+    issue.severity === "error"
+    && (
+      ["source_locator_invalid", "source_quote_payload_mismatch"].includes(issue.code)
+      || issue.code.includes("source_quote")
+    )
+  ), false, JSON.stringify(result.issues));
+});
 
 test("validation accepts an exact XLSX locator with a contiguous fragment from its one source cell", () => {
   const sourceText = [
@@ -257,6 +812,143 @@ test("exact XLSX drawing and formula evidence ground pricing-basis sections end 
     && issue.code === "source_quote_not_found_in_text"
     && issue.path === "sections[0]"
   ), true, JSON.stringify(unlabeledIssues));
+});
+
+test("an exact VAT inclusion note grounds a pricing-basis section", () => {
+  const packageLine = "가격표!B2: 더미 패키지 스튜디오 드레스 메이크업 기본가격 3.3만원";
+  const basisLine = "가격표!A1: 모든 가격은 부가세 포함 금액입니다.";
+  const sourceText = [basisLine, packageLine].join("\n");
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "generated.xlsx",
+    parsed: {
+      region_code: "gwangju",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/gwangju/generated.xlsx",
+      absolute_path: "C:/generated/generated.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const data = extraction("generated");
+  data.agency_packages[0].source_quote = packageLine;
+  data.sections = [{
+    section_type: "pricing_basis",
+    title: "모든 가격은 부가세 포함 금액입니다.",
+    content_verbatim: "모든 가격은 부가세 포함 금액입니다.",
+    summary: "모든 가격은 부가세 포함 금액입니다.",
+    source_quote: basisLine,
+    source_file_ids: [],
+    confidence: 0.5,
+    needs_review: true,
+  }];
+
+  const issues = validateExtractionForUnit(unit, data, {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  });
+
+  assert.equal(issues.some(({ code, path }) => (
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "sections[0].section_type"
+  )), false, JSON.stringify(issues));
+
+});
+
+test("an exact money-column header grounds an adjacent unowned pricing-basis amount", () => {
+  const sourceSha256 = "b".repeat(64);
+  const headerLine = "계약서!B2: 금액";
+  const amountLine = "계약서!B3: 1,210,000원";
+  const packageLine = "가격표!B2: 더미 패키지 스튜디오 드레스 메이크업 기본가격 3.3만원";
+  const sourceText = [packageLine, headerLine, amountLine].join("\n");
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "generated.xlsx",
+    parsed: {
+      region_code: "gwangju",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/gwangju/generated.xlsx",
+      absolute_path: "C:/generated/generated.xlsx",
+      ext: "xlsx",
+      sha256: sourceSha256,
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const evidenceSourceFileId = sourceFileId(unit.source_files[0]!);
+  const data = extraction("generated");
+  data.extraction_notes = "[local_evidence_guard] deterministic local review fixture";
+  data.agency_packages[0].source_quote = packageLine;
+  data.sections = [{
+    section_type: "pricing_basis",
+    title: "1,210,000원",
+    content_verbatim: "1,210,000원",
+    summary: "1,210,000원",
+    source_quote: encodeMergedEvidenceQuote([
+      { source_file_id: evidenceSourceFileId, quote: headerLine },
+      { source_file_id: evidenceSourceFileId, quote: amountLine },
+    ], 2_000)!,
+    source_file_ids: [evidenceSourceFileId],
+    confidence: 0.5,
+    needs_review: true,
+  }];
+  const sourceEvidence = {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  };
+
+  const issues = validateExtractionForUnit(unit, data, {
+    ...sourceEvidence,
+    bySourceFileId: { [evidenceSourceFileId]: sourceEvidence },
+    sourceScoped: true,
+  }, { mode: "local_deterministic" });
+
+  assert.equal(issues.some(({ code, path }) => (
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "sections[0].section_type"
+  )), false, JSON.stringify(issues));
+
+  for (const paymentRole of ["계약금", "중도금", "잔금"]) {
+    const roleHeaderLine = `계약서!A3: ${paymentRole}`;
+    const roleSourceText = [packageLine, roleHeaderLine, amountLine].join("\n");
+    const roleSourceEvidence = {
+      normalizedText: normalizeEvidenceText(roleSourceText),
+      xlsxCells: indexXlsxCellEvidence(roleSourceText),
+      hasImages: false,
+    };
+    const roleData = structuredClone(data);
+    roleData.sections![0]!.source_quote = encodeMergedEvidenceQuote([
+      { source_file_id: evidenceSourceFileId, quote: roleHeaderLine },
+      { source_file_id: evidenceSourceFileId, quote: amountLine },
+    ], 2_000)!;
+    const roleIssues = validateExtractionForUnit(unit, roleData, {
+      ...roleSourceEvidence,
+      bySourceFileId: { [evidenceSourceFileId]: roleSourceEvidence },
+      sourceScoped: true,
+    }, { mode: "local_deterministic" });
+    assert.equal(roleIssues.some(({ code, path }) => (
+      code === "semantic_type_not_grounded_in_source_quote"
+      && path === "sections[0].section_type"
+    )), false, `${paymentRole}: ${JSON.stringify(roleIssues)}`);
+  }
 });
 
 test("drawing money is scanned once at its auxiliary locator and formula annotations add no duplicate", () => {
@@ -445,10 +1137,12 @@ test("validate retries an error-stage unit only through its verified extraction 
   await convertManifest({ stateDir });
   await extractManifest({ stateDir }, {
     provider: {
-      extract: async () => {
+      extract: async (request) => {
         const data = extraction(scanned.units[0].parsed.raw_name);
-        data.agency_packages[0].source_quote =
-          "line:1: 더미 패키지 스튜디오 드레스 메이크업 3.3만원";
+        const sourceQuote = /^(line:\d+:\s*.*더미 패키지 스튜디오 드레스 메이크업 3\.3만원)$/mu
+          .exec(request.text)?.[1];
+        assert.ok(sourceQuote);
+        data.agency_packages[0].source_quote = sourceQuote;
         return { data, inputTokens: 10, outputTokens: 10 };
       },
     },
@@ -464,8 +1158,15 @@ test("validate retries an error-stage unit only through its verified extraction 
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   const validated = await validateManifest({ stateDir });
+  const retriedArtifact = JSON.parse(await readFile(
+    validated.units[0].validation?.artifact_path ?? "",
+    "utf8",
+  ));
 
-  assert.equal(validated.units[0].stage, "validated", JSON.stringify(validated.units[0].notices));
+  assert.equal(validated.units[0].stage, "validated", JSON.stringify({
+    notices: validated.units[0].notices,
+    issues: retriedArtifact.issues,
+  }));
   assert.ok(validated.units[0].validation);
   assert.equal(
     validated.units[0].notices.some((notice) => notice.startsWith("validate failed:")),
@@ -549,9 +1250,12 @@ test("validate repairs a content-tampered cache artifact instead of trusting its
   const scanned = await scanSources({ rootDir, stateDir });
   await convertManifest({ stateDir });
   const provider: ExtractionProvider = {
-    extract: async () => {
+    extract: async (request) => {
       const data = extraction(scanned.units[0].parsed.raw_name);
-      data.agency_packages[0].source_quote = "line:1: 더미 패키지 스튜디오 드레스 메이크업 3.3만원";
+      const sourceQuote = /^(line:\d+:\s*.*더미 패키지 스튜디오 드레스 메이크업 3\.3만원)$/mu
+        .exec(request.text)?.[1];
+      assert.ok(sourceQuote);
+      data.agency_packages[0].source_quote = sourceQuote;
       return { data, inputTokens: 10, outputTokens: 10 };
     },
   };
@@ -573,7 +1277,7 @@ test("validate repairs a content-tampered cache artifact instead of trusting its
   assert.equal(
     repairedManifest.units[0].stage,
     "validated",
-    JSON.stringify(repairedManifest.units[0].notices),
+    JSON.stringify({ notices: repairedManifest.units[0].notices, issues: repaired.issues }),
   );
   assert.equal(repaired.fingerprint, expectedFingerprint);
   assert.equal(repaired.data.business_name, scanned.units[0].parsed.raw_name);
@@ -927,6 +1631,36 @@ test("coverage self-check applies a declared XLSX unit to price columns and pric
     gaps.map((gap) => gap.krw),
     [1_240_000, 220_000, 110_000, 330_000, 33_000],
   );
+});
+
+test("declared-unit price columns exclude temporal percent time and quantity ranges but retain explicit money", () => {
+  const occurrences = scanSourceMoneyOccurrences([
+    "## 시트: 가격표",
+    "가격표!B1: ① 가격(단위:원, VAT 포함)",
+    "가격표!B3: 식비",
+    "가격표!B9: 계약 추진비 50만원 공제 / 예식예정일 60일 전까지(149~60) 계약해제 / 계약해제 59~30일 / 위약금 (10~20)% / 이용시간 (10~12)시 / 보증인원 (100~150)명",
+  ].join("\n"));
+
+  assert.deepEqual(occurrences.map(({ raw, krw, source_locator }) => ({
+    raw,
+    krw,
+    source_locator,
+  })), [{
+    raw: "50만원",
+    krw: 500_000,
+    source_locator: "가격표!B9",
+  }]);
+});
+
+test("declared-unit price columns retain an unlabeled won range without non-money context", () => {
+  const occurrences = scanSourceMoneyOccurrences([
+    "## 시트: 가격표",
+    "가격표!B1: ① 가격(단위:원, VAT 포함)",
+    "가격표!B3: 식비",
+    "가격표!B5: 식대 75000~90000",
+  ].join("\n"));
+
+  assert.deepEqual(occurrences.map(({ krw }) => krw), [75_000, 90_000]);
 });
 
 test("coverage self-check keeps comma-grouped bare values in a declared unit unless quantity context makes won explicit", () => {
@@ -1995,6 +2729,62 @@ test("an exact vendor quote cannot authenticate a category absent from its bound
     && issue.code === "semantic_type_not_grounded_in_source_quote"
     && issue.path === "partner_vendors[0].category"
   ), true);
+  assert.equal(data.partner_vendors[0].needs_review, true);
+});
+
+test("the unclassified other vendor bucket does not invent a category label", () => {
+  const unit: ManifestUnit = {
+    unit_id: "a".repeat(64),
+    display_name: "unclassified-category.xlsx",
+    parsed: {
+      region_code: "chungcheong",
+      raw_name: "generated",
+      normalized_name: "generated",
+      corporate_name: null,
+      kind_hint: "agency",
+    },
+    source_files: [{
+      path: "agency/chungcheong/unclassified-category.xlsx",
+      absolute_path: "C:/generated/unclassified-category.xlsx",
+      ext: "xlsx",
+      sha256: "b".repeat(64),
+      bytes: 100,
+    }],
+    source_fingerprint: "c".repeat(64),
+    stage: "extracted",
+    notices: [],
+  };
+  const sourceText = "가격표!A5: 국현우리옷";
+  const data = extraction("generated");
+  data.doc_kind = "partner_price_list";
+  data.agency_packages = [];
+  data.partner_vendors = [{
+    vendor_name: "국현우리옷",
+    old_names: [],
+    category: "other",
+    price_min_krw: null,
+    price_max_krw: null,
+    base_spec: null,
+    price_note: null,
+    options: [],
+    policies: [],
+    source_quote: sourceText,
+    source_file_ids: [],
+    confidence: 0.4,
+    needs_review: true,
+  }];
+
+  const issues = validateExtractionForUnit(unit, data, {
+    normalizedText: normalizeEvidenceText(sourceText),
+    xlsxCells: indexXlsxCellEvidence(sourceText),
+    hasImages: false,
+  });
+
+  assert.equal(issues.some(({ code, path }) =>
+    code === "semantic_type_not_grounded_in_source_quote"
+    && path === "partner_vendors[0].category"
+  ), false, JSON.stringify(issues));
+  assert.equal(data.partner_vendors[0].category, "other");
   assert.equal(data.partner_vendors[0].needs_review, true);
 });
 

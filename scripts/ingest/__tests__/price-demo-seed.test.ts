@@ -6,12 +6,22 @@ import {
   assertPriceDemoSeedEnvironment,
   buildPriceDemoFixture,
   createSupabasePriceDemoSeedRepository,
+  PRICE_DEMO_SEED_RETIRED_MESSAGE,
+  runPriceDemoSeed,
   type PriceDemoFixture,
   type PriceDemoPrice,
   type PriceDemoSeedRepository,
 } from "../price-demo-seed.js";
 
 const ADMIN_ACTOR_ID = "a1100000-0000-4000-8000-000000000001";
+
+test("the retired CLI fails before any direct kca_tprice write can start", async () => {
+  await assert.rejects(
+    runPriceDemoSeed({}),
+    (error: unknown) => error instanceof Error
+      && error.message === PRICE_DEMO_SEED_RETIRED_MESSAGE,
+  );
+});
 
 test("the demo fixture is balanced, unmistakably synthetic, fully sourced, and has one publish target", () => {
   const fixture = buildPriceDemoFixture();

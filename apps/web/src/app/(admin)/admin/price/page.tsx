@@ -178,9 +178,13 @@ type PriceSnapshot = {
 };
 
 type BulkApprovalSummary = {
-  eligible_count: number;
+  batch_eligible_count: number | null;
+  has_more: boolean | null;
+  count_verified: boolean;
   can_execute: boolean;
   batch_limit: number;
+  eligibility_contract_version: 1;
+  eligibility_sha256: string | null;
   blocked_code?: string;
   blocked_reason?: string;
 };
@@ -204,7 +208,9 @@ function BulkApprovalPanel() {
         return;
       }
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "일괄 승인 대상을 계산하지 못했습니다.");
+      if (!response.ok) {
+        throw new Error(body.blocked_reason ?? body.error ?? "일괄 승인 대상을 계산하지 못했습니다.");
+      }
       setSummary(body as BulkApprovalSummary);
     } catch (caught) {
       setSummary(null);
@@ -215,15 +221,32 @@ function BulkApprovalPanel() {
   }
 
   async function execute() {
-    if (!summary?.can_execute || summary.eligible_count < 1 || executing) return;
+    if (
+      !summary?.can_execute
+      || summary.batch_eligible_count === null
+      || summary.batch_eligible_count < 1
+      || summary.eligibility_contract_version !== 1
+      || !summary.eligibility_sha256
+      || executing
+    ) return;
     if (!window.confirm(
-      `자동 검증을 통과한 ${summary.eligible_count}건을 승인합니다. 공개 전환은 하지 않습니다. 계속할까요?`,
+      `자동 검증을 통과한 이번 배치 ${summary.batch_eligible_count}건을 승인합니다. 공개 전환은 하지 않습니다. 계속할까요?`,
     )) return;
     setExecuting(true);
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/price/bulk-approval", { method: "POST" });
+      const response = await fetch("/api/admin/price/bulk-approval", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eligibility_contract_version: 1,
+          confirmation: "approve_automatically_validated_pending",
+          expected_eligible_count: summary.batch_eligible_count,
+          expected_eligibility_sha256: summary.eligibility_sha256,
+        }),
+      });
       const body = await response.json();
       if (!response.ok) throw new Error(body.blocked_reason ?? body.error ?? "일괄 승인을 완료하지 못했습니다.");
       setNotice(
@@ -231,6 +254,9 @@ function BulkApprovalPanel() {
       );
       setSummary(null);
     } catch (caught) {
+      // Any failed mutation invalidates the human-bound snapshot in the UI.
+      // A retry must begin with a fresh eligibility count and fingerprint.
+      setSummary(null);
       setError(caught instanceof Error ? caught.message : "일괄 승인을 완료하지 못했습니다.");
     } finally {
       setExecuting(false);
@@ -248,7 +274,7 @@ function BulkApprovalPanel() {
           <p className="text-xs font-bold tracking-wide text-[#8F6662]">HUMAN-CONFIRMED BULK REVIEW</p>
           <h2 className="mt-1 text-lg font-bold text-[#243832]">자동 검증 통과분 일괄 승인</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6D806E]">
-            버튼을 누르면 먼저 승인 가능 건수만 계산합니다. 승인 실행은 건수 확인 뒤 다시 눌러야 하며 공개 전환은 별도입니다.
+            버튼을 누르면 이번 승인 배치(최대 25건)만 계산합니다. 승인 실행은 건수 확인 뒤 다시 눌러야 하며 공개 전환은 별도입니다.
           </p>
         </div>
         <button
@@ -262,13 +288,18 @@ function BulkApprovalPanel() {
             : executing
               ? "일괄 승인 중…"
               : summary
-                ? `자동 검증 통과분 일괄 승인 (${summary.eligible_count}건)`
-                : "자동 검증 통과분 일괄 승인"}
+                ? summary.batch_eligible_count === null
+                  ? "승인 가능 건수 확인 불가"
+                  : `${summary.batch_eligible_count}건 승인하기`
+                : "승인 가능 건수 확인"}
         </button>
       </div>
       {summary ? (
         <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${blocked ? "border-[#B89785]/35 bg-[#F7F1E8] text-[#36534E]" : "border-[#C7D1C2] bg-[#F2F7F3] text-[#36534E]"}`}>
-          <p className="font-bold">승인 가능 {summary.eligible_count}건</p>
+          <p className="font-bold">
+            이번 승인 배치 {summary.batch_eligible_count ?? "확인 불가"}건
+            {summary.has_more ? " · 이후 승인 대상 더 있음" : ""}
+          </p>
           {summary.blocked_reason ? <p className="mt-1 leading-6">{summary.blocked_reason}</p> : null}
           {blocked ? (
             <button

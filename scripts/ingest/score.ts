@@ -17,10 +17,18 @@ import {
   EXTRACTION_PROMPT_VERSION,
 } from "./extraction-contract.js";
 import { isPathWithin, readJsonFile, writeJsonFile } from "./io.js";
+import {
+  certifyLocalDocxSharedMoneyGroups,
+  LOCAL_DOCX_SHARED_MONEY_CONTRACT_VERSION,
+} from "./local-extract.js";
+import type {
+  LocalDocxSharedMoneyGroup,
+  LocalTextEvidence,
+} from "./local-extract.js";
 import { decodeEvidenceQuote } from "./merge-evidence.js";
 import { loadManifest } from "./manifest.js";
 import { normalizeVendorName, regionCodeFromDirectory } from "./scan.js";
-import { sourceFileId } from "./provenance.js";
+import { resolveArtifactSourceProvenance, sourceFileId } from "./provenance.js";
 import { readFixedEightPaidExtractionPlanApproval } from "./paid-extraction-plan.js";
 import { isStructuredRecordSourceLinkageCode } from "./record-source-linkage.js";
 import {
@@ -44,6 +52,11 @@ import {
   parseXlsxAuxiliaryEvidenceLine,
   stripXlsxAuxiliaryEvidenceLocator,
 } from "./xlsx-aux-evidence.js";
+import {
+  loadVisualTranscriptionSidecar,
+  normalizeApprovedVisualText,
+} from "./visual-transcription-sidecar.js";
+import type { LoadedVisualTranscriptionSidecar } from "./visual-transcription-sidecar.js";
 import type { CoverageGap } from "./validate.js";
 
 const MoneyOccurrenceSchema = z.object({
@@ -119,6 +132,155 @@ const GroundTruthOverlaySchema = z.object({
   }).strict()).min(1),
 }).strict();
 
+const DerivedGroundTruthOverlaySchema = z.object({
+  schema_version: z.literal(1),
+  artifact_kind: z.literal("derived_visual_ground_truth_overlay"),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  source_overlay_relative_path: z.string().min(1).max(10_000),
+  source_overlay_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  locator_migration: z.object({
+    contract_version: z.literal("page-to-image-v1"),
+    transformed_locator_count: z.number().int().positive().max(100_000),
+    transformed_unit_count: z.number().int().positive().max(10_000),
+  }).strict(),
+  overlay: GroundTruthOverlaySchema,
+}).strict();
+
+type GroundTruthOverlay = z.infer<typeof GroundTruthOverlaySchema>;
+
+function migrateGroundTruthPageLocator(sourceLocator: string): {
+  sourceLocator: string;
+  transformed: boolean;
+} {
+  if (!sourceLocator.startsWith("page:")) {
+    return { sourceLocator, transformed: false };
+  }
+  if (
+    sourceLocator !== sourceLocator.trim()
+    || sourceLocator !== sourceLocator.normalize("NFKC")
+    || sourceLocator.includes("\\")
+  ) {
+    throw new Error("ground_truth_derived_overlay_locator_migration_invalid");
+  }
+  const matched = /^page:([1-9]\d*)\/(.{1,180})$/u.exec(sourceLocator);
+  const segments = matched?.[2]?.split("/") ?? [];
+  if (!matched || segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error("ground_truth_derived_overlay_locator_migration_invalid");
+  }
+  return {
+    sourceLocator: `image:${matched[1]!}/${matched[2]!}`,
+    transformed: true,
+  };
+}
+
+function deriveGroundTruthPageToImageOverlay(source: GroundTruthOverlay): {
+  overlay: GroundTruthOverlay;
+  transformedLocatorCount: number;
+  transformedUnitCount: number;
+} {
+  let transformedLocatorCount = 0;
+  let transformedUnitCount = 0;
+  const units = source.units.map((unit) => {
+    let unitTransformed = false;
+    const migrate = (sourceLocator: string): string => {
+      const migrated = migrateGroundTruthPageLocator(sourceLocator);
+      if (migrated.transformed) {
+        transformedLocatorCount += 1;
+        unitTransformed = true;
+      }
+      return migrated.sourceLocator;
+    };
+    const transformed = {
+      ...unit,
+      readable_occurrences: unit.readable_occurrences.map((occurrence) => ({
+        ...occurrence,
+        source_locator: migrate(occurrence.source_locator),
+      })),
+      unreadable_cells: unit.unreadable_cells.map((cell) => ({
+        ...cell,
+        source_locator: migrate(cell.source_locator),
+      })),
+    };
+    if (unitTransformed) transformedUnitCount += 1;
+    return transformed;
+  });
+  if (transformedLocatorCount === 0 || transformedUnitCount === 0) {
+    throw new Error("ground_truth_derived_overlay_locator_migration_empty");
+  }
+  return {
+    overlay: GroundTruthOverlaySchema.parse({ ...source, units }),
+    transformedLocatorCount,
+    transformedUnitCount,
+  };
+}
+
+function strictStateRelativePath(
+  stateDir: string,
+  relativePath: string,
+  label: string,
+): { artifactPath: string; expectedRelativePath: string } {
+  const segments = relativePath.split("/");
+  if (
+    relativePath !== relativePath.trim()
+    || relativePath !== relativePath.normalize("NFKC")
+    || relativePath.includes("\0")
+    || relativePath.includes("\\")
+    || path.isAbsolute(relativePath)
+    || path.posix.isAbsolute(relativePath)
+    || segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`${label}_relative_path_invalid`);
+  }
+  const expectedRelativePath = path.join(...segments);
+  const artifactPath = path.resolve(stateDir, expectedRelativePath);
+  const canonicalRelativePath = path.relative(stateDir, artifactPath).split(path.sep).join("/");
+  if (!isPathWithin(stateDir, artifactPath) || canonicalRelativePath !== relativePath) {
+    throw new Error(`${label}_relative_path_invalid`);
+  }
+  return { artifactPath, expectedRelativePath };
+}
+
+async function parsedGroundTruthOverlay(
+  stateDir: string,
+  snapshotValue: unknown,
+): Promise<GroundTruthOverlay> {
+  const record = snapshotValue && typeof snapshotValue === "object" && !Array.isArray(snapshotValue)
+    ? snapshotValue as Record<string, unknown>
+    : null;
+  if (record?.artifact_kind !== "derived_visual_ground_truth_overlay") {
+    return GroundTruthOverlaySchema.parse(snapshotValue);
+  }
+  const derived = DerivedGroundTruthOverlaySchema.parse(snapshotValue);
+  verifyJsonContentHash(record, "content_sha256");
+  const sourcePath = strictStateRelativePath(
+    stateDir,
+    derived.source_overlay_relative_path,
+    "ground_truth_derived_overlay_source",
+  );
+  await verifyDeterministicStateArtifactPath({
+    stateDir,
+    artifactPath: sourcePath.artifactPath,
+    expectedRelativePath: sourcePath.expectedRelativePath,
+  });
+  const sourceSnapshot = await readHashedJsonOnce(
+    sourcePath.artifactPath,
+    "ground truth derived overlay source",
+  );
+  if (sourceSnapshot.sha256 !== derived.source_overlay_sha256) {
+    throw new Error("ground_truth_derived_overlay_source_sha256_mismatch");
+  }
+  const source = GroundTruthOverlaySchema.parse(sourceSnapshot.value);
+  const replayed = deriveGroundTruthPageToImageOverlay(source);
+  if (
+    replayed.transformedLocatorCount !== derived.locator_migration.transformed_locator_count
+    || replayed.transformedUnitCount !== derived.locator_migration.transformed_unit_count
+    || !isDeepStrictEqual(replayed.overlay, derived.overlay)
+  ) {
+    throw new Error("ground_truth_derived_overlay_mechanical_mismatch");
+  }
+  return derived.overlay;
+}
+
 const StableOccurrenceReferenceSchema = z.object({
   unit_id: z.string().regex(/^[a-f0-9]{64}$/u),
   source_locator: z.string().min(1).max(300),
@@ -132,7 +294,7 @@ const AdjudicationResultSchema = MoneyOccurrenceSchema.extend({
   ordinal: z.number().int().positive(),
 }).strict();
 
-const GroundTruthAdjudicationSchema = z.object({
+export const GroundTruthAdjudicationSchema = z.object({
   schema_version: z.literal(1),
   created_at: z.string().datetime(),
   base_ground_truth_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
@@ -172,6 +334,7 @@ type AdjudicationDecision = GroundTruthAdjudication["decisions"][number];
 
 interface AppliedAdjudication {
   effective: LocatedMoneyOccurrence[];
+  auditOnly: LocatedMoneyOccurrence[];
   decisions: AdjudicationDecision[];
   excludedBaseOccurrences: number;
   addedEffectiveOccurrences: number;
@@ -304,6 +467,7 @@ function appliedAdjudicationForUnit(
   if (decisions.length === 0) {
     return {
       effective: base,
+      auditOnly: [],
       decisions: [],
       excludedBaseOccurrences: 0,
       addedEffectiveOccurrences: 0,
@@ -416,6 +580,20 @@ function appliedAdjudicationForUnit(
     .reduce((sum, decision) => sum + decision.references.length, 0);
   return {
     effective: [...effective.filter((_, index) => !removed.has(index)), ...additions],
+    // The scanner ledger is an audit trail of source occurrences, including
+    // values an adjudication deliberately removes from publishable truth.
+    // Keep those exact, source-located values available only to distinguish
+    // traceability from hallucination; structured prices never match here.
+    auditOnly: [
+      ...[...removed]
+        .sort((left, right) => left - right)
+        .flatMap((index) => base[index] ? [base[index]] : []),
+      ...humanRequired.flatMap((decision) => {
+        if (!decision.result) return [];
+        const { unit_id: _unitId, ordinal: _ordinal, ...occurrence } = decision.result;
+        return [{ ...occurrence, origin: "adjudication" as const }];
+      }),
+    ],
     decisions,
     excludedBaseOccurrences: removed.size,
     addedEffectiveOccurrences: additions.length,
@@ -565,6 +743,317 @@ function structuredMoneyOccurrences(data: DisclosureExtraction): ExtractedMoneyO
     ));
   });
   return result;
+}
+
+function structuredOccurrenceKeyForSharedScore(
+  occurrence: Pick<ExtractedMoneyOccurrence, "path" | "krw">,
+): string {
+  return `${occurrence.path}\0${occurrence.krw}`;
+}
+
+export function collapseCertifiedLocalDocxSharedMoney(
+  structured: ExtractedMoneyOccurrence[],
+  groups: LocalDocxSharedMoneyGroup[],
+): {
+  occurrences: ExtractedMoneyOccurrence[];
+  applied_groups: LocalDocxSharedMoneyGroup[];
+} {
+  const indexesByKey = new Map<string, number[]>();
+  structured.forEach((occurrence, index) => {
+    const key = structuredOccurrenceKeyForSharedScore(occurrence);
+    indexesByKey.set(key, [...(indexesByKey.get(key) ?? []), index]);
+  });
+  const removed = new Set<number>();
+  const claimed = new Set<number>();
+  const appliedGroups: LocalDocxSharedMoneyGroup[] = [];
+  for (const group of groups) {
+    const indexes = group.member_occurrence_keys.flatMap((key) => {
+      const matches = indexesByKey.get(key) ?? [];
+      return matches.length === 1 ? matches : [];
+    });
+    if (
+      indexes.length !== group.member_occurrence_keys.length
+      || indexes.length < 2
+      || new Set(indexes).size !== indexes.length
+      || indexes.some((index) => claimed.has(index))
+      || indexes.some((index) => structured[index]?.krw !== group.amount_krw)
+    ) continue;
+    const [representative, ...duplicates] = indexes;
+    if (representative === undefined) continue;
+    for (const index of indexes) claimed.add(index);
+    for (const index of duplicates) removed.add(index);
+    appliedGroups.push(group);
+  }
+  return {
+    occurrences: structured.filter((_, index) => !removed.has(index)),
+    applied_groups: appliedGroups,
+  };
+}
+
+async function certifiedLocalDocxSharedMoneyGroupsForUnit(
+  unit: ManifestUnit,
+  data: DisclosureExtraction,
+): Promise<LocalDocxSharedMoneyGroup[]> {
+  const bySource = new Map<string, LocalTextEvidence[]>();
+  for (const artifactPath of unit.conversion?.text_artifacts ?? []) {
+    const resolution = resolveArtifactSourceProvenance(unit, artifactPath);
+    if (!resolution.authoritative || resolution.sources.length !== 1) continue;
+    const source = resolution.sources[0]!;
+    if (source.ext !== "docx") continue;
+    const text = await readFile(artifactPath, "utf8");
+    // Only the canonical WordprocessingML table stream can authorize sharing.
+    // OCR, flattened legacy DOCX, and metadata-free text stay one-to-one.
+    if (!/^\[DOCX_CELL_META\] /mu.test(text)) continue;
+    const id = sourceFileId(source);
+    bySource.set(id, [
+      ...(bySource.get(id) ?? []),
+      { sourceFileId: id, text },
+    ]);
+  }
+  const sources = [...bySource.values()].flatMap((entries) => (
+    entries.length === 1 ? entries : []
+  ));
+  return certifyLocalDocxSharedMoneyGroups({ data, sources });
+}
+
+interface CertifiedVisualParentRange {
+  path: string;
+  krw: number;
+  child_path: string;
+  source_locator: string;
+}
+
+interface HumanConfirmedVisualScoreCertification {
+  sidecar_content_sha256: string;
+  business_name_alias: string | null;
+  parent_ranges: CertifiedVisualParentRange[];
+}
+
+function compactFileIdentity(value: string): string {
+  return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function canonicalNameIsBoundToSourceStem(unit: ManifestUnit): boolean {
+  const canonical = compactFileIdentity(unit.parsed.raw_name);
+  if (!canonical || normalizeVendorName(unit.parsed.raw_name) !== unit.parsed.normalized_name) {
+    return false;
+  }
+  return unit.source_files.some((source) => {
+    const extension = path.extname(source.path);
+    const stem = path.basename(source.path, extension);
+    return compactFileIdentity(stem).includes(canonical);
+  });
+}
+
+interface VisualParentScoreRecord {
+  path: string;
+  amounts: number[];
+  source_quote: string;
+  source_file_ids: string[];
+  options: Array<{
+    path: string;
+    amounts: number[];
+    source_quote: string;
+    source_file_ids: string[];
+  }>;
+}
+
+function visualParentRecords(fragment: {
+  agency_packages: Array<{
+    price_min_krw: number | null;
+    price_max_krw: number | null;
+    source_quote: string;
+    source_file_ids?: string[];
+    options: Array<{
+      price_min_krw: number | null;
+      price_max_krw: number | null;
+      source_quote: string;
+      source_file_ids?: string[];
+    }>;
+  }>;
+  partner_vendors: Array<{
+    price_min_krw: number | null;
+    price_max_krw: number | null;
+    source_quote: string;
+    source_file_ids?: string[];
+    options: Array<{
+      price_min_krw: number | null;
+      price_max_krw: number | null;
+      source_quote: string;
+      source_file_ids?: string[];
+    }>;
+  }>;
+  halls: Array<{
+    venue_fee_min_krw: number | null;
+    venue_fee_max_krw: number | null;
+    meal_price_min_krw: number | null;
+    meal_price_max_krw: number | null;
+    decoration_fee_min_krw: number | null;
+    decoration_fee_max_krw: number | null;
+    source_quote: string;
+    source_file_ids?: string[];
+    options: Array<{
+      price_min_krw: number | null;
+      price_max_krw: number | null;
+      source_quote: string;
+      source_file_ids?: string[];
+    }>;
+  }>;
+}): VisualParentScoreRecord[] {
+  const result: VisualParentScoreRecord[] = [];
+  fragment.agency_packages.forEach((record, index) => result.push({
+    path: `agency_packages[${index}]`,
+    amounts: moneyValues(record.price_min_krw, record.price_max_krw),
+    source_quote: record.source_quote,
+    source_file_ids: record.source_file_ids ?? [],
+    options: record.options.map((option, optionIndex) => ({
+      path: `agency_packages[${index}].options[${optionIndex}]`,
+      amounts: moneyValues(option.price_min_krw, option.price_max_krw),
+      source_quote: option.source_quote,
+      source_file_ids: option.source_file_ids ?? [],
+    })),
+  }));
+  fragment.partner_vendors.forEach((record, index) => result.push({
+    path: `partner_vendors[${index}]`,
+    amounts: moneyValues(record.price_min_krw, record.price_max_krw),
+    source_quote: record.source_quote,
+    source_file_ids: record.source_file_ids ?? [],
+    options: record.options.map((option, optionIndex) => ({
+      path: `partner_vendors[${index}].options[${optionIndex}]`,
+      amounts: moneyValues(option.price_min_krw, option.price_max_krw),
+      source_quote: option.source_quote,
+      source_file_ids: option.source_file_ids ?? [],
+    })),
+  }));
+  fragment.halls.forEach((record, index) => result.push({
+    path: `halls[${index}]`,
+    amounts: moneyValues(
+      record.venue_fee_min_krw,
+      record.venue_fee_max_krw,
+      record.meal_price_min_krw,
+      record.meal_price_max_krw,
+      record.decoration_fee_min_krw,
+      record.decoration_fee_max_krw,
+    ),
+    source_quote: record.source_quote,
+    source_file_ids: record.source_file_ids ?? [],
+    options: record.options.map((option, optionIndex) => ({
+      path: `halls[${index}].options[${optionIndex}]`,
+      amounts: moneyValues(option.price_min_krw, option.price_max_krw),
+      source_quote: option.source_quote,
+      source_file_ids: option.source_file_ids ?? [],
+    })),
+  }));
+  return result;
+}
+
+export function certifyHumanConfirmedVisualScoreEvidence(
+  unit: ManifestUnit,
+  data: DisclosureExtraction,
+  sidecar: LoadedVisualTranscriptionSidecar,
+): HumanConfirmedVisualScoreCertification | null {
+  const extractionBinding = unit.local_extraction?.visual_transcription;
+  const validationBinding = unit.validation?.visual_transcription;
+  if (
+    sidecar.reviewer.kind !== "human_confirmed"
+    || extractionBinding?.reviewer_kind !== "human_confirmed"
+  ) return null;
+  if (
+    extractionBinding.content_sha256 !== sidecar.content_sha256
+    || !isDeepStrictEqual(validationBinding, extractionBinding)
+  ) {
+    throw new Error("visual_score_sidecar_manifest_binding_mismatch");
+  }
+  const blocksById = new Map(sidecar.reviewer.approved_text_blocks.map((block) => [block.id, block]));
+  const fieldsByPath = new Map(sidecar.reviewer.record_field_bindings.map((binding) => [
+    binding.field_path,
+    binding,
+  ]));
+  const identityBinding = fieldsByPath.get("business_name");
+  const identityBlock = identityBinding
+    ? blocksById.get(identityBinding.approved_text_block_id)
+    : null;
+  const businessNameAlias = sidecar.fragment.business_name
+    && data.business_name === sidecar.fragment.business_name
+    && identityBinding?.binding_kind === "exact"
+    && identityBlock
+    && normalizeApprovedVisualText(identityBlock.normalized_content)
+      === normalizeApprovedVisualText(sidecar.fragment.business_name)
+    && canonicalNameIsBoundToSourceStem(unit)
+      ? sidecar.fragment.business_name
+      : null;
+
+  const recordEvidence = new Map(sidecar.record_evidence.map((binding) => [
+    binding.record_path,
+    binding,
+  ]));
+  const exactMoneyByLocator = new Map<string, Set<number>>();
+  sidecar.fragment.money_occurrences.forEach((occurrence, index) => {
+    const binding = recordEvidence.get(`money_occurrences[${index}]`);
+    const sourceQuoteBinding = fieldsByPath.get(`money_occurrences[${index}].source_quote`);
+    if (
+      !binding
+      || binding.source_locators.length !== 1
+      || sourceQuoteBinding?.binding_kind !== "exact"
+    ) return;
+    const locator = binding.source_locators[0]!;
+    const amounts = exactMoneyByLocator.get(locator) ?? new Set<number>();
+    amounts.add(occurrence.amount_krw);
+    exactMoneyByLocator.set(locator, amounts);
+  });
+
+  const finalFragment = {
+    doc_kind: data.doc_kind,
+    business_name: data.business_name,
+    region_hint: data.region_hint,
+    agency_packages: data.agency_packages,
+    partner_vendors: data.partner_vendors,
+    halls: data.halls ?? [],
+    sections: data.sections ?? [],
+    money_occurrences: data.money_occurrences ?? [],
+  };
+  const sidecarParents = visualParentRecords(sidecar.fragment);
+  const finalParents = new Map(visualParentRecords(finalFragment).map((record) => [record.path, record]));
+  const parentRanges: CertifiedVisualParentRange[] = [];
+  for (const parent of sidecarParents) {
+    const finalParent = finalParents.get(parent.path);
+    const parentBinding = recordEvidence.get(parent.path);
+    const parentQuoteBinding = fieldsByPath.get(`${parent.path}.source_quote`);
+    if (
+      !finalParent
+      || !parentBinding
+      || parentQuoteBinding?.binding_kind !== "exact"
+      || !isDeepStrictEqual(parent, finalParent)
+    ) continue;
+    for (const krw of parent.amounts) {
+      const child = parent.options.find((candidate) => candidate.amounts.includes(krw));
+      if (!child) continue;
+      const childBinding = recordEvidence.get(child.path);
+      if (!childBinding) continue;
+      const sourceLocator = parentBinding.source_locators.find((locator) => (
+        childBinding.source_locators.includes(locator)
+        && exactMoneyByLocator.get(locator)?.has(krw) === true
+      ));
+      if (!sourceLocator) continue;
+      parentRanges.push({ path: parent.path, krw, child_path: child.path, source_locator: sourceLocator });
+    }
+  }
+  return {
+    sidecar_content_sha256: sidecar.content_sha256,
+    business_name_alias: businessNameAlias,
+    parent_ranges: parentRanges,
+  };
+}
+
+export function collapseCertifiedHumanVisualParentRanges(
+  structured: ExtractedMoneyOccurrence[],
+  certification: HumanConfirmedVisualScoreCertification | null,
+): ExtractedMoneyOccurrence[] {
+  if (!certification) return structured;
+  const certified = new Set(certification.parent_ranges.map(({ path: recordPath, krw }) =>
+    structuredOccurrenceKeyForSharedScore({ path: recordPath, krw })
+  ));
+  return structured.filter((occurrence) => !certified.has(structuredOccurrenceKeyForSharedScore(occurrence)));
 }
 
 function compactReviewEvidence(value: string): string {
@@ -719,6 +1208,32 @@ function quoteLineMatchesCandidate(quote: string, candidateLocator: string): boo
   );
 }
 
+function parseWindowsOcrEvidencePage(value: string): number | null {
+  const match = /^(?:line:\d+:\s*)?ocr:page:(\d+):line:\d+(?::|\s|$)/iu.exec(
+    normalizeEvidenceText(value),
+  );
+  if (!match?.[1]) return null;
+  const page = Number.parseInt(match[1], 10);
+  return Number.isSafeInteger(page) && page >= 1 ? page : null;
+}
+
+function parseManualImagePage(value: string): number | null {
+  const match = /^(?:page|image):(\d+)(?:\/|$)/iu.exec(normalizeEvidenceText(value));
+  if (!match?.[1]) return null;
+  const page = Number.parseInt(match[1], 10);
+  return Number.isSafeInteger(page) && page >= 1 ? page : null;
+}
+
+function windowsOcrEvidenceMatchesManualImagePage(
+  quote: string,
+  candidate: LocatedMoneyOccurrence,
+): boolean {
+  if (candidate.origin !== "manual_image") return false;
+  const ocrPage = parseWindowsOcrEvidencePage(quote);
+  const manualPage = parseManualImagePage(candidate.source_locator);
+  return ocrPage !== null && manualPage !== null && ocrPage === manualPage;
+}
+
 function singleQuoteMatchQuality(
   extracted: ExtractedMoneyOccurrence,
   candidate: LocatedMoneyOccurrence,
@@ -741,7 +1256,10 @@ function singleQuoteMatchQuality(
     || candidate.source_locator.startsWith("XLSX_FORMULA ")
   ) return null;
   if (/^line:\d+(?::|\s|$)/iu.test(quote)) {
-    return quoteLineMatchesCandidate(quote, candidate.source_locator) ? "locator" : null;
+    if (quoteLineMatchesCandidate(quote, candidate.source_locator)) return "locator";
+    return windowsOcrEvidenceMatchesManualImagePage(quote, candidate)
+      ? "image_value_only"
+      : null;
   }
   // XLSX conversion quotes may intentionally cite a rectangular row range
   // (for example Sheet!A6:E6) or omit only the sheet name (B4). A candidate
@@ -759,6 +1277,11 @@ function singleQuoteMatchQuality(
   ) {
     return "quote_context";
   }
+  // A manual transcription and Windows OCR cannot share a fine-grained
+  // locator. Permit only a same-page, same-value fallback. The value equality
+  // is enforced at this function's entry and findOccurrenceMatches keeps the
+  // assignment one-to-one, so this never becomes a general amount-only match.
+  if (windowsOcrEvidenceMatchesManualImagePage(quote, candidate)) return "image_value_only";
   return null;
 }
 
@@ -862,11 +1385,23 @@ export function classifyCoverageGapsAgainstGroundTruth(
   };
 }
 
+export function businessNameMatchesCanonicalOrCertifiedVisualAlias(
+  unit: ManifestUnit,
+  businessName: string,
+  certifiedVisualBusinessNameAlias: string | null = null,
+): boolean {
+  if (certifiedVisualBusinessNameAlias === businessName) return true;
+  return [unit.parsed.raw_name, unit.parsed.corporate_name]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => normalizeVendorName(businessName) === normalizeVendorName(value));
+}
+
 function linkingErrors(
   unit: ManifestUnit,
   data: DisclosureExtraction,
   sourcePaths: string[],
   expectations: z.infer<typeof UnitExpectationsSchema> | undefined,
+  certifiedVisualBusinessNameAlias: string | null = null,
 ): Array<{ code: string; message: string }> {
   const errors: Array<{ code: string; message: string }> = [];
   const manifestPaths = unit.source_files.map((source) => source.path).sort();
@@ -901,11 +1436,10 @@ function linkingErrors(
   }
   if (!data.business_name) {
     errors.push({ code: "business_name_missing", message: "추출 결과에 업체/대행사 상호가 없습니다." });
-  } else if (![
-    unit.parsed.raw_name,
-    unit.parsed.corporate_name,
-  ].filter((value): value is string => Boolean(value)).some((value) =>
-    normalizeVendorName(data.business_name ?? "") === normalizeVendorName(value)
+  } else if (!businessNameMatchesCanonicalOrCertifiedVisualAlias(
+    unit,
+    data.business_name,
+    certifiedVisualBusinessNameAlias,
   )) {
     errors.push({
       code: "business_name_mismatch",
@@ -999,6 +1533,19 @@ interface SemanticValidationIssue {
   message: string;
 }
 
+const NON_INVALIDATING_SEMANTIC_REVIEW_CODES = new Set([
+  "low_confidence",
+  "local_exact_evidence_requires_record_review",
+  "local_category_inferred_from_sheet_locator",
+  "local_money_grounded_by_full_source_scanner",
+  "local_evidence_guard",
+]);
+
+function semanticIssueInvalidatesCapture(issue: SemanticValidationIssue): boolean {
+  return issue.severity === "error"
+    || !NON_INVALIDATING_SEMANTIC_REVIEW_CODES.has(issue.code);
+}
+
 function semanticEvidenceFragments(sourceQuote: string): string[] {
   const decoded = decodeEvidenceQuote(sourceQuote);
   const quotes = decoded.kind === "single"
@@ -1043,7 +1590,8 @@ function semanticCapture(
   const rejectedPaths = new Set<string>();
   const isValidatedPath = (recordPath: string): boolean => {
     const accepted = provenanceValidated && !validationIssues.some((issue) =>
-      issueTouchesSemanticPath(issue.path, recordPath)
+      semanticIssueInvalidatesCapture(issue)
+      && issueTouchesSemanticPath(issue.path, recordPath)
     );
     if (!accepted) rejectedPaths.add(recordPath);
     return accepted;
@@ -1548,12 +2096,18 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     if (!isPathWithin(stateDir, overlayPath)) {
       throw new Error("ground truth overlay는 ignored ingest state 디렉터리 안에 있어야 합니다.");
     }
+    const overlayRelativePath = path.relative(stateDir, overlayPath);
+    await verifyDeterministicStateArtifactPath({
+      stateDir,
+      artifactPath: overlayPath,
+      expectedRelativePath: overlayRelativePath,
+    });
     const overlaySnapshot = await readHashedJsonOnce(overlayPath, "ground truth overlay");
     overlayHash = overlaySnapshot.sha256;
     if (overlayHash !== overlayPair.expectedSha256) {
       throw new Error(`overlay SHA-256 불일치: expected=${overlayPair.expectedSha256}, actual=${overlayHash}`);
     }
-    overlay = GroundTruthOverlaySchema.parse(overlaySnapshot.value);
+    overlay = await parsedGroundTruthOverlay(stateDir, overlaySnapshot.value);
   }
 
   let adjudication: GroundTruthAdjudication | null = null;
@@ -1699,6 +2253,7 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     }> = [];
     let strictSemanticValidationIssues: SemanticValidationIssue[] = [];
     let strictProvenance: Record<string, unknown> | null = null;
+    let visualScoreCertification: HumanConfirmedVisualScoreCertification | null = null;
     if (candidateSource === "local") {
       const activeLocal = Boolean(unit.local_extraction);
       try {
@@ -1738,6 +2293,28 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
             needs_review: localValidation.needs_review,
             bulk_approval_eligible: localValidation.bulk_approval_eligible,
           };
+          if (unit.local_extraction?.visual_transcription?.reviewer_kind === "human_confirmed") {
+            const sidecar = await loadVisualTranscriptionSidecar({
+              stateDir,
+              manifest,
+              unitId: unit.unit_id,
+            });
+            if (!sidecar) throw new Error("visual_score_human_confirmed_sidecar_missing");
+            visualScoreCertification = certifyHumanConfirmedVisualScoreEvidence(
+              unit,
+              localValidation.data,
+              sidecar,
+            );
+            if (!visualScoreCertification) {
+              throw new Error("visual_score_human_confirmed_sidecar_not_certified");
+            }
+            strictProvenance.visual_transcription_score_evidence = {
+              sidecar_content_sha256: visualScoreCertification.sidecar_content_sha256,
+              certified_parent_ranges: visualScoreCertification.parent_ranges.length,
+              source_backed_business_name_alias:
+                visualScoreCertification.business_name_alias,
+            };
+          }
         } else {
           const { verifyCurrentLocalCandidateForUnit } = await import("./local-candidate.js");
           const verified = await verifyCurrentLocalCandidateForUnit(unit, manifest, stateDir);
@@ -1888,9 +2465,21 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     const matches = findOccurrenceMatches(extracted, groundTruth);
     const matchedExtracted = new Set(matches.map((match) => match.extracted_index));
     const matchedGroundTruth = new Set(matches.map((match) => match.ground_truth_index));
+    const unmatchedExtracted = extracted
+      .map((item, index) => ({ item, index }))
+      .filter(({ index }) => !matchedExtracted.has(index));
+    const auditOnlyMatches = findOccurrenceMatches(
+      unmatchedExtracted.map(({ item }) => item),
+      appliedAdjudication?.auditOnly ?? [],
+    );
+    const matchedAuditOnlyExtracted = new Set(auditOnlyMatches.map((match) =>
+      unmatchedExtracted[match.extracted_index]!.index
+    ));
     const hallucinated = extracted
       .map((item, index) => ({ item, index }))
-      .filter(({ index }) => !matchedExtracted.has(index))
+      .filter(({ index }) =>
+        !matchedExtracted.has(index) && !matchedAuditOnlyExtracted.has(index)
+      )
       .map(({ item }) => ({
         ...item,
         reason: groundTruth.some((candidate) => candidate.krw === item.krw)
@@ -1902,7 +2491,34 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
     // is one-to-one so one source amount cannot authorize an arbitrary number of
     // duplicated structured prices. Human-required/quarantined values are
     // deliberately absent: they must remain null until a person adjudicates them.
-    const structured = structuredMoneyOccurrences(extraction.data);
+    const uncollapsedStructured = structuredMoneyOccurrences(extraction.data);
+    let certifiedSharedGroups: LocalDocxSharedMoneyGroup[] = [];
+    if (candidateSource === "local") {
+      try {
+        certifiedSharedGroups = await certifiedLocalDocxSharedMoneyGroupsForUnit(
+          unit,
+          extraction.data,
+        );
+      } catch {
+        // Certification is an optional narrowing of the one-to-one gate. Any
+        // unreadable or inconsistent evidence fails closed to ordinary scoring.
+        certifiedSharedGroups = [];
+      }
+    }
+    const certifiedShared = collapseCertifiedLocalDocxSharedMoney(
+      uncollapsedStructured,
+      certifiedSharedGroups,
+    );
+    const structured = collapseCertifiedHumanVisualParentRanges(
+      certifiedShared.occurrences,
+      visualScoreCertification,
+    );
+    if (strictProvenance && certifiedShared.applied_groups.length > 0) {
+      strictProvenance.local_docx_shared_money_contract =
+        LOCAL_DOCX_SHARED_MONEY_CONTRACT_VERSION;
+      strictProvenance.local_docx_shared_money_group_count =
+        certifiedShared.applied_groups.length;
+    }
     const structuredMatches = findOccurrenceMatches(structured, groundTruth);
     const matchedStructured = new Set(structuredMatches.map((match) => match.extracted_index));
     const unsupportedStructuredAmounts = structured
@@ -1939,7 +2555,13 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
       !isStructuredRecordSourceLinkageCode(issue.code)
     );
     const links = [
-      ...linkingErrors(unit, extraction.data, inventoryUnit.source_paths, overlayUnit?.expectations),
+      ...linkingErrors(
+        unit,
+        extraction.data,
+        inventoryUnit.source_paths,
+        overlayUnit?.expectations,
+        visualScoreCertification?.business_name_alias ?? null,
+      ),
       ...structuredLinkageValidationIssues.map((issue) => ({
         code: issue.code,
         path: issue.path,
@@ -1983,6 +2605,13 @@ export async function scoreExtractionAgainstGroundTruth(options: ScoreOptions): 
         hallucinated_amounts: hallucinated,
         missing_readable_amounts: missing,
         unsupported_structured_amounts: unsupportedStructuredAmounts,
+        certified_local_docx_shared_money: {
+          contract_version: LOCAL_DOCX_SHARED_MONEY_CONTRACT_VERSION,
+          groups: certifiedShared.applied_groups,
+          collapsed_occurrences:
+            uncollapsedStructured.length - certifiedShared.occurrences.length,
+        },
+        certified_human_visual_parent_ranges: visualScoreCertification?.parent_ranges ?? [],
         linking_errors: links,
         manual_linkage_reviews: strictLinkageReviewWarnings,
         blocking_validation_issues: otherBlockingValidationIssues,

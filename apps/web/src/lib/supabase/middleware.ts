@@ -81,8 +81,12 @@ export async function updateSession(request: NextRequest) {
 
   // 온보딩 미완료 체크 (고객 앱 경로만)
   const isOnboardingPath = pathname.startsWith("/onboarding") || pathname.startsWith("/wedding/onboarding");
+  const isVendorAdminPreview = (
+    pathname === "/wedding/vendors" || pathname.startsWith("/wedding/vendors/")
+  ) && request.nextUrl.searchParams.get("preview") === "1";
 
-  if (protectedType === "customer" && !isOnboardingPath) {
+  // 미리보기도 인증은 필수이며, 페이지의 verifyAdmin이 권한을 다시 fail-closed 검증한다.
+  if (protectedType === "customer" && !isOnboardingPath && !isVendorAdminPreview) {
     const onboardingComplete =
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {

@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "vendor_disclosure_evidence_bundle_manifest",
+  "content_sha256": "f20119653195699029d2dafb32cabfb41533565906f758cd417d67b391566a82",
+  "bundle_name": "vendor-disclosure-v2",
+  "source_overlay_sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+  "ground_truth_occurrence_count": 2342,
+  "artifact_total_bytes": 1081239,
+  "source_inventory": {
+    "relative_path": "artifacts/source-object-manifest.json",
+    "content_sha256": "2cb6b2b8a6aabf478ad78e4d28cb84be8f56dcd122098fff809f1e8b3c97324f",
+    "ordered_binding_sha256": "73d08cfa147c2c86b3dc7527f24b14378962bdd404a98de5840fdbdeceaead4b",
+    "unit_count": 249,
+    "source_object_count": 253
+  },
+  "sidecars": [
+    {
+      "role": "eileen_visual_transcription_sidecar",
+      "unit_id": "467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead",
+      "source_fingerprint": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91",
+      "content_sha256": "1380e76cccbf291ba7696e90cb796c85d3e9b17cf6d16886d7466ec66d653059",
+      "file_sha256": "0866f1df5ac4b7ecdc9fba16ba9137004681a5834daedaa5db25e6451d50eea7",
+      "bytes": 88525
+    },
+    {
+      "role": "may_visual_transcription_sidecar",
+      "unit_id": "9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7",
+      "source_fingerprint": "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0",
+      "content_sha256": "8540a048d8973664d7f18baf4c113f58e8fdbf1bd4892697dd6e1e4c38f6c2e1",
+      "file_sha256": "fa9dfbe0e20237596eb3585c1e8b1e56618810a26790fb6ae89b89831732a125",
+      "bytes": 109289
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "source_object_manifest",
+      "relative_path": "artifacts/source-object-manifest.json",
+      "sha256": "8081c220cf7bcd5f634c1062f37249d09727c9b9f04f85f356a7d8da5dc7e77d",
+      "bytes": 119887,
+      "schema_id": "vendor-disclosure-source-object-manifest/v1",
+      "counts": {
+        "unit_count": 249,
+        "source_object_count": 253,
+        "xlsx_count": 219,
+        "hwp_count": 8,
+        "png_count": 1,
+        "pdf_count": 22,
+        "docx_count": 3
+      },
+      "materialize": false,
+      "content_sha256": "2cb6b2b8a6aabf478ad78e4d28cb84be8f56dcd122098fff809f1e8b3c97324f"
+    },
+    {
+      "role": "manual_pilot_source_money_ground_truth",
+      "relative_path": "artifacts/manual-pilot-source-money-ground-truth.json",
+      "sha256": "17a927f52d51774c9f3e149a3dba6fb3acfa0c5f79587d010089a00ac1988d75",
+      "bytes": 644153,
+      "schema_id": "manual-pilot-source-money-ground-truth/v1",
+      "counts": {
+        "unit_count": 8,
+        "occurrence_count": 2342
+      },
+      "materialize": false
+    },
+    {
+      "role": "fixed_eight_adjudication_v3",
+      "relative_path": "artifacts/fixed-eight-ground-truth-adjudication-v3.json",
+      "sha256": "4912ef64909d016560a1dcb21da64690d9d9267d094a4216fd3e05f779f7fe54",
+      "bytes": 77304,
+      "schema_id": "fixed-eight-ground-truth-adjudication/v3",
+      "counts": {
+        "decision_count": 68
+      },
+      "materialize": false
+    },
+    {
+      "role": "source_visual_overlay_v2",
+      "relative_path": "artifacts/fixed-eight-ground-truth-overlay-v2.json",
+      "sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+      "bytes": 19560,
+      "schema_id": "fixed-eight-visual-ground-truth-overlay/v2",
+      "counts": {
+        "unit_count": 8,
+        "readable_occurrence_count": 67,
+        "unreadable_cell_count": 2
+      },
+      "materialize": true
+    },
+    {
+      "role": "canonical_visual_overlay_v3",
+      "relative_path": "artifacts/fixed-eight-ground-truth-overlay-v3-canonical-visual.json",
+      "sha256": "98765b1b5279a1024931a78f3f9860e85af3e423756830abd27707f6b2b1d3d9",
+      "bytes": 21256,
+      "schema_id": "fixed-eight-canonical-visual-overlay/v3",
+      "counts": {
+        "unit_count": 8,
+        "transformed_locator_count": 22,
+        "transformed_unit_count": 1
+      },
+      "materialize": true,
+      "content_sha256": "6d964ad595fe141fc67e53a926b2dc25dec83cb202a1df7667c8deda7d7269c9"
+    },
+    {
+      "role": "fixed_eight_build_report",
+      "relative_path": "artifacts/fixed-eight-ground-truth-build-report.json",
+      "sha256": "d20a63cf4cabb7bb59970209437a0d6f5b63fb288da356b39b99832a51949d7a",
+      "bytes": 1265,
+      "schema_id": "fixed-eight-ground-truth-build-report/v1-sanitized",
+      "counts": {
+        "effective_text_occurrences": 2337,
+        "image_readable_occurrences": 67,
+        "fixed_eight_readable_occurrences": 2404
+      },
+      "materialize": false
+    },
+    {
+      "role": "eileen_visual_transcription_sidecar",
+      "relative_path": "artifacts/eileen-visual-transcription-sidecar.json",
+      "sha256": "0866f1df5ac4b7ecdc9fba16ba9137004681a5834daedaa5db25e6451d50eea7",
+      "bytes": 88525,
+      "schema_id": "visual-transcription-sidecar/v1",
+      "counts": {
+        "source_file_count": 1,
+        "evidence_count": 2,
+        "record_evidence_count": 53,
+        "coverage_gap_count": 0,
+        "agency_package_count": 0,
+        "partner_vendor_count": 1,
+        "hall_count": 0,
+        "section_count": 6,
+        "money_occurrence_count": 22
+      },
+      "materialize": true,
+      "content_sha256": "1380e76cccbf291ba7696e90cb796c85d3e9b17cf6d16886d7466ec66d653059",
+      "unit_id": "467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead",
+      "source_fingerprint": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+    },
+    {
+      "role": "may_visual_transcription_sidecar",
+      "relative_path": "artifacts/may-visual-transcription-sidecar.json",
+      "sha256": "fa9dfbe0e20237596eb3585c1e8b1e56618810a26790fb6ae89b89831732a125",
+      "bytes": 109289,
+      "schema_id": "visual-transcription-sidecar/v1",
+      "counts": {
+        "source_file_count": 1,
+        "evidence_count": 1,
+        "record_evidence_count": 59,
+        "coverage_gap_count": 37,
+        "agency_package_count": 5,
+        "partner_vendor_count": 0,
+        "hall_count": 0,
+        "section_count": 1,
+        "money_occurrence_count": 45
+      },
+      "materialize": true,
+      "content_sha256": "8540a048d8973664d7f18baf4c113f58e8fdbf1bd4892697dd6e1e4c38f6c2e1",
+      "unit_id": "9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7",
+      "source_fingerprint": "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+    }
+  ]
+}

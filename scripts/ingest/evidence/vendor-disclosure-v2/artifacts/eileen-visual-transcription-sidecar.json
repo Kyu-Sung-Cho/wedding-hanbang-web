@@ -1,0 +1,2264 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "visual_transcription_sidecar",
+  "content_sha256": "1380e76cccbf291ba7696e90cb796c85d3e9b17cf6d16886d7466ec66d653059",
+  "unit_id": "467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead",
+  "source_fingerprint": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91",
+  "conversion_artifact_fingerprint": "6d52e92e46b2f9d8408bdbae99840074c56b33e522188a6bd3995292597e9816",
+  "source_files": [
+    {
+      "path": "결혼준비대행서비스/강남/[서울(강남)]_에일린꾸뛰르.pdf",
+      "sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+      "bytes": 708446
+    }
+  ],
+  "reviewer": {
+    "kind": "human_confirmed",
+    "recorded_at": "2026-07-21T18:57:22.629Z",
+    "confirmation": {
+      "overlay_artifact_relative_path": "fixed-eight-ground-truth-overlay-v3-canonical-visual.json",
+      "source_ground_truth_sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+      "overlay_entry_sha256": "1fd44b3ebfa1aa11b87d26afb98d15c4e867160724c58091b2a2eca2f463512f",
+      "approval_reference": "user-chat-ground-truth-elevation-2026-07-20",
+      "locator_migration": {
+        "contract_version": "page-to-image-v1",
+        "derived_overlay_content_sha256": "6d964ad595fe141fc67e53a926b2dc25dec83cb202a1df7667c8deda7d7269c9",
+        "transformed_locator_count": 22,
+        "transformed_unit_count": 1
+      }
+    },
+    "approved_text_blocks": [
+      {
+        "id": "eileen-identity",
+        "source_locator": "image:1/AILEEN-COUTURE/header-logo",
+        "normalized_content": "AILEEN COUTURE",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "197525276f1515310ec90b5abe95c4498c280668abe194d120a64777a016ca1a"
+      },
+      {
+        "id": "eileen-option-0",
+        "source_locator": "image:1/드레스구성 및 금액/촬영만",
+        "normalized_content": "촬영만 (3벌기준) 400만원~",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "abeb9d9c06b5d3beb989866445f96fe6d89a7d93d934360f12dbd3e20701c78b"
+      },
+      {
+        "id": "eileen-option-1",
+        "source_locator": "image:1/드레스구성 및 금액/본식+2부",
+        "normalized_content": "본식만 (본식+2부) 400만원~",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "d4c9aa7f11ccc9eb5031c46bc8d5afdd6741500b6f6d2b5a7300fb44515ea91a"
+      },
+      {
+        "id": "eileen-option-2",
+        "source_locator": "image:1/드레스구성 및 금액/본식1벌",
+        "normalized_content": "본식만 (본식 1벌진행) 350만원~",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "6b6e5362d90caa594d7270ff23bab8aa60bf3d04a006c29e4ee964858b5cd97a"
+      },
+      {
+        "id": "eileen-option-3",
+        "source_locator": "image:1/드레스구성 및 금액/본식+촬영",
+        "normalized_content": "본식 + 촬영 550만원~",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "8b02d709f98c4e86b1e993d7d42b289310eeaab61e6359ede42c553ce80117d5"
+      },
+      {
+        "id": "eileen-option-4",
+        "source_locator": "image:1/드레스추가 금액/화이트",
+        "normalized_content": "화이트드레스 추가 (1벌기준) 110만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "fc20d81c2875c56f6461933edb6b9d0ca7a4d853e0eab5d9d7bc8d6c965f9e68"
+      },
+      {
+        "id": "eileen-option-5",
+        "source_locator": "image:1/드레스추가 금액/컬러",
+        "normalized_content": "컬러드레스 추가 (1벌기준) 77만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "76d6f86e0caf0800be8799cbc72e2c546f0e6e44443852296a4196c8eb3cb0ee"
+      },
+      {
+        "id": "eileen-option-6",
+        "source_locator": "image:1/드레스추가 금액/퍼스트웨어",
+        "normalized_content": "퍼스트웨어 110만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "01d2d394e8abc5a247f067d15ad08a3e2d0167cbb6b16edb065443281221c733"
+      },
+      {
+        "id": "eileen-option-7",
+        "source_locator": "image:1/피팅비·헬퍼비/피팅비",
+        "normalized_content": "피팅비 : 10만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "4891521c54f5308b39ca5fa6b3f0a84e47d2c7f1a731ac05a8f8ab3bd14f4274"
+      },
+      {
+        "id": "eileen-option-8",
+        "source_locator": "image:1/피팅비·헬퍼비/기본",
+        "normalized_content": "헬퍼비 : 기본 30만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "61d7b9eefc2bab28b546d56b7488a301a081190f10843b89111ff265c465b14a"
+      },
+      {
+        "id": "eileen-option-9",
+        "source_locator": "image:1/피팅비·헬퍼비/촬영5시간",
+        "normalized_content": "촬영 5시간 이상 진행 시 : +5만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "4e4ebc9e8c3505d96921995a892933818f15ca46a59bb4188853e47f4b569bc1"
+      },
+      {
+        "id": "eileen-option-10",
+        "source_locator": "image:1/피팅비·헬퍼비/17시이후",
+        "normalized_content": "17시 이후 예식 진행 시 : +5만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "e19c10c75c9c4b0aabe28874557a1564a19b9c048e5cdf33e20a848f5a4edeef"
+      },
+      {
+        "id": "eileen-option-11",
+        "source_locator": "image:1/피팅비·헬퍼비/2부드레스",
+        "normalized_content": "2부드레스 진행 시 : +5만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "33170c26a7242c2401b807d6a52db380e0f857ad8df4a8fea2abc4f231fa4fe9"
+      },
+      {
+        "id": "eileen-option-12",
+        "source_locator": "image:1/재가봉비용",
+        "normalized_content": "재가봉 비용 10만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "69e667cc66f6d3eb5c1b4fcd1af26189c1a2313f6ae230fb5124a642e2be4f81"
+      },
+      {
+        "id": "eileen-premium-77",
+        "source_locator": "image:1/프리미엄디자인/77",
+        "normalized_content": "프리미엄 디자인 추가금액 디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "1a60f762e6e86b645a69bd4715873cd7772d4f01fd145bda9a0448bb236b7d81"
+      },
+      {
+        "id": "eileen-premium-110",
+        "source_locator": "image:1/프리미엄디자인/110",
+        "normalized_content": "프리미엄 디자인 추가금액 디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "cbbb89df1bc6307d1bcac33a6a7b9c3e5d4313b278500b39a5c1c362721bda5d"
+      },
+      {
+        "id": "eileen-premium-165",
+        "source_locator": "image:1/프리미엄디자인/165",
+        "normalized_content": "프리미엄 디자인 추가금액 디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "8e186b5a97e107a7910ea265221d200d55a107b0384d8f14df3ac6407c9fba89"
+      },
+      {
+        "id": "eileen-premium-220",
+        "source_locator": "image:1/프리미엄디자인/220",
+        "normalized_content": "프리미엄 디자인 추가금액 디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "eb35b5d64cfc3c8dfc6a6d65f80e4fc2f6f09aa2d78ecce71a92a4efd4f4b370"
+      },
+      {
+        "id": "eileen-snap-0",
+        "source_locator": "image:1/가봉스냅/2시간/대관료",
+        "normalized_content": "가봉스냅 금액 및 세부사항 시간 벌 수 대관료 헬퍼비용 2시간 3벌 88만원 15만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "22549777aab83cd87c6f4afbbe02a71bc2b4957d2681059c7e78ecc93452aff5"
+      },
+      {
+        "id": "eileen-snap-1",
+        "source_locator": "image:1/가봉스냅/2시간/헬퍼",
+        "normalized_content": "가봉스냅 금액 및 세부사항 시간 벌 수 대관료 헬퍼비용 2시간 3벌 88만원 15만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "b6019a6a38d6c8d236e23b8a3ff282797d28e344846c37dd7b6b69fe408e0bf2"
+      },
+      {
+        "id": "eileen-snap-2",
+        "source_locator": "image:1/가봉스냅/3시간/대관료",
+        "normalized_content": "가봉스냅 금액 및 세부사항 시간 벌 수 대관료 헬퍼비용 3시간 3벌 110만원 20만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "166fd390de6410808a44834c4f6bd8267206c6646e081ba88459a75cba5fba7e"
+      },
+      {
+        "id": "eileen-snap-3",
+        "source_locator": "image:1/가봉스냅/3시간/헬퍼",
+        "normalized_content": "가봉스냅 금액 및 세부사항 시간 벌 수 대관료 헬퍼비용 3시간 3벌 110만원 20만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "b6cb401bb228f4d44c9d1d2f537a6998851aa65170944706b6c3e705f6151ca7"
+      },
+      {
+        "id": "eileen-no-show",
+        "source_locator": "image:1/피팅비·헬퍼비/노쇼",
+        "normalized_content": "※ 투어 당일 노쇼 위약금 : 20만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "02c82548d72f6d6f38ce0503d20291ec6b1d096bfcd7871da76300e0b9fcde20"
+      },
+      {
+        "id": "eileen-refund-combined",
+        "source_locator": "image:2/위약금규정/촬영+본식",
+        "normalized_content": "[ 촬영+본식 ] • 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다 • 계약 일주일 이후 - 촬영 가봉 전 일정 중단시, 계약금은 환불되지 않습니다. • 촬영 가봉(드레스 셀렉) 후 일정 중단시 : 계약금과 중도금은 환불되지 않습니다. • 촬영 진행 후 일정 중단시 : 촬영만 진행한 금액 100% 완불 • 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불",
+        "evidence_id": "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "7d486358ff18faecff6ff3a55397a3e60c6938212b23cb7667853789823022a2"
+      },
+      {
+        "id": "eileen-refund-ceremony",
+        "source_locator": "image:2/위약금규정/본식만",
+        "normalized_content": "[ 본식만 ] • 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다 • 계약 일주일 이후 - 본식 가봉 전 일정 중단시, 계약금은 환불되지 않습니다. • 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불 ※ 위약금 산정기준은 소비자 및 사업자 귀책사유 모두 동일하게 적용",
+        "evidence_id": "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "74fcc2c9a3f21bdba87e80479611579d8f6122adf239185a5e5552c849967cd6"
+      },
+      {
+        "id": "eileen-section-main",
+        "source_locator": "image:1/드레스구성 및 금액안내",
+        "normalized_content": "드레스구성 및 금액안내 드레스구성 및 금액 (본식만 / 본식+촬영) 촬영만 (3벌기준) 400만원~ 본식만 (본식+2부) 400만원~ 본식만 (본식 1벌진행) 350만원~ 본식 + 촬영 550만원~",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "a11d524bd0cb6f386dbefdde496976e672d52a090750aeaf3a31560c21af9ce6"
+      },
+      {
+        "id": "eileen-section-fitting",
+        "source_locator": "image:1/피팅비·헬퍼비",
+        "normalized_content": "피팅비 / 헬퍼비 피팅비 : 10만원 ※ 투어 당일 노쇼 위약금 : 20만원 헬퍼비 : 기본 30만원 촬영 5시간 이상 진행 시 : +5만원 강남권 외 지역 스튜디오의 경우 거리에 따른 추가금 발생 17시 이후 예식 진행 시 : +5만원 2부드레스 진행 시 : +5만원 서울 외 지역 예식의 경우 거리에 따른 추가금 발생",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "5ccbcf3a0268f73196d75723afd7d990a733049e78b1dc05ecca0fa497e52334"
+      },
+      {
+        "id": "eileen-section-premium",
+        "source_locator": "image:1/프리미엄디자인",
+        "normalized_content": "프리미엄 디자인 추가금액 디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "c448277f034a9779eb84717f4243ef7cd1050177bc57d754b8f67be4b0a50ea5"
+      },
+      {
+        "id": "eileen-section-snap",
+        "source_locator": "image:1/가봉스냅",
+        "normalized_content": "가봉스냅 금액 및 세부사항 시간 벌 수 대관료 헬퍼비용 2시간 3벌 88만원 15만원 3시간 3벌 110만원 20만원",
+        "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+        "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+        "block_sha256": "be62041eb123d313c5d4947cffd08053ae8ea9e2d957ed66944cdd22f921ca91"
+      }
+    ],
+    "record_field_bindings": [
+      {
+        "field_path": "doc_kind",
+        "approved_text_block_id": "eileen-identity",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "business_name",
+        "approved_text_block_id": "eileen-identity",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].vendor_name",
+        "approved_text_block_id": "eileen-identity",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].category",
+        "approved_text_block_id": "eileen-identity",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "partner_vendors[0].source_quote",
+        "approved_text_block_id": "eileen-identity",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[0].name",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[0].raw_text",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[0].source_quote",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[1].name",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[1].raw_text",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[1].source_quote",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[2].name",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[2].raw_text",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[2].source_quote",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[3].name",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[3].raw_text",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[3].source_quote",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[4].name",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[4].raw_text",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[4].source_quote",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[5].name",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[5].raw_text",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[5].source_quote",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[6].name",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[6].raw_text",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[6].source_quote",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[7].name",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[7].raw_text",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[7].source_quote",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[8].name",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[8].raw_text",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[8].source_quote",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[9].name",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[9].raw_text",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[9].source_quote",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[10].name",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[10].raw_text",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[10].source_quote",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[11].name",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[11].raw_text",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[11].source_quote",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[12].name",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[12].raw_text",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[12].source_quote",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[13].name",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[13].raw_text",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[13].source_quote",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[14].name",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[14].raw_text",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[14].source_quote",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[15].name",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[15].raw_text",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[15].source_quote",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[16].name",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[16].raw_text",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[16].source_quote",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[17].name",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[17].condition",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[17].raw_text",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[17].source_quote",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[18].name",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[18].condition",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[18].raw_text",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[18].source_quote",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[19].name",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[19].condition",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[19].raw_text",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[19].source_quote",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[20].name",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[20].condition",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "partner_vendors[0].options[20].raw_text",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].options[20].source_quote",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[0].policy_type",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[0].raw_text",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[0].source_quote",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[1].policy_type",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[1].raw_text",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[1].source_quote",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[2].policy_type",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[2].raw_text",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "partner_vendors[0].policies[2].source_quote",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[0].section_type",
+        "approved_text_block_id": "eileen-section-main",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[0].title",
+        "approved_text_block_id": "eileen-section-main",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[0].content_verbatim",
+        "approved_text_block_id": "eileen-section-main",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[0].summary",
+        "approved_text_block_id": "eileen-section-main",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[0].source_quote",
+        "approved_text_block_id": "eileen-section-main",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[1].section_type",
+        "approved_text_block_id": "eileen-section-fitting",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[1].title",
+        "approved_text_block_id": "eileen-section-fitting",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[1].content_verbatim",
+        "approved_text_block_id": "eileen-section-fitting",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[1].summary",
+        "approved_text_block_id": "eileen-section-fitting",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[1].source_quote",
+        "approved_text_block_id": "eileen-section-fitting",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[2].section_type",
+        "approved_text_block_id": "eileen-section-premium",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[2].title",
+        "approved_text_block_id": "eileen-section-premium",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[2].content_verbatim",
+        "approved_text_block_id": "eileen-section-premium",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[2].summary",
+        "approved_text_block_id": "eileen-section-premium",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[2].source_quote",
+        "approved_text_block_id": "eileen-section-premium",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[3].section_type",
+        "approved_text_block_id": "eileen-section-snap",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[3].title",
+        "approved_text_block_id": "eileen-section-snap",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[3].content_verbatim",
+        "approved_text_block_id": "eileen-section-snap",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[3].summary",
+        "approved_text_block_id": "eileen-section-snap",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[3].source_quote",
+        "approved_text_block_id": "eileen-section-snap",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[4].section_type",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[4].title",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[4].content_verbatim",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[4].summary",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[4].source_quote",
+        "approved_text_block_id": "eileen-refund-combined",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[5].section_type",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[5].title",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[5].content_verbatim",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[5].summary",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[5].source_quote",
+        "approved_text_block_id": "eileen-refund-ceremony",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[0].raw_text",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[0].source_quote",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[0].kind",
+        "approved_text_block_id": "eileen-option-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[1].raw_text",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[1].source_quote",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[1].kind",
+        "approved_text_block_id": "eileen-option-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[2].raw_text",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[2].source_quote",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[2].kind",
+        "approved_text_block_id": "eileen-option-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[3].raw_text",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[3].source_quote",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[3].kind",
+        "approved_text_block_id": "eileen-option-3",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[4].raw_text",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[4].source_quote",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[4].kind",
+        "approved_text_block_id": "eileen-option-4",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[5].raw_text",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[5].source_quote",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[5].kind",
+        "approved_text_block_id": "eileen-option-5",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[6].raw_text",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[6].source_quote",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[6].kind",
+        "approved_text_block_id": "eileen-option-6",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[7].raw_text",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[7].source_quote",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[7].kind",
+        "approved_text_block_id": "eileen-option-7",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[8].raw_text",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[8].source_quote",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[8].kind",
+        "approved_text_block_id": "eileen-option-8",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[9].raw_text",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[9].source_quote",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[9].kind",
+        "approved_text_block_id": "eileen-option-9",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[10].raw_text",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[10].source_quote",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[10].kind",
+        "approved_text_block_id": "eileen-option-10",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[11].raw_text",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[11].source_quote",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[11].kind",
+        "approved_text_block_id": "eileen-option-11",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[12].raw_text",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[12].source_quote",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[12].kind",
+        "approved_text_block_id": "eileen-option-12",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[13].raw_text",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[13].source_quote",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[13].kind",
+        "approved_text_block_id": "eileen-premium-77",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[14].raw_text",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[14].source_quote",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[14].kind",
+        "approved_text_block_id": "eileen-premium-110",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[15].raw_text",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[15].source_quote",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[15].kind",
+        "approved_text_block_id": "eileen-premium-165",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[16].raw_text",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[16].source_quote",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[16].kind",
+        "approved_text_block_id": "eileen-premium-220",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[17].raw_text",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[17].source_quote",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[17].kind",
+        "approved_text_block_id": "eileen-snap-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[18].raw_text",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[18].source_quote",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[18].kind",
+        "approved_text_block_id": "eileen-snap-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[19].raw_text",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[19].source_quote",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[19].kind",
+        "approved_text_block_id": "eileen-snap-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[20].raw_text",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[20].source_quote",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[20].kind",
+        "approved_text_block_id": "eileen-snap-3",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[21].raw_text",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[21].source_quote",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[21].kind",
+        "approved_text_block_id": "eileen-no-show",
+        "binding_kind": "enum_derivation"
+      }
+    ]
+  },
+  "review_status": "pending",
+  "needs_review": true,
+  "bulk_approval_eligible": false,
+  "evidence": [
+    {
+      "evidence_id": "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053",
+      "evidence_kind": "visual_transcription",
+      "source_file_id": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91",
+      "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+      "source_bytes": 708446,
+      "image_artifact_index": 0,
+      "image_sha256": "eb3ce9942ced5acc9ba670d19a7129dd18512364d2543211ca087051ac36d6b4",
+      "image_bytes": 250582,
+      "page": 1
+    },
+    {
+      "evidence_id": "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12",
+      "evidence_kind": "visual_transcription",
+      "source_file_id": "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91",
+      "source_sha256": "0b86c57a3cab171fd814d10b852c8c848b9b8ae9b703acd4e9c0b9ea72cef88d",
+      "source_bytes": 708446,
+      "image_artifact_index": 1,
+      "image_sha256": "3fe59b4dca1674bad8ee405bb7ed229a7ecf65db852ad704691d2a2f66edf8cd",
+      "image_bytes": 133248,
+      "page": 2
+    }
+  ],
+  "record_evidence": [
+    {
+      "record_path": "partner_vendors[0].options[0]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/촬영만"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[1]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식+2부"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[2]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식1벌"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[3]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식+촬영"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[4]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/화이트"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[5]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/컬러"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[6]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/퍼스트웨어"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[7]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/피팅비"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[8]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/기본"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[9]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/촬영5시간"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[10]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/17시이후"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[11]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/2부드레스"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[12]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/재가봉비용"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[13]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/77"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[14]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/110"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[15]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/165"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[16]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/220"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[17]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/2시간/대관료"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[18]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/2시간/헬퍼"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[19]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/3시간/대관료"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].options[20]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/3시간/헬퍼"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].policies[0]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/노쇼"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].policies[1]",
+      "evidence_ids": [
+        "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12"
+      ],
+      "source_locators": [
+        "image:2/위약금규정/촬영+본식"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0].policies[2]",
+      "evidence_ids": [
+        "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12"
+      ],
+      "source_locators": [
+        "image:2/위약금규정/본식만"
+      ]
+    },
+    {
+      "record_path": "partner_vendors[0]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/촬영만",
+        "image:1/드레스구성 및 금액/본식+2부",
+        "image:1/드레스구성 및 금액/본식1벌",
+        "image:1/드레스구성 및 금액/본식+촬영",
+        "image:1/AILEEN-COUTURE/header-logo"
+      ]
+    },
+    {
+      "record_path": "sections[0]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액안내"
+      ]
+    },
+    {
+      "record_path": "sections[1]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비"
+      ]
+    },
+    {
+      "record_path": "sections[2]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인"
+      ]
+    },
+    {
+      "record_path": "sections[3]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅"
+      ]
+    },
+    {
+      "record_path": "sections[4]",
+      "evidence_ids": [
+        "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12"
+      ],
+      "source_locators": [
+        "image:2/위약금규정/촬영+본식"
+      ]
+    },
+    {
+      "record_path": "sections[5]",
+      "evidence_ids": [
+        "97e3cc1c982770993d57add20337848bdaa242a37ebcb93079106ffac1ca2f12"
+      ],
+      "source_locators": [
+        "image:2/위약금규정/본식만"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[0]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/촬영만"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[1]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식+2부"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[2]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식1벌"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[3]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스구성 및 금액/본식+촬영"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[4]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/화이트"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[5]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/컬러"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[6]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/드레스추가 금액/퍼스트웨어"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[7]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/피팅비"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[8]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/기본"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[9]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/촬영5시간"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[10]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/17시이후"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[11]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/2부드레스"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[12]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/재가봉비용"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[13]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/77"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[14]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/110"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[15]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/165"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[16]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/프리미엄디자인/220"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[17]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/2시간/대관료"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[18]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/2시간/헬퍼"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[19]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/3시간/대관료"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[20]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/가봉스냅/3시간/헬퍼"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[21]",
+      "evidence_ids": [
+        "7b02a03869a739db49680c920b223589bdb80a71bf699d538d51252bea9eb053"
+      ],
+      "source_locators": [
+        "image:1/피팅비·헬퍼비/노쇼"
+      ]
+    }
+  ],
+  "coverage_gaps": [],
+  "fragment": {
+    "doc_kind": "partner_price_list",
+    "business_name": "AILEEN COUTURE",
+    "region_hint": null,
+    "agency_packages": [],
+    "partner_vendors": [
+      {
+        "vendor_name": "AILEEN COUTURE",
+        "old_names": [],
+        "category": "dress",
+        "price_min_krw": 3500000,
+        "price_max_krw": 5500000,
+        "base_spec": null,
+        "price_note": null,
+        "options": [
+          {
+            "name": "촬영만 (3벌기준)",
+            "price_min_krw": 4000000,
+            "price_max_krw": 4000000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "촬영만 (3벌기준) 400만원~",
+            "source_quote": "촬영만 (3벌기준) 400만원~",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "본식만 (본식+2부)",
+            "price_min_krw": 4000000,
+            "price_max_krw": 4000000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "본식만 (본식+2부) 400만원~",
+            "source_quote": "본식만 (본식+2부) 400만원~",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "본식만 (본식 1벌진행)",
+            "price_min_krw": 3500000,
+            "price_max_krw": 3500000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "본식만 (본식 1벌진행) 350만원~",
+            "source_quote": "본식만 (본식 1벌진행) 350만원~",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "본식 + 촬영",
+            "price_min_krw": 5500000,
+            "price_max_krw": 5500000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "본식 + 촬영 550만원~",
+            "source_quote": "본식 + 촬영 550만원~",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "화이트드레스 추가",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "화이트드레스 추가 (1벌기준) 110만원",
+            "source_quote": "화이트드레스 추가 (1벌기준) 110만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "컬러드레스 추가",
+            "price_min_krw": 770000,
+            "price_max_krw": 770000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "컬러드레스 추가 (1벌기준) 77만원",
+            "source_quote": "컬러드레스 추가 (1벌기준) 77만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "퍼스트웨어",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "퍼스트웨어 110만원",
+            "source_quote": "퍼스트웨어 110만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "피팅비",
+            "price_min_krw": 100000,
+            "price_max_krw": 100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "피팅비 : 10만원",
+            "source_quote": "피팅비 : 10만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "헬퍼비",
+            "price_min_krw": 300000,
+            "price_max_krw": 300000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "헬퍼비 : 기본 30만원",
+            "source_quote": "헬퍼비 : 기본 30만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "촬영 5시간 이상 진행 시",
+            "price_min_krw": 50000,
+            "price_max_krw": 50000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "촬영 5시간 이상 진행 시 : +5만원",
+            "source_quote": "촬영 5시간 이상 진행 시 : +5만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "17시 이후 예식 진행 시",
+            "price_min_krw": 50000,
+            "price_max_krw": 50000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "17시 이후 예식 진행 시 : +5만원",
+            "source_quote": "17시 이후 예식 진행 시 : +5만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "2부드레스 진행 시",
+            "price_min_krw": 50000,
+            "price_max_krw": 50000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "2부드레스 진행 시 : +5만원",
+            "source_quote": "2부드레스 진행 시 : +5만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "재가봉 비용",
+            "price_min_krw": 100000,
+            "price_max_krw": 100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "재가봉 비용 10만원",
+            "source_quote": "재가봉 비용 10만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "프리미엄 디자인 추가금액",
+            "price_min_krw": 770000,
+            "price_max_krw": 770000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "프리미엄 디자인 추가금액",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "프리미엄 디자인 추가금액",
+            "price_min_krw": 1650000,
+            "price_max_krw": 1650000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "프리미엄 디자인 추가금액",
+            "price_min_krw": 2200000,
+            "price_max_krw": 2200000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "대관료",
+            "price_min_krw": 880000,
+            "price_max_krw": 880000,
+            "unit": null,
+            "condition": "2시간 3벌",
+            "raw_text": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+            "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "헬퍼비용",
+            "price_min_krw": 150000,
+            "price_max_krw": 150000,
+            "unit": null,
+            "condition": "2시간 3벌",
+            "raw_text": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+            "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "대관료",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": "3시간 3벌",
+            "raw_text": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+            "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "name": "헬퍼비용",
+            "price_min_krw": 200000,
+            "price_max_krw": 200000,
+            "unit": null,
+            "condition": "3시간 3벌",
+            "raw_text": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+            "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "policy_type": "penalty",
+            "raw_text": "※ 투어 당일 노쇼 위약금 : 20만원",
+            "source_quote": "※ 투어 당일 노쇼 위약금 : 20만원",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "policy_type": "refund",
+            "raw_text": "[ 촬영+본식 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 촬영 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 촬영 가봉(드레스 셀렉) 후 일정 중단시 : 계약금과 중도금은 환불되지 않습니다.\n• 촬영 진행 후 일정 중단시 : 촬영만 진행한 금액 100% 완불\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불",
+            "source_quote": "[ 촬영+본식 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 촬영 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 촬영 가봉(드레스 셀렉) 후 일정 중단시 : 계약금과 중도금은 환불되지 않습니다.\n• 촬영 진행 후 일정 중단시 : 촬영만 진행한 금액 100% 완불\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          },
+          {
+            "policy_type": "refund",
+            "raw_text": "[ 본식만 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 본식 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불\n※ 위약금 산정기준은 소비자 및 사업자 귀책사유 모두 동일하게 적용",
+            "source_quote": "[ 본식만 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 본식 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불\n※ 위약금 산정기준은 소비자 및 사업자 귀책사유 모두 동일하게 적용",
+            "source_file_ids": [
+              "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+            ]
+          }
+        ],
+        "source_quote": "AILEEN COUTURE",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      }
+    ],
+    "halls": [],
+    "sections": [
+      {
+        "section_type": "pricing_basis",
+        "title": "드레스구성 및 금액안내",
+        "content_verbatim": "드레스구성 및 금액안내\n드레스구성 및 금액 (본식만 / 본식+촬영)\n촬영만 (3벌기준) 400만원~\n본식만 (본식+2부) 400만원~\n본식만 (본식 1벌진행) 350만원~\n본식 + 촬영 550만원~",
+        "summary": "드레스구성 및 금액안내",
+        "source_quote": "드레스구성 및 금액안내\n드레스구성 및 금액 (본식만 / 본식+촬영)\n촬영만 (3벌기준) 400만원~\n본식만 (본식+2부) 400만원~\n본식만 (본식 1벌진행) 350만원~\n본식 + 촬영 550만원~",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "section_type": "notice",
+        "title": "피팅비 / 헬퍼비",
+        "content_verbatim": "피팅비 / 헬퍼비\n피팅비 : 10만원\n※ 투어 당일 노쇼 위약금 : 20만원\n헬퍼비 : 기본 30만원\n촬영 5시간 이상 진행 시 : +5만원\n강남권 외 지역 스튜디오의 경우 거리에 따른 추가금 발생\n17시 이후 예식 진행 시 : +5만원\n2부드레스 진행 시 : +5만원\n서울 외 지역 예식의 경우 거리에 따른 추가금 발생",
+        "summary": "피팅비 / 헬퍼비",
+        "source_quote": "피팅비 / 헬퍼비\n피팅비 : 10만원\n※ 투어 당일 노쇼 위약금 : 20만원\n헬퍼비 : 기본 30만원\n촬영 5시간 이상 진행 시 : +5만원\n강남권 외 지역 스튜디오의 경우 거리에 따른 추가금 발생\n17시 이후 예식 진행 시 : +5만원\n2부드레스 진행 시 : +5만원\n서울 외 지역 예식의 경우 거리에 따른 추가금 발생",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "section_type": "pricing_basis",
+        "title": "프리미엄 디자인 추가금액",
+        "content_verbatim": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "summary": "프리미엄 디자인 추가금액",
+        "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "section_type": "pricing_basis",
+        "title": "가봉스냅 금액 및 세부사항",
+        "content_verbatim": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원\n3시간 3벌 110만원 20만원",
+        "summary": "가봉스냅 금액 및 세부사항",
+        "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원\n3시간 3벌 110만원 20만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "section_type": "refund_policy",
+        "title": "촬영+본식",
+        "content_verbatim": "[ 촬영+본식 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 촬영 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 촬영 가봉(드레스 셀렉) 후 일정 중단시 : 계약금과 중도금은 환불되지 않습니다.\n• 촬영 진행 후 일정 중단시 : 촬영만 진행한 금액 100% 완불\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불",
+        "summary": "촬영+본식",
+        "source_quote": "[ 촬영+본식 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 촬영 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 촬영 가봉(드레스 셀렉) 후 일정 중단시 : 계약금과 중도금은 환불되지 않습니다.\n• 촬영 진행 후 일정 중단시 : 촬영만 진행한 금액 100% 완불\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "section_type": "refund_policy",
+        "title": "본식만",
+        "content_verbatim": "[ 본식만 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 본식 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불\n※ 위약금 산정기준은 소비자 및 사업자 귀책사유 모두 동일하게 적용",
+        "summary": "본식만",
+        "source_quote": "[ 본식만 ]\n• 계약 후 일주일 이내 취소시 계약금은 환불 가능합니다\n• 계약 일주일 이후 - 본식 가봉 전 일정 중단시, 계약금은 환불되지 않습니다.\n• 본식 가봉 후 일정 중단시 : 계약 전체금액 100% 완불\n※ 위약금 산정기준은 소비자 및 사업자 귀책사유 모두 동일하게 적용",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      }
+    ],
+    "money_occurrences": [
+      {
+        "amount_krw": 4000000,
+        "raw_text": "400만원~",
+        "source_quote": "촬영만 (3벌기준) 400만원~",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 4000000,
+        "raw_text": "400만원~",
+        "source_quote": "본식만 (본식+2부) 400만원~",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 3500000,
+        "raw_text": "350만원~",
+        "source_quote": "본식만 (본식 1벌진행) 350만원~",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 5500000,
+        "raw_text": "550만원~",
+        "source_quote": "본식 + 촬영 550만원~",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "110만원",
+        "source_quote": "화이트드레스 추가 (1벌기준) 110만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 770000,
+        "raw_text": "77만원",
+        "source_quote": "컬러드레스 추가 (1벌기준) 77만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "110만원",
+        "source_quote": "퍼스트웨어 110만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 100000,
+        "raw_text": "10만원",
+        "source_quote": "피팅비 : 10만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 300000,
+        "raw_text": "30만원",
+        "source_quote": "헬퍼비 : 기본 30만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 50000,
+        "raw_text": "+5만원",
+        "source_quote": "촬영 5시간 이상 진행 시 : +5만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 50000,
+        "raw_text": "+5만원",
+        "source_quote": "17시 이후 예식 진행 시 : +5만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 50000,
+        "raw_text": "+5만원",
+        "source_quote": "2부드레스 진행 시 : +5만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 100000,
+        "raw_text": "10만원",
+        "source_quote": "재가봉 비용 10만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 770000,
+        "raw_text": "77만원",
+        "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "110만원",
+        "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1650000,
+        "raw_text": "165만원",
+        "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 2200000,
+        "raw_text": "220만원",
+        "source_quote": "프리미엄 디자인 추가금액\n디자인에 따른 추가금액 : 77만원 / 110만원 / 165만원 / 220만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 880000,
+        "raw_text": "88만원",
+        "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 150000,
+        "raw_text": "15만원",
+        "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n2시간 3벌 88만원 15만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "110만원",
+        "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 200000,
+        "raw_text": "20만원",
+        "source_quote": "가봉스냅 금액 및 세부사항\n시간 벌 수 대관료 헬퍼비용\n3시간 3벌 110만원 20만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 200000,
+        "raw_text": "20만원",
+        "source_quote": "※ 투어 당일 노쇼 위약금 : 20만원",
+        "source_file_ids": [
+          "96285bc7453df209db2c0a776f56631164cd5beceb2d60d5c6dab1464c48aa91"
+        ],
+        "kind": "policy",
+        "needs_review": true
+      }
+    ]
+  },
+  "created_at": "2026-07-21T18:57:22.629Z"
+}

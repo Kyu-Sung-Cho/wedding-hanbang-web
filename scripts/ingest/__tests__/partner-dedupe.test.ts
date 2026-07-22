@@ -239,7 +239,7 @@ test("manifest validation blocks cross-unit exact partner identity conflicts bef
             price_min_krw: price,
             price_max_krw: price,
             source_quote:
-              `line:1: 카테고리: 스튜디오 | ${vendorName} | 20p album | ${price === 1_200_000 ? "120만원" : "150만원"}`,
+              `line:1: docx:body:p1: 카테고리: 스튜디오 \\| ${vendorName} \\| 20p album \\| ${price === 1_200_000 ? "120만원" : "150만원"}`,
           }],
           hall: {
             venue_fee_krw: null,
@@ -299,7 +299,7 @@ test("cross-unit partner candidates retain row refs and vendor kind in the load 
           partner_vendors: [{
             ...partner(vendorName),
             source_quote:
-              `line:1: 카테고리: 스튜디오 | ${vendorName} | 20p album | 120만원`,
+              `line:1: docx:body:p1: 카테고리: 스튜디오 \\| ${vendorName} \\| 20p album \\| 120만원`,
           }],
           hall: {
             venue_fee_krw: null,

@@ -1,14 +1,21 @@
+import { randomUUID } from "node:crypto";
+import { link, open, readFile, readdir, unlink } from "node:fs/promises";
+import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
-import { canonicalSha256 } from "./gate-integrity.js";
 import {
-  FIXED_EIGHT_ORDERED_UNIT_IDS,
+  prepareDeterministicStateArtifactWritePath,
+  verifyDeterministicStateArtifactPath,
+} from "./artifact-integrity.js";
+import { canonicalSha256 } from "./gate-integrity.js";
+import { syncDirectoryMetadata } from "./io.js";
+import {
   validateFixedEightPassReceipt,
 } from "./pilot-pass-receipt.js";
 import type { FixedEightPassReceipt } from "./pilot-pass-receipt.js";
 
-export const BATCH_SAFETY_JOURNAL_OPERATIONAL = false as const;
-export const BATCH_SAFETY_JOURNAL_BLOCKER = "state_aware_batch_evidence_runner_not_implemented" as const;
+export const BATCH_SAFETY_JOURNAL_OPERATIONAL = true as const;
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 
@@ -51,8 +58,10 @@ const BatchUnitResultSchema = z.object({
 const UniverseEvidencePayloadSchema = z.object({
   scope: z.literal("universe"),
   captured_at: z.string().datetime(),
-  operational: z.literal(false),
-  derivation_status: z.literal("pending_state_aware_runner"),
+  operational: z.literal(true),
+  derivation_status: z.literal("state_aware_runner"),
+  staging_run_sha256: Sha256Schema,
+  full_plan_sha256: Sha256Schema,
   manifest_sha256: Sha256Schema,
   source_universe: z.array(BatchCandidateSchema).min(1),
 }).strict();
@@ -60,11 +69,12 @@ const UniverseEvidencePayloadSchema = z.object({
 const ExecutionEvidencePayloadSchema = z.object({
   scope: z.literal("execution"),
   captured_at: z.string().datetime(),
-  operational: z.literal(false),
-  derivation_status: z.literal("pending_state_aware_runner"),
+  operational: z.literal(true),
+  derivation_status: z.literal("state_aware_runner"),
   universe_evidence_sha256: Sha256Schema,
   plan_sha256: Sha256Schema,
   staging_snapshot_sha256: Sha256Schema,
+  remote_batch_receipt_sha256: Sha256Schema,
   execution_ledger_sha256: Sha256Schema,
   unit_results: z.array(BatchUnitResultSchema).max(25),
 }).strict();
@@ -75,7 +85,7 @@ const BatchEvidencePayloadSchema = z.discriminatedUnion("scope", [
 ]);
 
 export const BatchEvidenceSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   kind: z.literal("vendor_ingest_batch_evidence"),
   payload: BatchEvidencePayloadSchema,
   evidence_sha256: Sha256Schema,
@@ -101,9 +111,10 @@ const ReviewEvaluationSchema = z.object({
 
 const BatchPlanPayloadSchema = z.object({
   created_at: z.string().datetime(),
-  operational_status: z.literal("blocked_pending_state_aware_runner"),
+  operational_status: z.literal("state_aware_runner"),
   batch_index: z.number().int().positive(),
-  pilot_receipt_sha256: Sha256Schema,
+  authorization_kind: z.enum(["paid_pilot_gate", "local_validated_pending_only"]),
+  authorization_sha256: Sha256Schema,
   universe_evidence_sha256: Sha256Schema,
   source_universe_sha256: Sha256Schema,
   source_universe_count: z.number().int().positive(),
@@ -117,7 +128,7 @@ const BatchPlanPayloadSchema = z.object({
 }).strict();
 
 export const BatchPlanDraftSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   kind: z.literal("vendor_ingest_batch_plan_draft"),
   payload: BatchPlanPayloadSchema,
   plan_sha256: Sha256Schema,
@@ -125,10 +136,11 @@ export const BatchPlanDraftSchema = z.object({
 
 const BatchResultPayloadSchema = z.object({
   completed_at: z.string().datetime(),
-  operational_status: z.literal("blocked_pending_state_aware_runner"),
+  operational_status: z.literal("state_aware_runner"),
   batch_index: z.number().int().positive(),
   plan_sha256: Sha256Schema,
-  pilot_receipt_sha256: Sha256Schema,
+  authorization_kind: z.enum(["paid_pilot_gate", "local_validated_pending_only"]),
+  authorization_sha256: Sha256Schema,
   universe_evidence_sha256: Sha256Schema,
   execution_evidence_sha256: Sha256Schema,
   source_universe_sha256: Sha256Schema,
@@ -144,10 +156,262 @@ const BatchResultPayloadSchema = z.object({
 }).strict();
 
 export const BatchResultDraftSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   kind: z.literal("vendor_ingest_batch_result_draft"),
   payload: BatchResultPayloadSchema,
   result_sha256: Sha256Schema,
+}).strict();
+
+const StorageJournalObjectSchema = z.object({
+  bucket: z.enum(["disclosure-raw", "disclosure-preview"]),
+  object_key: z.string().regex(/^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png|txt)$/u),
+  sha256: Sha256Schema,
+  bytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  created: z.boolean(),
+}).strict().superRefine((value, context) => {
+  if (!value.object_key.startsWith(`${value.sha256}.`)) {
+    context.addIssue({ code: "custom", message: "storage journal object key must be content-addressed by its SHA-256" });
+  }
+  if (value.bucket === "disclosure-preview" && !value.object_key.endsWith(".txt")) {
+    context.addIssue({ code: "custom", message: "preview storage journal entries must use .txt keys" });
+  }
+  if (value.bucket === "disclosure-raw" && value.object_key.endsWith(".txt")) {
+    context.addIssue({ code: "custom", message: "raw storage journal entries cannot use preview keys" });
+  }
+});
+
+const StorageIntentObjectSchema = z.object({
+  bucket: z.enum(["disclosure-raw", "disclosure-preview"]),
+  object_key: z.string().regex(/^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png|txt)$/u),
+  sha256: Sha256Schema,
+  bytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+}).strict().superRefine((value, context) => {
+  if (!value.object_key.startsWith(`${value.sha256}.`)) {
+    context.addIssue({ code: "custom", message: "storage intent object key must be content-addressed by its SHA-256" });
+  }
+  if (value.bucket === "disclosure-preview" && !value.object_key.endsWith(".txt")) {
+    context.addIssue({ code: "custom", message: "preview storage intent entries must use .txt keys" });
+  }
+  if (value.bucket === "disclosure-raw" && value.object_key.endsWith(".txt")) {
+    context.addIssue({ code: "custom", message: "raw storage intent entries cannot use preview keys" });
+  }
+});
+
+const StorageUploadClaimSchema = z.object({
+  bucket: z.enum(["disclosure-raw", "disclosure-preview"]),
+  object_key: z.string().regex(/^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png|txt)$/u),
+  sha256: Sha256Schema,
+  bytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  claim_token: z.string().uuid(),
+  claim_epoch: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  claimant_id: z.string().uuid(),
+  claim_action: z.enum(["upload", "verify"]),
+  claim_expires_at: z.string().datetime(),
+}).strict().superRefine((value, context) => {
+  if (!value.object_key.startsWith(`${value.sha256}.`)) {
+    context.addIssue({ code: "custom", message: "storage upload claim key must be content-addressed" });
+  }
+});
+
+const StorageIntentJournalPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  objects: z.array(StorageIntentObjectSchema).max(1_000),
+}).strict().superRefine((value, context) => {
+  const identities = value.objects.map((object) => `${object.bucket}\0${object.object_key}`);
+  if (new Set(identities).size !== identities.length) {
+    context.addIssue({ code: "custom", message: "storage intent journal contains duplicate object identities" });
+  }
+});
+
+export const StorageIntentJournalSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_intent_journal"),
+  payload: StorageIntentJournalPayloadSchema,
+  journal_sha256: Sha256Schema,
+}).strict();
+
+const StorageRollbackJournalPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  objects: z.array(StorageJournalObjectSchema).max(1_000),
+  rollback_objects: z.array(StorageJournalObjectSchema).max(1_000),
+}).strict().superRefine((value, context) => {
+  const identities = value.objects.map((object) => `${object.bucket}\0${object.object_key}`);
+  if (new Set(identities).size !== identities.length) {
+    context.addIssue({ code: "custom", message: "storage rollback journal contains duplicate object identities" });
+  }
+  const expected = value.objects.filter((object) => object.created);
+  if (!isDeepStrictEqual(value.rollback_objects, expected)) {
+    context.addIssue({ code: "custom", message: "rollback objects must be the exact created-object subset" });
+  }
+});
+
+export const StorageRollbackJournalSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_rollback_journal"),
+  payload: StorageRollbackJournalPayloadSchema,
+  journal_sha256: Sha256Schema,
+}).strict();
+
+const StorageObjectJournalPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  object_index: z.number().int().positive().max(2_000),
+  claim: StorageUploadClaimSchema,
+  upload_attempt: z.number().int().nonnegative().max(1_000),
+  object: StorageJournalObjectSchema,
+}).strict().superRefine((value, context) => {
+  const objectIdentity = `${value.object.bucket}\0${value.object.object_key}\0${value.object.sha256}\0${value.object.bytes}`;
+  const claimIdentity = `${value.claim.bucket}\0${value.claim.object_key}\0${value.claim.sha256}\0${value.claim.bytes}`;
+  if (objectIdentity !== claimIdentity) {
+    context.addIssue({ code: "custom", message: "storage object observation must match its exact claim" });
+  }
+  if ((value.claim.claim_action === "upload") !== (value.upload_attempt > 0)) {
+    context.addIssue({ code: "custom", message: "only upload claims may carry a positive upload attempt" });
+  }
+});
+
+export const StorageObjectJournalSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_object_journal"),
+  payload: StorageObjectJournalPayloadSchema,
+  journal_sha256: Sha256Schema,
+}).strict();
+
+const StorageUploadClaimJournalPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  object_index: z.number().int().positive().max(2_000),
+  claim: StorageUploadClaimSchema,
+}).strict();
+
+export const StorageUploadClaimJournalSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_upload_claim_journal"),
+  payload: StorageUploadClaimJournalPayloadSchema,
+  journal_sha256: Sha256Schema,
+}).strict();
+
+const StorageUploadStartedJournalPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  object_index: z.number().int().positive().max(2_000),
+  upload_attempt: z.number().int().positive().max(1_000),
+  claim: StorageUploadClaimSchema.refine((claim) => claim.claim_action === "upload", {
+    message: "an upload start requires an upload claim",
+  }),
+  started_at: z.string().datetime(),
+}).strict();
+
+export const StorageUploadStartedJournalSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_upload_started_journal"),
+  payload: StorageUploadStartedJournalPayloadSchema,
+  journal_sha256: Sha256Schema,
+}).strict();
+
+const StorageUploadReconcileReceiptPayloadSchema = z.object({
+  run_sha256: Sha256Schema,
+  batch_sha256: Sha256Schema,
+  batch_index: z.number().int().positive(),
+  object_index: z.number().int().positive().max(2_000),
+  claim: StorageUploadClaimSchema.refine((claim) => claim.claim_action === "upload", {
+    message: "upload reconciliation requires an upload claim",
+  }),
+  previous_upload_attempt: z.number().int().nonnegative().max(999),
+  next_upload_attempt: z.number().int().min(1).max(1_000),
+  confirmed_no_inflight_at: z.string().datetime(),
+  reason: z.string().trim().min(1).max(500),
+  confirmation: z.literal("no_inflight_upload_confirmed"),
+}).strict().superRefine((value, context) => {
+  if (value.next_upload_attempt !== value.previous_upload_attempt + 1) {
+    context.addIssue({ code: "custom", message: "reconciliation must authorize exactly one next upload attempt" });
+  }
+});
+
+export const StorageUploadReconcileReceiptSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_ingest_storage_upload_reconcile_receipt"),
+  payload: StorageUploadReconcileReceiptPayloadSchema,
+  receipt_sha256: Sha256Schema,
+}).strict();
+
+const StagingStorageRollbackReceiptPayloadSchema = z.object({
+  target_project_ref: z.string().regex(/^[a-z0-9][a-z0-9-]{3,80}$/u),
+  run_sha256: Sha256Schema,
+  full_plan_sha256: Sha256Schema,
+  reason: z.string().trim().min(1).max(500),
+  storage_rollback_receipt_sha256: Sha256Schema,
+  storage_rollback_objects: z.array(StorageIntentObjectSchema).max(32_000),
+}).strict().superRefine((value, context) => {
+  const identities = value.storage_rollback_objects.map((object) =>
+    `${object.bucket}\0${object.object_key}`
+  );
+  if (new Set(identities).size !== identities.length) {
+    context.addIssue({ code: "custom", message: "rollback receipt contains duplicate Storage identities" });
+  }
+  const sorted = [...identities].sort((left, right) => left.localeCompare(right));
+  if (!isDeepStrictEqual(identities, sorted)) {
+    context.addIssue({ code: "custom", message: "rollback receipt Storage identities must be canonical" });
+  }
+});
+
+export const StagingStorageRollbackReceiptSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_disclosure_storage_rollback_receipt"),
+  payload: StagingStorageRollbackReceiptPayloadSchema,
+  artifact_sha256: Sha256Schema,
+}).strict();
+
+export const StagingRunDescriptorSchema = z.object({
+  schema_version: z.literal(2),
+  kind: z.literal("vendor_disclosure_staging_run"),
+  started_at: z.string().datetime(),
+  target_project_ref: z.string().regex(/^[a-z0-9][a-z0-9-]{3,80}$/u),
+  snapshot: z.string().regex(/^20\d{2}Q[1-4]$/u),
+  full_plan_sha256: Sha256Schema,
+  dedupe_candidates_sha256: Sha256Schema,
+  authorization_kind: z.enum(["paid_pilot_gate", "local_validated_pending_only"]),
+  authorization_sha256: Sha256Schema,
+  local_pending_only_unit_ids: z.array(Sha256Schema).max(1_000),
+  batch_sha256s: z.array(Sha256Schema).min(1),
+  run_sha256: Sha256Schema,
+}).strict().superRefine((value, context) => {
+  if (new Set(value.local_pending_only_unit_ids).size !== value.local_pending_only_unit_ids.length) {
+    context.addIssue({ code: "custom", message: "local pending-only unit IDs must be unique" });
+  }
+  if ((value.local_pending_only_unit_ids.length > 0) !== (value.authorization_kind === "local_validated_pending_only")) {
+    context.addIssue({
+      code: "custom",
+      message: "local pending-only units require exactly one separate pending-only authorization",
+    });
+  }
+});
+
+const StagingFinalizeIntentPayloadSchema = z.object({
+  target_project_ref: z.string().regex(/^[a-z0-9][a-z0-9-]{3,80}$/u),
+  run_sha256: Sha256Schema,
+  full_plan_sha256: Sha256Schema,
+  authorization_sha256: Sha256Schema,
+  dedupe_candidates_sha256: Sha256Schema,
+  completed_batch_sha256s: z.array(Sha256Schema).min(1).max(1_000),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.completed_batch_sha256s).size !== value.completed_batch_sha256s.length) {
+    context.addIssue({ code: "custom", message: "finalize intent batch SHA-256s must be unique" });
+  }
+});
+
+const StagingFinalizeIntentSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("vendor_disclosure_staging_finalize_intent"),
+  payload: StagingFinalizeIntentPayloadSchema,
+  intent_sha256: Sha256Schema,
 }).strict();
 
 export type BatchCandidate = z.infer<typeof BatchCandidateSchema>;
@@ -155,6 +419,131 @@ export type BatchUnitResult = z.output<typeof BatchUnitResultSchema>;
 export type BatchEvidence = z.infer<typeof BatchEvidenceSchema>;
 export type BatchPlanDraft = z.infer<typeof BatchPlanDraftSchema>;
 export type BatchResultDraft = z.infer<typeof BatchResultDraftSchema>;
+export type StorageJournalObject = z.output<typeof StorageJournalObjectSchema>;
+export type StorageIntentObject = z.output<typeof StorageIntentObjectSchema>;
+export type StorageUploadClaim = z.output<typeof StorageUploadClaimSchema>;
+export type StorageIntentJournal = z.output<typeof StorageIntentJournalSchema>;
+export type StorageRollbackJournal = z.output<typeof StorageRollbackJournalSchema>;
+export type StorageObjectJournal = z.output<typeof StorageObjectJournalSchema>;
+export type StorageUploadClaimJournal = z.output<typeof StorageUploadClaimJournalSchema>;
+export type StorageUploadStartedJournal = z.output<typeof StorageUploadStartedJournalSchema>;
+export type StorageUploadReconcileReceipt = z.output<typeof StorageUploadReconcileReceiptSchema>;
+export type StagingStorageRollbackReceipt = z.output<typeof StagingStorageRollbackReceiptSchema>;
+export type StagingRunJournalDescriptor = z.output<typeof StagingRunDescriptorSchema>;
+export type StagingFinalizeIntent = z.output<typeof StagingFinalizeIntentSchema>;
+
+export interface CreateStorageRollbackJournalInput {
+  runSha256: string;
+  batchSha256: string;
+  batchIndex: number;
+  objects: readonly StorageJournalObject[];
+}
+
+export interface CreateStorageIntentJournalInput {
+  runSha256: string;
+  batchSha256: string;
+  batchIndex: number;
+  objects: readonly StorageIntentObject[];
+}
+
+export interface CreateStorageObjectJournalInput {
+  runSha256: string;
+  batchSha256: string;
+  batchIndex: number;
+  objectIndex: number;
+  claim: StorageUploadClaim;
+  uploadAttempt: number;
+  object: StorageJournalObject;
+}
+
+export interface CreateStorageUploadClaimJournalInput {
+  runSha256: string;
+  batchSha256: string;
+  batchIndex: number;
+  objectIndex: number;
+  claim: StorageUploadClaim;
+}
+
+export interface CreateStorageUploadStartedJournalInput extends CreateStorageUploadClaimJournalInput {
+  uploadAttempt: number;
+  startedAt: string;
+}
+
+export interface CreateStorageUploadReconcileReceiptInput extends CreateStorageUploadClaimJournalInput {
+  previousUploadAttempt: number;
+  confirmedNoInflightAt: string;
+  reason: string;
+}
+
+export interface BeginStorageUploadAttemptInput extends CreateStorageUploadClaimJournalInput {
+  startedAt: string;
+  freshClaim: boolean;
+}
+
+export interface BeginStorageUploadAttemptResult {
+  uploadAttempt: number;
+  shouldUpload: boolean;
+  journalPath: string | null;
+}
+
+export function validateStorageUploadClaim(value: unknown): StorageUploadClaim {
+  return StorageUploadClaimSchema.parse(value);
+}
+
+export interface CreateStagingStorageRollbackReceiptInput {
+  targetProjectRef: string;
+  runSha256: string;
+  fullPlanSha256: string;
+  reason: string;
+  storageRollbackReceiptSha256: string;
+  storageRollbackObjects: readonly StorageIntentObject[];
+}
+
+export interface ExecuteStateAwareBatchResult {
+  stagingSnapshotSha256: string;
+  remoteBatchReceiptSha256: string;
+  executionLedgerSha256: string;
+  unitResults: readonly CreateBatchUnitResultInput[];
+}
+
+export type RunStateAwareBatchesInput = BatchAuthorizationContext & {
+  stateDir: string;
+  startedAt: string;
+  stagingRunSha256: string;
+  fullPlanSha256: string;
+  manifestSha256: string;
+  sourceUniverse: readonly BatchCandidate[];
+  executeBatch: (plan: BatchPlanDraft) => Promise<ExecuteStateAwareBatchResult>;
+  verifyPersistedBatchReceipt?: (
+    plan: BatchPlanDraft,
+    remoteBatchReceiptSha256: string,
+  ) => Promise<void>;
+};
+
+export type InspectCompletedStateAwareBatchesInput = BatchAuthorizationContext & {
+  stateDir: string;
+  startedAt: string;
+  stagingRunSha256: string;
+  fullPlanSha256: string;
+  manifestSha256: string;
+  sourceUniverse: readonly BatchCandidate[];
+  verifyPersistedBatchReceipt: (
+    plan: BatchPlanDraft,
+    remoteBatchReceiptSha256: string,
+  ) => Promise<void>;
+};
+
+export interface StateAwareBatchRunResult {
+  universeEvidence: BatchEvidence;
+  universeEvidencePath: string;
+  plans: BatchPlanDraft[];
+  executionEvidence: BatchEvidence[];
+  executionEvidencePaths: string[];
+  results: BatchResultDraft[];
+  planPaths: string[];
+  resultPaths: string[];
+  stoppedStatus: BatchResultDraft["payload"]["status"] | null;
+}
 
 export interface CreateBatchUnitResultInput {
   unit_id: string;
@@ -173,6 +562,15 @@ export interface PilotReceiptContext {
   scoreReportContent: string;
 }
 
+export interface LocalPendingOnlyBatchAuthorizationContext {
+  authorizationKind: "local_validated_pending_only";
+  authorizationSha256: string;
+}
+
+export type BatchAuthorizationContext =
+  | PilotReceiptContext
+  | LocalPendingOnlyBatchAuthorizationContext;
+
 export interface BatchPredecessorEvidence {
   plan: BatchPlanDraft;
   result: BatchResultDraft;
@@ -180,18 +578,20 @@ export interface BatchPredecessorEvidence {
   predecessor?: BatchPredecessorEvidence;
 }
 
-export interface BatchPlanValidationEvidence extends PilotReceiptContext {
+export type BatchPlanValidationEvidence = BatchAuthorizationContext & {
   universeEvidence: BatchEvidence;
   predecessor?: BatchPredecessorEvidence;
-}
+};
 
-export interface BatchResultValidationEvidence extends BatchPlanValidationEvidence {
+export type BatchResultValidationEvidence = BatchPlanValidationEvidence & {
   plan: BatchPlanDraft;
   executionEvidence: BatchEvidence;
-}
+};
 
 export interface CreatePendingBatchUniverseEvidenceInput {
   capturedAt: string;
+  stagingRunSha256: string;
+  fullPlanSha256: string;
   manifestSha256: string;
   sourceUniverse: readonly BatchCandidate[];
 }
@@ -201,26 +601,24 @@ export interface CreatePendingBatchExecutionEvidenceInput {
   universeEvidence: BatchEvidence;
   plan: BatchPlanDraft;
   stagingSnapshotSha256: string;
+  remoteBatchReceiptSha256: string;
   executionLedgerSha256: string;
   unitResults: readonly CreateBatchUnitResultInput[];
 }
 
-export interface CreateBlockedBatchPlanDraftInput extends BatchPlanValidationEvidence {
+export type CreateBlockedBatchPlanDraftInput = BatchPlanValidationEvidence & {
   createdAt: string;
-}
+};
 
-export interface CreateBlockedBatchResultDraftInput extends BatchResultValidationEvidence {
+export type CreateBlockedBatchResultDraftInput = BatchResultValidationEvidence & {
   completedAt: string;
-}
+};
 
 function parsedSourceUniverse(value: readonly BatchCandidate[]): BatchCandidate[] {
   const units = value.map((candidate) => BatchCandidateSchema.parse(candidate));
   if (units.length === 0) throw new Error("batch source universe cannot be empty");
   const ids = units.map((unit) => unit.unit_id);
   if (new Set(ids).size !== ids.length) throw new Error("batch source universe contains duplicate unit IDs");
-  const pilotIds = new Set<string>(FIXED_EIGHT_ORDERED_UNIT_IDS);
-  const includedPilot = ids.find((unitId) => pilotIds.has(unitId));
-  if (includedPilot) throw new Error(`non-pilot batch source universe contains pilot unit: ${includedPilot}`);
   return units;
 }
 
@@ -293,13 +691,15 @@ export function createPendingBatchUniverseEvidence(
   const payload = UniverseEvidencePayloadSchema.parse({
     scope: "universe",
     captured_at: input.capturedAt,
-    operational: false,
-    derivation_status: "pending_state_aware_runner",
+    operational: true,
+    derivation_status: "state_aware_runner",
+    staging_run_sha256: input.stagingRunSha256,
+    full_plan_sha256: input.fullPlanSha256,
     manifest_sha256: input.manifestSha256,
     source_universe: parsedSourceUniverse(input.sourceUniverse),
   });
   return {
-    schema_version: 1,
+    schema_version: 2,
     kind: "vendor_ingest_batch_evidence",
     payload,
     evidence_sha256: canonicalSha256(payload),
@@ -323,16 +723,17 @@ export function createPendingBatchExecutionEvidence(
   const payload = ExecutionEvidencePayloadSchema.parse({
     scope: "execution",
     captured_at: input.capturedAt,
-    operational: false,
-    derivation_status: "pending_state_aware_runner",
+    operational: true,
+    derivation_status: "state_aware_runner",
     universe_evidence_sha256: universe.evidence_sha256,
     plan_sha256: plan.plan_sha256,
     staging_snapshot_sha256: input.stagingSnapshotSha256,
+    remote_batch_receipt_sha256: input.remoteBatchReceiptSha256,
     execution_ledger_sha256: input.executionLedgerSha256,
     unit_results: results,
   });
   return {
-    schema_version: 1,
+    schema_version: 2,
     kind: "vendor_ingest_batch_evidence",
     payload,
     evidence_sha256: canonicalSha256(payload),
@@ -390,9 +791,28 @@ export function evaluateNeedsReviewSpike(
   };
 }
 
+export function batchAuthorizationBinding(
+  context: BatchAuthorizationContext,
+): { kind: "paid_pilot_gate" | "local_validated_pending_only"; sha256: string } {
+  if ("pilotReceipt" in context) {
+    const receipt = validateFixedEightPassReceipt(
+      context.pilotReceipt,
+      { scoreReportContent: context.scoreReportContent },
+    );
+    return { kind: "paid_pilot_gate", sha256: receipt.receipt_sha256 };
+  }
+  if (
+    context.authorizationKind !== "local_validated_pending_only"
+    || !/^[a-f0-9]{64}$/u.test(context.authorizationSha256)
+  ) {
+    throw new Error("invalid local pending-only batch authorization");
+  }
+  return { kind: context.authorizationKind, sha256: context.authorizationSha256 };
+}
+
 function validatePredecessor(
   evidence: BatchPredecessorEvidence | undefined,
-  context: PilotReceiptContext & { universeEvidence: BatchEvidence },
+  context: BatchAuthorizationContext & { universeEvidence: BatchEvidence },
 ): BatchResultDraft | undefined {
   if (!evidence) return undefined;
   return validateBatchResultDraft(evidence.result, {
@@ -407,15 +827,13 @@ export function validateBatchPlanDraft(
   value: unknown,
   evidence: BatchPlanValidationEvidence,
 ): BatchPlanDraft {
-  const receipt = validateFixedEightPassReceipt(
-    evidence.pilotReceipt,
-    { scoreReportContent: evidence.scoreReportContent },
-  );
+  const authorization = batchAuthorizationBinding(evidence);
   const universe = universeEvidence(evidence.universeEvidence);
   const sourceUniverse = parsedSourceUniverse(universe.payload.source_universe);
   const plan = parsePlanEnvelope(value);
   if (
-    plan.payload.pilot_receipt_sha256 !== receipt.receipt_sha256
+    plan.payload.authorization_kind !== authorization.kind
+    || plan.payload.authorization_sha256 !== authorization.sha256
     || plan.payload.universe_evidence_sha256 !== universe.evidence_sha256
     || plan.payload.source_universe_sha256 !== canonicalSha256(sourceUniverse)
     || plan.payload.source_universe_count !== sourceUniverse.length
@@ -424,8 +842,7 @@ export function validateBatchPlanDraft(
     throw new Error("batch plan does not match its receipt or universe evidence");
   }
   const predecessor = validatePredecessor(evidence.predecessor, {
-    pilotReceipt: receipt,
-    scoreReportContent: evidence.scoreReportContent,
+    ...evidence,
     universeEvidence: universe,
   });
   let completedBefore: string[] = [];
@@ -440,7 +857,8 @@ export function validateBatchPlanDraft(
     if (
       plan.payload.previous_result_sha256 !== predecessor.result_sha256
       || plan.payload.batch_index !== predecessor.payload.batch_index + 1
-      || predecessor.payload.pilot_receipt_sha256 !== receipt.receipt_sha256
+      || predecessor.payload.authorization_kind !== authorization.kind
+      || predecessor.payload.authorization_sha256 !== authorization.sha256
       || predecessor.payload.universe_evidence_sha256 !== universe.evidence_sha256
       || predecessor.payload.source_universe_sha256 !== canonicalSha256(sourceUniverse)
     ) {
@@ -470,10 +888,7 @@ export function validateBatchPlanDraft(
 export function createBlockedBatchPlanDraft(
   input: CreateBlockedBatchPlanDraftInput,
 ): BatchPlanDraft {
-  const receipt = validateFixedEightPassReceipt(
-    input.pilotReceipt,
-    { scoreReportContent: input.scoreReportContent },
-  );
+  const authorization = batchAuthorizationBinding(input);
   const universe = universeEvidence(input.universeEvidence);
   const sourceUniverse = parsedSourceUniverse(universe.payload.source_universe);
   const predecessor = validatePredecessor(input.predecessor, input);
@@ -486,9 +901,10 @@ export function createBlockedBatchPlanDraft(
   const selected = remaining.slice(0, 25);
   const payload = BatchPlanPayloadSchema.parse({
     created_at: input.createdAt,
-    operational_status: "blocked_pending_state_aware_runner",
+    operational_status: "state_aware_runner",
     batch_index: (predecessor?.payload.batch_index ?? 0) + 1,
-    pilot_receipt_sha256: receipt.receipt_sha256,
+    authorization_kind: authorization.kind,
+    authorization_sha256: authorization.sha256,
     universe_evidence_sha256: universe.evidence_sha256,
     source_universe_sha256: canonicalSha256(sourceUniverse),
     source_universe_count: sourceUniverse.length,
@@ -501,7 +917,7 @@ export function createBlockedBatchPlanDraft(
     units: selected,
   });
   return validateBatchPlanDraft({
-    schema_version: 1,
+    schema_version: 2,
     kind: "vendor_ingest_batch_plan_draft",
     payload,
     plan_sha256: canonicalSha256(payload),
@@ -526,10 +942,7 @@ export function validateBatchResultDraft(
   evidence: BatchResultValidationEvidence,
 ): BatchResultDraft {
   const plan = validateBatchPlanDraft(evidence.plan, evidence);
-  const receipt = validateFixedEightPassReceipt(
-    evidence.pilotReceipt,
-    { scoreReportContent: evidence.scoreReportContent },
-  );
+  const authorization = batchAuthorizationBinding(evidence);
   const universe = universeEvidence(evidence.universeEvidence);
   const execution = executionEvidence(evidence.executionEvidence);
   const result = parseResultEnvelope(value);
@@ -539,7 +952,8 @@ export function validateBatchResultDraft(
     || result.payload.execution_evidence_sha256 !== execution.evidence_sha256
     || result.payload.universe_evidence_sha256 !== universe.evidence_sha256
     || result.payload.plan_sha256 !== plan.plan_sha256
-    || result.payload.pilot_receipt_sha256 !== receipt.receipt_sha256
+    || result.payload.authorization_kind !== authorization.kind
+    || result.payload.authorization_sha256 !== authorization.sha256
     || result.payload.source_universe_sha256 !== plan.payload.source_universe_sha256
     || result.payload.batch_index !== plan.payload.batch_index
   ) {
@@ -594,10 +1008,7 @@ export function createBlockedBatchResultDraft(
   input: CreateBlockedBatchResultDraftInput,
 ): BatchResultDraft {
   const plan = validateBatchPlanDraft(input.plan, input);
-  const receipt = validateFixedEightPassReceipt(
-    input.pilotReceipt,
-    { scoreReportContent: input.scoreReportContent },
-  );
+  const authorization = batchAuthorizationBinding(input);
   const universe = universeEvidence(input.universeEvidence);
   const execution = executionEvidence(input.executionEvidence);
   if (
@@ -623,10 +1034,11 @@ export function createBlockedBatchResultDraft(
   ];
   const payload = BatchResultPayloadSchema.parse({
     completed_at: input.completedAt,
-    operational_status: "blocked_pending_state_aware_runner",
+    operational_status: "state_aware_runner",
     batch_index: plan.payload.batch_index,
     plan_sha256: plan.plan_sha256,
-    pilot_receipt_sha256: receipt.receipt_sha256,
+    authorization_kind: authorization.kind,
+    authorization_sha256: authorization.sha256,
     universe_evidence_sha256: universe.evidence_sha256,
     execution_evidence_sha256: execution.evidence_sha256,
     source_universe_sha256: plan.payload.source_universe_sha256,
@@ -641,7 +1053,7 @@ export function createBlockedBatchResultDraft(
     review_evaluation: reviewEvaluation,
   });
   return validateBatchResultDraft({
-    schema_version: 1,
+    schema_version: 2,
     kind: "vendor_ingest_batch_result_draft",
     payload,
     result_sha256: canonicalSha256(payload),
@@ -649,19 +1061,1134 @@ export function createBlockedBatchResultDraft(
 }
 
 export async function writeBatchPlanDraft(
-  _stateDir: string,
+  stateDir: string,
   value: unknown,
   evidence: BatchPlanValidationEvidence,
-): Promise<never> {
-  validateBatchPlanDraft(value, evidence);
-  throw new Error(BATCH_SAFETY_JOURNAL_BLOCKER);
+): Promise<string> {
+  const plan = validateBatchPlanDraft(value, evidence);
+  const universe = universeEvidence(evidence.universeEvidence);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      "runs",
+      universe.payload.full_plan_sha256,
+      `batch-${String(plan.payload.batch_index).padStart(4, "0")}-plan.json`,
+    ),
+    plan,
+  );
+}
+
+export function validateStagingRunDescriptor(value: unknown): StagingRunJournalDescriptor {
+  const descriptor = StagingRunDescriptorSchema.parse(value);
+  const { run_sha256: _runSha256, ...payload } = descriptor;
+  if (canonicalSha256(payload) !== descriptor.run_sha256) {
+    throw new Error("staging run SHA-256 does not match its immutable descriptor");
+  }
+  return descriptor;
+}
+
+export async function writeStagingRunDescriptor(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const descriptor = validateStagingRunDescriptor(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join("batch-journal", "runs", descriptor.full_plan_sha256, "run.json"),
+    descriptor,
+  );
+}
+
+export async function readStagingRunDescriptor(
+  stateDir: string,
+  fullPlanSha256: string,
+): Promise<StagingRunJournalDescriptor | null> {
+  Sha256Schema.parse(fullPlanSha256);
+  const descriptor = await readOptionalBatchJournalArtifact(
+    stateDir,
+    path.join("batch-journal", "runs", fullPlanSha256, "run.json"),
+    validateStagingRunDescriptor,
+  );
+  if (descriptor && descriptor.full_plan_sha256 !== fullPlanSha256) {
+    throw new Error("staging run descriptor full plan does not match its requested journal path");
+  }
+  return descriptor;
+}
+
+export function createStagingStorageRollbackReceipt(
+  input: CreateStagingStorageRollbackReceiptInput,
+): StagingStorageRollbackReceipt {
+  const storageRollbackObjects = input.storageRollbackObjects
+    .map((object) => StorageIntentObjectSchema.parse(object))
+    .sort((left, right) =>
+      `${left.bucket}\0${left.object_key}`.localeCompare(`${right.bucket}\0${right.object_key}`)
+    );
+  const payload = StagingStorageRollbackReceiptPayloadSchema.parse({
+    target_project_ref: input.targetProjectRef,
+    run_sha256: input.runSha256,
+    full_plan_sha256: input.fullPlanSha256,
+    reason: input.reason.trim(),
+    storage_rollback_receipt_sha256: input.storageRollbackReceiptSha256,
+    storage_rollback_objects: storageRollbackObjects,
+  });
+  return StagingStorageRollbackReceiptSchema.parse({
+    schema_version: 1,
+    kind: "vendor_disclosure_storage_rollback_receipt",
+    payload,
+    artifact_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStagingStorageRollbackReceipt(
+  value: unknown,
+): StagingStorageRollbackReceipt {
+  const receipt = StagingStorageRollbackReceiptSchema.parse(value);
+  if (canonicalSha256(receipt.payload) !== receipt.artifact_sha256) {
+    throw new Error("staging Storage rollback receipt SHA-256 does not match its payload");
+  }
+  return receipt;
+}
+
+export async function writeStagingStorageRollbackReceipt(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const receipt = validateStagingStorageRollbackReceipt(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      "runs",
+      receipt.payload.full_plan_sha256,
+      "storage-rollback-receipt.json",
+    ),
+    receipt,
+  );
+}
+
+export async function readStagingStorageRollbackReceipt(
+  stateDir: string,
+  fullPlanSha256: string,
+): Promise<StagingStorageRollbackReceipt | null> {
+  Sha256Schema.parse(fullPlanSha256);
+  const receipt = await readOptionalBatchJournalArtifact(
+    stateDir,
+    path.join("batch-journal", "runs", fullPlanSha256, "storage-rollback-receipt.json"),
+    validateStagingStorageRollbackReceipt,
+  );
+  if (receipt && receipt.payload.full_plan_sha256 !== fullPlanSha256) {
+    throw new Error("staging Storage rollback receipt belongs to another full plan");
+  }
+  return receipt;
+}
+
+export function createStagingFinalizeIntent(input: {
+  targetProjectRef: string;
+  runSha256: string;
+  fullPlanSha256: string;
+  authorizationSha256: string;
+  dedupeCandidatesSha256: string;
+  completedBatchSha256s: readonly string[];
+}): StagingFinalizeIntent {
+  const payload = StagingFinalizeIntentPayloadSchema.parse({
+    target_project_ref: input.targetProjectRef,
+    run_sha256: input.runSha256,
+    full_plan_sha256: input.fullPlanSha256,
+    authorization_sha256: input.authorizationSha256,
+    dedupe_candidates_sha256: input.dedupeCandidatesSha256,
+    completed_batch_sha256s: input.completedBatchSha256s,
+  });
+  return StagingFinalizeIntentSchema.parse({
+    schema_version: 1,
+    kind: "vendor_disclosure_staging_finalize_intent",
+    payload,
+    intent_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStagingFinalizeIntent(value: unknown): StagingFinalizeIntent {
+  const intent = StagingFinalizeIntentSchema.parse(value);
+  if (canonicalSha256(intent.payload) !== intent.intent_sha256) {
+    throw new Error("staging finalize intent SHA-256 does not match its immutable payload");
+  }
+  return intent;
+}
+
+export async function writeStagingFinalizeIntent(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const intent = validateStagingFinalizeIntent(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      "runs",
+      intent.payload.full_plan_sha256,
+      "finalize-intent.json",
+    ),
+    intent,
+  );
+}
+
+export async function readStagingFinalizeIntent(
+  stateDir: string,
+  fullPlanSha256: string,
+): Promise<StagingFinalizeIntent | null> {
+  Sha256Schema.parse(fullPlanSha256);
+  const intent = await readOptionalBatchJournalArtifact(
+    stateDir,
+    path.join("batch-journal", "runs", fullPlanSha256, "finalize-intent.json"),
+    validateStagingFinalizeIntent,
+  );
+  if (intent && intent.payload.full_plan_sha256 !== fullPlanSha256) {
+    throw new Error("staging finalize intent full plan does not match its requested journal path");
+  }
+  return intent;
+}
+
+export async function writeBatchUniverseEvidence(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const universe = universeEvidence(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join("batch-journal", "runs", universe.payload.full_plan_sha256, "universe.json"),
+    universe,
+  );
+}
+
+function validateExecutionForPlan(
+  value: unknown,
+  universeValue: BatchEvidence,
+  planValue: BatchPlanDraft,
+): BatchEvidence {
+  const universe = universeEvidence(universeValue);
+  const plan = parsePlanEnvelope(planValue);
+  const execution = executionEvidence(value);
+  if (
+    execution.payload.universe_evidence_sha256 !== universe.evidence_sha256
+    || execution.payload.plan_sha256 !== plan.plan_sha256
+    || plan.payload.universe_evidence_sha256 !== universe.evidence_sha256
+  ) {
+    throw new Error("execution evidence does not belong to the exact persisted universe and batch plan");
+  }
+  return execution;
+}
+
+export async function writeBatchExecutionEvidence(
+  stateDir: string,
+  value: unknown,
+  evidence: { universeEvidence: BatchEvidence; plan: BatchPlanDraft },
+): Promise<string> {
+  const execution = validateExecutionForPlan(value, evidence.universeEvidence, evidence.plan);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      "runs",
+      universeEvidence(evidence.universeEvidence).payload.full_plan_sha256,
+      `batch-${String(evidence.plan.payload.batch_index).padStart(4, "0")}-execution.json`,
+    ),
+    execution,
+  );
 }
 
 export async function writeBatchResultDraft(
-  _stateDir: string,
+  stateDir: string,
   value: unknown,
   evidence: BatchResultValidationEvidence,
-): Promise<never> {
-  validateBatchResultDraft(value, evidence);
-  throw new Error(BATCH_SAFETY_JOURNAL_BLOCKER);
+): Promise<string> {
+  const result = validateBatchResultDraft(value, evidence);
+  const universe = universeEvidence(evidence.universeEvidence);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      "runs",
+      universe.payload.full_plan_sha256,
+      `batch-${String(result.payload.batch_index).padStart(4, "0")}-result.json`,
+    ),
+    result,
+  );
+}
+
+function deterministicRunTimestamp(startedAt: string, batchIndex: number, phase: number): string {
+  const base = Date.parse(startedAt);
+  if (!Number.isFinite(base)) throw new Error("state-aware batch run startedAt must be an ISO timestamp");
+  return new Date(base + (((batchIndex - 1) * 3 + phase) * 1_000)).toISOString();
+}
+
+async function readOptionalBatchJournalArtifact<T>(
+  stateDir: string,
+  relativePath: string,
+  validate: (value: unknown) => T,
+): Promise<T | null> {
+  const artifactPath = path.join(path.resolve(stateDir), relativePath);
+  try {
+    const verifiedPath = await verifyDeterministicStateArtifactPath({
+      stateDir,
+      artifactPath,
+      expectedRelativePath: relativePath,
+    });
+    return validate(JSON.parse(await readFile(verifiedPath, "utf8")));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function runStateAwareBatches(
+  input: RunStateAwareBatchesInput,
+): Promise<StateAwareBatchRunResult> {
+  const startedAt = new Date(input.startedAt).toISOString();
+  const authorizationContext: BatchAuthorizationContext = "pilotReceipt" in input
+    ? { pilotReceipt: input.pilotReceipt, scoreReportContent: input.scoreReportContent }
+    : {
+      authorizationKind: input.authorizationKind,
+      authorizationSha256: input.authorizationSha256,
+    };
+  const universe = createPendingBatchUniverseEvidence({
+    capturedAt: startedAt,
+    stagingRunSha256: input.stagingRunSha256,
+    fullPlanSha256: input.fullPlanSha256,
+    manifestSha256: input.manifestSha256,
+    sourceUniverse: input.sourceUniverse,
+  });
+  const universeEvidencePath = await writeBatchUniverseEvidence(input.stateDir, universe);
+  const plans: BatchPlanDraft[] = [];
+  const executions: BatchEvidence[] = [];
+  const results: BatchResultDraft[] = [];
+  const planPaths: string[] = [];
+  const executionEvidencePaths: string[] = [];
+  const resultPaths: string[] = [];
+  let predecessor: BatchPredecessorEvidence | undefined;
+  let stoppedStatus: BatchResultDraft["payload"]["status"] | null = null;
+
+  while ((predecessor?.result.payload.cumulative_completed_unit_ids.length ?? 0) < input.sourceUniverse.length) {
+    const batchIndex = (predecessor?.result.payload.batch_index ?? 0) + 1;
+    const plan = createBlockedBatchPlanDraft({
+      createdAt: deterministicRunTimestamp(startedAt, batchIndex, 0),
+      ...authorizationContext,
+      universeEvidence: universe,
+      predecessor,
+    });
+    const planPath = await writeBatchPlanDraft(input.stateDir, plan, {
+      ...authorizationContext,
+      universeEvidence: universe,
+      predecessor,
+    });
+    const executionRelativePath = path.join(
+      "batch-journal",
+      "runs",
+      input.fullPlanSha256,
+      `batch-${String(batchIndex).padStart(4, "0")}-execution.json`,
+    );
+    let execution = await readOptionalBatchJournalArtifact(
+      input.stateDir,
+      executionRelativePath,
+      (value) => validateExecutionForPlan(value, universe, plan),
+    );
+    if (execution) {
+      if (!input.verifyPersistedBatchReceipt) {
+        throw new Error("remote batch receipt verification is required before reusing local execution evidence");
+      }
+      await input.verifyPersistedBatchReceipt(
+        plan,
+        execution.payload.scope === "execution"
+          ? execution.payload.remote_batch_receipt_sha256
+          : "",
+      );
+    } else {
+      const executionResult = await input.executeBatch(plan);
+      execution = createPendingBatchExecutionEvidence({
+        capturedAt: deterministicRunTimestamp(startedAt, batchIndex, 1),
+        universeEvidence: universe,
+        plan,
+        stagingSnapshotSha256: executionResult.stagingSnapshotSha256,
+        remoteBatchReceiptSha256: executionResult.remoteBatchReceiptSha256,
+        executionLedgerSha256: executionResult.executionLedgerSha256,
+        unitResults: executionResult.unitResults,
+      });
+    }
+    const executionPath = await writeBatchExecutionEvidence(input.stateDir, execution, {
+      universeEvidence: universe,
+      plan,
+    });
+    const result = createBlockedBatchResultDraft({
+      completedAt: deterministicRunTimestamp(startedAt, batchIndex, 2),
+      ...authorizationContext,
+      universeEvidence: universe,
+      plan,
+      executionEvidence: execution,
+      predecessor,
+    });
+    const resultPath = await writeBatchResultDraft(input.stateDir, result, {
+      ...authorizationContext,
+      universeEvidence: universe,
+      plan,
+      executionEvidence: execution,
+      predecessor,
+    });
+    plans.push(plan);
+    executions.push(execution);
+    results.push(result);
+    planPaths.push(planPath);
+    executionEvidencePaths.push(executionPath);
+    resultPaths.push(resultPath);
+    if (result.payload.status !== "pass") {
+      stoppedStatus = result.payload.status;
+      break;
+    }
+    predecessor = { plan, result, executionEvidence: execution, predecessor };
+  }
+  return {
+    universeEvidence: universe,
+    universeEvidencePath,
+    plans,
+    executionEvidence: executions,
+    executionEvidencePaths,
+    results,
+    planPaths,
+    resultPaths,
+    stoppedStatus,
+  };
+}
+
+/**
+ * Replays only immutable local evidence and remote receipt checks. Unlike the
+ * apply runner, this function has no callback capable of creating a missing
+ * batch, so a finalize command cannot accidentally continue an incomplete load.
+ */
+export async function inspectCompletedStateAwareBatches(
+  input: InspectCompletedStateAwareBatchesInput,
+): Promise<StateAwareBatchRunResult> {
+  const startedAt = new Date(input.startedAt).toISOString();
+  const authorizationContext: BatchAuthorizationContext = "pilotReceipt" in input
+    ? { pilotReceipt: input.pilotReceipt, scoreReportContent: input.scoreReportContent }
+    : {
+      authorizationKind: input.authorizationKind,
+      authorizationSha256: input.authorizationSha256,
+    };
+  const expectedUniverse = createPendingBatchUniverseEvidence({
+    capturedAt: startedAt,
+    stagingRunSha256: input.stagingRunSha256,
+    fullPlanSha256: input.fullPlanSha256,
+    manifestSha256: input.manifestSha256,
+    sourceUniverse: input.sourceUniverse,
+  });
+  const universeRelativePath = path.join(
+    "batch-journal",
+    "runs",
+    input.fullPlanSha256,
+    "universe.json",
+  );
+  const universe = await readOptionalBatchJournalArtifact(
+    input.stateDir,
+    universeRelativePath,
+    universeEvidence,
+  );
+  if (!universe || !isDeepStrictEqual(universe, expectedUniverse)) {
+    throw new Error("staging batch journal is incomplete or belongs to another immutable universe");
+  }
+
+  const plans: BatchPlanDraft[] = [];
+  const executions: BatchEvidence[] = [];
+  const results: BatchResultDraft[] = [];
+  const planPaths: string[] = [];
+  const executionEvidencePaths: string[] = [];
+  const resultPaths: string[] = [];
+  let predecessor: BatchPredecessorEvidence | undefined;
+
+  while ((predecessor?.result.payload.cumulative_completed_unit_ids.length ?? 0) < input.sourceUniverse.length) {
+    const batchIndex = (predecessor?.result.payload.batch_index ?? 0) + 1;
+    const expectedPlan = createBlockedBatchPlanDraft({
+      createdAt: deterministicRunTimestamp(startedAt, batchIndex, 0),
+      ...authorizationContext,
+      universeEvidence: universe,
+      predecessor,
+    });
+    const planRelativePath = path.join(
+      "batch-journal",
+      "runs",
+      input.fullPlanSha256,
+      `batch-${String(batchIndex).padStart(4, "0")}-plan.json`,
+    );
+    const plan = await readOptionalBatchJournalArtifact(
+      input.stateDir,
+      planRelativePath,
+      (value) => validateBatchPlanDraft(value, {
+        ...authorizationContext,
+        universeEvidence: universe,
+        predecessor,
+      }),
+    );
+    if (!plan || !isDeepStrictEqual(plan, expectedPlan)) {
+      throw new Error(`staging batch journal is incomplete at batch ${batchIndex} plan`);
+    }
+
+    const executionRelativePath = path.join(
+      "batch-journal",
+      "runs",
+      input.fullPlanSha256,
+      `batch-${String(batchIndex).padStart(4, "0")}-execution.json`,
+    );
+    const execution = await readOptionalBatchJournalArtifact(
+      input.stateDir,
+      executionRelativePath,
+      (value) => validateExecutionForPlan(value, universe, plan),
+    );
+    if (!execution || execution.payload.scope !== "execution") {
+      throw new Error(`staging batch journal is incomplete at batch ${batchIndex} execution`);
+    }
+    await input.verifyPersistedBatchReceipt(
+      plan,
+      execution.payload.remote_batch_receipt_sha256,
+    );
+
+    const expectedResult = createBlockedBatchResultDraft({
+      completedAt: deterministicRunTimestamp(startedAt, batchIndex, 2),
+      ...authorizationContext,
+      universeEvidence: universe,
+      plan,
+      executionEvidence: execution,
+      predecessor,
+    });
+    const resultRelativePath = path.join(
+      "batch-journal",
+      "runs",
+      input.fullPlanSha256,
+      `batch-${String(batchIndex).padStart(4, "0")}-result.json`,
+    );
+    const result = await readOptionalBatchJournalArtifact(
+      input.stateDir,
+      resultRelativePath,
+      (value) => validateBatchResultDraft(value, {
+        ...authorizationContext,
+        universeEvidence: universe,
+        plan,
+        executionEvidence: execution,
+        predecessor,
+      }),
+    );
+    if (!result || !isDeepStrictEqual(result, expectedResult)) {
+      throw new Error(`staging batch journal is incomplete at batch ${batchIndex} result`);
+    }
+    if (result.payload.status !== "pass") {
+      throw new Error(`staging batch journal is not finalizable: ${result.payload.status}`);
+    }
+
+    plans.push(plan);
+    executions.push(execution);
+    results.push(result);
+    planPaths.push(path.join(path.resolve(input.stateDir), planRelativePath));
+    executionEvidencePaths.push(path.join(path.resolve(input.stateDir), executionRelativePath));
+    resultPaths.push(path.join(path.resolve(input.stateDir), resultRelativePath));
+    predecessor = { plan, result, executionEvidence: execution, predecessor };
+  }
+
+  const completedIds = results.at(-1)?.payload.cumulative_completed_unit_ids ?? [];
+  if (!isDeepStrictEqual(completedIds, input.sourceUniverse.map((unit) => unit.unit_id))) {
+    throw new Error("staging batch journal does not complete the exact immutable source universe");
+  }
+  return {
+    universeEvidence: universe,
+    universeEvidencePath: path.join(path.resolve(input.stateDir), universeRelativePath),
+    plans,
+    executionEvidence: executions,
+    executionEvidencePaths,
+    results,
+    planPaths,
+    resultPaths,
+    stoppedStatus: null,
+  };
+}
+
+export function createStorageRollbackJournal(
+  input: CreateStorageRollbackJournalInput,
+): StorageRollbackJournal {
+  const objects = input.objects.map((object) => StorageJournalObjectSchema.parse(object));
+  const payload = StorageRollbackJournalPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    objects,
+    rollback_objects: objects.filter((object) => object.created),
+  });
+  return StorageRollbackJournalSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_rollback_journal",
+    payload,
+    journal_sha256: canonicalSha256(payload),
+  });
+}
+
+export function createStorageIntentJournal(
+  input: CreateStorageIntentJournalInput,
+): StorageIntentJournal {
+  const objects = input.objects.map((object) => StorageIntentObjectSchema.parse(object));
+  const payload = StorageIntentJournalPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    objects,
+  });
+  return StorageIntentJournalSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_intent_journal",
+    payload,
+    journal_sha256: canonicalSha256(payload),
+  });
+}
+
+export function createStorageObjectJournal(
+  input: CreateStorageObjectJournalInput,
+): StorageObjectJournal {
+  const payload = StorageObjectJournalPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    object_index: input.objectIndex,
+    claim: input.claim,
+    upload_attempt: input.uploadAttempt,
+    object: input.object,
+  });
+  return StorageObjectJournalSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_object_journal",
+    payload,
+    journal_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStorageObjectJournal(value: unknown): StorageObjectJournal {
+  const journal = StorageObjectJournalSchema.parse(value);
+  if (canonicalSha256(journal.payload) !== journal.journal_sha256) {
+    throw new Error("storage object journal SHA-256 does not match its payload");
+  }
+  return journal;
+}
+
+export async function writeStorageObjectJournal(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const journal = validateStorageObjectJournal(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      journal.payload.run_sha256,
+      `batch-${String(journal.payload.batch_index).padStart(4, "0")}-storage-object-${String(journal.payload.object_index).padStart(4, "0")}-epoch-${String(journal.payload.claim.claim_epoch).padStart(4, "0")}.json`,
+    ),
+    journal,
+  );
+}
+
+export async function readStorageObjectJournals(
+  stateDir: string,
+  runSha256: string,
+): Promise<StorageObjectJournal[]> {
+  Sha256Schema.parse(runSha256);
+  const relativeDirectory = path.join("batch-journal", runSha256);
+  const absoluteDirectory = path.join(path.resolve(stateDir), relativeDirectory);
+  let names: string[];
+  try {
+    names = await readdir(absoluteDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const matching = names
+    .filter((name) => /^batch-\d{4}-storage-object-\d{4}-epoch-\d{4,}\.json$/u.test(name))
+    .sort();
+  const journals: StorageObjectJournal[] = [];
+  for (const name of matching) {
+    const relativePath = path.join(relativeDirectory, name);
+    const journal = await readOptionalBatchJournalArtifact(
+      stateDir,
+      relativePath,
+      validateStorageObjectJournal,
+    );
+    if (!journal || journal.payload.run_sha256 !== runSha256) {
+      throw new Error("storage object journal belongs to another run");
+    }
+    journals.push(journal);
+  }
+  const identities = journals.map((journal) =>
+    `${journal.payload.batch_index}\0${journal.payload.object_index}\0${journal.payload.claim.claim_epoch}`
+  );
+  if (new Set(identities).size !== identities.length) {
+    throw new Error("storage object journals contain duplicate batch/object/claim epochs");
+  }
+  return journals;
+}
+
+export function createStorageUploadClaimJournal(
+  input: CreateStorageUploadClaimJournalInput,
+): StorageUploadClaimJournal {
+  const payload = StorageUploadClaimJournalPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    object_index: input.objectIndex,
+    claim: input.claim,
+  });
+  return StorageUploadClaimJournalSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_upload_claim_journal",
+    payload,
+    journal_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStorageUploadClaimJournal(value: unknown): StorageUploadClaimJournal {
+  const journal = StorageUploadClaimJournalSchema.parse(value);
+  if (canonicalSha256(journal.payload) !== journal.journal_sha256) {
+    throw new Error("storage upload claim journal SHA-256 does not match its payload");
+  }
+  return journal;
+}
+
+export async function writeStorageUploadClaimJournal(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const journal = validateStorageUploadClaimJournal(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      journal.payload.run_sha256,
+      `batch-${String(journal.payload.batch_index).padStart(4, "0")}-storage-claim-${String(journal.payload.object_index).padStart(4, "0")}-epoch-${String(journal.payload.claim.claim_epoch).padStart(4, "0")}.json`,
+    ),
+    journal,
+  );
+}
+
+export async function readStorageUploadClaimJournals(
+  stateDir: string,
+  runSha256: string,
+): Promise<StorageUploadClaimJournal[]> {
+  Sha256Schema.parse(runSha256);
+  const relativeDirectory = path.join("batch-journal", runSha256);
+  const absoluteDirectory = path.join(path.resolve(stateDir), relativeDirectory);
+  let names: string[];
+  try {
+    names = await readdir(absoluteDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const matching = names
+    .filter((name) => /^batch-\d{4}-storage-claim-\d{4}-epoch-\d{4,}\.json$/u.test(name))
+    .sort();
+  const journals: StorageUploadClaimJournal[] = [];
+  for (const name of matching) {
+    const journal = await readOptionalBatchJournalArtifact(
+      stateDir,
+      path.join(relativeDirectory, name),
+      validateStorageUploadClaimJournal,
+    );
+    if (!journal || journal.payload.run_sha256 !== runSha256) {
+      throw new Error("storage upload claim journal belongs to another run");
+    }
+    journals.push(journal);
+  }
+  return journals;
+}
+
+export function createStorageUploadStartedJournal(
+  input: CreateStorageUploadStartedJournalInput,
+): StorageUploadStartedJournal {
+  const payload = StorageUploadStartedJournalPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    object_index: input.objectIndex,
+    upload_attempt: input.uploadAttempt,
+    claim: input.claim,
+    started_at: input.startedAt,
+  });
+  return StorageUploadStartedJournalSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_upload_started_journal",
+    payload,
+    journal_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStorageUploadStartedJournal(value: unknown): StorageUploadStartedJournal {
+  const journal = StorageUploadStartedJournalSchema.parse(value);
+  if (canonicalSha256(journal.payload) !== journal.journal_sha256) {
+    throw new Error("storage upload start journal SHA-256 does not match its payload");
+  }
+  return journal;
+}
+
+export async function writeStorageUploadStartedJournal(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const journal = validateStorageUploadStartedJournal(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      journal.payload.run_sha256,
+      `batch-${String(journal.payload.batch_index).padStart(4, "0")}-storage-upload-${String(journal.payload.object_index).padStart(4, "0")}-epoch-${String(journal.payload.claim.claim_epoch).padStart(4, "0")}-attempt-${String(journal.payload.upload_attempt).padStart(4, "0")}.json`,
+    ),
+    journal,
+  );
+}
+
+export async function readStorageUploadStartedJournals(
+  stateDir: string,
+  runSha256: string,
+): Promise<StorageUploadStartedJournal[]> {
+  Sha256Schema.parse(runSha256);
+  const relativeDirectory = path.join("batch-journal", runSha256);
+  const absoluteDirectory = path.join(path.resolve(stateDir), relativeDirectory);
+  let names: string[];
+  try {
+    names = await readdir(absoluteDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const matching = names
+    .filter((name) => /^batch-\d{4}-storage-upload-\d{4}-epoch-\d{4,}-attempt-\d{4}\.json$/u.test(name))
+    .sort();
+  const journals: StorageUploadStartedJournal[] = [];
+  for (const name of matching) {
+    const journal = await readOptionalBatchJournalArtifact(
+      stateDir,
+      path.join(relativeDirectory, name),
+      validateStorageUploadStartedJournal,
+    );
+    if (!journal || journal.payload.run_sha256 !== runSha256) {
+      throw new Error("storage upload start journal belongs to another run");
+    }
+    journals.push(journal);
+  }
+  return journals;
+}
+
+export function createStorageUploadReconcileReceipt(
+  input: CreateStorageUploadReconcileReceiptInput,
+): StorageUploadReconcileReceipt {
+  const payload = StorageUploadReconcileReceiptPayloadSchema.parse({
+    run_sha256: input.runSha256,
+    batch_sha256: input.batchSha256,
+    batch_index: input.batchIndex,
+    object_index: input.objectIndex,
+    claim: input.claim,
+    previous_upload_attempt: input.previousUploadAttempt,
+    next_upload_attempt: input.previousUploadAttempt + 1,
+    confirmed_no_inflight_at: input.confirmedNoInflightAt,
+    reason: input.reason,
+    confirmation: "no_inflight_upload_confirmed",
+  });
+  return StorageUploadReconcileReceiptSchema.parse({
+    schema_version: 1,
+    kind: "vendor_ingest_storage_upload_reconcile_receipt",
+    payload,
+    receipt_sha256: canonicalSha256(payload),
+  });
+}
+
+export function validateStorageUploadReconcileReceipt(value: unknown): StorageUploadReconcileReceipt {
+  const receipt = StorageUploadReconcileReceiptSchema.parse(value);
+  if (canonicalSha256(receipt.payload) !== receipt.receipt_sha256) {
+    throw new Error("storage upload reconciliation receipt SHA-256 does not match its payload");
+  }
+  return receipt;
+}
+
+export async function writeStorageUploadReconcileReceipt(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const receipt = validateStorageUploadReconcileReceipt(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      receipt.payload.run_sha256,
+      `batch-${String(receipt.payload.batch_index).padStart(4, "0")}-storage-reconcile-${String(receipt.payload.object_index).padStart(4, "0")}-epoch-${String(receipt.payload.claim.claim_epoch).padStart(4, "0")}-attempt-${String(receipt.payload.next_upload_attempt).padStart(4, "0")}.json`,
+    ),
+    receipt,
+  );
+}
+
+export async function readStorageUploadReconcileReceipts(
+  stateDir: string,
+  runSha256: string,
+): Promise<StorageUploadReconcileReceipt[]> {
+  Sha256Schema.parse(runSha256);
+  const relativeDirectory = path.join("batch-journal", runSha256);
+  const absoluteDirectory = path.join(path.resolve(stateDir), relativeDirectory);
+  let names: string[];
+  try {
+    names = await readdir(absoluteDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const matching = names
+    .filter((name) => /^batch-\d{4}-storage-reconcile-\d{4}-epoch-\d{4,}-attempt-\d{4}\.json$/u.test(name))
+    .sort();
+  const receipts: StorageUploadReconcileReceipt[] = [];
+  for (const name of matching) {
+    const receipt = await readOptionalBatchJournalArtifact(
+      stateDir,
+      path.join(relativeDirectory, name),
+      validateStorageUploadReconcileReceipt,
+    );
+    if (!receipt || receipt.payload.run_sha256 !== runSha256) {
+      throw new Error("storage upload reconciliation receipt belongs to another run");
+    }
+    receipts.push(receipt);
+  }
+  return receipts;
+}
+
+export async function beginStorageUploadAttempt(
+  stateDir: string,
+  input: BeginStorageUploadAttemptInput,
+): Promise<BeginStorageUploadAttemptResult> {
+  const claim = StorageUploadClaimSchema.parse(input.claim);
+  if (claim.claim_action !== "upload") {
+    throw new Error("only an exact upload claim may begin an HTTP upload attempt");
+  }
+  const starts = (await readStorageUploadStartedJournals(stateDir, input.runSha256))
+    .filter((journal) =>
+      journal.payload.batch_index === input.batchIndex
+      && journal.payload.object_index === input.objectIndex
+      && isDeepStrictEqual(journal.payload.claim, claim)
+    )
+    .sort((left, right) => left.payload.upload_attempt - right.payload.upload_attempt);
+  if (starts.length === 0) {
+    if (!input.freshClaim) {
+      const receipts = (await readStorageUploadReconcileReceipts(stateDir, input.runSha256))
+        .filter((receipt) =>
+          receipt.payload.batch_index === input.batchIndex
+          && receipt.payload.object_index === input.objectIndex
+          && receipt.payload.previous_upload_attempt === 0
+          && receipt.payload.next_upload_attempt === 1
+          && isDeepStrictEqual(receipt.payload.claim, claim)
+        );
+      if (receipts.length !== 1) {
+        throw new Error(
+          `storage_upload_manual_reconciliation_required:batch=${input.batchIndex}:object=${input.objectIndex}:epoch=${claim.claim_epoch}:attempt=0`,
+        );
+      }
+    }
+    const started = createStorageUploadStartedJournal({
+      ...input,
+      uploadAttempt: 1,
+    });
+    return {
+      uploadAttempt: 1,
+      shouldUpload: true,
+      journalPath: await writeStorageUploadStartedJournal(stateDir, started),
+    };
+  }
+  const latest = starts.at(-1)!;
+  const observations = await readStorageObjectJournals(stateDir, input.runSha256);
+  if (observations.some((journal) =>
+    journal.payload.batch_index === input.batchIndex
+    && journal.payload.object_index === input.objectIndex
+    && journal.payload.upload_attempt === latest.payload.upload_attempt
+    && isDeepStrictEqual(journal.payload.claim, claim)
+  )) {
+    return {
+      uploadAttempt: latest.payload.upload_attempt,
+      shouldUpload: false,
+      journalPath: null,
+    };
+  }
+  const nextAttempt = latest.payload.upload_attempt + 1;
+  const receipts = (await readStorageUploadReconcileReceipts(stateDir, input.runSha256))
+    .filter((receipt) =>
+      receipt.payload.batch_index === input.batchIndex
+      && receipt.payload.object_index === input.objectIndex
+      && receipt.payload.next_upload_attempt === nextAttempt
+      && isDeepStrictEqual(receipt.payload.claim, claim)
+    );
+  if (receipts.length !== 1) {
+    throw new Error(
+      `storage_upload_manual_reconciliation_required:batch=${input.batchIndex}:object=${input.objectIndex}:epoch=${claim.claim_epoch}:attempt=${latest.payload.upload_attempt}`,
+    );
+  }
+  const started = createStorageUploadStartedJournal({
+    ...input,
+    uploadAttempt: nextAttempt,
+  });
+  return {
+    uploadAttempt: nextAttempt,
+    shouldUpload: true,
+    journalPath: await writeStorageUploadStartedJournal(stateDir, started),
+  };
+}
+
+export function validateStorageIntentJournal(value: unknown): StorageIntentJournal {
+  const journal = StorageIntentJournalSchema.parse(value);
+  if (canonicalSha256(journal.payload) !== journal.journal_sha256) {
+    throw new Error("storage intent journal SHA-256 does not match its payload");
+  }
+  return journal;
+}
+
+export async function writeStorageIntentJournal(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const journal = validateStorageIntentJournal(value);
+  return writeImmutableBatchJournalArtifact(
+    stateDir,
+    path.join(
+      "batch-journal",
+      journal.payload.run_sha256,
+      `batch-${String(journal.payload.batch_index).padStart(4, "0")}-storage-intent.json`,
+    ),
+    journal,
+  );
+}
+
+export async function readStorageIntentJournals(
+  stateDir: string,
+  runSha256: string,
+): Promise<StorageIntentJournal[]> {
+  Sha256Schema.parse(runSha256);
+  const relativeDirectory = path.join("batch-journal", runSha256);
+  const absoluteDirectory = path.join(path.resolve(stateDir), relativeDirectory);
+  let names: string[];
+  try {
+    names = await readdir(absoluteDirectory);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const matching = names
+    .filter((name) => /^batch-\d{4}-storage-intent\.json$/u.test(name))
+    .sort();
+  const journals: StorageIntentJournal[] = [];
+  for (const name of matching) {
+    const relativePath = path.join(relativeDirectory, name);
+    const journal = await readOptionalBatchJournalArtifact(
+      stateDir,
+      relativePath,
+      validateStorageIntentJournal,
+    );
+    if (!journal || journal.payload.run_sha256 !== runSha256) {
+      throw new Error("storage intent journal belongs to another run");
+    }
+    journals.push(journal);
+  }
+  const batchIndexes = journals.map((journal) => journal.payload.batch_index);
+  if (new Set(batchIndexes).size !== batchIndexes.length) {
+    throw new Error("storage intent journals contain duplicate batch indexes");
+  }
+  return journals;
+}
+
+export function validateStorageRollbackJournal(value: unknown): StorageRollbackJournal {
+  const journal = StorageRollbackJournalSchema.parse(value);
+  if (canonicalSha256(journal.payload) !== journal.journal_sha256) {
+    throw new Error("storage rollback journal SHA-256 does not match its payload");
+  }
+  return journal;
+}
+
+export async function writeStorageRollbackJournal(
+  stateDir: string,
+  value: unknown,
+): Promise<string> {
+  const journal = validateStorageRollbackJournal(value);
+  const relativePath = path.join(
+    "batch-journal",
+    journal.payload.run_sha256,
+    `batch-${String(journal.payload.batch_index).padStart(4, "0")}-storage.json`,
+  );
+  const artifactPath = path.join(path.resolve(stateDir), relativePath);
+  try {
+    const verifiedPath = await verifyDeterministicStateArtifactPath({
+      stateDir,
+      artifactPath,
+      expectedRelativePath: relativePath,
+    });
+    const existing = validateStorageRollbackJournal(
+      JSON.parse(await readFile(verifiedPath, "utf8")),
+    );
+    const sameEnvelope = existing.payload.run_sha256 === journal.payload.run_sha256
+      && existing.payload.batch_sha256 === journal.payload.batch_sha256
+      && existing.payload.batch_index === journal.payload.batch_index
+      && existing.payload.objects.length === journal.payload.objects.length;
+    const compatibleObjects = sameEnvelope && existing.payload.objects.every((stored, index) => {
+      const replayed = journal.payload.objects[index];
+      // The first durable ownership observation remains authoritative. On a
+      // retry an object can legitimately flip either way if it was removed
+      // outside this run. Preserve the first journal and never broaden its
+      // rollback set merely because a later attempt recreated an object.
+      return replayed !== undefined
+        && stored.bucket === replayed.bucket
+        && stored.object_key === replayed.object_key
+        && stored.sha256 === replayed.sha256
+        && stored.bytes === replayed.bytes;
+    });
+    if (!compatibleObjects) {
+      throw new Error("existing batch journal content differs from the immutable resume artifact");
+    }
+    return verifiedPath;
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
+  return writeImmutableBatchJournalArtifact(stateDir, relativePath, journal);
+}
+
+async function writeImmutableBatchJournalArtifact(
+  stateDir: string,
+  relativePath: string,
+  value: unknown,
+): Promise<string> {
+  const artifactPath = path.join(path.resolve(stateDir), relativePath);
+  await prepareDeterministicStateArtifactWritePath({
+    stateDir,
+    artifactPath,
+    expectedRelativePath: relativePath,
+  });
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  const temporaryPath = path.join(
+    path.dirname(artifactPath),
+    `.${path.basename(artifactPath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    const handle = await open(temporaryPath, "wx", 0o600);
+    try {
+      await handle.writeFile(serialized, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await link(temporaryPath, artifactPath);
+    await syncDirectoryMetadata(path.dirname(artifactPath));
+    return artifactPath;
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
+  } finally {
+    await unlink(temporaryPath).catch(() => undefined);
+  }
+  let existing: unknown;
+  try {
+    existing = JSON.parse(await readFile(artifactPath, "utf8"));
+  } catch {
+    throw new Error("existing batch journal content is unreadable");
+  }
+  if (!isDeepStrictEqual(existing, value)) {
+    throw new Error("existing batch journal content differs from the immutable resume artifact");
+  }
+  return artifactPath;
 }

@@ -353,7 +353,8 @@ test("local review-only validation may ground studio from an exact album-page ce
   assert.ok(artifact.issues.some(({ code }) =>
     code === "local_category_inferred_from_sheet_locator"
     || code === "local_exact_evidence_requires_record_review"
-  ));
+    || code === "local_category_inferred_from_review_only_structure"
+  ), JSON.stringify(artifact.issues));
 });
 
 test("local review-only validation grounds a wedding snapshot sheet as studio", async (t) => {
@@ -379,6 +380,154 @@ test("local review-only validation grounds a wedding snapshot sheet as studio", 
     code === "local_category_inferred_from_sheet_locator"
     || code === "local_exact_evidence_requires_record_review"
   ));
+});
+
+test("local option quarantine accepts only the exact three-header generic table order", async (t) => {
+  const convertedText = [
+    "## 시트: Sheet1",
+    "Sheet1!A3: 사업자명",
+    "Sheet1!B3: 기본가격",
+    "병합 범위 B3:C3 · 좌상단 B3",
+    "Sheet1!A4: 가나다",
+    "Sheet1!B4: A형 구성",
+    "Sheet1!C4: 165만원",
+    "Sheet1!A10: 사업자명",
+    "Sheet1!B10: 기본가격",
+    "병합 범위 B10:C10 · 좌상단 B10",
+    "Sheet1!A11: 라마바",
+    "Sheet1!B11: B형 구성",
+    "Sheet1!C11: 80만원",
+    "Sheet1!A17: 사업자명",
+    "Sheet1!B17: 기본가격",
+    "병합 범위 B17:C17 · 좌상단 B17",
+    "Sheet1!A18: 사아자",
+    "Sheet1!B18: C형 구성",
+    "Sheet1!C18: 45만원",
+  ].join("\n");
+  const fixture = await localValidationFixture(convertedText);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const extracted = await extractManifestLocally({ stateDir: fixture.stateDir });
+  const extraction = await readJsonFile(
+    extracted.manifest.units[0]!.local_extraction!.artifact_path,
+  ) as LocalDeterministicExtractionArtifact;
+
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const artifact = LocalValidatedArtifactSchema.parse(
+    await readJsonFile(validated.units[0]!.validation!.artifact_path),
+  );
+
+  assert.deepEqual(
+    artifact.data.partner_vendors.map((vendor) => ({
+      category: vendor.category,
+      optionNames: vendor.options.map((option) => option.name),
+    })),
+    [
+      { category: "studio", optionNames: ["A형 구성"] },
+      { category: "dress", optionNames: ["B형 구성"] },
+      { category: "makeup", optionNames: ["C형 구성"] },
+    ],
+  );
+  assert.deepEqual(artifact.coverage_gaps, []);
+
+  await writeFile(
+    extracted.manifest.units[0]!.conversion!.text_artifacts[0]!,
+    `${convertedText}\nSheet1!A24: 사업자명`,
+    "utf8",
+  );
+  const noLongerExact = await deriveValidatedPayloadForUnit(
+    extracted.manifest.units[0]!,
+    { data: extraction.data },
+    { mode: "local_deterministic" },
+  );
+  assert.ok(noLongerExact.data.partner_vendors.every((vendor) => vendor.options.length === 0));
+  assert.ok(noLongerExact.issues.some(({ code }) => code === "local_ungrounded_option_quarantined"));
+});
+
+test("local option quarantine accepts an exact category sheet locator but still rejects a forged name", async (t) => {
+  const fixture = await localValidationFixture([
+    "## 시트: 스튜디오",
+    "스튜디오!A3: 사업자명",
+    "스튜디오!B3: 기본가격",
+    "병합 범위 B3:C3 · 좌상단 B3",
+    "스튜디오!A4: 햇살스튜디오",
+    "스튜디오!B4: 원본 포함 20P 앨범",
+    "스튜디오!C4: 165만원",
+  ].join("\n"));
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const extracted = await extractManifestLocally({ stateDir: fixture.stateDir });
+  const unit = extracted.manifest.units[0]!;
+  const extraction = await readJsonFile(
+    unit.local_extraction!.artifact_path,
+  ) as LocalDeterministicExtractionArtifact;
+
+  const grounded = await deriveValidatedPayloadForUnit(
+    unit,
+    extraction,
+    { mode: "local_deterministic" },
+  );
+  assert.deepEqual(
+    grounded.data.partner_vendors[0]?.options.map((option) => option.name),
+    ["원본 포함 20P 앨범"],
+  );
+  assert.deepEqual(grounded.coverageGaps, []);
+
+  const forged = structuredClone(extraction);
+  forged.data.partner_vendors[0]!.options[0]!.name = "원문에 없는 조작 옵션";
+  const rejected = await deriveValidatedPayloadForUnit(
+    unit,
+    forged,
+    { mode: "local_deterministic" },
+  );
+  assert.deepEqual(rejected.data.partner_vendors[0]?.options, []);
+  assert.ok(rejected.issues.some(({ code }) => code === "local_ungrounded_option_quarantined"));
+});
+
+test("merged vendor continuation base prices keep an exact bounded row descriptor through validation", async (t) => {
+  const fixture = await localValidationFixture([
+    "## 시트: 스튜디오",
+    "스튜디오!A2: ① 가격(VAT 포함)_스튜디오",
+    "스튜디오!A3: 사업자명",
+    "스튜디오!B3: 기본가격",
+    "병합 범위 B3:C3 · 좌상단 B3",
+    "스튜디오!A4: 아테소",
+    "스튜디오!B4: 오후정규<br>의상 5벌 / 6시간 촬영 / 원본수정본 포함<br>20P앨범, 20R액자, 모바일 5컷 / 야간촬영 포함<br>(4월~9월 14:30 시작 / 10월~3월 13:00 시작)",
+    "스튜디오!C4: 253만원",
+    "스튜디오!B5: 원데이<br>원본수정본 포함 / 20P앨범, 20R아크릴 액자, 모바일 5컷<br>2인 촬영 / 야간촬영 포함<br>(4월~9월 12시 시작 / 10월~3월 11시 시작)",
+    "스튜디오!C5: 385만원",
+    "스튜디오!B6: 5시간 촬영 (11월~2월 12시, 스타트 / 3월~10월 1시 스타트) / C타입 촬영이 없는날은 하루 두팀촬영 13시,16시 촬영가능 (11월~2월 12시, 15시)<br>20P+ 20R액자 / 원본수정본 포함 / 의상4벌기준 / 실내+가든촬영",
+    "스튜디오!C6: 180만원",
+    "병합 범위 A4:A6 · 좌상단 A4",
+  ].join("\n"));
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const extracted = await extractManifestLocally({ stateDir: fixture.stateDir });
+  const unit = extracted.manifest.units[0]!;
+  const extraction = await readJsonFile(
+    unit.local_extraction!.artifact_path,
+  ) as LocalDeterministicExtractionArtifact;
+
+  const replayed = await deriveValidatedPayloadForUnit(
+    unit,
+    extraction,
+    { mode: "local_deterministic" },
+  );
+
+  assert.deepEqual(
+    replayed.data.partner_vendors[0]?.options.map((option) => ({
+      name: option.name,
+      minimum: option.price_min_krw,
+      maximum: option.price_max_krw,
+    })),
+    [
+      { name: "오후정규", minimum: 2_530_000, maximum: 2_530_000 },
+      { name: "원데이", minimum: 3_850_000, maximum: 3_850_000 },
+      { name: "5시간 촬영", minimum: 1_800_000, maximum: 1_800_000 },
+    ],
+  );
+  assert.deepEqual(replayed.coverageGaps, []);
+  assert.equal(
+    replayed.issues.some(({ code }) => code === "local_ungrounded_option_quarantined"),
+    false,
+  );
 });
 
 test("local validation replays full XLSX merge context without weakening exact locators", async (t) => {

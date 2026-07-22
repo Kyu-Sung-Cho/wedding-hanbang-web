@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterPriceCatalog, type PriceVendor } from "./catalog";
+import { filterPriceCatalog, pricePolicyBadgeClass, type PriceVendor } from "./catalog";
 
 function vendor(
   id: string,
@@ -66,5 +66,19 @@ describe("filterPriceCatalog", () => {
 
     expect(filterPriceCatalog(vendors, { sort: "lowest_price" }).map(({ id }) => id))
       .toEqual(["2", "1", "3"]);
+  });
+});
+
+describe("pricePolicyBadgeClass", () => {
+  it("reserves danger styling for penalties and keeps other policy types calm", () => {
+    expect(pricePolicyBadgeClass("penalty")).toContain("danger");
+    expect(pricePolicyBadgeClass("refund")).toContain("sage");
+    expect(pricePolicyBadgeClass("change")).toContain("gold");
+    expect(pricePolicyBadgeClass("other")).toContain("ivory");
+    expect([
+      pricePolicyBadgeClass("refund"),
+      pricePolicyBadgeClass("change"),
+      pricePolicyBadgeClass("other"),
+    ]).not.toContain(pricePolicyBadgeClass("penalty"));
   });
 });

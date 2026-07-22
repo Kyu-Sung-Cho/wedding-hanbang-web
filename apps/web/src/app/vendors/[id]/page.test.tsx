@@ -63,6 +63,13 @@ describe("admin pending vendor detail", () => {
         aliases: [],
         category: "hall",
         regionCode: "seoul_gangnam3",
+        policies: [{
+          id: "policy-1",
+          type: "penalty",
+          title: null,
+          summary: "예약 뒤 취소하면 위약금이 적용됩니다.",
+          content: "예약 뒤 취소하면 공시된 시점별 위약금이 적용됩니다.",
+        }],
         offers: [
           {
             id: "price-1",
@@ -99,12 +106,15 @@ describe("admin pending vendor detail", () => {
     expect(mocks.loadAdminPreviewVendor).toHaveBeenCalledWith(serviceClient, "vendor-1");
     expect(mocks.resolveCanonicalVendorDestination).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
-    expect(markup).toContain("관리자 전용 미리보기 — 자동 추출·검수 전·정확성 미보장");
+    expect(markup).toContain("검수 전 미리보기 — 일반 사용자에게는 보이지 않음");
     expect(markup).toContain("업체·가격·연결 정보는 자동 추출 결과이며 정확성이 보장되지 않습니다.");
     expect(markup).toContain("자동 추출 가격 (검수 전)");
     expect(markup).toContain("검수 중 예식장");
     expect(markup).toContain("그랜드홀 대관료");
     expect(markup).toContain("그랜드홀 식대");
+    expect(markup).toContain("서울 강남권");
+    expect(markup).toContain("위약금 규정");
+    expect(markup).toContain("예약 뒤 취소하면 공시된 시점별 위약금이 적용됩니다.");
     expect(markup).toContain("/wedding/vendors?category=hall&amp;preview=1");
     expect(markup).toContain("ph-no-capture");
   });

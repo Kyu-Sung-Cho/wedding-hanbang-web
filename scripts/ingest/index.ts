@@ -7,7 +7,18 @@ import {
   LOCAL_DETERMINISTIC_PROVIDER_MODE,
 } from "./local-extraction-contract.js";
 import { extractManifestLocally } from "./local-extraction-runner.js";
-import { loadValidated } from "./load.js";
+import {
+  abortStagingRun,
+  authorizeStagingStorageUploadRetry,
+  completeStagingStorageRollback,
+  finalizeValidatedStagingRun,
+  invalidateStagingRun,
+  loadValidated,
+  prepareValidatedLocalPendingOnlyApply,
+  stagingEnvironment,
+  StagingRollbackIncompleteError,
+  StagingStorageIntentsUnsettledError,
+} from "./load.js";
 import { scanSources } from "./scan.js";
 import { scoreExtractionAgainstGroundTruth } from "./score.js";
 import { formatIngestStatus, getIngestStatus } from "./status.js";
@@ -72,7 +83,10 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "convert") {
-    const manifest = await convertManifest({ stateDir });
+    const manifest = await convertManifest({
+      stateDir,
+      windowsOcrReviewOnly: hasFlag(args, "--windows-ocr-review-only"),
+    });
     print({ command, status: await getIngestStatus({ stateDir }), units: manifest.units.length });
     return;
   }
@@ -95,12 +109,16 @@ async function main(): Promise<void> {
       throw new Error(`unknown_extract_operation:${extractPositionals[1]}`);
     }
     const localCandidateMode = extractOperation === "local-candidates";
+    const allowPaidReviewOnly = hasFlag(args, "--allow-paid-review-only");
     const limit = positiveInteger(optionValue(args, "--limit"), "--limit");
     const units = optionValue(args, "--units")
       ?.split(",")
       .map((value) => value.trim())
       .filter(Boolean);
     if (units && limit) throw new Error("--units와 --limit은 함께 사용할 수 없습니다.");
+    if (allowPaidReviewOnly && (!units || localCandidateMode)) {
+      throw new Error("--allow-paid-review-only requires explicit --units and cannot use local-candidates");
+    }
     if (
       hasFlagOrAssignment(args, "--plan")
       || hasFlagOrAssignment(args, "--paid-openai")
@@ -130,6 +148,7 @@ async function main(): Promise<void> {
       stateDir,
       ...(limit ? { limit } : {}),
       ...(units ? { unitIds: units } : {}),
+      ...(allowPaidReviewOnly ? { allowPaidReviewOnly: true } : {}),
     };
     const result = await extractManifestLocally(extractOptions);
     print({
@@ -206,19 +225,65 @@ async function main(): Promise<void> {
   if (command === "load") {
     const snapshot = optionValue(args, "--snapshot");
     if (!snapshot) throw new Error("load에는 --snapshot 2026Q3가 필요합니다.");
-    if (hasFlag(args, "--apply")) {
-      throw new Error("load_apply_blocked_pending_state_aware_batch_runner");
+    const apply = hasFlag(args, "--apply");
+    const prepareApply = hasFlag(args, "--prepare-apply");
+    if (apply && prepareApply) {
+      throw new Error("load cannot combine --prepare-apply and --apply");
+    }
+    if (prepareApply) {
+      const prepared = await prepareValidatedLocalPendingOnlyApply({
+        stateDir,
+        snapshot,
+        targetProjectRef: requiredOption(args, "--confirm-project-ref"),
+        startedAt: requiredOption(args, "--started-at"),
+      });
+      print({
+        command,
+        mode: "prepared-pending-only-apply",
+        snapshot,
+        target_project_ref: prepared.preparation.target_project_ref,
+        started_at: prepared.preparation.started_at,
+        manifest_sha256: prepared.preparation.manifest_sha256,
+        full_plan_sha256: prepared.preparation.full_plan_sha256,
+        authorization_sha256: prepared.preparation.authorization.authorization_sha256,
+        run_sha256: prepared.preparation.descriptor.run_sha256,
+        batch_count: prepared.preparation.batch_sha256s.length,
+        unit_count: prepared.plan.units.length,
+        review_status: "pending",
+        publish_allowed: false,
+      });
+      return;
     }
     const result = await loadValidated({
       stateDir,
       snapshot,
-      apply: false,
-      confirmProjectRef: optionValue(args, "--confirm-project-ref"),
-    });
+      apply,
+      confirmProjectRef: apply
+        ? requiredOption(args, "--confirm-project-ref")
+        : optionValue(args, "--confirm-project-ref"),
+      ...(apply
+        ? {
+          expectedFullPlanSha256: requiredOption(args, "--expected-full-plan-sha256"),
+          expectedAuthorizationSha256: requiredOption(args, "--expected-authorization-sha256"),
+          expectedRunSha256: requiredOption(args, "--expected-run-sha256"),
+        }
+        : {}),
+    }, apply ? { startedAt: requiredOption(args, "--started-at") } : {});
     print({
       command,
       mode: result.mode,
       snapshot,
+      ...(apply
+        ? {
+          full_plan_sha256: requiredOption(args, "--expected-full-plan-sha256"),
+          authorization_sha256: requiredOption(args, "--expected-authorization-sha256"),
+          run_sha256: requiredOption(args, "--expected-run-sha256"),
+          remote_run_status: "not_queried",
+          load_phase: "batch-receipts-verified",
+          ready_for_qa: true,
+          next_step: "finalize-staging-run",
+        }
+        : {}),
       plan: {
         units: result.plan.units.length,
         skipped_units: result.plan.skipped_units.length,
@@ -228,6 +293,119 @@ async function main(): Promise<void> {
         dedupe_candidates: result.plan.dedupe_candidates.length,
         ai_ledger_entries: result.plan.ai_ledger.length,
         warnings: result.plan.warnings,
+      },
+    });
+    return;
+  }
+  if (command === "finalize-staging-run") {
+    if (!hasFlag(args, "--apply-finalize")) {
+      throw new Error("finalize_staging_run_requires_explicit_apply_finalize_flag");
+    }
+    const snapshot = requiredOption(args, "--snapshot");
+    const result = await finalizeValidatedStagingRun({
+      stateDir,
+      snapshot,
+      confirmProjectRef: requiredOption(args, "--confirm-project-ref"),
+      expectedFullPlanSha256: requiredOption(args, "--expected-full-plan-sha256"),
+      expectedAuthorizationSha256: requiredOption(args, "--expected-authorization-sha256"),
+      expectedRunSha256: requiredOption(args, "--expected-run-sha256"),
+    }, {
+      startedAt: requiredOption(args, "--started-at"),
+    });
+    print({
+      command,
+      mode: "finalized",
+      snapshot,
+      target_project_ref: result.descriptor.target_project_ref,
+      full_plan_sha256: result.descriptor.full_plan_sha256,
+      authorization_sha256: result.descriptor.authorization_sha256,
+      run_sha256: result.descriptor.run_sha256,
+      completed_batch_count: result.batchRun.results.length,
+      database_run_status: "complete",
+    });
+    return;
+  }
+  if (command === "reconcile-staging-storage-upload") {
+    if (!hasFlag(args, "--confirm-no-inflight-upload")) {
+      throw new Error("storage_upload_reconciliation_requires_confirm_no_inflight_upload_flag");
+    }
+    const result = await authorizeStagingStorageUploadRetry({
+      stateDir,
+      fullPlanSha256: requiredOption(args, "--full-plan-sha256"),
+      targetProjectRef: requiredOption(args, "--confirm-project-ref"),
+      batchIndex: positiveInteger(requiredOption(args, "--batch-index"), "--batch-index")!,
+      objectIndex: positiveInteger(requiredOption(args, "--object-index"), "--object-index")!,
+      confirmedNoInflightAt: requiredOption(args, "--confirmed-no-inflight-at"),
+      reason: requiredOption(args, "--reason"),
+      confirmation: "no_inflight_upload_confirmed",
+    });
+    print({ command, mode: "manual-no-inflight-retry-authorized", result });
+    return;
+  }
+  if (command === "abort-staging-run") {
+    if (!hasFlag(args, "--apply-abort")) {
+      throw new Error("abort_staging_run_requires_explicit_apply_abort_flag");
+    }
+    const environment = stagingEnvironment(
+      process.env,
+      requiredOption(args, "--confirm-project-ref"),
+    );
+    let result;
+    try {
+      result = await abortStagingRun({
+        stateDir,
+        fullPlanSha256: requiredOption(args, "--full-plan-sha256"),
+        environment,
+        reason: requiredOption(args, "--reason"),
+      });
+    } catch (error) {
+      if (error instanceof StagingStorageIntentsUnsettledError) {
+        throw new Error(
+          `abort_staging_run_blocked_by_unsettled_storage_intents:${error.unsettledIntentCount ?? "unknown"}; resume the original exact load command, then retry abort`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+    print({ command, result });
+    return;
+  }
+  if (command === "complete-storage-rollback") {
+    if (!hasFlag(args, "--apply-completion")) {
+      throw new Error("complete_storage_rollback_requires_explicit_apply_completion_flag");
+    }
+    const environment = stagingEnvironment(
+      process.env,
+      requiredOption(args, "--confirm-project-ref"),
+    );
+    const result = await completeStagingStorageRollback({
+      stateDir,
+      fullPlanSha256: requiredOption(args, "--full-plan-sha256"),
+      environment,
+    });
+    print({ command, result });
+    return;
+  }
+  if (command === "invalidate-staging-run") {
+    if (!hasFlag(args, "--apply-invalidation")) {
+      throw new Error("invalidate_staging_run_requires_explicit_apply_invalidation_flag");
+    }
+    const environment = stagingEnvironment(
+      process.env,
+      requiredOption(args, "--confirm-project-ref"),
+    );
+    const result = await invalidateStagingRun({
+      stateDir,
+      fullPlanSha256: requiredOption(args, "--full-plan-sha256"),
+      environment,
+      reason: requiredOption(args, "--reason"),
+    });
+    print({
+      command,
+      result,
+      snapshot_lifecycle: {
+        state: "invalidated_audit_retained",
+        next_step: "Correct the local artifacts, rebuild validation/load evidence, then run load again with the same --snapshot and newly confirmed hashes. The prepare RPC will atomically supersede this run.",
       },
     });
     return;
@@ -247,11 +425,20 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "사용법: pnpm ingest <scan|convert|extract|validate|score|load|status|paid-execution-domain-init|paid-execution-domain-status> [옵션] (extract는 로컬 결정론적·0원·검수대기 전용)",
+    "사용법: pnpm ingest <scan|convert|extract|validate|score|load|finalize-staging-run|reconcile-staging-storage-upload|abort-staging-run|complete-storage-rollback|invalidate-staging-run|status|paid-execution-domain-init|paid-execution-domain-status> [옵션] (extract는 로컬 결정론적·0원·검수대기 전용)",
   );
 }
 
 main().catch((error: unknown) => {
+  if (error instanceof StagingRollbackIncompleteError) {
+    process.stderr.write(`${JSON.stringify({
+      error: error.name,
+      message: error.message,
+      result: error.result,
+    }, null, 2)}\n`);
+    process.exitCode = 2;
+    return;
+  }
   const message = error instanceof Error ? error.message : "알 수 없는 ingest 오류";
   process.stderr.write(`ingest 실패: ${message}\n`);
   process.exitCode = 1;

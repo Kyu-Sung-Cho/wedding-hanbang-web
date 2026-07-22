@@ -542,7 +542,7 @@ export function PriceExplorer({
           aria-label="관리자 미리보기 상태"
           className="border-b border-[#B89785]/35 bg-[#F7F1E8] px-4 py-3 text-center text-sm font-bold text-[#36534E] sm:px-6"
         >
-          관리자 전용 미리보기 — 자동 추출·검수 전·정확성 미보장
+          검수 전 미리보기 — 일반 사용자에게는 보이지 않음 · 자동 추출·정확성 미보장
         </div>
       ) : null}
       {surface === "app" ? (

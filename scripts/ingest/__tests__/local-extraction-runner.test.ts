@@ -9,19 +9,50 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { canonicalJsonSha256ExcludingField } from "../artifact-integrity.js";
+import { CONVERTER_VERSION } from "../convert.js";
+import { SOURCE_MONEY_SCANNER_VERSION } from "../extraction-contract.js";
 import { acquireExtractionLock } from "../extraction-lock.js";
 import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "../io.js";
+import {
+  LOCAL_DETERMINISTIC_ENGINE_HASH,
+  LOCAL_DETERMINISTIC_ENGINE_VERSION,
+  LOCAL_DETERMINISTIC_MODEL,
+} from "../local-extraction-contract.js";
 import {
   extractManifestLocally,
   selectLocalExtractionUnits,
   verifyCurrentLocalExtractionCacheForUnit,
 } from "../local-extraction-runner.js";
+import { SCANNER_PARSER_VERSION } from "../scan.js";
+import {
+  validateManifest,
+  verifyCurrentLocalValidatedArtifactForUnit,
+} from "../validate.js";
 import type { IngestManifest, ManifestUnit, SourceExtension } from "../types.js";
+import {
+  visualTranscriptionEvidenceId,
+  visualTranscriptionSidecarPath,
+} from "../visual-transcription-sidecar.js";
 
 const execFileAsync = promisify(execFile);
 const tsxImport = pathToFileURL(
   createRequire(path.join(process.cwd(), "package.json")).resolve("tsx"),
 ).href;
+
+test("local extraction cache identity is bound to the source-money scanner contract", () => {
+  assert.match(LOCAL_DETERMINISTIC_ENGINE_VERSION, /^v[1-9]\d+-/u);
+  assert.equal(
+    LOCAL_DETERMINISTIC_ENGINE_HASH,
+    sha256Text([
+      LOCAL_DETERMINISTIC_MODEL,
+      LOCAL_DETERMINISTIC_ENGINE_VERSION,
+      SOURCE_MONEY_SCANNER_VERSION,
+      "no-network",
+      "no-provider",
+      "pending-only",
+    ].join("\0")),
+  );
+});
 
 async function localFixture(stateDirOverride?: string): Promise<{
   rootDir: string;
@@ -60,7 +91,7 @@ async function localFixture(stateDirOverride?: string): Promise<{
   );
   const manifest: IngestManifest = {
     schema_version: 1,
-    scanner_parser_version: "fixture-scanner-v1",
+    scanner_parser_version: SCANNER_PARSER_VERSION,
     root_dir: rootDir,
     state_dir: stateDir,
     scanned_at: new Date(0).toISOString(),
@@ -85,7 +116,7 @@ async function localFixture(stateDirOverride?: string): Promise<{
       stage: "converted",
       notices: [],
       conversion: {
-        converter_version: "fixture-converter-v1",
+        converter_version: CONVERTER_VERSION,
         source_fingerprint: sourceFingerprint,
         text_artifacts: [convertedPath],
         image_artifacts: [],
@@ -98,6 +129,194 @@ async function localFixture(stateDirOverride?: string): Promise<{
   };
   await writeJsonFile(path.join(stateDir, "manifest.json"), manifest);
   return { rootDir, stateDir, rawPath, convertedPath, manifest };
+}
+
+async function ocrReviewFixture(sharedImageContent = true): Promise<{
+  rootDir: string;
+  stateDir: string;
+  ocrPath: string;
+  firstRawPath: string;
+  firstImagePath: string;
+  manifest: IngestManifest;
+}> {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "hanbang-local-ocr-provenance-"));
+  const rootDir = path.join(temporaryRoot, "raw");
+  const stateDir = path.join(temporaryRoot, "state");
+  const unitId = sha256Text("ambiguous-shared-ocr-unit");
+  const sourceFingerprint = sha256Text("ambiguous-shared-ocr-source-fingerprint");
+  const conversionRoot = path.join(stateDir, ".converted", unitId, sourceFingerprint);
+  const firstRawPath = path.join(rootDir, "hall", "seoul", "terms.pdf");
+  const secondRawPath = path.join(rootDir, "hall", "seoul", "prices.pdf");
+  const firstTextPath = path.join(conversionRoot, "1-pdf.txt");
+  const secondTextPath = path.join(conversionRoot, "2-pdf.txt");
+  const firstImagePath = path.join(conversionRoot, "1-pdf-pages", "page-1.png");
+  const secondImagePath = path.join(conversionRoot, "2-pdf-pages", "page-1.png");
+  const ocrPath = path.join(conversionRoot, "ocr-review", "001-ocr-review.txt");
+  await Promise.all([
+    mkdir(path.dirname(firstRawPath), { recursive: true }),
+    mkdir(path.dirname(firstTextPath), { recursive: true }),
+    mkdir(path.dirname(firstImagePath), { recursive: true }),
+    mkdir(path.dirname(secondImagePath), { recursive: true }),
+    mkdir(path.dirname(ocrPath), { recursive: true }),
+  ]);
+  await writeFile(firstRawPath, "immutable terms source", "utf8");
+  await writeFile(secondRawPath, "immutable price source", "utf8");
+  await writeFile(firstTextPath, "이용 약관", "utf8");
+  await writeFile(secondTextPath, "호텔 예식 가격표", "utf8");
+  await writeFile(firstImagePath, "same-raster-content", "utf8");
+  await writeFile(
+    secondImagePath,
+    sharedImageContent ? "same-raster-content" : "different-raster-content",
+    "utf8",
+  );
+  const sharedImageDigest = await sha256File(firstImagePath);
+  const ocrText = [
+    "[OCR_REVIEW_ONLY]",
+    "contract_version: fixture",
+    `source_image_sha256: ${sharedImageDigest.sha256}`,
+    "page: 1",
+    "engine_name: Windows.Media.Ocr",
+    "ocr:page:1:line:1: 공유 OCR 대관료 3,300,000원",
+  ].join("\n");
+  await writeFile(ocrPath, ocrText, "utf8");
+
+  const firstRawDigest = await sha256File(firstRawPath);
+  const secondRawDigest = await sha256File(secondRawPath);
+  const allArtifacts = [
+    firstTextPath,
+    secondTextPath,
+    firstImagePath,
+    secondImagePath,
+    ocrPath,
+  ].sort((left, right) => left.localeCompare(right, "en"));
+  const artifactFingerprint = sha256Text((await Promise.all(allArtifacts.map(async (artifactPath) => {
+    const digest = await sha256File(artifactPath);
+    return `${path.resolve(artifactPath)}\0${digest.sha256}`;
+  }))).join("\n"));
+  const manifest: IngestManifest = {
+    schema_version: 1,
+    scanner_parser_version: SCANNER_PARSER_VERSION,
+    root_dir: rootDir,
+    state_dir: stateDir,
+    scanned_at: new Date(0).toISOString(),
+    units: [{
+      unit_id: unitId,
+      display_name: "shared-ocr",
+      parsed: {
+        region_code: "seoul",
+        raw_name: "공유 OCR",
+        normalized_name: "공유 OCR",
+        corporate_name: null,
+        kind_hint: "hall",
+      },
+      source_files: [{
+        path: "hall/seoul/terms.pdf",
+        absolute_path: firstRawPath,
+        ext: "pdf",
+        sha256: firstRawDigest.sha256,
+        bytes: firstRawDigest.bytes,
+      }, {
+        path: "hall/seoul/prices.pdf",
+        absolute_path: secondRawPath,
+        ext: "pdf",
+        sha256: secondRawDigest.sha256,
+        bytes: secondRawDigest.bytes,
+      }],
+      source_fingerprint: sourceFingerprint,
+      stage: "converted",
+      notices: [],
+      conversion: {
+        converter_version: CONVERTER_VERSION,
+        source_fingerprint: sourceFingerprint,
+        text_artifacts: [firstTextPath, secondTextPath, ocrPath],
+        image_artifacts: [firstImagePath, secondImagePath],
+        text_characters: "이용 약관호텔 예식 가격표".length + ocrText.length,
+        cell_count: 0,
+        artifact_fingerprint: artifactFingerprint,
+        converted_at: new Date(0).toISOString(),
+        ocr_review: {
+          contract_version: "fixture",
+          contract_hash: "a".repeat(64),
+          language: "ko-KR",
+          review_only: true,
+          authoritative: false,
+          bulk_approval_eligible: false,
+          artifacts: [{
+            artifact_path: ocrPath,
+            source_image_sha256: sharedImageDigest.sha256,
+            page: 1,
+            engine_name: "Windows.Media.Ocr",
+            engine_version: "fixture",
+            engine_hash: "b".repeat(64),
+            line_count: 1,
+          }],
+        },
+      },
+    }],
+  };
+  await writeJsonFile(path.join(stateDir, "manifest.json"), manifest);
+  return { rootDir, stateDir, ocrPath, firstRawPath, firstImagePath, manifest };
+}
+
+async function writeUnconfirmedVisualSidecar(
+  fixture: Awaited<ReturnType<typeof ocrReviewFixture>>,
+  recordedAt: string,
+): Promise<{ sidecarPath: string; contentSha256: string }> {
+  const unit = fixture.manifest.units[0]!;
+  const source = unit.source_files[0]!;
+  const imageDigest = await sha256File(fixture.firstImagePath);
+  const sourceFileId = sha256Text(`${source.path}\0${source.sha256}`);
+  const evidenceId = visualTranscriptionEvidenceId({
+    source_file_id: sourceFileId,
+    image_sha256: imageDigest.sha256,
+    page: 1,
+  });
+  const sidecar = {
+    schema_version: 1 as const,
+    artifact_kind: "visual_transcription_sidecar" as const,
+    content_sha256: "0".repeat(64),
+    unit_id: unit.unit_id,
+    source_fingerprint: unit.source_fingerprint,
+    conversion_artifact_fingerprint: unit.conversion!.artifact_fingerprint,
+    source_files: unit.source_files.map((candidate) => ({
+      path: candidate.path,
+      sha256: candidate.sha256,
+      bytes: candidate.bytes,
+    })),
+    reviewer: {
+      kind: "codex_assisted_unconfirmed" as const,
+      recorded_at: recordedAt,
+    },
+    review_status: "pending" as const,
+    needs_review: true as const,
+    bulk_approval_eligible: false as const,
+    evidence: [{
+      evidence_id: evidenceId,
+      evidence_kind: "visual_transcription" as const,
+      source_file_id: sourceFileId,
+      source_sha256: source.sha256,
+      source_bytes: source.bytes,
+      image_artifact_index: 0,
+      image_sha256: imageDigest.sha256,
+      image_bytes: imageDigest.bytes,
+      page: 1,
+    }],
+    record_evidence: [],
+    coverage_gaps: [],
+    fragment: {
+      doc_kind: "unknown" as const,
+      agency_packages: [],
+      partner_vendors: [],
+      halls: [],
+      sections: [],
+      money_occurrences: [],
+    },
+    created_at: recordedAt,
+  };
+  sidecar.content_sha256 = canonicalJsonSha256ExcludingField(sidecar, "content_sha256");
+  const sidecarPath = visualTranscriptionSidecarPath(fixture.stateDir, unit);
+  await writeJsonFile(sidecarPath, sidecar);
+  return { sidecarPath, contentSha256: sidecar.content_sha256 };
 }
 
 function selectableUnit(
@@ -182,6 +401,163 @@ test("local selection refreshes a validated unit only when its engine is stale",
     selectLocalExtractionUnits(extracted.manifest, {}).map((row) => row.unit_id),
     [unit.unit_id],
   );
+});
+
+test("explicit units refreshes a validated unit when a verified visual sidecar is added", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const unit = validated.units[0]!;
+  assert.equal(unit.stage, "validated");
+  assert.equal(unit.local_extraction?.visual_transcription, undefined);
+  const previousFingerprint = unit.local_extraction!.fingerprint;
+
+  const sidecar = await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:00:00.000Z",
+  );
+  const defaultRun = await extractManifestLocally({ stateDir: fixture.stateDir });
+  assert.equal(defaultRun.selected_units, 0);
+  assert.equal(defaultRun.manifest.units[0]?.stage, "validated");
+  const refreshed = await extractManifestLocally({
+    stateDir: fixture.stateDir,
+    unitIds: [unit.unit_id],
+  });
+
+  assert.equal(refreshed.selected_units, 1);
+  assert.equal(refreshed.processed_units, 1);
+  assert.equal(refreshed.failed_units, 0);
+  assert.equal(refreshed.manifest.units[0]?.stage, "extracted");
+  assert.equal(
+    refreshed.manifest.units[0]?.local_extraction?.visual_transcription?.content_sha256,
+    sidecar.contentSha256,
+  );
+  assert.notEqual(refreshed.manifest.units[0]?.local_extraction?.fingerprint, previousFingerprint);
+  assert.equal(refreshed.manifest.units[0]?.validation, undefined);
+});
+
+test("explicit units refreshes a validated unit when the verified visual binding changes", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const initialSidecar = await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:00:00.000Z",
+  );
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const unit = validated.units[0]!;
+  assert.equal(unit.stage, "validated");
+  assert.equal(
+    unit.local_extraction?.visual_transcription?.content_sha256,
+    initialSidecar.contentSha256,
+  );
+  const previousFingerprint = unit.local_extraction!.fingerprint;
+
+  const changedSidecar = await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:01:00.000Z",
+  );
+  const refreshed = await extractManifestLocally({
+    stateDir: fixture.stateDir,
+    unitIds: [unit.unit_id],
+  });
+
+  assert.equal(refreshed.selected_units, 1);
+  assert.equal(refreshed.processed_units, 1);
+  assert.equal(refreshed.failed_units, 0);
+  assert.notEqual(changedSidecar.contentSha256, initialSidecar.contentSha256);
+  assert.equal(
+    refreshed.manifest.units[0]?.local_extraction?.visual_transcription?.content_sha256,
+    changedSidecar.contentSha256,
+  );
+  assert.notEqual(refreshed.manifest.units[0]?.local_extraction?.fingerprint, previousFingerprint);
+  assert.equal(refreshed.manifest.units[0]?.validation, undefined);
+});
+
+test("explicit units refreshes a validated unit when its visual sidecar is removed", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const sidecar = await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:00:00.000Z",
+  );
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const unit = validated.units[0]!;
+  assert.equal(unit.stage, "validated");
+  assert.equal(
+    unit.local_extraction?.visual_transcription?.content_sha256,
+    sidecar.contentSha256,
+  );
+  const previousFingerprint = unit.local_extraction!.fingerprint;
+
+  await rm(sidecar.sidecarPath);
+  const refreshed = await extractManifestLocally({
+    stateDir: fixture.stateDir,
+    unitIds: [unit.unit_id],
+  });
+
+  assert.equal(refreshed.selected_units, 1);
+  assert.equal(refreshed.processed_units, 1);
+  assert.equal(refreshed.failed_units, 0);
+  assert.equal(refreshed.manifest.units[0]?.local_extraction?.visual_transcription, undefined);
+  assert.notEqual(refreshed.manifest.units[0]?.local_extraction?.fingerprint, previousFingerprint);
+  assert.equal(refreshed.manifest.units[0]?.validation, undefined);
+});
+
+test("explicit stale refresh rejects an invalid visual sidecar content hash", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const sidecar = await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:00:00.000Z",
+  );
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const unit = validated.units[0]!;
+  assert.equal(unit.stage, "validated");
+
+  const tampered = await readJsonFile(sidecar.sidecarPath) as Record<string, unknown>;
+  tampered.created_at = "2026-07-22T00:02:00.000Z";
+  await writeJsonFile(sidecar.sidecarPath, tampered);
+  const manifestPath = path.join(fixture.stateDir, "manifest.json");
+  const manifestBefore = await readFile(manifestPath, "utf8");
+
+  await assert.rejects(
+    extractManifestLocally({
+      stateDir: fixture.stateDir,
+      unitIds: [unit.unit_id],
+    }),
+    /artifact content hash does not match/u,
+  );
+  assert.equal(await readFile(manifestPath, "utf8"), manifestBefore);
+});
+
+test("explicit stale refresh rejects a visual sidecar whose raw source changed", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  await writeUnconfirmedVisualSidecar(
+    fixture,
+    "2026-07-22T00:00:00.000Z",
+  );
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const unit = validated.units[0]!;
+  assert.equal(unit.stage, "validated");
+
+  await writeFile(fixture.firstRawPath, "changed after visual confirmation", "utf8");
+  const manifestPath = path.join(fixture.stateDir, "manifest.json");
+  const manifestBefore = await readFile(manifestPath, "utf8");
+
+  await assert.rejects(
+    extractManifestLocally({
+      stateDir: fixture.stateDir,
+      unitIds: [unit.unit_id],
+    }),
+    /local_source_changed:/u,
+  );
+  assert.equal(await readFile(manifestPath, "utf8"), manifestBefore);
 });
 
 test("local runner refuses a concurrent extraction without changing the manifest", async (t) => {
@@ -276,6 +652,115 @@ test("local runner stays zero-cost and creates only review-pending deterministic
   assert.match(data.extraction_notes, /^\[local_evidence_guard\]/u);
   assert.ok(data.partner_vendors.length > 0);
   assert.ok(data.partner_vendors.every((vendor) => vendor.needs_review && vendor.confidence <= 0.5));
+});
+
+test("local validation retries an error-stage artifact through verified local provenance", async (t) => {
+  const fixture = await localFixture();
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  await extractManifestLocally({ stateDir: fixture.stateDir });
+  const firstValidation = await validateManifest({ stateDir: fixture.stateDir });
+  assert.equal(firstValidation.units[0]?.stage, "validated");
+  assert.ok(firstValidation.units[0]?.validation);
+
+  firstValidation.units[0]!.stage = "error";
+  firstValidation.units[0]!.notices.push("pipeline_failed: stale validator fixture");
+  await writeJsonFile(path.join(fixture.stateDir, "manifest.json"), firstValidation);
+
+  const retried = await validateManifest({ stateDir: fixture.stateDir });
+  assert.equal(retried.units[0]?.stage, "validated", retried.units[0]?.notices.join(" | "));
+  assert.ok(retried.units[0]?.validation);
+  await verifyCurrentLocalValidatedArtifactForUnit(
+    retried.units[0]!,
+    retried,
+    fixture.stateDir,
+  );
+});
+
+test("ambiguous shared OCR stays in review artifacts but cannot feed extraction or validation", async (t) => {
+  const fixture = await ocrReviewFixture();
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+
+  const extracted = await extractManifestLocally({ stateDir: fixture.stateDir });
+  assert.equal(extracted.processed_units, 1);
+  const extractedUnit = extracted.manifest.units[0]!;
+  assert.ok(extractedUnit.notices.includes(
+    "local evidence review: ocr_shared_artifact_not_source_mapped:1",
+  ));
+  const extractionArtifact = await readJsonFile(
+    extractedUnit.local_extraction!.artifact_path,
+  ) as {
+    conversion_artifacts: Array<{ path: string }>;
+    data: {
+      extraction_notes: string;
+      money_occurrences: Array<{ krw: number }>;
+    };
+  };
+  assert.ok(extractionArtifact.conversion_artifacts.some((artifact) =>
+    path.resolve(artifact.path) === path.resolve(fixture.ocrPath)
+  ));
+  assert.match(
+    extractionArtifact.data.extraction_notes,
+    /\[provenance_review\] ocr_shared_artifact_not_source_mapped:1/u,
+  );
+  assert.equal(
+    extractionArtifact.data.money_occurrences.some((occurrence) => occurrence.krw === 3_300_000),
+    false,
+  );
+
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const validationArtifact = await readJsonFile(
+    validated.units[0]!.validation!.artifact_path,
+  ) as {
+    issues: Array<{ code: string }>;
+    coverage_gaps: Array<{ krw: number }>;
+  };
+  assert.ok(validationArtifact.issues.some((issue) =>
+    issue.code === "ocr_provenance_ambiguous_review_only"
+  ));
+  assert.equal(
+    validationArtifact.coverage_gaps.some((gap) => gap.krw === 3_300_000),
+    false,
+  );
+});
+
+test("source-mapped OCR review artifacts remain private review aids, never automatic money evidence", async (t) => {
+  const fixture = await ocrReviewFixture(false);
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+
+  const extracted = await extractManifestLocally({ stateDir: fixture.stateDir });
+  const extractedUnit = extracted.manifest.units[0]!;
+  assert.ok(extractedUnit.notices.includes(
+    "local evidence review: ocr_review_artifact_excluded:1",
+  ));
+  const extractionArtifact = await readJsonFile(
+    extractedUnit.local_extraction!.artifact_path,
+  ) as {
+    conversion_artifacts: Array<{ path: string }>;
+    data: { money_occurrences: Array<{ krw: number }> };
+  };
+  assert.ok(extractionArtifact.conversion_artifacts.some((artifact) =>
+    path.resolve(artifact.path) === path.resolve(fixture.ocrPath)
+  ));
+  assert.equal(
+    extractionArtifact.data.money_occurrences.some((occurrence) => occurrence.krw === 3_300_000),
+    false,
+  );
+
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  assert.equal(validated.units[0]?.stage, "validated");
+  const validationArtifact = await readJsonFile(
+    validated.units[0]!.validation!.artifact_path,
+  ) as {
+    issues: Array<{ code: string }>;
+    coverage_gaps: Array<{ krw: number }>;
+  };
+  assert.ok(validationArtifact.issues.some((issue) =>
+    issue.code === "ocr_evidence_review_only"
+  ));
+  assert.equal(
+    validationArtifact.coverage_gaps.some((gap) => gap.krw === 3_300_000),
+    false,
+  );
 });
 
 test("local runner refuses a source file changed after scan", async (t) => {
@@ -474,6 +959,74 @@ test("default local selection never replaces an existing paid extraction", async
   assert.equal(result.selected_units, 0);
   assert.deepEqual(result.manifest.units[0]?.extraction, metadataBefore);
   assert.equal(result.manifest.units[0]?.stage, "extracted");
+});
+
+test("an explicit paid review-only override preserves paid provenance and writes a pending local artifact", async (t) => {
+  const fixture = await localFixture();
+  t.after(() => rm(path.dirname(fixture.rootDir), { recursive: true, force: true }));
+  const unit = fixture.manifest.units[0]!;
+  unit.stage = "extracted";
+  unit.extraction = {
+    provider_mode: "production_paid",
+    paid_plan_sha256: "a".repeat(64),
+    fingerprint: "b".repeat(64),
+    content_sha256: "c".repeat(64),
+    source_fingerprint: unit.source_fingerprint,
+    artifact_fingerprint: unit.conversion!.artifact_fingerprint,
+    prompt_version: "v6",
+    prompt_hash: "d".repeat(64),
+    processing_version: "e".repeat(64),
+    scanner_parser_version: fixture.manifest.scanner_parser_version,
+    converter_version: unit.conversion!.converter_version,
+    model: "gpt-5.6-luna",
+    artifact_path: path.join(fixture.stateDir, ".cache", "extract", `${"b".repeat(64)}.json`),
+    cache_hit: true,
+    attempts: 1,
+    input_tokens: 123,
+    output_tokens: 45,
+    extracted_at: new Date(0).toISOString(),
+  };
+  await writeJsonFile(path.join(fixture.stateDir, "manifest.json"), fixture.manifest);
+  const paidMetadataBefore = structuredClone(unit.extraction);
+
+  const result = await extractManifestLocally({
+    stateDir: fixture.stateDir,
+    unitIds: [unit.unit_id],
+    allowPaidReviewOnly: true,
+  });
+
+  assert.equal(result.selected_units, 1);
+  assert.equal(result.processed_units, 1);
+  assert.equal(result.failed_units, 0);
+  assert.deepEqual(result.manifest.units[0]?.extraction, paidMetadataBefore);
+  assert.equal(result.manifest.units[0]?.local_extraction?.provider_mode, "local_deterministic");
+  assert.equal(result.manifest.units[0]?.local_extraction?.paid_review_only_override, true);
+  assert.equal(result.manifest.units[0]?.stage, "extracted");
+  const localArtifact = await readJsonFile(result.manifest.units[0]!.local_extraction!.artifact_path) as {
+    review_status: string;
+    needs_review: boolean;
+    bulk_approval_eligible: boolean;
+  };
+  assert.deepEqual(localArtifact, {
+    ...localArtifact,
+    review_status: "pending",
+    needs_review: true,
+    bulk_approval_eligible: false,
+  });
+
+  const validated = await validateManifest({ stateDir: fixture.stateDir });
+  const validatedUnit = validated.units[0]!;
+  assert.ok(["validated", "error"].includes(validatedUnit.stage));
+  assert.ok(validatedUnit.local_extraction);
+  assert.ok(validatedUnit.validation, validatedUnit.notices.join(" | "));
+  assert.equal(validatedUnit.local_extraction.paid_review_only_override, true);
+  const validationArtifact = await verifyCurrentLocalValidatedArtifactForUnit(
+    validatedUnit,
+    validated,
+    fixture.stateDir,
+  );
+  assert.equal(validationArtifact.review_status, "pending");
+  assert.equal(validationArtifact.bulk_approval_eligible, false);
 });
 
 test("the default extract CLI uses the local runner even with paid environment residue", async (t) => {

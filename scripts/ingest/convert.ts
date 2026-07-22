@@ -4,7 +4,6 @@ import { access, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm,
 import path from "node:path";
 import { TextDecoder } from "node:util";
 import JSZip from "jszip";
-import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
 import { SaxesParser } from "saxes";
 import * as XLSX from "xlsx";
@@ -13,10 +12,21 @@ import { sha256File, sha256Text, writeJsonFile } from "./io.js";
 import { loadManifest, saveManifest } from "./manifest.js";
 import type { IngestManifest, ManifestUnit } from "./types.js";
 import { encodeXlsxSheetName } from "./xlsx-aux-evidence.js";
+import {
+  createWindowsOcrReviewArtifacts,
+  WINDOWS_OCR_CONTRACT_HASH,
+  WINDOWS_OCR_CONTRACT_VERSION,
+  WindowsOcrReviewError,
+  type WindowsOcrReviewResult,
+  type WindowsOcrRunner,
+} from "./windows-ocr.js";
 
-export const CONVERTER_VERSION = "v8-xlsx-emf-notice-reconcile";
+export const PDF_LAYOUT_EVIDENCE_VERSION = 1;
+export const DOCX_TABLE_EVIDENCE_VERSION = 2;
+export const CONVERTER_VERSION = `v11-canonical-layout-evidence-pdf${PDF_LAYOUT_EVIDENCE_VERSION}-docx${DOCX_TABLE_EVIDENCE_VERSION}-windows-ocr-review-${WINDOWS_OCR_CONTRACT_HASH.slice(0, 12)}`;
 export const CONVERSION_FAILURE_IDENTITY_NOTICE_PREFIX = "convert_failure_identity:";
 const CONVERSION_CACHE_CLEANUP_BLOCKED_NOTICE_PREFIX = "convert_cache_cleanup_blocked:";
+const OCR_REVIEW_ONLY_NOTICE_PREFIX = "ocr_review_only:";
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/u;
 
 const HWP_GUIDANCE =
@@ -54,6 +64,11 @@ const MAX_DOCX_COMPRESSION_RATIO = 200;
 const MAX_DOCX_MEDIA_COUNT = 100;
 const MAX_DOCX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_DOCX_MEDIA_TOTAL_BYTES = 32 * 1024 * 1024;
+const MAX_DOCX_TABLES = 1_000;
+const MAX_DOCX_TABLE_ROWS = 100_000;
+const MAX_DOCX_TABLE_CELLS = 100_000;
+const MAX_DOCX_BODY_PARAGRAPHS = 100_000;
+const MAX_DOCX_SERIALIZED_TEXT_CHARACTERS = 2_000_000;
 const DOCX_RATIO_CHECK_MIN_BYTES = 64 * 1024;
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_EOCD_MIN_BYTES = 22;
@@ -141,6 +156,7 @@ function clearPriorConversionFailureNotices(unit: ManifestUnit): void {
     !notice.startsWith(CONVERSION_FAILURE_IDENTITY_NOTICE_PREFIX)
     && !notice.startsWith("convert 실패")
     && !notice.startsWith(PDF_RASTER_GUIDANCE)
+    && !notice.startsWith(OCR_REVIEW_ONLY_NOTICE_PREFIX)
     && notice !== OFFICE_MEDIA_FORMAT_GUIDANCE,
   );
 }
@@ -192,12 +208,14 @@ async function assertSourceSizeLimit(sourcePath: string, declaredBytes: number):
 
 export interface ConvertOptions {
   stateDir: string;
+  windowsOcrReviewOnly?: boolean;
 }
 
 export interface ConvertDependencies {
   extractPdfText?: (sourcePath: string) => Promise<string>;
   rasterizePdf?: (sourcePath: string, outputDirectory: string) => Promise<string[]>;
   rasterizeXlsxEmf?: XlsxEmfRasterizer;
+  windowsOcrRunner?: WindowsOcrRunner;
 }
 
 export type XlsxEmfRasterizer = (
@@ -259,6 +277,74 @@ async function artifactsMatchFingerprint(
     // check and hashing. Treat every such race as a cache miss.
     return false;
   }
+}
+
+interface PublishedConversionSnapshot {
+  conversion: NonNullable<ManifestUnit["conversion"]>;
+  extraction: ManifestUnit["extraction"];
+  validation: ManifestUnit["validation"];
+}
+
+async function capturePublishedConversionSnapshot(
+  unit: ManifestUnit,
+): Promise<PublishedConversionSnapshot | null> {
+  const conversion = unit.conversion;
+  if (
+    conversion === undefined
+    || conversion.source_fingerprint !== unit.source_fingerprint
+    || !await artifactsMatchFingerprint(
+      [...conversion.text_artifacts, ...conversion.image_artifacts],
+      conversion.artifact_fingerprint,
+    )
+  ) {
+    return null;
+  }
+  return {
+    conversion,
+    extraction: unit.extraction,
+    validation: unit.validation,
+  };
+}
+
+async function restorePublishedConversionSnapshot(
+  unit: ManifestUnit,
+  snapshot: PublishedConversionSnapshot | null,
+): Promise<boolean> {
+  if (
+    snapshot === null
+    || !await artifactsMatchFingerprint(
+      [
+        ...snapshot.conversion.text_artifacts,
+        ...snapshot.conversion.image_artifacts,
+      ],
+      snapshot.conversion.artifact_fingerprint,
+    )
+  ) {
+    return false;
+  }
+  unit.conversion = snapshot.conversion;
+  if (snapshot.extraction !== undefined) unit.extraction = snapshot.extraction;
+  if (snapshot.validation !== undefined) unit.validation = snapshot.validation;
+  return true;
+}
+
+function ocrReviewModeMatches(
+  conversion: NonNullable<ManifestUnit["conversion"]>,
+  enabled: boolean,
+): boolean {
+  const metadata = conversion.ocr_review;
+  if (!enabled) return metadata === undefined;
+  if (conversion.image_artifacts.length === 0) return metadata === undefined;
+  return metadata?.contract_version === WINDOWS_OCR_CONTRACT_VERSION
+    && metadata.contract_hash === WINDOWS_OCR_CONTRACT_HASH
+    && metadata.language === "ko-KR"
+    && metadata.review_only === true
+    && metadata.authoritative === false
+    && metadata.bulk_approval_eligible === false
+    && metadata.artifacts.length > 0
+    && metadata.artifacts.every((artifact) =>
+      conversion.text_artifacts.includes(artifact.artifact_path)
+    );
 }
 
 function isPathWithin(parentPath: string, candidatePath: string): boolean {
@@ -1694,6 +1780,385 @@ async function convertXlsx(
   return { textPath, textCharacters: completeMarkdown.length, cellCount, imagePaths };
 }
 
+const WORDPROCESSING_NAMESPACES = new Set([
+  "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+  "http://purl.oclc.org/ooxml/wordprocessingml/main",
+]);
+
+export interface DocxTableCellEvidence {
+  table: number;
+  row: number;
+  column: number;
+  locator: string;
+  text: string;
+  column_span: number;
+  vertical_merge: "restart" | "continue" | null;
+}
+
+export interface DocxTableSummary {
+  table: number;
+  rows: number;
+  columns: number;
+}
+
+export interface DocxBodyParagraphEvidence {
+  paragraph: number;
+  locator: string;
+  text: string;
+}
+
+export type DocxCanonicalEvidenceEntry =
+  | { kind: "body"; paragraph: DocxBodyParagraphEvidence }
+  | { kind: "table_cell"; cell: DocxTableCellEvidence };
+
+export interface DocxTableEvidence {
+  tables: DocxTableSummary[];
+  cells: DocxTableCellEvidence[];
+  bodyParagraphs: DocxBodyParagraphEvidence[];
+  orderedEntries: DocxCanonicalEvidenceEntry[];
+  evidenceText: string;
+}
+
+interface ActiveDocxCell {
+  textParts: string[];
+  columnSpan: number;
+  verticalMerge: "restart" | "continue" | null;
+  collectingText: boolean;
+}
+
+interface ActiveDocxRow {
+  row: number;
+  nextColumn: number;
+}
+
+interface ActiveDocxTable {
+  summary: DocxTableSummary;
+  row: ActiveDocxRow | null;
+  cell: ActiveDocxCell | null;
+}
+
+interface ActiveDocxBodyParagraph {
+  paragraph: number;
+  textParts: string[];
+  collectingText: boolean;
+}
+
+function normalizeDocxCellText(text: string): string {
+  return text
+    .replace(/\r\n?/gu, "\n")
+    .replace(/[ \t]+\n/gu, "\n")
+    .replace(/\n[ \t]+/gu, "\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+}
+
+function docxCellMetadataLine(metadata: Record<string, unknown>): string {
+  const payload = Buffer.from(JSON.stringify(metadata), "utf8").toString("base64url");
+  return `[DOCX_CELL_META] ${payload}`;
+}
+
+function parsePositiveDocxInteger(value: string | null, errorCode: string): number {
+  if (!value || !/^[1-9][0-9]*$/u.test(value)) {
+    throw new IngestConversionLimitError(errorCode);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > 16_384) {
+    throw new IngestConversionLimitError(errorCode);
+  }
+  return parsed;
+}
+
+function parseNonNegativeDocxInteger(value: string | null, errorCode: string): number {
+  if (!value || !/^(?:0|[1-9][0-9]*)$/u.test(value)) {
+    throw new IngestConversionLimitError(errorCode);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > 16_384) {
+    throw new IngestConversionLimitError(errorCode);
+  }
+  return parsed;
+}
+
+/**
+ * Builds the authoritative DOCX text stream directly from WordprocessingML.
+ * Paragraphs outside tables and table cells are disjoint physical scopes, so
+ * each source token occurs once instead of being repeated by a flattened
+ * compatibility rendering. Body locators are intentionally disjoint from the
+ * workbook `sheet!A1` grammar; only actual table cells enter workbook-aware
+ * ownership and row-context logic.
+ */
+export function extractDocxTableEvidenceFromXml(xml: string): DocxTableEvidence {
+  assertUtf8XmlDeclaration(xml, "docx_document_xml_encoding_unsupported");
+  const tables: DocxTableSummary[] = [];
+  const cells: DocxTableCellEvidence[] = [];
+  const bodyParagraphs: DocxBodyParagraphEvidence[] = [];
+  const orderedEntries: DocxCanonicalEvidenceEntry[] = [];
+  const activeTables: ActiveDocxTable[] = [];
+  const activeBodyParagraphs: ActiveDocxBodyParagraph[] = [];
+  let totalRows = 0;
+  let totalBodyParagraphs = 0;
+  let depth = 0;
+  let sawRoot = false;
+
+  parseXmlStrictly(xml, "docx_document_xml_malformed", (parser) => {
+    parser.on("doctype", () => {
+      throw new IngestConversionLimitError("docx_document_xml_doctype_forbidden");
+    });
+    parser.on("opentag", (tag) => {
+      if (depth === 0) {
+        if (!WORDPROCESSING_NAMESPACES.has(tag.uri) || tag.local !== "document") {
+          throw new IngestConversionLimitError("docx_document_xml_root_unsupported");
+        }
+        sawRoot = true;
+      }
+      depth += 1;
+      if (!WORDPROCESSING_NAMESPACES.has(tag.uri)) return;
+
+      if (tag.local === "tbl") {
+        if (tables.length >= MAX_DOCX_TABLES) {
+          throw new IngestConversionLimitError("docx_table_count_limit");
+        }
+        const summary = { table: tables.length + 1, rows: 0, columns: 0 };
+        tables.push(summary);
+        activeTables.push({ summary, row: null, cell: null });
+        return;
+      }
+
+      const activeTable = activeTables.at(-1);
+      if (!activeTable) {
+        if (tag.local === "p") {
+          totalBodyParagraphs += 1;
+          if (totalBodyParagraphs > MAX_DOCX_BODY_PARAGRAPHS) {
+            throw new IngestConversionLimitError("docx_body_paragraph_count_limit");
+          }
+          activeBodyParagraphs.push({
+            paragraph: totalBodyParagraphs,
+            textParts: [],
+            collectingText: false,
+          });
+          return;
+        }
+        const activeParagraph = activeBodyParagraphs.at(-1);
+        if (tag.local === "t" && activeParagraph) {
+          if (activeParagraph.collectingText) {
+            throw new IngestConversionLimitError("docx_body_text_structure_unsupported");
+          }
+          activeParagraph.collectingText = true;
+          return;
+        }
+        if (
+          (tag.local === "tab" || tag.local === "br" || tag.local === "cr")
+          && activeParagraph
+        ) {
+          activeParagraph.textParts.push(tag.local === "tab" ? "\t" : "\n");
+        }
+        return;
+      }
+      if (tag.local === "tr") {
+        if (activeTable.row || activeTable.cell) {
+          throw new IngestConversionLimitError("docx_table_structure_unsupported");
+        }
+        totalRows += 1;
+        if (totalRows > MAX_DOCX_TABLE_ROWS) {
+          throw new IngestConversionLimitError("docx_table_row_count_limit");
+        }
+        activeTable.summary.rows += 1;
+        activeTable.row = { row: activeTable.summary.rows, nextColumn: 0 };
+        return;
+      }
+      if (tag.local === "tc") {
+        if (!activeTable.row || activeTable.cell) {
+          throw new IngestConversionLimitError("docx_table_structure_unsupported");
+        }
+        activeTable.cell = {
+          textParts: [],
+          columnSpan: 1,
+          verticalMerge: null,
+          collectingText: false,
+        };
+        return;
+      }
+      if (tag.local === "gridBefore" && activeTable.row && !activeTable.cell) {
+        if (activeTable.row.nextColumn !== 0) {
+          throw new IngestConversionLimitError("docx_table_grid_before_invalid");
+        }
+        const attributes = tag.attributes as Record<string, { local: string; uri: string; value: string }>;
+        activeTable.row.nextColumn = parseNonNegativeDocxInteger(
+          xmlAttribute(attributes, "val", WORDPROCESSING_NAMESPACES),
+          "docx_table_grid_before_invalid",
+        );
+        return;
+      }
+      if (tag.local === "gridSpan" && activeTable.cell) {
+        const attributes = tag.attributes as Record<string, { local: string; uri: string; value: string }>;
+        activeTable.cell.columnSpan = parsePositiveDocxInteger(
+          xmlAttribute(attributes, "val", WORDPROCESSING_NAMESPACES),
+          "docx_table_grid_span_invalid",
+        );
+        return;
+      }
+      if (tag.local === "vMerge" && activeTable.cell) {
+        const attributes = tag.attributes as Record<string, { local: string; uri: string; value: string }>;
+        const value = xmlAttribute(attributes, "val", WORDPROCESSING_NAMESPACES);
+        if (value !== null && value !== "restart" && value !== "continue") {
+          throw new IngestConversionLimitError("docx_table_vertical_merge_invalid");
+        }
+        activeTable.cell.verticalMerge = value === "restart" ? "restart" : "continue";
+        return;
+      }
+      if (tag.local === "t" && activeTable.cell) {
+        if (activeTable.cell.collectingText) {
+          throw new IngestConversionLimitError("docx_table_text_structure_unsupported");
+        }
+        activeTable.cell.collectingText = true;
+        return;
+      }
+      if (
+        (tag.local === "tab" || tag.local === "br" || tag.local === "cr")
+        && activeTable.cell
+      ) {
+        activeTable.cell.textParts.push(tag.local === "tab" ? "\t" : "\n");
+      }
+    });
+
+    const appendText = (value: string): void => {
+      const activeCell = activeTables.at(-1)?.cell;
+      if (activeCell?.collectingText) {
+        activeCell.textParts.push(value);
+        return;
+      }
+      if (activeTables.length > 0) return;
+      const activeParagraph = activeBodyParagraphs.at(-1);
+      if (activeParagraph?.collectingText) activeParagraph.textParts.push(value);
+    };
+    parser.on("text", appendText);
+    parser.on("cdata", appendText);
+
+    parser.on("closetag", (tag) => {
+      if (WORDPROCESSING_NAMESPACES.has(tag.uri)) {
+        const activeTable = activeTables.at(-1);
+        if (tag.local === "t" && activeTable?.cell) {
+          if (!activeTable.cell.collectingText) {
+            throw new IngestConversionLimitError("docx_table_text_structure_unsupported");
+          }
+          activeTable.cell.collectingText = false;
+        } else if (tag.local === "p" && activeTable?.cell) {
+          activeTable.cell.textParts.push("\n");
+        } else if (tag.local === "tc") {
+          if (!activeTable?.row || !activeTable.cell || activeTable.cell.collectingText) {
+            throw new IngestConversionLimitError("docx_table_structure_unsupported");
+          }
+          if (cells.length >= MAX_DOCX_TABLE_CELLS) {
+            throw new IngestConversionLimitError("docx_table_cell_count_limit");
+          }
+          const column = activeTable.row.nextColumn + 1;
+          const columnSpan = activeTable.cell.columnSpan;
+          if (activeTable.row.nextColumn + columnSpan > 16_384) {
+            throw new IngestConversionLimitError("docx_table_column_limit");
+          }
+          const locator = `table:${activeTable.summary.table}!${XLSX.utils.encode_col(column - 1)}${activeTable.row.row}`;
+          const cell: DocxTableCellEvidence = {
+            table: activeTable.summary.table,
+            row: activeTable.row.row,
+            column,
+            locator,
+            text: normalizeDocxCellText(activeTable.cell.textParts.join("")),
+            column_span: columnSpan,
+            vertical_merge: activeTable.cell.verticalMerge,
+          };
+          cells.push(cell);
+          orderedEntries.push({ kind: "table_cell", cell });
+          activeTable.row.nextColumn += columnSpan;
+          activeTable.summary.columns = Math.max(
+            activeTable.summary.columns,
+            activeTable.row.nextColumn,
+          );
+          activeTable.cell = null;
+        } else if (tag.local === "tr") {
+          if (!activeTable?.row || activeTable.cell) {
+            throw new IngestConversionLimitError("docx_table_structure_unsupported");
+          }
+          activeTable.row = null;
+        } else if (tag.local === "tbl") {
+          if (!activeTable || activeTable.row || activeTable.cell) {
+            throw new IngestConversionLimitError("docx_table_structure_unsupported");
+          }
+          activeTables.pop();
+        } else if (!activeTable) {
+          const activeParagraph = activeBodyParagraphs.at(-1);
+          if (tag.local === "t" && activeParagraph) {
+            if (!activeParagraph.collectingText) {
+              throw new IngestConversionLimitError("docx_body_text_structure_unsupported");
+            }
+            activeParagraph.collectingText = false;
+          } else if (tag.local === "p") {
+            if (!activeParagraph || activeParagraph.collectingText) {
+              throw new IngestConversionLimitError("docx_body_text_structure_unsupported");
+            }
+            activeBodyParagraphs.pop();
+            const paragraph: DocxBodyParagraphEvidence = {
+              paragraph: activeParagraph.paragraph,
+              locator: `docx:body:p${activeParagraph.paragraph}`,
+              text: normalizeDocxCellText(activeParagraph.textParts.join("")),
+            };
+            if (paragraph.text) {
+              bodyParagraphs.push(paragraph);
+              orderedEntries.push({ kind: "body", paragraph });
+            }
+          }
+        }
+      }
+      depth -= 1;
+    });
+  });
+
+  if (
+    !sawRoot
+    || depth !== 0
+    || activeTables.length > 0
+    || activeBodyParagraphs.length > 0
+  ) {
+    throw new IngestConversionLimitError("docx_document_xml_malformed");
+  }
+
+  const evidenceLines: string[] = [];
+  for (const entry of orderedEntries) {
+    if (entry.kind === "body") {
+      evidenceLines.push(
+        `${entry.paragraph.locator}: ${escapeMarkdownCell(entry.paragraph.text)}`,
+      );
+      continue;
+    }
+    const { cell } = entry;
+    if (cell.text) {
+      // Keep the colon immediately after the workbook address. Existing local
+      // parsers can consume the cell without treating span metadata as part of
+      // the sheet name/address or source text.
+      evidenceLines.push(`${cell.locator}: ${escapeMarkdownCell(cell.text)}`);
+    }
+    if (cell.column_span > 1 || cell.vertical_merge !== null || !cell.text) {
+      const finalColumn = cell.column + cell.column_span - 1;
+      evidenceLines.push(docxCellMetadataLine({
+        version: DOCX_TABLE_EVIDENCE_VERSION,
+        locator: cell.locator,
+        table: cell.table,
+        row: cell.row,
+        column: cell.column,
+        span: cell.column_span > 1
+          ? `${XLSX.utils.encode_col(cell.column - 1)}${cell.row}:${XLSX.utils.encode_col(finalColumn - 1)}${cell.row}`
+          : null,
+        vertical_merge: cell.vertical_merge,
+        empty: !cell.text,
+      }));
+    }
+  }
+  const evidenceText = evidenceLines.join("\n");
+  if (evidenceText.length > MAX_DOCX_SERIALIZED_TEXT_CHARACTERS) {
+    throw new IngestConversionLimitError("docx_table_serialized_text_limit");
+  }
+  return { tables, cells, bodyParagraphs, orderedEntries, evidenceText };
+}
+
 async function convertDocx(
   sourcePath: string,
   outputDirectory: string,
@@ -1706,11 +2171,22 @@ async function convertDocx(
 }> {
   const source = await readFile(sourcePath);
   await assertDocxArchiveLimits(source);
-  const extracted = await mammoth.extractRawText({ buffer: source });
-  const text = extracted.value.trim();
+  const zip = await JSZip.loadAsync(source);
+  const documentEntry = zip.file("word/document.xml");
+  if (!documentEntry) {
+    throw new IngestConversionLimitError("docx_document_xml_missing");
+  }
+  const documentXml = decodeUtf8Xml(
+    await documentEntry.async("nodebuffer"),
+    "docx_document_xml_utf8_invalid",
+  );
+  const tableEvidence = extractDocxTableEvidenceFromXml(documentXml);
+  const text = tableEvidence.evidenceText;
+  if (text.length > MAX_DOCX_SERIALIZED_TEXT_CHARACTERS) {
+    throw new IngestConversionLimitError("docx_serialized_text_limit");
+  }
   const textPath = path.join(outputDirectory, `${index + 1}-doc.txt`);
   await writeFile(textPath, text, "utf8");
-  const zip = await JSZip.loadAsync(source);
   const mediaEntries = Object.values(zip.files)
     .filter((entry) => !entry.dir && /^word\/media\/[^/]+$/iu.test(entry.name))
     .sort((left, right) => left.name.localeCompare(right.name, "en"));
@@ -1738,7 +2214,7 @@ async function convertDocx(
     textPath,
     textCharacters: text.length,
     imagePaths,
-    notices: extracted.messages.map((message) => `DOCX ${message.type}: ${message.message}`),
+    notices: [],
   };
 }
 
@@ -1763,10 +2239,269 @@ export function validatePdfTextLimits(metadata: PdfTextLimitMetadata): void {
   }
 }
 
+export const PDF_LAYOUT_ROW_TOLERANCE_POINTS = 0.75;
+
+export interface PdfPositionedTextItem {
+  text: string;
+  x: number;
+  y: number;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface PdfPositionedTextPage {
+  page: number;
+  items: readonly PdfPositionedTextItem[];
+}
+
+export interface PdfLayoutItem {
+  text: string;
+  x: number;
+  y: number;
+  width: number | null;
+  height: number | null;
+}
+
+export interface PdfLayoutRow {
+  page: number;
+  row: number;
+  anchor_y: number;
+  items: PdfLayoutItem[];
+}
+
+export interface PdfLayoutTextEvidence {
+  orderedText: string;
+  evidenceText: string;
+  combinedText: string;
+  rows: PdfLayoutRow[];
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalPdfNumber(value: number, errorCode: string): number {
+  if (!Number.isFinite(value)) throw new IngestConversionLimitError(errorCode);
+  return Object.is(value, -0) ? 0 : value;
+}
+
+function optionalPdfNumber(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  return canonicalPdfNumber(value, "pdf_text_item_geometry_invalid");
+}
+
+function normalizePdfRowText(value: string): string {
+  return value
+    .replace(/\r\n?/gu, "\n")
+    .replace(/[\t\n\f\v]+/gu, " ")
+    .replace(/ {2,}/gu, " ")
+    .trim();
+}
+
+function formatPdfCoordinate(value: number): string {
+  return value.toFixed(3).replace(/(?:\.0+|(\.[0-9]*?)0+)$/u, "$1");
+}
+
+/**
+ * Builds a stable top-to-bottom, left-to-right representation of PDF.js text
+ * items. A row is anchored to its first (highest-y) item; comparing every
+ * later item to that fixed anchor deliberately prevents transitive y-chaining
+ * from joining separate visual rows.
+ */
+export function buildPdfLayoutTextEvidence(
+  inputPages: readonly PdfPositionedTextPage[],
+): PdfLayoutTextEvidence {
+  const pageItems = new Map<number, PdfLayoutItem[]>();
+  for (const inputPage of inputPages) {
+    if (
+      !Number.isSafeInteger(inputPage.page)
+      || inputPage.page < 1
+      || inputPage.page > MAX_PDF_PAGES
+    ) {
+      throw new IngestConversionLimitError("pdf_text_item_page_invalid");
+    }
+    const items = pageItems.get(inputPage.page) ?? [];
+    for (const inputItem of inputPage.items) {
+      if (typeof inputItem.text !== "string") {
+        throw new IngestConversionLimitError("pdf_text_item_text_invalid");
+      }
+      items.push({
+        text: inputItem.text,
+        x: canonicalPdfNumber(inputItem.x, "pdf_text_item_geometry_invalid"),
+        y: canonicalPdfNumber(inputItem.y, "pdf_text_item_geometry_invalid"),
+        width: optionalPdfNumber(inputItem.width),
+        height: optionalPdfNumber(inputItem.height),
+      });
+    }
+    pageItems.set(inputPage.page, items);
+  }
+
+  const rows: PdfLayoutRow[] = [];
+  for (const [page, items] of [...pageItems.entries()].sort(([left], [right]) => left - right)) {
+    const sortedItems = [...items].sort((left, right) =>
+      right.y - left.y
+      || left.x - right.x
+      || compareOrdinal(left.text, right.text)
+      || (left.width ?? -1) - (right.width ?? -1)
+      || (left.height ?? -1) - (right.height ?? -1)
+    );
+    const pageRows: Array<{ anchorY: number; items: PdfLayoutItem[] }> = [];
+    for (const item of sortedItems) {
+      // Items are already descending by y. If the newest row anchor is too
+      // far away, every older anchor is even farther away, so only the newest
+      // row can match. This keeps clustering linear after the initial sort.
+      const newestRow = pageRows.at(-1);
+      const matchingRow = newestRow
+        && Math.abs(newestRow.anchorY - item.y) <= PDF_LAYOUT_ROW_TOLERANCE_POINTS
+        ? newestRow
+        : undefined;
+      if (matchingRow) {
+        matchingRow.items.push(item);
+      } else {
+        pageRows.push({ anchorY: item.y, items: [item] });
+      }
+    }
+    for (const [rowIndex, pageRow] of pageRows.entries()) {
+      pageRow.items.sort((left, right) =>
+        left.x - right.x
+        || right.y - left.y
+        || compareOrdinal(left.text, right.text)
+        || (left.width ?? -1) - (right.width ?? -1)
+        || (left.height ?? -1) - (right.height ?? -1)
+      );
+      rows.push({
+        page,
+        row: rowIndex + 1,
+        anchor_y: pageRow.anchorY,
+        items: pageRow.items,
+      });
+    }
+  }
+
+  const orderedPages = new Map<number, string[]>();
+  for (const row of rows) {
+    const line = row.items
+      .map((item) => normalizePdfRowText(item.text))
+      .filter(Boolean)
+      .join("\t");
+    if (!line) continue;
+    const pageLines = orderedPages.get(row.page) ?? [];
+    pageLines.push(line);
+    orderedPages.set(row.page, pageLines);
+  }
+  const orderedText = [...orderedPages.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, lines]) => lines.join("\n"))
+    .join("\n\n");
+
+  const evidenceLines = rows.map((row) => {
+    const record = {
+      version: PDF_LAYOUT_EVIDENCE_VERSION,
+      page: row.page,
+      row: row.row,
+      anchor_y: row.anchor_y,
+      items: row.items.map((item, index) => ({
+        column: index + 1,
+        text: item.text,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+      })),
+    };
+    const payload = Buffer.from(JSON.stringify(record), "utf8").toString("base64url");
+    return `[PDF_LAYOUT_EVIDENCE_V${PDF_LAYOUT_EVIDENCE_VERSION} page=${row.page} row=${row.row} y=${formatPdfCoordinate(row.anchor_y)}] ${payload}`;
+  });
+  const evidenceText = evidenceLines.length > 0
+    ? [
+        `[PDF_LAYOUT_EVIDENCE_V${PDF_LAYOUT_EVIDENCE_VERSION}_BEGIN]`,
+        ...evidenceLines,
+        `[PDF_LAYOUT_EVIDENCE_V${PDF_LAYOUT_EVIDENCE_VERSION}_END]`,
+      ].join("\n")
+    : "";
+  const combinedText = [orderedText, evidenceText].filter(Boolean).join("\n\n");
+  validatePdfTextLimits({ pageCount: null, textCharacters: combinedText.length });
+  return { orderedText, evidenceText, combinedText, rows };
+}
+
 async function defaultExtractPdfText(sourcePath: string): Promise<string> {
-  const parsed = await pdfParse(await readFile(sourcePath), { max: MAX_PDF_PAGES + 1 });
+  const positionedPages: PdfPositionedTextPage[] = [];
+  let fallbackPageNumber = 0;
+  let pageRenderError: unknown = null;
+  const parsed = await pdfParse(await readFile(sourcePath), {
+    max: MAX_PDF_PAGES + 1,
+    pagerender: async (pageData: unknown) => {
+      try {
+        fallbackPageNumber += 1;
+        const pageRecord = pageData as {
+          pageNumber?: unknown;
+          getTextContent?: (options?: Record<string, unknown>) => Promise<{ items?: unknown[] }>;
+        };
+        if (typeof pageRecord.getTextContent !== "function") {
+          throw new IngestConversionLimitError("pdf_text_content_api_unavailable");
+        }
+        const content = await pageRecord.getTextContent({
+          normalizeWhitespace: false,
+          disableCombineTextItems: false,
+        });
+        const positionedItems: PdfPositionedTextItem[] = [];
+        let fallbackText = "";
+        let lastFallbackY: number | undefined;
+        for (const unknownItem of content.items ?? []) {
+          const item = unknownItem as {
+            str?: unknown;
+            transform?: unknown;
+            width?: unknown;
+            height?: unknown;
+          };
+          if (typeof item.str !== "string") continue;
+          const itemY = Array.isArray(item.transform) && Number.isFinite(item.transform[5])
+            ? Number(item.transform[5])
+            : undefined;
+          if (fallbackText && lastFallbackY !== undefined && itemY !== lastFallbackY) {
+            fallbackText += "\n";
+          } else if (fallbackText && itemY === undefined) {
+            fallbackText += " ";
+          }
+          fallbackText += item.str;
+          lastFallbackY = itemY;
+          if (
+            !Array.isArray(item.transform)
+            || !Number.isFinite(item.transform[4])
+            || !Number.isFinite(item.transform[5])
+          ) {
+            continue;
+          }
+          positionedItems.push({
+            text: item.str,
+            x: Number(item.transform[4]),
+            y: Number(item.transform[5]),
+            width: typeof item.width === "number" && Number.isFinite(item.width) ? item.width : null,
+            height: typeof item.height === "number" && Number.isFinite(item.height) ? item.height : null,
+          });
+        }
+        const declaredPageNumber = Number(pageRecord.pageNumber);
+        const page = Number.isSafeInteger(declaredPageNumber) && declaredPageNumber > 0
+          ? declaredPageNumber
+          : fallbackPageNumber;
+        positionedPages.push({ page, items: positionedItems });
+        // pdf-parse still needs a string from pagerender. This reproduces its
+        // historical y-change fallback for malformed/legacy unpositioned text.
+        return fallbackText;
+      } catch (error) {
+        // pdf-parse 1.x swallows pagerender failures. Capture and rethrow after
+        // it returns so conversion cannot silently publish an incomplete PDF.
+        pageRenderError ??= error;
+        return "";
+      }
+    },
+  });
+  if (pageRenderError) throw pageRenderError;
   validatePdfTextLimits({ pageCount: parsed.numpages, textCharacters: parsed.text.length });
-  return parsed.text;
+  const layout = buildPdfLayoutTextEvidence(positionedPages);
+  const text = layout.rows.length > 0 ? layout.combinedText : parsed.text;
+  validatePdfTextLimits({ pageCount: parsed.numpages, textCharacters: text.length });
+  return text;
 }
 
 export interface PdfRasterArtifactMetadata {
@@ -1986,18 +2721,14 @@ export async function convertManifest(
       manualQueue.push({ unit_id: unit.unit_id, source_file: source.path, instruction: HWP_GUIDANCE });
     }
 
+    const publishedSnapshot = await capturePublishedConversionSnapshot(unit);
+
     if (
-      unit.conversion?.source_fingerprint === unit.source_fingerprint
-      && unit.conversion.converter_version === CONVERTER_VERSION
+      publishedSnapshot !== null
+      && publishedSnapshot.conversion.converter_version === CONVERTER_VERSION
+      && ocrReviewModeMatches(publishedSnapshot.conversion, options.windowsOcrReviewOnly === true)
       && unit.stage !== "needs_manual_conversion"
       && unit.stage !== "error"
-      && await artifactsMatchFingerprint(
-        [
-          ...unit.conversion.text_artifacts,
-          ...unit.conversion.image_artifacts,
-        ],
-        unit.conversion.artifact_fingerprint,
-      )
     ) {
       continue;
     }
@@ -2021,7 +2752,9 @@ export async function convertManifest(
         category,
         `convert 실패: output_directory (${category})`,
       );
-      await invalidateGeneratedConversionCache(options.stateDir, unit);
+      if (!await restorePublishedConversionSnapshot(unit, publishedSnapshot)) {
+        await invalidateGeneratedConversionCache(options.stateDir, unit);
+      }
       continue;
     }
     const outputDirectory = publication.stagingDirectory;
@@ -2031,6 +2764,7 @@ export async function convertManifest(
     let cellCount = 0;
     let requiresManualPdf = false;
     let conversionFailed = false;
+    let ocrReview: WindowsOcrReviewResult | undefined;
 
     for (const [index, source] of convertibleFiles.entries()) {
       try {
@@ -2101,9 +2835,52 @@ export async function convertManifest(
         break;
       }
     }
+    if (
+      !conversionFailed
+      && options.windowsOcrReviewOnly === true
+      && imageArtifacts.length > 0
+    ) {
+      try {
+        const rawSourceHashes = new Map(unit.source_files.map((source) => [
+          path.resolve(source.absolute_path).toLocaleLowerCase("en-US"),
+          source.sha256,
+        ]));
+        const images = await Promise.all(imageArtifacts.map(async (imagePath, index) => ({
+          imagePath,
+          expectedSha256: rawSourceHashes.get(
+            path.resolve(imagePath).toLocaleLowerCase("en-US"),
+          ) ?? (await sha256File(imagePath)).sha256,
+          page: index + 1,
+        })));
+        ocrReview = await createWindowsOcrReviewArtifacts({
+          images,
+          outputDirectory: path.join(outputDirectory, "ocr-review"),
+        }, dependencies.windowsOcrRunner);
+        textArtifacts.push(...ocrReview.artifacts.map((artifact) => artifact.artifact_path));
+        textCharacters += ocrReview.text_characters;
+        unit.notices = Array.from(new Set([
+          ...unit.notices,
+          `${OCR_REVIEW_ONLY_NOTICE_PREFIX}Windows.Media.Ocr ko-KR evidence requires visual human verification and is excluded from automatic or bulk approval`,
+        ]));
+      } catch (error) {
+        conversionFailed = true;
+        const category = error instanceof WindowsOcrReviewError
+          ? error.code
+          : error instanceof Error
+            ? error.name
+            : "unknown";
+        recordConversionFailure(
+          unit,
+          category,
+          `convert failed (windows-ocr-review): ${category}`,
+        );
+      }
+    }
     if (conversionFailed) {
       await discardConversionPublication(publication);
-      await invalidateGeneratedConversionCache(options.stateDir, unit);
+      if (!await restorePublishedConversionSnapshot(unit, publishedSnapshot)) {
+        await invalidateGeneratedConversionCache(options.stateDir, unit);
+      }
       continue;
     }
     if (textArtifacts.length > 0 || imageArtifacts.length > 0) {
@@ -2111,6 +2888,20 @@ export async function convertManifest(
         publishedArtifactPath(artifactPath, publication));
       const publishedImageArtifacts = imageArtifacts.map((artifactPath) =>
         publishedArtifactPath(artifactPath, publication));
+      const publishedOcrReview = ocrReview
+        ? {
+            contract_version: ocrReview.contract_version,
+            contract_hash: ocrReview.contract_hash,
+            language: ocrReview.language,
+            review_only: ocrReview.review_only,
+            authoritative: ocrReview.authoritative,
+            bulk_approval_eligible: ocrReview.bulk_approval_eligible,
+            artifacts: ocrReview.artifacts.map((artifact) => ({
+              ...artifact,
+              artifact_path: publishedArtifactPath(artifact.artifact_path, publication),
+            })),
+          }
+        : undefined;
       let publishAttempted = false;
       try {
         const fingerprint = await artifactFingerprint(
@@ -2128,6 +2919,7 @@ export async function convertManifest(
           cell_count: cellCount,
           artifact_fingerprint: fingerprint,
           converted_at: new Date().toISOString(),
+          ...(publishedOcrReview ? { ocr_review: publishedOcrReview } : {}),
         };
         unit.stage = requiresManualPdf || unconvertedHwpFiles.length > 0
           ? "needs_manual_conversion"
@@ -2145,7 +2937,9 @@ export async function convertManifest(
           category,
           `convert 실패: artifact_publish (${category})`,
         );
-        await invalidateGeneratedConversionCache(options.stateDir, unit);
+        if (!await restorePublishedConversionSnapshot(unit, publishedSnapshot)) {
+          await invalidateGeneratedConversionCache(options.stateDir, unit);
+        }
       }
     } else {
       await discardConversionPublication(publication);

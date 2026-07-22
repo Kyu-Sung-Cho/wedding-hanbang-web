@@ -44,6 +44,9 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
+  const vendorAdminPreview = (
+    pathname === "/wedding/vendors" || pathname.startsWith("/wedding/vendors/")
+  ) && searchParams.get("preview") === "1";
 
   usePageViewTracker(isInitialized && !isDemo && !analyticsSuppressed);
   useAuthSessionSync(!isDemo);
@@ -90,7 +93,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
         )}
       </div>
 
-      {!isChatPage && (
+      {!isChatPage && !vendorAdminPreview && (
         <GlobalChatAssistant />
       )}
     </div>

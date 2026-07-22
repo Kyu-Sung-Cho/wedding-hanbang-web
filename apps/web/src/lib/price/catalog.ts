@@ -25,6 +25,38 @@ export type PriceOffer = {
   options: PriceOption[];
 };
 
+export type PricePolicyType = "penalty" | "refund" | "change" | "other";
+
+export type PricePolicy = {
+  id: string;
+  type: PricePolicyType;
+  title: string | null;
+  summary: string | null;
+  content: string;
+};
+
+const PRICE_POLICY_LABELS: Record<PricePolicyType, string> = {
+  penalty: "위약금 규정",
+  refund: "환불 규정",
+  change: "변경 규정",
+  other: "기타 계약 규정",
+};
+
+export function pricePolicyLabel(type: PricePolicyType): string {
+  return PRICE_POLICY_LABELS[type];
+}
+
+const PRICE_POLICY_BADGE_CLASSES: Record<PricePolicyType, string> = {
+  penalty: "bg-danger-500/10 text-danger-700",
+  refund: "bg-sage-pale/45 text-noir-800",
+  change: "bg-gold-light/55 text-taupe-500",
+  other: "bg-ivory-200 text-taupe-500",
+};
+
+export function pricePolicyBadgeClass(type: PricePolicyType): string {
+  return PRICE_POLICY_BADGE_CLASSES[type];
+}
+
 export type PriceVendor = {
   id: string;
   slug: string;
@@ -33,6 +65,7 @@ export type PriceVendor = {
   category: PriceCategory;
   regionCode: string | null;
   offers: PriceOffer[];
+  policies?: PricePolicy[];
 };
 
 export type PriceCatalog = {

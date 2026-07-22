@@ -132,11 +132,13 @@ describe("AppClientLayout global Amora panel", () => {
 
     expect(mocks.pageViewCalls.at(-1)).toBe(false);
     expect(container.querySelector(".ph-no-capture")).not.toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
 
     mocks.searchParams = new URLSearchParams();
     await renderLayout();
 
     expect(mocks.pageViewCalls.at(-1)).toBe(true);
     expect(container.querySelector(".ph-no-capture")).toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).not.toBeNull();
   });
 });

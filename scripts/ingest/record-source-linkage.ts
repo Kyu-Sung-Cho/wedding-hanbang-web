@@ -249,7 +249,7 @@ function parseWorkbookCells(lines: readonly string[]): WorkbookCell[] {
       || !Number.isSafeInteger(column)
       || column < 1
     ) continue;
-    const sheet = match[1].normalize("NFKC");
+    const sheet = match[1].trim().normalize("NFKC");
     cells.push({
       locator: `${sheet}!${match[2].toUpperCase()}`,
       sheet,
@@ -416,7 +416,7 @@ function parseXlsxQuote(value: string): { locator: string; payload: string } | n
     return null;
   }
   return {
-    locator: `${match[1].normalize("NFKC")}!${match[2].toUpperCase()}`,
+    locator: `${match[1].trim().normalize("NFKC")}!${match[2].toUpperCase()}`,
     payload,
   };
 }
@@ -532,6 +532,7 @@ function resolveSingleEvidence(
 function resolveEvidence(
   quoteValue: string,
   index: SourceEvidenceIndex,
+  sourceIndexesByFileId?: ReadonlyMap<string, SourceEvidenceIndex>,
 ): EvidenceResolution {
   const cached = index.resolutionCache.get(quoteValue);
   if (cached !== undefined) return cached;
@@ -550,7 +551,12 @@ function resolveEvidence(
     evidence: ResolvedEvidence;
   }> = [];
   for (const fragment of decoded.fragments) {
-    const resolved = resolveSingleEvidence(fragment.quote, index);
+    const fragmentIndex = sourceIndexesByFileId?.get(fragment.source_file_id);
+    if (sourceIndexesByFileId !== undefined && fragmentIndex === undefined) {
+      index.resolutionCache.set(quoteValue, "source_locator_invalid");
+      return "source_locator_invalid";
+    }
+    const resolved = resolveSingleEvidence(fragment.quote, fragmentIndex ?? index);
     if (typeof resolved === "string") {
       index.resolutionCache.set(quoteValue, resolved);
       return resolved;
@@ -651,11 +657,14 @@ function pricedEvidenceReferences(
  * source_file_id provenance and numeric-price evidence checks. Merged evidence
  * is checked fragment-by-fragment and is additionally confined to one source
  * file and one contiguous line/XLSX record scope here. No nearby prose or fuzzy
- * heading inference is used.
+ * heading inference is used. When source-scoped text is supplied, merged
+ * `line:N` locators are resolved inside the fragment's declared source file,
+ * rather than against an unrelated global concatenation offset.
  */
 export function validateStructuredRecordSourceLinkage(
   data: DisclosureExtraction,
   sourceText: string,
+  sourceTextByFileId?: ReadonlyMap<string, string>,
 ): StructuredRecordSourceLinkageError[] {
   if (sourceText.length > MAX_STRUCTURED_LINKAGE_SOURCE_CHARACTERS) {
     return [linkageError("$", "source_evidence_limit_exceeded", null)];
@@ -669,6 +678,12 @@ export function validateStructuredRecordSourceLinkage(
     }
   }
   const sourceIndex = buildSourceEvidenceIndex(sourceText);
+  const sourceIndexesByFileId = sourceTextByFileId === undefined
+    ? undefined
+    : new Map([...sourceTextByFileId.entries()].map(([sourceFileId, text]) => [
+      sourceFileId,
+      buildSourceEvidenceIndex(text),
+    ]));
   const errors: StructuredRecordSourceLinkageError[] = [];
   for (const [packageIndex, agencyPackage] of data.agency_packages.entries()) {
     const references = pricedEvidenceReferences(
@@ -678,7 +693,11 @@ export function validateStructuredRecordSourceLinkage(
       agencyPackage.options,
     );
     for (const reference of references) {
-      const evidence = resolveEvidence(reference.sourceQuote, sourceIndex);
+      const evidence = resolveEvidence(
+        reference.sourceQuote,
+        sourceIndex,
+        sourceIndexesByFileId,
+      );
       if (typeof evidence === "string") {
         errors.push(linkageError(reference.path, evidence, null));
         continue;
@@ -723,7 +742,11 @@ export function validateStructuredRecordSourceLinkage(
       vendor.options,
     );
     for (const reference of references) {
-      const evidence = resolveEvidence(reference.sourceQuote, sourceIndex);
+      const evidence = resolveEvidence(
+        reference.sourceQuote,
+        sourceIndex,
+        sourceIndexesByFileId,
+      );
       if (typeof evidence === "string") {
         errors.push(linkageError(reference.path, evidence, null));
         continue;
@@ -763,7 +786,11 @@ export function validateStructuredRecordSourceLinkage(
     }
     for (const [policyIndex, policy] of (vendor.policies ?? []).entries()) {
       const path = `partner_vendors[${partnerIndex}].policies[${policyIndex}].source_quote`;
-      const evidence = resolveEvidence(policy.source_quote, sourceIndex);
+      const evidence = resolveEvidence(
+        policy.source_quote,
+        sourceIndex,
+        sourceIndexesByFileId,
+      );
       if (typeof evidence === "string") {
         errors.push(linkageError(path, evidence, null));
         continue;
@@ -832,7 +859,11 @@ export function validateStructuredRecordSourceLinkage(
         errors.push(linkageError(reference.path, "hall_identity_missing", null));
         continue;
       }
-      const evidence = resolveEvidence(reference.sourceQuote, sourceIndex);
+      const evidence = resolveEvidence(
+        reference.sourceQuote,
+        sourceIndex,
+        sourceIndexesByFileId,
+      );
       if (typeof evidence === "string") {
         errors.push(linkageError(reference.path, evidence, null));
         continue;
@@ -888,7 +919,11 @@ export function validateStructuredRecordSourceLinkage(
       errors.push(linkageError(reference.path, "hall_identity_missing", null));
       continue;
     }
-    const evidence = resolveEvidence(reference.sourceQuote, sourceIndex);
+    const evidence = resolveEvidence(
+      reference.sourceQuote,
+      sourceIndex,
+      sourceIndexesByFileId,
+    );
     if (typeof evidence === "string") {
       errors.push(linkageError(reference.path, evidence, null));
       continue;

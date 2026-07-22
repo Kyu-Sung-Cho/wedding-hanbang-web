@@ -1,0 +1,2913 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "visual_transcription_sidecar",
+  "content_sha256": "8540a048d8973664d7f18baf4c113f58e8fdbf1bd4892697dd6e1e4c38f6c2e1",
+  "unit_id": "9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7",
+  "source_fingerprint": "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0",
+  "conversion_artifact_fingerprint": "dc828cdb0c4c0d18047ef66919a4ada5c615b5b14a863f32792a0143825c2d59",
+  "source_files": [
+    {
+      "path": "결혼준비대행서비스/강원도/(강원도)_메이브라이드.png",
+      "sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+      "bytes": 51160
+    }
+  ],
+  "reviewer": {
+    "kind": "human_confirmed",
+    "recorded_at": "2026-07-21T18:57:22.629Z",
+    "confirmation": {
+      "overlay_artifact_relative_path": "fixed-eight-ground-truth-overlay-v3-canonical-visual.json",
+      "source_ground_truth_sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+      "overlay_entry_sha256": "fdf3fa38f0a97924906407a65f87c0d5c23065d8c2452ca7e48d06a536b9d30f",
+      "approval_reference": "user-chat-ground-truth-elevation-2026-07-20",
+      "locator_migration": {
+        "contract_version": "page-to-image-v1",
+        "derived_overlay_content_sha256": "6d964ad595fe141fc67e53a926b2dc25dec83cb202a1df7667c8deda7d7269c9",
+        "transformed_locator_count": 22,
+        "transformed_unit_count": 1
+      }
+    },
+    "approved_text_blocks": [
+      {
+        "id": "may-identity",
+        "source_locator": "image:1/MAY-BRIDE-&-TERRACE/header",
+        "normalized_content": "MAY BRIDE & TERRACE",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "d93823b11a0b0d6924b5b8acadd2eaab41a6c56b8d7d11e4d954f5ae6b5e1fc8"
+      },
+      {
+        "id": "may-vat",
+        "source_locator": "image:1/VAT포함",
+        "normalized_content": "※ 모든 금액 VAT포함",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "061a9334808d88ecabb9aeda2e6460fd0c20a2493f986c16bc1520484e0e8b57"
+      },
+      {
+        "id": "may-rehearsal-header",
+        "source_locator": "image:1/리허설촬영구성/header",
+        "normalized_content": "리허설 | 촬영 | 구성",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "9237612c4310336978da83f7ab1f46d0640e737f59dac53e86d9a02be0f6cb92"
+      },
+      {
+        "id": "may-rehearsal-0",
+        "source_locator": "image:1/리허설촬영구성/액자촬영",
+        "normalized_content": "액자촬영(H10) 600,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "55d0f7ee73a8e7f83d2eb97802cdc6e1a4285840355c26e277db5167b2384333"
+      },
+      {
+        "id": "may-rehearsal-1",
+        "source_locator": "image:1/리허설촬영구성/세미10P",
+        "normalized_content": "세미 10P (H10) 1,100,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "fe05ba148cc65f4d93094d2681906e4a2d08a3e79436ab94690854275dbfa242"
+      },
+      {
+        "id": "may-rehearsal-2",
+        "source_locator": "image:1/리허설촬영구성/웨딩20P",
+        "normalized_content": "웨딩 20P (H15) 1,600,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "ba47948cfcd01979c32452675afaa157a1cd2ed77922631226590eabff3ebb23"
+      },
+      {
+        "id": "may-rehearsal-3",
+        "source_locator": "image:1/리허설촬영구성/웨딩30P",
+        "normalized_content": "웨딩 30P (H15) 2,100,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "0c932358b94c6ea8b8f824e1d607bf193e163eaaec2af2da79c33824d21a1024"
+      },
+      {
+        "id": "may-wedding",
+        "source_locator": "image:1/웨딩구성",
+        "normalized_content": "웨딩 구성 1,600,000~",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "9e2bdb4370e75b7fe6c0a17d28d63b1c4b260ca9ca1d227dd95d1dd8283588c2"
+      },
+      {
+        "id": "may-wedding-option-0",
+        "source_locator": "image:1/웨딩구성/드레스",
+        "normalized_content": "수입 드레스 & 국내 명품 드레스 (110만원/ 피팅 4벌 포함)",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "6b8a715a8691eeee29f3ab43e67a88ad3b62ec16578e5624d287c16278741275"
+      },
+      {
+        "id": "may-wedding-option-1",
+        "source_locator": "image:1/웨딩구성/헤어메이크업",
+        "normalized_content": "신랑 신부님 본식 헤어 메이크업 (55만원)",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "4791a9b06eb11750231790b3d9822a38ec95fecc8eb81c34bbbdb30ace05dfbe"
+      },
+      {
+        "id": "may-wedding-option-2",
+        "source_locator": "image:1/웨딩구성/부케",
+        "normalized_content": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "4dca971263e352ceb4815ec47901e644d8609618030fce03b223bf9b1d14133b"
+      },
+      {
+        "id": "may-wedding-option-3",
+        "source_locator": "image:1/웨딩구성/부케추가",
+        "normalized_content": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "fc512e667840dd76d710bb6a619a1d1da0a0cc363d8980008d4b97f43dee562f"
+      },
+      {
+        "id": "may-bottom-0",
+        "source_locator": "image:1/본식원판스냅/원판",
+        "normalized_content": "원판 600,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "28504fb806056ff9f90ea9c9faeba1071caaea5eb487544ce1bc10379b44eb51"
+      },
+      {
+        "id": "may-bottom-1",
+        "source_locator": "image:1/본식원판스냅/스냅",
+        "normalized_content": "스냅 800,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "938ecc4960c7d84a7a12634cb1d88fab5c1b82d4cac2f4f659165ae69bdd2074"
+      },
+      {
+        "id": "may-bottom-2",
+        "source_locator": "image:1/본식원판스냅/원판+스냅",
+        "normalized_content": "원판 + 스냅 1,300,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "60fbb8a91d666ed9dd4dedc464c5c2a0ab215ab4d1856d40720655c175e1f9e0"
+      },
+      {
+        "id": "may-ledger-4",
+        "source_locator": "image:1/리허설촬영구성/선택사항/메이킹필름",
+        "normalized_content": "선택사항 메이킹필름 추가 15만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "0d19175310c11a31aa7e046f86f422c4ae200283848e18c4b6e8ada161a59d58"
+      },
+      {
+        "id": "may-ledger-5",
+        "source_locator": "image:1/리허설촬영구성/선택사항/기본앨범",
+        "normalized_content": "선택사항 기본앨범 추가 30만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "4b1b0d28f581ab138eeb7355e779357fb57c7bb22ee3562482ef83f476c53518"
+      },
+      {
+        "id": "may-ledger-6",
+        "source_locator": "image:1/리허설촬영구성/드레스추가",
+        "normalized_content": "드레스 추가시 1벌당 16.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "6452bd097666999abbd0153d9df364600a0aaed2ac0a230aff588e32b6432548"
+      },
+      {
+        "id": "may-ledger-7",
+        "source_locator": "image:1/리허설촬영구성/개인의상",
+        "normalized_content": "개인의상 추가시 1벌당 3.3만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "525c641045893f540ce77dc4aecc5581fdd2f5af05fc1aa65b14e2754472e8b9"
+      },
+      {
+        "id": "may-ledger-8",
+        "source_locator": "image:1/리허설촬영구성/콘셉트의상",
+        "normalized_content": "셀렉드레스 포함 의상시 1벌당 5.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "afe21f43b5af9e484ba7552880cc2721acd1be58eb8d5607fab74f30703103ac"
+      },
+      {
+        "id": "may-ledger-9",
+        "source_locator": "image:1/리허설촬영구성/야간·로드촬영",
+        "normalized_content": "야간·로드촬영 추가시 각 10만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "aeb932668e81382a82378f4d90a01b83b03ed93560a2f901dd499ceda92f7bf0"
+      },
+      {
+        "id": "may-ledger-10",
+        "source_locator": "image:1/리허설촬영구성/원본수정본",
+        "normalized_content": "원본과 수정본 330,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "a34173a3942d5a5610ece34c3231d7803c231d34a25ff1a2e52f8fac461bd67d"
+      },
+      {
+        "id": "may-ledger-11",
+        "source_locator": "image:1/리허설촬영구성/사진추가",
+        "normalized_content": "사진 추가 1P당 3.3만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "b4d1cdf9110a0de8864f8978374d9cb1c53fe692fc20376c9c63d7f839011ab3"
+      },
+      {
+        "id": "may-ledger-12",
+        "source_locator": "image:1/리허설촬영구성/추가수정",
+        "normalized_content": "무료 수정 이후 1컷당 2.2만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "18f69152822463fd517750a91f541be4e28b2c8c2fdb460f2eaf205537e16992"
+      },
+      {
+        "id": "may-ledger-13",
+        "source_locator": "image:1/리허설촬영구성/액자변경/15",
+        "normalized_content": "액자 사양 변경 추가금 15만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "b5e030d8aa98fcc07256d35bd08ad09f83316e4d6b9e77f9f85e396fbebb4d34"
+      },
+      {
+        "id": "may-ledger-14",
+        "source_locator": "image:1/리허설촬영구성/액자변경/캔버스38",
+        "normalized_content": "캔버스 38 사양 변경 추가금 20만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "93c4545a75f0948f1bdc9abde9124bcb5bdd23bf7a0c20ccba3b25af2d7ef529"
+      },
+      {
+        "id": "may-ledger-15",
+        "source_locator": "image:1/리허설촬영구성/액자변경/20x24",
+        "normalized_content": "20×24 액자 변경 추가금 20만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "666a65c421194ec3fe9b8efd7d3faae5bef9dfa0371f32d0ba18fd8c5a4a69d9"
+      },
+      {
+        "id": "may-ledger-16",
+        "source_locator": "image:1/리허설촬영구성/액자변경/24x32",
+        "normalized_content": "24×32 액자 변경 추가금 25만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "1dff6c437745fd7695601bf3eb2fb18c0ad494e7d033d0307113d78038f88f04"
+      },
+      {
+        "id": "may-ledger-17",
+        "source_locator": "image:1/리허설촬영구성/액자변경/아크릴",
+        "normalized_content": "아크릴 액자 변경시 5.5만원 추가",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "e42b01e63bbf46ff9406e811d62d11f27755344a4df7029509fcea487f365c4e"
+      },
+      {
+        "id": "may-ledger-18",
+        "source_locator": "image:1/리허설촬영구성/메이크업추가/16.5",
+        "normalized_content": "메이크업 추가비용 16.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "53e4729b88a42da369e481bb72e62452ab58a69960982f8db389b394834c75a5"
+      },
+      {
+        "id": "may-ledger-19",
+        "source_locator": "image:1/리허설촬영구성/메이크업추가/27.5",
+        "normalized_content": "메이크업 추가비용 27.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "36afb53b7f5271e48f6b423d4f7febfacfa9a9ad8bd6aa7a89dced774a78d042"
+      },
+      {
+        "id": "may-ledger-20",
+        "source_locator": "image:1/리허설촬영구성/메이크업추가/35",
+        "normalized_content": "메이크업 추가비용 35만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "c279a6e179cc682e9afda331aa6b1040717313a872e8163470ea57c1c2029e1f"
+      },
+      {
+        "id": "may-ledger-21",
+        "source_locator": "image:1/리허설촬영구성/메이크업추가/이른시간3.3",
+        "normalized_content": "이른 시간 메이크업 추가비용 3.3만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "f6924bd6da3292255287c68b97a4adfcdbaa8b990177ffc9655e79b3cc223c86"
+      },
+      {
+        "id": "may-ledger-22",
+        "source_locator": "image:1/리허설촬영구성/메이크업추가/오전6시",
+        "normalized_content": "오전 6시 메이크업 추가비용 5.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "5e87c3b513b2c4c0142e78a5421de227362d55c9f17a539461bd92d2e2f60f7e"
+      },
+      {
+        "id": "may-ledger-23",
+        "source_locator": "image:1/리허설촬영구성/헬퍼비최저",
+        "normalized_content": "헬퍼비 별도 100,000원~150,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "2be34647ea937add64d09ac9142f3e2a0ca6032de01144d0a9674f385fdf356b"
+      },
+      {
+        "id": "may-ledger-24",
+        "source_locator": "image:1/리허설촬영구성/헬퍼비최고",
+        "normalized_content": "헬퍼비 별도 100,000원~150,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "837bf59f6b7cc853eb34cd0a37fe793c22e7109171461a73d5a15902d85f84a0"
+      },
+      {
+        "id": "may-ledger-25",
+        "source_locator": "image:1/리허설촬영구성/헬퍼추가",
+        "normalized_content": "야간·로드촬영시 헬퍼비 5만원 추가",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "db496321a9315dcee22e035b7c48f4ab973e9e4faced7454cec04ef1e6186a99"
+      },
+      {
+        "id": "may-ledger-31",
+        "source_locator": "image:1/웨딩구성/각주/신상드레스최저",
+        "normalized_content": "신상 드레스 추가금액 국내 0~최대 120만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "06bfd4c201445f77f7a8f27f31dbff1f1b1b25047f178deaebfa834f639402f1"
+      },
+      {
+        "id": "may-ledger-32",
+        "source_locator": "image:1/웨딩구성/각주/신상드레스최고",
+        "normalized_content": "신상 드레스 추가금액 국내 0~최대 120만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "20af939b29e7c9228a33814b252c36ff18634494ba2f1c6319373b63cbbc6651"
+      },
+      {
+        "id": "may-ledger-33",
+        "source_locator": "image:1/웨딩구성/각주/드레스추가품목",
+        "normalized_content": "드레스 관련 추가품목 11만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "be0f19b39f061434d62b6770c687efc66c5e868c2519d858ef878236228612c1"
+      },
+      {
+        "id": "may-ledger-34",
+        "source_locator": "image:1/웨딩구성/각주/드레스소품",
+        "normalized_content": "드레스 관련 추가품목 5.5만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "bf1acb25bd35e0878fc1bb69ded6f5d9dab6c62106ffcc7b5e6ec2565cb3eac0"
+      },
+      {
+        "id": "may-ledger-35",
+        "source_locator": "image:1/웨딩구성/각주/수입드레스",
+        "normalized_content": "수입 드레스 추가금 3.3만원부터",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "1bab9979e7e6b48ae145f922db4c174f5d0645f1c24039d34566abf7625702f9"
+      },
+      {
+        "id": "may-ledger-36",
+        "source_locator": "image:1/웨딩구성/각주/추가헤어여자",
+        "normalized_content": "추가 헤어 메이크업 여자 165,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "3fc5b1d9d4d83174facc20efe3edf11ebdeffdb001e094d5546acc009f05d54a"
+      },
+      {
+        "id": "may-ledger-37",
+        "source_locator": "image:1/웨딩구성/각주/추가헤어남자",
+        "normalized_content": "추가 헤어 메이크업 남자 55,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "6be52e78d9d28ec1331d29e05d8f89e071ae24c568c041139c429f8c0f873f77"
+      },
+      {
+        "id": "may-ledger-38",
+        "source_locator": "image:1/웨딩구성/각주/추가헤어동시여자",
+        "normalized_content": "추가 헤어 메이크업 여자·남자 동시 275,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "8a490dd83a559d35d46fc45cacc231e1c285dde16de941c906f10d84468c6bd0"
+      },
+      {
+        "id": "may-ledger-39",
+        "source_locator": "image:1/웨딩구성/각주/추가헤어동시남자",
+        "normalized_content": "추가 헤어 메이크업 여자·남자 동시 88,000원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "678a9ed513abe743d8052877cc6a2cb5cd8fa643481fc3b3912e14a17149d80d"
+      },
+      {
+        "id": "may-ledger-40",
+        "source_locator": "image:1/웨딩구성/각주/출장메이크업",
+        "normalized_content": "출장 메이크업 추가 22만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "c12f51001c058999acacb588fe7db99bc9e4f51fdb854afe778443da63259a40"
+      },
+      {
+        "id": "may-ledger-41",
+        "source_locator": "image:1/웨딩구성/각주/출장추가비",
+        "normalized_content": "출장 관련 추가비 15만원",
+        "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+        "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+        "block_sha256": "c2ed3957413a6a020853dd8d602d12f89a939256b5bf2f58ec9ab358ad567410"
+      }
+    ],
+    "record_field_bindings": [
+      {
+        "field_path": "doc_kind",
+        "approved_text_block_id": "may-identity",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "business_name",
+        "approved_text_block_id": "may-identity",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].package_name",
+        "approved_text_block_id": "may-rehearsal-header",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].category_scope[0]",
+        "approved_text_block_id": "may-rehearsal-header",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[0].category_scope[1]",
+        "approved_text_block_id": "may-rehearsal-header",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[0].category_scope[2]",
+        "approved_text_block_id": "may-rehearsal-header",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[0].vat_note",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].source_quote",
+        "approved_text_block_id": "may-rehearsal-header",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[0].name",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[0].options[0].raw_text",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[0].source_quote",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[1].name",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[0].options[1].raw_text",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[1].source_quote",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[2].name",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[0].options[2].raw_text",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[2].source_quote",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[3].name",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[0].options[3].raw_text",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[0].options[3].source_quote",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].package_name",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[1].category_scope[0]",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[1].category_scope[1]",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[1].vat_note",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].source_quote",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[0].name",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[1].options[0].raw_text",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[0].source_quote",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[1].name",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[1].options[1].raw_text",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[1].source_quote",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[2].name",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[1].options[2].raw_text",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[2].source_quote",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[3].name",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[1].options[3].raw_text",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[1].options[3].source_quote",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[2].package_name",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[2].category_scope[0]",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[2].vat_note",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[2].source_quote",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[3].package_name",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[3].category_scope[0]",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[3].vat_note",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[3].source_quote",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[4].package_name",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "agency_packages[4].category_scope[0]",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "agency_packages[4].vat_note",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "agency_packages[4].source_quote",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[0].section_type",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "sections[0].title",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[0].content_verbatim",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "sections[0].summary",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "sections[0].source_quote",
+        "approved_text_block_id": "may-vat",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[0].raw_text",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[0].source_quote",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[0].kind",
+        "approved_text_block_id": "may-rehearsal-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[1].raw_text",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[1].source_quote",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[1].kind",
+        "approved_text_block_id": "may-rehearsal-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[2].raw_text",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[2].source_quote",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[2].kind",
+        "approved_text_block_id": "may-rehearsal-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[3].raw_text",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[3].source_quote",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[3].kind",
+        "approved_text_block_id": "may-rehearsal-3",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[4].raw_text",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[4].source_quote",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[4].kind",
+        "approved_text_block_id": "may-wedding",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[5].raw_text",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[5].source_quote",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[5].kind",
+        "approved_text_block_id": "may-wedding-option-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[6].raw_text",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[6].source_quote",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[6].kind",
+        "approved_text_block_id": "may-wedding-option-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[7].raw_text",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[7].source_quote",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[7].kind",
+        "approved_text_block_id": "may-wedding-option-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[8].raw_text",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[8].source_quote",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[8].kind",
+        "approved_text_block_id": "may-wedding-option-3",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[9].raw_text",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[9].source_quote",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[9].kind",
+        "approved_text_block_id": "may-bottom-0",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[10].raw_text",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[10].source_quote",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[10].kind",
+        "approved_text_block_id": "may-bottom-1",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[11].raw_text",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[11].source_quote",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[11].kind",
+        "approved_text_block_id": "may-bottom-2",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[12].raw_text",
+        "approved_text_block_id": "may-ledger-4",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[12].source_quote",
+        "approved_text_block_id": "may-ledger-4",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[12].kind",
+        "approved_text_block_id": "may-ledger-4",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[13].raw_text",
+        "approved_text_block_id": "may-ledger-5",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[13].source_quote",
+        "approved_text_block_id": "may-ledger-5",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[13].kind",
+        "approved_text_block_id": "may-ledger-5",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[14].raw_text",
+        "approved_text_block_id": "may-ledger-6",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[14].source_quote",
+        "approved_text_block_id": "may-ledger-6",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[14].kind",
+        "approved_text_block_id": "may-ledger-6",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[15].raw_text",
+        "approved_text_block_id": "may-ledger-7",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[15].source_quote",
+        "approved_text_block_id": "may-ledger-7",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[15].kind",
+        "approved_text_block_id": "may-ledger-7",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[16].raw_text",
+        "approved_text_block_id": "may-ledger-8",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[16].source_quote",
+        "approved_text_block_id": "may-ledger-8",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[16].kind",
+        "approved_text_block_id": "may-ledger-8",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[17].raw_text",
+        "approved_text_block_id": "may-ledger-9",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[17].source_quote",
+        "approved_text_block_id": "may-ledger-9",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[17].kind",
+        "approved_text_block_id": "may-ledger-9",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[18].raw_text",
+        "approved_text_block_id": "may-ledger-10",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[18].source_quote",
+        "approved_text_block_id": "may-ledger-10",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[18].kind",
+        "approved_text_block_id": "may-ledger-10",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[19].raw_text",
+        "approved_text_block_id": "may-ledger-11",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[19].source_quote",
+        "approved_text_block_id": "may-ledger-11",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[19].kind",
+        "approved_text_block_id": "may-ledger-11",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[20].raw_text",
+        "approved_text_block_id": "may-ledger-12",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[20].source_quote",
+        "approved_text_block_id": "may-ledger-12",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[20].kind",
+        "approved_text_block_id": "may-ledger-12",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[21].raw_text",
+        "approved_text_block_id": "may-ledger-13",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[21].source_quote",
+        "approved_text_block_id": "may-ledger-13",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[21].kind",
+        "approved_text_block_id": "may-ledger-13",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[22].raw_text",
+        "approved_text_block_id": "may-ledger-14",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[22].source_quote",
+        "approved_text_block_id": "may-ledger-14",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[22].kind",
+        "approved_text_block_id": "may-ledger-14",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[23].raw_text",
+        "approved_text_block_id": "may-ledger-15",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[23].source_quote",
+        "approved_text_block_id": "may-ledger-15",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[23].kind",
+        "approved_text_block_id": "may-ledger-15",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[24].raw_text",
+        "approved_text_block_id": "may-ledger-16",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[24].source_quote",
+        "approved_text_block_id": "may-ledger-16",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[24].kind",
+        "approved_text_block_id": "may-ledger-16",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[25].raw_text",
+        "approved_text_block_id": "may-ledger-17",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[25].source_quote",
+        "approved_text_block_id": "may-ledger-17",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[25].kind",
+        "approved_text_block_id": "may-ledger-17",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[26].raw_text",
+        "approved_text_block_id": "may-ledger-18",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[26].source_quote",
+        "approved_text_block_id": "may-ledger-18",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[26].kind",
+        "approved_text_block_id": "may-ledger-18",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[27].raw_text",
+        "approved_text_block_id": "may-ledger-19",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[27].source_quote",
+        "approved_text_block_id": "may-ledger-19",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[27].kind",
+        "approved_text_block_id": "may-ledger-19",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[28].raw_text",
+        "approved_text_block_id": "may-ledger-20",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[28].source_quote",
+        "approved_text_block_id": "may-ledger-20",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[28].kind",
+        "approved_text_block_id": "may-ledger-20",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[29].raw_text",
+        "approved_text_block_id": "may-ledger-21",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[29].source_quote",
+        "approved_text_block_id": "may-ledger-21",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[29].kind",
+        "approved_text_block_id": "may-ledger-21",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[30].raw_text",
+        "approved_text_block_id": "may-ledger-22",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[30].source_quote",
+        "approved_text_block_id": "may-ledger-22",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[30].kind",
+        "approved_text_block_id": "may-ledger-22",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[31].raw_text",
+        "approved_text_block_id": "may-ledger-23",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[31].source_quote",
+        "approved_text_block_id": "may-ledger-23",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[31].kind",
+        "approved_text_block_id": "may-ledger-23",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[32].raw_text",
+        "approved_text_block_id": "may-ledger-24",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[32].source_quote",
+        "approved_text_block_id": "may-ledger-24",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[32].kind",
+        "approved_text_block_id": "may-ledger-24",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[33].raw_text",
+        "approved_text_block_id": "may-ledger-25",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[33].source_quote",
+        "approved_text_block_id": "may-ledger-25",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[33].kind",
+        "approved_text_block_id": "may-ledger-25",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[34].raw_text",
+        "approved_text_block_id": "may-ledger-31",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[34].source_quote",
+        "approved_text_block_id": "may-ledger-31",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[34].kind",
+        "approved_text_block_id": "may-ledger-31",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[35].raw_text",
+        "approved_text_block_id": "may-ledger-32",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[35].source_quote",
+        "approved_text_block_id": "may-ledger-32",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[35].kind",
+        "approved_text_block_id": "may-ledger-32",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[36].raw_text",
+        "approved_text_block_id": "may-ledger-33",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[36].source_quote",
+        "approved_text_block_id": "may-ledger-33",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[36].kind",
+        "approved_text_block_id": "may-ledger-33",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[37].raw_text",
+        "approved_text_block_id": "may-ledger-34",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[37].source_quote",
+        "approved_text_block_id": "may-ledger-34",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[37].kind",
+        "approved_text_block_id": "may-ledger-34",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[38].raw_text",
+        "approved_text_block_id": "may-ledger-35",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[38].source_quote",
+        "approved_text_block_id": "may-ledger-35",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[38].kind",
+        "approved_text_block_id": "may-ledger-35",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[39].raw_text",
+        "approved_text_block_id": "may-ledger-36",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[39].source_quote",
+        "approved_text_block_id": "may-ledger-36",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[39].kind",
+        "approved_text_block_id": "may-ledger-36",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[40].raw_text",
+        "approved_text_block_id": "may-ledger-37",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[40].source_quote",
+        "approved_text_block_id": "may-ledger-37",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[40].kind",
+        "approved_text_block_id": "may-ledger-37",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[41].raw_text",
+        "approved_text_block_id": "may-ledger-38",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[41].source_quote",
+        "approved_text_block_id": "may-ledger-38",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[41].kind",
+        "approved_text_block_id": "may-ledger-38",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[42].raw_text",
+        "approved_text_block_id": "may-ledger-39",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[42].source_quote",
+        "approved_text_block_id": "may-ledger-39",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[42].kind",
+        "approved_text_block_id": "may-ledger-39",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[43].raw_text",
+        "approved_text_block_id": "may-ledger-40",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[43].source_quote",
+        "approved_text_block_id": "may-ledger-40",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[43].kind",
+        "approved_text_block_id": "may-ledger-40",
+        "binding_kind": "enum_derivation"
+      },
+      {
+        "field_path": "money_occurrences[44].raw_text",
+        "approved_text_block_id": "may-ledger-41",
+        "binding_kind": "extractive"
+      },
+      {
+        "field_path": "money_occurrences[44].source_quote",
+        "approved_text_block_id": "may-ledger-41",
+        "binding_kind": "exact"
+      },
+      {
+        "field_path": "money_occurrences[44].kind",
+        "approved_text_block_id": "may-ledger-41",
+        "binding_kind": "enum_derivation"
+      }
+    ]
+  },
+  "review_status": "pending",
+  "needs_review": true,
+  "bulk_approval_eligible": false,
+  "evidence": [
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "evidence_kind": "visual_transcription",
+      "source_file_id": "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0",
+      "source_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+      "source_bytes": 51160,
+      "image_artifact_index": 0,
+      "image_sha256": "e9eb2eb3ef7a8366c5db3b1d24cbb7d50f32448898ff9e01b96614237c18fd4d",
+      "image_bytes": 51160,
+      "page": 1
+    }
+  ],
+  "record_evidence": [
+    {
+      "record_path": "agency_packages[0].options[0]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자촬영"
+      ]
+    },
+    {
+      "record_path": "agency_packages[0].options[1]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/세미10P"
+      ]
+    },
+    {
+      "record_path": "agency_packages[0].options[2]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/웨딩20P"
+      ]
+    },
+    {
+      "record_path": "agency_packages[0].options[3]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/웨딩30P"
+      ]
+    },
+    {
+      "record_path": "agency_packages[1].options[0]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/드레스"
+      ]
+    },
+    {
+      "record_path": "agency_packages[1].options[1]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/헤어메이크업"
+      ]
+    },
+    {
+      "record_path": "agency_packages[1].options[2]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/부케"
+      ]
+    },
+    {
+      "record_path": "agency_packages[1].options[3]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/부케추가"
+      ]
+    },
+    {
+      "record_path": "agency_packages[2]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/원판",
+        "image:1/VAT포함"
+      ]
+    },
+    {
+      "record_path": "agency_packages[3]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/스냅",
+        "image:1/VAT포함"
+      ]
+    },
+    {
+      "record_path": "agency_packages[4]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/원판+스냅",
+        "image:1/VAT포함"
+      ]
+    },
+    {
+      "record_path": "agency_packages[0]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자촬영",
+        "image:1/리허설촬영구성/웨딩30P",
+        "image:1/VAT포함",
+        "image:1/리허설촬영구성/header"
+      ]
+    },
+    {
+      "record_path": "agency_packages[1]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성",
+        "image:1/VAT포함"
+      ]
+    },
+    {
+      "record_path": "sections[0]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/VAT포함"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[0]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자촬영"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[1]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/세미10P"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[2]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/웨딩20P"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[3]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/웨딩30P"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[4]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[5]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/드레스"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[6]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/헤어메이크업"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[7]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/부케"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[8]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/부케추가"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[9]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/원판"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[10]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/스냅"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[11]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/본식원판스냅/원판+스냅"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[12]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/선택사항/메이킹필름"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[13]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/선택사항/기본앨범"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[14]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/드레스추가"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[15]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/개인의상"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[16]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/콘셉트의상"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[17]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/야간·로드촬영"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[18]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/원본수정본"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[19]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/사진추가"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[20]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/추가수정"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[21]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자변경/15"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[22]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자변경/캔버스38"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[23]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자변경/20x24"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[24]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자변경/24x32"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[25]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/액자변경/아크릴"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[26]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/메이크업추가/16.5"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[27]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/메이크업추가/27.5"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[28]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/메이크업추가/35"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[29]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/메이크업추가/이른시간3.3"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[30]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/메이크업추가/오전6시"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[31]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/헬퍼비최저"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[32]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/헬퍼비최고"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[33]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/리허설촬영구성/헬퍼추가"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[34]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/신상드레스최저"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[35]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/신상드레스최고"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[36]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/드레스추가품목"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[37]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/드레스소품"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[38]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/수입드레스"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[39]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/추가헤어여자"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[40]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/추가헤어남자"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[41]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/추가헤어동시여자"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[42]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/추가헤어동시남자"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[43]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/출장메이크업"
+      ]
+    },
+    {
+      "record_path": "money_occurrences[44]",
+      "evidence_ids": [
+        "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+      ],
+      "source_locators": [
+        "image:1/웨딩구성/각주/출장추가비"
+      ]
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/기본추가",
+      "visible_amounts_krw": [
+        33000
+      ],
+      "estimated_content": "메이크업 기본 추가로 보이는 '3.3' 표기",
+      "reason": "해당 숫자에 원/만원 단위가 직접 또는 상속 가능한 형태로 인쇄되어 있지 않아 금액을 확정할 수 없음",
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+    },
+    {
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/헤어피스",
+      "visible_amounts_krw": [
+        66000
+      ],
+      "estimated_content": "헤어피스 대여 또는 반납 조건으로 보이는 '6.6' 표기",
+      "reason": "해당 숫자에 원/만원 단위가 직접 또는 상속 가능한 형태로 인쇄되어 있지 않아 금액을 확정할 수 없음",
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/선택사항/메이킹필름",
+      "visible_amounts_krw": [
+        150000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/선택사항/기본앨범",
+      "visible_amounts_krw": [
+        300000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/드레스추가",
+      "visible_amounts_krw": [
+        165000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/개인의상",
+      "visible_amounts_krw": [
+        33000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/콘셉트의상",
+      "visible_amounts_krw": [
+        55000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/야간·로드촬영",
+      "visible_amounts_krw": [
+        100000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/원본수정본",
+      "visible_amounts_krw": [
+        330000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/사진추가",
+      "visible_amounts_krw": [
+        33000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/추가수정",
+      "visible_amounts_krw": [
+        22000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/액자변경/15",
+      "visible_amounts_krw": [
+        150000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/액자변경/캔버스38",
+      "visible_amounts_krw": [
+        200000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/액자변경/20x24",
+      "visible_amounts_krw": [
+        200000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/액자변경/24x32",
+      "visible_amounts_krw": [
+        250000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/액자변경/아크릴",
+      "visible_amounts_krw": [
+        55000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/16.5",
+      "visible_amounts_krw": [
+        165000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/27.5",
+      "visible_amounts_krw": [
+        275000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/35",
+      "visible_amounts_krw": [
+        350000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/이른시간3.3",
+      "visible_amounts_krw": [
+        33000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/메이크업추가/오전6시",
+      "visible_amounts_krw": [
+        55000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/헬퍼비최저",
+      "visible_amounts_krw": [
+        100000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/헬퍼비최고",
+      "visible_amounts_krw": [
+        150000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/리허설촬영구성/헬퍼추가",
+      "visible_amounts_krw": [
+        50000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/신상드레스최저",
+      "visible_amounts_krw": [
+        0
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/신상드레스최고",
+      "visible_amounts_krw": [
+        1200000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/드레스추가품목",
+      "visible_amounts_krw": [
+        110000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/드레스소품",
+      "visible_amounts_krw": [
+        55000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/수입드레스",
+      "visible_amounts_krw": [
+        33000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/추가헤어여자",
+      "visible_amounts_krw": [
+        165000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/추가헤어남자",
+      "visible_amounts_krw": [
+        55000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/추가헤어동시여자",
+      "visible_amounts_krw": [
+        275000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/추가헤어동시남자",
+      "visible_amounts_krw": [
+        88000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/출장메이크업",
+      "visible_amounts_krw": [
+        220000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/웨딩구성/각주/출장추가비",
+      "visible_amounts_krw": [
+        150000
+      ],
+      "estimated_content": "금액은 보이지만 작은 옵션명·적용 조건은 확정하지 않음",
+      "reason": "저해상도 원본에서 연속 원문을 사람 확인하지 못해 구조화에서 제외함"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/환불및일정변경규정",
+      "visible_amounts_krw": [],
+      "estimated_content": "환불 및 일정변경 규정",
+      "reason": "저해상도 하단 문구의 조사·구두점을 정확히 확정하지 못해 정책으로 구조화하지 않음"
+    },
+    {
+      "evidence_id": "251f44c909737ea1966083879fe6f0317890524811cf0ad59319c0a5680e5f73",
+      "source_locator": "image:1/소비자안내사항",
+      "visible_amounts_krw": [],
+      "estimated_content": "소비자 안내사항",
+      "reason": "저해상도 하단 문구를 정확한 연속 원문으로 확정하지 못해 섹션으로 구조화하지 않음"
+    }
+  ],
+  "fragment": {
+    "doc_kind": "agency_disclosure",
+    "business_name": "MAY BRIDE & TERRACE",
+    "region_hint": null,
+    "agency_packages": [
+      {
+        "package_name": "리허설 | 촬영 | 구성",
+        "category_scope": [
+          "studio",
+          "dress",
+          "makeup"
+        ],
+        "price_min_krw": 600000,
+        "price_max_krw": 2100000,
+        "vat_note": "※ 모든 금액 VAT포함",
+        "price_note": null,
+        "options": [
+          {
+            "name": "액자촬영(H10)",
+            "price_min_krw": 600000,
+            "price_max_krw": 600000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "액자촬영(H10) 600,000원",
+            "source_quote": "액자촬영(H10) 600,000원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "세미 10P (H10)",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "세미 10P (H10) 1,100,000원",
+            "source_quote": "세미 10P (H10) 1,100,000원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "웨딩 20P (H15)",
+            "price_min_krw": 1600000,
+            "price_max_krw": 1600000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "웨딩 20P (H15) 1,600,000원",
+            "source_quote": "웨딩 20P (H15) 1,600,000원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "웨딩 30P (H15)",
+            "price_min_krw": 2100000,
+            "price_max_krw": 2100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "웨딩 30P (H15) 2,100,000원",
+            "source_quote": "웨딩 30P (H15) 2,100,000원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          }
+        ],
+        "source_quote": "리허설 | 촬영 | 구성",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "package_name": "웨딩 구성",
+        "category_scope": [
+          "dress",
+          "makeup"
+        ],
+        "price_min_krw": 1600000,
+        "price_max_krw": null,
+        "vat_note": "※ 모든 금액 VAT포함",
+        "price_note": null,
+        "options": [
+          {
+            "name": "수입 드레스 & 국내 명품 드레스",
+            "price_min_krw": 1100000,
+            "price_max_krw": 1100000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "수입 드레스 & 국내 명품 드레스 (110만원/ 피팅 4벌 포함)",
+            "source_quote": "수입 드레스 & 국내 명품 드레스 (110만원/ 피팅 4벌 포함)",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "신랑 신부님 본식 헤어 메이크업",
+            "price_min_krw": 550000,
+            "price_max_krw": 550000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "신랑 신부님 본식 헤어 메이크업 (55만원)",
+            "source_quote": "신랑 신부님 본식 헤어 메이크업 (55만원)",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "계절꽃으로 제작",
+            "price_min_krw": 220000,
+            "price_max_krw": 220000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+            "source_quote": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          },
+          {
+            "name": "커스텀제작",
+            "price_min_krw": 88000,
+            "price_max_krw": 88000,
+            "unit": null,
+            "condition": null,
+            "raw_text": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+            "source_quote": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+            "source_file_ids": [
+              "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+            ]
+          }
+        ],
+        "source_quote": "웨딩 구성 1,600,000~",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "package_name": "원판",
+        "category_scope": [
+          "studio"
+        ],
+        "price_min_krw": 600000,
+        "price_max_krw": 600000,
+        "vat_note": "※ 모든 금액 VAT포함",
+        "price_note": null,
+        "options": [],
+        "source_quote": "원판 600,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "package_name": "스냅",
+        "category_scope": [
+          "studio"
+        ],
+        "price_min_krw": 800000,
+        "price_max_krw": 800000,
+        "vat_note": "※ 모든 금액 VAT포함",
+        "price_note": null,
+        "options": [],
+        "source_quote": "스냅 800,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      },
+      {
+        "package_name": "원판 + 스냅",
+        "category_scope": [
+          "studio"
+        ],
+        "price_min_krw": 1300000,
+        "price_max_krw": 1300000,
+        "vat_note": "※ 모든 금액 VAT포함",
+        "price_note": null,
+        "options": [],
+        "source_quote": "원판 + 스냅 1,300,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      }
+    ],
+    "partner_vendors": [],
+    "halls": [],
+    "sections": [
+      {
+        "section_type": "pricing_basis",
+        "title": "모든 금액 VAT포함",
+        "content_verbatim": "※ 모든 금액 VAT포함",
+        "summary": "모든 금액 VAT포함",
+        "source_quote": "※ 모든 금액 VAT포함",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "confidence": 0.89,
+        "needs_review": true
+      }
+    ],
+    "money_occurrences": [
+      {
+        "amount_krw": 600000,
+        "raw_text": "600,000원",
+        "source_quote": "액자촬영(H10) 600,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "1,100,000원",
+        "source_quote": "세미 10P (H10) 1,100,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1600000,
+        "raw_text": "1,600,000원",
+        "source_quote": "웨딩 20P (H15) 1,600,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 2100000,
+        "raw_text": "2,100,000원",
+        "source_quote": "웨딩 30P (H15) 2,100,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1600000,
+        "raw_text": "1,600,000~",
+        "source_quote": "웨딩 구성 1,600,000~",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1100000,
+        "raw_text": "110만원",
+        "source_quote": "수입 드레스 & 국내 명품 드레스 (110만원/ 피팅 4벌 포함)",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 550000,
+        "raw_text": "55만원",
+        "source_quote": "신랑 신부님 본식 헤어 메이크업 (55만원)",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 220000,
+        "raw_text": "22만원",
+        "source_quote": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 88000,
+        "raw_text": "8.8만원",
+        "source_quote": "계절꽃으로 제작 (22만원) - 커스텀제작(리얼,웨딩등) 8.8만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 600000,
+        "raw_text": "600,000원",
+        "source_quote": "원판 600,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 800000,
+        "raw_text": "800,000원",
+        "source_quote": "스냅 800,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1300000,
+        "raw_text": "1,300,000원",
+        "source_quote": "원판 + 스냅 1,300,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 150000,
+        "raw_text": "15만원",
+        "source_quote": "선택사항 메이킹필름 추가 15만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 300000,
+        "raw_text": "30만원",
+        "source_quote": "선택사항 기본앨범 추가 30만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 165000,
+        "raw_text": "16.5만원",
+        "source_quote": "드레스 추가시 1벌당 16.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 33000,
+        "raw_text": "3.3만원",
+        "source_quote": "개인의상 추가시 1벌당 3.3만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 55000,
+        "raw_text": "5.5만원",
+        "source_quote": "셀렉드레스 포함 의상시 1벌당 5.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 100000,
+        "raw_text": "각 10만원",
+        "source_quote": "야간·로드촬영 추가시 각 10만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 330000,
+        "raw_text": "330,000원",
+        "source_quote": "원본과 수정본 330,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 33000,
+        "raw_text": "1P당 3.3만원",
+        "source_quote": "사진 추가 1P당 3.3만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 22000,
+        "raw_text": "1컷당 2.2만원",
+        "source_quote": "무료 수정 이후 1컷당 2.2만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 150000,
+        "raw_text": "15만원",
+        "source_quote": "액자 사양 변경 추가금 15만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 200000,
+        "raw_text": "20만원",
+        "source_quote": "캔버스 38 사양 변경 추가금 20만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 200000,
+        "raw_text": "20만원",
+        "source_quote": "20×24 액자 변경 추가금 20만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 250000,
+        "raw_text": "25만원",
+        "source_quote": "24×32 액자 변경 추가금 25만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 55000,
+        "raw_text": "5.5만원",
+        "source_quote": "아크릴 액자 변경시 5.5만원 추가",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 165000,
+        "raw_text": "16.5만원",
+        "source_quote": "메이크업 추가비용 16.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 275000,
+        "raw_text": "27.5만원",
+        "source_quote": "메이크업 추가비용 27.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 350000,
+        "raw_text": "35만원",
+        "source_quote": "메이크업 추가비용 35만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 33000,
+        "raw_text": "3.3만원",
+        "source_quote": "이른 시간 메이크업 추가비용 3.3만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 55000,
+        "raw_text": "5.5만원",
+        "source_quote": "오전 6시 메이크업 추가비용 5.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 100000,
+        "raw_text": "100,000원",
+        "source_quote": "헬퍼비 별도 100,000원~150,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 150000,
+        "raw_text": "150,000원",
+        "source_quote": "헬퍼비 별도 100,000원~150,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 50000,
+        "raw_text": "5만원",
+        "source_quote": "야간·로드촬영시 헬퍼비 5만원 추가",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 0,
+        "raw_text": "0",
+        "source_quote": "신상 드레스 추가금액 국내 0~최대 120만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 1200000,
+        "raw_text": "120만원",
+        "source_quote": "신상 드레스 추가금액 국내 0~최대 120만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 110000,
+        "raw_text": "11만원",
+        "source_quote": "드레스 관련 추가품목 11만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 55000,
+        "raw_text": "5.5만원",
+        "source_quote": "드레스 관련 추가품목 5.5만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 33000,
+        "raw_text": "3.3만원",
+        "source_quote": "수입 드레스 추가금 3.3만원부터",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 165000,
+        "raw_text": "165,000원",
+        "source_quote": "추가 헤어 메이크업 여자 165,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 55000,
+        "raw_text": "55,000원",
+        "source_quote": "추가 헤어 메이크업 남자 55,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 275000,
+        "raw_text": "275,000원",
+        "source_quote": "추가 헤어 메이크업 여자·남자 동시 275,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 88000,
+        "raw_text": "88,000원",
+        "source_quote": "추가 헤어 메이크업 여자·남자 동시 88,000원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 220000,
+        "raw_text": "22만원",
+        "source_quote": "출장 메이크업 추가 22만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      },
+      {
+        "amount_krw": 150000,
+        "raw_text": "15만원",
+        "source_quote": "출장 관련 추가비 15만원",
+        "source_file_ids": [
+          "4de8ed3d0d6500421e8412845bb0c121ed0fd97c0734d844a99928a281bc6ef0"
+        ],
+        "kind": "price",
+        "needs_review": true
+      }
+    ]
+  },
+  "created_at": "2026-07-21T18:57:22.629Z"
+}

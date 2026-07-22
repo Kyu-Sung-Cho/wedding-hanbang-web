@@ -133,11 +133,19 @@ test("all five supported formats flow safely while the unconverted HWP remains b
         data.agency_packages[0].source_quote =
           "price!A1: 기본 패키지 | 스튜디오 드레스 메이크업 | 100만원";
       } else {
-        const locatedFragment = /^(line:\d+:\s*.*?)기본 패키지 \| 스튜디오 드레스 메이크업 \| 100만원/mu
-          .exec(request.text);
-        if (locatedFragment) {
-          data.agency_packages[0].source_quote =
-            `${locatedFragment[1]}기본 패키지 | 스튜디오 드레스 메이크업 | 100만원`;
+        const canonicalDocxQuote =
+          /^(line:\d+:\s*docx:body:p\d+:\s*기본 패키지 \\\| 스튜디오 드레스 메이크업 \\\| 100만원)$/mu
+            .exec(request.text)?.[1];
+        if (canonicalDocxQuote) {
+          data.agency_packages[0].source_quote = canonicalDocxQuote;
+        } else {
+          const locatedFragment =
+            /^(line:\d+:\s*.*?)기본 패키지 \| 스튜디오 드레스 메이크업 \| 100만원/mu
+              .exec(request.text);
+          if (locatedFragment) {
+            data.agency_packages[0].source_quote =
+              `${locatedFragment[1]}기본 패키지 | 스튜디오 드레스 메이크업 | 100만원`;
+          }
         }
       }
       if (request.imagePaths.length > 0 && !request.text.trim()) {

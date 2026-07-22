@@ -579,6 +579,42 @@ test("a priced option is linked against its parent vendor identity and category"
   ), true, JSON.stringify(errors));
 });
 
+test("XLSX linkage canonicalizes trailing worksheet whitespace before the locator bang", () => {
+  const data = emptyExtraction();
+  data.doc_kind = "hall_disclosure";
+  const sourceFileId = "a".repeat(64);
+  data.halls = [{
+    hall_name: "그랜드 볼룸",
+    guarantee_min: null,
+    meal_price_min_krw: null,
+    meal_price_max_krw: null,
+    venue_fee_min_krw: 20_000_000,
+    venue_fee_max_krw: 20_000_000,
+    venue_fee_note: null,
+    decoration_fee_min_krw: null,
+    decoration_fee_max_krw: null,
+    decoration_note: null,
+    options: [],
+    source_quote: mergedEvidence([{
+      source_file_id: sourceFileId,
+      quote: "시그니엘 부산!A5: 그랜드 볼룸",
+    }, {
+      source_file_id: sourceFileId,
+      quote: "시그니엘 부산!B5: 대관료 20,000,000원",
+    }]),
+    source_file_ids: [sourceFileId],
+    confidence: 0.45,
+    needs_review: true,
+  }];
+  const sourceText = [
+    "## 시트: 시그니엘 부산 ",
+    "시그니엘 부산 !A5: 그랜드 볼룸",
+    "시그니엘 부산 !B5: 대관료 20,000,000원",
+  ].join("\n");
+
+  assert.deepEqual(validateStructuredRecordSourceLinkage(data, sourceText), []);
+});
+
 test("a priced option is linked against its parent hall identity", () => {
   const data = emptyExtraction();
   data.halls = [{
@@ -869,6 +905,44 @@ test("every fragment in merged evidence must independently match its exact sourc
     path: "partner_vendors[0].source_quote",
     code: "source_quote_payload_mismatch",
   }]);
+});
+
+test("merged line locators resolve against their declared source-local line numbers", () => {
+  const sourceFileId = "a".repeat(64);
+  const data = emptyExtraction();
+  data.agency_packages.push({
+    package_name: "Package A",
+    category_scope: ["studio"],
+    price_min_krw: 1_000_000,
+    price_max_krw: 1_000_000,
+    vat_note: null,
+    price_note: null,
+    options: [],
+    source_quote: mergedEvidence([
+      { source_file_id: sourceFileId, quote: "line:1: Package A studio" },
+      { source_file_id: sourceFileId, quote: "line:2: KRW 1000000" },
+    ]),
+    source_file_ids: [sourceFileId],
+    confidence: 0.99,
+    needs_review: false,
+  });
+  const sourceLocalText = "Package A studio\nKRW 1000000";
+  const globalText = `unrelated contract\nunrelated penalty\n${sourceLocalText}`;
+
+  assert.equal(
+    validateStructuredRecordSourceLinkage(data, globalText).some(
+      ({ code }) => code === "source_quote_payload_mismatch",
+    ),
+    true,
+  );
+  assert.deepEqual(
+    validateStructuredRecordSourceLinkage(
+      data,
+      globalText,
+      new Map([[sourceFileId, sourceLocalText]]),
+    ),
+    [],
+  );
 });
 
 test("the exported code predicate gives score a drift-safe linkage classification", () => {

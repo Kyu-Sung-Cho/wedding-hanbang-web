@@ -11,20 +11,28 @@ import {
 import { CONVERTER_VERSION } from "../convert.js";
 import { extractManifestForTests } from "../extract.js";
 import { readJsonFile, sha256File, sha256Text, writeJsonFile } from "../io.js";
+import { extractManifestLocally } from "../local-extraction-runner.js";
 import { encodeMergedEvidenceQuote, MERGED_EVIDENCE_PREFIX } from "../merge-evidence.js";
 import {
+  businessNameMatchesCanonicalOrCertifiedVisualAlias,
+  certifyHumanConfirmedVisualScoreEvidence,
+  collapseCertifiedLocalDocxSharedMoney,
+  collapseCertifiedHumanVisualParentRanges,
   evaluateBatchGate,
   findOccurrenceMatches,
   scoreExtractionAgainstGroundTruth,
   strictArtifactBlocker,
 } from "../score.js";
-import { SCANNER_PARSER_VERSION } from "../scan.js";
+import { normalizeVendorName, SCANNER_PARSER_VERSION } from "../scan.js";
 import { DisclosureExtractionSchema, StrictExtractionArtifactSchema } from "../schemas.js";
 import type { DisclosureExtraction } from "../schemas.js";
-import type { IngestManifest } from "../types.js";
+import type { IngestManifest, ManifestUnit } from "../types.js";
+import type { LoadedVisualTranscriptionSidecar } from "../visual-transcription-sidecar.js";
 import {
   deriveValidatedPayloadForUnit,
+  scanSourceMoneyOccurrences,
   VALIDATOR_VERSION,
+  validateManifest,
   validatedArtifactFingerprint,
 } from "../validate.js";
 import type { CoverageGap } from "../validate.js";
@@ -72,6 +80,102 @@ test("manual image occurrences never match by amount alone", () => {
       source_locator: "image:1/product-a",
       origin: "manual_image",
     }],
+  ), []);
+});
+
+test("manual image occurrences match Windows OCR evidence only on the same page and one-to-one", () => {
+  const matches = findOccurrenceMatches(
+    [
+      {
+        path: "a",
+        krw: 1_000_000,
+        source_quote: "line:31: ocr:page:1:line:15: first price 1000000",
+        source_file_ids: ["1".repeat(64)],
+      },
+      {
+        path: "b",
+        krw: 1_000_000,
+        source_quote: "line:32: ocr:page:1:line:16: second price 1000000",
+        source_file_ids: ["1".repeat(64)],
+      },
+    ],
+    [
+      {
+        raw: "1000000",
+        krw: 1_000_000,
+        line_context: "manual image price A 1000000",
+        source_locator: "page:1/price-a",
+        origin: "manual_image",
+      },
+      {
+        raw: "1000000",
+        krw: 1_000_000,
+        line_context: "manual image price B 1000000",
+        source_locator: "page:1/price-b",
+        origin: "manual_image",
+      },
+    ],
+  );
+
+  assert.equal(matches.length, 2);
+  assert.deepEqual(matches.map((match) => match.extracted_index).sort(), [0, 1]);
+  assert.deepEqual(matches.map((match) => match.ground_truth_index).sort(), [0, 1]);
+  assert.ok(matches.every((match) => match.match_quality === "image_value_only"));
+});
+
+test("manual image OCR fallback rejects a different page and non-OCR evidence", () => {
+  const groundTruth = [{
+    raw: "1000000",
+    krw: 1_000_000,
+    line_context: "manual image price 1000000",
+    source_locator: "page:1/price-a",
+    origin: "manual_image" as const,
+  }];
+
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "wrong-page",
+      krw: 1_000_000,
+      source_quote: "line:31: ocr:page:2:line:15: price 1000000",
+      source_file_ids: ["1".repeat(64)],
+    }],
+    groundTruth,
+  ), []);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "not-ocr",
+      krw: 1_000_000,
+      source_quote: "line:31: price 1000000",
+      source_file_ids: ["1".repeat(64)],
+    }],
+    groundTruth,
+  ), []);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "wrong-value",
+      krw: 2_000_000,
+      source_quote: "line:31: ocr:page:1:line:15: price 2000000",
+      source_file_ids: ["1".repeat(64)],
+    }],
+    groundTruth,
+  ), []);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "embedded-marker",
+      krw: 1_000_000,
+      source_quote: "line:31: note ocr:page:1:line:15: price 1000000",
+      source_file_ids: ["1".repeat(64)],
+    }],
+    groundTruth,
+  ), []);
+  assert.deepEqual(findOccurrenceMatches(
+    [{
+      path: "inventory-origin",
+      krw: 1_000_000,
+      source_quote: "line:31: ocr:page:1:line:15: price 1000000",
+      source_file_ids: ["1".repeat(64)],
+    }],
+    [{ ...groundTruth[0]!, origin: "inventory" }],
   ), []);
 });
 
@@ -1128,6 +1232,125 @@ test("overlay path and expected hash are an immutable option pair", async (t) =>
   );
 });
 
+function visualOverlayFixture(sourceLocator: string) {
+  return {
+    schema_version: 1 as const,
+    created_at: "2026-07-20T00:00:00.000Z",
+    units: [{
+      unit_id: UNIT_ID,
+      readable_occurrences: [],
+      unreadable_cells: [{
+        source_locator: sourceLocator,
+        visible_amounts_krw: [],
+        estimated_content: "unreadable price cell",
+        reason: "human transcription required",
+      }],
+      expectations: {
+        doc_kinds: ["agency_disclosure" as const],
+        policies: false,
+        pricing_basis: false,
+        sections: false,
+        halls_min: 0,
+      },
+    }],
+  };
+}
+
+test("score verifies and unwraps the canonical derived visual overlay", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  const sourcePath = path.join(fixture.stateDir, "source-overlay.json");
+  const overlayPath = path.join(fixture.stateDir, "derived-overlay.json");
+  const source = visualOverlayFixture("page:1/unreadable-price");
+  await writeJsonFile(sourcePath, source);
+  const sourceSha256 = (await sha256File(sourcePath)).sha256;
+  const wrapper = withCanonicalContentHash({
+    schema_version: 1 as const,
+    artifact_kind: "derived_visual_ground_truth_overlay" as const,
+    source_overlay_relative_path: "source-overlay.json",
+    source_overlay_sha256: sourceSha256,
+    locator_migration: {
+      contract_version: "page-to-image-v1" as const,
+      transformed_locator_count: 1,
+      transformed_unit_count: 1,
+    },
+    overlay: visualOverlayFixture("image:1/unreadable-price"),
+  });
+  await writeJsonFile(overlayPath, wrapper);
+
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    overlayPath,
+    expectedOverlaySha256: (await sha256File(overlayPath)).sha256,
+  });
+
+  const truth = report.ground_truth as Record<string, unknown>;
+  assert.equal(truth.unreadable_cells, 1);
+  const unit = (report.units as Array<{ unreadable_cells: Array<{ source_locator: string }> }>)[0]!;
+  assert.equal(unit.unreadable_cells[0]?.source_locator, "image:1/unreadable-price");
+});
+
+test("derived visual overlay fails closed on self-hash, source binding, and replay drift", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  const sourcePath = path.join(fixture.stateDir, "source-overlay.json");
+  const overlayPath = path.join(fixture.stateDir, "derived-overlay.json");
+  const source = visualOverlayFixture("page:1/unreadable-price");
+  await writeJsonFile(sourcePath, source);
+  const sourceSha256 = (await sha256File(sourcePath)).sha256;
+  const validWrapper = () => withCanonicalContentHash({
+    schema_version: 1 as const,
+    artifact_kind: "derived_visual_ground_truth_overlay" as const,
+    source_overlay_relative_path: "source-overlay.json",
+    source_overlay_sha256: sourceSha256,
+    locator_migration: {
+      contract_version: "page-to-image-v1" as const,
+      transformed_locator_count: 1,
+      transformed_unit_count: 1,
+    },
+    overlay: visualOverlayFixture("image:1/unreadable-price"),
+  });
+  const score = async () => scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    overlayPath,
+    expectedOverlaySha256: (await sha256File(overlayPath)).sha256,
+  });
+
+  const selfHashDrift = validWrapper();
+  selfHashDrift.overlay.units[0]!.unreadable_cells[0]!.reason = "tampered";
+  await writeJsonFile(overlayPath, selfHashDrift);
+  await assert.rejects(score(), /artifact content hash does not match/u);
+
+  const sourceBindingDrift = validWrapper();
+  sourceBindingDrift.source_overlay_sha256 = "0".repeat(64);
+  sourceBindingDrift.content_sha256 = canonicalJsonSha256ExcludingField(
+    sourceBindingDrift,
+    "content_sha256",
+  );
+  await writeJsonFile(overlayPath, sourceBindingDrift);
+  await assert.rejects(score(), /ground_truth_derived_overlay_source_sha256_mismatch/u);
+
+  const replayDrift = validWrapper();
+  replayDrift.overlay.units[0]!.unreadable_cells[0]!.source_locator = "image:2/unreadable-price";
+  replayDrift.content_sha256 = canonicalJsonSha256ExcludingField(replayDrift, "content_sha256");
+  await writeJsonFile(overlayPath, replayDrift);
+  await assert.rejects(score(), /ground_truth_derived_overlay_mechanical_mismatch/u);
+
+  const incomplete = validWrapper() as Record<string, unknown> & { content_sha256: string };
+  delete incomplete.locator_migration;
+  incomplete.content_sha256 = canonicalJsonSha256ExcludingField(incomplete, "content_sha256");
+  await writeJsonFile(overlayPath, incomplete);
+  await assert.rejects(score(), /locator_migration/u);
+});
+
 test("score matches duplicate amounts by occurrence locator and passes all three gates", async (t) => {
   const fixture = await buildFixture();
   t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
@@ -1333,6 +1556,308 @@ test("one source occurrence cannot authorize duplicate structured prices", async
   assert.equal((gate.unsupported_structured_amounts as unknown[]).length, 1);
 });
 
+test("score collapses only every exact member of a pre-certified DOCX shared group", () => {
+  const structured = [0, 1, 2].map((index) => ({
+    path: `partner_vendors[${index}].options[0]`,
+    krw: 110_000,
+    source_quote: "table:1!D3: 11만원",
+    source_file_ids: ["1".repeat(64)],
+  }));
+  const exact = collapseCertifiedLocalDocxSharedMoney(structured, [{
+    authority: "vertical_merge_interval",
+    source_file_id: "1".repeat(64),
+    source_locator: "table:1!D3",
+    amount_krw: 110_000,
+    raw_text: "11만원",
+    member_occurrence_keys: structured.map(({ path, krw }) => `${path}\0${krw}`),
+  }]);
+  assert.equal(exact.occurrences.length, 1);
+  assert.equal(exact.applied_groups.length, 1);
+
+  const partial = collapseCertifiedLocalDocxSharedMoney(structured, [{
+    authority: "vertical_merge_interval",
+    source_file_id: "1".repeat(64),
+    source_locator: "table:1!D3",
+    amount_krw: 110_000,
+    raw_text: "11만원",
+    member_occurrence_keys: [
+      `${structured[0]!.path}\0${structured[0]!.krw}`,
+      `partner_vendors[99].options[0]\0${110_000}`,
+    ],
+  }]);
+  assert.equal(partial.occurrences.length, 3);
+  assert.equal(partial.applied_groups.length, 0);
+});
+
+test("human-confirmed visual evidence certifies only exact parent range summaries and identity aliases", () => {
+  const contentSha256 = "7".repeat(64);
+  const visualBinding = {
+    schema_version: 1 as const,
+    content_sha256: contentSha256,
+    reviewer_kind: "human_confirmed" as const,
+    reviewer_sha256: "1".repeat(64),
+    evidence_sha256: "2".repeat(64),
+    record_evidence_sha256: "3".repeat(64),
+    coverage_gaps_sha256: "4".repeat(64),
+    fragment_sha256: "5".repeat(64),
+    validation_issue_codes: ["visual_transcription_human_confirmed_pending_admin_review" as const],
+    review_status: "pending" as const,
+    needs_review: true as const,
+    bulk_approval_eligible: false as const,
+  };
+  const unit = {
+    parsed: {
+      raw_name: "에일린꾸뛰르",
+      normalized_name: normalizeVendorName("에일린꾸뛰르"),
+      corporate_name: null,
+    },
+    source_files: [{ path: "agency/seoul/(강남)_에일린꾸뛰르_결혼준비대행서비스.png" }],
+    local_extraction: { visual_transcription: visualBinding },
+    validation: { visual_transcription: visualBinding },
+  } as unknown as ManifestUnit;
+  const parent = {
+    price_min_krw: 600_000,
+    price_max_krw: 2_100_000,
+    source_quote: "AILEEN COUTURE",
+    source_file_ids: ["8".repeat(64)],
+    options: [
+      {
+        price_min_krw: 600_000,
+        price_max_krw: 600_000,
+        source_quote: "entry 600,000",
+        source_file_ids: ["8".repeat(64)],
+      },
+      {
+        price_min_krw: 2_100_000,
+        price_max_krw: 2_100_000,
+        source_quote: "premium 2,100,000",
+        source_file_ids: ["8".repeat(64)],
+      },
+    ],
+  };
+  const data = {
+    doc_kind: "agency_disclosure",
+    business_name: "AILEEN COUTURE",
+    region_hint: "서울 강남",
+    agency_packages: [structuredClone(parent)],
+    partner_vendors: [],
+    halls: [],
+    sections: [],
+    money_occurrences: [
+      { amount_krw: 600_000, source_quote: "entry 600,000" },
+      { amount_krw: 2_100_000, source_quote: "premium 2,100,000" },
+    ],
+  } as unknown as DisclosureExtraction;
+  const sidecar = {
+    content_sha256: contentSha256,
+    reviewer: {
+      kind: "human_confirmed",
+      approved_text_blocks: [{ id: "identity", normalized_content: "AILEEN COUTURE" }],
+      record_field_bindings: [
+        { field_path: "business_name", approved_text_block_id: "identity", binding_kind: "exact" },
+        { field_path: "agency_packages[0].source_quote", approved_text_block_id: "identity", binding_kind: "exact" },
+        { field_path: "money_occurrences[0].source_quote", approved_text_block_id: "money-0", binding_kind: "exact" },
+        { field_path: "money_occurrences[1].source_quote", approved_text_block_id: "money-1", binding_kind: "exact" },
+      ],
+    },
+    fragment: {
+      doc_kind: "agency_disclosure",
+      business_name: "AILEEN COUTURE",
+      region_hint: "서울 강남",
+      agency_packages: [structuredClone(parent)],
+      partner_vendors: [],
+      halls: [],
+      sections: [],
+      money_occurrences: [
+        { amount_krw: 600_000, source_quote: "entry 600,000" },
+        { amount_krw: 2_100_000, source_quote: "premium 2,100,000" },
+      ],
+    },
+    record_evidence: [
+      {
+        record_path: "agency_packages[0]",
+        source_locators: ["image:1/entry", "image:1/premium"],
+      },
+      { record_path: "agency_packages[0].options[0]", source_locators: ["image:1/entry"] },
+      { record_path: "agency_packages[0].options[1]", source_locators: ["image:1/premium"] },
+      { record_path: "money_occurrences[0]", source_locators: ["image:1/entry"] },
+      { record_path: "money_occurrences[1]", source_locators: ["image:1/premium"] },
+    ],
+  } as unknown as LoadedVisualTranscriptionSidecar;
+
+  const certification = certifyHumanConfirmedVisualScoreEvidence(unit, data, sidecar);
+  assert.ok(certification);
+  assert.equal(certification.business_name_alias, "AILEEN COUTURE");
+  assert.deepEqual(certification.parent_ranges.map(({ krw }) => krw), [600_000, 2_100_000]);
+  const structured = [
+    { path: "agency_packages[0]", krw: 600_000, source_quote: "identity", source_file_ids: [] },
+    { path: "agency_packages[0]", krw: 2_100_000, source_quote: "identity", source_file_ids: [] },
+    { path: "agency_packages[0].options[0]", krw: 600_000, source_quote: "entry", source_file_ids: [] },
+    { path: "agency_packages[0].options[1]", krw: 2_100_000, source_quote: "premium", source_file_ids: [] },
+  ];
+  assert.deepEqual(
+    collapseCertifiedHumanVisualParentRanges(structured, certification).map(({ path: recordPath }) => recordPath),
+    ["agency_packages[0].options[0]", "agency_packages[0].options[1]"],
+  );
+  assert.equal(
+    businessNameMatchesCanonicalOrCertifiedVisualAlias(unit, "AILEEN COUTURE"),
+    false,
+  );
+  assert.equal(
+    businessNameMatchesCanonicalOrCertifiedVisualAlias(
+      unit,
+      "AILEEN COUTURE",
+      certification.business_name_alias,
+    ),
+    true,
+  );
+
+  const unbound = structuredClone(sidecar) as LoadedVisualTranscriptionSidecar;
+  const moneyBinding = unbound.reviewer.kind === "human_confirmed"
+    ? unbound.reviewer.record_field_bindings.find(({ field_path }) =>
+      field_path === "money_occurrences[0].source_quote"
+    )
+    : null;
+  assert.ok(moneyBinding);
+  moneyBinding.binding_kind = "extractive";
+  const narrowed = certifyHumanConfirmedVisualScoreEvidence(unit, data, unbound);
+  assert.ok(narrowed);
+  assert.deepEqual(narrowed.parent_ranges.map(({ krw }) => krw), [2_100_000]);
+});
+
+test("strict local score accepts only converter-certified DOCX business-header fan-out", async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "hanbang-docx-shared-score-"));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const stateDir = path.join(temporaryRoot, "state");
+  const rawRoot = path.join(temporaryRoot, "raw");
+  const rawPath = path.join(rawRoot, "agency", "seoul", "shared.docx");
+  const unitId = "9".repeat(64);
+  const sourceFingerprint = sha256Text("docx-shared-score-source");
+  const convertedPath = path.join(
+    stateDir,
+    ".converted",
+    unitId,
+    sourceFingerprint,
+    "1-doc.txt",
+  );
+  const metadata = (
+    locator: string,
+    vertical_merge: "restart" | "continue",
+    empty: boolean,
+  ): string => {
+    const match = /^table:(\d+)!([A-Z]+)(\d+)$/u.exec(locator);
+    assert.ok(match);
+    const column = [...match[2]!].reduce(
+      (total, character) => total * 26 + character.charCodeAt(0) - 64,
+      0,
+    );
+    return `[DOCX_CELL_META] ${Buffer.from(JSON.stringify({
+      version: 2,
+      locator,
+      table: Number(match[1]),
+      row: Number(match[3]),
+      column,
+      span: null,
+      vertical_merge,
+      empty,
+    }), "utf8").toString("base64url")}`;
+  };
+  const convertedText = [
+    "table:1!A1: 사업자명",
+    metadata("table:1!A1", "restart", false),
+    "table:1!B1: 기본가격",
+    metadata("table:1!B1", "restart", false),
+    metadata("table:1!A2", "continue", true),
+    metadata("table:1!B2", "continue", true),
+    "table:1!A3: 햇살사진, 달빛사진",
+    "table:1!B3: 스튜디오 기본 100만원",
+  ].join("\n");
+  await mkdir(path.dirname(rawPath), { recursive: true });
+  await mkdir(path.dirname(convertedPath), { recursive: true });
+  await writeFile(rawPath, "immutable DOCX fixture", "utf8");
+  await writeFile(convertedPath, convertedText, "utf8");
+  const sourceDigest = await sha256File(rawPath);
+  const convertedDigest = await sha256File(convertedPath);
+  const sourcePath = "agency/seoul/shared.docx";
+  const manifest: IngestManifest = {
+    schema_version: 1,
+    scanner_parser_version: SCANNER_PARSER_VERSION,
+    root_dir: rawRoot,
+    state_dir: stateDir,
+    scanned_at: new Date(0).toISOString(),
+    units: [{
+      unit_id: unitId,
+      display_name: "shared.docx",
+      parsed: {
+        region_code: "gyeonggi",
+        raw_name: "공유웨딩",
+        normalized_name: "공유웨딩",
+        corporate_name: null,
+        kind_hint: "agency",
+      },
+      source_files: [{
+        path: sourcePath,
+        absolute_path: rawPath,
+        ext: "docx",
+        sha256: sourceDigest.sha256,
+        bytes: sourceDigest.bytes,
+      }],
+      source_fingerprint: sourceFingerprint,
+      stage: "converted",
+      notices: [],
+      conversion: {
+        converter_version: CONVERTER_VERSION,
+        source_fingerprint: sourceFingerprint,
+        text_artifacts: [convertedPath],
+        image_artifacts: [],
+        text_characters: convertedText.length,
+        cell_count: 4,
+        artifact_fingerprint: sha256Text(
+          `${path.resolve(convertedPath)}\0${convertedDigest.sha256}`,
+        ),
+        converted_at: new Date(0).toISOString(),
+      },
+    }],
+  };
+  await writeJsonFile(path.join(stateDir, "manifest.json"), manifest);
+  await extractManifestLocally({ stateDir });
+  await validateManifest({ stateDir });
+
+  const candidates = scanSourceMoneyOccurrences(convertedText);
+  assert.equal(candidates.length, 1);
+  const groundTruthPath = path.join(stateDir, "docx-shared-ground-truth.json");
+  await writeJsonFile(groundTruthPath, {
+    generated_at: new Date(0).toISOString(),
+    units: [{
+      unit_id: unitId,
+      display_name: "shared.docx",
+      source_paths: [sourcePath],
+      candidate_count: candidates.length,
+      candidates,
+    }],
+  });
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir,
+    unitIds: [unitId],
+    groundTruthPath,
+    expectedGroundTruthSha256: (await sha256File(groundTruthPath)).sha256,
+    expectedOccurrenceCount: 1,
+    candidateSource: "local",
+    requireValidatedArtifacts: true,
+  });
+  const unit = (report.units as Array<Record<string, unknown>>)[0]!;
+  const gate = unit.price_gate as Record<string, unknown>;
+  const shared = gate.certified_local_docx_shared_money as {
+    groups: unknown[];
+    collapsed_occurrences: number;
+  };
+  assert.equal(unit.status, "pass", JSON.stringify(unit));
+  assert.equal((gate.unsupported_structured_amounts as unknown[]).length, 0);
+  assert.equal((gate.actual_coverage_gaps as unknown[]).length, 0);
+  assert.equal(shared.groups.length, 1);
+  assert.equal(shared.collapsed_occurrences, 1);
+});
+
 test("score does not let one located amount cover a second ground-truth occurrence", async (t) => {
   const fixture = await buildFixture("가격표!B2: 123만원");
   t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
@@ -1382,6 +1907,73 @@ test("score accepts an XLSX cell-only quote when the sheet name is omitted", asy
 
   const gate = report.gate as Record<string, unknown>;
   assert.equal(gate.status, "pass");
+});
+
+test("semantic capture keeps exact sections that only carry a low-confidence review warning", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  const manifest = await readJsonFile(path.join(fixture.stateDir, "manifest.json")) as IngestManifest;
+  const extractionPath = manifest.units[0]!.extraction?.artifact_path ?? "";
+  const artifact = await readJsonFile(extractionPath) as {
+    data: DisclosureExtraction;
+  } & Record<string, unknown>;
+  artifact.data.sections = [{
+    section_type: "refund_policy",
+    title: "refund terms",
+    content_verbatim: "refund terms",
+    summary: "Refund terms require a person to review confidence.",
+    source_quote: "가격표!A4: refund terms",
+    source_file_ids: [SOURCE_ID],
+    confidence: 0.7,
+    needs_review: true,
+  }];
+  await writeJsonFile(extractionPath, artifact);
+  const { validatedPath } = await attachStrictArtifacts(fixture.stateDir);
+  const validation = await readJsonFile(validatedPath) as {
+    issues: Array<{ code: string; path: string }>;
+  };
+  assert.ok(validation.issues.some((issue) =>
+    issue.code === "low_confidence" && issue.path === "sections[0]"
+  ));
+  const overlayPath = path.join(fixture.stateDir, "review-only-semantic-overlay.json");
+  await writeJsonFile(overlayPath, {
+    schema_version: 1,
+    created_at: "2026-07-20T00:00:00.000Z",
+    units: [{
+      unit_id: UNIT_ID,
+      readable_occurrences: [],
+      unreadable_cells: [],
+      expectations: {
+        doc_kinds: ["agency_disclosure"],
+        policies: true,
+        pricing_basis: false,
+        sections: true,
+        halls_min: 0,
+      },
+    }],
+  });
+
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    overlayPath,
+    expectedOverlaySha256: (await sha256File(overlayPath)).sha256,
+    requireValidatedArtifacts: true,
+  });
+
+  const unit = (report.units as Array<{
+    semantic_capture: {
+      status: string;
+      observed: { sections: number; document_policy_sections: number; rejected_paths: string[] };
+    };
+  }>)[0]!;
+  assert.equal(unit.semantic_capture.status, "captured", JSON.stringify(unit));
+  assert.equal(unit.semantic_capture.observed.sections, 1);
+  assert.equal(unit.semantic_capture.observed.document_policy_sections, 1);
+  assert.deepEqual(unit.semantic_capture.observed.rejected_paths, []);
 });
 
 test("semantic policy coverage accepts document-common refund and penalty sections", async (t) => {
@@ -2089,6 +2681,75 @@ test("human-required source anomaly is quarantined from the exact gate and remai
   );
 });
 
+test("a human-required quarantined occurrence may stay in the audit ledger but cannot authorize a structured price", async (t) => {
+  const fixture = await buildFixture();
+  t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
+  const manifest = await readJsonFile(path.join(fixture.stateDir, "manifest.json")) as IngestManifest;
+  const extractionPath = manifest.units[0]!.extraction?.artifact_path ?? "";
+  const artifact = await readJsonFile(extractionPath) as {
+    data: DisclosureExtraction;
+  } & Record<string, unknown>;
+  const quarantinedOption = artifact.data.agency_packages[0]!.options[0]!;
+  artifact.data.agency_packages[0]!.options = [];
+  await writeJsonFile(extractionPath, artifact);
+  const inventory = await readJsonFile(fixture.groundTruthPath) as {
+    units: Array<{ candidates: Array<{ raw: string; source_locator: string }> }>;
+  };
+  const quarantined = inventory.units[0]!.candidates[1]!;
+  const adjudicationPath = path.join(fixture.stateDir, "audit-only-adjudication.json");
+  await writeJsonFile(adjudicationPath, {
+    schema_version: 1,
+    created_at: new Date().toISOString(),
+    base_ground_truth_sha256: fixture.groundTruthSha256,
+    decisions: [{
+      decision_id: "quarantine-audit-only-source-occurrence",
+      action: "quarantine_source_anomaly",
+      verification: "human_required",
+      references: [{
+        unit_id: UNIT_ID,
+        source_locator: quarantined.source_locator,
+        raw: quarantined.raw,
+        ordinal: 1,
+      }],
+      reason: "The source scanner must retain this amount while a person adjudicates it.",
+    }],
+  });
+
+  const report = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    adjudicationPath,
+    expectedAdjudicationSha256: (await sha256File(adjudicationPath)).sha256,
+  });
+
+  const unit = (report.units as Array<Record<string, unknown>>)[0]!;
+  const priceGate = unit.price_gate as Record<string, unknown>;
+  assert.equal((priceGate.hallucinated_amounts as unknown[]).length, 0, JSON.stringify(unit));
+  assert.equal((priceGate.unsupported_structured_amounts as unknown[]).length, 0);
+  assert.equal(unit.status, "pass", JSON.stringify(unit));
+  assert.equal((unit.human_required_adjudication as unknown[]).length, 1);
+
+  artifact.data.agency_packages[0]!.options = [quarantinedOption];
+  await writeJsonFile(extractionPath, artifact);
+  const unsafeStructuredReport = await scoreExtractionAgainstGroundTruth({
+    stateDir: fixture.stateDir,
+    unitIds: [UNIT_ID],
+    groundTruthPath: fixture.groundTruthPath,
+    expectedGroundTruthSha256: fixture.groundTruthSha256,
+    expectedOccurrenceCount: 2,
+    adjudicationPath,
+    expectedAdjudicationSha256: (await sha256File(adjudicationPath)).sha256,
+  });
+  const unsafeUnit = (unsafeStructuredReport.units as Array<Record<string, unknown>>)[0]!;
+  const unsafePriceGate = unsafeUnit.price_gate as Record<string, unknown>;
+  assert.equal((unsafePriceGate.hallucinated_amounts as unknown[]).length, 0);
+  assert.equal((unsafePriceGate.unsupported_structured_amounts as unknown[]).length, 1);
+  assert.equal(unsafeUnit.status, "fail", JSON.stringify(unsafeUnit));
+});
+
 test("semantic_expansion_only verifies its source reference but does not change the price gate", async (t) => {
   const fixture = await buildFixture();
   t.after(async () => rm(fixture.stateDir, { recursive: true, force: true }));
@@ -2330,6 +2991,14 @@ test("human-required replace and add results stay outside the exact price gate",
     data: DisclosureExtraction;
   } & Record<string, unknown>;
   artifact.data.money_occurrences = artifact.data.money_occurrences!.slice(0, 1);
+  artifact.data.money_occurrences.push({
+    amount_krw: 500_000,
+    raw_text: "판독 후보 50만원",
+    source_quote: "가격표!C4: 판독 후보 50만원",
+    source_file_ids: [SOURCE_ID],
+    kind: "price",
+    needs_review: true,
+  });
   artifact.data.agency_packages[0].options = [];
   await writeJsonFile(extractionPath, artifact);
   const adjudicationPath = path.join(fixture.stateDir, "adjudication.json");

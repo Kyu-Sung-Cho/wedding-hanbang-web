@@ -2,6 +2,28 @@ import { z } from "zod";
 
 import { SUPPORTED_SOURCE_EXTENSIONS } from "./types.js";
 
+export const VisualTranscriptionExtractionBindingSchema = z.object({
+  schema_version: z.literal(1),
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  reviewer_kind: z.enum(["codex_assisted_unconfirmed", "human_confirmed"]),
+  reviewer_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  evidence_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  record_evidence_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  coverage_gaps_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  fragment_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  validation_issue_codes: z.array(z.enum([
+    "visual_transcription_requires_human_confirmation",
+    "visual_transcription_human_confirmed_pending_admin_review",
+  ])).length(1),
+  review_status: z.literal("pending"),
+  needs_review: z.literal(true),
+  bulk_approval_eligible: z.literal(false),
+}).strict();
+
+export type VisualTranscriptionExtractionBinding = z.infer<
+  typeof VisualTranscriptionExtractionBindingSchema
+>;
+
 export const SourceFileSchema = z.object({
   path: z.string().min(1),
   absolute_path: z.string().min(1),
@@ -41,6 +63,23 @@ export const ManifestUnitSchema = z.object({
     cell_count: z.number().int().nonnegative(),
     artifact_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     converted_at: z.string().datetime(),
+    ocr_review: z.object({
+      contract_version: z.string().min(1).max(200),
+      contract_hash: z.string().regex(/^[a-f0-9]{64}$/),
+      language: z.literal("ko-KR"),
+      review_only: z.literal(true),
+      authoritative: z.literal(false),
+      bulk_approval_eligible: z.literal(false),
+      artifacts: z.array(z.object({
+        artifact_path: z.string().min(1),
+        source_image_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+        page: z.number().int().min(1).max(200),
+        engine_name: z.literal("Windows.Media.Ocr"),
+        engine_version: z.string().min(1).max(200),
+        engine_hash: z.string().regex(/^[a-f0-9]{64}$/),
+        line_count: z.number().int().nonnegative().max(10_000),
+      }).strict()).min(1).max(200),
+    }).strict().optional(),
   }).optional(),
   extraction: z.object({
     provider_mode: z.enum(["production_paid", "test_only"]).optional(),
@@ -82,6 +121,8 @@ export const ManifestUnitSchema = z.object({
     review_status: z.literal("pending"),
     needs_review: z.literal(true),
     bulk_approval_eligible: z.literal(false),
+    visual_transcription: VisualTranscriptionExtractionBindingSchema.optional(),
+    paid_review_only_override: z.literal(true).optional(),
     extracted_at: z.string().datetime(),
   }).strict().optional(),
   validation: z.object({
@@ -95,6 +136,7 @@ export const ManifestUnitSchema = z.object({
     engine_hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     needs_review: z.literal(true).optional(),
     bulk_approval_eligible: z.literal(false).optional(),
+    visual_transcription: VisualTranscriptionExtractionBindingSchema.optional(),
     artifact_path: z.string().min(1),
     review_status: z.literal("pending"),
     issue_count: z.number().int().nonnegative(),
@@ -549,6 +591,7 @@ export const LocalDeterministicExtractionArtifactSchema = z.object({
   review_status: z.literal("pending"),
   needs_review: z.literal(true),
   bulk_approval_eligible: z.literal(false),
+  visual_transcription: VisualTranscriptionExtractionBindingSchema.optional(),
   created_at: z.string().datetime(),
 }).strict();
 

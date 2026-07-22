@@ -126,6 +126,9 @@ export interface PriceDemoSeedResult {
   published: true;
 }
 
+export const PRICE_DEMO_SEED_RETIRED_MESSAGE =
+  "price demo seed is retired: pending kca_tprice rows must be staged through the atomic disclosure ingest RPC";
+
 const SAMPLE_EVIDENCE_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
@@ -839,9 +842,8 @@ export function createSupabasePriceDemoSeedRepository(
 }
 
 export async function runPriceDemoSeed(env: NodeJS.ProcessEnv = process.env): Promise<PriceDemoSeedResult> {
-  const environment = assertPriceDemoSeedEnvironment(env);
-  const repository = createSupabasePriceDemoSeedRepository(environment);
-  return applyPriceDemoFixture(repository, buildPriceDemoFixture(), environment.actorId);
+  void env;
+  throw new Error(PRICE_DEMO_SEED_RETIRED_MESSAGE);
 }
 
 const invokedFilename = process.argv[1] ? path.basename(process.argv[1]).toLocaleLowerCase("en-US") : "";

@@ -1,12 +1,14 @@
+import { SOURCE_MONEY_SCANNER_VERSION } from "./extraction-contract.js";
 import { sha256Text } from "./io.js";
 
 export const LOCAL_DETERMINISTIC_PROVIDER_MODE = "local_deterministic" as const;
 export const LOCAL_DETERMINISTIC_MODEL = "local-deterministic-v1" as const;
 export const LOCAL_DETERMINISTIC_ENGINE_VERSION =
-  "v8-record-local-category-evidence-review-only";
+  "v51-bounded-long-row-evidence";
 export const LOCAL_DETERMINISTIC_ENGINE_HASH = sha256Text([
   LOCAL_DETERMINISTIC_MODEL,
   LOCAL_DETERMINISTIC_ENGINE_VERSION,
+  SOURCE_MONEY_SCANNER_VERSION,
   "no-network",
   "no-provider",
   "pending-only",

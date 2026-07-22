@@ -3,13 +3,25 @@ import { readFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  validateStorageUploadClaim,
+  type BeginStorageUploadAttemptResult,
+  type StorageJournalObject,
+  type StorageUploadClaim,
+} from "./batch-safety-journal.js";
 import { assertDisclosureStagingProjectRef } from "./destination.js";
+import { canonicalSha256 } from "./gate-integrity.js";
 import { sha256Text } from "./io.js";
 import {
   buildDisclosureSemanticContentFingerprint,
   buildDisclosureSemanticSourceRecordKey,
   buildOfficialPriceContentFingerprint,
+  assertStagingEnvironmentDestination,
+  buildStagingBatches,
+  stagingLoadPlanSha256,
   stagingDisclosureSemantics,
+  StagingRollbackIncompleteError,
+  StagingStorageIntentsUnsettledError,
 } from "./load.js";
 import { buildPartnerVendorRecords } from "./partner-dedupe.js";
 import { normalizeVendorName } from "./scan.js";
@@ -19,9 +31,20 @@ import {
 } from "./schemas.js";
 import type {
   StagingAgencyPackage,
+  StagingAbortContext,
+  StagingAbortResult,
+  StagingBatchReceiptContext,
+  StagingBatchWriteContext,
+  StagingDedupeFinalizeContext,
+  StagingInvalidationContext,
+  StagingInvalidationResult,
   StagingEnvironment,
   StagingDedupeCandidate,
   StagingLoadPlan,
+  StagingStorageIntent,
+  StagingStorageRollbackCompletionContext,
+  StagingStorageRollbackCompletionResult,
+  StagingStorageOutcome,
   StagingOfficialPrice,
   StagingWriter,
   StagingWriterResult,
@@ -36,13 +59,64 @@ function idFrom(value: unknown, context: string): string {
   return value.id;
 }
 
+export class StagingDatabaseError extends Error {
+  readonly code: string;
+
+  constructor(context: string, code: string, cause?: unknown) {
+    super(`${context} failed (DB code: ${code})`, { cause });
+    this.name = "StagingDatabaseError";
+    this.code = code;
+  }
+}
+
 function databaseError(context: string, error: unknown): never {
   const code = isRecord(error) && typeof error.code === "string" ? error.code.slice(0, 40) : "unknown";
-  throw new Error(`${context} 실패 (DB code: ${code})`);
+  throw new StagingDatabaseError(context, code, error);
 }
 
 function databaseErrorCode(error: unknown): string {
   return isRecord(error) && typeof error.code === "string" ? error.code : "unknown";
+}
+
+export interface SqlStateRetryOptions {
+  maxAttempts?: number;
+  baseDelayMs?: number;
+  sleep?: (delayMs: number) => Promise<void>;
+}
+
+export async function withSqlStateRetry<T extends { data: unknown; error: unknown }>(
+  context: string,
+  operation: () => Promise<T>,
+  options: SqlStateRetryOptions = {},
+): Promise<T> {
+  const maxAttempts = options.maxAttempts ?? 4;
+  const baseDelayMs = options.baseDelayMs ?? 50;
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 5) {
+    throw new Error("SQLSTATE retry maxAttempts must be between 1 and 5");
+  }
+  if (!Number.isSafeInteger(baseDelayMs) || baseDelayMs < 0 || baseDelayMs > 5_000) {
+    throw new Error("SQLSTATE retry baseDelayMs must be between 0 and 5000");
+  }
+  const sleep = options.sleep ?? ((delayMs: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let response: T;
+    try {
+      response = await operation();
+    } catch (error) {
+      const code = error instanceof StagingDatabaseError
+        ? error.code
+        : databaseErrorCode(error);
+      if (code !== "55P03" || attempt === maxAttempts) throw error;
+      await sleep(baseDelayMs * (2 ** (attempt - 1)));
+      continue;
+    }
+    if (!response.error) return response;
+    const code = databaseErrorCode(response.error);
+    if (code !== "55P03" || attempt === maxAttempts) databaseError(context, response.error);
+    await sleep(baseDelayMs * (2 ** (attempt - 1)));
+  }
+  throw new Error("unreachable SQLSTATE retry state");
 }
 
 function contentType(extension: string): string {
@@ -113,34 +187,1032 @@ function sha256Buffer(content: Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function customStorageMetadata(
+  metadata: Record<string, unknown>,
+  snakeCaseKey: string,
+  camelCaseKey: string,
+): unknown {
+  return metadata[snakeCaseKey] ?? metadata[camelCaseKey];
+}
+
+interface StorageUploadOwnershipContext {
+  runSha256: string;
+  firstObjectIndex: number;
+  claimObject: (
+    object: StagingStorageIntent,
+    objectIndex: number,
+  ) => Promise<{ claim: StorageUploadClaim; fresh: boolean }>;
+  recordClaim: (claim: StorageUploadClaim, objectIndex: number) => Promise<string>;
+  startUpload: (
+    claim: StorageUploadClaim,
+    objectIndex: number,
+    freshClaim: boolean,
+  ) => Promise<BeginStorageUploadAttemptResult>;
+  recordObject: (
+    object: StorageJournalObject,
+    objectIndex: number,
+    claim: StorageUploadClaim,
+    uploadAttempt: number,
+  ) => Promise<string>;
+}
+
+async function verifyRemoteStorageObject(
+  storage: ReturnType<SupabaseClient["storage"]["from"]>,
+  objectKey: string,
+  expectedSha256: string,
+  expectedBytes: number,
+  label: "raw" | "preview",
+): Promise<void> {
+  const existing = await storage.download(objectKey);
+  if (existing.error) databaseError("remote disclosure Storage verification", existing.error);
+  if (!existing.data || existing.data.size !== expectedBytes) {
+    throw new Error(`Remote ${label} Storage object size mismatch.`);
+  }
+  const existingContent = new Uint8Array(await existing.data.arrayBuffer());
+  if (sha256Buffer(existingContent) !== expectedSha256) {
+    throw new Error(`Remote ${label} Storage object hash mismatch.`);
+  }
+}
+
+async function remoteStorageObjectOwnedByRun(
+  storage: ReturnType<SupabaseClient["storage"]["from"]>,
+  objectKey: string,
+  expectedSha256: string,
+  expectedBytes: number,
+  runSha256: string,
+  expectedUploadClaim?: StorageUploadClaim,
+): Promise<boolean> {
+  const info = await storage.info(objectKey);
+  if (info.error || !info.data || !isRecord(info.data.metadata)) {
+    if (info.error) databaseError("remote disclosure Storage ownership verification", info.error);
+    throw new Error("Remote Storage object ownership metadata is unavailable.");
+  }
+  const metadata = info.data.metadata;
+  const reportedSize = typeof info.data.size === "number"
+    ? info.data.size
+    : typeof metadata.size === "number"
+      ? metadata.size
+      : Number(metadata.size);
+  if (reportedSize !== expectedBytes) {
+    throw new Error("Remote Storage ownership metadata has a different object size.");
+  }
+  const owner = customStorageMetadata(metadata, "ingest_run_sha256", "ingestRunSha256");
+  if (owner === undefined || owner === null || owner === "") return false;
+  if (
+    customStorageMetadata(metadata, "ingest_sha256", "ingestSha256") !== expectedSha256
+    || Number(customStorageMetadata(metadata, "ingest_bytes", "ingestBytes")) !== expectedBytes
+  ) {
+    throw new Error("Remote Storage object has conflicting ingest ownership metadata.");
+  }
+  if (
+    owner === runSha256
+    && expectedUploadClaim?.claim_action === "upload"
+    && (
+      customStorageMetadata(metadata, "ingest_claim_token", "ingestClaimToken")
+        !== expectedUploadClaim.claim_token
+      || Number(customStorageMetadata(metadata, "ingest_claim_epoch", "ingestClaimEpoch"))
+        !== expectedUploadClaim.claim_epoch
+      || customStorageMetadata(metadata, "ingest_claimant_id", "ingestClaimantId")
+        !== expectedUploadClaim.claimant_id
+    )
+  ) {
+    throw new Error("Remote Storage object was not created by the exact active upload claim.");
+  }
+  // A content-addressed object may have been created by an earlier run and be
+  // safely reused by this one. Ownership remains with its original creator;
+  // this run records it as pre-existing and must never delete it on abort.
+  return owner === runSha256;
+}
+
 export async function uploadRawObjects(
   client: SupabaseClient,
   bucket: string,
   plan: StagingLoadPlan,
-): Promise<void> {
+  ownership: StorageUploadOwnershipContext,
+): Promise<StorageJournalObject[]> {
+  if (bucket !== "disclosure-raw") {
+    throw new Error("Immutable disclosure sources may only be uploaded to disclosure-raw.");
+  }
+  const journal: StorageJournalObject[] = [];
   const storage = client.storage.from(bucket);
   for (const raw of plan.raw_objects) {
+    const objectIndex = ownership.firstObjectIndex + journal.length;
+    const intent = {
+      bucket: "disclosure-raw" as const,
+      object_key: raw.storage_path,
+      sha256: raw.sha256,
+      bytes: raw.bytes,
+    };
     const content = await readFile(raw.absolute_path);
     if (sha256Buffer(content) !== raw.sha256 || content.byteLength !== raw.bytes) {
       throw new Error(`Storage 업로드 직전 원본 hash가 변경되었습니다: ${raw.source_path}`);
     }
-    const { error } = await storage.upload(
+    const resolvedClaim = await ownership.claimObject(intent, objectIndex);
+    const claim = validateStorageUploadClaim(resolvedClaim.claim);
+    if (
+      claim.bucket !== intent.bucket
+      || claim.object_key !== intent.object_key
+      || claim.sha256 !== intent.sha256
+      || claim.bytes !== intent.bytes
+    ) {
+      throw new Error("Storage upload claim does not bind the exact prepared raw object.");
+    }
+    if (resolvedClaim.fresh) await ownership.recordClaim(claim, objectIndex);
+    let uploadError: unknown = null;
+    let uploadAttempt = 0;
+    if (claim.claim_action === "upload") {
+      const uploadStart = await ownership.startUpload(claim, objectIndex, resolvedClaim.fresh);
+      uploadAttempt = uploadStart.uploadAttempt;
+      if (uploadStart.shouldUpload) {
+        const upload = await storage.upload(
+          raw.storage_path,
+          content,
+          {
+            contentType: contentType(raw.ext),
+            upsert: false,
+            metadata: {
+              ingest_run_sha256: ownership.runSha256,
+              ingest_sha256: raw.sha256,
+              ingest_bytes: raw.bytes,
+              ingest_claim_token: claim.claim_token,
+              ingest_claim_epoch: claim.claim_epoch,
+              ingest_claimant_id: claim.claimant_id,
+            },
+          },
+        );
+        uploadError = upload.error;
+        if (upload.error && !storageDuplicate(upload.error)) {
+          databaseError("disclosure raw Storage upload", upload.error);
+        }
+      }
+    }
+    await verifyRemoteStorageObject(storage, raw.storage_path, raw.sha256, raw.bytes, "raw");
+    const created = await remoteStorageObjectOwnedByRun(
+      storage,
       raw.storage_path,
-      content,
-      { contentType: contentType(raw.ext), upsert: false },
+      raw.sha256,
+      raw.bytes,
+      ownership.runSha256,
+      claim,
     );
-    if (!error) continue;
-    if (!storageDuplicate(error)) databaseError("공시 원본 Storage 업로드", error);
+    if (claim.claim_action === "upload" && !uploadError && !created) {
+      throw new Error("A newly uploaded Storage object lacks exact run ownership metadata.");
+    }
+    const mutation = {
+      bucket: "disclosure-raw",
+      object_key: raw.storage_path,
+      sha256: raw.sha256,
+      bytes: raw.bytes,
+      created,
+    } as const;
+    await ownership.recordObject(mutation, objectIndex, claim, uploadAttempt);
+    journal.push(mutation);
+  }
+  return journal;
+}
 
-    const existing = await storage.download(raw.storage_path);
-    if (existing.error) databaseError("기존 공시 원본 Storage 검증", existing.error);
-    if (!existing.data || existing.data.size !== raw.bytes) {
-      throw new Error("Existing Storage object size/hash does not match the local evidence object.");
+function databaseBatchPayload(plan: StagingLoadPlan): Record<string, unknown> {
+  return {
+    ...plan,
+    raw_objects: plan.raw_objects.map(({ absolute_path: _absolutePath, ...raw }) => raw),
+    preview_objects: plan.preview_objects.map(({ absolute_path: _AbsolutePath, ...preview }) => preview),
+  };
+}
+
+function storageIntentsForPlan(plan: StagingLoadPlan): StagingStorageIntent[] {
+  return [
+    ...plan.raw_objects.map((raw) => ({
+      bucket: "disclosure-raw" as const,
+      object_key: raw.storage_path,
+      sha256: raw.sha256,
+      bytes: raw.bytes,
+    })),
+    ...plan.preview_objects.map((preview) => ({
+      bucket: "disclosure-preview" as const,
+      object_key: preview.storage_path,
+      sha256: preview.sha256,
+      bytes: preview.bytes,
+    })),
+  ];
+}
+
+function officialPriceHasStructuredPrice(row: StagingOfficialPrice): boolean {
+  return row.price_min_krw !== null
+    || row.price_max_krw !== null
+    || row.options.some((option) =>
+      option.price_min_krw !== null || option.price_max_krw !== null
+    );
+}
+
+export function assertPendingOnlyBatch(plan: StagingLoadPlan): void {
+  if (plan.units.length < 1 || plan.units.length > 25) {
+    throw new Error("atomic disclosure staging batches must contain between 1 and 25 units");
+  }
+  const fingerprintPattern = /^[a-f0-9]{64}$/u;
+  if (
+    new Set(plan.units.map((unit) => unit.unit_id)).size !== plan.units.length
+    || plan.units.some((unit) =>
+      !fingerprintPattern.test(unit.unit_id)
+      || !fingerprintPattern.test(unit.source_fingerprint)
+      || !fingerprintPattern.test(unit.conversion_fingerprint)
+      || !fingerprintPattern.test(unit.extraction_fingerprint)
+      || !fingerprintPattern.test(unit.validation_fingerprint)
+    )
+  ) {
+    throw new Error("atomic disclosure staging requires unique units with exact immutable artifact fingerprints");
+  }
+  const rows = [
+    ...plan.agency_packages,
+    ...plan.official_prices,
+    ...plan.disclosure_semantics,
+  ];
+  if (rows.length === 0) throw new Error("an atomic disclosure staging batch cannot be empty");
+  if (rows.some((row) => row.review_status !== "pending")) {
+    throw new Error("atomic disclosure staging is pending-only");
+  }
+  if (plan.dedupe_candidates.length !== 0) {
+    throw new Error("cross-batch dedupe candidates may only be written by the finalizer");
+  }
+  for (const row of plan.official_prices) {
+    if (row.category === "other") {
+      throw new Error(
+        "an official price must resolve to one of the four consumer explorer categories before staging",
+      );
     }
-    const existingContent = new Uint8Array(await existing.data.arrayBuffer());
-    if (sha256Buffer(existingContent) !== raw.sha256) {
-      throw new Error("Existing Storage object hash does not match the local evidence object.");
+    sanitizeVendorAliasProposals(row.alias_proposals);
+    const identityOnly = !officialPriceHasStructuredPrice(row);
+    const markedIdentityOnly = row.validation_issue_codes.includes("identity_only_no_price");
+    if (identityOnly && (row.needs_review !== true || !markedIdentityOnly)) {
+      throw new Error(
+        "an unpriced vendor identity must remain review-only and carry identity_only_no_price",
+      );
     }
+    if (!identityOnly && markedIdentityOnly) {
+      throw new Error("identity_only_no_price cannot mark an official price with a structured price");
+    }
+  }
+}
+
+function exactAtomicBatchResponse(value: unknown, context: StagingBatchWriteContext): {
+  batchReceiptSha256: string;
+  loadedUnitIds: string[];
+  loggedLedgerIds: string[];
+} {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!isRecord(row)) throw new Error("atomic disclosure staging RPC returned no receipt");
+  const receipt = row.batch_receipt_sha256;
+  const loadedUnitIds = row.loaded_unit_ids;
+  const loggedLedgerIds = row.logged_ledger_ids;
+  if (
+    typeof receipt !== "string"
+    || !/^[a-f0-9]{64}$/u.test(receipt)
+    || !Array.isArray(loadedUnitIds)
+    || loadedUnitIds.some((unitId) => typeof unitId !== "string")
+    || !Array.isArray(loggedLedgerIds)
+    || loggedLedgerIds.some((ledgerId) => typeof ledgerId !== "string")
+    || !isDeepStrictEqual(loadedUnitIds, context.unit_ids)
+  ) {
+    throw new Error("atomic disclosure staging RPC receipt is invalid or belongs to another batch");
+  }
+  return {
+    batchReceiptSha256: receipt,
+    loadedUnitIds: loadedUnitIds as string[],
+    loggedLedgerIds: loggedLedgerIds as string[],
+  };
+}
+
+function exactStoragePrepareResponse(value: unknown, expectedObjectCount: number): void {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (
+    !isRecord(row)
+    || row.prepared_object_count !== expectedObjectCount
+    || typeof row.already_prepared !== "boolean"
+  ) {
+    throw new Error("atomic disclosure Storage prepare RPC returned an invalid receipt");
+  }
+}
+
+function exactStorageClaimResponse(
+  value: unknown,
+  object: StagingStorageIntent,
+  expectedClaimantId: string,
+): StorageUploadClaim {
+  const row = Array.isArray(value) ? value[0] : value;
+  const rawEpoch = isRecord(row) ? row.claim_epoch : null;
+  const claimEpoch = typeof rawEpoch === "string" && /^[1-9][0-9]{0,15}$/u.test(rawEpoch)
+    ? Number(rawEpoch)
+    : rawEpoch;
+  if (
+    !isRecord(row)
+    || typeof row.claim_token !== "string"
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(row.claim_token)
+    || !Number.isSafeInteger(claimEpoch)
+    || (claimEpoch as number) < 1
+    || (row.claim_action !== "upload" && row.claim_action !== "verify")
+    || !["intent", "confirmed_created", "confirmed_preexisting", "confirmed_inherited"].includes(
+      row.ownership_state as string,
+    )
+    || typeof row.claim_expires_at !== "string"
+    || !Number.isFinite(Date.parse(row.claim_expires_at))
+    || row.claimant_id !== expectedClaimantId
+    || row.already_claimed !== false
+  ) {
+    throw new Error("atomic disclosure Storage claim RPC returned an invalid lease");
+  }
+  return {
+    ...object,
+    claim_token: row.claim_token,
+    claim_epoch: claimEpoch as number,
+    claimant_id: expectedClaimantId,
+    claim_action: row.claim_action,
+    claim_expires_at: new Date(row.claim_expires_at).toISOString(),
+  };
+}
+
+function exactStorageOutcomeResponse(
+  value: unknown,
+  expectedState: "confirmed_created" | "confirmed_preexisting",
+): void {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (
+    !isRecord(row)
+    || (
+      row.ownership_state !== expectedState
+      && !(expectedState === "confirmed_preexisting" && row.ownership_state === "confirmed_inherited")
+    )
+    || typeof row.already_recorded !== "boolean"
+  ) {
+    throw new Error("atomic disclosure Storage outcome RPC returned an invalid receipt");
+  }
+}
+
+export async function stageAtomicDisclosureBatch(
+  client: SupabaseClient,
+  environment: StagingEnvironment,
+  plan: StagingLoadPlan,
+  context: StagingBatchWriteContext,
+): Promise<StagingWriterResult> {
+  assertStagingEnvironmentDestination(environment);
+  if (
+    context.target_project_ref !== environment.projectRef
+    || !/^[a-f0-9]{64}$/u.test(context.run_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.full_plan_sha256)
+    || context.batch_plan_sha256 !== stagingLoadPlanSha256(plan)
+    || context.unit_ids.length !== plan.units.length
+    || plan.units.some((unit, index) => unit.unit_id !== context.unit_ids[index])
+    || context.batch_index < 1
+    || context.batch_index > context.batch_count
+    || new Set(context.local_pending_only_unit_ids).size !== context.local_pending_only_unit_ids.length
+    || context.local_pending_only_unit_ids.some((unitId) => !/^[a-f0-9]{64}$/u.test(unitId))
+    || !["paid_pilot_gate", "local_validated_pending_only"].includes(context.authorization_kind)
+    || !/^[a-f0-9]{64}$/u.test(context.authorization_sha256)
+    || ((context.local_pending_only_unit_ids.length > 0)
+      !== (context.authorization_kind === "local_validated_pending_only"))
+    || context.batch_sha256 !== canonicalSha256({
+      schema_version: 1,
+      batch_index: context.batch_index,
+      batch_count: context.batch_count,
+      full_plan_sha256: context.full_plan_sha256,
+      unit_ids: context.unit_ids,
+      batch_plan_sha256: context.batch_plan_sha256,
+    })
+  ) {
+    throw new Error("atomic disclosure staging context does not match the exact batch plan");
+  }
+  assertPendingOnlyBatch(plan);
+  assertPlanSourceObjectKeys(plan);
+  assertDisclosureSemanticPlanRows(plan);
+  assertDisclosureSemanticLinkPlan(plan);
+  const currentBatchUnitIds = new Set(plan.units.map((unit) => unit.unit_id));
+  const currentLocalIds = context.local_pending_only_unit_ids.filter((unitId) =>
+    currentBatchUnitIds.has(unitId)
+  );
+  const markedLocalIds = plan.warnings
+    .filter((warning) => warning.startsWith("local_deterministic_review_only:"))
+    .map((warning) => warning.slice("local_deterministic_review_only:".length));
+  if (!isDeepStrictEqual(currentLocalIds, markedLocalIds)) {
+    throw new Error("atomic disclosure staging local pending-only markers do not match authorization");
+  }
+  const localSet = new Set(currentLocalIds);
+  const localRows = [
+    ...plan.agency_packages,
+    ...plan.official_prices,
+    ...plan.disclosure_semantics,
+  ].filter((row) => localSet.has(row.unit_id));
+  if (localSet.size > 0 && localRows.some((row) =>
+    row.review_status !== "pending"
+    || row.needs_review !== true
+    || !row.validation_issue_codes.includes("local_deterministic_review_only")
+  )) {
+    throw new Error("local deterministic rows are review-only and cannot be bulk-approval eligible");
+  }
+
+  // This read is intentionally before Storage or database mutation. An
+  // existing snapshot must be a draft; absence is valid on a fresh dedicated
+  // staging project because the prepare RPC bootstraps and owns the draft in
+  // the same transaction as the run journal.
+  const snapshot = await client
+    .from("price_snapshots")
+    .select("id,published,published_at,is_current")
+    .eq("source", plan.snapshot_source)
+    .eq("period_label", plan.snapshot)
+    .maybeSingle();
+  if (snapshot.error) databaseError("draft disclosure snapshot preflight", snapshot.error);
+  if (
+    snapshot.data !== null
+    && (
+      !isRecord(snapshot.data)
+      || typeof snapshot.data.id !== "string"
+      || snapshot.data.published !== false
+      || snapshot.data.published_at !== null
+      || snapshot.data.is_current !== false
+    )
+  ) {
+    throw new Error("atomic disclosure staging requires an unpublished, non-current draft snapshot");
+  }
+
+  const storageIntents = storageIntentsForPlan(plan);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+    context.storage_claimant_id,
+  )) {
+    throw new Error("atomic disclosure Storage claimant identity is invalid");
+  }
+  await context.record_storage_intent(storageIntents);
+  const prepared = await withSqlStateRetry(
+    "atomic disclosure Storage prepare",
+    async () => client.rpc("prepare_vendor_disclosure_batch_storage_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_batch_index: context.batch_index,
+      p_batch_count: context.batch_count,
+      p_snapshot_source: plan.snapshot_source,
+      p_snapshot_period: plan.snapshot,
+      p_authorization_kind: context.authorization_kind,
+      p_authorization_sha256: context.authorization_sha256,
+      p_local_pending_only_unit_ids: context.local_pending_only_unit_ids,
+      p_storage_intents: storageIntents,
+    }),
+  );
+  exactStoragePrepareResponse(prepared.data, storageIntents.length);
+  const claimStorageObject = async (
+    object: StagingStorageIntent,
+    objectIndex: number,
+  ): Promise<{ claim: StorageUploadClaim; fresh: boolean }> => {
+    if (objectIndex < 1 || objectIndex > storageIntents.length) {
+      throw new Error("Storage claim object index is outside the exact prepared intent set");
+    }
+    const localClaim = await context.read_storage_claim(object, objectIndex);
+    if (localClaim) {
+      return { claim: validateStorageUploadClaim(localClaim), fresh: false };
+    }
+    const claimed = await withSqlStateRetry(
+      "atomic disclosure Storage upload claim",
+      async () => client.rpc("claim_vendor_disclosure_storage_object_atomic", {
+        p_target_project_ref: context.target_project_ref,
+        p_run_sha256: context.run_sha256,
+        p_batch_index: context.batch_index,
+        p_bucket_id: object.bucket,
+        p_object_name: object.object_key,
+        p_object_sha256: object.sha256,
+        p_object_bytes: object.bytes,
+        p_claimant_id: context.storage_claimant_id,
+      }),
+    );
+    return {
+      claim: exactStorageClaimResponse(claimed.data, object, context.storage_claimant_id),
+      fresh: true,
+    };
+  };
+  const recordStorageObject = async (
+    object: StorageJournalObject,
+    objectIndex: number,
+    claim: StorageUploadClaim,
+    uploadAttempt: number,
+  ): Promise<string> => {
+    // Persist locally first. If the remote receipt call is interrupted, the
+    // created-object journal is still sufficient for an explicit abort to
+    // inspect the object; it is never silently treated as pre-existing.
+    const journalPath = await context.record_storage_object(
+      object,
+      objectIndex,
+      claim,
+      uploadAttempt,
+    );
+    const recorded = await withSqlStateRetry(
+      "atomic disclosure Storage outcome",
+      async () => client.rpc("record_vendor_disclosure_storage_object_atomic", {
+        p_target_project_ref: context.target_project_ref,
+        p_run_sha256: context.run_sha256,
+        p_batch_index: context.batch_index,
+        p_bucket_id: object.bucket,
+        p_object_name: object.object_key,
+        p_object_sha256: object.sha256,
+        p_object_bytes: object.bytes,
+        p_created_by_run: object.created,
+        p_claim_token: claim.claim_token,
+        p_claim_epoch: claim.claim_epoch,
+        p_claimant_id: claim.claimant_id,
+      }),
+    );
+    exactStorageOutcomeResponse(
+      recorded.data,
+      object.created ? "confirmed_created" : "confirmed_preexisting",
+    );
+    return journalPath;
+  };
+  const rawJournal = await uploadRawObjects(client, environment.bucket, plan, {
+    runSha256: context.run_sha256,
+    firstObjectIndex: 1,
+    claimObject: claimStorageObject,
+    recordClaim: context.record_storage_claim,
+    startUpload: context.record_storage_upload_started,
+    recordObject: recordStorageObject,
+  });
+  const previewJournal = await uploadPreviewObjects(client, environment.previewBucket, plan, {
+    runSha256: context.run_sha256,
+    firstObjectIndex: rawJournal.length + 1,
+    claimObject: claimStorageObject,
+    recordClaim: context.record_storage_claim,
+    startUpload: context.record_storage_upload_started,
+    recordObject: recordStorageObject,
+  });
+  await context.record_storage_journal([...rawJournal, ...previewJournal]);
+
+  const storageMutations = [...rawJournal, ...previewJournal];
+  const applied = await withSqlStateRetry(
+    "atomic disclosure staging batch",
+    async () => client.rpc("stage_vendor_disclosure_batch_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_batch_plan_sha256: context.batch_plan_sha256,
+      p_batch_sha256: context.batch_sha256,
+      p_batch_index: context.batch_index,
+      p_batch_count: context.batch_count,
+      p_snapshot_source: plan.snapshot_source,
+      p_snapshot_period: plan.snapshot,
+      p_authorization_kind: context.authorization_kind,
+      p_authorization_sha256: context.authorization_sha256,
+      p_local_pending_only_unit_ids: context.local_pending_only_unit_ids,
+      p_storage_objects: storageMutations,
+      p_payload: databaseBatchPayload(plan),
+    }),
+  );
+  const receipt = exactAtomicBatchResponse(applied.data, context);
+  return {
+    loadedUnitIds: receipt.loadedUnitIds,
+    skippedUnitIds: [],
+    loggedLedgerIds: receipt.loggedLedgerIds,
+    atomicBatchReceiptSha256: receipt.batchReceiptSha256,
+  };
+}
+
+export async function verifyAtomicDisclosureBatchReceipt(
+  client: SupabaseClient,
+  environment: StagingEnvironment,
+  context: StagingBatchReceiptContext,
+  expectedReceiptSha256: string,
+): Promise<StagingWriterResult> {
+  assertStagingEnvironmentDestination(environment);
+  if (
+    context.target_project_ref !== environment.projectRef
+    || !/^[a-f0-9]{64}$/u.test(context.run_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.full_plan_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.batch_plan_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.batch_sha256)
+    || !/^[a-f0-9]{64}$/u.test(expectedReceiptSha256)
+    || context.batch_index < 1
+    || context.batch_index > context.batch_count
+    || context.unit_ids.length < 1
+    || context.unit_ids.length > 25
+  ) {
+    throw new Error("remote batch receipt verification context is invalid");
+  }
+  const verified = await withSqlStateRetry(
+    "remote atomic disclosure batch receipt verification",
+    async () => client.rpc("verify_vendor_disclosure_batch_receipt_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_batch_plan_sha256: context.batch_plan_sha256,
+      p_batch_sha256: context.batch_sha256,
+      p_batch_index: context.batch_index,
+      p_batch_count: context.batch_count,
+      p_expected_receipt_sha256: expectedReceiptSha256,
+      p_unit_ids: context.unit_ids,
+    }),
+  );
+  const receipt = exactAtomicBatchResponse(verified.data, {
+    ...context,
+    storage_claimant_id: "00000000-0000-4000-8000-000000000000",
+    record_storage_intent: async () => "",
+    read_storage_claim: async () => null,
+    record_storage_claim: async () => "",
+    record_storage_upload_started: async () => ({
+      uploadAttempt: 1,
+      shouldUpload: true,
+      journalPath: "",
+    }),
+    record_storage_object: async () => "",
+    record_storage_journal: async () => "",
+  });
+  if (receipt.batchReceiptSha256 !== expectedReceiptSha256) {
+    throw new Error("remote atomic disclosure batch receipt differs from local execution evidence");
+  }
+  return {
+    loadedUnitIds: receipt.loadedUnitIds,
+    skippedUnitIds: [],
+    loggedLedgerIds: receipt.loggedLedgerIds,
+    atomicBatchReceiptSha256: receipt.batchReceiptSha256,
+  };
+}
+
+function exactNonNegativeCount(row: Record<string, unknown>, key: string): number {
+  const value = row[key];
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`atomic disclosure abort receipt has an invalid ${key}`);
+  }
+  return value as number;
+}
+
+function exactRollbackStorageObject(value: unknown): StagingStorageIntent {
+  if (!isRecord(value)) throw new Error("atomic disclosure abort returned a malformed Storage object");
+  const bucket = value.bucket;
+  const objectKey = value.object_key;
+  const sha256 = value.sha256;
+  const rawBytes = value.bytes;
+  const bytes = typeof rawBytes === "string" && /^[0-9]{1,9}$/u.test(rawBytes)
+    ? Number(rawBytes)
+    : rawBytes;
+  if (
+    (bucket !== "disclosure-raw" && bucket !== "disclosure-preview")
+    || typeof objectKey !== "string"
+    || typeof sha256 !== "string"
+    || !/^[a-f0-9]{64}$/u.test(sha256)
+    || !objectKey.startsWith(`${sha256}.`)
+    || !/^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png|txt)$/u.test(objectKey)
+    || !Number.isSafeInteger(bytes)
+    || (bytes as number) < 0
+    || (bytes as number) > 52_428_800
+  ) {
+    throw new Error("atomic disclosure abort returned an invalid Storage object identity");
+  }
+  return { bucket, object_key: objectKey, sha256, bytes: bytes as number };
+}
+
+function exactStorageOutcome(value: unknown): StagingStorageOutcome {
+  const object = exactRollbackStorageObject(value);
+  if (!isRecord(value) || ![
+    "intent",
+    "confirmed_created",
+    "confirmed_preexisting",
+    "confirmed_inherited",
+    "delete_authorized",
+    "deleted",
+    "retained_shared",
+    "ambiguous",
+  ].includes(value.state as string)) {
+    throw new Error("atomic disclosure abort returned an invalid Storage outcome");
+  }
+  return { ...object, state: value.state as StagingStorageOutcome["state"] };
+}
+
+function exactAbortResponse(value: unknown): StagingAbortResult {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (
+    !isRecord(row)
+    || typeof row.run_found !== "boolean"
+    || typeof row.already_aborted !== "boolean"
+    || !Array.isArray(row.storage_rollback_objects)
+    || !Array.isArray(row.storage_object_outcomes)
+  ) {
+    throw new Error("atomic disclosure abort RPC returned no valid receipt");
+  }
+  const storageRollbackObjects = row.storage_rollback_objects.map(exactRollbackStorageObject);
+  const storageObjectOutcomes = row.storage_object_outcomes.map(exactStorageOutcome);
+  const storageRollbackReceiptSha256 = row.storage_rollback_receipt_sha256;
+  if (
+    (row.run_found && (
+      typeof storageRollbackReceiptSha256 !== "string"
+      || !/^[a-f0-9]{64}$/u.test(storageRollbackReceiptSha256)
+    ))
+    || (!row.run_found && storageRollbackReceiptSha256 !== null)
+  ) {
+    throw new Error("atomic disclosure abort returned an invalid Storage rollback receipt SHA-256");
+  }
+  const objectIdentities = storageRollbackObjects.map((object) => `${object.bucket}\0${object.object_key}`);
+  const outcomeIdentities = storageObjectOutcomes.map((object) => `${object.bucket}\0${object.object_key}`);
+  if (new Set(objectIdentities).size !== objectIdentities.length) {
+    throw new Error("atomic disclosure abort returned duplicate Storage object identities");
+  }
+  if (new Set(outcomeIdentities).size !== outcomeIdentities.length) {
+    throw new Error("atomic disclosure abort returned duplicate Storage outcome identities");
+  }
+  const outcomesByIdentity = new Map(
+    storageObjectOutcomes.map((object) => [`${object.bucket}\0${object.object_key}`, object]),
+  );
+  if (storageRollbackObjects.some((object) => {
+    const outcome = outcomesByIdentity.get(`${object.bucket}\0${object.object_key}`);
+    return !outcome || outcome.state !== "delete_authorized" || !isDeepStrictEqual(
+      { bucket: outcome.bucket, object_key: outcome.object_key, sha256: outcome.sha256, bytes: outcome.bytes },
+      object,
+    );
+  }) || storageObjectOutcomes.some((outcome) =>
+    outcome.state === "delete_authorized"
+      && !objectIdentities.includes(`${outcome.bucket}\0${outcome.object_key}`)
+  )) {
+    throw new Error("atomic disclosure abort Storage authorization and outcome sets disagree");
+  }
+  if (!row.run_found && (storageRollbackObjects.length > 0 || storageObjectOutcomes.length > 0)) {
+    throw new Error("a missing staging run cannot return Storage ownership outcomes");
+  }
+  return {
+    runFound: row.run_found,
+    deletedPackageCount: exactNonNegativeCount(row, "deleted_package_count"),
+    deletedPriceCount: exactNonNegativeCount(row, "deleted_price_count"),
+    deletedSemanticCount: exactNonNegativeCount(row, "deleted_semantic_count"),
+    deletedVendorCount: exactNonNegativeCount(row, "deleted_vendor_count"),
+    deletedAgencyCount: exactNonNegativeCount(row, "deleted_agency_count"),
+    deletedTimeslotCount: exactNonNegativeCount(row, "deleted_timeslot_count"),
+    deletedLedgerCount: exactNonNegativeCount(row, "deleted_ledger_count"),
+    retainedIdentityCount: exactNonNegativeCount(row, "retained_identity_count"),
+    retainedLedgerCount: exactNonNegativeCount(row, "retained_ledger_count"),
+    storageRollbackObjects,
+    storageObjectOutcomes,
+    storageRollbackReceiptSha256: storageRollbackReceiptSha256 as string | null,
+    ambiguousStorageObjectCount: storageObjectOutcomes.filter((object) => object.state === "ambiguous").length,
+    retainedStorageObjectCount: storageObjectOutcomes.filter((object) => object.state === "retained_shared").length,
+    alreadyMissingStorageObjectCount: storageObjectOutcomes.filter((object) => object.state === "deleted").length,
+    manualStorageDeletionRequiredCount: storageRollbackObjects.length,
+    alreadyAborted: row.already_aborted,
+    completedStorageObjectCount: 0,
+  };
+}
+
+function assertLocalCreatedStorageAccounting(
+  outcomes: readonly StagingStorageOutcome[],
+  localObjects: readonly StorageJournalObject[],
+): void {
+  const outcomesByIdentity = new Map(
+    outcomes.map((object) => [`${object.bucket}\0${object.object_key}`, object]),
+  );
+  for (const local of localObjects) {
+    const outcome = outcomesByIdentity.get(`${local.bucket}\0${local.object_key}`);
+    if (
+      !local.created
+      || !outcome
+      || !isDeepStrictEqual(
+        { bucket: local.bucket, object_key: local.object_key, sha256: local.sha256, bytes: local.bytes },
+        { bucket: outcome.bucket, object_key: outcome.object_key, sha256: outcome.sha256, bytes: outcome.bytes },
+      )
+      || !["delete_authorized", "deleted", "retained_shared", "ambiguous"].includes(outcome.state)
+    ) {
+      throw new Error("a durable local created-object journal lacks an exact terminal database ownership outcome");
+    }
+  }
+}
+
+export async function abortAtomicDisclosureRun(
+  client: SupabaseClient,
+  environment: StagingEnvironment,
+  context: StagingAbortContext,
+): Promise<StagingAbortResult> {
+  assertStagingEnvironmentDestination(environment);
+  if (
+    context.target_project_ref !== environment.projectRef
+    || !/^[a-f0-9]{64}$/u.test(context.run_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.full_plan_sha256)
+    || context.reason.trim().length < 1
+    || context.reason.length > 500
+    || context.locally_created_storage_objects.length > 32_000
+    || context.locally_created_storage_objects.some((object) => !object.created)
+  ) {
+    throw new Error("atomic disclosure abort context is invalid");
+  }
+  const localIdentities = new Set<string>();
+  for (const object of context.locally_created_storage_objects) {
+    const exact = exactRollbackStorageObject({
+      bucket: object.bucket,
+      object_key: object.object_key,
+      sha256: object.sha256,
+      bytes: object.bytes,
+    });
+    const identity = `${exact.bucket}\0${exact.object_key}`;
+    if (localIdentities.has(identity)) {
+      throw new Error("atomic disclosure abort context contains duplicate Storage objects");
+    }
+    localIdentities.add(identity);
+  }
+  // This RPC commits the database rollback first. No Storage deletion occurs
+  // unless its signed receipt names an exact run-created object.
+  let aborted: Awaited<ReturnType<typeof client.rpc>>;
+  try {
+    aborted = await withSqlStateRetry(
+      "atomic disclosure run abort",
+      async () => client.rpc("abort_vendor_disclosure_ingest_run_atomic", {
+        p_target_project_ref: context.target_project_ref,
+        p_run_sha256: context.run_sha256,
+        p_full_plan_sha256: context.full_plan_sha256,
+        p_reason: context.reason.trim(),
+      }),
+    );
+  } catch (error) {
+    const databaseCause = error instanceof StagingDatabaseError ? error.cause : error;
+    const databaseMessage = isRecord(databaseCause) && typeof databaseCause.message === "string"
+      ? databaseCause.message
+      : "";
+    if (
+      error instanceof StagingDatabaseError
+      && error.code === "55000"
+      && (
+        databaseMessage.includes("DISCLOSURE_ABORT_STORAGE_INTENTS_UNSETTLED")
+        || databaseMessage.includes("DISCLOSURE_ABORT_STORAGE_UPLOAD_CLAIMS_UNSETTLED")
+      )
+    ) {
+      const rawCount = isRecord(databaseCause) && typeof databaseCause.details === "string"
+        ? databaseCause.details
+        : "";
+      throw new StagingStorageIntentsUnsettledError(
+        /^(?:0|[1-9][0-9]{0,4})$/u.test(rawCount) ? Number(rawCount) : null,
+      );
+    }
+    throw error;
+  }
+  const receipt = exactAbortResponse(aborted.data);
+  assertLocalCreatedStorageAccounting(
+    receipt.storageObjectOutcomes,
+    context.locally_created_storage_objects,
+  );
+  // Supabase Storage exposes name-based remove, not an atomic
+  // compare-and-delete/version precondition. Deleting here after a separate
+  // info/hash read could remove a replacement written in the gap. Preserve
+  // every authorized object and return the exact receipt for a fenced manual
+  // reconciliation instead.
+  if (
+    receipt.ambiguousStorageObjectCount > 0
+    || receipt.manualStorageDeletionRequiredCount > 0
+  ) {
+    throw new StagingRollbackIncompleteError(receipt);
+  }
+  return receipt;
+}
+
+function exactStorageRollbackCompletionResponse(
+  value: unknown,
+): StagingStorageRollbackCompletionResult {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!isRecord(row) || typeof row.already_completed !== "boolean") {
+    throw new Error("atomic Storage rollback completion RPC returned no valid receipt");
+  }
+  const completedObjectCount = exactNonNegativeCount(row, "completed_object_count");
+  if (row.already_completed && completedObjectCount !== 0) {
+    throw new Error("an already-completed Storage rollback cannot report newly completed objects");
+  }
+  return {
+    completedObjectCount,
+    alreadyCompleted: row.already_completed,
+  };
+}
+
+export async function completeAtomicDisclosureStorageRollback(
+  client: SupabaseClient,
+  environment: StagingEnvironment,
+  context: StagingStorageRollbackCompletionContext,
+): Promise<StagingStorageRollbackCompletionResult> {
+  assertStagingEnvironmentDestination(environment);
+  if (
+    context.target_project_ref !== environment.projectRef
+    || !/^[a-f0-9]{64}$/u.test(context.run_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.full_plan_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.storage_rollback_receipt_sha256)
+    || context.storage_rollback_objects.length > 32_000
+  ) {
+    throw new Error("atomic Storage rollback completion context is invalid");
+  }
+  const normalizedObjects = context.storage_rollback_objects
+    .map((object) => exactRollbackStorageObject(object))
+    .sort((left, right) =>
+      `${left.bucket}\0${left.object_key}`.localeCompare(`${right.bucket}\0${right.object_key}`)
+    );
+  const identities = normalizedObjects.map((object) => `${object.bucket}\0${object.object_key}`);
+  if (new Set(identities).size !== identities.length
+    || !isDeepStrictEqual(normalizedObjects, context.storage_rollback_objects)) {
+    throw new Error("atomic Storage rollback completion requires the exact canonical authorized set");
+  }
+  const completed = await withSqlStateRetry(
+    "atomic disclosure Storage rollback completion",
+    async () => client.rpc("complete_vendor_disclosure_storage_rollback_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_storage_rollback_receipt_sha256: context.storage_rollback_receipt_sha256,
+      p_storage_objects: normalizedObjects,
+    }),
+  );
+  const result = exactStorageRollbackCompletionResponse(completed.data);
+  if (!result.alreadyCompleted && result.completedObjectCount !== normalizedObjects.length) {
+    throw new Error("atomic Storage rollback completion count differs from the authorized receipt set");
+  }
+  return result;
+}
+
+function exactInvalidationResponse(value: unknown): StagingInvalidationResult {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (
+    !isRecord(row)
+    || typeof row.invalidated !== "boolean"
+    || typeof row.already_invalidated !== "boolean"
+    || row.invalidated === row.already_invalidated
+    || typeof row.invalidation_receipt_sha256 !== "string"
+    || !/^[a-f0-9]{64}$/u.test(row.invalidation_receipt_sha256)
+  ) {
+    throw new Error("atomic completed-run invalidation RPC returned no valid receipt");
+  }
+  return {
+    invalidated: row.invalidated,
+    alreadyInvalidated: row.already_invalidated,
+    invalidationReceiptSha256: row.invalidation_receipt_sha256,
+  };
+}
+
+export async function invalidateAtomicDisclosureRun(
+  client: SupabaseClient,
+  environment: StagingEnvironment,
+  context: StagingInvalidationContext,
+): Promise<StagingInvalidationResult> {
+  assertStagingEnvironmentDestination(environment);
+  if (
+    context.target_project_ref !== environment.projectRef
+    || !/^[a-f0-9]{64}$/u.test(context.run_sha256)
+    || !/^[a-f0-9]{64}$/u.test(context.full_plan_sha256)
+    || context.reason.trim().length < 1
+    || context.reason.length > 500
+  ) {
+    throw new Error("atomic completed-run invalidation context is invalid");
+  }
+  const invalidated = await withSqlStateRetry(
+    "atomic completed disclosure run invalidation",
+    async () => client.rpc("invalidate_vendor_disclosure_completed_run_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_reason: context.reason.trim(),
+    }),
+  );
+  return exactInvalidationResponse(invalidated.data);
+}
+
+export async function finalizeAtomicDisclosureDedupe(
+  client: SupabaseClient,
+  plan: StagingLoadPlan,
+  context: StagingDedupeFinalizeContext,
+): Promise<void> {
+  assertDisclosureStagingProjectRef(context.target_project_ref);
+  const exactBatchHashes = buildStagingBatches(plan).map((batch) => batch.batch_sha256);
+  if (
+    stagingLoadPlanSha256(plan) !== context.full_plan_sha256
+    || canonicalSha256(plan.dedupe_candidates) !== context.dedupe_candidates_sha256
+    || !isDeepStrictEqual(exactBatchHashes, context.completed_batch_sha256s)
+    || plan.dedupe_candidates.some((candidate) => candidate.status !== "pending")
+  ) {
+    throw new Error("dedupe finalizer context does not match the exact completed staging run");
+  }
+  const snapshot = await client
+    .from("price_snapshots")
+    .select("id,published,published_at,is_current")
+    .eq("source", plan.snapshot_source)
+    .eq("period_label", plan.snapshot)
+    .maybeSingle();
+  if (snapshot.error) databaseError("dedupe draft snapshot preflight", snapshot.error);
+  if (
+    !isRecord(snapshot.data)
+    || typeof snapshot.data.id !== "string"
+    || snapshot.data.published !== false
+    || snapshot.data.published_at !== null
+    || snapshot.data.is_current !== false
+  ) {
+    throw new Error("dedupe finalization requires an existing unpublished, non-current draft snapshot");
+  }
+  const finalized = await withSqlStateRetry(
+    "atomic disclosure dedupe finalizer",
+    async () => client.rpc("finalize_vendor_disclosure_dedupe_atomic", {
+      p_target_project_ref: context.target_project_ref,
+      p_run_sha256: context.run_sha256,
+      p_full_plan_sha256: context.full_plan_sha256,
+      p_dedupe_candidates_sha256: context.dedupe_candidates_sha256,
+      p_completed_batch_sha256s: context.completed_batch_sha256s,
+      p_candidates: plan.dedupe_candidates,
+    }),
+  );
+  const row = Array.isArray(finalized.data) ? finalized.data[0] : finalized.data;
+  if (
+    !isRecord(row)
+    || !Number.isSafeInteger(row.staged_candidate_count)
+    || (row.staged_candidate_count as number) < 0
+    || typeof row.already_finalized !== "boolean"
+  ) {
+    throw new Error("atomic disclosure dedupe finalizer returned an invalid receipt");
   }
 }
 
@@ -148,10 +1220,12 @@ export async function uploadPreviewObjects(
   client: SupabaseClient,
   bucket: string,
   plan: StagingLoadPlan,
-): Promise<void> {
+  ownership: StorageUploadOwnershipContext,
+): Promise<StorageJournalObject[]> {
   if (bucket !== "disclosure-preview") {
     throw new Error("Derived disclosure text may only be uploaded to disclosure-preview.");
   }
+  const journal: StorageJournalObject[] = [];
   const storage = client.storage.from(bucket);
   for (const preview of plan.preview_objects) {
     if (
@@ -178,24 +1252,81 @@ export async function uploadPreviewObjects(
     if (sha256Buffer(content) !== preview.sha256 || content.byteLength !== preview.bytes) {
       throw new Error(`Storage 업로드 직전 preview hash가 변경되었습니다: ${preview.source_label}`);
     }
-    const { error } = await storage.upload(
+    const objectIndex = ownership.firstObjectIndex + journal.length;
+    const intent = {
+      bucket: "disclosure-preview" as const,
+      object_key: preview.storage_path,
+      sha256: preview.sha256,
+      bytes: preview.bytes,
+    };
+    const resolvedClaim = await ownership.claimObject(intent, objectIndex);
+    const claim = validateStorageUploadClaim(resolvedClaim.claim);
+    if (
+      claim.bucket !== intent.bucket
+      || claim.object_key !== intent.object_key
+      || claim.sha256 !== intent.sha256
+      || claim.bytes !== intent.bytes
+    ) {
+      throw new Error("Storage upload claim does not bind the exact prepared preview object.");
+    }
+    if (resolvedClaim.fresh) await ownership.recordClaim(claim, objectIndex);
+    let uploadError: unknown = null;
+    let uploadAttempt = 0;
+    if (claim.claim_action === "upload") {
+      const uploadStart = await ownership.startUpload(claim, objectIndex, resolvedClaim.fresh);
+      uploadAttempt = uploadStart.uploadAttempt;
+      if (uploadStart.shouldUpload) {
+        const upload = await storage.upload(
+          preview.storage_path,
+          content,
+          {
+            contentType: "text/plain",
+            upsert: false,
+            metadata: {
+              ingest_run_sha256: ownership.runSha256,
+              ingest_sha256: preview.sha256,
+              ingest_bytes: preview.bytes,
+              ingest_claim_token: claim.claim_token,
+              ingest_claim_epoch: claim.claim_epoch,
+              ingest_claimant_id: claim.claimant_id,
+            },
+          },
+        );
+        uploadError = upload.error;
+        if (upload.error && !storageDuplicate(upload.error)) {
+          databaseError("disclosure preview Storage upload", upload.error);
+        }
+      }
+    }
+    await verifyRemoteStorageObject(
+      storage,
       preview.storage_path,
-      content,
-      { contentType: "text/plain", upsert: false },
+      preview.sha256,
+      preview.bytes,
+      "preview",
     );
-    if (!error) continue;
-    if (!storageDuplicate(error)) databaseError("공시 preview Storage 업로드", error);
-
-    const existing = await storage.download(preview.storage_path);
-    if (existing.error) databaseError("기존 공시 preview Storage 검증", existing.error);
-    if (!existing.data || existing.data.size !== preview.bytes) {
-      throw new Error("Existing preview Storage object size/hash does not match the local derived object.");
+    const created = await remoteStorageObjectOwnedByRun(
+      storage,
+      preview.storage_path,
+      preview.sha256,
+      preview.bytes,
+      ownership.runSha256,
+      claim,
+    );
+    if (claim.claim_action === "upload" && !uploadError && !created) {
+      throw new Error("A newly uploaded preview object lacks exact run ownership metadata.");
     }
-    const existingContent = new Uint8Array(await existing.data.arrayBuffer());
-    if (sha256Buffer(existingContent) !== preview.sha256) {
-      throw new Error("Existing preview Storage object hash does not match the local derived object.");
-    }
+    const mutation = {
+      bucket: "disclosure-preview",
+      object_key: preview.storage_path,
+      sha256: preview.sha256,
+      bytes: preview.bytes,
+      created,
+    } as const;
+    await ownership.recordObject(mutation, objectIndex, claim, uploadAttempt);
+    journal.push(mutation);
   }
+  return journal;
 }
 
 async function ensureSnapshot(client: SupabaseClient, plan: StagingLoadPlan): Promise<string> {
@@ -294,17 +1425,31 @@ export function assertDisclosureSemanticPlanRows(plan: StagingLoadPlan): void {
     const unit = unitById.get(row.unit_id);
     if (!unit) throw new Error("disclosure semantic row must reference a staged unit");
     if (row.record_kind === "vendor_policy") {
-      const partnerRecord = buildPartnerVendorRecords(
+      const partnerRecords = buildPartnerVendorRecords(
         unit.unit_id,
         unit.region_code,
         unit.data.partner_vendors,
-      ).find((candidate) => candidate.record_ref === row.partner_record_ref);
+      );
+      const partnerRecordIndex = partnerRecords.findIndex(
+        (candidate) => candidate.record_ref === row.partner_record_ref,
+      );
+      const partnerRecord = partnerRecords[partnerRecordIndex];
+      const partnerSource = partnerRecordIndex < 0
+        ? undefined
+        : unit.data.partner_vendors[partnerRecordIndex];
+      const sourceBackedIdentity = Boolean(
+        partnerSource
+        && partnerSource.source_quote.trim().length > 0
+        && (partnerSource.source_file_ids?.length ?? 0) > 0,
+      );
       if (
         !partnerRecord
         || partnerRecord.vendor_name !== row.subject_name
         || partnerRecord.normalized_name !== row.subject_normalized_name
         || partnerRecord.category !== row.vendor_category
-        || (partnerRecord.stageable ? "price_row_staged" : "policy_only_pending_identity")
+        || (partnerRecord.stageable || sourceBackedIdentity
+          ? "price_row_staged"
+          : "policy_only_pending_identity")
           !== row.partner_link_status
       ) {
         throw new Error("disclosure vendor policy must preserve its exact partner-record identity and linkage state");
@@ -1133,6 +2278,30 @@ async function persistAgencyDedupeCandidate(
 }
 
 function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
+  const rawKeyPattern = /^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png)$/u;
+  const rawExtensions = new Set(["xlsx", "docx", "hwp", "pdf", "png"]);
+  const referencedRawKeys = new Set(plan.units.flatMap((unit) => unit.source_object_keys));
+  const rawIdentities = new Set<string>();
+  for (const raw of plan.raw_objects) {
+    if (
+      !/^[a-f0-9]{64}$/u.test(raw.sha256)
+      || !rawExtensions.has(raw.ext)
+      || !rawKeyPattern.test(raw.storage_path)
+      || raw.storage_path !== `${raw.sha256}.${raw.ext}`
+      || !Number.isSafeInteger(raw.bytes)
+      || raw.bytes < 0
+      || raw.bytes > 50 * 1024 * 1024
+    ) {
+      throw new Error("raw object metadata must be bounded and content-addressed before external I/O");
+    }
+    if (rawIdentities.has(raw.storage_path)) {
+      throw new Error("raw object upload plan contains a duplicate object identity");
+    }
+    rawIdentities.add(raw.storage_path);
+    if (!referencedRawKeys.has(raw.storage_path)) {
+      throw new Error("raw object upload plan contains an unreferenced object");
+    }
+  }
   const available = new Set(plan.raw_objects.map((raw) => raw.storage_path));
   const availablePreviews = new Set(plan.preview_objects.map((preview) => preview.storage_path));
   const previewMappings = new Set(plan.preview_objects.map((preview) =>
@@ -1141,9 +2310,42 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
   const unitRecords = new Map(plan.units.map((unit) => [unit.unit_id, unit.source_records]));
   const keyPattern = /^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png)$/;
   const previewKeyPattern = /^[a-f0-9]{64}\.txt$/;
+  const referencedPreviewKeys = new Set(plan.units.flatMap((unit) => unit.source_preview_keys));
+  const previewIdentities = new Set<string>();
   for (const preview of plan.preview_objects) {
+    if (
+      !/^[a-f0-9]{64}$/u.test(preview.sha256)
+      || !previewKeyPattern.test(preview.storage_path)
+      || preview.storage_path !== `${preview.sha256}.txt`
+      || !Number.isSafeInteger(preview.bytes)
+      || preview.bytes < 0
+      || preview.bytes > 2 * 1024 * 1024
+      || preview.source_label.length === 0
+      || preview.source_label.length > 255
+      || /[\\/]/u.test(preview.source_label)
+    ) {
+      throw new Error("preview object metadata must be bounded and content-addressed before external I/O");
+    }
+    if (previewIdentities.has(preview.storage_path)) {
+      throw new Error("preview object upload plan contains a duplicate object identity");
+    }
+    previewIdentities.add(preview.storage_path);
+    if (!referencedPreviewKeys.has(preview.storage_path)) {
+      throw new Error("preview object upload plan contains an unreferenced object");
+    }
     if (!available.has(preview.source_object_key)) {
       throw new Error("preview object must reference an immutable raw object in the same upload plan");
+    }
+  }
+  for (const unit of plan.units) {
+    if (
+      unit.source_object_keys.length === 0
+      || new Set(unit.source_object_keys).size !== unit.source_object_keys.length
+      || unit.source_object_keys.some((key) => !keyPattern.test(key) || !available.has(key))
+      || new Set(unit.source_preview_keys).size !== unit.source_preview_keys.length
+      || unit.source_preview_keys.some((key) => !previewKeyPattern.test(key) || !availablePreviews.has(key))
+    ) {
+      throw new Error("each staging unit must reference an exact, unique set of planned raw and preview objects");
     }
   }
   const priceRows = [...plan.agency_packages, ...plan.official_prices];
@@ -1216,91 +2418,28 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
 }
 
 export function createSupabaseStagingWriter(environment: StagingEnvironment): StagingWriter {
-  assertDisclosureStagingProjectRef(environment.projectRef);
+  assertStagingEnvironmentDestination(environment);
   const client = createClient(environment.url, environment.key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   return {
-    stage: async (plan): Promise<StagingWriterResult> => {
-      assertDisclosureSemanticPlanRows(plan);
-      assertDisclosureSemanticLinkPlan(plan);
-      assertPlanSourceObjectKeys(plan);
-      const loggedLedgerIds = await logAiLedger(client, plan);
-      await uploadRawObjects(client, environment.bucket, plan);
-      await uploadPreviewObjects(client, environment.previewBucket, plan);
-      if (
-        plan.agency_packages.length === 0
-        && plan.official_prices.length === 0
-        && plan.disclosure_semantics.length === 0
-      ) {
-        return {
-          loadedUnitIds: [],
-          skippedUnitIds: plan.skipped_units.map((unit) => unit.unit_id),
-          loggedLedgerIds,
-        };
+    stage: async (plan, context): Promise<StagingWriterResult> => {
+      if (!context) throw new Error("atomic staging batch context is required; legacy non-atomic writes are forbidden");
+      return stageAtomicDisclosureBatch(client, environment, plan, context);
+    },
+    verifyBatchReceipt: async (context, expectedReceiptSha256): Promise<StagingWriterResult> =>
+      verifyAtomicDisclosureBatchReceipt(client, environment, context, expectedReceiptSha256),
+    abortRun: async (context): Promise<StagingAbortResult> =>
+      abortAtomicDisclosureRun(client, environment, context),
+    completeStorageRollback: async (context): Promise<StagingStorageRollbackCompletionResult> =>
+      completeAtomicDisclosureStorageRollback(client, environment, context),
+    invalidateRun: async (context): Promise<StagingInvalidationResult> =>
+      invalidateAtomicDisclosureRun(client, environment, context),
+    finalizeDedupe: async (plan, context): Promise<void> => {
+      if (context.target_project_ref !== environment.projectRef) {
+        throw new Error("dedupe finalizer target does not match the configured staging project");
       }
-      const snapshotId = await ensureSnapshot(client, plan);
-      const unitAgencyIds = new Map<string, string>();
-      for (const row of plan.agency_packages) {
-        const agencyId = await insertAgencyPackage(client, snapshotId, row);
-        if (!unitAgencyIds.has(row.unit_id)) unitAgencyIds.set(row.unit_id, agencyId);
-      }
-      const unitVendorIds = new Map<string, string>();
-      const partnerVendorIds = new Map<string, string>();
-      const persistedPriceLinks = new Map<string, PersistedPartnerPriceLink>();
-      for (const row of plan.official_prices) {
-        const { vendorId, agencyId, officialPriceId } = await insertOfficialPrice(client, snapshotId, row);
-        if (!unitVendorIds.has(row.unit_id)) unitVendorIds.set(row.unit_id, vendorId);
-        if (row.partner_record_ref) {
-          const previousVendorId = partnerVendorIds.get(row.partner_record_ref);
-          if (previousVendorId && previousVendorId !== vendorId) {
-            throw new Error("partner vendor row ref resolved to more than one persisted vendor UUID");
-          }
-          partnerVendorIds.set(row.partner_record_ref, vendorId);
-          if (persistedPriceLinks.has(row.partner_record_ref)) {
-            throw new Error("partner vendor row ref resolved to more than one persisted official price ID");
-          }
-          persistedPriceLinks.set(row.partner_record_ref, {
-            partnerVendorId: vendorId,
-            officialPriceId,
-          });
-        }
-        if (agencyId && !unitAgencyIds.has(row.unit_id)) unitAgencyIds.set(row.unit_id, agencyId);
-      }
-      const policyOnlyVendorIds = new Map<string, string>();
-      for (const row of plan.disclosure_semantics) {
-        if (row.record_kind !== "vendor_policy" || row.partner_link_status !== "policy_only_pending_identity") {
-          continue;
-        }
-        const partnerRef = row.partner_record_ref;
-        if (!partnerRef) throw new Error("policy-only vendor policy is missing its partner record ref");
-        if (policyOnlyVendorIds.has(partnerRef)) continue;
-        if (row.vendor_category === null) throw new Error("policy-only vendor policy is missing its category");
-        const vendorId = await ensureVendor(client, {
-          vendor_name: row.subject_name,
-          category: row.vendor_category,
-          region_code: row.region_code,
-        });
-        policyOnlyVendorIds.set(partnerRef, vendorId);
-        partnerVendorIds.set(partnerRef, vendorId);
-      }
-      const resolvedSemantics = resolveDisclosureSemanticPersistenceRows(
-        plan.disclosure_semantics,
-        persistedPriceLinks,
-        policyOnlyVendorIds,
-      );
-      for (const resolved of resolvedSemantics) {
-        await persistDisclosureSemantic(client, snapshotId, resolved.row, resolved);
-      }
-      for (const candidate of plan.dedupe_candidates) {
-        await persistDedupeCandidate(client, candidate, unitVendorIds, partnerVendorIds);
-        await persistAgencyDedupeCandidate(client, candidate, unitAgencyIds);
-      }
-      return {
-        loadedUnitIds: plan.units.map((unit) => unit.unit_id),
-        skippedUnitIds: plan.skipped_units.map((unit) => unit.unit_id),
-        loggedLedgerIds,
-      };
+      await finalizeAtomicDisclosureDedupe(client, plan, context);
     },
   };
 }

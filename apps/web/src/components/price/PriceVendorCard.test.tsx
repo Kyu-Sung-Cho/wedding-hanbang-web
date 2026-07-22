@@ -79,6 +79,7 @@ describe("PriceVendorCard", () => {
     expect(comparison?.textContent?.replace(/\s+/g, "")).toContain("200만원");
     expect(comparison?.textContent).toContain("그랜드홀 대관료");
     expect(comparison?.textContent).toContain("그랜드홀 식대");
+    expect(container.textContent).toContain("서울 강남권");
   });
 
   it("keeps an admin preview card read-only", async () => {
@@ -140,5 +141,62 @@ describe("PriceVendorCard", () => {
     expect(track).not.toHaveBeenCalled();
     expect(onToggleWishlist).not.toHaveBeenCalled();
     expect(onOpenCombo).not.toHaveBeenCalled();
+  });
+
+  it("shows a policy badge and its sanitized content only when policies exist", async () => {
+    const vendor: PriceVendor = {
+      id: "policy-vendor",
+      slug: "policy-vendor",
+      name: "Policy vendor",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: [],
+      policies: [{
+        id: "policy-1",
+        type: "penalty",
+        title: null,
+        summary: null,
+        content: "Cancellation fee applies after booking.",
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+          preview
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("위약금 규정");
+    expect(container.textContent).toContain("Cancellation fee applies after booking.");
+  });
+
+  it("keeps an explicit region placeholder when the source has no region", async () => {
+    const vendor: PriceVendor = {
+      id: "unknown-region-vendor",
+      slug: "unknown-region-vendor",
+      name: "지역 검수 업체",
+      aliases: [],
+      category: "dress",
+      regionCode: null,
+      offers: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("지역 미표기");
   });
 });

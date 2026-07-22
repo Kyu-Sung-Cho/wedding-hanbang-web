@@ -20,6 +20,7 @@ import {
 import { DUPLICATE_SOURCE_NOTICE_PREFIX, SCANNER_PARSER_VERSION } from "./scan.js";
 import type { IngestManifest, ManifestUnit, UnitStage } from "./types.js";
 import { VALIDATOR_VERSION } from "./validate.js";
+import { visualTranscriptionBoundLocalExtractionFingerprint } from "./visual-transcription-sidecar.js";
 
 export interface StatusOptions {
   stateDir: string;
@@ -142,7 +143,7 @@ function hasCurrentLocalExtractionMetadata(
   const conversion = unit.conversion;
   const extraction = unit.local_extraction;
   if (!conversion || !extraction || !currentConversion) return false;
-  const expectedFingerprint = currentLocalExtractionFingerprint({
+  const baseFingerprint = currentLocalExtractionFingerprint({
     scannerParserVersion: manifest.scanner_parser_version,
     converterVersion: conversion.converter_version ?? "v1-legacy",
     rawName: unit.parsed.raw_name,
@@ -151,6 +152,10 @@ function hasCurrentLocalExtractionMetadata(
     sourceFingerprint: unit.source_fingerprint,
     artifactFingerprint: conversion.artifact_fingerprint,
   });
+  const expectedFingerprint = visualTranscriptionBoundLocalExtractionFingerprint(
+    baseFingerprint,
+    extraction.visual_transcription,
+  );
   const metadataIsCurrent = extraction.provider_mode === LOCAL_DETERMINISTIC_PROVIDER_MODE
     && extraction.model === LOCAL_DETERMINISTIC_MODEL
     && extraction.fingerprint === expectedFingerprint

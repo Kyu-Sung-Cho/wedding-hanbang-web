@@ -1,0 +1,599 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "derived_visual_ground_truth_overlay",
+  "content_sha256": "6d964ad595fe141fc67e53a926b2dc25dec83cb202a1df7667c8deda7d7269c9",
+  "source_overlay_relative_path": "fixed-eight-ground-truth-overlay-v2.json",
+  "source_overlay_sha256": "aa574571c58b4b513854a69457e232f5689dc443ec9571785c5232c772459810",
+  "locator_migration": {
+    "contract_version": "page-to-image-v1",
+    "transformed_locator_count": 22,
+    "transformed_unit_count": 1
+  },
+  "overlay": {
+    "schema_version": 1,
+    "created_at": "2026-07-20T00:00:00.000Z",
+    "units": [
+      {
+        "unit_id": "7f21b5176a0063d2746ce81345d347d4e2218081c19c540be722e9505eecb587",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "agency_disclosure",
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "studio",
+            "dress",
+            "makeup",
+            "other"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      },
+      {
+        "unit_id": "0a7e35c83b56423e27308887c63be675f2d24123941d53b620d315c9f7fec89c",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "studio",
+            "dress",
+            "makeup",
+            "other"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      },
+      {
+        "unit_id": "fb24bede2e46a3ee18a1426f7f6c0d4a82b0b069a17bee736339f89a4d0d2f00",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "studio",
+            "dress",
+            "makeup",
+            "other"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      },
+      {
+        "unit_id": "467af65b41d314bbce9fddd38bff84961d33700d5e7da17f04e337afaa212ead",
+        "readable_occurrences": [
+          {
+            "raw": "400만원~",
+            "krw": 4000000,
+            "line_context": "촬영만 (3벌기준) 400만원~",
+            "source_locator": "image:1/드레스구성 및 금액/촬영만"
+          },
+          {
+            "raw": "400만원~",
+            "krw": 4000000,
+            "line_context": "본식만 (본식+2부) 400만원~",
+            "source_locator": "image:1/드레스구성 및 금액/본식+2부"
+          },
+          {
+            "raw": "350만원~",
+            "krw": 3500000,
+            "line_context": "본식만 (본식 1벌진행) 350만원~",
+            "source_locator": "image:1/드레스구성 및 금액/본식1벌"
+          },
+          {
+            "raw": "550만원~",
+            "krw": 5500000,
+            "line_context": "본식 + 촬영 550만원~",
+            "source_locator": "image:1/드레스구성 및 금액/본식+촬영"
+          },
+          {
+            "raw": "110만원",
+            "krw": 1100000,
+            "line_context": "화이트드레스 추가 (1벌기준) 110만원",
+            "source_locator": "image:1/드레스추가 금액/화이트"
+          },
+          {
+            "raw": "77만원",
+            "krw": 770000,
+            "line_context": "컬러드레스 추가 (1벌기준) 77만원",
+            "source_locator": "image:1/드레스추가 금액/컬러"
+          },
+          {
+            "raw": "110만원",
+            "krw": 1100000,
+            "line_context": "퍼스트웨어 110만원",
+            "source_locator": "image:1/드레스추가 금액/퍼스트웨어"
+          },
+          {
+            "raw": "10만원",
+            "krw": 100000,
+            "line_context": "피팅비 10만원",
+            "source_locator": "image:1/피팅비·헬퍼비/피팅비"
+          },
+          {
+            "raw": "20만원",
+            "krw": 200000,
+            "line_context": "투어 당일 노쇼 위약금 20만원",
+            "source_locator": "image:1/피팅비·헬퍼비/노쇼"
+          },
+          {
+            "raw": "30만원",
+            "krw": 300000,
+            "line_context": "헬퍼비 기본 30만원",
+            "source_locator": "image:1/피팅비·헬퍼비/기본"
+          },
+          {
+            "raw": "+5만원",
+            "krw": 50000,
+            "line_context": "촬영 5시간 이상 진행 시 +5만원",
+            "source_locator": "image:1/피팅비·헬퍼비/촬영5시간"
+          },
+          {
+            "raw": "+5만원",
+            "krw": 50000,
+            "line_context": "17시 이후 예식 진행 시 +5만원",
+            "source_locator": "image:1/피팅비·헬퍼비/17시이후"
+          },
+          {
+            "raw": "+5만원",
+            "krw": 50000,
+            "line_context": "2부드레스 진행 시 +5만원",
+            "source_locator": "image:1/피팅비·헬퍼비/2부드레스"
+          },
+          {
+            "raw": "10만원",
+            "krw": 100000,
+            "line_context": "재가봉 비용 10만원",
+            "source_locator": "image:1/재가봉비용"
+          },
+          {
+            "raw": "77만원",
+            "krw": 770000,
+            "line_context": "프리미엄 디자인 추가금액 77만원",
+            "source_locator": "image:1/프리미엄디자인/77"
+          },
+          {
+            "raw": "110만원",
+            "krw": 1100000,
+            "line_context": "프리미엄 디자인 추가금액 110만원",
+            "source_locator": "image:1/프리미엄디자인/110"
+          },
+          {
+            "raw": "165만원",
+            "krw": 1650000,
+            "line_context": "프리미엄 디자인 추가금액 165만원",
+            "source_locator": "image:1/프리미엄디자인/165"
+          },
+          {
+            "raw": "220만원",
+            "krw": 2200000,
+            "line_context": "프리미엄 디자인 추가금액 220만원",
+            "source_locator": "image:1/프리미엄디자인/220"
+          },
+          {
+            "raw": "88만원",
+            "krw": 880000,
+            "line_context": "가봉스냅 2시간 3벌 대관료 88만원",
+            "source_locator": "image:1/가봉스냅/2시간/대관료"
+          },
+          {
+            "raw": "15만원",
+            "krw": 150000,
+            "line_context": "가봉스냅 2시간 3벌 헬퍼비용 15만원",
+            "source_locator": "image:1/가봉스냅/2시간/헬퍼"
+          },
+          {
+            "raw": "110만원",
+            "krw": 1100000,
+            "line_context": "가봉스냅 3시간 3벌 대관료 110만원",
+            "source_locator": "image:1/가봉스냅/3시간/대관료"
+          },
+          {
+            "raw": "20만원",
+            "krw": 200000,
+            "line_context": "가봉스냅 3시간 3벌 헬퍼비용 20만원",
+            "source_locator": "image:1/가봉스냅/3시간/헬퍼"
+          }
+        ],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "dress"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      },
+      {
+        "unit_id": "0aea5091993fbb729d4c746d0e31ecb26ef40c7c44030349c2e255f2a0d4ee38",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "hall_disclosure"
+          ],
+          "allowed_partner_categories": [
+            "hall"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 2
+        }
+      },
+      {
+        "unit_id": "9cd5e12d7941a7175b2388164081bb1c3886ea4b2badee4c80fff0ea18f9831c",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "hall_disclosure"
+          ],
+          "allowed_partner_categories": [
+            "hall"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 1
+        }
+      },
+      {
+        "unit_id": "cb0858314e9ea894d1cb90fb213cdda0d8aa00b2b6cd5b7839b5b96b07480e29",
+        "readable_occurrences": [],
+        "unreadable_cells": [],
+        "expectations": {
+          "doc_kinds": [
+            "agency_disclosure",
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "studio",
+            "dress",
+            "makeup",
+            "other"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      },
+      {
+        "unit_id": "9bd413d45460d6f9e754a39d57592b25c1dc5adec8ea86bba0e432c83dce16a7",
+        "readable_occurrences": [
+          {
+            "raw": "600,000원",
+            "krw": 600000,
+            "line_context": "액자촬영(H10) 600,000원",
+            "source_locator": "image:1/리허설촬영구성/액자촬영"
+          },
+          {
+            "raw": "1,100,000원",
+            "krw": 1100000,
+            "line_context": "세미 10P(H10) 1,100,000원",
+            "source_locator": "image:1/리허설촬영구성/세미10P"
+          },
+          {
+            "raw": "1,600,000원",
+            "krw": 1600000,
+            "line_context": "웨딩 20P(H15) 1,600,000원",
+            "source_locator": "image:1/리허설촬영구성/웨딩20P"
+          },
+          {
+            "raw": "2,100,000원",
+            "krw": 2100000,
+            "line_context": "웨딩 30P(H15) 2,100,000원",
+            "source_locator": "image:1/리허설촬영구성/웨딩30P"
+          },
+          {
+            "raw": "15만원",
+            "krw": 150000,
+            "line_context": "선택사항 메이킹필름 추가 15만원",
+            "source_locator": "image:1/리허설촬영구성/선택사항/메이킹필름"
+          },
+          {
+            "raw": "30만원",
+            "krw": 300000,
+            "line_context": "선택사항 기본앨범 추가 30만원",
+            "source_locator": "image:1/리허설촬영구성/선택사항/기본앨범"
+          },
+          {
+            "raw": "16.5만원",
+            "krw": 165000,
+            "line_context": "드레스 추가시 1벌당 16.5만원",
+            "source_locator": "image:1/리허설촬영구성/드레스추가"
+          },
+          {
+            "raw": "3.3만원",
+            "krw": 33000,
+            "line_context": "개인의상 추가시 1벌당 3.3만원",
+            "source_locator": "image:1/리허설촬영구성/개인의상"
+          },
+          {
+            "raw": "5.5만원",
+            "krw": 55000,
+            "line_context": "셀렉드레스 포함 의상시 1벌당 5.5만원",
+            "source_locator": "image:1/리허설촬영구성/콘셉트의상"
+          },
+          {
+            "raw": "각 10만원",
+            "krw": 100000,
+            "line_context": "야간·로드촬영 추가시 각 10만원",
+            "source_locator": "image:1/리허설촬영구성/야간·로드촬영"
+          },
+          {
+            "raw": "330,000원",
+            "krw": 330000,
+            "line_context": "원본과 수정본 330,000원",
+            "source_locator": "image:1/리허설촬영구성/원본수정본"
+          },
+          {
+            "raw": "1P당 3.3만원",
+            "krw": 33000,
+            "line_context": "사진 추가 1P당 3.3만원",
+            "source_locator": "image:1/리허설촬영구성/사진추가"
+          },
+          {
+            "raw": "1컷당 2.2만원",
+            "krw": 22000,
+            "line_context": "무료 수정 이후 1컷당 2.2만원",
+            "source_locator": "image:1/리허설촬영구성/추가수정"
+          },
+          {
+            "raw": "15만원",
+            "krw": 150000,
+            "line_context": "액자 사양 변경 추가금 15만원",
+            "source_locator": "image:1/리허설촬영구성/액자변경/15"
+          },
+          {
+            "raw": "20만원",
+            "krw": 200000,
+            "line_context": "캔버스 38 사양 변경 추가금 20만원",
+            "source_locator": "image:1/리허설촬영구성/액자변경/캔버스38"
+          },
+          {
+            "raw": "20만원",
+            "krw": 200000,
+            "line_context": "20×24 액자 변경 추가금 20만원",
+            "source_locator": "image:1/리허설촬영구성/액자변경/20x24"
+          },
+          {
+            "raw": "25만원",
+            "krw": 250000,
+            "line_context": "24×32 액자 변경 추가금 25만원",
+            "source_locator": "image:1/리허설촬영구성/액자변경/24x32"
+          },
+          {
+            "raw": "5.5만원",
+            "krw": 55000,
+            "line_context": "아크릴 액자 변경시 5.5만원 추가",
+            "source_locator": "image:1/리허설촬영구성/액자변경/아크릴"
+          },
+          {
+            "raw": "16.5만원",
+            "krw": 165000,
+            "line_context": "메이크업 추가비용 16.5만원",
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/16.5"
+          },
+          {
+            "raw": "27.5만원",
+            "krw": 275000,
+            "line_context": "메이크업 추가비용 27.5만원",
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/27.5"
+          },
+          {
+            "raw": "35만원",
+            "krw": 350000,
+            "line_context": "메이크업 추가비용 35만원",
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/35"
+          },
+          {
+            "raw": "3.3만원",
+            "krw": 33000,
+            "line_context": "이른 시간 메이크업 추가비용 3.3만원",
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/이른시간3.3"
+          },
+          {
+            "raw": "5.5만원",
+            "krw": 55000,
+            "line_context": "오전 6시 메이크업 추가비용 5.5만원",
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/오전6시"
+          },
+          {
+            "raw": "100,000원",
+            "krw": 100000,
+            "line_context": "헬퍼비 별도 100,000원~150,000원",
+            "source_locator": "image:1/리허설촬영구성/헬퍼비최저"
+          },
+          {
+            "raw": "150,000원",
+            "krw": 150000,
+            "line_context": "헬퍼비 별도 100,000원~150,000원",
+            "source_locator": "image:1/리허설촬영구성/헬퍼비최고"
+          },
+          {
+            "raw": "5만원",
+            "krw": 50000,
+            "line_context": "야간·로드촬영시 헬퍼비 5만원 추가",
+            "source_locator": "image:1/리허설촬영구성/헬퍼추가"
+          },
+          {
+            "raw": "1,600,000~",
+            "krw": 1600000,
+            "line_context": "웨딩 구성 1,600,000~",
+            "source_locator": "image:1/웨딩구성"
+          },
+          {
+            "raw": "110만원",
+            "krw": 1100000,
+            "line_context": "수입 드레스와 국내 명품 드레스 110만원",
+            "source_locator": "image:1/웨딩구성/드레스"
+          },
+          {
+            "raw": "55만원",
+            "krw": 550000,
+            "line_context": "신랑 신부 본식 헤어 메이크업 55만원",
+            "source_locator": "image:1/웨딩구성/헤어메이크업"
+          },
+          {
+            "raw": "22만원",
+            "krw": 220000,
+            "line_context": "계절꽃 부케 제작 22만원",
+            "source_locator": "image:1/웨딩구성/부케"
+          },
+          {
+            "raw": "8.8만원",
+            "krw": 88000,
+            "line_context": "커스텀 부케 제작 추가 8.8만원",
+            "source_locator": "image:1/웨딩구성/부케추가"
+          },
+          {
+            "raw": "0",
+            "krw": 0,
+            "line_context": "신상 드레스 추가금액 국내 0~최대 120만원",
+            "source_locator": "image:1/웨딩구성/각주/신상드레스최저"
+          },
+          {
+            "raw": "120만원",
+            "krw": 1200000,
+            "line_context": "신상 드레스 추가금액 국내 0~최대 120만원",
+            "source_locator": "image:1/웨딩구성/각주/신상드레스최고"
+          },
+          {
+            "raw": "11만원",
+            "krw": 110000,
+            "line_context": "드레스 관련 추가품목 11만원",
+            "source_locator": "image:1/웨딩구성/각주/드레스추가품목"
+          },
+          {
+            "raw": "5.5만원",
+            "krw": 55000,
+            "line_context": "드레스 관련 추가품목 5.5만원",
+            "source_locator": "image:1/웨딩구성/각주/드레스소품"
+          },
+          {
+            "raw": "3.3만원",
+            "krw": 33000,
+            "line_context": "수입 드레스 추가금 3.3만원부터",
+            "source_locator": "image:1/웨딩구성/각주/수입드레스"
+          },
+          {
+            "raw": "165,000원",
+            "krw": 165000,
+            "line_context": "추가 헤어 메이크업 여자 165,000원",
+            "source_locator": "image:1/웨딩구성/각주/추가헤어여자"
+          },
+          {
+            "raw": "55,000원",
+            "krw": 55000,
+            "line_context": "추가 헤어 메이크업 남자 55,000원",
+            "source_locator": "image:1/웨딩구성/각주/추가헤어남자"
+          },
+          {
+            "raw": "275,000원",
+            "krw": 275000,
+            "line_context": "추가 헤어 메이크업 여자·남자 동시 275,000원",
+            "source_locator": "image:1/웨딩구성/각주/추가헤어동시여자"
+          },
+          {
+            "raw": "88,000원",
+            "krw": 88000,
+            "line_context": "추가 헤어 메이크업 여자·남자 동시 88,000원",
+            "source_locator": "image:1/웨딩구성/각주/추가헤어동시남자"
+          },
+          {
+            "raw": "22만원",
+            "krw": 220000,
+            "line_context": "출장 메이크업 추가 22만원",
+            "source_locator": "image:1/웨딩구성/각주/출장메이크업"
+          },
+          {
+            "raw": "15만원",
+            "krw": 150000,
+            "line_context": "출장 관련 추가비 15만원",
+            "source_locator": "image:1/웨딩구성/각주/출장추가비"
+          },
+          {
+            "raw": "600,000원",
+            "krw": 600000,
+            "line_context": "본식 원판 600,000원",
+            "source_locator": "image:1/본식원판스냅/원판"
+          },
+          {
+            "raw": "800,000원",
+            "krw": 800000,
+            "line_context": "본식 스냅 800,000원",
+            "source_locator": "image:1/본식원판스냅/스냅"
+          },
+          {
+            "raw": "1,300,000원",
+            "krw": 1300000,
+            "line_context": "원판과 스냅 1,300,000원",
+            "source_locator": "image:1/본식원판스냅/원판+스냅"
+          }
+        ],
+        "unreadable_cells": [
+          {
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/기본추가",
+            "visible_amounts_krw": [
+              33000
+            ],
+            "estimated_content": "메이크업 기본 추가로 보이는 '3.3' 표기",
+            "reason": "해당 숫자에 원/만원 단위가 직접 또는 상속 가능한 형태로 인쇄되어 있지 않아 금액을 확정할 수 없음"
+          },
+          {
+            "source_locator": "image:1/리허설촬영구성/메이크업추가/헤어피스",
+            "visible_amounts_krw": [
+              66000
+            ],
+            "estimated_content": "헤어피스 대여 또는 반납 조건으로 보이는 '6.6' 표기",
+            "reason": "해당 숫자에 원/만원 단위가 직접 또는 상속 가능한 형태로 인쇄되어 있지 않아 금액을 확정할 수 없음"
+          }
+        ],
+        "expectations": {
+          "doc_kinds": [
+            "agency_disclosure",
+            "partner_price_list",
+            "mixed"
+          ],
+          "allowed_partner_categories": [
+            "studio",
+            "dress",
+            "makeup",
+            "other"
+          ],
+          "policies": true,
+          "pricing_basis": true,
+          "sections": true,
+          "halls_min": 0
+        }
+      }
+    ]
+  }
+}

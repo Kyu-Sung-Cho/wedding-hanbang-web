@@ -454,9 +454,13 @@ describe("admin price optimistic concurrency UX", () => {
       if (url === "/api/admin/price/bulk-approval") {
         bulkCalls.push(init);
         return Promise.resolve(jsonResponse({
-          eligible_count: 0,
+          batch_eligible_count: 0,
+          has_more: false,
+          count_verified: true,
           can_execute: false,
           batch_limit: 25,
+          eligibility_contract_version: 1,
+          eligibility_sha256: null,
           blocked_code: "VALIDATION_PROVENANCE_NOT_PERSISTED",
           blocked_reason: "검증 provenance가 없어 자동 승인 대상을 증명할 수 없습니다.",
         }));
@@ -469,7 +473,7 @@ describe("admin price optimistic concurrency UX", () => {
     await flush();
 
     const bulkButton = [...container.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent?.includes("자동 검증 통과분 일괄 승인"));
+      .find((button) => button.textContent === "승인 가능 건수 확인");
     expect(bulkButton).toBeDefined();
     expect(bulkCalls).toHaveLength(0);
 
@@ -478,13 +482,14 @@ describe("admin price optimistic concurrency UX", () => {
 
     expect(bulkCalls).toHaveLength(1);
     expect(bulkCalls[0]?.method).toBeUndefined();
-    expect(container.textContent).toContain("승인 가능 0건");
+    expect(container.textContent).toContain("이번 승인 배치 0건");
     expect(container.textContent).toContain("검증 provenance가 없어 자동 승인 대상을 증명할 수 없습니다.");
     expect(bulkButton?.disabled).toBe(true);
   });
 
   it("requires a second confirmed click before sending the bounded approval POST", async () => {
     const bulkMethods: Array<string> = [];
+    let approvalInit: RequestInit | undefined;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/admin/price/snapshots") {
@@ -496,9 +501,18 @@ describe("admin price optimistic concurrency UX", () => {
       if (url === "/api/admin/price/bulk-approval") {
         const method = init?.method ?? "GET";
         bulkMethods.push(method);
+        if (method === "POST") approvalInit = init;
         return Promise.resolve(method === "POST"
           ? jsonResponse({ approved_count: 3, conflict_count: 1, failed_count: 0, results: [] })
-          : jsonResponse({ eligible_count: 4, can_execute: true, batch_limit: 25 }));
+          : jsonResponse({
+              batch_eligible_count: 4,
+              has_more: false,
+              count_verified: true,
+              can_execute: true,
+              batch_limit: 25,
+              eligibility_contract_version: 1,
+              eligibility_sha256: "a".repeat(64),
+            }));
       }
       throw new Error(`unexpected fetch ${url}`);
     });
@@ -508,18 +522,30 @@ describe("admin price optimistic concurrency UX", () => {
     await act(async () => root.render(<AdminPricePage />));
     await flush();
     const bulkButton = [...container.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent?.includes("자동 검증 통과분 일괄 승인"));
+      .find((button) => button.textContent === "승인 가능 건수 확인");
 
     await act(async () => bulkButton?.click());
     await flush();
     expect(bulkMethods).toEqual(["GET"]);
-    expect(container.textContent).toContain("승인 가능 4건");
+    expect(bulkButton?.textContent).toBe("4건 승인하기");
+    expect(container.textContent).toContain("이번 승인 배치 4건");
 
     await act(async () => bulkButton?.click());
     await flush();
 
     expect(bulkMethods).toEqual(["GET", "POST"]);
     expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(approvalInit).toMatchObject({
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(JSON.parse(String(approvalInit?.body))).toEqual({
+      eligibility_contract_version: 1,
+      confirmation: "approve_automatically_validated_pending",
+      expected_eligible_count: 4,
+      expected_eligibility_sha256: "a".repeat(64),
+    });
     expect(container.querySelector('[role="status"]')?.textContent)
       .toContain("승인 3건 · 충돌 1건 · 실패 0건");
   });
