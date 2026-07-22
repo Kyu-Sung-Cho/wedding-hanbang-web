@@ -16,6 +16,7 @@ import {
   Phone,
   ExternalLink,
   MessageSquareText,
+  Search,
   X,
 } from "lucide-react";
 import QuoteAnalysisCard from "./QuoteAnalysisCard";
@@ -820,8 +821,75 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       searchUrl: string;
     }[];
     query?: string;
+    providerUnavailable?: boolean;
+    handoff?: {
+      searchUrl?: string;
+      mapsUrl?: string;
+    };
   };
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
+
+  const safeNaverUrl = (value: string | undefined): string | null => {
+    if (!value) return null;
+    try {
+      const url = new URL(value);
+      const isNaver = url.hostname === "naver.com" || url.hostname.endsWith(".naver.com");
+      return url.protocol === "https:" && isNaver && !url.username && !url.password
+        ? url.toString()
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handoffSearchUrl = safeNaverUrl(output.handoff?.searchUrl);
+  const handoffMapsUrl = safeNaverUrl(output.handoff?.mapsUrl);
+  if (output.providerUnavailable && (handoffSearchUrl || handoffMapsUrl)) {
+    const primaryUrl = handoffSearchUrl ?? handoffMapsUrl!;
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div className="w-full max-w-[440px] overflow-hidden rounded-xl border border-[#DCE8DA] bg-white shadow-sm">
+          <a
+            href={primaryUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${output.query || "장소"} 네이버 검색에서 보기`}
+            className="flex items-start gap-3 px-5 py-4 outline-none transition-colors hover:bg-[#F7FAF5] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2DB400]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2DB400]/10">
+              <Search className="h-5 w-5 text-[#218A00]" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[#1A1A1F]">
+                {output.query ? `‘${output.query}’ 네이버™에서 바로 보기` : "네이버™에서 바로 검색하기"}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+                검색 결과 연결이 지연되고 있어 네이버의 최신 검색 화면으로 바로 이어드려요.
+              </p>
+              <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#218A00]">
+                네이버 검색 열기
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </div>
+          </a>
+          {handoffMapsUrl && (
+            <a
+              href={handoffMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 border-t border-black/[0.05] py-3 text-sm font-medium text-[#1A1A1F] transition-colors hover:bg-[#FAF7F2]"
+            >
+              <MapPin className="h-4 w-4" aria-hidden="true" />
+              네이버 지도에서 보기
+            </a>
+          )}
+          <p className="border-t border-black/[0.05] bg-[#FAFAF8] px-4 py-2 text-[10px] text-[#928980]">
+            네이버™는 NAVER®의 등록상표입니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!result.success) {
     return (
@@ -890,7 +958,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
           <div className="flex items-center gap-2 px-1">
             <MapPin className="w-5 h-5 text-[#C4967E]" />
             <span className="text-sm text-[#928980] font-medium">
-              &apos;{output.query}&apos; 네이버 검색 결과
+              &apos;{output.query}&apos; 네이버™ 검색 결과
             </span>
           </div>
         )}
@@ -1056,7 +1124,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               {p.imageUrl && (
                 <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>
               )}
-              <span>장소 정보는 네이버 지역 검색 결과예요. 가격·룸 등 최신 정보는 네이버 또는 매장에 확인해 주세요.</span>
+              <span>장소 정보는 네이버 지역 검색 결과예요. 가격·룸 등 최신 정보는 네이버 또는 매장에 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.</span>
             </div>
           </div>
         ))}

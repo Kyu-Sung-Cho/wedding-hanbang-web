@@ -51,6 +51,36 @@ describe("VendorToolCard place search results", () => {
     expect(container.textContent).not.toContain("근처 장소 검색 결과가 없어요");
   });
 
+  it("offers a safe Naver handoff when API HUB is temporarily unavailable", async () => {
+    const searchUrl = "https://search.naver.com/search.naver?query=%EA%B0%95%EB%82%A8";
+    const mapsUrl = "https://map.naver.com/p/search/%EA%B0%95%EB%82%A8";
+
+    await act(async () => {
+      root.render(
+        <VendorToolCard
+          result={placeResult({
+            success: false,
+            toolOutput: {
+              query: "강남 상견례 식당",
+              places: [],
+              providerUnavailable: true,
+              handoff: { searchUrl, mapsUrl },
+            },
+            displayMessage: "네이버 검색으로 바로 이어드릴게요.",
+          })}
+        />,
+      );
+    });
+
+    const searchLink = container.querySelector<HTMLAnchorElement>(
+      'a[aria-label="강남 상견례 식당 네이버 검색에서 보기"]',
+    );
+    expect(searchLink?.getAttribute("href")).toBe(searchUrl);
+    expect(searchLink?.textContent).toContain("네이버 검색 열기");
+    expect(container.textContent).toContain("네이버 지도에서 보기");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it("opens the place body in Naver search without nesting the map and blog links", async () => {
     const searchUrl = "https://search.naver.com/search.naver?query=%ED%95%9C%EB%B0%A9%EC%A0%95%EC%8B%9D";
     const mapsUrl = "https://map.naver.com/p/search/%ED%95%9C%EB%B0%A9%EC%A0%95%EC%8B%9D";

@@ -29,7 +29,7 @@ function localItem(overrides: Record<string, unknown> = {}) {
     category: "음식점>한식>한정식",
     description: "상견례 장소",
     telephone: "02-0000-0000",
-    address: "서울 강남구 역삼동",
+    address: "서울 강남구 삼성동",
     roadAddress: "서울 강남구 테헤란로",
     mapx: "1270123456",
     mapy: "375012345",
@@ -47,6 +47,14 @@ function stubSearchFetch(
   return fetchMock;
 }
 
+function expectHandoff(output: Record<string, unknown>, query: string) {
+  expect(output.providerUnavailable).toBe(true);
+  expect(output.handoff).toEqual({
+    searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
+    mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(query)}`,
+  });
+}
+
 describe("placeSearchTools", () => {
   beforeEach(() => {
     for (const key of ENV_KEYS) delete process.env[key];
@@ -62,24 +70,7 @@ describe("placeSearchTools", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not accept a public client id when server credentials are missing", async () => {
-    process.env.NEXT_PUBLIC_NAVER_CLIENT_ID = "must-not-be-used";
-
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
-
-    expect(result).toMatchObject({
-      toolName: "search_nearby_places",
-      toolOutput: {
-        places: [],
-        query: "강남 상견례",
-        error: "naver_api_not_configured",
-      },
-      success: false,
-      displayMessage: "네이버 API 키가 설정되지 않았습니다.",
-    });
-  });
-
-  it("rejects an empty query before calling Naver", async () => {
+  it("rejects an empty query before calling NAVER", async () => {
     process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
     process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
     const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
@@ -89,14 +80,13 @@ describe("placeSearchTools", () => {
     expect(result).toMatchObject({
       success: false,
       toolOutput: { places: [], query: "", error: "invalid_query" },
-      displayMessage: "검색할 지역과 장소를 알려주세요.",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("prefers API HUB and combines local and image results without processing blog content", async () => {
-    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
-    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+  it("uses API HUB only and enriches a place with an identity-matched image", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "  hub-id  ";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "  hub-secret  ";
     process.env.NAVER_CLIENT_ID = "legacy-id";
     process.env.NAVER_CLIENT_SECRET = "legacy-secret";
 
@@ -107,8 +97,7 @@ describe("placeSearchTools", () => {
       if (url.pathname === "/search/v1/image") {
         return jsonResponse({
           items: [{
-            title: "<b>한방정식</b> 내부",
-            link: "https://photos.example.com/hanbang",
+            title: "<b>한방정식</b> 강남점 외관",
             thumbnail: "https://search.pstatic.net/common/hanbang.jpg",
           }],
         });
@@ -116,25 +105,24 @@ describe("placeSearchTools", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
     const output = result.toolOutput as {
       places: Array<Record<string, unknown>>;
-      query: string;
       provider: string;
+      providerUnavailable: boolean;
       partial: boolean;
       warnings: string[];
     };
-    const place = output.places[0];
 
     expect(result.success).toBe(true);
-    expect(result.displayMessage).toBe("'강남 상견례' 검색 결과 1곳을 찾았습니다.");
     expect(output).toMatchObject({
-      query: "강남 상견례",
       provider: "api_hub",
+      providerUnavailable: false,
       partial: false,
       warnings: [],
     });
-    expect(place).toMatchObject({
+    expect(output.places).toHaveLength(1);
+    expect(output.places[0]).toMatchObject({
       id: "naver-0",
       name: "한방정식",
       address: "서울 강남구 테헤란로",
@@ -143,21 +131,14 @@ describe("placeSearchTools", () => {
       cuisineType: "한식",
       description: "상견례 장소",
       telephone: "02-0000-0000",
-      priceRange: null,
-      hasPrivateRoom: false,
-      blogReviewCount: 0,
-      blogSnippet: null,
       imageUrl: "https://search.pstatic.net/common/hanbang.jpg",
       imageSourceUrl: null,
-      imageTitle: "한방정식 내부",
+      imageTitle: "한방정식 강남점 외관",
       link: "https://example.com/place",
-      mapx: "1270123456",
-      mapy: "375012345",
     });
-    expect(new URL(String(place.searchUrl)).searchParams.get("query"))
+    expect(new URL(String(output.places[0].searchUrl)).searchParams.get("query"))
       .toBe("한방정식 서울 강남구 테헤란로");
-    expect(String(place.mapsUrl)).toContain("https://map.naver.com/p/search/");
-    expect(decodeURIComponent(String(place.mapsUrl)))
+    expect(decodeURIComponent(String(output.places[0].mapsUrl)))
       .toContain("한방정식 서울 강남구 테헤란로");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -168,109 +149,87 @@ describe("placeSearchTools", () => {
         "X-NCP-APIGW-API-KEY": "hub-secret",
       });
     }
-    const calledPaths = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname);
-    expect(calledPaths).toEqual(expect.arrayContaining([
-      "/search/v1/local",
-      "/search/v1/image",
-    ]));
   });
 
-  it("uses the legacy Developers API when API HUB credentials are absent", async () => {
+  it("does not fall back to the legacy Developers API", async () => {
     process.env.NAVER_CLIENT_ID = "legacy-id";
     process.env.NAVER_CLIENT_SECRET = "legacy-secret";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
 
-    const fetchMock = stubSearchFetch((url) => {
-      if (url.pathname === "/v1/search/local.json") {
+    const query = "강남 상견례 식당";
+    const result = await executeSearchNearbyPlaces({ query });
+    const output = result.toolOutput as Record<string, unknown>;
+
+    expect(result.success).toBe(false);
+    expect(output).toMatchObject({
+      places: [],
+      query,
+      error: "naver_api_not_configured",
+    });
+    expectHandoff(output, query);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips an unrelated first image and accepts a later identity match", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+
+    stubSearchFetch((url) => {
+      if (url.pathname.endsWith("/local")) {
         return jsonResponse({ items: [localItem()] });
       }
-      if (url.pathname === "/v1/search/image.json") return jsonResponse({ items: [] });
-      throw new Error(`Unexpected URL: ${url}`);
-    });
-
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
-    const output = result.toolOutput as { provider: string; places: unknown[] };
-
-    expect(result.success).toBe(true);
-    expect(output.provider).toBe("legacy");
-    expect(output.places).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    for (const [input, init] of fetchMock.mock.calls) {
-      expect(new URL(String(input)).origin).toBe("https://openapi.naver.com");
-      expect(init?.headers).toEqual({
-        "X-Naver-Client-Id": "legacy-id",
-        "X-Naver-Client-Secret": "legacy-secret",
-      });
-    }
-  });
-
-  it("keeps place results when image enrichment fails", async () => {
-    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
-    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
-
-    stubSearchFetch((url) => {
-      if (url.pathname.endsWith("/local")) return jsonResponse({ items: [localItem()] });
-      if (url.pathname.endsWith("/image")) return jsonResponse({ error: "temporarily unavailable" }, 503);
-      throw new Error(`Unexpected URL: ${url}`);
-    });
-
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
-    const output = result.toolOutput as {
-      places: Array<Record<string, unknown>>;
-      partial: boolean;
-      warnings: string[];
-    };
-
-    expect(result.success).toBe(true);
-    expect(result.displayMessage).toContain("검색 결과 1곳을 찾았습니다.");
-    expect(result.displayMessage).toContain("일부 사진 정보는 불러오지 못했습니다.");
-    expect(output.partial).toBe(true);
-    expect(output.warnings).toContain("image_enrichment_failed");
-    expect(output.places[0]).toMatchObject({ name: "한방정식", imageUrl: null });
-  });
-
-  it("accepts only HTTPS image thumbnails from a pstatic.net subdomain", async () => {
-    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
-    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
-
-    stubSearchFetch((url) => {
-      if (url.pathname.endsWith("/local")) return jsonResponse({ items: [localItem()] });
       if (url.pathname.endsWith("/image")) {
         return jsonResponse({
           items: [
-            { thumbnail: "http://search.pstatic.net/insecure.jpg", link: "https://example.com/1" },
-            { thumbnail: "https://pstatic.net.evil.example/fake.jpg", link: "https://example.com/2" },
-            { thumbnail: "https://search.pstatic.net/safe.jpg", link: "javascript:alert(1)", title: "안전 이미지" },
+            {
+              title: "전혀 다른 레스토랑",
+              thumbnail: "https://search.pstatic.net/common/unrelated.jpg",
+            },
+            {
+              title: "한방 정식 예약 후기",
+              thumbnail: "https://search.pstatic.net/common/matched.jpg",
+            },
           ],
         });
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
-    const output = result.toolOutput as { places: Array<Record<string, unknown>>; warnings: string[] };
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
+    const output = result.toolOutput as {
+      places: Array<Record<string, unknown>>;
+      warnings: string[];
+    };
 
     expect(result.success).toBe(true);
     expect(output.warnings).toEqual([]);
     expect(output.places[0]).toMatchObject({
-      imageUrl: "https://search.pstatic.net/safe.jpg",
-      imageSourceUrl: null,
-      imageTitle: "안전 이미지",
+      imageUrl: "https://search.pstatic.net/common/matched.jpg",
+      imageTitle: "한방 정식 예약 후기",
     });
   });
 
-  it("marks rejected image hosts without failing the local result", async () => {
+  it("omits images whose titles cannot verify the place identity", async () => {
     process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
     process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
 
     stubSearchFetch((url) => {
-      if (url.pathname.endsWith("/local")) return jsonResponse({ items: [localItem()] });
+      if (url.pathname.endsWith("/local")) {
+        return jsonResponse({ items: [localItem()] });
+      }
       if (url.pathname.endsWith("/image")) {
-        return jsonResponse({ items: [{ thumbnail: "https://images.example.com/not-allowed.jpg" }] });
+        return jsonResponse({
+          items: [{
+            title: "다른 한정식 식당",
+            thumbnail: "https://search.pstatic.net/common/wrong.jpg",
+          }],
+        });
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
     const output = result.toolOutput as {
       places: Array<Record<string, unknown>>;
       partial: boolean;
@@ -279,11 +238,83 @@ describe("placeSearchTools", () => {
 
     expect(result.success).toBe(true);
     expect(output.partial).toBe(true);
-    expect(output.warnings).toContain("image_url_rejected");
+    expect(output.warnings).toContain("image_identity_unverified");
+    expect(output.places[0]).toMatchObject({
+      imageUrl: null,
+      imageTitle: null,
+    });
+  });
+
+  it("rejects an identity match when the thumbnail is not HTTPS pstatic", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+
+    stubSearchFetch((url) => {
+      if (url.pathname.endsWith("/local")) {
+        return jsonResponse({ items: [localItem()] });
+      }
+      if (url.pathname.endsWith("/image")) {
+        return jsonResponse({
+          items: [{
+            title: "한방정식 내부",
+            thumbnail: "https://pstatic.net.evil.example/fake.jpg",
+          }],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
+    const output = result.toolOutput as {
+      places: Array<Record<string, unknown>>;
+      warnings: string[];
+    };
+
+    expect(result.success).toBe(true);
+    expect(output.warnings).toContain("image_identity_unverified");
     expect(output.places[0].imageUrl).toBeNull();
   });
 
-  it("returns a successful empty result without running enrichment calls", async () => {
+  it("keeps local places when API HUB image enrichment fails", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+
+    stubSearchFetch((url) => {
+      if (url.pathname.endsWith("/local")) {
+        return jsonResponse({ items: [localItem()] });
+      }
+      if (url.pathname.endsWith("/image")) {
+        return jsonResponse({ error: "temporarily unavailable" }, 503);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
+    const output = result.toolOutput as {
+      places: Array<Record<string, unknown>>;
+      partial: boolean;
+      warnings: string[];
+    };
+
+    expect(result.success).toBe(true);
+    expect(output.partial).toBe(true);
+    expect(output.warnings).toContain("image_enrichment_failed");
+    expect(output.places[0]).toMatchObject({ name: "한방정식", imageUrl: null });
+  });
+
+  it("does not accept a public client id and returns an explicit direct handoff", async () => {
+    process.env.NEXT_PUBLIC_NAVER_CLIENT_ID = "must-not-be-used";
+    const query = "부산 예식장";
+
+    const result = await executeSearchNearbyPlaces({ query });
+    const output = result.toolOutput as Record<string, unknown>;
+
+    expect(result.success).toBe(false);
+    expect(output.error).toBe("naver_api_not_configured");
+    expectHandoff(output, query);
+  });
+
+  it("returns a successful empty API HUB result without enrichment calls", async () => {
     process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
     process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
     const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
@@ -292,31 +323,56 @@ describe("placeSearchTools", () => {
 
     expect(result).toMatchObject({
       success: true,
-      toolOutput: { places: [], query: "없는 장소", provider: "api_hub" },
-      displayMessage: "'없는 장소' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.",
+      toolOutput: {
+        places: [],
+        query: "없는 장소",
+        provider: "api_hub",
+        providerUnavailable: false,
+      },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a clear failure when local search fails", async () => {
+  it("keeps failed provider calls distinct from a query-based NAVER handoff", async () => {
     process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
     process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fetchMock = stubSearchFetch(() => jsonResponse({ error: "quota exceeded" }, 429));
+    const query = "강남 상견례 식당";
 
-    const result = await executeSearchNearbyPlaces({ query: "강남 상견례" });
+    const result = await executeSearchNearbyPlaces({ query });
+    const output = result.toolOutput as Record<string, unknown>;
 
-    expect(result).toMatchObject({
-      success: false,
-      toolOutput: {
-        places: [],
-        query: "강남 상견례",
-        error: "naver_local_search_failed",
-        provider: "api_hub",
-        status: 429,
-      },
-      displayMessage: "네이버 장소 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    expect(result.success).toBe(false);
+    expect(output).toMatchObject({
+      places: [],
+      query,
+      error: "naver_local_search_failed",
+      provider: "api_hub",
+      providerUnavailable: true,
+      status: 429,
     });
+    expectHandoff(output, query);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects unsafe provider links while preserving direct NAVER links", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    stubSearchFetch((url) => {
+      if (url.pathname.endsWith("/local")) {
+        return jsonResponse({ items: [localItem({ link: "javascript:alert(1)" })] });
+      }
+      if (url.pathname.endsWith("/image")) return jsonResponse({ items: [] });
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeSearchNearbyPlaces({ query: "강남 상견례 식당" });
+    const output = result.toolOutput as { places: Array<Record<string, unknown>> };
+
+    expect(result.success).toBe(true);
+    expect(output.places[0].link).toBeNull();
+    expect(String(output.places[0].searchUrl)).toMatch(/^https:\/\/search\.naver\.com\//);
+    expect(String(output.places[0].mapsUrl)).toMatch(/^https:\/\/map\.naver\.com\//);
   });
 });

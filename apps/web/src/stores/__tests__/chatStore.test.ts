@@ -267,7 +267,7 @@ describe("useChatStore progress synchronization", () => {
     expect(mockFetch).toHaveBeenCalledWith("/api/auth/me", { cache: "no-store" });
   });
 
-  it("keeps an ephemeral NAVER result in current memory without done metadata persistence", async () => {
+  it("keeps an ephemeral NAVER result when done has no assistant text or persisted provider data", async () => {
     mockInsertSingle.mockResolvedValue({
       data: {
         id: "message-place-1",
@@ -307,7 +307,7 @@ describe("useChatStore progress synchronization", () => {
         controller.enqueue(encoder.encode(
           `data: ${JSON.stringify({
             type: "done",
-            fullContent: "검색 결과를 카드에 표시했어요.",
+            fullContent: "",
             metadata: { serverMessageId: "ai-message-place-1" },
           })}\n\n`
         ));
@@ -328,6 +328,7 @@ describe("useChatStore progress synchronization", () => {
     const aiMessage = useChatStore.getState().messages.find(
       (message) => message.id === "ai-message-place-1"
     );
+    expect(aiMessage?.content).toBe("");
     expect(aiMessage?.metadata?.toolResults).toEqual([placeResult]);
     expect(useChatStore.getState().streamingToolResults).toEqual([]);
   });

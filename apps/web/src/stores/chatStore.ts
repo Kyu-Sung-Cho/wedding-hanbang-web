@@ -996,9 +996,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
       }
 
-      if (fullContent) {
+      const completedToolResults = get().streamingToolResults;
+      if (fullContent || completedToolResults.length > 0) {
         const completedMetadata = finalMetadata as ChatMessageMetadata | null;
-        const ephemeralPlaceResults = get().streamingToolResults.filter(
+        const ephemeralPlaceResults = completedToolResults.filter(
           (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
         );
         const aiMetadata: ChatMessageMetadata = {

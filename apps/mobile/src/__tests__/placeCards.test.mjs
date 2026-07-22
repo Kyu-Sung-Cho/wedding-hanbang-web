@@ -102,6 +102,32 @@ test("failed place search exposes displayMessage and invalid external URLs are d
   assert.equal(success.places[0].blogSearchUrl, null);
 });
 
+test("API HUB outage becomes a safe Naver search handoff", () => {
+  const model = getPlaceCardsModel({
+    toolName: "search_nearby_places",
+    toolInput: { query: "강남 상견례 식당" },
+    toolOutput: {
+      query: "강남 상견례 식당",
+      places: [],
+      providerUnavailable: true,
+      handoff: {
+        searchUrl: "https://search.naver.com/search.naver?query=강남",
+        mapsUrl: "https://map.naver.com/p/search/강남",
+      },
+    },
+    success: false,
+    displayMessage: "네이버 검색으로 바로 이어드릴게요.",
+  });
+
+  assert.deepEqual(model, {
+    state: "handoff",
+    query: "강남 상견례 식당",
+    searchUrl: "https://search.naver.com/search.naver?query=강남",
+    mapsUrl: "https://map.naver.com/p/search/강남",
+    message: "검색 결과 연결이 지연되고 있어 네이버의 최신 검색 화면으로 바로 이어드려요.",
+  });
+});
+
 test("place cards only accept HTTPS Naver links and HTTPS pstatic images", () => {
   const model = getPlaceCardsModel({
     toolName: "search_nearby_places",
@@ -144,6 +170,7 @@ test("mobile place cards expose accessible Naver links and a broken-image fallba
   assert.ok(component.includes("onError="));
   assert.ok(component.includes("사진을 불러오지 못했어요"));
   assert.ok(component.includes("네이버 검색"));
+  assert.ok(component.includes("네이버 지도에서 보기"));
   assert.ok(component.includes("지도"));
   assert.ok(component.includes("블로그"));
   assert.ok(component.includes("블로그 언급"));

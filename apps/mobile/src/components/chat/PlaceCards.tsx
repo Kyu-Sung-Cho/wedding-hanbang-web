@@ -198,6 +198,44 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
 export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
   const model = getPlaceCardsModel(result);
 
+  if (model.state === "handoff") {
+    const primaryUrl = model.searchUrl ?? model.mapsUrl;
+    return (
+      <View style={styles.handoffCard} accessibilityLiveRegion="polite">
+        <Pressable
+          disabled={!primaryUrl}
+          style={({ pressed }) => [styles.handoffMain, pressed && styles.pressed]}
+          accessibilityRole={primaryUrl ? "link" : undefined}
+          accessibilityLabel={`${model.query ?? "장소"} 네이버 검색에서 보기`}
+          accessibilityHint="외부 브라우저에서 엽니다"
+          onPress={() => {
+            if (primaryUrl) openExternal(primaryUrl);
+          }}
+        >
+          <View style={styles.handoffIcon}>
+            <Search size={21} color="#218A00" />
+          </View>
+          <View style={styles.noticeCopy}>
+            <Text style={styles.noticeTitle}>
+              {model.query ? `‘${model.query}’ 네이버™에서 바로 보기` : "네이버™에서 바로 검색하기"}
+            </Text>
+            <Text style={styles.noticeText}>{model.message}</Text>
+            <Text style={styles.handoffLink}>네이버 검색 열기</Text>
+          </View>
+        </Pressable>
+        {model.mapsUrl ? (
+          <ExternalAction
+            label="네이버 지도에서 보기"
+            accessibilityLabel={`${model.query ?? "장소"} 네이버 지도에서 보기`}
+            url={model.mapsUrl}
+            icon={<MapPin size={15} color={colors.noir[800]} />}
+          />
+        ) : null}
+        <Text style={styles.trademarkNote}>네이버™는 NAVER®의 등록상표입니다.</Text>
+      </View>
+    );
+  }
+
   if (model.state === "error") {
     return (
       <View
@@ -232,7 +270,7 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
         <View style={styles.queryRow}>
           <MapPin size={15} color={colors.rose[500]} />
           <Text style={styles.queryText} numberOfLines={2}>
-            ‘{model.query}’ 네이버 검색 결과
+            ‘{model.query}’ 네이버™ 검색 결과
           </Text>
         </View>
       ) : null}
@@ -240,7 +278,7 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
         <PlaceCard key={place.id} place={place} index={index} />
       ))}
       <Text style={styles.providerNote}>
-        장소 정보는 네이버 지역 검색, 사진은 네이버 이미지 검색 결과예요. 최신 정보는 네이버 또는 매장에 확인해 주세요.
+        장소 정보는 네이버 지역 검색, 사진은 네이버 이미지 검색 결과예요. 최신 정보는 네이버 또는 매장에 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
       </Text>
     </View>
   );
@@ -283,4 +321,9 @@ const styles = StyleSheet.create({
   noticeTitle: { fontSize: 14, lineHeight: 20, color: colors.noir[800], fontWeight: "700" },
   errorTitle: { color: colors.danger },
   noticeText: { marginTop: 3, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  handoffCard: { overflow: "hidden", marginTop: 8, borderRadius: 16, borderWidth: 1, borderColor: "#DCE8DA", backgroundColor: colors.surface },
+  handoffMain: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14 },
+  handoffIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: "rgba(45, 180, 0, 0.10)" },
+  handoffLink: { marginTop: 7, fontSize: 12, lineHeight: 18, color: "#218A00", fontWeight: "700" },
+  trademarkNote: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, fontSize: 9, lineHeight: 13, color: colors.textTertiary },
 });

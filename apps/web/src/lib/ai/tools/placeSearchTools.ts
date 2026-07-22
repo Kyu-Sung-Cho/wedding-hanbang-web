@@ -1,10 +1,9 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 
 type NaverSearchKind = "local" | "image";
-type NaverProvider = "api_hub" | "legacy";
 
 interface NaverSearchConfig {
-  provider: NaverProvider;
+  provider: "api_hub";
   baseUrl: string;
   headers: Record<string, string>;
 }
@@ -92,6 +91,23 @@ function safePstaticImageUrl(value: unknown): string | null {
   return hostname.endsWith(".pstatic.net") ? safeUrl : null;
 }
 
+function normalizePlaceIdentity(value: string): string {
+  return stripHtmlTags(value)
+    .normalize("NFKC")
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function imageMatchesPlace(
+  placeName: string,
+  imageItem: Record<string, unknown>
+): boolean {
+  const placeIdentity = normalizePlaceIdentity(placeName);
+  if ([...placeIdentity].length < 3) return false;
+  const imageIdentity = normalizePlaceIdentity(stringField(imageItem, "title"));
+  return imageIdentity.includes(placeIdentity);
+}
+
 function readNaverSearchConfig(): NaverSearchConfig | null {
   const hubClientId = process.env.NAVER_API_HUB_CLIENT_ID?.trim();
   const hubClientSecret = process.env.NAVER_API_HUB_CLIENT_SECRET?.trim();
@@ -106,22 +122,14 @@ function readNaverSearchConfig(): NaverSearchConfig | null {
     };
   }
 
-  // Existing production applications can keep using the Developers API until
-  // their migration is complete. These variables must remain server-only.
-  const legacyClientId = process.env.NAVER_CLIENT_ID?.trim();
-  const legacyClientSecret = process.env.NAVER_CLIENT_SECRET?.trim();
-  if (legacyClientId && legacyClientSecret) {
-    return {
-      provider: "legacy",
-      baseUrl: "https://openapi.naver.com",
-      headers: {
-        "X-Naver-Client-Id": legacyClientId,
-        "X-Naver-Client-Secret": legacyClientSecret,
-      },
-    };
-  }
-
   return null;
+}
+
+function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
+  return {
+    searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
+    mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(query)}`,
+  };
 }
 
 function buildNaverSearchUrl(
@@ -129,9 +137,7 @@ function buildNaverSearchUrl(
   kind: NaverSearchKind,
   params: Record<string, string>
 ): string {
-  const path = config.provider === "api_hub"
-    ? `/search/v1/${kind}`
-    : `/v1/search/${kind}.json`;
+  const path = `/search/v1/${kind}`;
   const url = new URL(path, config.baseUrl);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -179,7 +185,13 @@ export async function executeSearchNearbyPlaces(
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: { places: [], query, error: "naver_api_not_configured" },
+      toolOutput: {
+        places: [],
+        query,
+        error: "naver_api_not_configured",
+        providerUnavailable: true,
+        handoff: buildNaverHandoff(query),
+      },
       success: false,
       displayMessage: "네이버 API 키가 설정되지 않았습니다.",
     };
@@ -198,7 +210,12 @@ export async function executeSearchNearbyPlaces(
       return {
         toolName: "search_nearby_places",
         toolInput: input,
-        toolOutput: { places: [], query, provider: config.provider },
+        toolOutput: {
+          places: [],
+          query,
+          provider: config.provider,
+          providerUnavailable: false,
+        },
         success: true,
         displayMessage: `'${query}' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.`,
       };
@@ -256,15 +273,15 @@ export async function executeSearchNearbyPlaces(
 
       if (imageResult.status === "fulfilled") {
         const imageItems = recordItems(imageResult.value);
-        const selectedImage = imageItems.find((imageItem) => safePstaticImageUrl(imageItem.thumbnail));
+        const selectedImage = imageItems.find((imageItem) =>
+          imageMatchesPlace(place.name, imageItem)
+          && Boolean(safePstaticImageUrl(imageItem.thumbnail))
+        );
         if (selectedImage) {
           nextPlace.imageUrl = safePstaticImageUrl(selectedImage.thumbnail);
-          // Keep the whole-card destination on NAVER. Image search can point
-          // at arbitrary third-party hosts, so source links are label-only.
-          nextPlace.imageSourceUrl = null;
           nextPlace.imageTitle = stripHtmlTags(stringField(selectedImage, "title")) || null;
         } else if (imageItems.length > 0) {
-          warnings.add("image_url_rejected");
+          warnings.add("image_identity_unverified");
         }
       } else {
         warnings.add("image_enrichment_failed");
@@ -284,6 +301,7 @@ export async function executeSearchNearbyPlaces(
         places,
         query,
         provider: config.provider,
+        providerUnavailable: false,
         partial: warningList.length > 0,
         warnings: warningList,
       },
@@ -304,6 +322,8 @@ export async function executeSearchNearbyPlaces(
         query,
         error: errorCode,
         provider: config.provider,
+        providerUnavailable: true,
+        handoff: buildNaverHandoff(query),
         status,
       },
       success: false,

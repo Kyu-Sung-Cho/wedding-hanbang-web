@@ -24,6 +24,7 @@ export interface PlaceCardModel {
 
 export type PlaceCardsModel =
   | { state: "error"; message: string }
+  | { state: "handoff"; message: string; query: string | null; searchUrl: string | null; mapsUrl: string | null }
   | { state: "empty"; message: string; query: string | null }
   | { state: "places"; places: PlaceCardModel[]; query: string | null };
 
@@ -56,6 +57,22 @@ function asCount(value: unknown): number | null {
 }
 
 export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsModel {
+  const output = isRecord(result.toolOutput) ? result.toolOutput : {};
+  const query = asString(output.query) ?? asString(result.toolInput.query);
+  const handoff = isRecord(output.handoff) ? output.handoff : {};
+  const handoffSearchUrl = safeProviderUrl(handoff.searchUrl, "naver.com");
+  const handoffMapsUrl = safeProviderUrl(handoff.mapsUrl, "naver.com");
+
+  if (output.providerUnavailable === true && (handoffSearchUrl || handoffMapsUrl)) {
+    return {
+      state: "handoff",
+      query,
+      searchUrl: handoffSearchUrl,
+      mapsUrl: handoffMapsUrl,
+      message: "검색 결과 연결이 지연되고 있어 네이버의 최신 검색 화면으로 바로 이어드려요.",
+    };
+  }
+
   if (!result.success) {
     return {
       state: "error",
@@ -63,8 +80,6 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
     };
   }
 
-  const output = isRecord(result.toolOutput) ? result.toolOutput : {};
-  const query = asString(output.query) ?? asString(result.toolInput.query);
   const rawPlaces = Array.isArray(output.places) ? output.places : [];
   const places = rawPlaces.flatMap((value, index): PlaceCardModel[] => {
     if (!isRecord(value)) return [];
