@@ -815,9 +815,36 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       blogReviewCount: number;
       blogSnippet: string | null;
       link: string | null;
+      imageUrl: string | null;
+      imageSourceUrl: string | null;
+      searchUrl: string;
     }[];
     query?: string;
   };
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
+
+  if (!result.success) {
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div
+          role="alert"
+          className="w-full max-w-[440px] rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+              <MapPin className="h-5 w-5 text-red-500" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-red-700">장소 검색을 완료하지 못했어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-red-600">
+                {result.displayMessage || "잠시 후 다시 검색해 주세요."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const places = output.places ?? [];
   if (places.length === 0) {
@@ -863,7 +890,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
           <div className="flex items-center gap-2 px-1">
             <MapPin className="w-5 h-5 text-[#C4967E]" />
             <span className="text-sm text-[#928980] font-medium">
-              &apos;{output.query}&apos; 검색 결과
+              &apos;{output.query}&apos; 네이버 검색 결과
             </span>
           </div>
         )}
@@ -873,21 +900,65 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
             key={p.id}
             className="rounded-xl border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-colors overflow-hidden"
           >
-            {/* 메인 컨텐츠 */}
-            <div className="px-5 pt-4 pb-3.5">
+            {/* 메인 컨텐츠 — 하단 지도/블로그 링크와 분리된 단일 검색 링크 */}
+            <a
+              href={p.searchUrl || p.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${p.name} 네이버 검색에서 보기`}
+              className="block px-5 pt-4 pb-3.5 outline-none transition-colors hover:bg-[#FBF8F2] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A77B74]"
+            >
               <div className="flex items-start gap-3">
-                {/* 순위 번호 */}
-                <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-[#FAF7F2] to-[#F5F0E8] flex items-center justify-center border border-black/[0.04]">
-                  <span className="text-base font-semibold text-[#C4967E]">
+                {/* 네이버 이미지 검색 대표 사진 + 순위 */}
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-black/[0.05] bg-[#FAF7F2] sm:h-24 sm:w-24">
+                  <span className="absolute left-1.5 top-1.5 z-10 flex h-7 min-w-7 items-center justify-center rounded-md border border-black/[0.05] bg-white/95 px-1 text-sm font-semibold text-[#C4967E] shadow-sm">
                     {idx + 1}
                   </span>
+                  {p.imageUrl && !failedImageIds.has(p.id) ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Naver search thumbnails have dynamic pstatic paths.
+                    <img
+                      src={p.imageUrl}
+                      alt={`${p.name} 검색 사진`}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                      onError={() => {
+                        setFailedImageIds((previous) => {
+                          if (previous.has(p.id)) return previous;
+                          const next = new Set(previous);
+                          next.add(p.id);
+                          return next;
+                        });
+                      }}
+                    />
+                  ) : (
+                    <div
+                      role="img"
+                      aria-label={
+                        failedImageIds.has(p.id)
+                          ? `${p.name} 사진을 불러오지 못했어요`
+                          : `${p.name} 검색 사진이 아직 없어요`
+                      }
+                      className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center text-[#928980]"
+                    >
+                      <MapPin className="h-5 w-5 text-[#A77B74]" aria-hidden="true" />
+                      <span className="text-[10px] leading-tight">사진 준비 중</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  {/* 이름 */}
-                  <p className="text-lg font-semibold text-[#1A1A1F] truncate">
-                    {p.name}
-                  </p>
+                  {/* 이름 + 검색 링크 표시 */}
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-lg font-semibold text-[#1A1A1F]">
+                      {p.name}
+                    </p>
+                    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[#A77B74] sm:text-xs">
+                      네이버에서 보기
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
+                  </div>
 
                   {/* 태그 줄: 음식종류 + 세부카테고리 + 후기 수 */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -911,17 +982,17 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                     )}
                   </div>
 
-                  {/* 가격대 + 룸 정보 */}
+                  {/* 블로그 검색 문구에서 포착된 가격·룸 참고 정보 */}
                   {(p.priceRange || p.hasPrivateRoom) && (
-                    <div className="flex items-center gap-2.5 mt-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       {p.priceRange && (
-                        <span className="text-sm text-[#C9A96E] font-semibold">
-                          💰 {p.priceRange}
+                        <span className="text-sm font-medium text-[#36534E]">
+                          블로그 가격 언급 · {p.priceRange}
                         </span>
                       )}
                       {p.hasPrivateRoom && (
-                        <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#EDE7F6] text-[#5E35B1] font-medium">
-                          🚪 룸 있음
+                        <span className="rounded-full bg-[#C7D1C2]/40 px-2.5 py-0.5 text-sm font-medium text-[#36534E]">
+                          룸 언급 있음
                         </span>
                       )}
                     </div>
@@ -953,7 +1024,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   </div>
                 </div>
               </div>
-            </div>
+            </a>
 
             {/* 하단 액션 버튼 */}
             <div className="flex border-t border-black/[0.04]">
@@ -976,6 +1047,16 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 <MessageSquareText className="w-4 h-4" />
                 블로그 후기
               </a>
+            </div>
+
+            <div
+              role="note"
+              className="flex flex-col gap-1 border-t border-black/[0.04] bg-[#FAFAF8] px-4 py-2.5 text-[11px] leading-relaxed text-[#928980] sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            >
+              {p.imageUrl && (
+                <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>
+              )}
+              <span>장소 정보는 네이버 지역 검색 결과예요. 가격·룸 등 최신 정보는 네이버 또는 매장에 확인해 주세요.</span>
             </div>
           </div>
         ))}

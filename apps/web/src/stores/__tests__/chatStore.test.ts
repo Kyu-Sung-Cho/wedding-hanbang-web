@@ -266,4 +266,69 @@ describe("useChatStore progress synchronization", () => {
     expect(useAuthStore.getState().journey?.total_budget).toBe(40_000_000);
     expect(mockFetch).toHaveBeenCalledWith("/api/auth/me", { cache: "no-store" });
   });
+
+  it("keeps an ephemeral NAVER result in current memory without done metadata persistence", async () => {
+    mockInsertSingle.mockResolvedValue({
+      data: {
+        id: "message-place-1",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_type: "bride",
+        role: "user",
+        content: "강남 상견례 식당 찾아줘",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T09:30:00.000Z",
+      },
+      error: null,
+    });
+    const placeResult = {
+      toolName: "search_nearby_places",
+      toolInput: { query: "강남 상견례 식당" },
+      toolOutput: {
+        query: "강남 상견례 식당",
+        places: [{
+          id: "naver-0",
+          name: "한방정식",
+          address: "서울 강남구",
+          searchUrl: "https://search.naver.com/search.naver?query=test",
+          mapsUrl: "https://map.naver.com/p/search/test",
+        }],
+      },
+      success: true,
+      displayMessage: "검색 결과 1곳을 찾았습니다.",
+    };
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: "tool_result", result: placeResult })}\n\n`
+        ));
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({
+            type: "done",
+            fullContent: "검색 결과를 카드에 표시했어요.",
+            metadata: { serverMessageId: "ai-message-place-1" },
+          })}\n\n`
+        ));
+        controller.close();
+      },
+    });
+    mockFetch.mockResolvedValue(new Response(stream, { status: 200 }));
+
+    await useChatStore.getState().sendMessage({
+      content: "강남 상견례 식당 찾아줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+    });
+
+    const aiMessage = useChatStore.getState().messages.find(
+      (message) => message.id === "ai-message-place-1"
+    );
+    expect(aiMessage?.metadata?.toolResults).toEqual([placeResult]);
+    expect(useChatStore.getState().streamingToolResults).toEqual([]);
+  });
 });

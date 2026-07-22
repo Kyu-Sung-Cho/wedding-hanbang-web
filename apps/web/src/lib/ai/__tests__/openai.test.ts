@@ -200,6 +200,47 @@ describe("OpenAI Responses adapter", () => {
     expect(result.toolCalls[0]?.parseError).toBe("schema_validation");
   });
 
+  it("forwards an explicit function choice for deterministic read-only search", async () => {
+    const response = completedResponse([], "검색을 시작할게요.");
+    const { client, create } = fakeClient([{ type: "response.completed", response }]);
+    const searchTool = {
+      name: "search_nearby_places",
+      input_schema: {
+        type: "object" as const,
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    };
+
+    await chatWithToolsStream({
+      systemPrompt: "system",
+      input: "강남 상견례 식당 찾아줘",
+      tools: [searchTool],
+      toolChoice: { type: "function", name: "search_nearby_places" },
+      client,
+    });
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      tool_choice: { type: "function", name: "search_nearby_places" },
+    }), undefined);
+  });
+
+  it("rejects a forced function that is not in the offered tool set", async () => {
+    const { client, create } = fakeClient([]);
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "강남 상견례 식당 찾아줘",
+      tools: [],
+      toolChoice: { type: "function", name: "search_nearby_places" },
+      client,
+    })).rejects.toMatchObject({
+      category: "invalid_request",
+      providerCode: "forced_tool_unavailable",
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("returns a completed refusal as a refusal stop reason with usage", async () => {
     const response = completedResponse([{
       id: "msg_1",

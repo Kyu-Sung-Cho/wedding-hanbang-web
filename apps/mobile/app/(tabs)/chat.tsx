@@ -10,15 +10,26 @@ import * as Crypto from "expo-crypto";
 import { Send, Sparkles, Heart } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { PlaceCards } from "@/components/chat/PlaceCards";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 
+interface ToolExecutionResult {
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  toolOutput: Record<string, unknown>;
+  success: boolean;
+  displayMessage: string;
+}
+
 interface ChatMessageMetadata {
   target?: string;
   client_request_id?: string;
   client_visible_request_id?: string;
+  toolResults?: ToolExecutionResult[];
+  [key: string]: unknown;
 }
 
 interface ChatMessage {
@@ -79,13 +90,29 @@ type ChatStreamEvent = {
   chunk?: unknown;
   message?: unknown;
   delta?: { text?: unknown };
+  result?: unknown;
+  metadata?: unknown;
 };
 
 type ChatStreamState = {
   streamed: string;
   completed: string | null;
   error: boolean;
+  toolResults: ToolExecutionResult[];
+  metadata: ChatMessageMetadata | null;
 };
+
+interface ChatStreamCompletion {
+  text: string;
+  toolResults: ToolExecutionResult[];
+  metadata: ChatMessageMetadata | null;
+}
+
+type ChatStreamUpdateCallback = (
+  text: string,
+  toolResults: ToolExecutionResult[],
+  metadata: ChatMessageMetadata | null,
+) => void;
 
 class ChatTransportError extends Error {
   constructor(
@@ -99,6 +126,53 @@ class ChatTransportError extends Error {
 
 function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function asToolExecutionResult(value: unknown): ToolExecutionResult | null {
+  if (!isRecord(value) || typeof value.toolName !== "string" || typeof value.success !== "boolean") {
+    return null;
+  }
+  return {
+    toolName: value.toolName,
+    toolInput: isRecord(value.toolInput) ? value.toolInput : {},
+    toolOutput: isRecord(value.toolOutput) ? value.toolOutput : {},
+    success: value.success,
+    displayMessage: typeof value.displayMessage === "string" ? value.displayMessage : "",
+  };
+}
+
+function mergeToolResults(
+  current: ToolExecutionResult[],
+  incoming: ToolExecutionResult[],
+): ToolExecutionResult[] {
+  const seen = new Set(current.map((result) => JSON.stringify(result)));
+  const merged = [...current];
+  for (const result of incoming) {
+    const key = JSON.stringify(result);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(result);
+  }
+  return merged;
+}
+
+function asChatMessageMetadata(value: unknown): ChatMessageMetadata | null {
+  if (!isRecord(value)) return null;
+  const toolResults = Array.isArray(value.toolResults)
+    ? value.toolResults
+      .map(asToolExecutionResult)
+      .filter((result): result is ToolExecutionResult =>
+        result !== null && result.toolName !== "search_nearby_places"
+      )
+    : undefined;
+  return {
+    ...value,
+    ...(toolResults ? { toolResults } : {}),
+  } as ChatMessageMetadata;
 }
 
 function asChatStreamEvent(value: unknown): ChatStreamEvent | null {
@@ -122,11 +196,23 @@ function applyChatEvent(
     return true;
   }
 
+  if (event.type === "tool_result") {
+    const result = asToolExecutionResult(event.result);
+    if (!result) return false;
+    state.toolResults = mergeToolResults(state.toolResults, [result]);
+    return true;
+  }
+
   if (event.type === "done") {
     state.completed = nonEmptyString(event.fullContent)
       ?? nonEmptyString(event.content)
       ?? nonEmptyString(event.text)
       ?? state.streamed;
+    const metadata = asChatMessageMetadata(event.metadata);
+    if (metadata) {
+      state.toolResults = mergeToolResults(state.toolResults, metadata.toolResults ?? []);
+      state.metadata = { ...metadata, toolResults: state.toolResults };
+    }
     return true;
   }
 
@@ -149,14 +235,26 @@ function cleanAiText(value: string, final: boolean): string {
   return final ? withoutSuggestions.trim() : withoutSuggestions.trimStart();
 }
 
-function createChatStreamParser(onText: (text: string) => void) {
-  const state: ChatStreamState = { streamed: "", completed: null, error: false };
+function createChatStreamParser(
+  onUpdate: ChatStreamUpdateCallback,
+) {
+  const state: ChatStreamState = {
+    streamed: "",
+    completed: null,
+    error: false,
+    toolResults: [],
+    metadata: null,
+  };
   let buffer = "";
   let raw = "";
   let sawSseData = false;
 
   function emit() {
-    onText(cleanAiText(state.completed ?? state.streamed, false));
+    onUpdate(
+      cleanAiText(state.completed ?? state.streamed, false),
+      [...state.toolResults],
+      state.metadata ? { ...state.metadata, toolResults: [...state.toolResults] } : null,
+    );
   }
 
   function consumeBlock(block: string) {
@@ -230,15 +328,142 @@ function createChatStreamParser(onText: (text: string) => void) {
     return cleanAiText(state.completed ?? state.streamed, true);
   }
 
-  return { push, finish };
+  function getToolResults(): ToolExecutionResult[] {
+    return [...state.toolResults];
+  }
+
+  function getMetadata(): ChatMessageMetadata | null {
+    if (!state.metadata && state.toolResults.length === 0) return null;
+    return {
+      ...(state.metadata ?? {}),
+      toolResults: [...state.toolResults],
+    };
+  }
+
+  return { push, finish, getToolResults, getMetadata };
+}
+
+function applyChatStreamUpdate(
+  message: ChatMessage,
+  update: ChatStreamCompletion,
+): ChatMessage {
+  const toolResults = mergeToolResults(
+    message.metadata?.toolResults ?? [],
+    update.toolResults,
+  );
+  const shouldUpdateMetadata = update.metadata !== null || toolResults.length > 0;
+  return {
+    ...message,
+    content: update.text,
+    metadata: shouldUpdateMetadata
+      ? {
+        ...(message.metadata ?? {}),
+        ...(update.metadata ?? {}),
+        ...(toolResults.length > 0 ? { toolResults } : {}),
+      }
+      : message.metadata,
+  };
+}
+
+function messageRequestKey(message: ChatMessage): string | null {
+  const value = message.metadata?.client_visible_request_id
+    ?? message.metadata?.client_request_id;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function mergePersistedMessageWithLocal(
+  persisted: ChatMessage,
+  local: ChatMessage,
+): ChatMessage {
+  const toolResults = mergeToolResults(
+    persisted.metadata?.toolResults ?? [],
+    local.metadata?.toolResults ?? [],
+  );
+  const hasMetadata = Boolean(persisted.metadata || local.metadata || toolResults.length > 0);
+  return {
+    ...persisted,
+    content: local.content || persisted.content,
+    metadata: hasMetadata
+      ? {
+        ...(persisted.metadata ?? {}),
+        ...(local.metadata ?? {}),
+        ...(toolResults.length > 0 ? { toolResults } : {}),
+      }
+      : null,
+  };
+}
+
+function mergeRealtimeMessage(
+  previous: ChatMessage[],
+  incoming: ChatMessage,
+  incomingRequestKey: string | null,
+): ChatMessage[] {
+  const existingIndex = previous.findIndex((message) => message.id === incoming.id);
+  if (existingIndex >= 0) {
+    return previous.map((message, index) =>
+      index === existingIndex
+        ? mergePersistedMessageWithLocal(incoming, message)
+        : message
+    );
+  }
+
+  const placeholderIndex = incomingRequestKey
+    ? previous.findIndex((message) =>
+      message.id.startsWith("temp_") && messageRequestKey(message) === incomingRequestKey
+    )
+    : -1;
+  if (placeholderIndex >= 0) {
+    return previous.map((message, index) =>
+      index === placeholderIndex
+        ? mergePersistedMessageWithLocal(incoming, message)
+        : message
+    );
+  }
+  return [...previous, incoming];
+}
+
+function reconcileChatStreamUpdate(
+  previous: ChatMessage[],
+  tempId: string,
+  serverRequestKey: string,
+  update: ChatStreamCompletion,
+): ChatMessage[] {
+  const metadataServerId = update.metadata?.serverMessageId;
+  const serverMessageId = typeof metadataServerId === "string" && metadataServerId.length > 0
+    ? metadataServerId
+    : null;
+  const tempIndex = previous.findIndex((message) => message.id === tempId);
+  const serverIndex = previous.findIndex((message) =>
+    (serverMessageId !== null && message.id === serverMessageId)
+    || (message.sender_type === "ai" && messageRequestKey(message) === serverRequestKey)
+  );
+
+  if (serverIndex >= 0) {
+    const serverMessage = previous[serverIndex];
+    const baseMessage = tempIndex >= 0 && tempIndex !== serverIndex
+      ? mergePersistedMessageWithLocal(serverMessage, previous[tempIndex])
+      : serverMessage;
+    const updatedServer = applyChatStreamUpdate(baseMessage, update);
+    return previous
+      .filter((_, index) => index !== tempIndex || index === serverIndex)
+      .map((message) => message.id === serverMessage.id ? updatedServer : message);
+  }
+
+  if (tempIndex >= 0) {
+    const updatedTemp = applyChatStreamUpdate(previous[tempIndex], update);
+    const reconciled = serverMessageId ? { ...updatedTemp, id: serverMessageId } : updatedTemp;
+    return previous.map((message, index) => index === tempIndex ? reconciled : message);
+  }
+
+  return previous;
 }
 
 function streamChatWithXhr(
   body: ChatRequestBody,
   accessToken: string,
   signal: AbortSignal,
-  onText: (text: string) => void,
-): Promise<string> {
+  onUpdate: ChatStreamUpdateCallback,
+): Promise<ChatStreamCompletion> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(new ChatTransportError("CANCELLED"));
@@ -246,7 +471,7 @@ function streamChatWithXhr(
     }
 
     const xhr = new XMLHttpRequest();
-    const parser = createChatStreamParser(onText);
+    const parser = createChatStreamParser(onUpdate);
     let consumedLength = 0;
     let settled = false;
 
@@ -257,7 +482,7 @@ function streamChatWithXhr(
       cleanup();
       reject(error);
     };
-    const resolveOnce = (value: string) => {
+    const resolveOnce = (value: ChatStreamCompletion) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -288,8 +513,13 @@ function streamChatWithXhr(
       }
       try {
         const finalText = parser.finish();
-        if (!finalText) throw new ChatTransportError("EMPTY");
-        resolveOnce(finalText);
+        const toolResults = parser.getToolResults();
+        if (!finalText && toolResults.length === 0) throw new ChatTransportError("EMPTY");
+        resolveOnce({
+          text: finalText,
+          toolResults,
+          metadata: parser.getMetadata(),
+        });
       } catch (error) {
         rejectOnce(error instanceof ChatTransportError ? error : new ChatTransportError("STREAM"));
       }
@@ -331,8 +561,8 @@ function waitForUnlessAborted<T>(operation: PromiseLike<T>, signal: AbortSignal)
 async function requestChatStream(
   body: ChatRequestBody,
   signal: AbortSignal,
-  onText: (text: string) => void,
-): Promise<string> {
+  onUpdate: ChatStreamUpdateCallback,
+): Promise<ChatStreamCompletion> {
   const { data: sessionData } = await waitForUnlessAborted(
     supabase.auth.getSession(),
     signal,
@@ -342,7 +572,7 @@ async function requestChatStream(
   if (!accessToken) throw new ChatTransportError("AUTH");
 
   try {
-    return await streamChatWithXhr(body, accessToken, signal, onText);
+    return await streamChatWithXhr(body, accessToken, signal, onUpdate);
   } catch (error) {
     if (!(error instanceof ChatTransportError) || error.status !== 401 || signal.aborted) {
       throw error;
@@ -356,7 +586,7 @@ async function requestChatStream(
   );
   if (signal.aborted) throw new ChatTransportError("CANCELLED");
   if (refreshError || !refreshed.session?.access_token) throw new ChatTransportError("AUTH");
-  return streamChatWithXhr(body, refreshed.session.access_token, signal, onText);
+  return streamChatWithXhr(body, refreshed.session.access_token, signal, onUpdate);
 }
 
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
@@ -442,20 +672,20 @@ export default function ChatScreen() {
 
       if (history?.length) {
         for (const message of history) {
-          const metadata = message.metadata as ChatMessageMetadata | null;
+          const metadata = asChatMessageMetadata(message.metadata);
           const persistedRequestKey = metadata?.client_visible_request_id ?? metadata?.client_request_id;
           if (message.sender_type === "ai" && persistedRequestKey) {
             persistedAiRequestKeysRef.current.add(persistedRequestKey);
           }
         }
-        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: m.metadata as ChatMessage["metadata"], created_at: m.created_at })));
+        setMessages(history.map((m) => ({ id: m.id, role: m.role as "user" | "assistant", sender_type: m.sender_type as "bride" | "groom" | "ai", content: m.content, metadata: asChatMessageMetadata(m.metadata), created_at: m.created_at })));
       }
 
       // Realtime
       const ch = supabase.channel(`chat:${profile.couple_id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
           const n = payload.new as Record<string, unknown>;
-          const incomingMetadata = n.metadata as ChatMessageMetadata | null;
+          const incomingMetadata = asChatMessageMetadata(n.metadata);
           const incomingRequestKey = n.sender_type === "ai"
             ? incomingMetadata?.client_visible_request_id ?? incomingMetadata?.client_request_id
             : undefined;
@@ -468,17 +698,11 @@ export default function ChatScreen() {
             );
           }
           setMessages((prev) => {
-            if (prev.some((m) => m.id === n.id)) return prev;
-            const withoutMatchingPlaceholder = incomingRequestKey
-              ? prev.filter((m) => !(
-                m.id.startsWith("temp_") &&
-                m.metadata?.client_request_id === incomingRequestKey
-              ))
-              : prev;
-            return [...withoutMatchingPlaceholder, {
+            const incomingMessage: ChatMessage = {
               id: n.id as string, role: n.role as "user" | "assistant", sender_type: n.sender_type as "bride" | "groom" | "ai",
               content: n.content as string, metadata: incomingMetadata, created_at: n.created_at as string,
-            }];
+            };
+            return mergeRealtimeMessage(prev, incomingMessage, incomingRequestKey ?? null);
           });
         }).subscribe();
       channelRef.current = ch;
@@ -632,7 +856,11 @@ export default function ChatScreen() {
     activeControllerRef.current?.abort();
     activeControllerRef.current = controller;
     let timedOut = false;
-    let pendingText = "";
+    let pendingUpdate: ChatStreamCompletion = {
+      text: "",
+      toolResults: [],
+      metadata: null,
+    };
     let renderFrame: number | null = null;
     const cancelPendingRender = () => {
       if (renderFrame !== null) cancelAnimationFrame(renderFrame);
@@ -644,26 +872,32 @@ export default function ChatScreen() {
     }, CHAT_REQUEST_TIMEOUT_MS);
 
     try {
-      const fullText = await requestChatStream(
+      const completion = await requestChatStream(
         request.body,
         controller.signal,
-        (partialText) => {
+        (partialText, toolResults, metadata) => {
           if (!mountedRef.current) return;
-          pendingText = partialText;
+          pendingUpdate = { text: partialText, toolResults, metadata };
           if (renderFrame !== null) return;
           renderFrame = requestAnimationFrame(() => {
             renderFrame = null;
             if (!mountedRef.current) return;
-            setMessages((previous) => previous.map((message) =>
-              message.id === request.tempId ? { ...message, content: pendingText } : message
+            setMessages((previous) => reconcileChatStreamUpdate(
+              previous,
+              request.tempId,
+              request.serverRequestKey,
+              pendingUpdate,
             ));
           });
         },
       );
       cancelPendingRender();
       if (mountedRef.current) {
-        setMessages((previous) => previous.map((message) =>
-          message.id === request.tempId ? { ...message, content: fullText } : message
+        setMessages((previous) => reconcileChatStreamUpdate(
+          previous,
+          request.tempId,
+          request.serverRequestKey,
+          completion,
         ));
         scrollToLatest(true);
       }
@@ -848,7 +1082,12 @@ export default function ChatScreen() {
     const isMe = item.sender_type === userRole;
     const isPartnerMsg = item.metadata?.target === "partner";
     const isBride = item.sender_type === "bride";
-    const isThinking = isAi && item.id.startsWith("temp_") && !item.content && streaming;
+    const placeResults = (item.metadata?.toolResults ?? []).filter(
+      (result) => result.toolName === "search_nearby_places",
+    );
+    const hasPlaceResults = placeResults.length > 0;
+    const isThinking = isAi && item.id.startsWith("temp_") && !item.content && !hasPlaceResults && streaming;
+    const shouldRenderBubble = isThinking || Boolean(item.content);
     const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : isBride ? "#F5E6DF" : "#E8EDF5";
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
@@ -859,11 +1098,16 @@ export default function ChatScreen() {
             {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <Text style={st.avatarLetter}>{isBride ? "신부" : "신랑"}</Text>}
           </View>
         )}
-        <View style={{ maxWidth: "78%" }}>
+        <View style={hasPlaceResults ? st.placeMessageColumn : st.messageColumn}>
           {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isBride ? (userRole === "bride" ? userName : partnerName ?? "신부") : (userRole === "groom" ? userName : partnerName ?? "신랑")}{isPartnerMsg ? " ♥" : ""}</Text>}
-          <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
-            {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
-          </View>
+          {shouldRenderBubble ? (
+            <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{item.content}</Text>}
+            </View>
+          ) : null}
+          {placeResults.map((result, index) => (
+            <PlaceCards key={`${result.toolName}-${index}`} result={result} />
+          ))}
         </View>
       </View>
     );
@@ -961,6 +1205,8 @@ const st = StyleSheet.create({
   messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },
+  messageColumn: { maxWidth: "78%" },
+  placeMessageColumn: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
   avatarBride: { backgroundColor: "#F5E6DF" },

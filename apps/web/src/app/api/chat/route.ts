@@ -11,6 +11,15 @@ import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import {
+  getAvailableChatTools,
+  getPlaceSearchToolChoice,
+} from "@/lib/ai/placeSearchRouting";
+import {
+  getModelSafeToolOutput,
+  getPersistableToolResults,
+  hasEphemeralPlaceSearchResult,
+} from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
@@ -110,6 +119,13 @@ function deriveBoundRequestId(clientRequestId: string, userMessageId: string): s
 function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
   const metadata = { ...(message.metadata ?? {}) };
   delete metadata.client_request_id;
+  if (Array.isArray(metadata.toolResults)) {
+    const persistableResults = getPersistableToolResults(
+      metadata.toolResults as ToolExecutionResult[]
+    );
+    if (persistableResults.length > 0) metadata.toolResults = persistableResults;
+    else delete metadata.toolResults;
+  }
   return {
     ...metadata,
     stageTag: message.stageTag,
@@ -1007,8 +1023,11 @@ export async function POST(request: Request) {
         });
   // Old deployed clients do not send userMessageId. They remain answer-compatible,
   // but may not execute a mutation because the intent is not bound to one DB row.
-  const availableTools =
-    requestKind === "chat" && isDurableUserMessageBound ? BETA_SAFE_TOOLS : [];
+  const availableTools = getAvailableChatTools({
+    requestKind,
+    isDurableUserMessageBound,
+    tools: BETA_SAFE_TOOLS,
+  });
 
   const executionContext = {
     coupleId,
@@ -1074,6 +1093,7 @@ export async function POST(request: Request) {
         let currentMessages = [...formattedMessages];
         const toolResults: ToolExecutionResult[] = [];
         const toolsUsed: string[] = [];
+        let lockToolsAfterPlaceSearch = false;
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           // 실시간 스트리밍: 모든 라운드에서 텍스트 토큰을 즉시 클라이언트로 전송
@@ -1081,7 +1101,14 @@ export async function POST(request: Request) {
           const result = await chatWithToolsStream({
             systemPrompt,
             input: currentMessages,
-            tools: availableTools,
+            tools: lockToolsAfterPlaceSearch ? [] : availableTools,
+            toolChoice: lockToolsAfterPlaceSearch
+              ? undefined
+              : getPlaceSearchToolChoice({
+                  userText: lastUserText,
+                  round,
+                  tools: availableTools,
+                }),
             onTextDelta: (token) => {
               send({ type: "text_delta", content: token });
             },
@@ -1119,7 +1146,7 @@ export async function POST(request: Request) {
               cleanText,
               clientRequestId,
               metadata: {
-                toolResults,
+                toolResults: getPersistableToolResults(toolResults),
                 toolsUsed,
                 senderName: safeSenderName,
                 ...(visibleClientRequestKey !== clientRequestId
@@ -1297,13 +1324,19 @@ export async function POST(request: Request) {
             toolResults.push(execResult);
             send({ type: "tool_result", result: execResult });
             // UI 카드로 렌더링되는 도구는 텍스트 중복 방지 리마인더 추가
-            const outputJson = JSON.stringify(execResult.toolOutput);
+            const outputJson = JSON.stringify(getModelSafeToolOutput(execResult));
             const reminder = UI_RENDERED_TOOLS.has(toolUse.name)
               ? "\n[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드/버튼으로 자동 표시됩니다. 텍스트 응답에서 업체 목록, 상품 목록, 시간표, 가격표를 절대 나열하지 마세요. 간단한 안내 1~2문장만 작성하세요.]"
               : "";
             toolResultInputs.push(
               buildToolResultInput(toolUse.callId, outputJson + reminder)
             );
+          }
+
+          if (hasEphemeralPlaceSearchResult(toolResults)) {
+            // NAVER output is untrusted, display-only content. Later rounds get
+            // neither that content nor mutation tools.
+            lockToolsAfterPlaceSearch = true;
           }
 
           // store:false이므로 reasoning(암호화 content 포함), assistant message,
@@ -1355,7 +1388,7 @@ export async function POST(request: Request) {
           cleanText,
           clientRequestId,
           metadata: {
-            toolResults,
+            toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
             ...(visibleClientRequestKey !== clientRequestId
