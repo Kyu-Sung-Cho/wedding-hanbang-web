@@ -15,6 +15,15 @@ import {
 import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import {
+  getAvailableChatTools,
+  getPlaceSearchToolChoice,
+} from "@/lib/ai/placeSearchRouting";
+import {
+  getModelSafeToolOutput,
+  getPersistableToolResults,
+  hasEphemeralPlaceSearchResult,
+} from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
@@ -187,6 +196,13 @@ function deriveBoundRequestId(clientRequestId: string, userMessageId: string): s
 function getDoneMetadata(message: PersistedAiMessage): Record<string, unknown> {
   const metadata = { ...(message.metadata ?? {}) };
   delete metadata.client_request_id;
+  if (Array.isArray(metadata.toolResults)) {
+    const persistableResults = getPersistableToolResults(
+      metadata.toolResults as ToolExecutionResult[]
+    );
+    if (persistableResults.length > 0) metadata.toolResults = persistableResults;
+    else delete metadata.toolResults;
+  }
   return {
     ...metadata,
     stageTag: message.stageTag,
@@ -1372,14 +1388,28 @@ export async function POST(request: Request) {
 
   // Old deployed clients do not send userMessageId. They remain answer-compatible,
   // but may not execute a mutation because the intent is not bound to one DB row.
-  const candidateTools =
-    requestKind === "chat" && isDurableUserMessageBound ? BETA_SAFE_TOOLS : [];
-  const selectedTools = selectAmoraTools({
+  const candidateTools = getAvailableChatTools({
+    requestKind,
+    isDurableUserMessageBound,
+    tools: BETA_SAFE_TOOLS,
+  });
+  const policySelectedTools = selectAmoraTools({
     availableTools: candidateTools,
     userText: lastUserText,
     specialistType,
     attachmentKind,
   });
+  const initialPlaceSearchToolChoice = getPlaceSearchToolChoice({
+    userText: lastUserText,
+    round: 0,
+    tools: candidateTools,
+  });
+  const selectedTools = initialPlaceSearchToolChoice
+    ? candidateTools.filter((tool) => (
+        tool.name === initialPlaceSearchToolChoice.name
+        || policySelectedTools.includes(tool)
+      ))
+    : policySelectedTools;
   // 개인 대화가 공유 일정·예산을 몰래 바꾸면 "상대방 모르게"라는 약속과
   // 모순된다. 개인 공간에서는 조회·분석만 허용하고 변경은 공유 대화에서 한다.
   const visibilityScopedTools = visibility === "shared"
@@ -1576,6 +1606,7 @@ export async function POST(request: Request) {
         let currentMessages = [...formattedMessages];
         const toolResults: ToolExecutionResult[] = [];
         const toolsUsed: string[] = [];
+        let lockToolsAfterPlaceSearch = false;
         let toolCallCount = 0;
         let approvedPendingActionExecuted = false;
         const executeApprovedPendingAction = async (
@@ -1643,7 +1674,7 @@ export async function POST(request: Request) {
               : { text: cleanText, appendedNotice: null };
           const persistenceSafeText = demoPersistenceGuard.text;
           const metadata: Record<string, unknown> = {
-            toolResults,
+            toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
             ...(visibleClientRequestKey !== clientRequestId
@@ -1737,7 +1768,14 @@ export async function POST(request: Request) {
               return chatWithToolsStream({
                 systemPrompt,
                 input: currentMessages,
-                tools: availableTools,
+                tools: lockToolsAfterPlaceSearch ? [] : availableTools,
+                toolChoice: lockToolsAfterPlaceSearch
+                  ? undefined
+                  : getPlaceSearchToolChoice({
+                      userText: lastUserText,
+                      round,
+                      tools: availableTools,
+                    }),
                 onTextDelta: (token) => {
                   send({ type: "text_delta", content: token });
                 },
@@ -2003,7 +2041,7 @@ export async function POST(request: Request) {
               AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN / AMORA_MAX_TOOL_CALLS_PER_TURN,
             );
             const outputJson = boundAmoraToolResultJson(
-              execResult.toolOutput,
+              getModelSafeToolOutput(execResult),
               Math.min(
                 AMORA_MAX_TOOL_RESULT_CHARS,
                 perToolFeedbackBudget - reminder.length,
@@ -2012,6 +2050,12 @@ export async function POST(request: Request) {
             toolResultInputs.push(
               buildToolResultInput(toolUse.callId, outputJson + reminder)
             );
+          }
+
+          if (hasEphemeralPlaceSearchResult(toolResults)) {
+            // NAVER output is untrusted, display-only content. Later rounds get
+            // neither that content nor mutation tools.
+            lockToolsAfterPlaceSearch = true;
           }
 
           // store:false이므로 reasoning(암호화 content 포함), assistant message,

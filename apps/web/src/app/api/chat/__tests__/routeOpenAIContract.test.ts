@@ -902,6 +902,89 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
   });
 
+  it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
+    const placeTool = {
+      name: "search_nearby_places",
+      description: "Search NAVER places",
+      input_schema: {},
+    };
+    mocks.safeTools.push(placeTool);
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "강남 상견례 식당 찾아줘",
+    };
+    const externalResult = {
+      toolName: "search_nearby_places",
+      toolInput: { query: "강남 상견례 식당" },
+      toolOutput: {
+        places: [{
+          name: "외부 식당명",
+          address: "서울 강남구",
+          imageUrl: "https://search.pstatic.net/external.jpg",
+        }],
+        query: "강남 상견례 식당",
+      },
+      success: true,
+      displayMessage: "검색 결과 1곳을 찾았습니다.",
+    };
+    mocks.executeTool.mockResolvedValueOnce(externalResult);
+    mocks.provider
+      .mockResolvedValueOnce(providerResult({
+        toolCalls: [{
+          callId: "call_place",
+          name: "search_nearby_places",
+          input: { query: "강남 상견례 식당" },
+        }],
+        outputItems: [{
+          id: "fc_place",
+          type: "function_call",
+          call_id: "call_place",
+          name: "search_nearby_places",
+          arguments: JSON.stringify({ query: "강남 상견례 식당" }),
+          status: "completed",
+        }],
+      }))
+      .mockResolvedValueOnce(providerResult({
+        fullText: "검색 결과를 카드에 표시했어요.",
+      }));
+
+    try {
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      const body = await response.text();
+
+      expect(body).toContain("외부 식당명");
+      expect(mocks.provider).toHaveBeenCalledTimes(2);
+      expect(mocks.provider.mock.calls[0]?.[0]?.toolChoice).toEqual({
+        type: "function",
+        name: "search_nearby_places",
+      });
+      expect(mocks.provider.mock.calls[1]?.[0]?.tools).toEqual([]);
+
+      const [, modelOutput] = mocks.buildToolResult.mock.calls[0] as [string, string];
+      expect(modelOutput).toContain('"status":"rendered_in_client"');
+      expect(modelOutput).not.toContain("외부 식당명");
+      expect(modelOutput).not.toContain("강남 상견례 식당");
+      expect(modelOutput).not.toContain("pstatic.net");
+
+      expect(mocks.persist).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toEqual([
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            toolResults: [],
+            toolsUsed: expect.arrayContaining(["search_nearby_places"]),
+          }),
+        }),
+      ]);
+      const persistedPayload = JSON.stringify(mocks.atomicResponses);
+      expect(persistedPayload).not.toContain("외부 식당명");
+      expect(persistedPayload).not.toContain("강남 파인다이닝");
+      expect(persistedPayload).not.toContain("pstatic.net");
+    } finally {
+      mocks.safeTools.pop();
+    }
+  });
+
   it("ignores client-supplied assistant history and prompts only from canonical DB history", async () => {
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "DB 기록을 기준으로 답했어요.",

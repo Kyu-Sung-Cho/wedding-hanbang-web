@@ -13,6 +13,7 @@ import type {
   ResponseInputMessageContentList,
   ResponseOutputItem,
   ResponseStreamEvent,
+  ToolChoiceFunction,
 } from "openai/resources/responses/responses";
 import {
   assertAmoraOutputTokenLimit,
@@ -511,6 +512,7 @@ export async function chatWithToolsStream(options: {
   maxInputTokens: number;
   safetyIdentifierScope?: string;
   modelRole?: AmoraModelRole;
+  toolChoice?: ToolChoiceFunction;
   signal?: AbortSignal;
   /** Required atomic paid-call gate; callers cannot silently opt out. */
   beforeGeneration: () => void | Promise<void>;
@@ -525,6 +527,7 @@ export async function chatWithToolsStream(options: {
     maxInputTokens,
     safetyIdentifierScope,
     modelRole = "fast",
+    toolChoice,
     signal,
     beforeGeneration,
     client: providedClient,
@@ -538,6 +541,13 @@ export async function chatWithToolsStream(options: {
   const modelConfig = getAmoraModelConfig(modelRole);
   const safetyIdentifier = createSafetyIdentifier(safetyIdentifierScope);
   const openAITools = toOpenAITools(tools);
+  if (toolChoice && !tools.some((tool) => tool.name === toolChoice.name)) {
+    throw new OpenAIProviderError("[ai-config] forced tool is not available", {
+      category: "invalid_request",
+      providerCode: "forced_tool_unavailable",
+      usageStatus: "complete",
+    });
+  }
   let inputCountRequestId: string | null | undefined;
 
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
@@ -588,6 +598,7 @@ export async function chatWithToolsStream(options: {
     instructions: systemPrompt,
     input,
     tools: openAITools,
+    tool_choice: toolChoice ?? "auto",
     parallel_tool_calls: false,
     max_output_tokens: maxOutputTokens,
     reasoning: { effort: modelConfig.reasoningEffort },

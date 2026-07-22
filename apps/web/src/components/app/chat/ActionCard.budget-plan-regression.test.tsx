@@ -93,7 +93,6 @@ describe("ActionCard remaining budget mutation results", () => {
     expect(change?.textContent).toContain("변경된 지출");
     expect(change?.textContent).toContain("10만원");
   });
-
   it.each([
     [4_999, "4,999원"],
     [5_000, "5,000원"],

@@ -28,6 +28,7 @@ import {
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { deduplicateToolResults } from "./toolResultDeduplication";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
 
@@ -1871,18 +1872,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </div>
                 )}
                 {hasToolResults &&
-                  // 같은 메시지 안에서 동일한 (toolName, success, displayMessage)
-                  // 조합으로 중복된 카드는 1개만 표시. AI 가 DB 부족 등으로 같은
-                  // tool 을 여러 번 호출해 같은 실패 메시지가 줄줄이 나오는 경우 방어.
-                  (() => {
-                    const seen = new Set<string>();
-                    return msg.metadata!.toolResults!.filter((result) => {
-                      const key = `${result.toolName}::${result.success}::${(result.displayMessage ?? "").trim()}`;
-                      if (seen.has(key)) return false;
-                      seen.add(key);
-                      return true;
-                    });
-                  })().map((result, i) =>
+                  // 내용까지 동일한 반복 호출만 줄이고 서로 다른 정상 결과는 모두 보존한다.
+                  deduplicateToolResults(msg.metadata!.toolResults!).map((result, i) =>
                     VENDOR_TOOL_NAMES.has(result.toolName) ? (
                       <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={attemptSend} disabled={isStreaming} />
                     ) : (

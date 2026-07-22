@@ -29,7 +29,7 @@ describe("ActionCard actionable failures", () => {
     document.body.replaceChildren();
   });
 
-  it("replaces a legacy schedule failure ID with actionable consumer copy", async () => {
+  it("replaces a legacy schedule failure ID with actionable consumer copy even when toolOutput is empty", async () => {
     const eventId = "018f4dc8-3ac1-7f31-9c45-1b8b46bf6e89";
     await act(async () => {
       root.render(
