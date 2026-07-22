@@ -2224,6 +2224,9 @@ BEGIN
     OR pg_catalog.to_regprocedure(
       'cron.schedule_in_database(text,text,text,text,text,boolean)'
     ) IS NULL
+    OR pg_catalog.to_regprocedure(
+      'cron.alter_job(bigint,text,text,text,text,boolean)'
+    ) IS NULL
     OR pg_catalog.to_regprocedure('cron.unschedule(bigint)') IS NULL
   THEN
     RAISE EXCEPTION 'PRICE_DEMAND_CRON_EXTENSION_REQUIRED'
@@ -2241,13 +2244,18 @@ BEGIN
   -- A production release runs behind a write fence that requires zero active
   -- database cron jobs. Deactivate the current database/owner copy before any
   -- repair, and never use cron.schedule(), which creates an active row first.
-  EXECUTE $deactivate_jobs$
-    UPDATE cron.job
-    SET active = false
+  FOR old_job_id IN EXECUTE $deactivate_jobs$
+    SELECT jobid
+    FROM cron.job
     WHERE jobname = 'vendor-demand-daily-kst'
       AND database = current_database()
       AND username = current_user::text
-  $deactivate_jobs$;
+    ORDER BY jobid
+  $deactivate_jobs$
+  LOOP
+    EXECUTE 'SELECT cron.alter_job($1, active => false)'
+    USING old_job_id;
+  END LOOP;
 
   EXECUTE $inspect_jobs$
     SELECT
@@ -2286,7 +2294,7 @@ BEGIN
       '0 19 * * *',
       'SELECT public.aggregate_vendor_demand_daily()',
       current_database(),
-      current_user::text,
+      NULL::text,
       false;
 
     IF scheduled_job_id IS NULL THEN

@@ -80,6 +80,13 @@ type AgencyRow = {
   display_name: string | null;
 };
 
+type OwnedRow = {
+  run_sha256: string;
+  unit_id: string;
+  row_kind: "official_price" | "semantic";
+  row_id: string;
+};
+
 type PageResult<T> = { data: T[] | null; error: unknown };
 
 const PAGE_SIZE = 500;
@@ -255,6 +262,15 @@ function policyFromRow(
   };
 }
 
+function isUnboundHallDocumentPolicy(row: SemanticRow): boolean {
+  return row.record_kind === "document_section"
+    && row.subject_kind === "vendor"
+    && row.semantic_type === "penalty"
+    && row.review_status === "pending"
+    && row.partner_vendor_id === null
+    && row.official_price_id === null;
+}
+
 function safeIdArray(value: unknown, maximum = ROW_LIMIT): string[] | null {
   if (!Array.isArray(value) || value.length > maximum) return null;
   const result = value.map((entry) => safeText(entry, 160));
@@ -397,6 +413,144 @@ export async function loadAdminPreviewPriceCatalog(
     && row.review_status === "pending"
     && row.partner_vendor_id !== null);
 
+  const inferredHallDocumentPolicies: Array<{ row: SemanticRow; vendorId: string }> = [];
+  const hasScopedHallPrice = ownedPrices.some((row) =>
+    category(row.category) === "hall" && row.vendor_id !== null);
+  const shouldResolveHallDocumentPolicies = hasScopedHallPrice && (
+    requestedVendorId !== undefined
+    || ownedSemantics.some(isUnboundHallDocumentPolicy)
+  );
+  if (shouldResolveHallDocumentPolicies) {
+    const ownership = await collectChunkedRows<OwnedRow>(
+      completedRun.unit_ids,
+      budget,
+      async (unitIds, from, to) => {
+        const result = await client
+          .from("vendor_disclosure_ingest_owned_rows")
+          .select("run_sha256, unit_id, row_kind, row_id")
+          .eq("run_sha256", completedRun.run_sha256)
+          .in("unit_id", unitIds)
+          .in("row_kind", ["official_price", "semantic"])
+          .order("row_kind", { ascending: true })
+          .order("row_id", { ascending: true })
+          .range(from, to);
+        return { data: (result.data ?? null) as OwnedRow[] | null, error: result.error };
+      },
+    );
+    const completedUnitIds = new Set(completedRun.unit_ids);
+    const ownershipKeys = new Set<string>();
+    if (ownership.some((row) => {
+      const key = `${row.row_kind}:${row.row_id}`;
+      if (
+        row.run_sha256 !== completedRun.run_sha256
+        || !completedUnitIds.has(row.unit_id)
+        || ownershipKeys.has(key)
+      ) return true;
+      ownershipKeys.add(key);
+      return false;
+    })) throw new Error("ADMIN_PREVIEW_DATA_UNAVAILABLE");
+
+    const priceOwnerById = new Map(
+      ownership
+        .filter((row) => row.row_kind === "official_price")
+        .map((row) => [row.row_id, row] as const),
+    );
+    const semanticOwnerById = new Map(
+      ownership
+        .filter((row) => row.row_kind === "semantic")
+        .map((row) => [row.row_id, row] as const),
+    );
+    if (
+      completedRun.official_price_ids.some((id) => !priceOwnerById.has(id))
+      || completedRun.semantic_ids.some((id) => !semanticOwnerById.has(id))
+    ) throw new Error("ADMIN_PREVIEW_DATA_UNAVAILABLE");
+
+    const candidateUnitIds = new Set(ownedPrices.flatMap((row) => {
+      if (category(row.category) !== "hall" || !row.vendor_id) return [];
+      const owner = priceOwnerById.get(row.id);
+      return owner ? [owner.unit_id] : [];
+    }));
+    const lineagePriceIds = ownership
+      .filter((row) => row.row_kind === "official_price" && candidateUnitIds.has(row.unit_id))
+      .map((row) => row.row_id);
+    const supplementalPriceIds = lineagePriceIds.filter((id) => !ownedPriceIds.has(id));
+    const supplementalPrices = await collectChunkedRows<PriceRow>(
+      supplementalPriceIds,
+      budget,
+      async (ids, from, to) => {
+        const result = await client
+          .from("official_prices")
+          .select("id, vendor_id, agency_id, category, item_name, base_spec, price_min_krw, price_max_krw, price_note, review_status")
+          .in("id", ids)
+          .eq("snapshot_id", snapshot.id)
+          .order("id", { ascending: true })
+          .range(from, to);
+        return { data: (result.data ?? null) as PriceRow[] | null, error: result.error };
+      },
+    );
+    if (
+      supplementalPrices.length !== supplementalPriceIds.length
+      || new Set(supplementalPrices.map(({ id }) => id)).size !== supplementalPrices.length
+      || supplementalPrices.some(({ id }) => !supplementalPriceIds.includes(id))
+    ) throw new Error("ADMIN_PREVIEW_DATA_UNAVAILABLE");
+
+    const lineagePriceById = new Map(
+      [...ownedPrices, ...supplementalPrices].map((row) => [row.id, row] as const),
+    );
+    const inferredVendorByUnit = new Map<string, string>();
+    for (const unitId of candidateUnitIds) {
+      const unitPriceIds = ownership
+        .filter((row) => row.row_kind === "official_price" && row.unit_id === unitId)
+        .map((row) => row.row_id);
+      const unitPrices = unitPriceIds.flatMap((id) => lineagePriceById.get(id) ?? []);
+      const vendorIds = new Set(unitPrices.flatMap(({ vendor_id }) => vendor_id ?? []));
+      if (
+        unitPrices.length !== unitPriceIds.length
+        || unitPrices.length === 0
+        || unitPrices.some((row) => category(row.category) !== "hall" || !row.vendor_id)
+        || vendorIds.size !== 1
+      ) continue;
+      const [vendorId] = vendorIds;
+      if (!vendorId || (requestedVendorId && vendorId !== requestedVendorId)) continue;
+      inferredVendorByUnit.set(unitId, vendorId);
+    }
+
+    const inferredSemanticOwners = ownership.filter((row) =>
+      row.row_kind === "semantic" && inferredVendorByUnit.has(row.unit_id));
+    const supplementalSemanticIds = inferredSemanticOwners
+      .map((row) => row.row_id)
+      .filter((id) => !ownedSemanticIds.has(id));
+    const supplementalSemantics = await collectChunkedRows<SemanticRow>(
+      supplementalSemanticIds,
+      budget,
+      async (ids, from, to) => {
+        const result = await client
+          .from("disclosure_semantic_staging")
+          .select("id, partner_vendor_id, official_price_id, source_agency, record_kind, subject_kind, semantic_type, title, summary, content_verbatim, review_status")
+          .in("id", ids)
+          .eq("snapshot_id", snapshot.id)
+          .order("id", { ascending: true })
+          .range(from, to);
+        return { data: (result.data ?? null) as SemanticRow[] | null, error: result.error };
+      },
+    );
+    if (
+      supplementalSemantics.length !== supplementalSemanticIds.length
+      || new Set(supplementalSemantics.map(({ id }) => id)).size !== supplementalSemantics.length
+      || supplementalSemantics.some(({ id }) => !supplementalSemanticIds.includes(id))
+    ) throw new Error("ADMIN_PREVIEW_DATA_UNAVAILABLE");
+    const lineageSemanticById = new Map(
+      [...ownedSemantics, ...supplementalSemantics].map((row) => [row.id, row] as const),
+    );
+    for (const owner of inferredSemanticOwners) {
+      const vendorId = inferredVendorByUnit.get(owner.unit_id);
+      const row = lineageSemanticById.get(owner.row_id);
+      if (vendorId && row && isUnboundHallDocumentPolicy(row)) {
+        inferredHallDocumentPolicies.push({ row, vendorId });
+      }
+    }
+  }
+
   const vendorIds = [...new Set([
     ...prices.flatMap(({ vendor_id }) => vendor_id ?? []),
     ...semantics.flatMap(({ partner_vendor_id }) => partner_vendor_id ?? []),
@@ -512,6 +666,15 @@ export async function loadAdminPreviewPriceCatalog(
     const existing = policiesByVendor.get(row.partner_vendor_id) ?? [];
     existing.push(policy);
     policiesByVendor.set(row.partner_vendor_id, existing);
+  }
+  const vendorById = new Map(vendors.map((row) => [row.id, row] as const));
+  for (const { row, vendorId } of inferredHallDocumentPolicies) {
+    if (category(vendorById.get(vendorId)?.category) !== "hall") continue;
+    const policy = policyFromRow(row, null);
+    if (!policy) continue;
+    const existing = policiesByVendor.get(vendorId) ?? [];
+    existing.push(policy);
+    policiesByVendor.set(vendorId, existing);
   }
 
   const catalog = emptyCatalog(safeText(snapshot.period_label, 100) ?? "검수 전 공시");

@@ -51,11 +51,11 @@
     },
     {
       "file": "20260718202000_price_upload_confirmation_queue.sql",
-      "sha256": "1f4b075760ab1707423d5b8bf90ebfd4f1073f20a8fa1d5b13b4c5e199eed35b"
+      "sha256": "955234bd14faa1cb359abbaab022ad54e1d22f3dc02c3fc9e6cf7e04e05b44b7"
     },
     {
       "file": "20260718203000_price_consumer_cross_contract_hardening.sql",
-      "sha256": "a433b3c40fa1e7ea3be0e7d90876c83fc10740274ddd2ba5e033a4a69064fa3f"
+      "sha256": "2f70cc7df464319aa8c8ac33b12ae8a4fc919e684c8d9e791d4cd8863b646b1c"
     },
     {
       "file": "20260718204000_price_combo_idempotency.sql",
@@ -87,11 +87,43 @@
     },
     {
       "file": "20260720120000_disclosure_semantic_staging.sql",
-      "sha256": "67d57fdaf8af58611f76f87890754dd535a563c8e057e144248edcf019fec249"
+      "sha256": "fd4259d6f4137441abfb0e15eab9b8f43f57ff43f135b59ce33d5f03cc292fdf"
     },
     {
       "file": "20260721120000_vendor_disclosure_atomic_batch_staging.sql",
-      "sha256": "9ec204ad73f41083cd0ead841a89302f6634dc1fdb3d4709e589f75a241a39a3"
+      "sha256": "b8585b4ec2cde1bef5913bfa518fcaa48a745a4016218d0cc9cfbda427b86bc6"
+    },
+    {
+      "file": "20260722193000_vendor_disclosure_storage_outcome_idempotency.sql",
+      "sha256": "a72b926a1f760bb3cda04545a6da29ff3079e0038a447ebc0d532371fad4c987"
+    },
+    {
+      "file": "20260722194000_vendor_disclosure_stage_ledger_hash_disambiguation.sql",
+      "sha256": "b10933ca814774a6536b91806e8c630d2cbe04b406cd1d81816a90889e00518c"
+    },
+    {
+      "file": "20260722195000_vendor_disclosure_ledger_cost_scale.sql",
+      "sha256": "63a4e2e6019e0aa35fc23d4de5a078021448fd375c93e7e70a63012c4cd7fba3"
+    },
+    {
+      "file": "20260722196000_official_price_option_source_occurrence.sql",
+      "sha256": "1f1fcc6e85195cc17c1a929c6dbaa02c7bb61840464c282bc877ce7b4c1fc7fd"
+    },
+    {
+      "file": "20260722197000_vendor_disclosure_exact_semantic_duplicate_canonicalization.sql",
+      "sha256": "2df865eedd9684438fcf77f1e388fd8804ccf72c609573e468e23b6bff8e08f2"
+    },
+    {
+      "file": "20260722198000_vendor_disclosure_preview_transport_identity.sql",
+      "sha256": "f0c83ccdbde175d71b6fa05deefde80ec48d119e7f12876926b9147f6cde28ee"
+    },
+    {
+      "file": "20260722199000_vendor_disclosure_local_price_overflow_quarantine.sql",
+      "sha256": "1dfd8685590bede3a014dcfaa1493cc7c93884dd93472e387901437e909fd816"
+    },
+    {
+      "file": "20260722200000_vendor_disclosure_dedupe_link_replay.sql",
+      "sha256": "7259b4cfde45aa5355763cc716e860d031558f235d5bca88ca39e2d76e4e6100"
     }
   ],
   "deploymentEvidence": {

@@ -12,6 +12,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const previewMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260718140000_disclosure_source_previews.sql",
+  ),
+  "utf8",
+);
 
 const DRAFT_SNAPSHOT = "10000000-0000-4000-8000-000000000001";
 const CURRENT_SNAPSHOT = "10000000-0000-4000-8000-000000000002";
@@ -45,6 +52,15 @@ async function baseline(): Promise<PGlite> {
     CREATE ROLE authenticated NOLOGIN;
     CREATE ROLE service_role NOLOGIN BYPASSRLS;
 
+    CREATE SCHEMA storage;
+    CREATE TABLE storage.buckets (
+      id text PRIMARY KEY,
+      name text NOT NULL,
+      public boolean NOT NULL DEFAULT false,
+      file_size_limit bigint,
+      allowed_mime_types text[]
+    );
+
     CREATE TABLE public.price_snapshots (
       id uuid PRIMARY KEY,
       period_label text NOT NULL,
@@ -75,6 +91,9 @@ async function baseline(): Promise<PGlite> {
       snapshot_id uuid NOT NULL REFERENCES public.price_snapshots(id) ON DELETE CASCADE,
       vendor_id uuid REFERENCES public.vendors(id) ON DELETE SET NULL,
       updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE TABLE public.official_agency_packages (
+      id uuid PRIMARY KEY
     );
     INSERT INTO public.official_prices (id, snapshot_id, vendor_id) VALUES
       ('${PRICE_BY_SNAPSHOT[DRAFT_SNAPSHOT]}', '${DRAFT_SNAPSHOT}', '${PARTNER_VENDOR}'),
@@ -223,6 +242,44 @@ async function insertSemantic(db: PGlite, input: SemanticInsert = {}): Promise<v
 }
 
 describe("private disclosure semantic staging migration", () => {
+  it("preserves the preview-key function parameter while applying migrations in sequence", async () => {
+    const db = await baseline();
+    try {
+      await db.exec(previewMigration);
+      await db.exec(migration);
+
+      const signature = await db.query<{ argName: string }>(`
+        SELECT proargnames[1] AS "argName"
+        FROM pg_catalog.pg_proc
+        WHERE oid = 'public.disclosure_preview_keys_are_safe(text[])'::regprocedure
+      `);
+      expect(signature.rows).toEqual([{ argName: "value" }]);
+
+      const behavior = await db.query<{
+        acceptsValid: boolean;
+        rejectsInvalid: boolean;
+        rejectsNull: boolean;
+      }>(`
+        SELECT
+          public.disclosure_preview_keys_are_safe(
+            ARRAY['${"a".repeat(64)}.txt']::text[]
+          ) AS "acceptsValid",
+          NOT public.disclosure_preview_keys_are_safe(
+            ARRAY['../unsafe.txt']::text[]
+          ) AS "rejectsInvalid",
+          NOT public.disclosure_preview_keys_are_safe(NULL::text[])
+            AS "rejectsNull"
+      `);
+      expect(behavior.rows).toEqual([{
+        acceptsValid: true,
+        rejectsInvalid: true,
+        rejectsNull: true,
+      }]);
+    } finally {
+      await db.close();
+    }
+  });
+
   it("executes the real migration and exposes only SELECT/INSERT to service_role", async () => {
     const db = await baseline();
     try {

@@ -1228,13 +1228,15 @@ BEGIN
       outcome := 'auto_matched';
     ELSE
       INSERT INTO public.vendors (
-        name, category, region_code, aliases, status, slug
+        name, category, location, region, region_code, aliases, status, slug
       ) VALUES (
         resolution_value ->> 'vendor_name',
         CASE
           WHEN entry_payload_value ->> 'category' = 'hall' THEN 'venue'
           ELSE entry_payload_value ->> 'category'
         END,
+        entry_payload_value ->> 'region_code',
+        entry_payload_value ->> 'region_code',
         entry_payload_value ->> 'region_code',
         ARRAY(
           SELECT alias.value

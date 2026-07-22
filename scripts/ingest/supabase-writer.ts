@@ -48,6 +48,7 @@ import type {
   StagingOfficialPrice,
   StagingWriter,
   StagingWriterResult,
+  PreviewStorageObject,
 } from "./load.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -379,7 +380,78 @@ function databaseBatchPayload(plan: StagingLoadPlan): Record<string, unknown> {
   };
 }
 
-function storageIntentsForPlan(plan: StagingLoadPlan): StagingStorageIntent[] {
+function assertPreviewTransportMetadata(preview: PreviewStorageObject): void {
+  if (
+    !/^[a-f0-9]{64}$/u.test(preview.sha256)
+    || !Number.isSafeInteger(preview.bytes)
+    || preview.bytes < 0
+    || preview.bytes > 2 * 1024 * 1024
+    || !/^[a-f0-9]{64}\.txt$/u.test(preview.storage_path)
+    || preview.storage_path !== `${preview.sha256}.txt`
+    || preview.source_label.length === 0
+    || preview.source_label.length > 255
+    || /[\\/]/u.test(preview.source_label)
+  ) {
+    throw new Error("Derived disclosure preview metadata is invalid.");
+  }
+}
+
+function canonicalPreviewTransportMetadata(
+  previews: readonly PreviewStorageObject[],
+): PreviewStorageObject[] {
+  // Validate every occurrence before reading a file or making a remote call.
+  // Occurrences retain provenance in the database payload; Storage transports
+  // collapse only by their immutable content-addressed object identity.
+  for (const preview of previews) assertPreviewTransportMetadata(preview);
+  const canonical = new Map<string, PreviewStorageObject>();
+  for (const preview of previews) {
+    const existing = canonical.get(preview.storage_path);
+    if (!existing) {
+      canonical.set(preview.storage_path, preview);
+      continue;
+    }
+    if (existing.sha256 !== preview.sha256 || existing.bytes !== preview.bytes) {
+      throw new Error("Duplicate preview transport has conflicting content-address metadata.");
+    }
+  }
+  return [...canonical.values()];
+}
+
+interface PreparedPreviewTransportObject {
+  preview: PreviewStorageObject;
+  content: Buffer;
+}
+
+async function preparePreviewTransportObjects(
+  plan: StagingLoadPlan,
+): Promise<PreparedPreviewTransportObject[]> {
+  canonicalPreviewTransportMetadata(plan.preview_objects);
+  const prepared = new Map<string, PreparedPreviewTransportObject>();
+  for (const preview of plan.preview_objects) {
+    const content = await readFile(preview.absolute_path);
+    let previewText: string;
+    try {
+      previewText = new TextDecoder("utf-8", { fatal: true }).decode(content);
+    } catch {
+      throw new Error(`Derived preview text is not valid UTF-8: ${preview.source_label}`);
+    }
+    if (previewText.includes("\0")) {
+      throw new Error(`Derived preview text contains a forbidden NUL byte: ${preview.source_label}`);
+    }
+    if (sha256Buffer(content) !== preview.sha256 || content.byteLength !== preview.bytes) {
+      throw new Error(`Derived preview content-address identity changed: ${preview.source_label}`);
+    }
+    const existing = prepared.get(preview.storage_path);
+    if (existing && !existing.content.equals(content)) {
+      throw new Error("Duplicate preview transport has conflicting actual content-address identity.");
+    }
+    if (!existing) prepared.set(preview.storage_path, { preview, content });
+  }
+  return [...prepared.values()];
+}
+
+export function storageIntentsForPlan(plan: StagingLoadPlan): StagingStorageIntent[] {
+  const previewTransports = canonicalPreviewTransportMetadata(plan.preview_objects);
   return [
     ...plan.raw_objects.map((raw) => ({
       bucket: "disclosure-raw" as const,
@@ -387,7 +459,7 @@ function storageIntentsForPlan(plan: StagingLoadPlan): StagingStorageIntent[] {
       sha256: raw.sha256,
       bytes: raw.bytes,
     })),
-    ...plan.preview_objects.map((preview) => ({
+    ...previewTransports.map((preview) => ({
       bucket: "disclosure-preview" as const,
       object_key: preview.storage_path,
       sha256: preview.sha256,
@@ -404,7 +476,10 @@ function officialPriceHasStructuredPrice(row: StagingOfficialPrice): boolean {
     );
 }
 
-export function assertPendingOnlyBatch(plan: StagingLoadPlan): void {
+function assertPendingOnlyBatchWithLocalCompatibility(
+  plan: StagingLoadPlan,
+  localCompatibilityUnitIds: ReadonlySet<string> | null,
+): void {
   if (plan.units.length < 1 || plan.units.length > 25) {
     throw new Error("atomic disclosure staging batches must contain between 1 and 25 units");
   }
@@ -447,10 +522,21 @@ export function assertPendingOnlyBatch(plan: StagingLoadPlan): void {
         "an unpriced vendor identity must remain review-only and carry identity_only_no_price",
       );
     }
-    if (!identityOnly && markedIdentityOnly) {
+    const safelyRetainedLocalIdentityMarker = localCompatibilityUnitIds?.has(row.unit_id) === true
+      && row.review_status === "pending"
+      && row.needs_review === true
+      && row.validation_issue_codes.includes("local_deterministic_review_only")
+      && row.validation_issue_codes.includes(
+        "visual_transcription_human_confirmed_pending_admin_review",
+      );
+    if (!identityOnly && markedIdentityOnly && !safelyRetainedLocalIdentityMarker) {
       throw new Error("identity_only_no_price cannot mark an official price with a structured price");
     }
   }
+}
+
+export function assertPendingOnlyBatch(plan: StagingLoadPlan): void {
+  assertPendingOnlyBatchWithLocalCompatibility(plan, null);
 }
 
 function exactAtomicBatchResponse(value: unknown, context: StagingBatchWriteContext): {
@@ -579,10 +665,16 @@ export async function stageAtomicDisclosureBatch(
   ) {
     throw new Error("atomic disclosure staging context does not match the exact batch plan");
   }
-  assertPendingOnlyBatch(plan);
+  assertPendingOnlyBatchWithLocalCompatibility(
+    plan,
+    context.authorization_kind === "local_validated_pending_only"
+      ? new Set(context.local_pending_only_unit_ids)
+      : null,
+  );
   assertPlanSourceObjectKeys(plan);
   assertDisclosureSemanticPlanRows(plan);
   assertDisclosureSemanticLinkPlan(plan);
+  const preparedPreviewTransports = await preparePreviewTransportObjects(plan);
   const currentBatchUnitIds = new Set(plan.units.map((unit) => unit.unit_id));
   const currentLocalIds = context.local_pending_only_unit_ids.filter((unitId) =>
     currentBatchUnitIds.has(unitId)
@@ -729,14 +821,19 @@ export async function stageAtomicDisclosureBatch(
     startUpload: context.record_storage_upload_started,
     recordObject: recordStorageObject,
   });
-  const previewJournal = await uploadPreviewObjects(client, environment.previewBucket, plan, {
-    runSha256: context.run_sha256,
-    firstObjectIndex: rawJournal.length + 1,
-    claimObject: claimStorageObject,
-    recordClaim: context.record_storage_claim,
-    startUpload: context.record_storage_upload_started,
-    recordObject: recordStorageObject,
-  });
+  const previewJournal = await uploadPreparedPreviewObjects(
+    client,
+    environment.previewBucket,
+    preparedPreviewTransports,
+    {
+      runSha256: context.run_sha256,
+      firstObjectIndex: rawJournal.length + 1,
+      claimObject: claimStorageObject,
+      recordClaim: context.record_storage_claim,
+      startUpload: context.record_storage_upload_started,
+      recordObject: recordStorageObject,
+    },
+  );
   await context.record_storage_journal([...rawJournal, ...previewJournal]);
 
   const storageMutations = [...rawJournal, ...previewJournal];
@@ -1225,30 +1322,22 @@ export async function uploadPreviewObjects(
   if (bucket !== "disclosure-preview") {
     throw new Error("Derived disclosure text may only be uploaded to disclosure-preview.");
   }
+  const prepared = await preparePreviewTransportObjects(plan);
+  return uploadPreparedPreviewObjects(client, bucket, prepared, ownership);
+}
+
+async function uploadPreparedPreviewObjects(
+  client: SupabaseClient,
+  bucket: string,
+  prepared: readonly PreparedPreviewTransportObject[],
+  ownership: StorageUploadOwnershipContext,
+): Promise<StorageJournalObject[]> {
+  if (bucket !== "disclosure-preview") {
+    throw new Error("Derived disclosure text may only be uploaded to disclosure-preview.");
+  }
   const journal: StorageJournalObject[] = [];
   const storage = client.storage.from(bucket);
-  for (const preview of plan.preview_objects) {
-    if (
-      preview.bytes < 0
-      || preview.bytes > 2 * 1024 * 1024
-      || !/^[a-f0-9]{64}\.txt$/u.test(preview.storage_path)
-      || preview.storage_path !== `${preview.sha256}.txt`
-      || preview.source_label.length === 0
-      || preview.source_label.length > 255
-      || /[\\/]/u.test(preview.source_label)
-    ) {
-      throw new Error("Derived disclosure preview metadata is invalid.");
-    }
-    const content = await readFile(preview.absolute_path);
-    let previewText: string;
-    try {
-      previewText = new TextDecoder("utf-8", { fatal: true }).decode(content);
-    } catch {
-      throw new Error(`Derived preview text is not valid UTF-8: ${preview.source_label}`);
-    }
-    if (previewText.includes("\0")) {
-      throw new Error(`Derived preview text contains a forbidden NUL byte: ${preview.source_label}`);
-    }
+  for (const { preview, content } of prepared) {
     if (sha256Buffer(content) !== preview.sha256 || content.byteLength !== preview.bytes) {
       throw new Error(`Storage 업로드 직전 preview hash가 변경되었습니다: ${preview.source_label}`);
     }
@@ -2277,7 +2366,7 @@ async function persistAgencyDedupeCandidate(
   if (error) databaseError("대행사 중복 후보 staging 적재", error);
 }
 
-function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
+export function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
   const rawKeyPattern = /^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png)$/u;
   const rawExtensions = new Set(["xlsx", "docx", "hwp", "pdf", "png"]);
   const referencedRawKeys = new Set(plan.units.flatMap((unit) => unit.source_object_keys));
@@ -2311,41 +2400,46 @@ function assertPlanSourceObjectKeys(plan: StagingLoadPlan): void {
   const keyPattern = /^[a-f0-9]{64}\.(?:xlsx|docx|hwp|pdf|png)$/;
   const previewKeyPattern = /^[a-f0-9]{64}\.txt$/;
   const referencedPreviewKeys = new Set(plan.units.flatMap((unit) => unit.source_preview_keys));
-  const previewIdentities = new Set<string>();
+  canonicalPreviewTransportMetadata(plan.preview_objects);
+  const locallyBackedPreviewKeys = new Set(plan.preview_objects
+    .filter((preview) => available.has(preview.source_object_key))
+    .map((preview) => preview.storage_path));
   for (const preview of plan.preview_objects) {
-    if (
-      !/^[a-f0-9]{64}$/u.test(preview.sha256)
-      || !previewKeyPattern.test(preview.storage_path)
-      || preview.storage_path !== `${preview.sha256}.txt`
-      || !Number.isSafeInteger(preview.bytes)
-      || preview.bytes < 0
-      || preview.bytes > 2 * 1024 * 1024
-      || preview.source_label.length === 0
-      || preview.source_label.length > 255
-      || /[\\/]/u.test(preview.source_label)
-    ) {
-      throw new Error("preview object metadata must be bounded and content-addressed before external I/O");
+    if (!keyPattern.test(preview.source_object_key)) {
+      throw new Error("preview provenance contains an invalid immutable raw object key");
     }
-    if (previewIdentities.has(preview.storage_path)) {
-      throw new Error("preview object upload plan contains a duplicate object identity");
-    }
-    previewIdentities.add(preview.storage_path);
     if (!referencedPreviewKeys.has(preview.storage_path)) {
       throw new Error("preview object upload plan contains an unreferenced object");
     }
-    if (!available.has(preview.source_object_key)) {
-      throw new Error("preview object must reference an immutable raw object in the same upload plan");
+    if (
+      !available.has(preview.source_object_key)
+      && !locallyBackedPreviewKeys.has(preview.storage_path)
+    ) {
+      throw new Error(
+        "a foreign preview occurrence requires an identical locally backed transport in the same batch",
+      );
     }
   }
   for (const unit of plan.units) {
+    const missingOwnPreviewMapping = unit.source_preview_keys.find((previewKey) =>
+      !unit.source_object_keys.some((sourceObjectKey) =>
+        previewMappings.has(`${previewKey}\0${sourceObjectKey}`)
+      )
+    );
     if (
       unit.source_object_keys.length === 0
       || new Set(unit.source_object_keys).size !== unit.source_object_keys.length
       || unit.source_object_keys.some((key) => !keyPattern.test(key) || !available.has(key))
       || new Set(unit.source_preview_keys).size !== unit.source_preview_keys.length
       || unit.source_preview_keys.some((key) => !previewKeyPattern.test(key) || !availablePreviews.has(key))
+      || missingOwnPreviewMapping !== undefined
     ) {
-      throw new Error("each staging unit must reference an exact, unique set of planned raw and preview objects");
+      const detail = missingOwnPreviewMapping === undefined
+        ? "raw or preview object set is invalid"
+        : `preview ${missingOwnPreviewMapping} has no occurrence mapped to this unit's own raw source`;
+      throw new Error(
+        `each staging unit must reference an exact, unique set of planned raw and preview objects: ${unit.unit_id} (${detail})`,
+      );
     }
   }
   const priceRows = [...plan.agency_packages, ...plan.official_prices];

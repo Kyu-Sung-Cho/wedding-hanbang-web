@@ -45,6 +45,10 @@ const invalidateSql = migrationSlice(
   "CREATE OR REPLACE FUNCTION public.invalidate_vendor_disclosure_completed_run_atomic",
   "CREATE OR REPLACE FUNCTION public.vendor_disclosure_identity_has_external_references",
 );
+const ensureVendorSql = migrationSlice(
+  "CREATE OR REPLACE FUNCTION public.ensure_vendor_disclosure_vendor_pending",
+  "CREATE OR REPLACE FUNCTION public.stage_vendor_disclosure_batch_atomic",
+);
 const pendingInsertGuardSql = migrationSlice(
   "CREATE OR REPLACE FUNCTION public.guard_vendor_disclosure_atomic_pending_insert",
   "-- The historical parent guard intentionally allowed service-role recovery",
@@ -808,4 +812,104 @@ describe("vendor disclosure snapshot lifecycle migration", () => {
       }
     },
   );
+});
+
+describe("vendor disclosure vendor creation compatibility", () => {
+  it("populates required legacy location and region columns from the canonical region code", async () => {
+    const db = await PGlite.create({ extensions: { pgcrypto } });
+    try {
+      await db.exec(`
+        CREATE SCHEMA extensions;
+        CREATE EXTENSION pgcrypto SCHEMA extensions;
+
+        CREATE TABLE public.vendors (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          owner_id uuid,
+          name text NOT NULL,
+          slug text,
+          category text NOT NULL,
+          location text NOT NULL,
+          region text NOT NULL,
+          region_code text NOT NULL,
+          aliases text[] NOT NULL DEFAULT '{}',
+          status text NOT NULL,
+          attributes jsonb NOT NULL DEFAULT '{}',
+          enrichment_status text NOT NULL
+        );
+        CREATE TABLE public.vendor_timeslots (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          vendor_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+          day integer NOT NULL,
+          hour integer NOT NULL
+        );
+        CREATE TABLE public.vendor_disclosure_ingest_owned_identities (
+          run_sha256 text NOT NULL,
+          batch_index integer NOT NULL,
+          identity_kind text NOT NULL,
+          identity_id uuid NOT NULL,
+          parent_vendor_id uuid,
+          initial_row_sha256 text NOT NULL,
+          cleanup_status text NOT NULL DEFAULT 'owned'
+        );
+        CREATE FUNCTION public.normalize_price_vendor_name(value text)
+        RETURNS text
+        LANGUAGE sql
+        IMMUTABLE
+        STRICT
+        AS $$
+          SELECT lower(regexp_replace(btrim(value), '[^[:alnum:]]+', '', 'g'))
+        $$;
+        CREATE FUNCTION public.create_test_vendor_timeslots()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+          INSERT INTO public.vendor_timeslots (vendor_id, day, hour)
+          SELECT NEW.id, ((slot_number - 1) / 12) + 1,
+            ((slot_number - 1) % 12) + 9
+          FROM generate_series(1, 84) AS slot_number;
+          RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER create_test_vendor_timeslots
+        AFTER INSERT ON public.vendors
+        FOR EACH ROW EXECUTE FUNCTION public.create_test_vendor_timeslots();
+      `);
+      await db.exec(ensureVendorSql);
+
+      const created = await db.query<{ vendor_id: string }>(`
+        SELECT public.ensure_vendor_disclosure_vendor_pending(
+          '${FIRST_RUN}', 1, '리전 호환 업체', 'studio', 'seoul_gangnam3'
+        ) AS vendor_id
+      `);
+      const vendorId = created.rows[0]!.vendor_id;
+      const persisted = await db.query<{
+        location: string;
+        region: string;
+        region_code: string;
+        slot_count: number;
+        ownership_count: number;
+      }>(`
+        SELECT vendor.location, vendor.region, vendor.region_code,
+          (SELECT count(*)::integer FROM public.vendor_timeslots AS slot
+           WHERE slot.vendor_id = vendor.id) AS slot_count,
+          (SELECT count(*)::integer
+           FROM public.vendor_disclosure_ingest_owned_identities AS owned
+           WHERE owned.run_sha256 = '${FIRST_RUN}'
+             AND (owned.identity_id = vendor.id OR owned.parent_vendor_id = vendor.id)
+          ) AS ownership_count
+        FROM public.vendors AS vendor
+        WHERE vendor.id = '${vendorId}'
+      `);
+      expect(persisted.rows[0]).toEqual({
+        location: "seoul_gangnam3",
+        region: "seoul_gangnam3",
+        region_code: "seoul_gangnam3",
+        slot_count: 84,
+        ownership_count: 85,
+      });
+    } finally {
+      await db.close();
+    }
+  });
 });

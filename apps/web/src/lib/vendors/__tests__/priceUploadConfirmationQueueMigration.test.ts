@@ -79,6 +79,8 @@ async function createDatabase() {
       name text NOT NULL,
       slug text UNIQUE,
       category text NOT NULL,
+      location text NOT NULL,
+      region text NOT NULL,
       region_code text,
       aliases text[] NOT NULL DEFAULT '{}'::text[],
       status text NOT NULL,
@@ -201,10 +203,14 @@ async function createDatabase() {
     END
     $$;
 
-    INSERT INTO public.vendors (id, name, slug, category, region_code, status)
+    INSERT INTO public.vendors (
+      id, name, slug, category, location, region, region_code, status
+    )
     VALUES
-      ('${VENDOR_ID}', 'Sample Studio', 'sample-studio', 'studio', 'seoul_gangnam3', 'approved'),
-      ('${OTHER_VENDOR_ID}', 'Other Studio', 'other-studio', 'studio', 'seoul_gangnam3', 'approved');
+      ('${VENDOR_ID}', 'Sample Studio', 'sample-studio', 'studio',
+       'seoul_gangnam3', 'seoul_gangnam3', 'seoul_gangnam3', 'approved'),
+      ('${OTHER_VENDOR_ID}', 'Other Studio', 'other-studio', 'studio',
+       'seoul_gangnam3', 'seoul_gangnam3', 'seoul_gangnam3', 'approved');
     INSERT INTO public.agencies (id, name, slug)
     VALUES ('${AGENCY_ID}', 'Sample Agency', 'sample-agency');
   `);
@@ -477,11 +483,25 @@ describe("price upload confirmation queue migration", () => {
         staged_prices: 1,
       })]);
       expect(retry.rows).toEqual(first.rows);
-      const vendor = await db.query<{ count: number }>(`
-        SELECT count(*)::integer AS count FROM public.vendors
+      const vendor = await db.query<{
+        count: number;
+        location: string;
+        region: string;
+        region_code: string;
+      }>(`
+        SELECT count(*)::integer AS count,
+          min(location) AS location,
+          min(region) AS region,
+          min(region_code) AS region_code
+        FROM public.vendors
         WHERE slug = 'studio-seoul-gangnam3-123456789abc'
       `);
-      expect(vendor.rows).toEqual([{ count: 1 }]);
+      expect(vendor.rows).toEqual([{
+        count: 1,
+        location: "seoul_gangnam3",
+        region: "seoul_gangnam3",
+        region_code: "seoul_gangnam3",
+      }]);
     } finally {
       await db.exec("RESET ROLE;").catch(() => undefined);
       await db.close();

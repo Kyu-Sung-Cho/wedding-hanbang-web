@@ -29,7 +29,7 @@ AS $disclosure_sha256_values_are_safe$
 $disclosure_sha256_values_are_safe$;
 
 CREATE OR REPLACE FUNCTION public.disclosure_preview_keys_are_safe(
-  p_values text[]
+  value text[]
 )
 RETURNS boolean
 LANGUAGE sql
@@ -38,12 +38,13 @@ PARALLEL SAFE
 SET search_path = pg_catalog
 AS $disclosure_preview_keys_are_safe$
   SELECT COALESCE(
-    p_values IS NOT NULL
-    AND cardinality(p_values) <= 16
+    $1 IS NOT NULL
+    AND cardinality($1) <= 16
     AND NOT EXISTS (
       SELECT 1
-      FROM unnest(p_values) AS candidate(value)
-      WHERE value IS NULL OR value !~ '^[0-9a-f]{64}\.txt$'
+      FROM unnest($1) AS candidate(preview_key)
+      WHERE candidate.preview_key IS NULL
+        OR candidate.preview_key !~ '^[0-9a-f]{64}\.txt$'
     ),
     false
   );

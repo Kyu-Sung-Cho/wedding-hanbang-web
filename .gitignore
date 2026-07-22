@@ -98,3 +98,6 @@ scripts/ingest/.converted/
 scripts/ingest/.cache/
 scripts/ingest/validated/
 scripts/ingest/manifest.json
+
+# 공시 추출 실행 산출물 (2026-07-22 run)
+work/

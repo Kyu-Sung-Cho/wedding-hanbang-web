@@ -2384,10 +2384,11 @@ BEGIN
     16
   );
   INSERT INTO public.vendors (
-    owner_id, name, slug, category, location, region_code, aliases,
+    owner_id, name, slug, category, location, region, region_code, aliases,
     status, attributes, enrichment_status
   ) VALUES (
-    NULL, p_name, generated_slug, database_category, '', p_region_code,
+    NULL, p_name, generated_slug, database_category,
+    p_region_code, p_region_code, p_region_code,
     '{}'::text[], 'pending', '{}'::jsonb, 'pending'
   ) RETURNING id INTO selected_id;
   PERFORM pg_advisory_xact_lock(hashtextextended(
@@ -2472,7 +2473,7 @@ DECLARE
   ledger_uuid_value uuid;
   ledger_row public.ai_interactions_log%ROWTYPE;
   expected_ledger_metadata jsonb;
-  initial_row_sha256 text;
+  ledger_initial_row_sha256_value text;
   provider_mode_value text;
   paid_plan_sha256_value text;
   successful_ledger_id_value uuid;
@@ -2920,14 +2921,14 @@ BEGIN
     THEN
       RAISE EXCEPTION 'DISCLOSURE_ATOMIC_LEDGER_CONFLICT' USING ERRCODE = '23505';
     END IF;
-    initial_row_sha256 := encode(extensions.digest(
+    ledger_initial_row_sha256_value := encode(extensions.digest(
       convert_to(to_jsonb(ledger_row)::text, 'UTF8'), 'sha256'
     ), 'hex');
     INSERT INTO public.vendor_disclosure_ingest_owned_ledger_rows (
       run_sha256, batch_index, ledger_id, initial_row_sha256,
       created_by_run, cleanup_status
     ) VALUES (
-      p_run_sha256, p_batch_index, ledger_uuid_value, initial_row_sha256,
+      p_run_sha256, p_batch_index, ledger_uuid_value, ledger_initial_row_sha256_value,
       affected_rows = 1, CASE WHEN affected_rows = 1 THEN 'owned' ELSE 'reused' END
     ) ON CONFLICT (run_sha256, ledger_id) DO NOTHING;
     IF NOT EXISTS (
@@ -2936,7 +2937,7 @@ BEGIN
       WHERE owned.run_sha256 = p_run_sha256
         AND owned.batch_index = p_batch_index
         AND owned.ledger_id = ledger_uuid_value
-        AND owned.initial_row_sha256 = initial_row_sha256
+        AND owned.initial_row_sha256 = ledger_initial_row_sha256_value
         AND owned.created_by_run = (affected_rows = 1)
         AND owned.cleanup_status = CASE WHEN affected_rows = 1 THEN 'owned' ELSE 'reused' END
     ) THEN

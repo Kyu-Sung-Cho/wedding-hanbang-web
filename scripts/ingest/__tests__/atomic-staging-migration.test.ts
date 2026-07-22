@@ -6,6 +6,56 @@ import test from "node:test";
 const migrationPath = path.resolve(
   "supabase/migrations/20260721120000_vendor_disclosure_atomic_batch_staging.sql",
 );
+const ledgerHashDisambiguationMigrationPath = path.resolve(
+  "supabase/migrations/20260722194000_vendor_disclosure_stage_ledger_hash_disambiguation.sql",
+);
+const ledgerCostScaleMigrationPath = path.resolve(
+  "supabase/migrations/20260722195000_vendor_disclosure_ledger_cost_scale.sql",
+);
+const optionSourceOccurrenceMigrationPath = path.resolve(
+  "supabase/migrations/20260722196000_official_price_option_source_occurrence.sql",
+);
+const exactSemanticDuplicateMigrationPath = path.resolve(
+  "supabase/migrations/20260722197000_vendor_disclosure_exact_semantic_duplicate_canonicalization.sql",
+);
+const previewTransportIdentityMigrationPath = path.resolve(
+  "supabase/migrations/20260722198000_vendor_disclosure_preview_transport_identity.sql",
+);
+const localPriceOverflowQuarantineMigrationPath = path.resolve(
+  "supabase/migrations/20260722199000_vendor_disclosure_local_price_overflow_quarantine.sql",
+);
+const dedupeLinkReplayMigrationPath = path.resolve(
+  "supabase/migrations/20260722200000_vendor_disclosure_dedupe_link_replay.sql",
+);
+
+const stageFunctionPrefix =
+  "CREATE OR REPLACE FUNCTION public.stage_vendor_disclosure_batch_atomic";
+const stageFunctionSuffix = "$stage_vendor_disclosure_batch_atomic$;";
+
+function extractStageFunction(sql: string): string {
+  const start = sql.indexOf(stageFunctionPrefix);
+  assert.notEqual(start, -1, "the stage function declaration must exist");
+
+  const suffixStart = sql.indexOf(stageFunctionSuffix, start);
+  assert.notEqual(suffixStart, -1, "the stage function terminator must exist");
+
+  return sql
+    .slice(start, suffixStart + stageFunctionSuffix.length)
+    .replace(/\r\n/gu, "\n");
+}
+
+function extractPersistedUnitPayloadFunction(sql: string): string {
+  const prefix =
+    "CREATE OR REPLACE FUNCTION public.vendor_disclosure_persisted_unit_payload_sha256";
+  const suffix = "$vendor_disclosure_persisted_unit_payload_sha256$;";
+  const start = sql.indexOf(prefix);
+  assert.notEqual(start, -1, "the persisted unit payload function must exist");
+  const suffixStart = sql.indexOf(suffix, start);
+  assert.notEqual(suffixStart, -1, "the persisted unit payload function must terminate");
+  return sql
+    .slice(start, suffixStart + suffix.length)
+    .replace(/\r\n/gu, "\n");
+}
 
 test("the atomic disclosure staging migration is resumable, draft-only, pending-only, and service-role-only", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -338,6 +388,16 @@ test("the atomic disclosure staging migration is resumable, draft-only, pending-
   const stageStart = sql.indexOf("CREATE OR REPLACE FUNCTION public.stage_vendor_disclosure_batch_atomic");
   const finalizerStart = sql.indexOf("CREATE OR REPLACE FUNCTION public.finalize_vendor_disclosure_dedupe_atomic");
   const stageSql = sql.slice(stageStart, finalizerStart);
+  assert.doesNotMatch(
+    stageSql,
+    /owned\.initial_row_sha256\s*=\s*initial_row_sha256\b/iu,
+    "the ledger ownership hash comparison must not be ambiguous with a PL/pgSQL variable",
+  );
+  assert.match(
+    stageSql,
+    /ledger_initial_row_sha256_value text;[\s\S]*ledger_initial_row_sha256_value := encode\([\s\S]*owned\.initial_row_sha256 = ledger_initial_row_sha256_value/iu,
+    "the staging RPC must use a distinct variable name for the ledger ownership hash",
+  );
   assert.ok(
     stageSql.indexOf("DISCLOSURE_ATOMIC_RUN_INVALIDATED")
       < stageSql.indexOf("IF stored_batch.id IS NOT NULL THEN"),
@@ -379,6 +439,415 @@ test("the atomic disclosure staging migration is resumable, draft-only, pending-
   );
   assert.doesNotMatch(sql, /UPDATE\s+public\.price_snapshots\s+SET\s+published\s*=\s*true/iu);
   assert.doesNotMatch(sql, /review_status\s*[,)]?\s*(?:VALUES\s*)?\(?\s*'approved'/iu);
+});
+
+test("the ledger ownership hash disambiguation successor exactly preserves the staging RPC", async () => {
+  const [cleanInstallSql, successorSql] = await Promise.all([
+    readFile(migrationPath, "utf8"),
+    readFile(ledgerHashDisambiguationMigrationPath, "utf8"),
+  ]);
+  const cleanInstallStage = extractStageFunction(cleanInstallSql);
+  const successorStage = extractStageFunction(successorSql);
+
+  assert.equal(
+    successorStage,
+    cleanInstallStage,
+    "the successor must replace the deployed function with the exact clean-install definition",
+  );
+  assert.doesNotMatch(
+    successorStage,
+    /owned\.initial_row_sha256\s*=\s*initial_row_sha256\b/iu,
+    "the successor must not restore the ambiguous PL/pgSQL variable reference",
+  );
+  assert.match(
+    successorStage,
+    /ledger_initial_row_sha256_value text;[\s\S]*ledger_initial_row_sha256_value := encode\([\s\S]*owned\.initial_row_sha256 = ledger_initial_row_sha256_value/iu,
+  );
+  assert.match(
+    successorSql,
+    /ALTER FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}OWNER TO postgres;/iu,
+  );
+  assert.match(
+    successorSql,
+    /REVOKE ALL ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}FROM PUBLIC, anon, authenticated;/iu,
+  );
+  assert.match(
+    successorSql,
+    /GRANT EXECUTE ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}TO service_role;/iu,
+  );
+});
+
+test("the ledger cost successor compares the persisted numeric(10,6) representation", async () => {
+  const [ledgerHashSql, ledgerCostSql] = await Promise.all([
+    readFile(ledgerHashDisambiguationMigrationPath, "utf8"),
+    readFile(ledgerCostScaleMigrationPath, "utf8"),
+  ]);
+  const priorStage = extractStageFunction(ledgerHashSql);
+  const costScaleStage = extractStageFunction(ledgerCostSql);
+  const expectedStage = priorStage
+    .replace(
+      "(row_value ->> 'estimated_cost_usd')::numeric,",
+      "(row_value ->> 'estimated_cost_usd')::numeric(10,6),",
+    )
+    .replace(
+      "ledger_row.cost_usd IS DISTINCT FROM (row_value ->> 'estimated_cost_usd')::numeric",
+      "ledger_row.cost_usd IS DISTINCT FROM (row_value ->> 'estimated_cost_usd')::numeric(10,6)",
+    );
+
+  assert.notEqual(
+    expectedStage,
+    priorStage,
+    "the fixture must exercise the persisted-scale correction",
+  );
+  assert.equal(
+    costScaleStage,
+    expectedStage,
+    "the successor must change only the insert and equivalence casts",
+  );
+  assert.match(
+    costScaleStage,
+    /\(row_value ->> 'estimated_cost_usd'\)::numeric\(10,6\),/u,
+  );
+  assert.match(
+    costScaleStage,
+    /ledger_row\.cost_usd IS DISTINCT FROM \(row_value ->> 'estimated_cost_usd'\)::numeric\(10,6\)/u,
+  );
+  assert.doesNotMatch(
+    costScaleStage,
+    /ledger_row\.cost_usd IS DISTINCT FROM \(row_value ->> 'estimated_cost_usd'\)::numeric(?!\()/u,
+  );
+  assert.match(
+    ledgerCostSql,
+    /0\.0747925::numeric\(10,6\) IS DISTINCT FROM 0\.074793::numeric/u,
+    "the deployed postcondition must lock the observed half-up rounding case",
+  );
+  assert.match(
+    ledgerCostSql,
+    /col\.numeric_precision = 10[\s\S]{0,80}col\.numeric_scale = 6/iu,
+  );
+  assert.match(
+    ledgerCostSql,
+    /ALTER FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}OWNER TO postgres;/iu,
+  );
+  assert.match(
+    ledgerCostSql,
+    /REVOKE ALL ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}FROM PUBLIC, anon, authenticated;/iu,
+  );
+  assert.match(
+    ledgerCostSql,
+    /GRANT EXECUTE ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}TO service_role;/iu,
+  );
+});
+
+test("source occurrence staging preserves payload hashes while storing parent-derived confidence", async () => {
+  const [atomicSql, occurrenceSql] = await Promise.all([
+    readFile(migrationPath, "utf8"),
+    readFile(optionSourceOccurrenceMigrationPath, "utf8"),
+  ]);
+  const originalPersistedHash = extractPersistedUnitPayloadFunction(atomicSql);
+  const occurrencePersistedHash = extractPersistedUnitPayloadFunction(occurrenceSql);
+  const expectedPersistedHash = originalPersistedHash.replace(
+    "'confidence', option_row.confidence",
+    "'confidence', NULL",
+  );
+
+  assert.notEqual(
+    expectedPersistedHash,
+    originalPersistedHash,
+    "the fixture must exercise the option confidence projection",
+  );
+  assert.equal(
+    occurrencePersistedHash,
+    expectedPersistedHash,
+    "the server-derived option confidence must be the only persisted hash projection change",
+  );
+  assert.match(
+    occurrenceSql,
+    /GET DIAGNOSTICS stage_call_context = PG_CONTEXT;[\s\S]{0,1800}stage_vendor_disclosure_batch_atomic\(text,text,text,text,text,integer,integer,text,text,text,text,text\[\],jsonb,jsonb\)/iu,
+  );
+  assert.match(
+    occurrenceSql,
+    /owned\.row_kind = 'official_price'[\s\S]{0,300}owned\.run_sha256 = atomic_run_sha256[\s\S]{0,400}run\.status = 'active'[\s\S]{0,120}run\.snapshot_id = price\.snapshot_id/iu,
+  );
+  assert.match(
+    occurrenceSql,
+    /NEW\.confidence := parent_confidence;/iu,
+  );
+  assert.match(
+    occurrenceSql,
+    /BEFORE UPDATE OF source_occurrence_key ON public\.official_price_options/iu,
+  );
+  assert.match(
+    occurrenceSql,
+    /source_occurrence_key ~ '\^\[0-9a-f\]\{64\}:\[0-9\]\+\$'/iu,
+  );
+  assert.match(
+    occurrenceSql,
+    /REVOKE ALL ON FUNCTION public\.assign_official_price_option_source_occurrence\(\)[\s\S]{0,120}FROM PUBLIC, anon, authenticated, service_role/iu,
+  );
+  assert.doesNotMatch(
+    occurrenceSql,
+    /CREATE OR REPLACE FUNCTION public\.vendor_disclosure_unit_payload_sha256/iu,
+    "the immutable caller payload projection must remain untouched",
+  );
+  assert.doesNotMatch(
+    occurrenceSql,
+    /CREATE OR REPLACE FUNCTION public\.stage_vendor_disclosure_batch_atomic/iu,
+    "the immutable batch payload and staging RPC body must remain untouched",
+  );
+});
+
+test("exact semantic duplicate canonicalization is local-only, same-batch-owned, and fail-closed", async () => {
+  const sql = await readFile(exactSemanticDuplicateMigrationPath, "utf8");
+
+  assert.match(
+    sql,
+    /p_authorization_kind = 'local_validated_pending_only' AND EXISTS/iu,
+  );
+  assert.match(
+    sql,
+    /owned\.run_sha256 = p_run_sha256[\s\S]{0,140}owned\.batch_index = p_batch_index[\s\S]{0,140}owned\.unit_id = row_value ->> 'unit_id'/iu,
+  );
+  assert.match(
+    sql,
+    /binding\.record_ref = COALESCE\([\s\S]{0,160}partner_ref_value[\s\S]{0,160}source_record_key/iu,
+  );
+  assert.match(
+    sql,
+    /jsonb_build_object\([\s\S]*'content_fingerprint', semantic\.content_fingerprint[\s\S]{0,80}\) = row_value/iu,
+  );
+  assert.match(
+    sql,
+    /CONTINUE;[\s\S]{0,180}DISCLOSURE_ATOMIC_PREEXISTING_SEMANTIC_REQUIRES_RECONCILIATION/iu,
+  );
+  assert.match(
+    sql,
+    /length\(stage_definition\) - length\(replace\(stage_definition, old_fragment, ''\)\)[\s\S]{0,100}length\(old_fragment\)/iu,
+    "the migration must patch exactly one predecessor failure site",
+  );
+  assert.match(
+    sql,
+    /ALTER FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}OWNER TO postgres;/iu,
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}FROM PUBLIC, anon, authenticated;/iu,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}TO service_role;/iu,
+  );
+  assert.doesNotMatch(
+    sql,
+    /UPDATE\s+public\.price_snapshots\s+SET\s+published\s*=\s*true/iu,
+  );
+  assert.doesNotMatch(sql, /review_status\s*=\s*'approved'/iu);
+});
+
+test("preview transport identity is local-only, content-addressed, and provenance-complete", async () => {
+  const [predecessorSql, sql] = await Promise.all([
+    readFile(ledgerCostScaleMigrationPath, "utf8"),
+    readFile(previewTransportIdentityMigrationPath, "utf8"),
+  ]);
+  const predecessorStage = extractStageFunction(predecessorSql);
+  const storageCardinalityFragment =
+    "jsonb_array_length(p_payload -> 'raw_objects') + jsonb_array_length(p_payload -> 'preview_objects')";
+  const strictProvenanceFragment =
+    "public.vendor_disclosure_payload_provenance_is_safe(p_payload)";
+
+  assert.equal(
+    predecessorStage.split(storageCardinalityFragment).length - 1,
+    1,
+    "the deployed predecessor must expose exactly one Storage cardinality patch site",
+  );
+  assert.equal(
+    predecessorStage.split(strictProvenanceFragment).length - 1,
+    1,
+    "the deployed predecessor must expose exactly one provenance patch site",
+  );
+  assert.match(
+    sql,
+    /CREATE OR REPLACE FUNCTION public\.vendor_disclosure_local_payload_provenance_is_safe\(\s*p_payload jsonb\s*\)[\s\S]{0,180}RETURNS boolean[\s\S]{0,120}IMMUTABLE[\s\S]{0,80}STRICT/iu,
+  );
+  assert.match(
+    sql,
+    /cardinality\(raw_keys\)[\s\S]{0,180}SELECT DISTINCT key FROM unnest\(raw_keys\)/iu,
+    "raw Storage identities must remain unique",
+  );
+  assert.match(
+    sql,
+    /sibling\.value ->> 'storage_path'[\s\S]{0,220}sibling\.value ->> 'sha256'[\s\S]{0,160}sibling\.value ->> 'bytes'/iu,
+    "one preview key must never conceal conflicting content metadata",
+  );
+  assert.match(
+    sql,
+    /NOT COALESCE\([\s\S]{0,120}preview_item ->> 'source_object_key'[\s\S]{0,80}= ANY\(raw_keys\)[\s\S]{0,500}sibling\.value ->> 'source_object_key'[\s\S]{0,80}= ANY\(raw_keys\)/iu,
+    "a foreign occurrence must have an identical sibling tied to current raw input",
+  );
+  assert.match(
+    sql,
+    /unit_value -> 'source_preview_keys'[\s\S]{0,500}preview\.value ->> 'storage_path' = key\.value[\s\S]{0,180}unit_value -> 'source_object_keys'/iu,
+    "every unit preview key must map back to one of that unit's raw keys",
+  );
+  assert.match(
+    sql,
+    /item -> 'source_preview_keys'[\s\S]{0,700}preview\.value ->> 'storage_path' = key\.value[\s\S]{0,180}item -> 'source_object_keys'/iu,
+    "foreign unit provenance must not satisfy a staged row",
+  );
+  assert.match(
+    sql,
+    /WHEN p_authorization_kind = 'local_validated_pending_only'[\s\S]{0,500}SELECT DISTINCT preview\.value ->> 'storage_path' AS storage_path[\s\S]{0,300}ELSE[\s\S]{0,180}jsonb_array_length\(p_payload -> 'preview_objects'\)/iu,
+    "only local-only runs may count canonical preview Storage identities",
+  );
+  assert.match(
+    sql,
+    /WHEN p_authorization_kind = 'local_validated_pending_only'[\s\S]{0,180}vendor_disclosure_local_payload_provenance_is_safe\(p_payload\)[\s\S]{0,180}ELSE[\s\S]{0,120}vendor_disclosure_payload_provenance_is_safe\(p_payload\)/iu,
+    "paid authorization must retain the original strict validator",
+  );
+  assert.match(
+    sql,
+    /length\(stage_definition\) - length\(replace\(stage_definition, old_fragment, ''\)\)[\s\S]{0,100}length\(old_fragment\)[\s\S]{0,260}length\(stage_definition\) - length\(replace\(stage_definition, old_provenance_fragment, ''\)\)/iu,
+    "both dynamic patches must fail closed on predecessor drift",
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.vendor_disclosure_local_payload_provenance_is_safe\(jsonb\)[\s\S]{0,120}FROM PUBLIC, anon, authenticated, service_role/iu,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}TO service_role;/iu,
+  );
+  assert.doesNotMatch(
+    sql,
+    /CREATE OR REPLACE FUNCTION public\.vendor_disclosure_unit_payload_sha256/iu,
+    "the immutable unit payload projection must remain untouched",
+  );
+  assert.doesNotMatch(
+    sql,
+    /UPDATE\s+public\.price_snapshots\s+SET\s+published\s*=\s*true/iu,
+  );
+  assert.doesNotMatch(sql, /review_status\s*=\s*'approved'/iu);
+});
+
+test("local price overflow quarantine is bounded, evidence-preserving, and paid-fail-closed", async () => {
+  const [predecessorSql, sql] = await Promise.all([
+    readFile(ledgerCostScaleMigrationPath, "utf8"),
+    readFile(localPriceOverflowQuarantineMigrationPath, "utf8"),
+  ]);
+  const predecessorStage = extractStageFunction(predecessorSql);
+  const parentPriceFragment =
+    "(row_value ->> 'price_min_krw')::integer,\n      (row_value ->> 'price_max_krw')::integer";
+  const optionPriceFragment =
+    "(option_value ->> 'price_min_krw')::integer,\n        (option_value ->> 'price_max_krw')::integer";
+
+  assert.equal(predecessorStage.split(parentPriceFragment).length - 1, 2);
+  assert.equal(predecessorStage.split(optionPriceFragment).length - 1, 1);
+  assert.match(
+    sql,
+    /vendor_disclosure_price_exceeds_integer_storage[\s\S]{0,700}-2147483648[\s\S]{0,160}2147483647/iu,
+  );
+  assert.match(
+    sql,
+    /p_authorization_kind = 'local_validated_pending_only'[\s\S]{0,180}vendor_disclosure_price_exceeds_integer_storage\(p_value\)[\s\S]{0,180}RETURN NULL[\s\S]{0,240}RETURN \(p_value #>> '\{\}'\)::integer/iu,
+    "local overflow must become NULL while the paid path retains the int4 cast",
+  );
+  assert.match(
+    sql,
+    /vendor_disclosure_price_options_for_storage[\s\S]{0,1500}jsonb_set\([\s\S]{0,120}\{price_min_krw\}[\s\S]{0,500}jsonb_set\([\s\S]{0,120}\{price_max_krw\}/iu,
+    "package option price fields must use the same local-only quarantine",
+  );
+  assert.match(
+    sql,
+    /local_price_overflow_quarantined[\s\S]{0,1800}cardinality\(bounded_codes\) >= 100/iu,
+    "the parent issue code must be mandatory and remain within the table bound",
+  );
+  assert.match(
+    sql,
+    /2 \* length\(old_parent_prices\)[\s\S]{0,300}length\(old_option_prices\)[\s\S]{0,300}length\(old_package_options\)[\s\S]{0,300}3 \* length\(old_issue_codes\)/iu,
+    "the dynamic successor must fail closed on every expected predecessor site",
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.vendor_disclosure_price_for_integer_storage\(jsonb, text\)[\s\S]{0,120}FROM PUBLIC, anon, authenticated, service_role/iu,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION public\.stage_vendor_disclosure_batch_atomic\([\s\S]{0,400}TO service_role;/iu,
+  );
+  assert.doesNotMatch(
+    sql,
+    /CREATE OR REPLACE FUNCTION public\.vendor_disclosure_unit_payload_sha256/iu,
+    "the immutable caller payload projection must remain untouched",
+  );
+  assert.doesNotMatch(sql, /^\s*p_payload\s*:=/imu);
+  assert.doesNotMatch(
+    sql,
+    /UPDATE\s+public\.price_snapshots\s+SET\s+published\s*=\s*true/iu,
+  );
+  assert.doesNotMatch(sql, /review_status\s*=\s*'approved'/iu);
+});
+
+test("dedupe-link replay canonicalizes exact resolved pairs and fails closed on evidence drift", async () => {
+  const [predecessorSql, sql] = await Promise.all([
+    readFile(migrationPath, "utf8"),
+    readFile(dedupeLinkReplayMigrationPath, "utf8"),
+  ]);
+  const finalizerStart = predecessorSql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.finalize_vendor_disclosure_dedupe_atomic",
+  );
+  const finalizerEnd = predecessorSql.indexOf(
+    "-- A completed draft run can be quarantined",
+    finalizerStart,
+  );
+  assert.notEqual(finalizerStart, -1);
+  assert.notEqual(finalizerEnd, -1);
+  const predecessorFinalizer = predecessorSql.slice(finalizerStart, finalizerEnd);
+
+  assert.equal(
+    predecessorFinalizer.split("p_run_sha256, 'vendor', left_id, right_id").length - 1,
+    1,
+  );
+  assert.equal(
+    predecessorFinalizer.split("p_run_sha256, 'agency', left_id, right_id").length - 1,
+    1,
+  );
+  assert.match(
+    sql,
+    /ON CONFLICT \(\s*run_sha256, entity_kind, left_identity_id, right_identity_id\s*\) DO NOTHING/iu,
+  );
+  assert.match(
+    sql,
+    /existing_link\.reason IS NOT DISTINCT FROM candidate ->> 'reason'[\s\S]{0,240}existing_link\.similarity IS NOT DISTINCT FROM[\s\S]{0,500}existing_link\.initial_candidate_sha256 IS NOT DISTINCT FROM/iu,
+  );
+  assert.match(
+    sql,
+    /existing_link\.created_by_run[\s\S]{0,100}cleanup_status = 'owned'[\s\S]{0,160}NOT existing_link\.created_by_run[\s\S]{0,100}cleanup_status = 'reused'/iu,
+  );
+  assert.match(sql, /DISCLOSURE_DEDUPE_VENDOR_LINK_REPLAY_CONFLICT/iu);
+  assert.match(sql, /DISCLOSURE_DEDUPE_AGENCY_LINK_REPLAY_CONFLICT/iu);
+  assert.match(
+    sql,
+    /length\(finalizer_definition\)[\s\S]{0,220}old_vendor_link[\s\S]{0,350}length\(finalizer_definition\)[\s\S]{0,220}old_agency_link/iu,
+    "both predecessor sites must be patched with exact-count drift checks",
+  );
+  assert.match(
+    sql,
+    /ALTER FUNCTION public\.finalize_vendor_disclosure_dedupe_atomic\([\s\S]{0,160}OWNER TO postgres/iu,
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.finalize_vendor_disclosure_dedupe_atomic\([\s\S]{0,220}FROM PUBLIC, anon, authenticated/iu,
+  );
+  assert.match(
+    sql,
+    /GRANT EXECUTE ON FUNCTION public\.finalize_vendor_disclosure_dedupe_atomic\([\s\S]{0,220}TO service_role/iu,
+  );
+  assert.doesNotMatch(sql, /^\s*p_candidates\s*:=/imu);
+  assert.doesNotMatch(
+    sql,
+    /UPDATE\s+public\.price_snapshots\s+SET\s+published\s*=\s*true/iu,
+  );
+  assert.doesNotMatch(sql, /review_status\s*=\s*'approved'/iu);
 });
 
 test("bulk approval is an atomic paid-pilot-only database contract with a human-bound fingerprint", async () => {

@@ -3,9 +3,14 @@
   "kind": "vendor-disclosure-hosted-staging-v2",
   "release": "vendor-disclosure-v2-20260718",
   "productionProjectRef": "slrtobkksjmxgzatjyqb",
-  "status": "blocked_pending_dedicated_staging",
-  "approved": false,
-  "projectRef": null,
-  "approvalEvidence": null,
-  "publicViewDefinitionSha256": null
+  "status": "approved_for_hosted_rls_probe",
+  "approved": true,
+  "projectRef": "rgxdizztidbgwnsbadml",
+  "approvalEvidence": "codex-thread:user-approved-dedicated-free-staging-2026-07-22",
+  "publicViewDefinitionSha256": {
+    "v_public_vendors": "cf755f85d7081bf4ac510846dc65dccf17939f4f7c822f6abab9fb2ea6f50c9d",
+    "v_public_prices": "c3558fd930d2ff1037a752b2a97a2d5c61544a7221f978796d594d1240b3e3bc",
+    "v_public_price_options": "9c3f97742cff0b8584d66e38d002ba16fa9092e17ef1c72b60dd6b07a066d5b7",
+    "v_public_agency_packages": "65ce43519c109caf64f279332106994fc15947aa9d11a850633157fd15676e22"
+  }
 }

@@ -128,10 +128,16 @@ describe("price consumer cross-contract hardening migration", () => {
     expect(migration).toContain("cron.unschedule($1)");
     expect(migration).toContain("PRICE_DEMAND_CRON_POSTCONDITION_FAILED");
     expect(cronContract).toMatch(/active\s+IS\s+FALSE/iu);
-    expect(cronContract).toMatch(/active\s*=\s*false/iu);
+    expect(cronContract).toContain(
+      "cron.alter_job(bigint,text,text,text,text,boolean)",
+    );
+    expect(cronContract).toContain("cron.alter_job($1, active => false)");
+    expect(cronContract).not.toMatch(/UPDATE\s+cron\.job/iu);
     expect(cronContract).not.toMatch(/active\s+IS\s+TRUE/iu);
     expect(cronContract).not.toContain("SELECT cron.schedule(");
     expect(cronContract).toContain("cron.schedule_in_database");
+    expect(cronContract).toContain("NULL::text");
+    expect(cronContract).not.toContain("current_user::text,\n      false");
     expect(cronContract).not.toMatch(/INSERT INTO cron\.job/iu);
     expect(cronContract.match(/database = current_database\(\)/gu)).toHaveLength(4);
     expect(cronContract.match(/username = current_user::text/gu)).toHaveLength(4);

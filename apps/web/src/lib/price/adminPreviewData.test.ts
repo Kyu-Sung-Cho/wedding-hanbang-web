@@ -671,4 +671,206 @@ describe("admin vendor preview data", () => {
     ]);
     expect(JSON.stringify(catalog)).not.toContain("other-run");
   });
+
+  it("links an unbound hall document policy only through same-unit completed-run ownership", async () => {
+    const unitId = "a".repeat(64);
+    const runSha256 = "d".repeat(64);
+    const { client } = fakeClient({
+      __admin_preview_scope: [previewScope({
+        unitIds: [unitId],
+        priceIds: ["hall-price"],
+        semanticIds: ["hall-penalty"],
+      })],
+      __admin_preview_vendor_scope: [previewScope({
+        unitIds: [unitId],
+        priceIds: ["hall-price"],
+        semanticIds: [],
+      })],
+      price_snapshots: [{
+        id: "draft-snapshot",
+        period_label: "2026Q3",
+        source: "kca_tprice",
+        published: false,
+        is_current: false,
+        published_at: null,
+      }],
+      vendor_disclosure_ingest_owned_rows: [
+        {
+          run_sha256: runSha256,
+          batch_index: 1,
+          unit_id: unitId,
+          row_kind: "official_price",
+          row_id: "hall-price",
+        },
+        {
+          run_sha256: runSha256,
+          batch_index: 1,
+          unit_id: unitId,
+          row_kind: "semantic",
+          row_id: "hall-penalty",
+        },
+      ],
+      official_prices: [{
+        id: "hall-price",
+        snapshot_id: "draft-snapshot",
+        vendor_id: "hall-vendor",
+        agency_id: null,
+        category: "hall",
+        item_name: "Hall rental",
+        base_spec: null,
+        price_min_krw: 1_000_000,
+        price_max_krw: 1_000_000,
+        price_note: null,
+        review_status: "pending",
+      }],
+      official_price_options: [],
+      disclosure_semantic_staging: [{
+        id: "hall-penalty",
+        snapshot_id: "draft-snapshot",
+        partner_vendor_id: null,
+        official_price_id: null,
+        source_agency: null,
+        record_kind: "document_section",
+        subject_kind: "vendor",
+        semantic_type: "penalty",
+        title: "Cancellation penalty",
+        summary: "Cancellation fees vary by date.",
+        content_verbatim: "Cancellation fee applies after booking.",
+        review_status: "pending",
+      }],
+      vendors: [{
+        id: "hall-vendor",
+        slug: "hall-vendor",
+        name: "Hall Vendor",
+        aliases: [],
+        category: "hall",
+        region_code: "seoul_gangnam3",
+        status: "pending",
+      }],
+      agencies: [],
+    });
+
+    const catalog = await loadAdminPreviewPriceCatalog(client);
+
+    expect(catalog.categories.hall[0]?.policies).toEqual([
+      expect.objectContaining({
+        id: "hall-penalty",
+        type: "penalty",
+        title: "Cancellation penalty",
+      }),
+    ]);
+    const detail = await loadAdminPreviewVendor(client, "hall-vendor");
+    expect(detail?.vendor.policies?.map(({ id }) => id) ?? []).toEqual(["hall-penalty"]);
+  });
+
+  it.each([
+    {
+      caseName: "one unit resolves to multiple hall vendors",
+      priceCategory: "hall",
+      priceOwners: [
+        { id: "hall-price-a", vendorId: "hall-vendor-a", unitId: "a".repeat(64) },
+        { id: "hall-price-b", vendorId: "hall-vendor-b", unitId: "a".repeat(64) },
+      ],
+      semanticUnitId: "a".repeat(64),
+    },
+    {
+      caseName: "the unit resolves only to a non-hall vendor",
+      priceCategory: "studio",
+      priceOwners: [
+        { id: "studio-price", vendorId: "studio-vendor", unitId: "a".repeat(64) },
+      ],
+      semanticUnitId: "a".repeat(64),
+    },
+    {
+      caseName: "the policy and hall price belong to different units",
+      priceCategory: "hall",
+      priceOwners: [
+        { id: "hall-price", vendorId: "hall-vendor", unitId: "a".repeat(64) },
+      ],
+      semanticUnitId: "b".repeat(64),
+    },
+  ])("does not infer an unbound document policy when $caseName", async ({
+    priceCategory,
+    priceOwners,
+    semanticUnitId,
+  }) => {
+    const runSha256 = "d".repeat(64);
+    const unitIds = [...new Set([...priceOwners.map(({ unitId }) => unitId), semanticUnitId])];
+    const vendorIds = [...new Set(priceOwners.map(({ vendorId }) => vendorId))];
+    const { client } = fakeClient({
+      __admin_preview_scope: [previewScope({
+        unitIds,
+        priceIds: priceOwners.map(({ id }) => id),
+        semanticIds: ["unbound-policy"],
+      })],
+      price_snapshots: [{
+        id: "draft-snapshot",
+        period_label: "2026Q3",
+        source: "kca_tprice",
+        published: false,
+        is_current: false,
+        published_at: null,
+      }],
+      vendor_disclosure_ingest_owned_rows: [
+        ...priceOwners.map(({ id, unitId }) => ({
+          run_sha256: runSha256,
+          batch_index: 1,
+          unit_id: unitId,
+          row_kind: "official_price",
+          row_id: id,
+        })),
+        {
+          run_sha256: runSha256,
+          batch_index: 1,
+          unit_id: semanticUnitId,
+          row_kind: "semantic",
+          row_id: "unbound-policy",
+        },
+      ],
+      official_prices: priceOwners.map(({ id, vendorId }) => ({
+        id,
+        snapshot_id: "draft-snapshot",
+        vendor_id: vendorId,
+        agency_id: null,
+        category: priceCategory,
+        item_name: `Offer ${id}`,
+        base_spec: null,
+        price_min_krw: 1_000_000,
+        price_max_krw: 1_000_000,
+        price_note: null,
+        review_status: "pending",
+      })),
+      official_price_options: [],
+      disclosure_semantic_staging: [{
+        id: "unbound-policy",
+        snapshot_id: "draft-snapshot",
+        partner_vendor_id: null,
+        official_price_id: null,
+        source_agency: null,
+        record_kind: "document_section",
+        subject_kind: "vendor",
+        semantic_type: "penalty",
+        title: "Cancellation penalty",
+        summary: "Cancellation fees vary by date.",
+        content_verbatim: "Cancellation fee applies after booking.",
+        review_status: "pending",
+      }],
+      vendors: vendorIds.map((vendorId) => ({
+        id: vendorId,
+        slug: vendorId,
+        name: vendorId,
+        aliases: [],
+        category: priceCategory,
+        region_code: "seoul_gangnam3",
+        status: "pending",
+      })),
+      agencies: [],
+    });
+
+    const catalog = await loadAdminPreviewPriceCatalog(client);
+    const policies = Object.values(catalog.categories)
+      .flatMap((vendors) => vendors.flatMap((vendor) => vendor.policies));
+
+    expect(policies).toEqual([]);
+  });
 });

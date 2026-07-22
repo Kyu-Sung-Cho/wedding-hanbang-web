@@ -12,13 +12,24 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const storageOutcomeIdempotencyMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260722193000_vendor_disclosure_storage_outcome_idempotency.sql",
+  ),
+  "utf8",
+);
 
-function migrationFunctionSql(signatureStart: string, terminator: string): string {
-  const start = migration.indexOf(signatureStart);
-  const end = migration.indexOf(terminator, start);
+function migrationFunctionSql(
+  signatureStart: string,
+  terminator: string,
+  source = migration,
+): string {
+  const start = source.indexOf(signatureStart);
+  const end = source.indexOf(terminator, start);
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
-  return migration.slice(start, end + terminator.length);
+  return source.slice(start, end + terminator.length);
 }
 
 const intentFenceSql = migrationFunctionSql(
@@ -36,6 +47,7 @@ const claimSql = migrationFunctionSql(
 const recordSql = migrationFunctionSql(
   "CREATE OR REPLACE FUNCTION public.record_vendor_disclosure_storage_object_atomic",
   "$record_vendor_disclosure_storage_object_atomic$;",
+  storageOutcomeIdempotencyMigration,
 );
 const CLAIMANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -210,6 +222,36 @@ describe("vendor disclosure per-object Storage upload claim", () => {
       )`,
       [runSha256, objectName, objectSha256, claim.claim_token, String(claim.claim_epoch), CLAIMANT_A],
     )).resolves.toBeDefined();
+    const replayed = await db.query<{ ownership_state: string; already_recorded: boolean }>(
+      `SELECT * FROM public.record_vendor_disclosure_storage_object_atomic(
+        'staging-ref', $1, 1, 'disclosure-raw', $2, $3, 12, true, $4, $5, $6
+      )`,
+      [runSha256, objectName, objectSha256, claim.claim_token, String(claim.claim_epoch), CLAIMANT_A],
+    );
+    expect(replayed.rows).toEqual([{
+      ownership_state: "confirmed_created",
+      already_recorded: true,
+    }]);
+    await expect(db.query(
+      `SELECT * FROM public.record_vendor_disclosure_storage_object_atomic(
+        'staging-ref', $1, 1, 'disclosure-raw', $2, $3, 12, true,
+        '44444444-4444-4444-8444-444444444444', $4, $5
+      )`,
+      [runSha256, objectName, objectSha256, String(claim.claim_epoch), CLAIMANT_A],
+    )).rejects.toThrow(/DISCLOSURE_STORAGE_OUTCOME_CONFLICT/u);
+    await expect(db.query(
+      `SELECT * FROM public.record_vendor_disclosure_storage_object_atomic(
+        'staging-ref', $1, 1, 'disclosure-raw', $2, $3, 12, true, $4, $5, $6
+      )`,
+      [
+        runSha256,
+        objectName,
+        objectSha256,
+        claim.claim_token,
+	        String(BigInt(claim.claim_epoch) + BigInt(1)),
+        CLAIMANT_A,
+      ],
+    )).rejects.toThrow(/DISCLOSURE_STORAGE_OUTCOME_CONFLICT/u);
     await expect(
       db.query("SELECT public.assert_vendor_disclosure_storage_upload_claims_settled($1)", [runSha256]),
     ).resolves.toBeDefined();
