@@ -1427,7 +1427,7 @@ test("commit and migration-set mismatches fail before authentication", async (t)
   }
 });
 
-test("CI fails the final quality gate while production readiness is blocked", async () => {
+test("CI keeps production blocked after the dedicated staging probe is approved", async () => {
   const repoRoot = new URL("../..", import.meta.url);
   const [workflow, packageText, stagingContractText] = await Promise.all([
     readFile(new URL(".github/workflows/ci.yml", repoRoot), "utf8"),
@@ -1468,9 +1468,10 @@ test("CI fails the final quality gate while production readiness is blocked", as
       projectRef: stagingContract.projectRef,
     },
     {
-      status: "blocked_pending_dedicated_staging",
-      approved: false,
-      projectRef: null,
+      status: "approved_for_hosted_rls_probe",
+      approved: true,
+      projectRef: "rgxdizztidbgwnsbadml",
     },
   );
+  assert.notEqual(stagingContract.projectRef, stagingContract.productionProjectRef);
 });
