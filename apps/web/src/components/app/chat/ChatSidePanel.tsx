@@ -14,6 +14,7 @@ import StreamingBubble from "./StreamingBubble";
 import { chatAttachmentKey } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import { deduplicateToolResults } from "./toolResultDeduplication";
 
 const MAX_ATTACHMENTS = 5;
 
@@ -496,18 +497,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                         isRecentAi={recentAiIds.has(msg.id)}
                       />
                       {hasToolResults &&
-                        // 같은 메시지 안에서 동일 (toolName, success, displayMessage)
-                        // 중복 카드 1개만 표시 — DB 부족 등으로 반복 실패 시 X 카드
-                        // 줄줄이 나오는 문제 방어.
-                        (() => {
-                          const seen = new Set<string>();
-                          return msg.metadata!.toolResults!.filter((result) => {
-                            const key = `${result.toolName}::${result.success}::${(result.displayMessage ?? "").trim()}`;
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                          });
-                        })().map((result, i) =>
+                        // 같은 메시지 안에서 내용까지 동일한 도구 결과만 1개로 줄인다.
+                        // 문구가 같아도 입력/출력이 다른 정상 작업 카드는 모두 보존한다.
+                        deduplicateToolResults(msg.metadata!.toolResults!).map((result, i) =>
                           VENDOR_TOOL_NAMES.has(result.toolName) ? (
                             <VendorToolCard key={`${msg.id}-tool-${i}`} result={result} onSend={handleSend} disabled={isStreaming} />
                           ) : (

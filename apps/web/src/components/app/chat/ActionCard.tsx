@@ -46,10 +46,18 @@ function getIcon(toolName: string) {
   }
 }
 
-function getTitle(toolName: string) {
-  switch (toolName) {
+function getTitle(result: ToolExecutionResult) {
+  switch (result.toolName) {
     case "update_budget":
       return "예산 변경";
+    case "apply_budget_plan":
+      return "예산안 적용";
+    case "add_custom_category":
+      return "예산 항목 추가";
+    case "delete_category":
+      return "예산 항목 삭제";
+    case "reset_category":
+      return "예산 항목 초기화";
     case "update_wedding_date":
       return "날짜 변경";
     case "update_task_status":
@@ -60,12 +68,31 @@ function getTitle(toolName: string) {
       return "예산 현황";
     case "get_schedule_summary":
       return "진행 현황";
+    case "add_schedule_event":
+      return "일정 추가";
+    case "update_schedule_event":
+      return "일정 변경";
+    case "delete_schedule_event":
+      return "일정 삭제";
+    case "get_schedule_events":
+      return "등록 일정";
+    case "log_wedding_event":
+      return "웨딩 일정 기록";
+    case "get_my_bookings":
+      return "예약 현황";
+    case "get_market_price":
+      return "결혼 비용 시세";
     case "get_wedding_info":
       return "웨딩 정보";
     case "toggle_checklist_item":
       return "체크리스트 변경";
-    case "update_category_budget":
+    case "update_category_budget": {
+      const hasBudget = result.toolInput.budget !== undefined;
+      const hasSpent = result.toolInput.spent !== undefined;
+      if (hasBudget && hasSpent) return "카테고리 예산·지출 변경";
+      if (hasSpent) return "카테고리 지출 변경";
       return "카테고리 예산 변경";
+    }
     case "add_amora_action":
       return "아모라 행동 저장";
     case "get_amora_actions":
@@ -100,6 +127,12 @@ const CATEGORY_RATIOS: Record<string, number> = {
   snap: 0.04, ring: 0.12, yedan: 0.05, hanbok: 0.03, shoes: 0.01,
   bouquet: 0.01, honeymoon: 0.12, houseware: 0.07, housing: 0.00,
   invitation: 0.02, gift: 0.02, mc: 0.01, ham: 0.01, pyebaek: 0.01, reserve: 0.05,
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  not_started: "예정",
+  in_progress: "진행 중",
+  completed: "완료",
 };
 
 function formatWon(n: number): string {
@@ -153,6 +186,253 @@ function BudgetMiniCard() {
       </div>
     </div>
   );
+}
+
+function readWonAmount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
+}
+
+function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
+  if (result.toolName === "update_budget") {
+    const nextBudget = readWonAmount(
+      result.toolOutput.total_budget ?? result.toolInput.total_budget,
+    );
+    const previousBudget = readWonAmount(result.toolOutput.previous_budget);
+    if (nextBudget === null) return null;
+
+    return (
+      <div
+        aria-label="총 예산 변경 결과"
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <span className="text-sm text-[#928980]">총 예산</span>
+        <div className="flex items-center gap-2 text-right tabular-nums">
+          {previousBudget !== null && previousBudget !== nextBudget && (
+            <>
+              <span className="text-xs text-[#B5ADA3] line-through">
+                {formatWon(previousBudget)}
+              </span>
+              <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+            </>
+          )}
+          <strong className="text-sm font-semibold text-[#36534E]">
+            {formatWon(nextBudget)}
+          </strong>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    result.toolName !== "update_category_budget"
+    && result.toolName !== "add_custom_category"
+  ) return null;
+
+  const category = typeof result.toolOutput.category === "string"
+    ? result.toolOutput.category
+    : typeof result.toolInput.category === "string"
+      ? result.toolInput.category
+      : "";
+  const outputLabel = typeof result.toolOutput.label === "string"
+    ? result.toolOutput.label
+    : typeof result.toolInput.label === "string"
+      ? result.toolInput.label
+      : null;
+  const categoryLabel = CATEGORY_LABELS[category] ?? outputLabel ?? "카테고리";
+  const changedBudget = Object.prototype.hasOwnProperty.call(result.toolInput, "budget")
+    ? readWonAmount(result.toolInput.budget)
+    : null;
+  const changedSpent = Object.prototype.hasOwnProperty.call(result.toolInput, "spent")
+    ? readWonAmount(result.toolInput.spent)
+    : null;
+
+  if (changedBudget === null && changedSpent === null) return null;
+  const changeLabel = changedBudget !== null && changedSpent !== null
+    ? "예산·지출"
+    : changedSpent !== null
+      ? "지출"
+      : "예산";
+
+  return (
+    <div
+      aria-label={`${categoryLabel} ${changeLabel} 변경 결과`}
+      className="mt-3 border-t border-black/[0.06] pt-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <div className="space-y-1 text-right tabular-nums">
+          {changedBudget !== null && (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-[#928980]">변경된 예산</span>
+              <strong className="text-sm font-semibold text-[#36534E]">
+                {formatWon(changedBudget)}
+              </strong>
+            </div>
+          )}
+          {changedSpent !== null && (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-[#928980]">변경된 지출</span>
+              <strong className="text-sm font-semibold text-[#36534E]">
+                {formatWon(changedSpent)}
+              </strong>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface BudgetAllocation {
+  category: string;
+  budget: number;
+}
+
+function readBudgetAllocations(value: unknown): BudgetAllocation[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return [];
+    const allocation = candidate as Record<string, unknown>;
+    const budget = readWonAmount(allocation.budget);
+    if (typeof allocation.category !== "string" || budget === null) return [];
+    return [{ category: allocation.category, budget }];
+  });
+}
+
+function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
+  const totalBudget = readWonAmount(
+    result.toolOutput.total_budget ?? result.toolInput.total_budget,
+  );
+  const previousBudget = readWonAmount(result.toolOutput.previous_budget);
+  const outputAllocations = readBudgetAllocations(result.toolOutput.allocations);
+  const allocations = outputAllocations.length > 0
+    ? outputAllocations
+    : readBudgetAllocations(result.toolInput.allocations);
+
+  if (outputAllocations.length === 0) {
+    const remainder = readWonAmount(result.toolOutput.remainder_to_reserve) ?? 0;
+    if (remainder > 0) {
+      const reserve = allocations.find((allocation) => allocation.category === "reserve");
+      if (reserve) reserve.budget += remainder;
+      else allocations.push({ category: "reserve", budget: remainder });
+    }
+  }
+
+  if (totalBudget === null && allocations.length === 0) return null;
+
+  return (
+    <div
+      aria-label="예산안 적용 결과"
+      className="mt-3 border-t border-black/[0.06] pt-3"
+    >
+      {totalBudget !== null && (
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-sm text-[#928980]">적용된 총 예산</span>
+          <div className="flex items-center gap-2 text-right tabular-nums">
+            {previousBudget !== null && previousBudget !== totalBudget && (
+              <>
+                <span className="text-xs text-[#B5ADA3] line-through">
+                  {formatWon(previousBudget)}
+                </span>
+                <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+              </>
+            )}
+            <strong className="text-sm font-semibold text-[#36534E]">
+              {formatWon(totalBudget)}
+            </strong>
+          </div>
+        </div>
+      )}
+      {allocations.length > 0 && (
+        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {allocations.map((allocation) => (
+            <div
+              key={allocation.category}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="truncate text-[#504444]">
+                {CATEGORY_LABELS[allocation.category] ?? allocation.category}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums text-[#36534E]">
+                {formatWon(allocation.budget)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
+  const category = typeof result.toolOutput.category === "string"
+    ? result.toolOutput.category
+    : result.toolInput.category;
+  const categoryLabel = typeof category === "string"
+    ? CATEGORY_LABELS[category] ?? category
+    : "준비 항목";
+
+  if (result.toolName === "update_task_status") {
+    const status = typeof result.toolOutput.status === "string"
+      ? result.toolOutput.status
+      : result.toolInput.status;
+    const statusLabel = typeof result.toolOutput.statusLabel === "string"
+      ? result.toolOutput.statusLabel
+      : typeof status === "string"
+        ? STATUS_LABELS[status] ?? status
+        : null;
+    if (!statusLabel) return null;
+
+    return (
+      <div
+        aria-label={`${categoryLabel} 상태 변경 결과`}
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <div className="flex items-center gap-2 text-right">
+          <span className="text-xs text-[#928980]">변경된 상태</span>
+          <strong className="rounded-full bg-[#2E7D5A]/10 px-2 py-0.5 text-sm font-semibold text-[#2E7D5A]">
+            {statusLabel}
+          </strong>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.toolName === "toggle_checklist_item") {
+    const itemLabel = typeof result.toolOutput.item_label === "string"
+      ? result.toolOutput.item_label
+      : typeof result.toolInput.item_id === "string"
+        ? result.toolInput.item_id
+        : null;
+    const done = typeof result.toolOutput.done === "boolean"
+      ? result.toolOutput.done
+      : result.toolInput.done;
+    if (!itemLabel || typeof done !== "boolean") return null;
+
+    return (
+      <div
+        aria-label={`${categoryLabel} 체크리스트 변경 결과`}
+        className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
+      >
+        <div className="min-w-0">
+          <p className="text-xs text-[#928980]">{categoryLabel}</p>
+          <p className="truncate text-sm font-medium text-[#504444]">{itemLabel}</p>
+        </div>
+        <strong className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-semibold ${
+          done
+            ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
+            : "bg-black/[0.04] text-[#928980]"
+        }`}>
+          {done ? "완료" : "미완료"}
+        </strong>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
@@ -272,22 +552,29 @@ export default function ActionCard({ result }: ActionCardProps) {
   // get_wedding_info는 AI가 텍스트로 안내하므로 카드 불필요
   if (result.toolName === "get_wedding_info") return null;
 
-  // 의미 없는 결과(실패 + 메시지 없음 / 결과 텅 빔)는 카드를 그리지 않는다.
+  // 사용자에게 설명할 메시지가 없는 내부 실패만 카드를 그리지 않는다.
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
   // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
-  // 정책: 실패 + (메시지 비었거나 ⌜오류⌟·⌜실패⌟ 같은 시스템성 단어) → 안 그림.
+  // 동일 결과 반복은 ChatSidePanel에서 내용 기준으로 한 번만 표시한다.
   const msg = (result.displayMessage ?? "").trim();
-  const outputEmpty =
-    !result.toolOutput ||
-    (typeof result.toolOutput === "object" && Object.keys(result.toolOutput).length === 0);
-  if (!result.success && (msg === "" || outputEmpty)) return null;
+  if (!result.success && msg === "") return null;
 
   const icon = getIcon(result.toolName);
-  const title = getTitle(result.toolName);
+  const title = getTitle(result);
   const accentColor = getAccentColor(result.toolName);
 
-  const isBudgetTool = result.toolName === "get_budget_summary" || result.toolName === "update_budget" || result.toolName === "update_category_budget";
-  const isScheduleTool = result.toolName === "get_schedule_summary" || result.toolName === "update_task_status" || result.toolName === "toggle_checklist_item";
+  const isBudgetSummary = result.success && result.toolName === "get_budget_summary";
+  const isBudgetChange = result.success && (
+    result.toolName === "update_budget"
+    || result.toolName === "update_category_budget"
+    || result.toolName === "add_custom_category"
+  );
+  const isBudgetPlan = result.success && result.toolName === "apply_budget_plan";
+  const isScheduleSummary = result.success && result.toolName === "get_schedule_summary";
+  const isScheduleChange = result.success && (
+    result.toolName === "update_task_status"
+    || result.toolName === "toggle_checklist_item"
+  );
   const isAmoraActionTool = result.toolName === "add_amora_action" || result.toolName === "get_amora_actions" || result.toolName === "update_amora_action";
 
   return (
@@ -304,12 +591,15 @@ export default function ActionCard({ result }: ActionCardProps) {
             <XCircle className="w-4 h-4 text-red-400 ml-auto" />
           )}
         </div>
-        <p className="text-xs text-[#928980] leading-relaxed">
+        <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[#928980]">
           {result.displayMessage}
         </p>
 
-        {isBudgetTool && <BudgetMiniCard />}
-        {isScheduleTool && <ScheduleMiniCard />}
+        {isBudgetSummary && <BudgetMiniCard />}
+        {isBudgetChange && <BudgetChangeMiniCard result={result} />}
+        {isBudgetPlan && <BudgetPlanMiniCard result={result} />}
+        {isScheduleSummary && <ScheduleMiniCard />}
+        {isScheduleChange && <ScheduleChangeMiniCard result={result} />}
         {isAmoraActionTool && <ActionItemsMiniCard result={result} />}
       </div>
     </div>
