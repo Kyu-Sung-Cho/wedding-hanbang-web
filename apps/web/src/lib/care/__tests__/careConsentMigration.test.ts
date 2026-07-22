@@ -50,10 +50,8 @@ describe("explicit outbound-care consent migration", () => {
         INSERT INTO public.profiles(id, care_notifications_enabled) VALUES
           ('00000000-0000-4000-8000-000000000001', true),
           ('00000000-0000-4000-8000-000000000002', false);
-        BEGIN;
-        ${migration}
-        COMMIT;
       `);
+      await db.exec(migration);
 
       const rows = await db.query<{
         enabled: boolean;

@@ -1,3 +1,5 @@
+BEGIN;
+
 -- The application reads wedding_journeys with maybeSingle()/single() and its
 -- onboarding race recovery relies on SQLSTATE 23505. Make that data contract a
 -- database invariant without guessing which historical row should survive.
@@ -121,3 +123,5 @@ $postconditions$;
 
 COMMENT ON COLUMN public.wedding_journeys.couple_id IS
   'Exactly one durable wedding journey is allowed for each couple.';
+
+COMMIT;

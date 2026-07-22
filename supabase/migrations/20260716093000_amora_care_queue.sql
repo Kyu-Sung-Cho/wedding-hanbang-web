@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Durable, consent-fenced outbound-care scan and delivery queue.
 -- The feature remains disabled unless AMORA_CARE_OUTBOUND_ENABLED=true.
 
@@ -1579,3 +1581,5 @@ COMMENT ON TABLE public.amora_care_jobs IS
   'Durable consent-fenced care chat jobs; terminal rows retain audit keys but scrub copied message/email payloads.';
 COMMENT ON TABLE public.amora_care_deliveries IS
   'Per-member durable email deliveries with stable Resend idempotency keys; terminal rows scrub recipient PII.';
+
+COMMIT;

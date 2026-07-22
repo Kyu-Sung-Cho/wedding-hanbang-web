@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Seal the first two-person couple roster as a permanent privacy epoch.
 -- Also converge preview databases whose edited 0900/0930 migrations were
 -- already recorded before the targeted-claim and care-roster hardening landed.
@@ -398,3 +400,5 @@ BEGIN
   END IF;
 END
 $postconditions$;
+
+COMMIT;

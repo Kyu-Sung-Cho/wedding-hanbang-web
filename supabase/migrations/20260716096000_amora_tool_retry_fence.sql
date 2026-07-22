@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Amora mutating-tool retry fence
 --
 -- Exact operation replays remain safe, but a failed/reclaimed chat request must
@@ -698,3 +700,5 @@ BEGIN
   END IF;
 END;
 $postchecks$;
+
+COMMIT;

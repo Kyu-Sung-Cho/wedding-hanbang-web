@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atomic Amora daily provider-cost budget.
 --
 -- Turn counts alone do not bound spend because one turn can contain multiple
@@ -946,3 +948,5 @@ BEGIN
   END IF;
 END;
 $postchecks$;
+
+COMMIT;

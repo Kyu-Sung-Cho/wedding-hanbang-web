@@ -59,6 +59,14 @@ const validatedConstraints = [
   ["20260716111000_community_upload_attachment_lifecycle.sql", "community_upload_sessions_cleanup_claim_state"],
 ] as const;
 
+const transactionOwnedMigrations = [
+  ...readdirSync(migrationDirectory)
+    .filter((name) => /^20260716\d{6}_.+\.sql$/.test(name))
+    .filter((name) => name.slice(0, 14) >= "20260716090000")
+    .filter((name) => name.slice(0, 14) <= "20260716117000"),
+  "20260718208000_atomic_weighted_rate_limit.sql",
+].sort();
+
 function constraintDefinition(sql: string, constraintName: string): string {
   const startPattern = new RegExp(`ADD\\s+CONSTRAINT\\s+${constraintName}\\b`, "i");
   const match = startPattern.exec(sql);
@@ -75,6 +83,27 @@ function constraintDefinition(sql: string, constraintName: string): string {
 }
 
 describe("Amora production migration lock safety", () => {
+  it("owns one explicit transaction per migration artifact", () => {
+    for (const name of transactionOwnedMigrations) {
+      const sql = executableSql(readMigration(name)).trim();
+
+      expect(sql, `${name} must begin its own transaction`).toMatch(/^BEGIN\s*;/i);
+      expect(sql, `${name} must commit its own transaction`).toMatch(/COMMIT\s*;$/i);
+      expect(sql.match(/^\s*BEGIN\s*;/gim), `${name} must have one top-level BEGIN`)
+        .toHaveLength(1);
+      expect(sql.match(/^\s*COMMIT\s*;/gim), `${name} must have one top-level COMMIT`)
+        .toHaveLength(1);
+    }
+  });
+
+  it("keeps transaction-incompatible commands out of self-transactional migrations", () => {
+    const incompatible = /\b(?:CREATE(?:\s+UNIQUE)?\s+INDEX\s+CONCURRENTLY|DROP\s+INDEX\s+CONCURRENTLY|REINDEX(?:\s+\w+)?\s+CONCURRENTLY|REFRESH\s+MATERIALIZED\s+VIEW\s+CONCURRENTLY|VACUUM|CLUSTER|CREATE\s+DATABASE|DROP\s+DATABASE|ALTER\s+SYSTEM|PREPARE\s+TRANSACTION)\b/i;
+
+    for (const name of transactionOwnedMigrations) {
+      expect(executableSql(readMigration(name)), name).not.toMatch(incompatible);
+    }
+  });
+
   it("bounds every migration that performs release-time table DDL or backfill", () => {
     for (const name of boundedLockMigrations) {
       const sql = executableSql(readMigration(name));

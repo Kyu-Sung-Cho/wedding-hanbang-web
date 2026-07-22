@@ -160,11 +160,9 @@ async function createDatabase({ seedDuplicates = false } = {}) {
       ('${COUPLE_ID}', '{"studio":{"budget":1000000,"spent":100000}}'::jsonb),
       ('${OTHER_COUPLE_ID}', '{}'::jsonb);
 
-    BEGIN;
-    ${projectionMigration}
-    ${outcomeMigration}
-    COMMIT;
   `);
+  await db.exec(projectionMigration);
+  await db.exec(outcomeMigration);
   return db;
 }
 

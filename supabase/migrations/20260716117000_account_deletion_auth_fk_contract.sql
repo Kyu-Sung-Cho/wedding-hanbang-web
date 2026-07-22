@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Make the Auth deletion boundary executable for active couple/chat users.
 --
 -- The canonical 2026-02 schema created these three auth.users references with
@@ -262,3 +264,5 @@ COMMENT ON CONSTRAINT chat_messages_sender_id_fkey ON public.chat_messages IS
   'Anonymizes retained couple chat history when its sender deletes Auth.';
 COMMENT ON CONSTRAINT vendors_owner_id_fkey ON public.vendors IS
   'Blocks Auth deletion until vendor ownership and legal-retention review completes.';
+
+COMMIT;

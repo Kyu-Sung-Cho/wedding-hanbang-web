@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Replace the historical default-on care flag with provable explicit consent
 -- before re-enabling outbound delivery.
 
@@ -92,3 +94,5 @@ COMMENT ON COLUMN public.profiles.care_notifications_enabled IS
   'True only after explicit Settings opt-in for Amora outbound care.';
 COMMENT ON COLUMN public.profiles.care_notifications_consented_at IS
   'Timestamp of the latest explicit Amora outbound-care opt-in; NULL when disabled.';
+
+COMMIT;

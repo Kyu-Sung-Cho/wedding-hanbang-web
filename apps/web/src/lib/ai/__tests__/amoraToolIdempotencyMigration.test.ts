@@ -193,6 +193,11 @@ async function createDatabase({ duplicate = false } = {}) {
   return db;
 }
 
+async function applyToolMigrations(db: PGlite) {
+  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(retryFenceMigration);
+}
+
 async function setPersona(db: PGlite, role: "authenticated" | "service_role") {
   await db.exec(`SET ROLE ${role}`);
   await db.query("SELECT set_config('request.jwt.claim.role', $1, false)", [role]);
@@ -240,9 +245,8 @@ describe("Amora mutating-tool idempotency migration", () => {
       );
 
       await expect(
-        db.exec(`BEGIN;\n${retryFenceMigration}\nCOMMIT;`),
+        db.exec(retryFenceMigration),
       ).rejects.toThrow(/AMORA_TOOL_FRESHNESS_CHAT_COUPLE_FK_REQUIRED/);
-      await db.exec("ROLLBACK").catch(() => undefined);
     } finally {
       await db.close();
     }
@@ -251,7 +255,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("binds a normal chat request claim to its exact durable user message", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
 
       const claim = await db.query<{ result: Record<string, unknown> }>(
@@ -280,7 +284,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("returns a safe conflict without poisoning the ledger for an invalid user row", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       const claim = await db.query<{ result: Record<string, unknown> }>(
         "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5) AS result",
@@ -307,7 +311,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("keeps the legacy chat-claim overload but cannot mutate without a binding", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       const legacyClaim = await db.query<{ result: Record<string, unknown> }>(
         "SELECT public.claim_amora_chat_request($1,$2,$3,$4) AS result",
@@ -337,7 +341,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("never lets a system claim borrow a normal-chat user-message binding", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
 
       await expect(db.query(
@@ -359,7 +363,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("rejects a new mutation when newer shared Amora context exists", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5)",
@@ -403,7 +407,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("rejects a new mutation when the partner added newer shared context", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5)",
@@ -433,7 +437,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("does not invalidate a bound mutation for a newer direct-partner row", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5)",
@@ -706,7 +710,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("binds new mutations to attempt one and only replays exact work after reclaim", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await db.query(
         `INSERT INTO public.amora_chat_request_claims (
@@ -792,7 +796,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("allows only one partner request to acquire the same pending action", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await insertPartnerSharedMessage(db);
       await db.query(
@@ -920,7 +924,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("keeps concurrent legacy null-action exact replays request-scoped", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await db.query(
         `INSERT INTO public.amora_chat_request_claims (
@@ -962,7 +966,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("atomically conflicts concurrent partner claims with different pending-action intent", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await insertPartnerSharedMessage(db);
       await db.query(
@@ -1030,7 +1034,7 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("does not let an unauthorized or stale request poison a pending action", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
       await setPersona(db, "service_role");
       await insertPartnerSharedMessage(db);
       await db.query(
@@ -1133,8 +1137,8 @@ describe("Amora mutating-tool idempotency migration", () => {
   it("keeps all rolling-deploy claim identities after an idempotent reapply", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\n${retryFenceMigration}\nCOMMIT;`);
-      await db.exec(`BEGIN;\n${retryFenceMigration}\nCOMMIT;`);
+      await applyToolMigrations(db);
+      await db.exec(retryFenceMigration);
 
       const identities = await db.query<{
         chat_four_args: boolean;

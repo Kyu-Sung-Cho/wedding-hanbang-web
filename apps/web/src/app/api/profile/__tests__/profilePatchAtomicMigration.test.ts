@@ -129,7 +129,7 @@ async function createDatabase() {
       ('${USER_ID}', 'Old Name'),
       ('${OTHER_USER_ID}', 'Other Nickname');
   `);
-  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(migration);
   return db;
 }
 

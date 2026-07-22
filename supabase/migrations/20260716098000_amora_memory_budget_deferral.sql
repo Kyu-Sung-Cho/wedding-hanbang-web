@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Release a memory-compiler lease when the paid-call budget is unavailable.
 -- This is an upgrade migration because 0900 may already exist in preview DBs.
 
@@ -76,3 +78,5 @@ $postconditions$;
 
 COMMENT ON FUNCTION public.defer_amora_memory_job(uuid, integer, integer, text) IS
   'Service-only stale-attempt-fenced lease release for pre-generation budget/config deferral.';
+
+COMMIT;

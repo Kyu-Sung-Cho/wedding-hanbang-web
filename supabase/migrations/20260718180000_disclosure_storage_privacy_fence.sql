@@ -1,10 +1,10 @@
 BEGIN;
 
--- Supabase Storage owns both tables through supabase_storage_admin. Switch to
--- that existing owner for policy DDL instead of changing ownership, disabling
--- RLS, or granting clients any new table privilege.
+-- Supabase Storage keeps ownership through supabase_storage_admin. Hosted
+-- migrations can manage policies as postgres, but that managed role explicitly
+-- forbids assuming membership in the reserved Storage role. Preserve ownership
+-- and avoid changing RLS or granting clients any new table privilege.
 SET LOCAL lock_timeout = '5s';
-SET LOCAL ROLE supabase_storage_admin;
 
 -- A private bucket flag controls public URLs, but it does not neutralize an
 -- old permissive storage.objects policy. Keep both evidence buckets private
@@ -102,7 +102,5 @@ BEGIN
   END IF;
 END
 $disclosure_storage_privacy_postconditions$;
-
-RESET ROLE;
 
 COMMIT;

@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Converge fresh and already-applied preview care queues on humane delivery
 -- hours, a per-user/day email reservation, observable queue health, and an
 -- exact consent invariant. No pre-policy active payload may resume delivery.
@@ -715,3 +717,5 @@ BEGIN
   END IF;
 END
 $postconditions$;
+
+COMMIT;

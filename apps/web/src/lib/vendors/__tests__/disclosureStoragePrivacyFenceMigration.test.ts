@@ -85,6 +85,11 @@ async function resetRole(db: PGlite) {
 }
 
 describe("disclosure storage privacy fence migration", () => {
+  it("does not assume reserved hosted Storage role membership", () => {
+    expect(migration).not.toMatch(/\bSET\s+(?:LOCAL\s+)?ROLE\s+supabase_storage_admin\b/iu);
+    expect(migration).not.toMatch(/\bALTER\s+TABLE\s+storage\.objects\s+OWNER\s+TO\b/iu);
+  });
+
   it("overrides malicious permissive policies for disclosure evidence without regressing other buckets", async () => {
     const db = await baseline();
     try {

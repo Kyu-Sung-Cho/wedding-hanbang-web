@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Charge batched analytics and other weighted operations atomically. The
 -- existing three-argument RPC remains unchanged for rollback compatibility.
 
@@ -106,3 +108,5 @@ REVOKE ALL ON FUNCTION public.check_rate_limit_cost(TEXT, INTEGER, INTEGER, INTE
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_rate_limit_cost(TEXT, INTEGER, INTEGER, INTEGER)
   TO service_role;
+
+COMMIT;

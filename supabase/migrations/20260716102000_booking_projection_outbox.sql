@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Durable, serialized schedule/budget projection for vendor bookings.
 --
 -- The trigger records the desired projection state in the same transaction as
@@ -880,3 +882,5 @@ COMMENT ON FUNCTION public.apply_booking_progress_projection(
   uuid, uuid, text, jsonb, text, numeric, bigint, uuid
 ) IS
   'Validates a claimed generation, atomically merges/removes one booking projection, and acknowledges that claim in the same transaction.';
+
+COMMIT;

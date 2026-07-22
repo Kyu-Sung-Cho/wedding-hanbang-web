@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Prevent duplicate Amora conflict checks for the same durable shared-message set.
 --
 -- The claim is keyed by (couple_id, message_digest), so requests from either
@@ -348,3 +350,5 @@ COMMENT ON FUNCTION public.checkpoint_amora_conflict_check(uuid, text, uuid, jso
   'Stores a lease-fenced conflict-detection checkpoint for safe mediation retry.';
 COMMENT ON FUNCTION public.complete_amora_conflict_check(uuid, text, uuid, jsonb) IS
   'Completes a conflict check only for the current lease token; service role only.';
+
+COMMIT;

@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Remove expired legacy rate-limit identifiers and make expiry cleanup
 -- deterministic and bounded. New application code stores HMAC-pseudonymous
 -- subjects; active rolling-deploy buckets remain valid until their window
@@ -121,3 +123,5 @@ $$;
 ALTER FUNCTION public.check_rate_limit(TEXT, INTEGER, INTEGER) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.check_rate_limit(TEXT, INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_rate_limit(TEXT, INTEGER, INTEGER) TO service_role;
+
+COMMIT;

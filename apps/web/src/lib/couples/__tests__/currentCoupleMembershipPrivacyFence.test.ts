@@ -191,6 +191,15 @@ async function createDatabase() {
       id uuid PRIMARY KEY,
       couple_id uuid NOT NULL REFERENCES public.couples(id) ON DELETE CASCADE
     );
+    CREATE TABLE public.customer_insights (
+      id uuid PRIMARY KEY,
+      couple_id uuid REFERENCES public.couples(id) ON DELETE SET NULL
+    );
+    CREATE TABLE public.fitting_usage (
+      id uuid PRIMARY KEY,
+      user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      couple_id uuid NOT NULL REFERENCES public.couples(id) ON DELETE CASCADE
+    );
     CREATE TABLE public.invitations (
       id uuid PRIMARY KEY,
       couple_id uuid NOT NULL REFERENCES public.couples(id) ON DELETE CASCADE
@@ -227,6 +236,8 @@ async function createDatabase() {
     ALTER TABLE public.amora_memory_consents ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.amora_memory_settings ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.decision_edges ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.customer_insights ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.fitting_usage ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.invitation_photos ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.invitation_accounts ENABLE ROW LEVEL SECURITY;
@@ -310,6 +321,48 @@ async function createDatabase() {
       FOR UPDATE TO authenticated
       USING (public.is_couple_member(couple_id))
       WITH CHECK (public.is_couple_member(couple_id));
+    CREATE POLICY "Couple members can insert their insights" ON public.customer_insights
+      FOR INSERT WITH CHECK (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
+    CREATE POLICY "Couple members can read their insights" ON public.customer_insights
+      FOR SELECT USING (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
+    CREATE POLICY "Couple members can update their insights" ON public.customer_insights
+      FOR UPDATE USING (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
+    CREATE POLICY couple_can_insert_usage ON public.fitting_usage
+      FOR INSERT WITH CHECK (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
+    CREATE POLICY couple_can_update_usage ON public.fitting_usage
+      FOR UPDATE USING (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
+    CREATE POLICY couple_can_view_usage ON public.fitting_usage
+      FOR SELECT USING (
+        couple_id IN (
+          SELECT id FROM public.couples
+          WHERE bride_id = auth.uid() OR groom_id = auth.uid()
+        )
+      );
 
     GRANT SELECT ON public.couples, public.profiles, public.chat_messages,
       public.chat_summaries, public.decision_nodes, public.wedding_journeys
@@ -475,7 +528,7 @@ describe("current couple membership privacy fence", () => {
     const db = await createDatabase();
     const reverseOnlyUser = "00000000-0000-4000-8000-000000000005";
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
       await db.exec(`
         INSERT INTO auth.users(id) VALUES ('${reverseOnlyUser}');
         ALTER TABLE public.profiles
@@ -513,13 +566,13 @@ describe("current couple membership privacy fence", () => {
       expect(beforeAudit.rows[0]).toMatchObject({
         stale_bride_slots: 1,
         stale_groom_slots: 1,
-        direct_authenticated_slot_policies: 1,
+        direct_authenticated_slot_policies: 7,
         unexpected_core_authenticated_policies: 1,
         projected_ownerless_shells_requiring_seal: 2,
         projected_new_ownerless_couples: 2,
       });
 
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
 
       const couples = await db.query<{
         id: string;
@@ -623,7 +676,7 @@ describe("current couple membership privacy fence", () => {
   it("allows Auth deletion to clear one slot and resets derived couple memory", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
 
       await db.query("DELETE FROM auth.users WHERE id = $1", [CURRENT_BRIDE]);
 
@@ -683,7 +736,7 @@ describe("current couple membership privacy fence", () => {
         ALTER TABLE public.couples ENABLE TRIGGER trg_enforce_couple_roster_epoch;
       `);
 
-      await expect(db.exec(`BEGIN;\n${migration}\nCOMMIT;`)).rejects.toThrow(
+      await expect(db.exec(migration)).rejects.toThrow(
         /CURRENT_COUPLE_PRIVACY_PREEXISTING_UNSEALED_OWNERLESS_SHELL/,
       );
       await db.exec("ROLLBACK").catch(() => undefined);
@@ -705,7 +758,7 @@ describe("current couple membership privacy fence", () => {
         ALTER TABLE public.couples
           ENABLE REPLICA TRIGGER trg_guard_new_couple_membership;
       `);
-      await expect(db.exec(`BEGIN;\n${migration}\nCOMMIT;`)).rejects.toThrow(
+      await expect(db.exec(migration)).rejects.toThrow(
         /CURRENT_COUPLE_PRIVACY_REQUIRED_TRIGGER_MISSING/,
       );
       await db.exec("ROLLBACK");
@@ -727,7 +780,7 @@ describe("current couple membership privacy fence", () => {
   it("keeps the canonical shared/own-private journey and hides every stale-couple row", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
 
       await setPersona(db, "authenticated", CURRENT_BRIDE);
       const brideMessages = await db.query<{ content: string }>(
@@ -787,7 +840,7 @@ describe("current couple membership privacy fence", () => {
     const db = await createDatabase();
     const newUser = "00000000-0000-4000-8000-000000000004";
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
       await setPersona(db, "service_role");
 
       await expect(
@@ -879,7 +932,7 @@ describe("current couple membership privacy fence", () => {
   it("keeps the existing account-deletion trigger flow compatible with the deferred fence", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
       await setPersona(db, "service_role");
 
       await db.exec(`
@@ -934,7 +987,7 @@ describe("current couple membership privacy fence", () => {
   it("keeps legacy contracts self-only instead of treating customer_id as a couple id", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
       await db.exec(`
         GRANT SELECT ON public.contracts TO authenticated;
         INSERT INTO public.contracts(id, customer_id) VALUES
@@ -973,7 +1026,7 @@ describe("current couple membership privacy fence", () => {
           FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
       `);
 
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
 
       const policies = await db.query<{
         tablename: string;
@@ -1034,10 +1087,86 @@ describe("current couple membership privacy fence", () => {
     }
   }, 30_000);
 
+  it("converges hosted insight and fitting policies onto the current-membership helper", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(migration);
+
+      const policies = await db.query<{
+        tablename: string;
+        policyname: string;
+        cmd: string;
+        roles: string[];
+        qual: string | null;
+        with_check: string | null;
+      }>(`
+        SELECT tablename, policyname, cmd, roles, qual, with_check
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename IN ('customer_insights', 'fitting_usage')
+        ORDER BY tablename, policyname
+      `);
+
+      expect(policies.rows).toEqual([
+        {
+          tablename: "customer_insights",
+          policyname: "Couple members can insert their insights",
+          cmd: "INSERT",
+          roles: ["authenticated"],
+          qual: null,
+          with_check: "is_couple_member(couple_id)",
+        },
+        {
+          tablename: "customer_insights",
+          policyname: "Couple members can read their insights",
+          cmd: "SELECT",
+          roles: ["authenticated"],
+          qual: "is_couple_member(couple_id)",
+          with_check: null,
+        },
+        {
+          tablename: "customer_insights",
+          policyname: "Couple members can update their insights",
+          cmd: "UPDATE",
+          roles: ["authenticated"],
+          qual: "is_couple_member(couple_id)",
+          with_check: "is_couple_member(couple_id)",
+        },
+        {
+          tablename: "fitting_usage",
+          policyname: "couple_can_insert_usage",
+          cmd: "INSERT",
+          roles: ["authenticated"],
+          qual: null,
+          with_check: "is_couple_member(couple_id)",
+        },
+        {
+          tablename: "fitting_usage",
+          policyname: "couple_can_update_usage",
+          cmd: "UPDATE",
+          roles: ["authenticated"],
+          qual: "is_couple_member(couple_id)",
+          with_check: "is_couple_member(couple_id)",
+        },
+        {
+          tablename: "fitting_usage",
+          policyname: "couple_can_view_usage",
+          cmd: "SELECT",
+          roles: ["authenticated"],
+          qual: "is_couple_member(couple_id)",
+          with_check: null,
+        },
+      ]);
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
   it("keeps the user-specific proof service-only and installs deferred uniqueness fences", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
 
       const contract = await db.query<{
         auth_member: boolean;
@@ -1109,7 +1238,7 @@ describe("current couple membership privacy fence", () => {
     const helperPost = releasePostBlock("post_membership_1140_helpers");
     const policyPost = releasePostBlock("post_membership_1140_policies");
     try {
-      await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+      await db.exec(migration);
       await db.exec(helperPost);
       await db.exec(policyPost);
 

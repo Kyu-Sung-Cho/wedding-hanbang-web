@@ -30,7 +30,7 @@ async function createDatabase() {
 }
 
 async function applyMigration(db: PGlite) {
-  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(migration);
 }
 
 describe("wedding journey singleton migration", () => {

@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atomically settle a successful conflict-verification provider receipt and
 -- persist the bounded detection checkpoint needed to resume at mediation.
 -- Neither write may become visible without the other.
@@ -194,3 +196,5 @@ BEGIN
   END IF;
 END;
 $postcheck$;
+
+COMMIT;

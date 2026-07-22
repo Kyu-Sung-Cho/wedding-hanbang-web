@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Fail closed on the current, bilateral couple membership.
 --
 -- Historical production rows can retain bride_id/groom_id values after a
@@ -716,6 +718,38 @@ BEGIN
       WITH CHECK (public.is_couple_member(couple_id))$policy$;
   END IF;
 
+  IF to_regclass('public.customer_insights') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "Couple members can insert their insights" ON public.customer_insights';
+    EXECUTE 'DROP POLICY IF EXISTS "Couple members can read their insights" ON public.customer_insights';
+    EXECUTE 'DROP POLICY IF EXISTS "Couple members can update their insights" ON public.customer_insights';
+    EXECUTE $policy$CREATE POLICY "Couple members can insert their insights"
+      ON public.customer_insights FOR INSERT TO authenticated
+      WITH CHECK (public.is_couple_member(couple_id))$policy$;
+    EXECUTE $policy$CREATE POLICY "Couple members can read their insights"
+      ON public.customer_insights FOR SELECT TO authenticated
+      USING (public.is_couple_member(couple_id))$policy$;
+    EXECUTE $policy$CREATE POLICY "Couple members can update their insights"
+      ON public.customer_insights FOR UPDATE TO authenticated
+      USING (public.is_couple_member(couple_id))
+      WITH CHECK (public.is_couple_member(couple_id))$policy$;
+  END IF;
+
+  IF to_regclass('public.fitting_usage') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "couple_can_insert_usage" ON public.fitting_usage';
+    EXECUTE 'DROP POLICY IF EXISTS "couple_can_update_usage" ON public.fitting_usage';
+    EXECUTE 'DROP POLICY IF EXISTS "couple_can_view_usage" ON public.fitting_usage';
+    EXECUTE $policy$CREATE POLICY couple_can_insert_usage
+      ON public.fitting_usage FOR INSERT TO authenticated
+      WITH CHECK (public.is_couple_member(couple_id))$policy$;
+    EXECUTE $policy$CREATE POLICY couple_can_update_usage
+      ON public.fitting_usage FOR UPDATE TO authenticated
+      USING (public.is_couple_member(couple_id))
+      WITH CHECK (public.is_couple_member(couple_id))$policy$;
+    EXECUTE $policy$CREATE POLICY couple_can_view_usage
+      ON public.fitting_usage FOR SELECT TO authenticated
+      USING (public.is_couple_member(couple_id))$policy$;
+  END IF;
+
   IF to_regclass('public.invitations') IS NOT NULL THEN
     EXECUTE 'DROP POLICY IF EXISTS "invitations_owner" ON public.invitations';
     EXECUTE $policy$CREATE POLICY invitations_owner
@@ -1257,3 +1291,5 @@ COMMENT ON FUNCTION public.enforce_current_couple_membership_integrity() IS
   'Deferred integrity fence preventing committed profile/couple membership half-links.';
 COMMENT ON FUNCTION public.seal_ownerless_couple_membership_epoch() IS
   'Seals only a non-empty to empty roster transition so preserved historical shells cannot accept an invite-code join.';
+
+COMMIT;

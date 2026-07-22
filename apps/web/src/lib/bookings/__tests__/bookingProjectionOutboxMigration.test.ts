@@ -84,10 +84,8 @@ async function createDatabase({ existingBooking = false } = {}) {
       );
     ` : ""}
 
-    BEGIN;
-    ${migration}
-    COMMIT;
   `);
+  await db.exec(migration);
   return db;
 }
 

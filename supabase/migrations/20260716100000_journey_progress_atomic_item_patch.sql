@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Merge fields into one wedding progress item without replacing sibling fields.
 --
 -- A top-level JSONB merge replaces the complete category object. Status-only
@@ -58,3 +60,5 @@ revoke all on function public.apply_journey_progress_item_patch(uuid, text, json
 revoke all on function public.apply_journey_progress_item_patch(uuid, text, jsonb) from anon;
 revoke all on function public.apply_journey_progress_item_patch(uuid, text, jsonb) from authenticated;
 grant execute on function public.apply_journey_progress_item_patch(uuid, text, jsonb) to service_role;
+
+COMMIT;

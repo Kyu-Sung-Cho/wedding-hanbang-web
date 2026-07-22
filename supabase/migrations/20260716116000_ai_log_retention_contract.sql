@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Permanently pin the AI raw-log retention helper to the reviewed destructive
 -- contract. Applying this migration replaces metadata and executable code only;
 -- it deliberately does not invoke the function or mutate any AI-log row.
@@ -319,3 +321,5 @@ $acl_postcondition$;
 
 COMMENT ON FUNCTION public.redact_old_ai_interactions(interval) IS
   'Service-role-only raw AI payload redaction. The only accepted retention window is exactly 90 days; migrations never invoke this function.';
+
+COMMIT;

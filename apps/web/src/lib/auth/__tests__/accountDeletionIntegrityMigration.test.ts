@@ -61,8 +61,6 @@ const releasePost = projectFile(
   "supabase/release-checks/amora-engine-v2-20260716-post.sql",
 );
 const authFkInventorySql = projectFile("scripts/sql/auth-users-fk-inventory.sql");
-const accountDeletionMigrations = `${migration}\n${authFkMigration}`;
-
 function requiredBlock(sql: string, pattern: RegExp, label: string) {
   const block = sql.match(pattern)?.[0];
   if (!block) throw new Error(`missing ${label}`);
@@ -321,7 +319,8 @@ async function createBaselineDatabase() {
 async function createDatabase() {
   const db = await createBaselineDatabase();
   await installPendingAuthFks(db);
-  await db.exec(`BEGIN;\n${accountDeletionMigrations}\nCOMMIT;`);
+  await db.exec(migration);
+  await db.exec(authFkMigration);
   return db;
 }
 
@@ -474,7 +473,7 @@ describe("account deletion Auth FK integrity contract", () => {
       await expect(db.exec(authFkReleasePost)).rejects.toThrow(
         /POST_1170_AUTH_FK_CONTRACT_INVALID/,
       );
-      await db.exec(`BEGIN;\n${authFkMigration}\nCOMMIT;`);
+      await db.exec(authFkMigration);
       await expect(db.exec(authFkReleasePost)).resolves.toBeDefined();
       const column = await db.query<{ nullable: boolean }>(`
         SELECT NOT attnotnull AS nullable
@@ -514,11 +513,9 @@ describe("account deletion Auth FK integrity contract", () => {
         /POST_1170_AUTH_FK_CONTRACT_INVALID/,
       );
       await expect(
-        db.exec(`BEGIN;\n${authFkMigration}\nCOMMIT;`),
+        db.exec(authFkMigration),
       ).rejects.toThrow(/ACCOUNT_DELETE_VENDOR_REVIEW_GATE_INVALID/);
-      await db.exec("ROLLBACK").catch(() => undefined);
     } finally {
-      await db.exec("ROLLBACK").catch(() => undefined);
       await db.close();
     }
   }, 30_000);
@@ -616,9 +613,8 @@ describe("account deletion Auth FK integrity contract", () => {
   it("is safe to re-run without changing the 48-FK contract", async () => {
     const db = await createDatabase();
     try {
-      await expect(
-        db.exec(`BEGIN;\n${accountDeletionMigrations}\nCOMMIT;`),
-      ).resolves.toBeDefined();
+      await expect(db.exec(migration)).resolves.toBeDefined();
+      await expect(db.exec(authFkMigration)).resolves.toBeDefined();
       await expect(db.exec(authFkReleasePost)).resolves.toBeDefined();
       expect(await authFkInventory(db)).toHaveLength(48);
     } finally {

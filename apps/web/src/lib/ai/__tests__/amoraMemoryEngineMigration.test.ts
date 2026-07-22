@@ -189,7 +189,8 @@ describe("Amora memory engine v2 migrations", () => {
   it("applies cleanly and keeps write functions service-only", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
+      await db.exec(mediationMigration);
       await setPersona(db, "authenticated", BRIDE_ID);
 
       await expect(db.query("SELECT public.claim_amora_memory_job(300)")).rejects.toThrow(/permission denied/i);
@@ -218,7 +219,8 @@ describe("Amora memory engine v2 migrations", () => {
   it("defers a budget-blocked job without consuming an execution attempt", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\n${memoryBudgetDeferralMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
+      await db.exec(memoryBudgetDeferralMigration);
       await setPersona(db, "service_role");
       const inserted = await db.query<{ id: string }>(
         `INSERT INTO public.amora_memory_jobs(
@@ -275,7 +277,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("locks the couple roster before every member-authorized memory scope lock", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       const definitions = await db.query<{ proname: string; prosrc: string }>(`
         SELECT procedure.proname, procedure.prosrc
         FROM pg_catalog.pg_proc AS procedure
@@ -307,7 +309,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("uses one deadlock-safe lock order for every mediation proposal mutation", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       const definitions = await db.query<{ proname: string; prosrc: string }>(`
         SELECT procedure.proname, procedure.prosrc
         FROM pg_catalog.pg_proc AS procedure
@@ -369,10 +371,8 @@ describe("Amora memory engine v2 migrations", () => {
         RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
         GRANT EXECUTE ON FUNCTION public.accept_amora_mediation(uuid, uuid, uuid, text, text)
           TO service_role;
-        BEGIN;
-        ${mediationMigration}
-        COMMIT;
       `);
+      await db.exec(mediationMigration);
       const signatures = await db.query<{ legacy: string | null; strict: string | null }>(`
         SELECT
           to_regprocedure('public.accept_amora_mediation(uuid,uuid,uuid,text,text)')::text AS legacy,
@@ -389,7 +389,7 @@ describe("Amora memory engine v2 migrations", () => {
     const db = await createDatabase();
     const emptyCoupleId = "10000000-0000-4000-8000-000000000099";
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await db.query(
         "INSERT INTO public.couples(id, bride_id, groom_id) VALUES ($1, $2, NULL)",
         [emptyCoupleId, BRIDE_ID],
@@ -429,7 +429,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("claims serially and supersedes a changed semantic memory without duplicates", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         `INSERT INTO public.decision_nodes(
@@ -740,7 +740,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("stops shared-memory processing when a newly linked partner has not consented", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query("UPDATE public.couples SET groom_id = NULL WHERE id = $1", [COUPLE_ID]);
 
@@ -770,7 +770,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("rejects an automatic shared-memory write after the member roster changes", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query("UPDATE public.couples SET groom_id = NULL WHERE id = $1", [COUPLE_ID]);
       await db.query(
@@ -799,7 +799,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("rejects a source message whose sender is not a current member of the couple", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -832,7 +832,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("erases role-private derived memory before a different partner can occupy that slot", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'groom_private', $2, true)",
@@ -876,7 +876,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("purges pre-consent derived data on first activation even after an earlier opt-out", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         `INSERT INTO public.decision_nodes(
@@ -918,7 +918,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("scrubs deleted memory content and actor identifiers while retaining only a tombstone key", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -978,7 +978,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("keeps each partner's same-key memory separate and blocks cross-actor correction", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -1093,7 +1093,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("commits a compiled memory bundle, summary, and job completion in one database transaction", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -1164,7 +1164,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("atomically advances a partial cursor and reclaims the same job until its original target is complete", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -1304,7 +1304,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("fails closed instead of creating an unbounded continuation loop", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       await db.query(
         "SELECT public.set_amora_memory_consent($1, 'shared', $2, true)",
@@ -1354,7 +1354,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("upgrades legacy extracted memories so individual edit and delete remain functional", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
       await setPersona(db, "service_role");
       const legacy = await db.query<{ id: string }>(
         `INSERT INTO public.decision_nodes(
@@ -1400,7 +1400,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("requires every linked partner before recording a mediation decision", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1440,7 +1440,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("rejects mediation text that is not the exact proposal stored on the AI message", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1461,7 +1461,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("does not combine acceptances made for different versions of a mediation proposal", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1492,7 +1492,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("never reactivates an acceptance when proposal text changes away and back", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1552,7 +1552,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("keeps only the current proposal version when acceptance follows a revision", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1605,7 +1605,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("creates a new consent version when any mediation card field changes", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1646,7 +1646,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("clears pending consent on valid-to-invalid transitions and protects completed proposals", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1690,7 +1690,8 @@ describe("Amora memory engine v2 migrations", () => {
   it("rejects a mediation proposal created for a previous couple roster", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${memoryMigration}\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(memoryMigration);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1738,7 +1739,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("revokes every pending acceptance owned by the user after a proposal revision", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1797,7 +1798,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("lets one partner revoke a pending mediation acceptance but never a completed decision", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         `UPDATE public.chat_messages
@@ -1833,7 +1834,7 @@ describe("Amora memory engine v2 migrations", () => {
   it("does not turn a solo mediation click into a shared decision", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${mediationMigration}\nCOMMIT;`);
+      await db.exec(mediationMigration);
       await setPersona(db, "service_role");
       await db.query(
         "UPDATE public.couples SET groom_id = NULL WHERE id = $1",

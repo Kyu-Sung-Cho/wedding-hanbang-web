@@ -99,9 +99,9 @@ async function createDatabase(deliveryClock = "2099-07-16 10:00:00+09") {
     GRANT SELECT, INSERT ON public.chat_messages TO authenticated;
     GRANT SELECT ON public.couples TO authenticated;
     GRANT SELECT, UPDATE ON public.profiles TO authenticated;
-    BEGIN;
-    ${migration}
-    COMMIT;
+  `);
+  await db.exec(migration);
+  await db.exec(`
     CREATE OR REPLACE FUNCTION public.amora_care_delivery_clock()
     RETURNS timestamptz
     LANGUAGE sql
@@ -468,7 +468,7 @@ describe("durable Amora outbound-care queue migration", () => {
         END
         $legacy$;
       `);
-      await db.exec(`BEGIN; ${deliveryPolicyUpgrade} COMMIT;`);
+      await db.exec(deliveryPolicyUpgrade);
       const quarantined = await db.query<{
         status: string;
         content: string;

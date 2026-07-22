@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Amora memory engine v2: durable jobs, explicit user controls and semantic
 -- supersession for chat-derived memories. This is an expand-only migration.
 
@@ -1609,3 +1611,5 @@ COMMENT ON TABLE public.amora_memory_consents IS
   'Per-user explicit consent. Shared memory becomes active only after every linked partner consents.';
 COMMENT ON COLUMN public.decision_nodes.memory_key IS
   'Stable semantic key for chat-derived Amora memory; NULL for explicit product decisions.';
+
+COMMIT;

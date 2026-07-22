@@ -11,111 +11,111 @@
   "expandMigrations": [
     {
       "file": "20260716090000_amora_memory_engine_v2.sql",
-      "sha256": "b89e5ead1aae6f919d4e612a8a66be6ec3ff3d87b4905140f6c959d97f6d9147"
+      "sha256": "62b9472032148741e925bece83b2248d6fbb2fe5e114a1a28bd9bd3d1255fb4e"
     },
     {
       "file": "20260716091000_care_explicit_consent.sql",
-      "sha256": "28387b4e91d5946ff054dea74b351ba745b9610c6bdb40532af2689e3625b26e"
+      "sha256": "d35eee2e138614bbf67bd7adb3d9520a2ca0128e89f4de39f3a83d779590877c"
     },
     {
       "file": "20260716092000_amora_mediation_confirmation.sql",
-      "sha256": "768e54aa6d00866d44163b68b2db34cb67f7ef5582370f5a4f5ca074c17a23c2"
+      "sha256": "f27b09af78e0ad5836c4a58c0581306ca4f2fa02e3bfd61ab42bd41f3a06f309"
     },
     {
       "file": "20260716093000_amora_care_queue.sql",
-      "sha256": "bfd4203bff448299040bd2472a8eb1ea26140fd142550048451604bc09ed6b75"
+      "sha256": "0bfd206554c4f8db818f021b1da52e91f8f586ce4c7b9bee96650269882219c5"
     },
     {
       "file": "20260716094000_couple_roster_epoch.sql",
-      "sha256": "c801442e70ef3757240fcb5636537a89092414439f6945380aa3807363bf919f"
+      "sha256": "830aa401137250dbf6607602941999453d3330b9b28d4fe4367755d352d8490f"
     },
     {
       "file": "20260716095000_amora_care_delivery_policy.sql",
-      "sha256": "dfc13a705e3f8ebf7c7c394e8d73f3a35acf1a4606c7bfb10874998f87a2ef11"
+      "sha256": "3cbfca6d54ec01ad47cbe38bcbf447aad1bf992dffca7231024aafafb53c1ae6"
     },
     {
       "file": "20260716096000_amora_tool_retry_fence.sql",
-      "sha256": "7f1776c62d19742f1eef13f9b2b01f4093449f82bafa1b699306f33a375cdfb8"
+      "sha256": "e58e98bfc8599b5e1f5bcfea854a32485a51fa3cd1f29127a8a303e5c80552ee"
     },
     {
       "file": "20260716097000_amora_atomic_cost_budget.sql",
-      "sha256": "59cf51a3926f5f5b406f285bf2dabfe1152871f059ddeff4594bbaed994896f9"
+      "sha256": "2576a305b6d5cbb8247d03cabbf1e5a92d862a20a0a6973c6e0ef4b38ccddd33"
     },
     {
       "file": "20260716098000_amora_memory_budget_deferral.sql",
-      "sha256": "8aac4639d5507fd76f8696ebeed78d5a10305c0281a8979db802d5d7a99c24ac"
+      "sha256": "1b6e2d1fd7a222b3fda7f78a190e5dc2730e75c47eeea82497e56db5372a6d72"
     },
     {
       "file": "20260716099000_wedding_journey_singleton.sql",
-      "sha256": "f4733317cd9787589f4976d8881412cc68bc5e708ae52df3a2be78b2f7318237"
+      "sha256": "8daa79b42130f5f34ebff148cc4b1b8327602a56fcbc3ccf0c3d75ba5c6a9c8e"
     },
     {
       "file": "20260716100000_journey_progress_atomic_item_patch.sql",
-      "sha256": "4e7e24fa4e58fb0a0de5e9de9af3faae2d9a3d35f58959ff335b88fe8e923eff"
+      "sha256": "9442d3a993e97e6f1d92e6c051429b69ccfa1f9e798ca6d93b1077cf598c6637"
     },
     {
       "file": "20260716102000_booking_projection_outbox.sql",
-      "sha256": "3153d74406ac9550ad034b46d360d61bc16b66746121f0cdd3c37e822b399a0e"
+      "sha256": "b92f9574e5ffd2d95951a2c89922b739981ba62109c6e09fec075d84506033a2"
     },
     {
       "file": "20260716103000_amora_conflict_check_claim.sql",
-      "sha256": "194582918377a65800d7b9e9ae5a52212f91b594101e9317f80f8a7bc0f43988"
+      "sha256": "4579da7ee8b428142a8eabfe184e8b6a9865ba244b71aa103235f88627f6ffbf"
     },
     {
       "file": "20260716104000_profile_patch_atomic.sql",
-      "sha256": "d055e3d55e83023bc90df360b2d39a75e7c91130c504352f43d70f8c1d6fe7e8"
+      "sha256": "1c598723ba6b315868993283a358cf5fc6122ffd5471e3d28770deeb1495f3f1"
     },
     {
       "file": "20260716105000_amora_conflict_receipt_checkpoint.sql",
-      "sha256": "2e3e8961367591c3df26d54ffdc728f314358512835d39047a105a2d0516e577"
+      "sha256": "7cb40bb61b6ccc03b0e2eb21b38160635653b52bb05af7ae13eef62247d80f45"
     },
     {
       "file": "20260716106000_amora_atomic_chat_response.sql",
-      "sha256": "c0f5f0fdde64c91bbda66475a9dedd179642970f14b8f8725955b4ef059dfda6"
+      "sha256": "14bc3427edc0e314de86601ac304add4fe1d3d14c2c4ee3ead389a392b097e70"
     },
     {
       "file": "20260716107000_wedding_settings_atomic.sql",
-      "sha256": "a6d0d6376b157eddf983c45b69fc068ce3aaa1c2fecefe88c1a5086b939bf1c5"
+      "sha256": "f2ce6b1d443d036ffdfebafb25d0af7262973902d97a79567fb4057b16026975"
     },
     {
       "file": "20260716108000_community_upload_service_fence.sql",
-      "sha256": "5244a9f42cb391f7b3408dfb93eb19ef34ec754893cbc58148d6f3dad4b0e528"
+      "sha256": "a10e9f374107090ab8dc63b7a23bde7f4e5eb7b790d4e9c329c8022aa15fcd80"
     },
     {
       "file": "20260716109000_booking_outcome_atomic.sql",
-      "sha256": "960c07c4505e8f6d264726e405af2d0650d11852728fca1f1e7668fa06c2180d"
+      "sha256": "cdfdad975ee0e2d11fd43c4efa6cbc5c30537469a40a7acb45865868012c4b05"
     },
     {
       "file": "20260716110000_amora_crash_recovery_atomicity.sql",
-      "sha256": "2930ec691cc0094497bd47822eee6130aafbff3493150785abca38149b19ecb5"
+      "sha256": "f07d1aa37d500d249024469ce0d9d24589677c48f92b05926dec8cc3e426fa56"
     },
     {
       "file": "20260716111000_community_upload_attachment_lifecycle.sql",
-      "sha256": "28f5fd92e2e57c3fed735ff836e4df12a14bbb11ac816a144a85f88f0e3bcde7"
+      "sha256": "f05bc68d535581397bca0438729fb5eb53b6e1f03e9de57a92e9b0b0269ad7da"
     },
     {
       "file": "20260716112000_amora_atomic_mutation_coverage.sql",
-      "sha256": "c5b303c6765b7c9b50517c726fbedecd28b2db761ba8392788c3a9d1aed0a253"
+      "sha256": "6f43b0b53a981bff0203e333ee2f242835bd99487579d4cd1ff74323e5a02186"
     },
     {
       "file": "20260716113000_account_deletion_storage_saga.sql",
-      "sha256": "dd12da9b76a1ec45d30cf0663ec1230ca6735c70a0cc4b2885750686a6fd8252"
+      "sha256": "f85887a262961c331acd0fc222aec01785c14bfdfdb8e1c36e4d3aceb9305151"
     },
     {
       "file": "20260716114000_current_couple_membership_privacy_fence.sql",
-      "sha256": "44275de41d3d04ba3f441218932b07fe9dcc1d09db4c31603c2d7a748cfad755"
+      "sha256": "cabf4988ac7969f3084280c1cc69fce62bc22f05c371f64d98c68207b870dc2b"
     },
     {
       "file": "20260716115000_rate_limit_pseudonym_retention.sql",
-      "sha256": "d6550abaff2e9c37a960b285c1006002a4aa7b0ab6f0329deff7ab8dc2af23e7"
+      "sha256": "afc5214290cb40717a4cdeaad29b38b2598f130541ef668c5edecbc520f645e7"
     },
     {
       "file": "20260716116000_ai_log_retention_contract.sql",
-      "sha256": "a5fa2b5b0455789691c37845a74261789083b4fa6d71234c24d839c11aa0011d"
+      "sha256": "0865b9fafc48d2a26e0735b6d29df73d03f12787db54cde399c9a4eb49e168d5"
     },
     {
       "file": "20260716117000_account_deletion_auth_fk_contract.sql",
-      "sha256": "e5ca7c53e21cc98b0b11225aebe68e7582b26e07cf213a0b47cc3ab3dabe2d82"
+      "sha256": "627a9397dc69d790318f9d5d6e4c6fe69085bfcbf4a890439dced6617b3d7396"
     }
   ],
   "appliedHotfixes": [],

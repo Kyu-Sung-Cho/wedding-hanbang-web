@@ -1,3 +1,5 @@
+BEGIN;
+
 -- The app-owned session state below makes signed uploads replay-safe and gives
 -- the cleanup cron a durable orphan inventory. This migration intentionally
 -- does not mutate Supabase-owned storage.objects policies or storage.buckets.
@@ -168,3 +170,5 @@ REVOKE ALL ON FUNCTION public.claim_community_upload_session(
 GRANT EXECUTE ON FUNCTION public.claim_community_upload_session(
   uuid, uuid, uuid, timestamptz
 ) TO service_role;
+
+COMMIT;

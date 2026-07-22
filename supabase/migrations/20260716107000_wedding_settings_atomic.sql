@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Read and patch the mobile identity + wedding settings surface through one
 -- service-only database boundary. Expected old values prevent a stale device
 -- from overwriting the same field, while provided flags preserve NULL vs omit.
@@ -320,3 +322,5 @@ COMMENT ON FUNCTION public.patch_wedding_settings_atomic(
   bigint, boolean, bigint
 ) IS
   'Service-only atomic profile, community nickname, and changed wedding journey patch with optimistic field fences.';
+
+COMMIT;

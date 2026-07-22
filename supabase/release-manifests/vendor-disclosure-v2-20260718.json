@@ -4,14 +4,14 @@
   "status": "deployment_blocked",
   "predecessorManifest": {
     "file": "supabase/release-manifests/amora-engine-v2-20260716.json",
-    "sha256": "d31846bca3f3973870b5f48755a488adf578f178ee3c6fc55254d68393efd0d9"
+    "sha256": "a17c37ce829a302d5e00945af3269fc227a30bd6ac7791ff8ea2d4103bf54a33"
   },
   "requiredRemoteHead": "20260716117000",
   "migrationFloor": "20260718120000",
   "expandMigrations": [
     {
       "file": "20260718120000_vendor_public_column_privilege_hotfix.sql",
-      "sha256": "1e68735a532f1455bd4e5bd7b761369701ef9e0de0d8101eaec330b7192dc657"
+      "sha256": "0fefb5c6cf3a44c14923a71d78431cf92d082b0bb7b4c8e86eb9d22bf3c069e1"
     },
     {
       "file": "20260718130000_vendor_disclosure_foundation.sql",
@@ -35,7 +35,7 @@
     },
     {
       "file": "20260718180000_disclosure_storage_privacy_fence.sql",
-      "sha256": "2f143cdd041362802ea36697f65373a7b5f92a483cc5916cdbc32cbae4f1263e"
+      "sha256": "94dc7a16e3ca122c09d92d81c912ad17c991bbb7ab5cefac3093618fabfa24f5"
     },
     {
       "file": "20260718190000_price_consumer_contract.sql",
@@ -75,7 +75,7 @@
     },
     {
       "file": "20260718208000_atomic_weighted_rate_limit.sql",
-      "sha256": "f02cf92a2f6bc793a72e5d18d3cc39221a0edd93bf6f69967ee713d18145233a"
+      "sha256": "b5d95edfc33c1ec476fdcd1660643193e77278662f483a104548ae4dbab4113f"
     },
     {
       "file": "20260718209000_price_combo_direct_write_fence.sql",

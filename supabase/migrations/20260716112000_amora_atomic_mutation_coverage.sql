@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Complete the crash-safe Amora mutation dispatcher.
 --
 -- The 1100 dispatcher remains as a private implementation for its already
@@ -1490,3 +1492,5 @@ BEGIN
   END IF;
 END;
 $postchecks$;
+
+COMMIT;

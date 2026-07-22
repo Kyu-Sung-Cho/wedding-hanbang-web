@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Bind sanitized community uploads to their durable consumer in the same DB
 -- transaction that creates/updates that consumer. Signed-token replay cleanup
 -- and completed-unattached deletion each have separate, exact checkpoints.
@@ -537,3 +539,5 @@ COMMENT ON FUNCTION public.checkpoint_community_upload_token_cleanup(uuid, text)
 COMMENT ON FUNCTION public.claim_unattached_community_upload_sessions(
   uuid, timestamptz, timestamptz, integer
 ) IS 'Leases old completed-unattached or token-cleaned terminal public paths for race-free service cleanup.';
+
+COMMIT;

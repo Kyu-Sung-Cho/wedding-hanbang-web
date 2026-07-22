@@ -75,8 +75,8 @@ async function database() {
       ('community-media-staging', false, 6 * 1024 * 1024,
         ARRAY['image/jpeg','image/png','image/gif','image/webp']);
   `);
-  await db.exec(`BEGIN;\n${serviceFence}\nCOMMIT;`);
-  await db.exec(`BEGIN;\n${lifecycle}\nCOMMIT;`);
+  await db.exec(serviceFence);
+  await db.exec(lifecycle);
   return db;
 }
 

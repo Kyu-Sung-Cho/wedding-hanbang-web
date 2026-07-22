@@ -120,7 +120,8 @@ async function createDatabase() {
       '${COUPLE_ID}', '2027-05-01', '기존 예식장', 30000000
     );
   `);
-  await db.exec(`BEGIN;\n${profileMigration}\n${settingsMigration}\nCOMMIT;`);
+  await db.exec(profileMigration);
+  await db.exec(settingsMigration);
   return db;
 }
 

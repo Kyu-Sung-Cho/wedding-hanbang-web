@@ -237,6 +237,8 @@ BEGIN
       ('payments', '업체: 본인 결제 조회',
         $$public.is_vendor_owner(vendor_id)$$, NULL),
       ('settlements', '업체: 본인 정산 조회',
+        $$public.is_vendor_owner(vendor_id)$$, NULL),
+      ('vendor_settlements', 'vendor_settlements_select',
         $$public.is_vendor_owner(vendor_id)$$, NULL)
     ) AS rewrite(
       table_name,

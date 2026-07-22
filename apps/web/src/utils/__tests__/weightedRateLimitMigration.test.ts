@@ -26,9 +26,9 @@ describe("atomic weighted rate-limit migration", () => {
           updated_at timestamptz NOT NULL DEFAULT now()
         );
         ALTER TABLE public.rate_limit_buckets ENABLE ROW LEVEL SECURITY;
-        BEGIN;
-        ${migration}
-        COMMIT;
+      `);
+      await db.exec(migration);
+      await db.exec(`
         SET ROLE service_role;
       `);
       const key = `events:vendor:hmac-sha256:${"a".repeat(64)}`;

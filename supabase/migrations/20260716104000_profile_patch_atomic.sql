@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Commit profile, consent, and optional default community nickname changes as
 -- one service-only transaction. The API must never compose these writes.
 
@@ -264,3 +266,5 @@ COMMENT ON FUNCTION public.patch_profile_atomic(
   uuid, text, text, boolean, boolean, boolean, text, boolean, boolean
 ) IS
   'Service-only atomic profile, consent, and optional community nickname patch.';
+
+COMMIT;

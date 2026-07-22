@@ -247,6 +247,21 @@ describe("vendor disclosure foundation migration", () => {
         GRANT SELECT, INSERT, UPDATE, DELETE
           ON public.vendor_products TO anon, authenticated;
 
+        CREATE TABLE public.vendor_settlements (
+          id uuid PRIMARY KEY,
+          vendor_id uuid NOT NULL REFERENCES public.vendors(id),
+          amount_krw integer NOT NULL
+        );
+        ALTER TABLE public.vendor_settlements ENABLE ROW LEVEL SECURITY;
+        GRANT SELECT ON public.vendor_settlements TO authenticated;
+        CREATE POLICY vendor_settlements_select
+          ON public.vendor_settlements FOR SELECT
+          USING (vendor_id IN (
+            SELECT vendors.id
+            FROM public.vendors
+            WHERE vendors.owner_id = auth.uid()
+          ));
+
         CREATE POLICY "공개: 활성 상품 조회"
           ON public.vendor_products FOR SELECT
           USING (
@@ -351,6 +366,18 @@ describe("vendor disclosure foundation migration", () => {
             '40100000-0000-4000-8000-000000000003',
             'Other pending product'
           );
+        INSERT INTO public.vendor_settlements (id, vendor_id, amount_krw)
+        VALUES
+          (
+            '40300000-0000-4000-8000-000000000001',
+            '40100000-0000-4000-8000-000000000002',
+            100000
+          ),
+          (
+            '40300000-0000-4000-8000-000000000002',
+            '40100000-0000-4000-8000-000000000003',
+            200000
+          );
       `);
 
       await db.exec(publicColumnPrivilegeHotfix);
@@ -404,6 +431,10 @@ describe("vendor disclosure foundation migration", () => {
         "Owner pending product",
         "Public product",
       ]);
+      const ownerSettlements = await db.query<{ amount_krw: number }>(`
+        SELECT amount_krw FROM public.vendor_settlements ORDER BY amount_krw
+      `);
+      expect(ownerSettlements.rows).toEqual([{ amount_krw: 100000 }]);
       await db.exec(`
         INSERT INTO public.vendor_products (id, vendor_id, name)
         VALUES (

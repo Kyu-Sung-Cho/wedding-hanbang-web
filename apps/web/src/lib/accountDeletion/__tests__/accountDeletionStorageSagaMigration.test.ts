@@ -105,7 +105,7 @@ async function database() {
       '${STAGING_PATH}', '2019-12-31T23:50:00Z'
     );
   `);
-  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(migration);
   return db;
 }
 

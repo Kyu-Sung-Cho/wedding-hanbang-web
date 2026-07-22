@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Two-sided confirmation for Amora mediation proposals. A proposal becomes a
 -- durable shared decision only after every currently linked partner accepts.
 
@@ -649,3 +651,5 @@ CREATE TRIGGER trg_reset_amora_mediation_after_membership_change
     OR OLD.groom_id IS DISTINCT FROM NEW.groom_id
   )
   EXECUTE FUNCTION public.reset_amora_mediation_after_membership_change();
+
+COMMIT;

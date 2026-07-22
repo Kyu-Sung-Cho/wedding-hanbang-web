@@ -41,7 +41,7 @@ async function createDatabase() {
       ('${OUTSIDER_ID}', NULL);
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
   `);
-  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(migration);
   await db.exec("SET ROLE service_role");
   await db.query("SELECT set_config('request.jwt.claim.role', 'service_role', false)");
   return db;

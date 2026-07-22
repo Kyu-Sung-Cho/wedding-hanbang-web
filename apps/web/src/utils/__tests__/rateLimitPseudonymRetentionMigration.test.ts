@@ -38,10 +38,8 @@ describe("rate-limit pseudonym retention migration", () => {
         INSERT INTO public.rate_limit_buckets(key, count, reset_at) VALUES
           ('chat:00000000-0000-4000-8000-000000000001', 1, now() - interval '1 minute'),
           ('signup:203.0.113.10', 1, now() + interval '10 minutes');
-        BEGIN;
-        ${migration}
-        COMMIT;
       `);
+      await db.exec(migration);
 
       const afterMigration = await db.query<{ key: string }>(
         "SELECT key FROM public.rate_limit_buckets ORDER BY key",

@@ -220,7 +220,7 @@ async function createDatabase(variant: FixtureVariant) {
 }
 
 async function applyMigration(db: PGlite) {
-  await db.exec(`BEGIN;\n${migration}\nCOMMIT;`);
+  await db.exec(migration);
 }
 
 async function asService(db: PGlite) {

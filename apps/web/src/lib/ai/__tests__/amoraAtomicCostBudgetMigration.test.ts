@@ -81,7 +81,8 @@ describe("Amora atomic daily cost budget migration", () => {
   it("settles one provider receipt from its maximum reservation to actual usage", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${baseMigration}\n${budgetMigration}\nCOMMIT;`);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
       await setPersona(db, "service_role");
 
       const prepared = await db.query<{
@@ -174,7 +175,8 @@ describe("Amora atomic daily cost budget migration", () => {
   it("does not admit or charge the same provider receipt twice", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${baseMigration}\n${budgetMigration}\nCOMMIT;`);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
       await setPersona(db, "service_role");
 
       const prepare = async () => db.query<{
@@ -234,7 +236,8 @@ describe("Amora atomic daily cost budget migration", () => {
   it("admits only valid source and phase pairs for conflict-check receipts", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${baseMigration}\n${budgetMigration}\nCOMMIT;`);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
       await setPersona(db, "service_role");
 
       const valid = await db.query<{ receipt_status: string }>(`
@@ -262,7 +265,8 @@ describe("Amora atomic daily cost budget migration", () => {
   it("refunds a proven pre-provider failure and fences its stale finalizer on retry", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${baseMigration}\n${budgetMigration}\nCOMMIT;`);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
       await setPersona(db, "service_role");
 
       const prepare = async () => db.query<{
@@ -369,11 +373,9 @@ describe("Amora atomic daily cost budget migration", () => {
           99.00,
           '{}'::jsonb
         );
-        BEGIN;
-        ${baseMigration}
-        ${budgetMigration}
-        COMMIT;
       `);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
       await setPersona(db, "service_role");
 
       const first = await db.query<{ allowed: boolean; reason: string | null }>(
@@ -413,7 +415,8 @@ describe("Amora atomic daily cost budget migration", () => {
   it("keeps both signatures service-only and preserves rolling-deploy compatibility", async () => {
     const db = await createDatabase();
     try {
-      await db.exec(`BEGIN;\n${baseMigration}\n${budgetMigration}\nCOMMIT;`);
+      await db.exec(baseMigration);
+      await db.exec(budgetMigration);
 
       await setPersona(db, "authenticated");
       await expect(

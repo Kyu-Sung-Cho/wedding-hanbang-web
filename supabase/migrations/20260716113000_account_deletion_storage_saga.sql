@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Durable, retryable account-deletion boundary for community media and
 -- manually reviewed chat attachments.
 -- Storage is external to the Auth/database transaction, so Auth deletion may
@@ -870,3 +872,5 @@ COMMENT ON FUNCTION public.account_deletion_storage_writes_allowed() IS
   'Authenticated Storage write predicate serialized against account deletion intake by the same advisory lock.';
 COMMENT ON FUNCTION public.production_storage_writes_allowed() IS
   'Fail-closed Storage RLS bridge: false while any temporary production database write-fence artifact remains.';
+
+COMMIT;

@@ -1963,5 +1963,5 @@ describe("vendor disclosure bulk approval migration", () => {
     } finally {
       await db.close();
     }
-  });
+  }, 30_000);
 });

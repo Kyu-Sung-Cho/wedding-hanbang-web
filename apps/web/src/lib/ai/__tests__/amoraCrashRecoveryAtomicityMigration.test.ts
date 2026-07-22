@@ -129,12 +129,10 @@ async function createDatabase() {
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
     GRANT EXECUTE ON FUNCTION auth.role() TO PUBLIC;
     GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
-    BEGIN;
-    ${reserveBase}
-    ${costBudget}
-    ${crashRecovery}
-    COMMIT;
   `);
+  await db.exec(reserveBase);
+  await db.exec(costBudget);
+  await db.exec(crashRecovery);
   await db.exec("SET ROLE service_role");
   await db.query(
     "SELECT set_config('request.jwt.claim.role', 'service_role', false)",

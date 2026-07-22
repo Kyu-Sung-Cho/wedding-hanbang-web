@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atomic, idempotent booking outcome completion.
 --
 -- The previous HTTP flow updated the booking, review, and decision node in
@@ -311,3 +313,5 @@ COMMENT ON FUNCTION public.complete_vendor_booking_outcome(
   uuid, uuid, numeric, numeric, integer, text, boolean
 ) IS
   'Atomically completes an owned booking, upserts its single review and durable decision, and lets the booking trigger enqueue the exact projection state.';
+
+COMMIT;

@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Amora crash recovery and atomic mutating-tool commit boundary.
 --
 -- A non-terminal OpenAI response is useful only when its exact replayable
@@ -1077,3 +1079,5 @@ BEGIN
   END IF;
 END;
 $journal_postchecks$;
+
+COMMIT;

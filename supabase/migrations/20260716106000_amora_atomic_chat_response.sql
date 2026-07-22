@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Commit a terminal Amora response as one database fact: the paid-provider
 -- receipt settlement, the idempotent assistant message, and the durable chat
 -- request completion either all become visible or none do. Conversation text
@@ -522,3 +524,5 @@ BEGIN
   END IF;
 END;
 $postcheck$;
+
+COMMIT;
