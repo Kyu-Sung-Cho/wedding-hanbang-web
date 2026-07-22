@@ -989,7 +989,7 @@ async function seedNewerCompleteLocalRun(db: PGlite) {
   `);
 }
 
-describe("vendor disclosure bulk approval migration", () => {
+describe("vendor disclosure bulk approval migration", { timeout: 30_000 }, () => {
   it("blocks direct pending KCA inserts even when a caller spoofs the active-run marker", async () => {
     const db = await PGlite.create();
     try {
@@ -1963,5 +1963,5 @@ describe("vendor disclosure bulk approval migration", () => {
     } finally {
       await db.close();
     }
-  }, 30_000);
+  });
 });
