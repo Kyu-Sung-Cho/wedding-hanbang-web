@@ -886,6 +886,8 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         query: {
           type: "string",
           description: "검색어. 위치+종류를 포함하세요. 예: '강남역 근처 한식 레스토랑', '식사동 상견례 맛집', '서울 강남구 고급 한정식'",
+          minLength: 2,
+          maxLength: 120,
         },
       },
       required: ["query"],

@@ -45,6 +45,8 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://hanbang.ai
           ADMIN_PASSWORD: placeholder
           DECART_API_KEY: placeholder
+          NAVER_API_HUB_CLIENT_ID: placeholder
+          NAVER_API_HUB_CLIENT_SECRET: placeholder
           NAVER_CLIENT_ID: placeholder
           NAVER_CLIENT_SECRET: placeholder
 

@@ -22,6 +22,10 @@ import type {
 } from "@/types/database.types";
 import type { SSEEvent, WeddingContext } from "@/types/chat.types";
 import { determineStage } from "@/lib/ai/stage-router";
+import {
+  EPHEMERAL_PLACE_SEARCH_TOOL,
+  getPersistableToolResults,
+} from "@/lib/ai/placeSearchResultPolicy";
 import type { AmoraActionItem } from "@/lib/amora/actions";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
@@ -563,13 +567,20 @@ function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
   const rawVisibility = row.visibility;
   const visibility: ChatMessage["visibility"] =
     rawVisibility === "bride_private" || rawVisibility === "groom_private" ? rawVisibility : "shared";
+  const rawMetadata = (row.metadata as ChatMessageMetadata) ?? null;
+  const metadata = rawMetadata ? { ...rawMetadata } : null;
+  if (metadata?.toolResults) {
+    const persistableResults = getPersistableToolResults(metadata.toolResults);
+    if (persistableResults.length > 0) metadata.toolResults = persistableResults;
+    else delete metadata.toolResults;
+  }
   return {
     id: row.id as string,
     couple_id: row.couple_id as string,
     sender_id: (row.sender_id as string) ?? null,
     sender_role: (row.sender_type as MessageSenderRole) ?? (row.sender_role as MessageSenderRole) ?? "ai",
     content: row.content as string,
-    metadata: (row.metadata as ChatMessageMetadata) ?? null,
+    metadata,
     visibility,
     created_at: row.created_at as string,
   };
@@ -607,7 +618,15 @@ async function saveAiMessage(
     };
     set((s) => {
       const exists = s.messages.some((m) => m.id === serverMessageId);
-      if (exists) return s;
+      if (exists) {
+        return {
+          messages: s.messages.map((message) =>
+            message.id === serverMessageId
+              ? { ...message, content: fullContent, metadata: aiMetadata }
+              : message
+          ),
+        };
+      }
       return { messages: [...s.messages, localMsg] };
     });
     return;
@@ -977,8 +996,25 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
       }
 
-      if (fullContent) {
-        const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
+      const completedToolResults = get().streamingToolResults;
+      if (fullContent || completedToolResults.length > 0) {
+        const completedMetadata = finalMetadata as ChatMessageMetadata | null;
+        const ephemeralPlaceResults = completedToolResults.filter(
+          (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
+        );
+        const aiMetadata: ChatMessageMetadata = {
+          ...(completedMetadata ?? {}),
+          ...(ephemeralPlaceResults.length > 0
+            ? {
+                toolResults: [
+                  ...((completedMetadata?.toolResults ?? []).filter(
+                    (result) => result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL
+                  )),
+                  ...ephemeralPlaceResults,
+                ],
+              }
+            : {}),
+        };
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo, visibility: finalVisibility });
       }
 

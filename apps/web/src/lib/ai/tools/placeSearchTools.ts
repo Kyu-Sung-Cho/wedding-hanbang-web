@@ -1,5 +1,47 @@
 import type { ToolExecutionResult } from "@/types/database.types";
 
+type NaverSearchKind = "local" | "image";
+
+interface NaverSearchConfig {
+  provider: "api_hub";
+  baseUrl: string;
+  headers: Record<string, string>;
+}
+
+interface PlaceSearchResult {
+  id: string;
+  name: string;
+  address: string;
+  category: string;
+  categoryFull: string;
+  cuisineType: string;
+  description: string | null;
+  telephone: string | null;
+  priceRange: string | null;
+  hasPrivateRoom: boolean;
+  searchUrl: string;
+  mapsUrl: string;
+  blogSearchUrl: string;
+  blogReviewCount: number;
+  blogSnippet: string | null;
+  imageUrl: string | null;
+  imageSourceUrl: string | null;
+  imageTitle: string | null;
+  link: string | null;
+  mapx: string | null;
+  mapy: string | null;
+}
+
+class NaverSearchError extends Error {
+  constructor(
+    readonly kind: NaverSearchKind,
+    readonly status: number
+  ) {
+    super(`Naver ${kind} search failed with status ${status}`);
+    this.name = "NaverSearchError";
+  }
+}
+
 function stripHtmlTags(html: string): string {
   return html
     .replace(/<[^>]*>/g, "")
@@ -12,48 +54,95 @@ function stripHtmlTags(html: string): string {
 }
 
 function parseCategory(raw: string): { main: string; sub: string | null; full: string } {
-  const parts = raw.split(">").map((part) => part.trim());
+  const parts = raw.split(">").map((part) => part.trim()).filter(Boolean);
   if (parts.length >= 3) return { main: parts[1], sub: parts[2], full: raw };
   if (parts.length === 2) return { main: parts[1], sub: null, full: raw };
-  return { main: parts[0], sub: null, full: raw };
+  return { main: parts[0] ?? "", sub: null, full: raw };
 }
 
-function extractPriceRange(texts: string[]): string | null {
-  const combined = texts.join(" ");
-  const perPersonPatterns = [
-    /인당\s*(\d[\d,]*)\s*원/,
-    /1인\s*(\d[\d,]*)\s*원/,
-    /인당\s*(\d+)\s*만\s*원?/,
-    /1인\s*(\d+)\s*만\s*원?/,
-    /인당\s*약?\s*(\d+)\s*만/,
-  ];
-  for (const pattern of perPersonPatterns) {
-    const match = combined.match(pattern);
-    if (match) {
-      const raw = match[1].replace(/,/g, "");
-      const num = parseInt(raw, 10);
-      if (num >= 10000) return `인당 약 ${(num / 10000).toFixed(0)}만원`;
-      if (num > 0 && num <= 100) return `인당 약 ${num}만원`;
-      if (num > 100) return `인당 약 ${num.toLocaleString()}원`;
-    }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringField(record: Record<string, unknown>, key: string): string {
+  return typeof record[key] === "string" ? record[key].trim() : "";
+}
+
+function recordItems(value: unknown): Record<string, unknown>[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return [];
+  return value.items.filter(isRecord);
+}
+
+function safeHttpsUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function safePstaticImageUrl(value: unknown): string | null {
+  const safeUrl = safeHttpsUrl(value);
+  if (!safeUrl) return null;
+  const hostname = new URL(safeUrl).hostname.toLowerCase();
+  return hostname.endsWith(".pstatic.net") ? safeUrl : null;
+}
+
+function normalizePlaceIdentity(value: string): string {
+  return stripHtmlTags(value)
+    .normalize("NFKC")
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function imageMatchesPlace(
+  placeName: string,
+  imageItem: Record<string, unknown>
+): boolean {
+  const placeIdentity = normalizePlaceIdentity(placeName);
+  if ([...placeIdentity].length < 3) return false;
+  const imageIdentity = normalizePlaceIdentity(stringField(imageItem, "title"));
+  return imageIdentity.includes(placeIdentity);
+}
+
+function readNaverSearchConfig(): NaverSearchConfig | null {
+  const hubClientId = process.env.NAVER_API_HUB_CLIENT_ID?.trim();
+  const hubClientSecret = process.env.NAVER_API_HUB_CLIENT_SECRET?.trim();
+  if (hubClientId && hubClientSecret) {
+    return {
+      provider: "api_hub",
+      baseUrl: "https://naverapihub.apigw.ntruss.com",
+      headers: {
+        "X-NCP-APIGW-API-KEY-ID": hubClientId,
+        "X-NCP-APIGW-API-KEY": hubClientSecret,
+      },
+    };
   }
 
-  const rangeMatch = combined.match(/(\d+)\s*[~\-]\s*(\d+)\s*만\s*원/);
-  if (rangeMatch) {
-    return `인당 ${rangeMatch[1]}~${rangeMatch[2]}만원`;
-  }
-
-  const courseMatch = combined.match(/코스[요리]?\s*(\d+)\s*만\s*원?/);
-  if (courseMatch) {
-    return `코스 ${courseMatch[1]}만원`;
-  }
   return null;
 }
 
-function detectPrivateRoom(texts: string[]): boolean {
-  const combined = texts.join(" ").toLowerCase();
-  const roomKeywords = ["룸", "개별룸", "프라이빗", "private", "개인실", "독립공간", "단체석", "별실", "개인공간", "단독룸"];
-  return roomKeywords.some((keyword) => combined.includes(keyword));
+function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
+  return {
+    searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
+    mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(query)}`,
+  };
+}
+
+function buildNaverSearchUrl(
+  config: NaverSearchConfig,
+  kind: NaverSearchKind,
+  params: Record<string, string>
+): string {
+  const path = `/search/v1/${kind}`;
+  const url = new URL(path, config.baseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
 }
 
 function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): Promise<Response> {
@@ -62,139 +151,183 @@ function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 4000): 
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
+async function fetchNaverSearch(
+  config: NaverSearchConfig,
+  kind: NaverSearchKind,
+  params: Record<string, string>,
+  timeoutMs: number
+): Promise<unknown> {
+  const response = await fetchWithTimeout(
+    buildNaverSearchUrl(config, kind, params),
+    { headers: config.headers },
+    timeoutMs
+  );
+  if (!response.ok) throw new NaverSearchError(kind, response.status);
+  return response.json();
+}
+
 export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
-  const query = input.query as string;
-  const clientId = process.env.NAVER_CLIENT_ID ?? process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
+  const query = typeof input.query === "string" ? input.query.trim() : "";
+  if (!query) {
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: {},
+      toolOutput: { places: [], query, error: "invalid_query" },
+      success: false,
+      displayMessage: "검색할 지역과 장소를 알려주세요.",
+    };
+  }
+
+  const config = readNaverSearchConfig();
+  if (!config) {
+    return {
+      toolName: "search_nearby_places",
+      toolInput: input,
+      toolOutput: {
+        places: [],
+        query,
+        error: "naver_api_not_configured",
+        providerUnavailable: true,
+        handoff: buildNaverHandoff(query),
+      },
       success: false,
       displayMessage: "네이버 API 키가 설정되지 않았습니다.",
     };
   }
 
-  const naverHeaders = {
-    "X-Naver-Client-Id": clientId,
-    "X-Naver-Client-Secret": clientSecret,
-  };
-
   try {
-    const localResponse = await fetchWithTimeout(
-      `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=5&sort=comment`,
-      { headers: naverHeaders },
+    const localData = await fetchNaverSearch(
+      config,
+      "local",
+      { query, display: "5", start: "1", sort: "comment" },
       5000
     );
-
-    if (!localResponse.ok) {
-      const errText = await localResponse.text();
-      throw new Error(`Naver API error: ${localResponse.status} ${errText}`);
-    }
-
-    const localData = await localResponse.json();
-    const items = localData.items || [];
+    const items = recordItems(localData).slice(0, 5);
 
     if (items.length === 0) {
       return {
         toolName: "search_nearby_places",
         toolInput: input,
-        toolOutput: { places: [], query },
+        toolOutput: {
+          places: [],
+          query,
+          provider: config.provider,
+          providerUnavailable: false,
+        },
         success: true,
         displayMessage: `'${query}' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.`,
       };
     }
 
-    const basePlaces = items.map(
-      (item: {
-        title: string;
-        link: string;
-        category: string;
-        description: string;
-        telephone: string;
-        address: string;
-        roadAddress: string;
-        mapx: string;
-        mapy: string;
-      }, idx: number) => {
-        const name = stripHtmlTags(item.title);
-        const roadAddr = item.roadAddress || item.address;
-        const category = parseCategory(item.category);
-        const description = stripHtmlTags(item.description || "");
-        const cuisineType = category.main;
-        const mapsUrl = `https://map.naver.com/v5/search/${encodeURIComponent(name)}`;
-        const blogSearchUrl = `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(name + " " + (category.sub || category.main) + " 후기")}`;
+    const basePlaces: PlaceSearchResult[] = items.map((item, idx) => {
+      const name = stripHtmlTags(stringField(item, "title"));
+      const roadAddress = stringField(item, "roadAddress");
+      const address = roadAddress || stringField(item, "address");
+      const category = parseCategory(stringField(item, "category"));
+      const description = stripHtmlTags(stringField(item, "description"));
+      const searchTerm = [name, address].filter(Boolean).join(" ");
 
-        return {
-          id: `naver-${idx}`,
-          name,
-          address: roadAddr,
-          category: category.sub || category.main,
-          categoryFull: category.full,
-          cuisineType,
-          description: description || null,
-          telephone: item.telephone || null,
-          priceRange: null as string | null,
-          hasPrivateRoom: false,
-          mapsUrl,
-          blogSearchUrl,
-          blogReviewCount: 0,
-          blogSnippet: null as string | null,
-          link: item.link || null,
-        };
-      }
-    );
+      return {
+        id: `naver-${idx}`,
+        name,
+        address,
+        category: category.sub || category.main,
+        categoryFull: category.full,
+        cuisineType: category.main,
+        description: description || null,
+        telephone: stringField(item, "telephone") || null,
+        priceRange: null,
+        hasPrivateRoom: false,
+        searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(searchTerm)}`,
+        mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(searchTerm)}`,
+        blogSearchUrl: `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(`${searchTerm} 후기`)}`,
+        blogReviewCount: 0,
+        blogSnippet: null,
+        imageUrl: null,
+        imageSourceUrl: null,
+        imageTitle: null,
+        link: safeHttpsUrl(item.link),
+        mapx: stringField(item, "mapx") || null,
+        mapy: stringField(item, "mapy") || null,
+      };
+    });
 
-    const blogResults = await Promise.allSettled(
-      basePlaces.map(async (place: { name: string; address: string }) => {
-        const blogResponse = await fetchWithTimeout(
-          `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(`"${place.name}" 후기`)}&display=3&sort=sim`,
-          { headers: naverHeaders },
+    const imageResults = await Promise.allSettled(
+      basePlaces.map((place) => {
+        const placeQuery = [place.name, place.address].filter(Boolean).join(" ");
+        return fetchNaverSearch(
+          config,
+          "image",
+          { query: placeQuery, display: "3", start: "1", sort: "sim", filter: "large" },
           3000
         );
-        if (!blogResponse.ok) return null;
-        return await blogResponse.json();
       })
     );
 
-    const places = basePlaces.map((place: typeof basePlaces[number], idx: number) => {
-      const blogResult = blogResults[idx];
-      if (blogResult.status === "fulfilled" && blogResult.value) {
-        const blogData = blogResult.value;
-        place.blogReviewCount = blogData.total || 0;
-        const blogItems = blogData.items || [];
-        const allSnippets: string[] = blogItems.map(
-          (blogItem: { description: string }) => stripHtmlTags(blogItem.description || "")
+    const warnings = new Set<string>();
+    const places = basePlaces.map((place, idx) => {
+      const imageResult = imageResults[idx];
+      const nextPlace = { ...place };
+
+      if (imageResult.status === "fulfilled") {
+        const imageItems = recordItems(imageResult.value);
+        const selectedImage = imageItems.find((imageItem) =>
+          imageMatchesPlace(place.name, imageItem)
+          && Boolean(safePstaticImageUrl(imageItem.thumbnail))
         );
-        if (allSnippets.length > 0) {
-          place.blogSnippet = allSnippets[0].slice(0, 100);
+        if (selectedImage) {
+          nextPlace.imageUrl = safePstaticImageUrl(selectedImage.thumbnail);
+          nextPlace.imageTitle = stripHtmlTags(stringField(selectedImage, "title")) || null;
+        } else if (imageItems.length > 0) {
+          warnings.add("image_identity_unverified");
         }
-        place.priceRange = extractPriceRange(allSnippets);
-        place.hasPrivateRoom = detectPrivateRoom(allSnippets);
+      } else {
+        warnings.add("image_enrichment_failed");
       }
-      return place;
+
+      return nextPlace;
     });
 
+    const warningList = [...warnings];
+    const partialMessage = warningList.length > 0
+      ? " 일부 사진 정보는 불러오지 못했습니다."
+      : "";
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: { places, query },
+      toolOutput: {
+        places,
+        query,
+        provider: config.provider,
+        providerUnavailable: false,
+        partial: warningList.length > 0,
+        warnings: warningList,
+      },
       success: true,
-      displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.`,
+      displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.${partialMessage}`,
     };
-  } catch (err) {
-    const errMsg = String(err);
-    console.error("search_nearby_places 에러:", errMsg);
+  } catch (error) {
+    const status = error instanceof NaverSearchError ? error.status : null;
+    const errorCode = error instanceof NaverSearchError
+      ? `naver_${error.kind}_search_failed`
+      : "naver_search_unavailable";
+    console.error("search_nearby_places error", { errorCode, status, provider: config.provider });
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: { error: errMsg },
+      toolOutput: {
+        places: [],
+        query,
+        error: errorCode,
+        provider: config.provider,
+        providerUnavailable: true,
+        handoff: buildNaverHandoff(query),
+        status,
+      },
       success: false,
-      displayMessage: "장소 검색 중 오류가 발생했습니다. 다시 시도해주세요.",
+      displayMessage: "네이버 장소 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.",
     };
   }
 }
