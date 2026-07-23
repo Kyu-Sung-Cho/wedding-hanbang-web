@@ -6,8 +6,22 @@ import { useEffect, useRef } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
-import { pricePolicyBadgeClass, pricePolicyLabel, type PriceVendor } from "@/lib/price/catalog";
+import {
+  pricePolicyBadgeClass,
+  pricePolicyLabel,
+  type PriceOffer,
+  type PriceVendor,
+} from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
+
+// 기본가 없이 옵션만 공시된 행(예: 예식장 "○○홀 옵션")은 "가격 확인 필요" 대신
+// 옵션이 아래 추가금 목록에 있음을 안내한다 — 가격이 실제로는 공개돼 있기 때문.
+function offerPriceLabel(offer: PriceOffer): string {
+  if (offer.minimumKrw === null && offer.maximumKrw === null && offer.options.length > 0) {
+    return `추가금 ${offer.options.length}개 참조`;
+  }
+  return krwRangeLabel(offer.minimumKrw, offer.maximumKrw);
+}
 
 type PriceVendorCardProps = {
   vendor: PriceVendor;
@@ -150,13 +164,13 @@ export function PriceVendorCard({
                         <div className="mt-1 divide-y divide-[#1D3557]/10">
                           {agencyOffers.map((offer) => (
                             <div key={offer.id} className="py-1 first:pt-0 last:pb-0">
-                              {offer.itemName ? (
+                              {offer.itemName && offer.itemName !== vendor.name ? (
                                 <p className="text-xs font-semibold leading-5 text-[#1D3557]/65">
                                   {offer.itemName}
                                 </p>
                               ) : null}
                               <p className="text-lg font-bold tabular-nums text-[#1D3557]">
-                                {krwRangeLabel(offer.minimumKrw, offer.maximumKrw)}
+                                {offerPriceLabel(offer)}
                               </p>
                               {offer.priceNote ? (
                                 <p className="mt-1.5 text-xs leading-5 text-[#1D3557]/60">{offer.priceNote}</p>
@@ -177,13 +191,13 @@ export function PriceVendorCard({
               {directOffers.map((offer) => (
                 <div key={offer.id} className="min-w-0 border-b border-[#1D3557]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
                   <p className="text-xs font-semibold text-[#1D3557]/65">업체 직접 공시</p>
-                  {offer.itemName ? (
+                  {offer.itemName && offer.itemName !== vendor.name ? (
                     <p className="mt-1 text-xs font-semibold leading-5 text-[#1D3557]/65">
                       {offer.itemName}
                     </p>
                   ) : null}
                   <p className="mt-1 text-lg font-bold tabular-nums text-[#1D3557]">
-                    {krwRangeLabel(offer.minimumKrw, offer.maximumKrw)}
+                    {offerPriceLabel(offer)}
                   </p>
                   {offer.priceNote ? (
                     <p className="mt-1.5 text-xs leading-5 text-[#1D3557]/60">{offer.priceNote}</p>
