@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   assertVendorDisclosureProductionBuild,
+  expectedProductionAuthorizationSha256,
   VendorDisclosureProductionBuildBlocked,
+  VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
   VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
   VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
 } from "../../../vendorDisclosureProductionBuildFence";
@@ -162,13 +164,39 @@ describe("vendor disclosure production build fence", () => {
     expect(error.message).toMatch(/static validation is not production authorization/i);
   });
 
-  it("always blocks a statically valid fixture until external signed authorization exists", async () => {
+  it("blocks a statically valid fixture without an owner authorization signature", async () => {
     const fixture = await createBlockedFixture();
     const error = expectBlockedWithCode(
       () => assertProduction(fixture.repoRoot),
       VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
     );
-    expect(error.message).toMatch(/successor release controller are not implemented/i);
+    expect(error.message).toMatch(/VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION/);
+  });
+
+  it("blocks when the owner authorization signature does not match the release manifest", async () => {
+    const fixture = await createBlockedFixture();
+    expectBlockedWithCode(
+      () => assertVendorDisclosureProductionBuild({
+        repoRoot: fixture.repoRoot,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: "0".repeat(64),
+        },
+      }),
+      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_INVALID,
+    );
+  });
+
+  it("allows a statically valid fixture when the owner signs the exact release manifest", async () => {
+    const fixture = await createBlockedFixture();
+    expect(() => assertVendorDisclosureProductionBuild({
+      repoRoot: fixture.repoRoot,
+      environment: {
+        VERCEL_ENV: "production",
+        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION:
+          expectedProductionAuthorizationSha256(fixture.repoRoot),
+      },
+    })).not.toThrow();
   });
 
   it("rejects the former synthetic authorized receipt path before reading its booleans", async () => {
