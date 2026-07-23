@@ -76,6 +76,12 @@ const nextConfig: NextConfig = {
     root: repoRoot,
   },
 
+  // 정적 생성 워커 수 제한: 1,100+ 페이지가 카탈로그를 동시 조회하면
+  // 단일 빌드 IP의 요청 버스트가 Supabase 게이트웨이에서 스로틀된다.
+  experimental: {
+    cpus: 8,
+  },
+
   // gzip/brotli 압축 활성화
   compress: true,
 
