@@ -38,8 +38,6 @@ import {
   type SavedComboPreview,
 } from "@/lib/price/savedComboRestore";
 
-import { sendVendorSignal } from "@/lib/price/vendorSignals";
-
 import { AddToComboModal } from "./AddToComboModal";
 import { AuthGateModal } from "./AuthGateModal";
 import { BudgetFinderModal } from "./BudgetFinderModal";
@@ -381,7 +379,6 @@ export function PriceExplorer({
           surface: "price_list",
           context: { category: vendor.category },
         });
-        sendVendorSignal(vendor.id, "wishlist_add");
       }
     } catch {
       setFeedback("네트워크를 확인한 뒤 다시 시도해 주세요.");
@@ -403,7 +400,6 @@ export function PriceExplorer({
       surface: "combo",
       context: { category: comboCategory },
     });
-    sendVendorSignal(selection.vendorId, "combo_add");
     setFeedback(`${selection.vendorName}을(를) 조합에 담았어요.`);
   };
 

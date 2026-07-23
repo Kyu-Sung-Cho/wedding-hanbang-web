@@ -196,12 +196,13 @@ type DemandRankRow = {
   name: string;
   category: string;
   region_code: string | null;
-  impression: number;
-  detail_click: number;
-  detail_view: number;
-  wishlist_add: number;
-  combo_add: number;
-  total: number;
+  impressions: number;
+  detail_views: number;
+  wishlist_adds: number;
+  combo_adds: number;
+  quote_requests: number;
+  weighted_score: number;
+  qualified_score: number;
 };
 
 function VendorDemandPanel() {
@@ -236,19 +237,40 @@ function VendorDemandPanel() {
     }
   }
 
+  async function aggregateToday() {
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const today = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);
+      const response = await fetch("/api/admin/price/demand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "aggregate", day: today }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "집계 실행에 실패했습니다.");
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "집계 실행에 실패했습니다.");
+      setLoading(false);
+    }
+  }
+
   function downloadCsv() {
     if (rows.length === 0) return;
-    const header = "업체명,카테고리,지역,노출,상세클릭,상세열람,찜,조합담기,합계";
+    const header = "업체명,카테고리,지역,노출,상세열람,찜,조합담기,견적요청,가중점수,유효점수(예식일보유)";
     const lines = rows.map((row) => [
       `"${row.name.replaceAll('"', '""')}"`,
       row.category,
       row.region_code ?? "",
-      row.impression,
-      row.detail_click,
-      row.detail_view,
-      row.wishlist_add,
-      row.combo_add,
-      row.total,
+      row.impressions,
+      row.detail_views,
+      row.wishlist_adds,
+      row.combo_adds,
+      row.quote_requests,
+      row.weighted_score,
+      row.qualified_score,
     ].join(","));
     const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const anchor = document.createElement("a");
@@ -264,7 +286,7 @@ function VendorDemandPanel() {
         <div>
           <h2 className="text-sm font-semibold text-indigo-900">업체 수요 랭킹</h2>
           <p className="mt-1 text-xs text-indigo-800">
-            소비자 탐색 행동(노출·클릭·상세·찜·조합) 집계 — 업체 제휴 대화용 근거 수치
+            소비자 행동(노출·상세·찜·조합·견적) 일별 롤업 — 유효점수는 예식일 등록 커플 한정
             {loadedAt ? ` · ${loadedAt} 기준` : ""}
           </p>
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
@@ -300,6 +322,15 @@ function VendorDemandPanel() {
           </button>
           <button
             type="button"
+            onClick={aggregateToday}
+            disabled={loading}
+            title="pg_cron(매일 04:00)이 돌기 전 오늘분을 즉시 롤업"
+            className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
+          >
+            오늘분 집계
+          </button>
+          <button
+            type="button"
             onClick={downloadCsv}
             disabled={rows.length === 0}
             className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
@@ -315,11 +346,12 @@ function VendorDemandPanel() {
               <tr>
                 <th className="px-2 py-1.5 text-left">업체</th>
                 <th className="px-2 py-1.5 text-right">노출</th>
-                <th className="px-2 py-1.5 text-right">상세클릭</th>
-                <th className="px-2 py-1.5 text-right">상세열람</th>
+                <th className="px-2 py-1.5 text-right">상세</th>
                 <th className="px-2 py-1.5 text-right">찜</th>
                 <th className="px-2 py-1.5 text-right">조합</th>
-                <th className="px-2 py-1.5 text-right font-semibold">합계</th>
+                <th className="px-2 py-1.5 text-right">견적</th>
+                <th className="px-2 py-1.5 text-right">가중점수</th>
+                <th className="px-2 py-1.5 text-right font-semibold">유효점수</th>
               </tr>
             </thead>
             <tbody>
@@ -329,12 +361,13 @@ function VendorDemandPanel() {
                     {row.name}
                     <span className="ml-1 text-[10px] text-indigo-400">{row.category}·{row.region_code ?? "-"}</span>
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{row.impression}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_click}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_view}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{row.wishlist_add}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{row.combo_add}</td>
-                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{row.total}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.impressions}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_views}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.wishlist_adds}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.combo_adds}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.quote_requests}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.weighted_score}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{row.qualified_score}</td>
                 </tr>
               ))}
             </tbody>
