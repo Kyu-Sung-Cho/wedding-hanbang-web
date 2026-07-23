@@ -189,6 +189,103 @@ type BulkApprovalSummary = {
   blocked_reason?: string;
 };
 
+// 2026-07-22 전량 추출 런: 자동 검증 통과 유닛('agent_auto_validated')의 pending 행을
+// 사람이 건수 확인 후 한 번에 승인하는 패널. 공개 전환은 하지 않는다.
+function AutoValidatedApprovalPanel() {
+  const [eligibleCount, setEligibleCount] = useState<number | null>(null);
+  const [criteria, setCriteria] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function loadCount() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/price/auto-approve");
+      if (response.status === 401) {
+        window.location.assign("/admin/login");
+        return;
+      }
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "대상 건수를 확인하지 못했습니다.");
+      setEligibleCount(body.eligible_count);
+      setCriteria(body.criteria ?? "");
+    } catch (caught) {
+      setEligibleCount(null);
+      setError(caught instanceof Error ? caught.message : "대상 건수를 확인하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function execute() {
+    if (busy || !eligibleCount || eligibleCount < 1) return;
+    if (!window.confirm(
+      `자동 검증 통과분 ${eligibleCount}건을 승인합니다. 공개 전환은 하지 않습니다. 계속할까요?`,
+    )) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/price/auto-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmation: "approve_agent_auto_validated_pending",
+          expected_count: eligibleCount,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "일괄 승인에 실패했습니다.");
+      setNotice(`승인 ${body.approved}건 완료 (충돌 ${body.conflicts} · 실패 ${body.failed})`);
+      setEligibleCount(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "일괄 승인에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-emerald-900">자동 검증 통과분 일괄 승인</h2>
+          <p className="mt-1 text-xs text-emerald-800">
+            {criteria || "confidence≥0.9 · 커버리지 갭 0 · 지어냄 검사 통과 · vendor 확정(dedupe 후보 제외) 유닛의 pending 공시가"}
+          </p>
+          {eligibleCount !== null && (
+            <p className="mt-1 text-sm font-semibold text-emerald-900">대상 {eligibleCount}건</p>
+          )}
+          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+          {notice && <p className="mt-1 text-xs text-emerald-700">{notice}</p>}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={loadCount}
+            disabled={busy}
+            className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 disabled:opacity-50"
+          >
+            대상 건수 확인
+          </button>
+          <button
+            type="button"
+            onClick={execute}
+            disabled={busy || !eligibleCount}
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            일괄 승인 실행
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function BulkApprovalPanel() {
   const [summary, setSummary] = useState<BulkApprovalSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1482,6 +1579,7 @@ export default function AdminPricePage() {
       <VendorWorkspaceHeader active="price" />
       <main className="mx-auto max-w-[1500px] px-5 py-7 lg:px-8">
         <PriceUploadPanel />
+        <AutoValidatedApprovalPanel />
         <BulkApprovalPanel />
         <SnapshotReadinessPanel />
         <div className="mb-7 grid w-full grid-cols-3 rounded-xl border border-[#E2D3C8] bg-white p-1 sm:inline-grid sm:w-auto">
