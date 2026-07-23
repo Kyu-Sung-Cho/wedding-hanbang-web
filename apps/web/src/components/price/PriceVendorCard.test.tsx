@@ -127,6 +127,63 @@ describe("PriceVendorCard", () => {
     expect(comparison?.textContent).not.toContain("—");
   });
 
+  it("lazy-loads slim-catalog options when the add-on details opens", async () => {
+    // 전송 다이어트 계약(2026-07-23): 목록은 optionCount만 싣고,
+    // 본문(원문 인용)은 펼침 시 /api/price/vendor-options로 가져온다.
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      options: [{
+        id: "opt-1",
+        officialPriceId: "offer-slim",
+        name: "지연 로드 옵션",
+        minimumKrw: 110_000,
+        maximumKrw: 110_000,
+        unit: null,
+        condition: null,
+        rawText: "지연 로드 옵션 110,000원",
+        isEffectivelyMandatory: false,
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }))));
+
+    const vendor: PriceVendor = {
+      id: "vendor-slim",
+      slug: "vendor-slim",
+      name: "슬림 카탈로그 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: [{
+        id: "offer-slim",
+        agencyId: "agency-s",
+        agencyName: "대행사 슬림",
+        minimumKrw: 1_000_000,
+        maximumKrw: 1_000_000,
+        priceNote: null,
+        baseSpec: null,
+        options: [],
+        optionCount: 1,
+      }],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    expect(container.textContent).toContain("추가금 1개");
+    const details = container.querySelector("details")!;
+    await act(async () => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/price/vendor-options?ids=offer-slim");
+    expect(container.textContent).toContain("지연 로드 옵션");
+    expect(container.textContent).toContain("공시 원문 · 지연 로드 옵션 110,000원");
+    vi.unstubAllGlobals();
+  });
+
   it("keeps an admin preview card read-only", async () => {
     const onToggleWishlist = vi.fn();
     const onOpenCombo = vi.fn();

@@ -1,12 +1,14 @@
 "use client";
 
 import { Info, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { krwRangeLabel, krwToManwonLabel } from "@/lib/format/krw";
-import type { PriceVendor } from "@/lib/price/catalog";
+import type { PriceOption, PriceVendor } from "@/lib/price/catalog";
 import type { ComboCategory, ComboSelection } from "@/lib/price/comboStore";
 import { useAccessibleModal } from "@/hooks/useAccessibleModal";
+
+import { loadVendorOptions } from "./vendorOptionsClient";
 
 type AddToComboModalProps = {
   vendor: PriceVendor | null;
@@ -22,7 +24,25 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
   const open = vendor !== null && vendor.category !== "hall";
   const dialogRef = useAccessibleModal({ open, onClose });
 
-  const offer = vendor?.offers.find((value) => value.id === offerId) ?? firstPricedOffer;
+  // 슬림 카탈로그: 옵션 본문이 비어 오면 모달이 열릴 때 지연 로드해 채운다.
+  const [hydratedOptions, setHydratedOptions] = useState<Map<string, PriceOption[]> | null>(null);
+  useEffect(() => {
+    if (!open || !vendor) return;
+    const needsLoad = vendor.offers.some(
+      (value) => value.options.length === 0 && (value.optionCount ?? 0) > 0,
+    );
+    if (!needsLoad) return;
+    let cancelled = false;
+    loadVendorOptions(vendor)
+      .then((resolved) => { if (!cancelled) setHydratedOptions(resolved); })
+      .catch(() => undefined); // 옵션 없이도 기본가 담기는 가능 — 조용히 계속
+    return () => { cancelled = true; };
+  }, [open, vendor]);
+
+  const rawOffer = vendor?.offers.find((value) => value.id === offerId) ?? firstPricedOffer;
+  const offer = rawOffer && rawOffer.options.length === 0 && hydratedOptions?.get(rawOffer.id)?.length
+    ? { ...rawOffer, options: hydratedOptions.get(rawOffer.id)! }
+    : rawOffer;
   const customManwonValue = /^\d+(?:\.\d+)?$/.test(customManwon.trim())
     ? Number(customManwon)
     : Number.NaN;

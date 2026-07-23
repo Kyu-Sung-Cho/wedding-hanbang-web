@@ -23,7 +23,34 @@ export type PriceOffer = {
   priceNote: string | null;
   baseSpec: string | null;
   options: PriceOption[];
+  /** 목록 전송 다이어트: 옵션 본문을 비우고 개수만 실어 보낼 때의 개수. */
+  optionCount?: number;
 };
+
+/** 오퍼의 옵션 개수 — 본문이 비워진(지연 로드) 오퍼는 optionCount를 신뢰한다. */
+export function offerOptionCount(offer: PriceOffer): number {
+  return offer.options.length > 0 ? offer.options.length : offer.optionCount ?? 0;
+}
+
+/**
+ * 목록 페이지 전송 다이어트: 옵션 본문(원문 인용 포함)을 비우고 개수만 남긴다.
+ * 본문은 카드의 "추가금" 펼침 시 /api/price/vendor-options로 지연 로드한다.
+ * 상세 페이지는 슬림하지 않으므로 원문 근거 SEO는 그대로 유지된다.
+ */
+export function slimPriceCatalogOptions(catalog: PriceCatalog): PriceCatalog {
+  const categories = {} as Record<PriceCategory, PriceVendor[]>;
+  for (const category of PRICE_CATEGORIES) {
+    categories[category] = catalog.categories[category].map((vendor) => ({
+      ...vendor,
+      offers: vendor.offers.map((offer) => ({
+        ...offer,
+        optionCount: offer.options.length,
+        options: [],
+      })),
+    }));
+  }
+  return { ...catalog, categories };
+}
 
 export type PricePolicyType = "penalty" | "refund" | "change" | "other";
 

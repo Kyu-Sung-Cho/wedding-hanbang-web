@@ -851,7 +851,24 @@ export function PriceExplorer({
               />
             ))}
           </div>
-        ) : <div className="mt-4"><PriceEmptyState /></div>}
+        ) : (
+          <div className="mt-4">
+            <PriceEmptyState
+              category={category}
+              regionCode={regionCode || undefined}
+              hasOtherFilters={Boolean(debouncedSearch || minimumManwon || maximumManwon || wishlistOnly || agencyIds.length > 0)}
+              onResetFilters={() => {
+                setSearchInput("");
+                setDebouncedSearch("");
+                setRegionCode("");
+                setAgencyIds([]);
+                setMinimumManwon("");
+                setMaximumManwon("");
+                setWishlistOnly(false);
+              }}
+            />
+          </div>
+        )}
 
         <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center" aria-hidden={visibleCount >= filtered.length}>
           {visibleCount < filtered.length ? (

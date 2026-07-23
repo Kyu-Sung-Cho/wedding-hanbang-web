@@ -1,24 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Heart } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ChevronDown, Heart, LoaderCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics/track";
 import { krwRangeLabel } from "@/lib/format/krw";
 import {
+  offerOptionCount,
   pricePolicyBadgeClass,
   pricePolicyLabel,
   type PriceOffer,
+  type PriceOption,
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { loadVendorOptions } from "./vendorOptionsClient";
 
 // 기본가 없이 옵션만 공시된 행(예: 예식장 "○○홀 옵션")은 "가격 확인 필요" 대신
 // 옵션이 아래 추가금 목록에 있음을 안내한다 — 가격이 실제로는 공개돼 있기 때문.
 function offerPriceLabel(offer: PriceOffer): string {
-  if (offer.minimumKrw === null && offer.maximumKrw === null && offer.options.length > 0) {
-    return `추가금 ${offer.options.length}개 참조`;
+  const optionTotal = offerOptionCount(offer);
+  if (offer.minimumKrw === null && offer.maximumKrw === null && optionTotal > 0) {
+    return `추가금 ${optionTotal}개 참조`;
   }
   return krwRangeLabel(offer.minimumKrw, offer.maximumKrw);
 }
@@ -43,7 +47,25 @@ export function PriceVendorCard({
   onOpenCombo,
 }: PriceVendorCardProps) {
   const cardRef = useRef<HTMLElement>(null);
-  const optionCount = vendor.offers.reduce((count, offer) => count + offer.options.length, 0);
+  const optionCount = vendor.offers.reduce((count, offer) => count + offerOptionCount(offer), 0);
+  // 슬림 카탈로그(옵션 본문 미탑재)의 지연 로드 상태 — 펼칠 때 1회 조회, 모듈 캐시 공유.
+  const [lazyOptions, setLazyOptions] = useState<Map<string, PriceOption[]> | null>(null);
+  const [lazyStatus, setLazyStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
+  const needsLazyLoad = vendor.offers.some(
+    (offer) => offer.options.length === 0 && (offer.optionCount ?? 0) > 0,
+  );
+  const loadLazyOptions = () => {
+    if (!needsLazyLoad || lazyStatus === "loading" || lazyStatus === "ready") return;
+    setLazyStatus("loading");
+    loadVendorOptions(vendor)
+      .then((resolved) => {
+        setLazyOptions(resolved);
+        setLazyStatus("ready");
+      })
+      .catch(() => setLazyStatus("error"));
+  };
+  const optionsForOffer = (offer: PriceOffer): PriceOption[] =>
+    offer.options.length > 0 ? offer.options : lazyOptions?.get(offer.id) ?? [];
   const offersByAgency = new Map<string, typeof vendor.offers>();
   for (const offer of vendor.offers) {
     if (!offer.agencyId) continue;
@@ -218,7 +240,9 @@ export function PriceVendorCard({
         <details
           className="group border-b border-[#243832]/10"
           onToggle={(event) => {
-            if (!preview && event.currentTarget.open) {
+            if (!event.currentTarget.open) return;
+            loadLazyOptions();
+            if (!preview) {
               track("addon_expand", {
                 vendor_id: vendor.id,
                 surface: "price_list",
@@ -232,7 +256,28 @@ export function PriceVendorCard({
             <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
           </summary>
           <div className="space-y-4 bg-[#F5ECE4]/45 px-4 py-4 sm:px-6">
-            {vendor.offers.flatMap((offer) => offer.options.map((option) => (
+            {needsLazyLoad && lazyStatus !== "ready" ? (
+              <p className="flex items-center gap-2 text-sm text-[#243832]/70">
+                {lazyStatus === "error" ? (
+                  <>
+                    추가금을 불러오지 못했어요.
+                    <button
+                      type="button"
+                      onClick={loadLazyOptions}
+                      className="font-semibold text-[#36534E] underline underline-offset-2"
+                    >
+                      다시 시도
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                    공시 원문을 불러오는 중이에요…
+                  </>
+                )}
+              </p>
+            ) : null}
+            {vendor.offers.flatMap((offer) => optionsForOffer(offer).map((option) => (
               <div key={`${offer.id}:${option.id}`} className="text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-[#243832]">{option.name}</span>

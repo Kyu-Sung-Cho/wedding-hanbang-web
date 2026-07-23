@@ -29,7 +29,7 @@ type PublicPriceRow = {
   price_note: string | null;
 };
 
-type PublicOptionRow = {
+export type PublicOptionRow = {
   id: string;
   official_price_id: string;
   name: string;
@@ -120,7 +120,7 @@ function aliases(value: unknown): string[] {
   )))].slice(0, 50);
 }
 
-function optionFromRow(row: PublicOptionRow): PriceOption | null {
+export function optionFromRow(row: PublicOptionRow): PriceOption | null {
   if (!row.id || !row.official_price_id || !row.name || !row.raw_text) return null;
   return {
     id: row.id,

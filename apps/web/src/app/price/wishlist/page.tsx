@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 
 import { PriceWishlist } from "@/components/price/PriceWishlist";
+import { slimPriceCatalogOptions } from "@/lib/price/catalog";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -14,9 +15,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const loadCatalog = cache(() => loadPriceCatalogWithBuildFallback(() => (
-  loadPublicPriceCatalog(createPublicClient())
-)));
+// 옵션 본문까지 실으면 4MB가 되는 페이지 — 개수만 남기고 본문은 카드 펼침 시
+// 지연 로드한다(slimPriceCatalogOptions). 빌드 시 조회는 유지되지만 전송은 슬림.
+const loadCatalog = cache(async () => slimPriceCatalogOptions(
+  await loadPriceCatalogWithBuildFallback(() => (
+    loadPublicPriceCatalog(createPublicClient())
+  )),
+));
 
 export default async function PriceWishlistPage() {
   const catalog = await loadCatalog();

@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { PriceAmoraBridge } from "@/components/price/PriceAmoraBridge";
 import { PriceExplorer } from "@/components/price/PriceExplorer";
 import {
   PRICE_CATEGORIES,
+  slimPriceCatalogOptions,
   type PriceCatalog,
   type PriceCategory,
 } from "@/lib/price/catalog";
@@ -112,7 +114,11 @@ export default async function PriceCategoryPage({
           dangerouslySetInnerHTML={{ __html: serializePriceCategoryJsonLd(data) }}
         />
       ))}
-      <PriceExplorer catalog={catalogForBrowser(catalog, category)} category={category} />
+      {/* 옵션 본문(원문 인용 11k개)은 초기 전송에서 제외 — 카드 펼침 시 지연 로드. */}
+      <PriceExplorer catalog={catalogForBrowser(slimPriceCatalogOptions(catalog), category)} category={category} />
+      <div className="mx-auto max-w-6xl px-4 pb-12 sm:px-6">
+        <PriceAmoraBridge />
+      </div>
     </>
   );
 }
