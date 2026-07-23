@@ -1417,9 +1417,13 @@ export async function POST(request: Request) {
     : selectedTools.filter((tool) => !isMutatingTool(tool.name));
   // A confirmed pending action is executed once by the server below. The model
   // receives read tools only so it cannot repeat or alter the approved write.
-  const availableTools = approvedPendingAction
-    ? visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name))
-    : visibilityScopedTools;
+  // 2026-07-24 근본 수리: 모델은 어떤 턴에도 변경 함수를 직접 받지 않는다.
+  // 변경의 유일한 경로 = pending 표식 → 사용자 확인 → 서버 직접 실행.
+  // (7/18 확인-우선 재설계 이후에도 변경 함수가 도구 목록에 남아 "확인 전
+  // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
+  // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
+  // 재설계 이후 운영에서 변경 실행 0건.)
+  const availableTools = visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name));
   const pendingProposalTools =
     !isDemo
     && requestKind === "chat"
@@ -1509,11 +1513,15 @@ export async function POST(request: Request) {
   const modelRole =
     requestKind === "mediation"
       ? ("primary" as const)
-      : chooseAmoraChatModelRole({
-          specialistType,
-          userText: lastUserText,
-          correctionCount,
-        });
+      // 저장 제안(표식) 턴은 형식 준수가 신뢰의 전부라 fast 모델의 형식
+      // 이탈 리스크를 피해 primary로 승격한다. 저장 턴은 드물어 비용 영향 미미.
+      : pendingOfferEnabled
+        ? ("primary" as const)
+        : chooseAmoraChatModelRole({
+            specialistType,
+            userText: lastUserText,
+            correctionCount,
+          });
   const executionContext: ToolExecutionContext = {
     coupleId,
     requestKey: clientRequestId,

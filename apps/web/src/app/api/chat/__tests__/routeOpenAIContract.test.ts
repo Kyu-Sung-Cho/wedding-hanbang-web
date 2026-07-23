@@ -820,15 +820,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       mocks.provider.mockResolvedValueOnce(providerResult({
         toolCalls: [{
           callId: `call_${round}`,
-          name: "update_budget",
-          input: { total_budget: 30_000_000 + round },
+          name: "get_wedding_info",
+          input: {},
         }],
         outputItems: [{
           id: `fc_${round}`,
           type: "function_call",
           call_id: `call_${round}`,
-          name: "update_budget",
-          arguments: JSON.stringify({ total_budget: 30_000_000 + round }),
+          name: "get_wedding_info",
+          arguments: JSON.stringify({}),
           status: "completed",
         }],
         usage: {
@@ -862,12 +862,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
     for (let call = 0; call < 2; call++) {
       expect(mocks.provider.mock.calls[call]?.[0]?.tools).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: "update_budget" }),
+        expect.objectContaining({ name: "get_wedding_info" }),
       ]));
-      expect(mocks.provider.mock.calls[call]?.[0]?.systemPrompt).toContain("`update_budget`");
+      expect(mocks.provider.mock.calls[call]?.[0]?.systemPrompt).toContain("`get_wedding_info`");
     }
     expect(mocks.provider.mock.calls[2]?.[0]?.tools).toEqual([]);
-    expect(mocks.provider.mock.calls[2]?.[0]?.systemPrompt).not.toContain("`update_budget`");
+    expect(mocks.provider.mock.calls[2]?.[0]?.systemPrompt).not.toContain("`get_wedding_info`");
     expect(mocks.executeTool).toHaveBeenCalledTimes(2);
     for (const call of mocks.executeTool.mock.calls) {
       expect(call[2].pendingActionId).toBeUndefined();
@@ -894,7 +894,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       costUsd: null,
       metadata: {
         stage_tag: "planning_0",
-        tools_used: ["update_budget", "update_budget"],
+        tools_used: ["get_wedding_info", "get_wedding_info"],
         tool_rounds: 2,
         exceeded_max_rounds: true,
         correction_count: 0,
@@ -1054,10 +1054,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     await response.text();
 
     const providerArgs = mocks.provider.mock.calls[0]?.[0];
-    expect(providerArgs?.tools).toEqual(expect.arrayContaining([
+    // 2026-07-24 계약 반전: 모델은 변경 함수를 직접 받지 않는다 — 변경은
+    // pending 표식 제안 채널로만 노출되고, 확인 후 서버가 직접 실행한다.
+    expect(providerArgs?.tools).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "update_budget" }),
     ]));
-    expect(providerArgs?.systemPrompt).toContain("`update_budget`");
+    expect(providerArgs?.tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "get_wedding_info" }),
+    ]));
+    expect(providerArgs?.systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+    expect(providerArgs?.systemPrompt).toContain("update_budget");
     expect(providerArgs?.systemPrompt).toContain(
       "request_kind: chat",
     );
@@ -1410,8 +1416,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     const toolNames = mocks.provider.mock.calls[0]?.[0]?.tools
       .map((tool: { name: string }) => tool.name);
-    expect(toolNames).toEqual(["update_budget", "get_wedding_info"]);
+    // 변경 함수 제거 후: 직접 호출은 읽기 도구만, 변경은 제안 계약으로만.
+    expect(toolNames).toEqual(["get_wedding_info"]);
+    expect(toolNames).not.toContain("update_budget");
     expect(toolNames).not.toContain("add_schedule_event");
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+      .toContain("[서버 발급 후속 확인 계약]");
   });
 
   it("does not treat canonical assistant prose plus a generic approval as write authority", async () => {
@@ -1930,7 +1940,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         userId: "00000000-0000-4000-8000-000000000001",
         callIndex: 1,
         phase: "tool_round",
-        modelRole: "fast",
+        // 저장 제안(표식) 턴은 형식 준수를 위해 primary로 승격된다.
+        modelRole: "primary",
       }),
       expect.any(Function),
       expect.any(Object),

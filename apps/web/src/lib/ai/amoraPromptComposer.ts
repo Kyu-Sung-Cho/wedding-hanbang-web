@@ -222,7 +222,10 @@ function applyEnabledToolContract(
   return `${filteredPrompt}\n\n${toolInstructions}`;
 }
 
-function finalTurnGuardForTools(enabledToolNames: readonly string[] | undefined): string {
+function finalTurnGuardForTools(
+  enabledToolNames: readonly string[] | undefined,
+  hasPendingOfferContract = false,
+): string {
   if (
     enabledToolNames === undefined
     || enabledToolNames.some((toolName) => MUTATING_TOOL_NAME_SET.has(toolName))
@@ -230,12 +233,24 @@ function finalTurnGuardForTools(enabledToolNames: readonly string[] | undefined)
     return AMORA_FINAL_TURN_GUARD;
   }
 
-  return AMORA_FINAL_TURN_GUARD
+  const withoutDirectExecutionRule = AMORA_FINAL_TURN_GUARD
     .split("\n")
     .filter((line) => !line.includes(
       "최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화",
     ))
     .join("\n");
+
+  // 변경 함수가 도구 목록에서 빠진 뒤(2026-07-24)에도 저장 제안 턴에서는
+  // 혼합 감정 원칙이 유지돼야 한다 — 실행의 수단만 표식 제안으로 바뀐다.
+  // 최종 신뢰 라인이 프롬프트 최후미라는 불변식을 지키기 위해 그 앞에 삽입한다.
+  if (!hasPendingOfferContract) return withoutDirectExecutionRule;
+  const guardLines = withoutDirectExecutionRule.split("\n");
+  guardLines.splice(
+    guardLines.length - 1,
+    0,
+    "- 감정 표현과 섞여 있어도 실행 역할이 우선입니다. 사용자의 확정형 저장 발화에는 [서버 발급 후속 확인 계약]의 pending_action 표식 제안으로 응답하고, 표식을 낼 수 없으면 반영되지 않았다고 분명히 말하세요.",
+  );
+  return guardLines.join("\n");
 }
 
 const TRUNCATION_MARKER = "\n[저장 문맥 일부는 길이 제한으로 생략됨]\n";
@@ -343,7 +358,10 @@ export function buildAmoraSystemPrompt(
   const serverIssuedActionContract = options.serverIssuedActionContract
     ? `\n\n${options.serverIssuedActionContract}`
     : "";
-  const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(options.enabledToolNames)}`;
+  const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
+    options.enabledToolNames,
+    Boolean(options.serverIssuedActionContract),
+  )}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {
