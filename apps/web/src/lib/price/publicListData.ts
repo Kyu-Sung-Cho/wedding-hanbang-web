@@ -49,6 +49,29 @@ const OPTION_CHUNK_SIZE = 50;
 
 type Page<T> = { data: T[] | null; error: unknown };
 
+// 정적 생성이 다수 워커로 동시에 돌 때 PostgREST가 순간 포화될 수 있다.
+// 페이지 조회는 짧은 백오프로 재시도하고, 소진되면 기존대로 fail-closed.
+const PAGE_FETCH_ATTEMPTS = 4;
+const PAGE_FETCH_BACKOFF_MS = 400;
+
+async function fetchPageWithRetry<T>(
+  fetchPage: (from: number, to: number) => Promise<Page<T>>,
+  from: number,
+  to: number,
+): Promise<Page<T>> {
+  let page: Page<T> = { data: null, error: new Error("unreachable") };
+  for (let attempt = 1; attempt <= PAGE_FETCH_ATTEMPTS; attempt += 1) {
+    page = await fetchPage(from, to);
+    if (!page.error) return page;
+    if (attempt < PAGE_FETCH_ATTEMPTS) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, PAGE_FETCH_BACKOFF_MS * 3 ** (attempt - 1)),
+      );
+    }
+  }
+  return page;
+}
+
 async function collectPages<T>(
   fetchPage: (from: number, to: number) => Promise<Page<T>>,
   maximumRows: number,
@@ -58,7 +81,7 @@ async function collectPages<T>(
   while (true) {
     const remaining = maximumRows - rows.length;
     const requested = remaining > 0 ? Math.min(PAGE_SIZE, remaining) : 1;
-    const page = await fetchPage(from, from + requested - 1);
+    const page = await fetchPageWithRetry(fetchPage, from, from + requested - 1);
     if (page.error) throw new Error("PUBLIC_PRICE_CATALOG_UNAVAILABLE");
     const pageRows = page.data ?? [];
     if (remaining === 0) {
