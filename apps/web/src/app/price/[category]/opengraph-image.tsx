@@ -15,9 +15,10 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
 
+// satori(next/og)는 woff2를 지원하지 않는다 — ttf만 사용 (2026-07-23, OG 500 수리).
 const paperlogyBold = readFile(join(
   process.cwd(),
-  "public/fonts/paperlogy/Paperlogy-7Bold.woff2",
+  "public/fonts/paperlogy/Paperlogy-7Bold.ttf",
 ));
 
 function isPriceCategory(value: string): value is PriceCategory {
