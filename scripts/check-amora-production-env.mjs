@@ -72,6 +72,11 @@ const checks = {
     env.AMORA_AUXILIARY_MEMORY_ENABLED === "false",
   careOutboundDisabledForExpandDeploy:
     env.AMORA_CARE_OUTBOUND_ENABLED === "false",
+  // 인앱 선제 케어(채팅 진입 시 모멘트 발화)는 이메일 아웃바운드와 분리된
+  // 스위치로, 상태를 명시해야 배포된다 (true/false 모두 허용 — 의식적 설정 강제).
+  proactiveChatStateExplicit:
+    env.AMORA_PROACTIVE_CHAT_ENABLED === "true"
+    || env.AMORA_PROACTIVE_CHAT_ENABLED === "false",
   communityAiDisabledByDefault:
     env.AMORA_COMMUNITY_AI_COMMENT_ENABLED === "false",
   aiLogRetentionCronDisabledForExpandDeploy:

@@ -62,10 +62,13 @@ function isSameOriginMutation(req: NextRequest): boolean {
 }
 
 async function handleProactiveRequest(req: NextRequest) {
-  // This endpoint is user-triggered, but every outcome is outbound shared care.
+  // 2026-07-24 스위치 분리: 이 경로는 사용자가 앱을 열었을 때 채팅 안에
+  // 케어 메시지를 넣는 인앱 선제 발화다(외부 발송 0). 이메일 아웃바운드
+  // (AMORA_CARE_OUTBOUND_ENABLED, cron/care-moments)와 별개 스위치로 게이트해
+  // "먼저 챙기는 언니"를 이메일 격리와 독립적으로 켤 수 있게 한다.
   // Fail closed before authentication, service-role construction, or user reads.
-  if (process.env.AMORA_CARE_OUTBOUND_ENABLED !== "true") {
-    return NextResponse.json({ triggered: false, reason: "outbound_disabled" });
+  if (process.env.AMORA_PROACTIVE_CHAT_ENABLED !== "true") {
+    return NextResponse.json({ triggered: false, reason: "proactive_chat_disabled" });
   }
   try {
     const supabase = await createClientFromRequest(req);

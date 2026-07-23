@@ -79,7 +79,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("never mutates or reads user data through GET", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
 
     const response = await GET();
 
@@ -91,7 +91,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("rejects a cross-site POST before authentication or service-role construction", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     const crossSiteRequest = new NextRequest("http://localhost/api/chat/proactive", {
       method: "POST",
       headers: {
@@ -113,7 +113,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("fails closed when a POST has neither Origin nor Sec-Fetch-Site proof", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
 
     const response = await POST(new NextRequest(
       "http://localhost/api/chat/proactive",
@@ -126,7 +126,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("fails closed on the persistent per-user limit before service-role data reads", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     vi.mocked(createClientFromRequest).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "member-1" } } }) },
     } as never);
@@ -147,14 +147,14 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("reads no user data and creates no service client while the kill switch is off", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "false");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "false");
 
     const response = await POST(request());
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       triggered: false,
-      reason: "outbound_disabled",
+      reason: "proactive_chat_disabled",
     });
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("vary")).toContain("Origin");
@@ -164,7 +164,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("writes no shared moment when the atomic RPC reports non-unanimous consent", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     vi.mocked(createClientFromRequest).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "member-1" } } }) },
     } as never);
@@ -207,7 +207,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("never completes a lifecycle claim when the consent-fenced RPC persisted no message", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     vi.mocked(buildDueMomentCells).mockReturnValueOnce([]);
     vi.mocked(createClientFromRequest).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "member-1" } } }) },
@@ -257,7 +257,7 @@ describe("/api/chat/proactive outbound-care safety fence", () => {
   });
 
   it("completes a duplicate lifecycle claim only after loading the real persisted message", async () => {
-    vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
+    vi.stubEnv("AMORA_PROACTIVE_CHAT_ENABLED", "true");
     vi.mocked(buildDueMomentCells).mockReturnValueOnce([]);
     vi.mocked(createClientFromRequest).mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "member-1" } } }) },
