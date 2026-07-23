@@ -28,7 +28,14 @@ export async function verifyTurnstile(
 ): Promise<TurnstileVerifyResult> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
-    return requiresTurnstileSecret()
+    // fail-closed는 "배포된 통제"에만 적용한다(2026-07-24). 사이트 키가
+    // 미발급이면 위젯이 렌더되지 않아 사용자는 토큰을 만들 수 없다 — 그때의
+    // 전면 거부는 봇 차단이 아니라 가입 차단이다(키 미발급 상태로 릴리스돼
+    // 가입이 통째로 막혔던 운영 사고). 미발급 시엔 기존 방어(영구 rate
+    // limit + 이메일 정규화)로 동작하고, 사이트 키가 발급된 순간부터는
+    // 시크릿 누락을 설정 오류로 보고 다시 fail-closed로 강제한다.
+    const provisioned = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
+    return requiresTurnstileSecret() && provisioned
       ? { ok: false, skipped: false }
       : { ok: true, skipped: true };
   }

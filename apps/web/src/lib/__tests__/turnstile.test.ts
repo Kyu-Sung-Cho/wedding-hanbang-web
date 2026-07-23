@@ -60,14 +60,29 @@ describe("verifyTurnstile — production guard", () => {
     });
   });
 
-  it("fails closed in production when the secret is missing", async () => {
+  it("fails closed in production when provisioned but the secret is missing", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "0x4AAAAAAA-site-key");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "");
 
     await expect(verifyTurnstile(undefined)).resolves.toEqual({
       ok: false,
       skipped: false,
+    });
+  });
+
+  it("skips in production when the feature is not provisioned at all", async () => {
+    // 사이트 키 미발급 = 위젯 자체가 없어 토큰이 존재할 수 없는 상태.
+    // 이때 거부하면 봇이 아니라 모든 가입이 막힌다(2026-07-24 운영 사고 회귀 방지).
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "");
+
+    await expect(verifyTurnstile(undefined)).resolves.toEqual({
+      ok: true,
+      skipped: true,
     });
   });
 
