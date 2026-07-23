@@ -195,9 +195,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           disabled={favoriteStatus === "loading" || favoriteStatus === "error" || busy !== null}
           aria-busy={favoriteStatus === "loading" || busy === "favorite"}
           aria-pressed={favorite}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#1D3557]/20 bg-white px-4 text-sm font-bold text-[#1D3557] disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#243832]/20 bg-white px-4 text-sm font-bold text-[#243832] disabled:opacity-50"
         >
-          <Heart className={`size-4 ${favorite ? "fill-[#B5977A] text-[#B5977A]" : ""}`} aria-hidden="true" />
+          <Heart className={`size-4 ${favorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
           {favorite ? "찜했어요" : "찜하기"}
         </button>
         <button
@@ -206,7 +206,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           disabled={alertStatus === "loading" || alertStatus === "error" || busy !== null}
           aria-busy={alertStatus === "loading" || busy === "alert"}
           aria-pressed={subscribed}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1D3557] px-4 text-sm font-bold text-white disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-bold text-white disabled:opacity-50"
         >
           <Bell className={`size-4 ${subscribed ? "fill-white" : ""}`} aria-hidden="true" />
           {subscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}

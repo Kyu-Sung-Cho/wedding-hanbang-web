@@ -535,7 +535,7 @@ export function PriceExplorer({
   ))).size;
 
   return (
-    <Root className={`${surface === "app" ? "overflow-hidden rounded-[20px] border border-[#eadfc9] bg-[#FBF8F2]" : "min-h-screen bg-[#FBF8F2]"} text-[#1D3557] ${visibleComboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
+    <Root className={`${surface === "app" ? "overflow-hidden rounded-[20px] border border-[#eadfc9] bg-[#FBF8F2]" : "min-h-screen bg-[#FBF8F2]"} text-[#243832] ${visibleComboCount > 0 ? "pb-52 sm:pb-44" : "pb-12"}`}>
       {preview ? (
         <div
           role="status"
@@ -546,77 +546,77 @@ export function PriceExplorer({
         </div>
       ) : null}
       {surface === "app" ? (
-        <section className="border-b border-[#1D3557]/10 bg-white px-4 py-6 sm:px-6" aria-labelledby="vendor-hub-title">
+        <section className="border-b border-[#243832]/10 bg-white px-4 py-6 sm:px-6" aria-labelledby="vendor-hub-title">
           <p className="text-[11px] font-bold tracking-[0.16em] text-[#8F6662]">WEDDING HANBANG</p>
           <h1 id="vendor-hub-title" className="mt-1 text-3xl font-bold tracking-[-0.04em]">
             {preview ? "업체 공시가 검수 미리보기" : "업체 탐색"}
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#1D3557]/65">
+          <p className="mt-2 text-sm leading-6 text-[#243832]/65">
             {preview
               ? "자동 추출된 검수 전 데이터입니다. 업체·가격·연결 정보의 정확성이 보장되지 않습니다."
               : "출처가 확인된 공식 가격 업체를 비교하고, 마음에 드는 후보를 저장해 보세요."}
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2" aria-label="업체 탐색 현황">
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#1D3557]/55">
+              <p className="text-[11px] font-bold text-[#243832]/55">
                 {preview ? "자동 추출 업체" : "공식 가격 업체"}
               </p>
               <p className="mt-1 text-xl font-bold tabular-nums">{totalVendorCount}</p>
             </div>
             {preview ? (
               <div className="rounded-2xl bg-[#F5ECE4] px-3 py-4">
-                <p className="text-[11px] font-bold text-[#1D3557]/55">검수 상태</p>
+                <p className="text-[11px] font-bold text-[#243832]/55">검수 상태</p>
                 <p className="mt-1 text-sm font-bold text-[#36534E]">읽기 전용</p>
               </div>
             ) : (
               <Link href="/price/wishlist" className="rounded-2xl bg-[#F5ECE4] px-3 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]">
-                <p className="text-[11px] font-bold text-[#1D3557]/55">찜한 업체</p>
+                <p className="text-[11px] font-bold text-[#243832]/55">찜한 업체</p>
                 <p className="mt-1 text-xl font-bold tabular-nums">
                   {wishlistHydrationStatus === "ready" ? wishlistedIds.size : "–"}
                 </p>
               </Link>
             )}
             <div className="rounded-2xl bg-[#FBF8F2] px-3 py-4">
-              <p className="text-[11px] font-bold text-[#1D3557]/55">가격 카테고리</p>
+              <p className="text-[11px] font-bold text-[#243832]/55">가격 카테고리</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
                 {PRICE_CATEGORIES.filter((value) => catalog.counts[value] > 0).length}
               </p>
             </div>
           </div>
           {!preview ? (
-            <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-[#1D3557] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-[#36534E] px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
                 <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
               </div>
-              <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[#1D3557]">
+              <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[#243832]">
                 아모라와 찾기
               </Link>
             </div>
           ) : null}
         </section>
       ) : null}
-      <section className="border-b border-[#1D3557]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
+      <section className="border-b border-[#243832]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">
                 {preview ? "관리자 검수용 자동 추출 데이터" : "한국소비자원 참가격 공시"}
               </p>
-              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#1D3557] sm:text-4xl">
+              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#243832] sm:text-4xl">
                 {preview ? "스드메·예식장 공시가 검수" : "스드메·예식장 공시가 비교"}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex rounded-full bg-[#F5ECE4] px-3 py-1.5 text-xs font-bold text-[#7C5754]">
                   {formatDisclosurePeriod(catalog.periodLabel)} 공시 기준
                 </span>
-                <p className="text-sm font-semibold leading-6 text-[#1D3557]/75">
+                <p className="text-sm font-semibold leading-6 text-[#243832]/75">
                   {preview
                     ? "승인 전 원문 대조가 필요한 자동 추출 결과입니다."
                     : "가격표시제에 따라 가격을 공개한 업체만 표시됩니다."}
                 </p>
               </div>
-              <p className="mt-2 text-sm leading-6 text-[#1D3557]/65">
+              <p className="mt-2 text-sm leading-6 text-[#243832]/65">
                 {preview
                   ? "일반 사용자에게는 보이지 않으며, 검수 완료 전 저장·추천에 사용하지 않습니다."
                   : "업체별 기본가와 추가금을 한 화면에서 편하게 확인하세요."}
@@ -638,10 +638,10 @@ export function PriceExplorer({
                   ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
                   : `/price/${value}`}
                 aria-current={value === category ? "page" : undefined}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#1D3557] bg-[#1D3557] text-white" : "border-[#1D3557]/12 bg-white text-[#1D3557] hover:bg-[#F5ECE4]"}`}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#243832] bg-[#36534E] text-white" : "border-[#243832]/12 bg-white text-[#243832] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
-                <span className={value === category ? "text-white/65" : "text-[#1D3557]/45"}>{catalog.counts[value]}</span>
+                <span className={value === category ? "text-white/65" : "text-[#243832]/45"}>{catalog.counts[value]}</span>
               </Link>
             ))}
           </nav>
@@ -649,50 +649,50 @@ export function PriceExplorer({
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7" aria-label="업체 가격 찾기">
-        <div className="rounded-[24px] border border-[#1D3557]/10 bg-white p-3 shadow-[0_12px_34px_rgba(29,53,87,0.045)] sm:p-4">
+        <div className="rounded-[24px] border border-[#243832]/10 bg-white p-3 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-4">
           <div className="flex gap-2">
-            <label className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl bg-[#FBF8F2] px-4 focus-within:ring-2 focus-within:ring-[#B5977A]">
-              <Search aria-hidden="true" className="size-4 shrink-0 text-[#1D3557]/45" />
+            <label className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl bg-[#FBF8F2] px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
+              <Search aria-hidden="true" className="size-4 shrink-0 text-[#243832]/45" />
               <span className="sr-only">업체명 검색</span>
-              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 이전 상호 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#1D3557]/40" />
+              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 이전 상호 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#243832]/40" />
             </label>
-            <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl border border-[#1D3557]/12 bg-white px-4 text-sm font-bold text-[#1D3557] md:hidden">
+            <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-xl border border-[#243832]/12 bg-white px-4 text-sm font-bold text-[#243832] md:hidden">
               <Filter aria-hidden="true" className="size-4" />
               필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ""}
               <ChevronDown aria-hidden="true" className={`size-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
             </button>
           </div>
 
-          <div className={`${filtersOpen ? "block" : "hidden"} mt-4 border-t border-[#1D3557]/10 pt-4 md:block`}>
+          <div className={`${filtersOpen ? "block" : "hidden"} mt-4 border-t border-[#243832]/10 pt-4 md:block`}>
             <div className="grid gap-4 md:grid-cols-4">
-              <label className="text-xs font-bold text-[#1D3557]/65">
+              <label className="text-xs font-bold text-[#243832]/65">
                 지역
                 <select value={regionCode} onChange={(event) => {
                   setRegionCode(event.target.value);
-                }} className="mt-2 min-h-11 w-full rounded-xl border border-[#1D3557]/12 bg-[#FBF8F2] px-3 text-sm font-medium text-[#1D3557] outline-none focus:ring-2 focus:ring-[#B5977A]">
+                }} className="mt-2 min-h-11 w-full rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 text-sm font-medium text-[#243832] outline-none focus:ring-2 focus:ring-[#B89785]">
                   <option value="">전체 지역</option>
                   {PRICE_REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold text-[#1D3557]/65">
+              <label className="text-xs font-bold text-[#243832]/65">
                 최소 가격
-                <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#1D3557]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B5977A]">
+                <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={minimumManwon} onChange={(event) => setMinimumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="0" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
-                  <span className="text-xs font-medium text-[#1D3557]/50">만원</span>
+                  <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#1D3557]/65">
+              <label className="text-xs font-bold text-[#243832]/65">
                 최대 가격
-                <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#1D3557]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B5977A]">
+                <span className="mt-2 flex min-h-11 items-center rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785]">
                   <input value={maximumManwon} onChange={(event) => setMaximumManwon(event.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="제한 없음" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
-                  <span className="text-xs font-medium text-[#1D3557]/50">만원</span>
+                  <span className="text-xs font-medium text-[#243832]/50">만원</span>
                 </span>
               </label>
-              <label className="text-xs font-bold text-[#1D3557]/65">
+              <label className="text-xs font-bold text-[#243832]/65">
                 정렬
                 <select value={sort} onChange={(event) => {
                   setSort(event.target.value as "name" | "lowest_price");
-                }} className="mt-2 min-h-11 w-full rounded-xl border border-[#1D3557]/12 bg-[#FBF8F2] px-3 text-sm font-medium text-[#1D3557] outline-none focus:ring-2 focus:ring-[#B5977A]">
+                }} className="mt-2 min-h-11 w-full rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 text-sm font-medium text-[#243832] outline-none focus:ring-2 focus:ring-[#B89785]">
                   <option value="name">업체명순</option>
                   <option value="lowest_price">최저가순</option>
                 </select>
@@ -701,12 +701,12 @@ export function PriceExplorer({
 
             {activeAgencies.length > 0 ? (
               <fieldset className="mt-4">
-                <legend className="text-xs font-bold text-[#1D3557]/65">대행사</legend>
+                <legend className="text-xs font-bold text-[#243832]/65">대행사</legend>
                 <div className="scrollbar-hide mt-2 flex gap-2 overflow-x-auto pb-1">
                   {activeAgencies.map((agency) => {
                     const checked = agencyIds.includes(agency.id);
                     return (
-                      <label key={agency.id} className={`inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[#1D3557]/12 bg-white text-[#1D3557]/70"}`}>
+                      <label key={agency.id} className={`inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[#243832]/12 bg-white text-[#243832]/70"}`}>
                         <input type="checkbox" checked={checked} onChange={() => {
                           setAgencyIds((current) => checked ? current.filter((id) => id !== agency.id) : [...current, agency.id]);
                         }} className="sr-only" />
@@ -718,7 +718,7 @@ export function PriceExplorer({
               </fieldset>
             ) : null}
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#1D3557]/10 pt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#243832]/10 pt-4">
               {!preview ? <button type="button" onClick={() => {
                 if (wishlistHydrationStatus !== "ready") return;
                 if (authStatus === "guest") {
@@ -726,12 +726,12 @@ export function PriceExplorer({
                   return;
                 }
                 setWishlistOnly((value) => !value);
-              }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[#1D3557]"}`}>
+              }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[#243832]"}`}>
                 <Heart aria-hidden="true" className="size-4" fill={wishlistOnly ? "currentColor" : "none"} />
                 찜한 업체만
               </button> : null}
               {activeFilterCount > 0 ? (
-                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#1D3557]/65 hover:bg-[#FBF8F2]">
+                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#243832]/65 hover:bg-[#FBF8F2]">
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                   필터 초기화
                 </button>
@@ -754,12 +754,12 @@ export function PriceExplorer({
         ) : null}
 
         {!preview && authStatus === "authenticated" && savedComboHydrationStatus === "error" ? (
-          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#1D3557]/15 bg-white px-4 py-3 text-sm text-[#1D3557]">
+          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#243832]/15 bg-white px-4 py-3 text-sm text-[#243832]">
             <p className="font-semibold">저장한 조합을 불러오지 못했어요. 현재 담은 조합은 그대로 두었어요.</p>
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}
-              className="inline-flex min-h-11 items-center rounded-full border border-[#1D3557]/20 bg-[#FBF8F2] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+              className="inline-flex min-h-11 items-center rounded-full border border-[#243832]/20 bg-[#FBF8F2] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
             >
               다시 불러오기
             </button>
@@ -769,12 +769,12 @@ export function PriceExplorer({
         {!preview && authStatus === "authenticated"
           && savedComboHydrationStatus === "ready"
           && latestSavedCombo ? (
-            <section aria-label="최근 저장 조합" className="mt-4 rounded-2xl border border-[#1D3557]/12 bg-[#F5ECE4] px-4 py-4 text-[#1D3557]">
+            <section aria-label="최근 저장 조합" className="mt-4 rounded-2xl border border-[#243832]/12 bg-[#F5ECE4] px-4 py-4 text-[#243832]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold tracking-[0.1em] text-[#8F6662]">최근 저장 조합</p>
                   <p className="mt-1 truncate text-sm font-bold">{latestSavedCombo.name}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#1D3557]/60">현재 공개 중인 업체와 가격이 일치하는 항목만 안전하게 불러옵니다.</p>
+                  <p className="mt-1 text-xs leading-5 text-[#243832]/60">현재 공개 중인 업체와 가격이 일치하는 항목만 안전하게 불러옵니다.</p>
                 </div>
                 {restoreConfirming ? (
                   <div className="flex flex-wrap items-center gap-2" role="group" aria-label="현재 조합 교체 확인">
@@ -782,14 +782,14 @@ export function PriceExplorer({
                     <button
                       type="button"
                       onClick={restoreLatestCombo}
-                      className="inline-flex min-h-11 items-center rounded-full bg-[#1D3557] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-full bg-[#36534E] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       바꾸기
                     </button>
                     <button
                       type="button"
                       onClick={() => setRestoreConfirming(false)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-[#1D3557]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-full border border-[#243832]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       취소
                     </button>
@@ -798,7 +798,7 @@ export function PriceExplorer({
                   <button
                     type="button"
                     onClick={restoreLatestCombo}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#1D3557] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                   >
                     최근 저장 조합 불러오기
                   </button>
@@ -808,8 +808,8 @@ export function PriceExplorer({
           ) : null}
 
         <div className="mt-6 flex items-center justify-between gap-3">
-          <p className="text-sm text-[#1D3557]/65"><strong className="font-bold text-[#1D3557]">{filtered.length}</strong>개 업체</p>
-          {debouncedSearch ? <p className="max-w-[65%] truncate text-xs text-[#1D3557]/50">‘{debouncedSearch}’ 검색 결과</p> : null}
+          <p className="text-sm text-[#243832]/65"><strong className="font-bold text-[#243832]">{filtered.length}</strong>개 업체</p>
+          {debouncedSearch ? <p className="max-w-[65%] truncate text-xs text-[#243832]/50">‘{debouncedSearch}’ 검색 결과</p> : null}
         </div>
 
         {displayVendors.length > 0 ? (
@@ -831,7 +831,7 @@ export function PriceExplorer({
 
         <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center" aria-hidden={visibleCount >= filtered.length}>
           {visibleCount < filtered.length ? (
-            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-full border border-[#1D3557]/15 bg-white px-5 text-sm font-bold text-[#1D3557]">
+            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-full border border-[#243832]/15 bg-white px-5 text-sm font-bold text-[#243832]">
               더 보기
             </button>
           ) : null}
@@ -862,7 +862,7 @@ export function PriceExplorer({
         </>
       ) : null}
       <p className="sr-only" role="status" aria-live="polite">{feedback}</p>
-      {feedback ? <div className="fixed bottom-40 left-1/2 z-[105] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-[#10233D] px-4 py-2.5 text-center text-xs font-semibold text-white shadow-xl sm:bottom-32">{feedback}</div> : null}
+      {feedback ? <div className="fixed bottom-40 left-1/2 z-[105] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-[#2B423E] px-4 py-2.5 text-center text-xs font-semibold text-white shadow-xl sm:bottom-32">{feedback}</div> : null}
     </Root>
   );
 }

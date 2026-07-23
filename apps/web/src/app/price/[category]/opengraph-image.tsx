@@ -54,10 +54,10 @@ export default async function OpenGraphImage({
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "62px 72px", color: "#1D3557", background: "linear-gradient(135deg, #fffdf8 0%, #f5ece4 58%, #e7d7c8 100%)", fontFamily: "Paperlogy" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "62px 72px", color: "#243832", background: "linear-gradient(135deg, #fffdf8 0%, #f5ece4 58%, #e7d7c8 100%)", fontFamily: "Paperlogy" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 30 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "#1D3557", color: "white", fontSize: 24 }}>한</div>
+            <div style={{ width: 52, height: 52, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "#36534E", color: "white", fontSize: 24 }}>한</div>
             웨딩한방
           </div>
           <div style={{ display: "flex", padding: "12px 22px", borderRadius: 999, background: "rgba(255,255,255,0.75)", color: "#8F6662", fontSize: 24 }}>{period}</div>
@@ -66,11 +66,11 @@ export default async function OpenGraphImage({
           <div style={{ display: "flex", color: "#8F6662", fontSize: 28 }}>한국소비자원 참가격 공시</div>
           <div style={{ display: "flex", fontSize: 68, lineHeight: 1.14, letterSpacing: -2 }}>{label} 가격 비교</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 20 }}>
-            <div style={{ display: "flex", fontSize: 31, color: "#5B6B80" }}>{count}개 업체</div>
+            <div style={{ display: "flex", fontSize: 31, color: "#4E6A62" }}>{count}개 업체</div>
             <div style={{ display: "flex", fontSize: 50, color: "#8F5150" }}>{range}</div>
           </div>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", color: "#5B6B80", fontSize: 23 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", color: "#4E6A62", fontSize: 23 }}>
           <div style={{ display: "flex" }}>기본가와 추가금을 원문 근거로 한눈에</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
         </div>

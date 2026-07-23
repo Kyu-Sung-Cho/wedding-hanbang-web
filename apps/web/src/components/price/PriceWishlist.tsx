@@ -117,7 +117,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] px-4 pb-16 pt-10 text-[#1D3557] sm:px-6 sm:pt-14">
+    <main className="min-h-screen bg-[#FBF8F2] px-4 pb-16 pt-10 text-[#243832] sm:px-6 sm:pt-14">
       <div className="mx-auto max-w-4xl">
         <header className="mb-7">
           <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">
@@ -128,7 +128,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
               <h1 className="text-3xl font-bold tracking-[-0.035em] sm:text-4xl">
                 찜한 공식 가격 업체
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#1D3557]/70">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#243832]/70">
                 공식 가격이 공개된 업체만 한곳에서 비교해요. 찜 기록에 있어도 현재 공개 카탈로그에 없는 업체는 표시하지 않아요.
               </p>
             </div>
@@ -149,10 +149,10 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
             return (
               <div
                 key={category}
-                className="flex min-h-12 items-center justify-between rounded-2xl border border-[#1D3557]/10 bg-white px-4 text-sm"
+                className="flex min-h-12 items-center justify-between rounded-2xl border border-[#243832]/10 bg-white px-4 text-sm"
               >
                 <span className="font-semibold">{PRICE_CATEGORY_LABELS[category]}</span>
-                <span className="tabular-nums text-[#1D3557]/55">{status === "ready" ? count : "–"}</span>
+                <span className="tabular-nums text-[#243832]/55">{status === "ready" ? count : "–"}</span>
               </div>
             );
           })}
@@ -161,7 +161,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
         {status === "loading" ? (
           <section
             aria-live="polite"
-            className="flex min-h-64 items-center justify-center rounded-[24px] border border-[#1D3557]/10 bg-white"
+            className="flex min-h-64 items-center justify-center rounded-[24px] border border-[#243832]/10 bg-white"
           >
             <div className="text-center">
               <LoaderCircle aria-hidden="true" className="mx-auto size-7 animate-spin text-[#8F6662]" />
@@ -178,7 +178,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           >
             <Link
               href="/login?redirect=%2Fprice%2Fwishlist"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#1D3557] px-5 text-sm font-bold text-white hover:bg-[#142844] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B5977A]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-bold text-white hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               로그인하고 보기
               <ArrowRight aria-hidden="true" className="size-4" />
@@ -195,7 +195,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
             <button
               type="button"
               onClick={retry}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#1D3557] px-5 text-sm font-bold text-white hover:bg-[#142844] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B5977A]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-bold text-white hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               <RefreshCw aria-hidden="true" className="size-4" />
               다시 불러오기
@@ -211,7 +211,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           >
             <Link
               href="/price/studio"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#1D3557] px-5 text-sm font-bold text-white hover:bg-[#142844] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B5977A]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-bold text-white hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               공식 가격 둘러보기
               <ArrowRight aria-hidden="true" className="size-4" />
@@ -227,7 +227,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                   <h2 id={`wishlist-${category}`} className="text-lg font-bold">
                     {PRICE_CATEGORY_LABELS[category]}
                   </h2>
-                  <span className="text-sm tabular-nums text-[#1D3557]/55">{vendors.length}개</span>
+                  <span className="text-sm tabular-nums text-[#243832]/55">{vendors.length}개</span>
                 </div>
                 {vendors.length > 0 ? (
                   <div className="space-y-4">
@@ -242,7 +242,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[20px] border border-dashed border-[#1D3557]/15 bg-white/55 px-5 py-5 text-sm text-[#1D3557]/60">
+                  <div className="rounded-[20px] border border-dashed border-[#243832]/15 bg-white/55 px-5 py-5 text-sm text-[#243832]/60">
                     이 카테고리에 찜한 공식 가격 업체가 없어요.
                   </div>
                 )}
@@ -257,7 +257,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </p>
         ) : null}
 
-        <div className="mt-10 overflow-hidden rounded-[20px] border border-[#1D3557]/10 bg-white">
+        <div className="mt-10 overflow-hidden rounded-[20px] border border-[#243832]/10 bg-white">
           <PriceDisclosureFooter periodLabel={catalog.periodLabel} />
         </div>
       </div>
@@ -277,12 +277,12 @@ function StateCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[#1D3557]/10 bg-white px-5 py-10 text-center shadow-[0_12px_34px_rgba(29,53,87,0.055)] sm:px-8">
+    <section className="rounded-[24px] border border-[#243832]/10 bg-white px-5 py-10 text-center shadow-[0_12px_34px_rgba(36,56,50,0.055)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>
       <h2 className="mt-5 text-xl font-bold tracking-[-0.02em]">{title}</h2>
-      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#1D3557]/70">{description}</p>
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#243832]/70">{description}</p>
       <div className="mt-6">{children}</div>
     </section>
   );

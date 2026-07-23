@@ -414,11 +414,11 @@ export default async function VendorPricePage({
               <p className="col-span-3 mt-3 text-xs text-[#36534E]/60">익명 실거래 {marketDistribution.sampleSize}건 기준</p>
             </div>
           ) : (
-            <div className="mt-5 rounded-2xl border border-[#B5977A]/30 bg-white p-5 sm:p-6">
-              <p className="font-bold text-[#1D3557]">실거래 데이터 준비 중 — 내 계약 정보를 공유하면 다른 커플의 실거래 분포를 먼저 볼 수 있어요.</p>
+            <div className="mt-5 rounded-2xl border border-[#B89785]/30 bg-white p-5 sm:p-6">
+              <p className="font-bold text-[#243832]">실거래 데이터 준비 중 — 내 계약 정보를 공유하면 다른 커플의 실거래 분포를 먼저 볼 수 있어요.</p>
               <Link
                 href="/wedding/community/quote-check"
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1D3557] px-4 text-sm font-bold text-white"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#36534E] px-4 text-sm font-bold text-white"
               >
                 내 견적 확인하고 공유하기
               </Link>
@@ -471,7 +471,7 @@ export default async function VendorPricePage({
           </section>
         ) : null}
 
-        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[#243832]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[#36534E] shadow-[0_-8px_24px_rgba(29,53,87,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
+        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[#243832]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[#36534E] shadow-[0_-8px_24px_rgba(36,56,50,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
           <p>가격 출처: 한국소비자원 참가격 · {periodLabel(currentPeriod)} 공시 기준</p>
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>
