@@ -3,6 +3,7 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import {
   AMORA_TOOL_POLICY_NAMES,
   selectAmoraPendingProposalTools,
+  selectAmoraPendingProposalToolsWithCarryover,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
 
@@ -214,5 +215,31 @@ describe("selectAmoraTools", () => {
     }).map((tool) => tool.name);
 
     expect(selected).not.toContain("update_budget");
+  });
+});
+
+describe("selectAmoraPendingProposalToolsWithCarryover", () => {
+  const proposal = (userText: string, previousUserText: string | null) =>
+    selectAmoraPendingProposalToolsWithCarryover({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      previousUserText,
+      specialistType: "general",
+    }).map((tool) => tool.name);
+
+  it("keeps the current-turn selection when the last turn carries domain intent", () => {
+    expect(proposal("총예산 4천만원으로 바꿔줘", null)).toContain("update_budget");
+  });
+
+  it("carries the proposal window from the previous user turn on a generic consent", () => {
+    // "응, 해줘"는 도메인 어휘가 없어 자체로는 제안 0개 — 직전 턴에서 이월돼야
+    // 모델이 pending 표식을 낼 수 있고, 확인 버튼 플로우가 이어진다.
+    expect(proposal("응 맞아, 그대로 적용해줘", null)).toEqual([]);
+    expect(proposal("응 맞아, 그대로 적용해줘", "총예산 4천만원으로 바꿔줘"))
+      .toContain("update_budget");
+  });
+
+  it("never widens beyond what the previous turn itself would allow", () => {
+    expect(proposal("응 좋아", "오늘 날씨 어때?")).toEqual([]);
   });
 });

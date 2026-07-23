@@ -61,7 +61,7 @@ import {
   type AmoraToolRoundCheckpoint,
 } from "@/lib/ai/amoraTurnJournal";
 import {
-  selectAmoraPendingProposalTools,
+  selectAmoraPendingProposalToolsWithCarryover,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
@@ -1426,9 +1426,13 @@ export async function POST(request: Request) {
     && isDurableUserMessageBound
     && visibility === "shared"
     && !approvedPendingAction
-      ? selectAmoraPendingProposalTools({
+      ? selectAmoraPendingProposalToolsWithCarryover({
           availableTools: PENDING_ACTION_TOOLS,
           userText: lastUserText,
+          // "응, 해줘" 같은 승인 턴은 도메인 어휘가 없어 제안 창이 닫히는 문제의
+          // 이월분 — 직전 사용자 턴 텍스트로 한 턴만 제안 자격을 유지한다.
+          previousUserText: [...canonicalRows].slice(0, -1).reverse()
+            .find((row) => row.role === "user")?.content ?? null,
           specialistType,
           attachmentKind,
         })
