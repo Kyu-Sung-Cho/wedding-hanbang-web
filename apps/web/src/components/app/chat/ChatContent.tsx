@@ -1485,7 +1485,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="flex items-center gap-0.5 shrink-0">
           <a
             href="/ai-policy"
-            className="hidden sm:flex items-center justify-center h-9 px-2 rounded-lg text-[0.6875rem] font-medium text-[#928980] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+            className="flex items-center justify-center h-9 px-2 rounded-lg text-[0.6875rem] font-medium text-[#928980] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
             aria-label="AI 정책"
             title="AI 정책"
           >

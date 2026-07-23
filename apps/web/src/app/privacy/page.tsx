@@ -126,9 +126,17 @@ export default function PrivacyPage() {
                     <td className="py-2">㈜ 토스페이먼츠</td>
                     <td className="py-2">결제 처리</td>
                   </tr>
-                  <tr>
+                  <tr className="border-b border-black/[0.04]">
                     <td className="py-2">Resend, Inc.</td>
                     <td className="py-2">이메일 발송</td>
+                  </tr>
+                  <tr className="border-b border-black/[0.04]">
+                    <td className="py-2">PostHog, Inc.</td>
+                    <td className="py-2">서비스 이용 통계 분석(미국 소재)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2">Functional Software, Inc. (Sentry)</td>
+                    <td className="py-2">오류 수집 및 서비스 안정성 개선(미국 소재)</td>
                   </tr>
                 </tbody>
               </table>

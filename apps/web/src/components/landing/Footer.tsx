@@ -14,7 +14,6 @@ const SERVICE_LINKS = [
 ];
 
 const POLICY_LINKS = [
-  { label: "운영원칙", href: "/principles" },
   { label: "AI 정책", href: "/ai-policy" },
   { label: "개인정보처리방침", href: "/privacy" },
   { label: "이용약관", href: "/terms" },

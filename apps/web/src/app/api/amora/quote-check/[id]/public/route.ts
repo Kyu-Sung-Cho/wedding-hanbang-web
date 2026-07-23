@@ -65,8 +65,8 @@ export async function GET(
       },
       { headers: { "Cache-Control": "public, max-age=300, s-maxage=300" } }
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "결과를 불러올 수 없습니다.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    // 내부 에러 원문은 노출하지 않는다 (2026-07-23 보안 감사).
+    return NextResponse.json({ error: "결과를 불러올 수 없습니다." }, { status: 500 });
   }
 }
