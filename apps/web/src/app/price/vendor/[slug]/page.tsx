@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileCheck2 } from "lucide-react";
 import { cache } from "react";
 
+import { VendorMonogram } from "@/components/price/VendorMonogram";
 import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
 import { marketPriceProvider } from "@/lib/marketPrice/provider";
@@ -225,6 +226,13 @@ export default async function VendorPricePage({
     ["인스타그램", safeExternalUrl(profile.vendor.urls.instagram)],
     ["네이버 플레이스", safeExternalUrl(profile.vendor.urls.naver_place)],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  // 확인된 공식 링크가 없어도 막다른 골목을 만들지 않는다 — 외부 API·수집 없이
+  // 업체명+지역으로 구성한 네이버 지도 "검색" 링크(오배정 불가: 결과는 사용자가 봄).
+  const naverSearchHref = `https://map.naver.com/p/search/${encodeURIComponent(
+    [profile.vendor.name.replace(/^[[(][^\])]{1,8}[\])]\s*/u, ""),
+      profile.vendor.region_code ? REGION_LABELS[profile.vendor.region_code] ?? "" : ""]
+      .filter(Boolean).join(" "),
+  )}`;
   const currentPrices = profile.prices.filter((price) => price.is_current);
   if (currentPrices.length === 0) notFound();
   const historyPeriods = [...new Set(profile.prices.map((price) => price.period_label))];
@@ -264,9 +272,12 @@ export default async function VendorPricePage({
             <span>{CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category}</span>
             {profile.vendor.region_code ? <><span aria-hidden="true">·</span><span>{REGION_LABELS[profile.vendor.region_code] ?? profile.vendor.region_code}</span></> : null}
           </div>
-          <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
-            {profile.vendor.name}
-          </h1>
+          <div className="mt-3 flex items-center gap-4">
+            <VendorMonogram id={profile.vendor.id} name={profile.vendor.name} size="lg" />
+            <h1 className="text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
+              {profile.vendor.name}
+            </h1>
+          </div>
           {profile.vendor.aliases.length > 0 ? (
             <p className="mt-2 text-sm text-[#36534E]/65">구. {profile.vendor.aliases.join(" · ")}</p>
           ) : null}
@@ -452,24 +463,37 @@ export default async function VendorPricePage({
           </dl>
         </section>
 
-        {externalLinks.length > 0 ? (
-          <section aria-labelledby="link-heading" className="border-t border-[#243832]/15 py-8">
-            <h2 id="link-heading" className="text-lg font-bold">업체 공식 링크</h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              {externalLinks.map(([label, href]) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#36534E]/25 px-4 py-2 text-sm font-semibold hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
-                >
-                  {label}<ExternalLink aria-hidden="true" className="size-4" />
-                </a>
-              ))}
-            </div>
-          </section>
-        ) : null}
+        <section aria-labelledby="link-heading" className="border-t border-[#243832]/15 py-8">
+          <h2 id="link-heading" className="text-lg font-bold">
+            {externalLinks.length > 0 ? "업체 공식 링크" : "업체 더 찾아보기"}
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {externalLinks.map(([label, href]) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#36534E]/25 px-4 py-2 text-sm font-semibold hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+              >
+                {label}<ExternalLink aria-hidden="true" className="size-4" />
+              </a>
+            ))}
+            <a
+              href={naverSearchHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-[#36534E]/35 px-4 py-2 text-sm font-semibold text-[#36534E]/85 hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+            >
+              네이버 지도에서 검색<ExternalLink aria-hidden="true" className="size-4" />
+            </a>
+          </div>
+          {externalLinks.length === 0 ? (
+            <p className="mt-3 text-xs leading-5 text-[#36534E]/60">
+              아직 확인된 공식 링크가 등록되지 않았어요. 위 버튼은 업체명으로 바로 검색해 드리는 링크예요.
+            </p>
+          ) : null}
+        </section>
 
         <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[#243832]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[#36534E] shadow-[0_-8px_24px_rgba(36,56,50,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
           <p>가격 출처: 한국소비자원 참가격 · {periodLabel(currentPeriod)} 공시 기준</p>
