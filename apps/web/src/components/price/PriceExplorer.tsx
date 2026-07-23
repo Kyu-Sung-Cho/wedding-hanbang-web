@@ -47,6 +47,8 @@ import { PriceEmptyState } from "./PriceEmptyState";
 import { PriceVendorCard } from "./PriceVendorCard";
 
 const PAGE_SIZE = 20;
+// 접힌 상태에서 보여줄 대행사 칩 수 — 나머지는 "모두 보기"로 펼친다.
+const AGENCY_PREVIEW_COUNT = 12;
 const comboStore = createPriceComboStore();
 
 type AuthStatus = "loading" | "authenticated" | "guest" | "unknown";
@@ -93,6 +95,7 @@ export function PriceExplorer({
   const [wishlistOnly, setWishlistOnly] = useState(false);
   const [sort, setSort] = useState<"name" | "lowest_price">("name");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [agencyListOpen, setAgencyListOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   const [wishlistBusyIds, setWishlistBusyIds] = useState<Set<string>>(new Set());
@@ -702,11 +705,19 @@ export function PriceExplorer({
             {activeAgencies.length > 0 ? (
               <fieldset className="mt-4">
                 <legend className="text-xs font-bold text-[#243832]/65">대행사</legend>
-                <div className="scrollbar-hide mt-2 flex gap-2 overflow-x-auto pb-1">
-                  {activeAgencies.map((agency) => {
+                {/* 대행사가 수십 개라 가로 스크롤(스크롤바 숨김)로는 칸을 뚫고 나가
+                    잘려 보였다 — 줄바꿈으로 전부 칸 안에 담고, 기본은 일부만 +
+                    "모두 보기"로 펼친다. 선택된 칩은 접힌 상태에서도 항상 보인다. */}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(agencyListOpen
+                    ? activeAgencies
+                    : activeAgencies.filter((agency, index) => (
+                      index < AGENCY_PREVIEW_COUNT || agencyIds.includes(agency.id)
+                    ))
+                  ).map((agency) => {
                     const checked = agencyIds.includes(agency.id);
                     return (
-                      <label key={agency.id} className={`inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-full border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[#243832]/12 bg-white text-[#243832]/70"}`}>
+                      <label key={agency.id} className={`inline-flex min-h-11 cursor-pointer items-center rounded-full border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[#243832]/12 bg-white text-[#243832]/70"}`}>
                         <input type="checkbox" checked={checked} onChange={() => {
                           setAgencyIds((current) => checked ? current.filter((id) => id !== agency.id) : [...current, agency.id]);
                         }} className="sr-only" />
@@ -714,6 +725,19 @@ export function PriceExplorer({
                       </label>
                     );
                   })}
+                  {activeAgencies.length > AGENCY_PREVIEW_COUNT ? (
+                    <button
+                      type="button"
+                      onClick={() => setAgencyListOpen((value) => !value)}
+                      aria-expanded={agencyListOpen}
+                      className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[#243832]/25 bg-[#FBF8F2] px-3 text-xs font-semibold text-[#243832]/70 hover:bg-[#F5ECE4]"
+                    >
+                      {agencyListOpen
+                        ? "접기"
+                        : `+${activeAgencies.length - Math.min(AGENCY_PREVIEW_COUNT, activeAgencies.length)}개 모두 보기`}
+                      <ChevronDown aria-hidden="true" className={`size-3.5 transition-transform ${agencyListOpen ? "rotate-180" : ""}`} />
+                    </button>
+                  ) : null}
                 </div>
               </fieldset>
             ) : null}

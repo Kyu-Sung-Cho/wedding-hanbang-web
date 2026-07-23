@@ -472,7 +472,7 @@ describe("PriceExplorer", () => {
     );
   });
 
-  it("keeps horizontally scrolling filter controls at least 44px tall on mobile", async () => {
+  it("keeps wrapped filter controls at least 44px tall on mobile", async () => {
     vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => Promise.resolve(
       String(input).includes("/api/favorites")
         ? jsonResponse({ vendorIds: [] })
@@ -489,8 +489,10 @@ describe("PriceExplorer", () => {
     const wishlistOnly = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((button) => button.textContent?.includes("찜한 업체만"));
 
+    // 2026-07-23 회귀: 대행사 칩은 가로 스크롤(칸 밖으로 잘림) 대신 줄바꿈으로 담는다.
     expect(agencyControl?.className).toContain("min-h-11");
-    expect(agencyControl?.parentElement?.className).toContain("overflow-x-auto");
+    expect(agencyControl?.parentElement?.className).toContain("flex-wrap");
+    expect(agencyControl?.parentElement?.className).not.toContain("overflow-x-auto");
     expect(wishlistOnly?.className).toContain("min-h-11");
   });
 });
