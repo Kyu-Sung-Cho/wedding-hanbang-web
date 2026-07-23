@@ -1940,8 +1940,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         userId: "00000000-0000-4000-8000-000000000001",
         callIndex: 1,
         phase: "tool_round",
-        // 저장 제안(표식) 턴은 형식 준수를 위해 primary로 승격된다.
-        modelRole: "primary",
+        modelRole: "fast",
       }),
       expect.any(Function),
       expect.any(Object),

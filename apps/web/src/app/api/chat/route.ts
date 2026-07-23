@@ -1510,18 +1510,17 @@ export async function POST(request: Request) {
     }
   );
 
+  // 주의(2026-07-24): pendingOffer 턴을 primary(terra)로 승격했다가 회수 —
+  // 운영에서 terra가 reasoning "none" 잠금 하에 빈 응답을 내 모든 저장·예산
+  // 턴이 죽는 사고. terra 빈응답 궁합은 별도 백로그, 저장 턴은 검증된 fast 유지.
   const modelRole =
     requestKind === "mediation"
       ? ("primary" as const)
-      // 저장 제안(표식) 턴은 형식 준수가 신뢰의 전부라 fast 모델의 형식
-      // 이탈 리스크를 피해 primary로 승격한다. 저장 턴은 드물어 비용 영향 미미.
-      : pendingOfferEnabled
-        ? ("primary" as const)
-        : chooseAmoraChatModelRole({
-            specialistType,
-            userText: lastUserText,
-            correctionCount,
-          });
+      : chooseAmoraChatModelRole({
+          specialistType,
+          userText: lastUserText,
+          correctionCount,
+        });
   const executionContext: ToolExecutionContext = {
     coupleId,
     requestKey: clientRequestId,
