@@ -13,6 +13,7 @@ import {
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
+import { sendVendorSignal } from "@/lib/price/vendorSignals";
 
 // 기본가 없이 옵션만 공시된 행(예: 예식장 "○○홀 옵션")은 "가격 확인 필요" 대신
 // 옵션이 아래 추가금 목록에 있음을 안내한다 — 가격이 실제로는 공개돼 있기 때문.
@@ -85,6 +86,7 @@ export function PriceVendorCard({
                 ...(vendor.regionCode ? { region: vendor.regionCode } : {}),
               },
             });
+            sendVendorSignal(vendor.id, "impression");
             observer.disconnect();
           }, 1_000);
         }
@@ -293,11 +295,14 @@ export function PriceVendorCard({
       <div className="flex items-center gap-3 px-4 py-4 sm:px-6">
         <Link
           href={detailHref}
-          onClick={preview ? undefined : () => track("vendor_card_click", {
-            vendor_id: vendor.id,
-            surface: "price_list",
-            context: { category: vendor.category },
-          })}
+          onClick={preview ? undefined : () => {
+            track("vendor_card_click", {
+              vendor_id: vendor.id,
+              surface: "price_list",
+              context: { category: vendor.category },
+            });
+            sendVendorSignal(vendor.id, "detail_click");
+          }}
           className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-[#1D3557]/18 px-4 text-sm font-semibold text-[#1D3557] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B5977A]"
         >
           상세 보기

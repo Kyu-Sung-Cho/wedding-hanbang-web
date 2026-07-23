@@ -189,6 +189,162 @@ type BulkApprovalSummary = {
   blocked_reason?: string;
 };
 
+// 업체 수요 랭킹 (2026-07-23): 소비자 행동 카운터(vendor_demand_daily)를 기간·카테고리로
+// 집계해 업체 제휴 대화용 근거 수치를 보여준다. CSV 내려받기 지원.
+type DemandRankRow = {
+  vendor_id: string;
+  name: string;
+  category: string;
+  region_code: string | null;
+  impression: number;
+  detail_click: number;
+  detail_view: number;
+  wishlist_add: number;
+  combo_add: number;
+  total: number;
+};
+
+function VendorDemandPanel() {
+  const [days, setDays] = useState(30);
+  const [category, setCategory] = useState("");
+  const [rows, setRows] = useState<DemandRankRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [loadedAt, setLoadedAt] = useState("");
+
+  async function load() {
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const query = new URLSearchParams({ days: String(days) });
+      if (category) query.set("category", category);
+      const response = await fetch(`/api/admin/price/demand?${query.toString()}`);
+      if (response.status === 401) {
+        window.location.assign("/admin/login");
+        return;
+      }
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "수요 데이터를 불러오지 못했습니다.");
+      setRows(body.rows ?? []);
+      setLoadedAt(new Date().toLocaleTimeString("ko-KR"));
+    } catch (caught) {
+      setRows([]);
+      setError(caught instanceof Error ? caught.message : "수요 데이터를 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function downloadCsv() {
+    if (rows.length === 0) return;
+    const header = "업체명,카테고리,지역,노출,상세클릭,상세열람,찜,조합담기,합계";
+    const lines = rows.map((row) => [
+      `"${row.name.replaceAll('"', '""')}"`,
+      row.category,
+      row.region_code ?? "",
+      row.impression,
+      row.detail_click,
+      row.detail_view,
+      row.wishlist_add,
+      row.combo_add,
+      row.total,
+    ].join(","));
+    const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = `vendor-demand-${days}d${category ? `-${category}` : ""}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  }
+
+  return (
+    <section className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-indigo-900">업체 수요 랭킹</h2>
+          <p className="mt-1 text-xs text-indigo-800">
+            소비자 탐색 행동(노출·클릭·상세·찜·조합) 집계 — 업체 제휴 대화용 근거 수치
+            {loadedAt ? ` · ${loadedAt} 기준` : ""}
+          </p>
+          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={days}
+            onChange={(event) => setDays(Number(event.target.value))}
+            className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-xs"
+          >
+            <option value={7}>최근 7일</option>
+            <option value={30}>최근 30일</option>
+            <option value={90}>최근 90일</option>
+          </select>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-xs"
+          >
+            <option value="">전체 카테고리</option>
+            <option value="studio">스튜디오</option>
+            <option value="dress">드레스</option>
+            <option value="makeup">메이크업</option>
+            <option value="venue">웨딩홀</option>
+          </select>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {loading ? "불러오는 중…" : "불러오기"}
+          </button>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            disabled={rows.length === 0}
+            className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
+          >
+            CSV
+          </button>
+        </div>
+      </div>
+      {rows.length > 0 ? (
+        <div className="mt-3 max-h-80 overflow-auto rounded-lg border border-indigo-100 bg-white">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-indigo-100/80 text-indigo-900">
+              <tr>
+                <th className="px-2 py-1.5 text-left">업체</th>
+                <th className="px-2 py-1.5 text-right">노출</th>
+                <th className="px-2 py-1.5 text-right">상세클릭</th>
+                <th className="px-2 py-1.5 text-right">상세열람</th>
+                <th className="px-2 py-1.5 text-right">찜</th>
+                <th className="px-2 py-1.5 text-right">조합</th>
+                <th className="px-2 py-1.5 text-right font-semibold">합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 30).map((row) => (
+                <tr key={row.vendor_id} className="border-t border-indigo-50">
+                  <td className="px-2 py-1.5">
+                    {row.name}
+                    <span className="ml-1 text-[10px] text-indigo-400">{row.category}·{row.region_code ?? "-"}</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.impression}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_click}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.detail_view}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.wishlist_add}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{row.combo_add}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{row.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 // 2026-07-22 전량 추출 런: 자동 검증 통과 유닛('agent_auto_validated')의 pending 행을
 // 사람이 건수 확인 후 한 번에 승인하는 패널. 공개 전환은 하지 않는다.
 function AutoValidatedApprovalPanel() {
@@ -1579,6 +1735,7 @@ export default function AdminPricePage() {
       <VendorWorkspaceHeader active="price" />
       <main className="mx-auto max-w-[1500px] px-5 py-7 lg:px-8">
         <PriceUploadPanel />
+        <VendorDemandPanel />
         <AutoValidatedApprovalPanel />
         <BulkApprovalPanel />
         <SnapshotReadinessPanel />

@@ -20,6 +20,7 @@ import {
   getAttributeFieldDefinitions,
   type VendorAttributeCategory,
 } from "@/lib/vendors/attributeSchemas";
+import { VendorDetailSignal } from "@/components/price/VendorDetailSignal";
 import { createPublicClient } from "@/lib/supabase/public";
 import { loadPublicVendorPriceProfile } from "@/lib/vendors/publicVendorPriceData";
 
@@ -243,6 +244,7 @@ export default async function VendorPricePage({
 
   return (
     <main className="min-h-screen bg-[#FBF8F2] text-[#243832]">
+      <VendorDetailSignal vendorId={profile.vendor.id} />
       {structuredData.map((data, index) => (
         <script
           key={index}
