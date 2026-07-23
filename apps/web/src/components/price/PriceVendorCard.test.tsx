@@ -82,6 +82,51 @@ describe("PriceVendorCard", () => {
     expect(container.textContent).toContain("서울 강남권");
   });
 
+  it("renders only the vendor's own agencies when a multi-agency order is given", async () => {
+    // 다중 대행사 선택 회귀(2026-07-23): 미보유 대행사를 "—" 컬럼으로 만들면
+    // 진짜 가격이 가로 스크롤 밖으로 밀려 "선택했는데 안 보이는" 문제가 된다.
+    const vendor: PriceVendor = {
+      id: "vendor-2",
+      slug: "vendor-2",
+      name: "단일 대행 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      offers: [
+        {
+          id: "offer-b",
+          agencyId: "agency-b",
+          agencyName: "대행사 비",
+          minimumKrw: 1_500_000,
+          maximumKrw: 1_500_000,
+          priceNote: null,
+          baseSpec: null,
+          options: [],
+        },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard
+          vendor={vendor}
+          agencyOrder={[
+            { id: "agency-a", name: "대행사 에이" },
+            { id: "agency-b", name: "대행사 비" },
+          ]}
+          isWishlisted={false}
+          onToggleWishlist={() => {}}
+        />,
+      );
+    });
+
+    const comparison = container.querySelector('[aria-label="단일 대행 스튜디오 대행사별 공시가"]');
+    expect(comparison?.textContent).toContain("대행사 비");
+    expect(comparison?.textContent?.replace(/\s+/g, "")).toContain("150만원");
+    expect(comparison?.textContent).not.toContain("대행사 에이");
+    expect(comparison?.textContent).not.toContain("—");
+  });
+
   it("keeps an admin preview card read-only", async () => {
     const onToggleWishlist = vi.fn();
     const onOpenCombo = vi.fn();

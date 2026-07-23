@@ -92,7 +92,7 @@ describe("consumer price presentation", () => {
     expect(html).toContain("/price/vendor/sample-studio");
   });
 
-  it("keeps agency columns ordered, shows a dash for missing prices and separates direct disclosure", () => {
+  it("keeps agency order, drops agencies the vendor lacks and separates direct disclosure", () => {
     const html = renderToStaticMarkup(
       <PriceVendorCard
         vendor={{
@@ -134,12 +134,13 @@ describe("consumer price presentation", () => {
       />,
     );
 
-    const agencyA = html.indexOf("대행사 A");
+    // 2026-07-23 회귀: 미보유 대행사(A)는 "—" 컬럼 대신 아예 렌더하지 않는다 —
+    // 대시 컬럼이 진짜 가격을 가로 스크롤 밖으로 밀어내던 문제의 계약 반전.
     const agencyB = html.indexOf("대행사 B");
     const direct = html.indexOf("업체 직접 공시");
-    expect(agencyA).toBeGreaterThan(-1);
-    expect(agencyB).toBeGreaterThan(agencyA);
-    expect(html.slice(agencyA, agencyB)).toContain("—");
+    expect(html).not.toContain("대행사 A");
+    expect(html).not.toContain("—");
+    expect(agencyB).toBeGreaterThan(-1);
     expect(html.slice(agencyB, direct)).toContain("200만원");
     expect(direct).toBeGreaterThan(agencyB);
     expect(html.slice(direct)).toContain("150만원");

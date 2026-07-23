@@ -52,11 +52,16 @@ export function PriceVendorCard({
     offersByAgency.set(offer.agencyId, agencyOffers);
   }
   const directOffers = vendor.offers.filter(({ agencyId }) => agencyId === null);
-  const displayedAgencies = agencyOrder ?? [...new Map(
-    vendor.offers.flatMap((offer) => offer.agencyId
-      ? [[offer.agencyId, { id: offer.agencyId, name: offer.agencyName }] as const]
-      : []),
-  ).values()];
+  // agencyOrder(다중 선택)는 컬럼 순서만 정하고, 컬럼 자체는 이 벤더가 실제 보유한
+  // 대행사만 만든다 — 미보유 대행사를 "—" 컬럼으로 채우면 카드가 대시로 뒤덮이고
+  // 진짜 가격이 가로 스크롤 밖으로 밀려 "선택한 대행사인데 안 보이는" 문제가 된다.
+  const displayedAgencies = agencyOrder
+    ? agencyOrder.filter((agency) => offersByAgency.has(agency.id))
+    : [...new Map(
+      vendor.offers.flatMap((offer) => offer.agencyId
+        ? [[offer.agencyId, { id: offer.agencyId, name: offer.agencyName }] as const]
+        : []),
+    ).values()];
   const detailHref = preview
     ? `/wedding/vendors/${vendor.id}?preview=1`
     : `/price/vendor/${vendor.slug}`;
