@@ -15,7 +15,7 @@ import {
   type PriceVendor,
 } from "@/lib/price/catalog";
 import { priceRegionLabel } from "@/lib/price/labels";
-import { VendorMonogram } from "./VendorMonogram";
+import { VendorAvatar } from "./VendorAvatar";
 import { loadVendorOptions } from "./vendorOptionsClient";
 
 // 기본가 없이 옵션만 공시된 행(예: 예식장 "○○홀 옵션")은 "가격 확인 필요" 대신
@@ -135,7 +135,7 @@ export function PriceVendorCard({
     >
       <div className="flex items-start justify-between gap-4 px-4 pb-4 pt-5 sm:px-6">
         <div className="flex min-w-0 items-start gap-3">
-          <VendorMonogram id={vendor.id} name={vendor.name} />
+          <VendorAvatar id={vendor.id} name={vendor.name} />
           <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Link

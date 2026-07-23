@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileCheck2 } from "lucide-react";
 import { cache } from "react";
 
-import { VendorMonogram } from "@/components/price/VendorMonogram";
+import { VendorAvatar } from "@/components/price/VendorAvatar";
 import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
 import { marketPriceProvider } from "@/lib/marketPrice/provider";
@@ -273,7 +273,7 @@ export default async function VendorPricePage({
             {profile.vendor.region_code ? <><span aria-hidden="true">·</span><span>{REGION_LABELS[profile.vendor.region_code] ?? profile.vendor.region_code}</span></> : null}
           </div>
           <div className="mt-3 flex items-center gap-4">
-            <VendorMonogram id={profile.vendor.id} name={profile.vendor.name} size="lg" />
+            <VendorAvatar id={profile.vendor.id} name={profile.vendor.name} size="lg" />
             <h1 className="text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
               {profile.vendor.name}
             </h1>
