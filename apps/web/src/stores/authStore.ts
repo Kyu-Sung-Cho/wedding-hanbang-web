@@ -38,7 +38,7 @@ const DEMO_JOURNEY: WeddingJourney = {
   total_budget: 25000000,
   progress: {
     meeting: {
-      category: "meeting", status: "completed",
+      category: "meeting", status: "completed", spent: 420000,
       checklist: [
         { id: "meeting_01", label: "상견례 일정 양가 조율", done: true },
         { id: "meeting_02", label: "상견례 장소 선정 및 예약", done: true },
@@ -49,7 +49,7 @@ const DEMO_JOURNEY: WeddingJourney = {
       ],
     },
     venue: {
-      category: "venue", status: "completed",
+      category: "venue", status: "completed", spent: 11500000,
       checklist: [
         { id: "venue_01", label: "예식장 스타일 결정 (호텔/하우스/채플/야외)", done: true },
         { id: "venue_02", label: "후보 3곳 이상 리스트업", done: true },
@@ -62,7 +62,7 @@ const DEMO_JOURNEY: WeddingJourney = {
       ],
     },
     studio: {
-      category: "studio", status: "completed",
+      category: "studio", status: "completed", spent: 1650000,
       checklist: [
         { id: "studio_01", label: "촬영 스타일 결정 (실내/야외/혼합)", done: true },
         { id: "studio_02", label: "스튜디오 3곳 이상 비교", done: true },
@@ -75,7 +75,7 @@ const DEMO_JOURNEY: WeddingJourney = {
       ],
     },
     dress: {
-      category: "dress", status: "in_progress",
+      category: "dress", status: "in_progress", spent: 600000,
       checklist: [
         { id: "dress_01", label: "드레스 스타일 결정 (A라인/머메이드/볼가운)", done: true },
         { id: "dress_02", label: "드레스샵 3곳 이상 리스트업", done: true },
@@ -114,11 +114,12 @@ const DEMO_JOURNEY: WeddingJourney = {
     mc: { category: "mc", status: "not_started" },
     ham: { category: "ham", status: "not_started" },
     pyebaek: { category: "pyebaek", status: "not_started" },
+    // 데모 일정은 예식일(10/15) 이전의 다가오는 날짜여야 라운지 '다가오는 예약'이 살아 보인다.
     __events: [
-      { id: "evt_demo1", date: "2026-03-15", title: "드레스 2차 피팅", memo: "강남 드레스하우스 오후 2시", categoryKey: "dress", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
-      { id: "evt_demo2", date: "2026-04-10", title: "메이크업 리허설", memo: "청담 메이크업샵", categoryKey: "makeup", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
-      { id: "evt_demo3", date: "2026-05-01", title: "본식 스냅 작가 후보 비교", categoryKey: "snap", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
-      { id: "evt_demo4", date: "2026-06-20", title: "상견례 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+      { id: "evt_demo1", date: "2026-08-08", title: "드레스 최종 피팅", memo: "강남 드레스하우스 오후 2시", categoryKey: "dress", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo2", date: "2026-08-22", title: "메이크업 리허설", memo: "청담 메이크업샵", categoryKey: "makeup", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo3", date: "2026-09-05", title: "본식 스냅 작가 미팅", categoryKey: "snap", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo4", date: "2026-06-20", title: "상견례 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-06-01T00:00:00Z" },
     ],
     __amora_actions: [
       {

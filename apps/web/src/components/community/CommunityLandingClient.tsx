@@ -504,10 +504,10 @@ function QuoteCheckHero() {
               <ChevronRight className="h-4 w-4" />
             </Link>
             <Link
-              {...weddingLinkProps("/market-prices")}
+              href="/price"
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
-              시세표 먼저 보기
+              업체별 공시가 먼저 보기
             </Link>
           </div>
         </div>
