@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2 } from "lucide-react";
+import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import MediationCard from "@/components/app/chat/MediationCard";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
@@ -234,6 +234,51 @@ function AiFeedbackRow({
         <span>아쉬워요</span>
       </button>
     </div>
+  );
+}
+
+// 아모라가 한 말 저장 — 대화가 길어지면 앞에서 들은 중요한 말이 스크롤 뒤로
+// 묻힌다. 저장해 두면 /wedding/saved 한 곳에서 다시 볼 수 있다.
+function SaveNoteButton({ messageId, content }: { messageId: string; content: string }) {
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const handleSave = useCallback(async () => {
+    if (status === "saving" || status === "saved") return;
+    setStatus("saving");
+    try {
+      const response = await fetch("/api/amora/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, content: content.slice(0, 4000) }),
+      });
+      setStatus(response.ok ? "saved" : "error");
+    } catch {
+      setStatus("error");
+    }
+  }, [content, messageId, status]);
+
+  if (status === "saved") {
+    return (
+      <Link
+        {...weddingLinkProps("/saved")}
+        className="flex items-center gap-1.5 text-sm text-[#9A6B62] transition-colors hover:text-[#C4967E]"
+      >
+        <BookmarkCheck className="w-4 h-4" />
+        <span>저장함 · 보러가기</span>
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleSave}
+      disabled={status === "saving"}
+      className="flex items-center gap-1.5 text-sm text-[#B5ADA3] transition-colors hover:text-[#C4967E] disabled:opacity-40"
+      title="나중에 다시 보기"
+    >
+      <Bookmark className="w-4 h-4" />
+      <span>{status === "error" ? "저장 실패 · 다시" : "저장"}</span>
+    </button>
   );
 }
 
@@ -523,12 +568,18 @@ export default function ChatBubble({
               AI 기본법(2026.1.22) 표시 의무는 ChatContent 헤더 "AI 생성" 배지 +
               /ai-policy 링크로 충족. 가독성 회복 (이전 사고: 매 메시지 footer 가
               과잉). */}
-          {/* 피드백 버튼 — 최근 3개 AI 메시지에만 표시 */}
-          {isRecentAi && !aiIsPrivate && (
-            <AiFeedbackRow
-              messageId={message.id}
-              onNegativeFeedback={() => onNegativeFeedback?.(message)}
-            />
+          {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
+              나중에 다시 볼 말은 최근 것만이 아니다. */}
+          {!aiIsPrivate && (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <SaveNoteButton messageId={message.id} content={cleanText} />
+              {isRecentAi && (
+                <AiFeedbackRow
+                  messageId={message.id}
+                  onNegativeFeedback={() => onNegativeFeedback?.(message)}
+                />
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -128,6 +128,10 @@
     {
       "file": "20260726090000_public_vendor_policies.sql",
       "sha256": "b2c789fc6a56fafdcbd1531dbcddc3ed22e6545bd7d4f6d7e7b01ab3b4b20e52"
+    },
+    {
+      "file": "20260726120000_amora_saved_notes.sql",
+      "sha256": "25d14623dd9bc4c24b1941bf037084d97eb54ba05d30901cc522e5f90a425de7"
     }
   ],
   "deploymentEvidence": {

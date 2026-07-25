@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   BarChart3,
+  Bookmark,
   Building2,
   BookOpen,
   CalendarClock,
@@ -36,6 +37,8 @@ type SidebarMenuItem = {
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
+  // 상담 바로 아래 — 저장한 말은 대화의 연장이지 별도 기능이 아니다.
+  { legacyPath: "/saved", icon: Bookmark, label: "저장한 이야기" },
   { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
   // 공시 가격은 /wedding 베이스패스 밖 최상위 표면이라 절대 경로로 직접 연결한다.
