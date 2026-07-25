@@ -276,4 +276,13 @@ describe("Amora pending actions", () => {
     expect(prompt).toContain("정확한 action_id");
     expect(prompt).not.toContain('"confirmation"');
   });
+
+  // 같은 확정 발화도 첫 턴이면 표식을 내고, 앞 턴에서 다른 도구가 빈 결과를
+  // 냈거나 이미 표식을 낸 뒤면 "도구가 없다"며 거절하는 일이 운영에서 관측됐다
+  // (2026-07-25 실계정 E2E). 사용자는 이를 제품이 원래 못 하는 것으로 읽는다.
+  it("forbids declaring the product incapable while proposals are available", () => {
+    const prompt = buildAmoraPendingActionPrompt(["update_budget"]);
+    expect(prompt).toContain("기능이 없다고 말하지 마세요");
+    expect(prompt).toContain("앞선 턴에서 다른 도구가 빈 결과를 냈거나");
+  });
 });
