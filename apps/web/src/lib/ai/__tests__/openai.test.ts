@@ -364,40 +364,44 @@ describe("OpenAI Responses adapter", () => {
     expect(beforeGeneration).not.toHaveBeenCalled();
   });
 
+  // 사전 토큰 계산은 과대 입력을 미리 걸러내는 선택적 가드레일이다. 그 측정이
+  // 불가능해졌다고 대화를 죽이면 가드레일 하나가 채팅 전체를 멈춘다 —
+  // 2026-07-25 운영에서 실제로 이 경로가 계속 실패하며 "안녕" 한 마디까지
+  // AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다. 한도 초과 차단은 바로 위
+  // OpenAIInputTokenLimitError 테스트가 그대로 지킨다.
   it.each([
     ["5xx", Object.assign(new Error("count service unavailable"), {
       status: 503,
       requestID: "req_count_503",
       code: "server_error",
-    }), "provider_5xx", "req_count_503"],
-    ["timeout", new APIConnectionTimeoutError(), "timeout", undefined],
-  ])("preserves an input-count %s failure as pre-generation", async (
+    }), "server_error"],
+    ["timeout", new APIConnectionTimeoutError(), "timeout"],
+  ])("proceeds with generation when the input pre-count %s fails", async (
     _label,
     countError,
-    category,
-    requestId,
+    expectedReason,
   ) => {
-    const { client, create, count } = fakeClient([]);
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([]) },
+    ]);
     const beforeGeneration = vi.fn();
     count.mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(countError),
     });
 
-    await expect(chatWithToolsStream({
+    const result = await chatWithToolsStream({
       systemPrompt: "system",
       input: "토큰 수 확인",
       tools: [],
       maxInputTokens: 64_000,
       beforeGeneration,
       client,
-    })).rejects.toMatchObject({
-      category,
-      requestId,
-      requestStage: "input_count",
-      usageStatus: "unknown",
     });
-    expect(create).not.toHaveBeenCalled();
-    expect(beforeGeneration).not.toHaveBeenCalled();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    // 가드레일이 꺼진 채 나간 턴이라는 사실은 호출부가 원장에 남길 수 있어야 한다.
+    expect(result.inputCountUnavailableReason).toBe(expectedReason);
   });
 
   it("awaits beforeGeneration exactly once after exact counting and immediately before create", async () => {

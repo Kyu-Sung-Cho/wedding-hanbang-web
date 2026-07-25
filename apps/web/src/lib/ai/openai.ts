@@ -249,6 +249,8 @@ export interface ChatWithToolsResult {
   requestId?: string | null;
   responseId?: string | null;
   inputCountRequestId?: string | null;
+  /** 사전 토큰 계산을 건너뛴 턴의 사유. null이면 정상적으로 측정했다. */
+  inputCountUnavailableReason?: string | null;
 }
 
 export type AttachmentMediaType =
@@ -549,6 +551,8 @@ export async function chatWithToolsStream(options: {
     });
   }
   let inputCountRequestId: string | null | undefined;
+  // 사전 토큰 계산을 건너뛴 턴 — 호출부가 원장에 남길 수 있게 반환한다.
+  let inputCountUnavailableReason: string | null = null;
 
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
     throw new Error("[ai-config] maxInputTokens must be a positive integer");
@@ -588,9 +592,22 @@ export async function chatWithToolsStream(options: {
       );
     }
   } catch (error) {
-    throw markOpenAIRequestStage(error, "input_count", {
+    const staged = markOpenAIRequestStage(error, "input_count", {
       model: modelConfig.model,
     });
+    // 측정에 성공했고 그 값이 한도를 넘은 경우만 막는다.
+    if (error instanceof OpenAIInputTokenLimitError) throw staged;
+    // 측정 자체가 실패한 것은 사전 점검의 실패지 대화의 실패가 아니다.
+    // 여기서 던지면 선택적 가드레일 하나가 채팅 전체를 멈춘다 — 2026-07-25
+    // 운영에서 실제로 이 경로가 계속 실패하며 "안녕" 한 마디까지 죽었다.
+    // 과대 입력은 제공자가 스스로 거부하고 그 경로는 아래에서 처리된다.
+    inputCountUnavailableReason =
+      staged instanceof OpenAIProviderError
+        ? staged.providerCode ?? staged.category ?? "unknown"
+        : "unknown";
+    console.warn(
+      `[amora] streaming input pre-count unavailable (${inputCountUnavailableReason}) — proceeding without it`,
+    );
   }
 
   const requestBody: ResponseCreateParamsStreaming = {
@@ -803,6 +820,7 @@ export async function chatWithToolsStream(options: {
     requestId,
     responseId: finalResponse.id,
     inputCountRequestId,
+    inputCountUnavailableReason,
   };
 }
 
