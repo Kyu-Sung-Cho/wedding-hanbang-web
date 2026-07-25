@@ -580,7 +580,10 @@ function SearchHub({
       </form>
 
       <div className="mt-4 flex flex-col gap-3 md:mt-5">
-        <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-6 md:overflow-visible md:pb-0">
+        {/* 375px에서 가로 스크롤이던 시절 6개 중 3개("스토리 & 꿀팁"·"선배 Q&A"·
+            "자유")가 화면 밖에 놓여 스크롤 힌트도 없었다 — 커뮤니티 절반이 안 보였다.
+            모바일은 3열로 접어 전부 노출한다. */}
+        <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
           {primaryTopicItems.map((item) => {
             const active = isTopicActive(item);
             return (
@@ -588,7 +591,7 @@ function SearchHub({
                 key={item.label}
                 {...weddingLinkProps(item.href ?? buildCommunityHubHref(item))}
                 aria-label={`${item.label} 보기`}
-                className={`group flex min-h-[64px] min-w-[96px] flex-col items-center justify-center gap-1 rounded-[14px] border px-3 text-center transition-all md:min-w-0 ${
+                className={`group flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 text-center transition-all sm:px-3 ${
                   active
                     ? "border-[#36534E] bg-[#36534E] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
                     : "border-[#eadfc9] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"

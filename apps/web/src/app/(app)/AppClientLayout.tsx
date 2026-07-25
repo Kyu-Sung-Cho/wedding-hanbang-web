@@ -35,7 +35,15 @@ function GlobalChatAssistant() {
   );
 }
 
-export default function AppClientLayout({ children }: { children: React.ReactNode }) {
+export default function AppClientLayout({
+  children,
+  banner = null,
+}: {
+  children: React.ReactNode;
+  // 체험 고지처럼 본문 흐름 밖에서 항상 보여야 하는 서버 렌더 알림.
+  // children으로 넣으면 채팅의 100dvh 고정 레이아웃 안으로 들어가 화면을 누른다.
+  banner?: React.ReactNode;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -78,6 +86,7 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
+        {banner}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
         ) : (

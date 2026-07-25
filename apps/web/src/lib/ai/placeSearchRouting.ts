@@ -1,3 +1,4 @@
+import { isMutatingTool } from "@/lib/ai/mutationTools";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
@@ -32,9 +33,11 @@ export function getAvailableChatTools(options: {
   const tools = options.tools ?? BETA_SAFE_TOOLS;
   if (options.isDurableUserMessageBound) return tools;
 
-  // Legacy/mobile/demo turns are not allowed to mutate durable state, but the
-  // NAVER place lookup is read-only and should remain useful in those clients.
-  return tools.filter((tool) => tool.name === PLACE_SEARCH_TOOL_NAME);
+  // 이 게이트의 목적은 "변경을 durable 메시지 행에 묶는 것"이므로 조회 도구에는
+  // 적용되지 않는다. 예전에는 네이버 장소 검색 하나만 통과시켰는데, 그 탓에
+  // 체험 상담·모바일에서 search_vendors까지 잘려 아모라가 자사 공시 업체를
+  // "확인할 수 없다"며 외부 검색을 권하는 응답을 만들었다(2026-07-25 실측).
+  return tools.filter((tool) => !isMutatingTool(tool.name));
 }
 
 export function getPlaceSearchToolChoice(options: {

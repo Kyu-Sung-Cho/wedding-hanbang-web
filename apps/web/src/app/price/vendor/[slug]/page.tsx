@@ -260,8 +260,10 @@ export default async function VendorPricePage({
         />
       ))}
       <div className="mx-auto w-full max-w-4xl px-5 py-8 sm:px-8 sm:py-12">
+        {/* 카테고리 목록은 RSC 페이로드가 커서 미리 받지 않는다(허브와 동일 정책). */}
         <Link
           href={`/price/${profile.vendor.category}`}
+          prefetch={false}
           className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#36534E]"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />

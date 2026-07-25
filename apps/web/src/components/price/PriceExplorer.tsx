@@ -633,7 +633,10 @@ export function PriceExplorer({
             ) : null}
           </div>
 
-          <nav className="scrollbar-hide -mx-4 mt-7 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="가격 카테고리">
+          {/* 375px에서 네 번째 탭(웨딩홀)이 화면 밖 x=386에 놓여 스크롤 힌트도 없이
+              사라졌다 — 지출이 가장 큰 카테고리가 모바일에서 도달 불가였다.
+              대행사 칩과 같은 처방으로 가로 스크롤 대신 줄바꿈으로 담는다. */}
+          <nav className="mt-7 flex flex-wrap gap-2" aria-label="가격 카테고리">
             {PRICE_CATEGORIES.map((value) => (
               <Link
                 key={value}
@@ -644,7 +647,7 @@ export function PriceExplorer({
                 // 안 볼 탭까지 수 MB를 미리 받게 만든다 — 클릭 시에만 가져온다.
                 prefetch={false}
                 aria-current={value === category ? "page" : undefined}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#243832] bg-[#36534E] text-white" : "border-[#243832]/12 bg-white text-[#243832] hover:bg-[#F5ECE4]"}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#243832] bg-[#36534E] text-white" : "border-[#243832]/12 bg-white text-[#243832] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
                 <span className={value === category ? "text-white/65" : "text-[#243832]/45"}>{catalog.counts[value]}</span>

@@ -17,6 +17,14 @@ const tools: AiToolDefinition[] = [
     },
   },
   {
+    name: "search_vendors",
+    input_schema: {
+      type: "object",
+      properties: { category: { type: "string" } },
+      required: [],
+    },
+  },
+  {
     name: "update_budget",
     input_schema: {
       type: "object",
@@ -46,12 +54,23 @@ describe("place search routing", () => {
     expect(isExplicitPlaceSearchIntent(text)).toBe(false);
   });
 
-  it("keeps only the read-only place tool for unbound demo or legacy turns", () => {
+  // durable 바인딩은 "변경을 메시지 행에 묶기" 위한 것이므로 조회 도구는 남는다.
+  // 체험 상담에서 search_vendors가 잘려 아모라가 자사 공시 업체를 모른다고
+  // 답하던 회귀(2026-07-25)를 막는다.
+  it("keeps every read-only tool for unbound demo or legacy turns", () => {
     expect(getAvailableChatTools({
       requestKind: "chat",
       isDurableUserMessageBound: false,
       tools,
-    }).map((tool) => tool.name)).toEqual([PLACE_SEARCH_TOOL_NAME]);
+    }).map((tool) => tool.name)).toEqual([PLACE_SEARCH_TOOL_NAME, "search_vendors"]);
+  });
+
+  it("still strips mutating tools for unbound demo or legacy turns", () => {
+    expect(getAvailableChatTools({
+      requestKind: "chat",
+      isDurableUserMessageBound: false,
+      tools,
+    }).map((tool) => tool.name)).not.toContain("update_budget");
   });
 
   it("keeps the full safe tool set for a durable chat turn", () => {

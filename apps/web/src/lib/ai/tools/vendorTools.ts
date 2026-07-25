@@ -6,7 +6,7 @@ import {
   addDaysUtc,
 } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
-import { cleanPostgrestSearchTerm, escapePostgrestLikePattern } from "@/utils/requestValidation";
+import { cleanPostgrestSearchTerm, escapePostgrestLikePattern, isUuid } from "@/utils/requestValidation";
 import { rankVendorRecommendations } from "@/lib/vendors/recommendation";
 import {
   loadRecommendationCandidates,
@@ -392,7 +392,9 @@ export async function executeSearchVendors(
       link: weddingPath(`/vendors/${vendor.id}`),
     });
 
-  if (ctx.coupleId) {
+  // 체험 상담의 coupleId는 "demo-couple"이라 uuid 컬럼 비교가 매번 에러를 낸다.
+  // 개인화 기록은 실제 커플일 때만 남긴다.
+  if (isUuid(ctx.coupleId)) {
     const { data: profile } = await admin
       .from("profiles")
       .select("id")
@@ -718,7 +720,7 @@ export async function executeRecommendVendors(
   }
 
   let viewedVendorIds: string[] = [];
-  if (ctx.coupleId) {
+  if (isUuid(ctx.coupleId)) {
     const { data: profile } = await admin
       .from("profiles")
       .select("id")

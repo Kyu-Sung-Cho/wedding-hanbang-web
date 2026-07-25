@@ -554,7 +554,7 @@ export default function LoginPage() {
               </button>
 
               <p className="text-[11px] text-[#928980] text-center mt-4 font-light">
-                체험 모드에서는 모든 기능을 미리 둘러볼 수 있습니다
+                체험 모드는 샘플 데이터로 화면과 아모라 대화를 둘러보는 용도예요. 입력·변경한 내용은 저장되지 않습니다
               </p>
           </>
         </div>

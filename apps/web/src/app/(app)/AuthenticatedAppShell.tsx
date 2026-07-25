@@ -5,6 +5,7 @@ import { verifyDemoSessionToken } from "@/lib/demoSession";
 import { createClient } from "@/lib/supabase/server";
 
 import AppClientLayout from "./AppClientLayout";
+import DemoModeBanner from "./DemoModeBanner";
 
 export default async function AuthenticatedAppShell({
   children,
@@ -21,5 +22,9 @@ export default async function AuthenticatedAppShell({
     if (!user) redirect("/login");
   }
 
-  return <AppClientLayout>{children}</AppClientLayout>;
+  return (
+    <AppClientLayout banner={isDemo ? <DemoModeBanner /> : null}>
+      {children}
+    </AppClientLayout>
+  );
 }

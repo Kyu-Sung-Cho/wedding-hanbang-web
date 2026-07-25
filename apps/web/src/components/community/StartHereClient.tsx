@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarDays } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
+import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
@@ -15,6 +16,11 @@ type Preset = "standard" | "small";
 // 작은 결혼식·재혼 등에서 흔히 생략하는 항목. 정답이 아니라 기본값 제안일 뿐이라
 // 화면에서 언제든 되돌릴 수 있게 한다(제품 원칙: 관습을 정답처럼 가정하지 않기).
 const OFTEN_SKIPPED = new Set(["ham", "pyebaek", "yedan", "hanbok"]);
+
+function beforeLabel(days: number): string {
+  if (days < 30) return `${days}일 전`;
+  return `${Math.round(days / 30)}개월 전`;
+}
 
 function daysUntil(dateText: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return null;
@@ -65,6 +71,21 @@ export default function StartHereClient() {
       .sort((left, right) => left.daysUntilDeadline - right.daysUntilDeadline)
       .slice(0, 3);
   }, [dday, skipped]);
+
+  // 날짜를 넣기 전에도 답이 있어야 한다. 검색으로 들어온 사람에게 빈 입력칸만
+  // 보여주면 첫 화면에서 이탈하고, 서버 HTML에도 색인할 본문이 남지 않는다.
+  const overview = useMemo(() => (
+    CATEGORY_CHECKLISTS
+      .filter((category) => !skipped.has(category.key))
+      .map((category) => ({
+        key: category.key,
+        label: category.label,
+        window: `예식 ${beforeLabel(category.ddayStart)} ~ ${beforeLabel(category.ddayDeadline)}`,
+        firstStep: category.items[0]?.label ?? null,
+        ddayDeadline: category.ddayDeadline,
+      }))
+      .sort((left, right) => right.ddayDeadline - left.ddayDeadline)
+  ), [skipped]);
 
   const skippable = CATEGORY_CHECKLISTS.filter((category) => OFTEN_SKIPPED.has(category.key));
 
@@ -162,14 +183,7 @@ export default function StartHereClient() {
               >
                 내 목록으로 저장하기
               </Link>
-              <Link
-                href="/demo"
-                prefetch={false}
-                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-white/35 px-5 text-sm font-semibold text-white"
-              >
-                가입 없이 먼저 둘러보기
-                <ArrowRight aria-hidden="true" className="size-4" />
-              </Link>
+              <StartDemoButton className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-white/35 px-5 text-sm font-semibold text-white disabled:opacity-60" />
             </div>
           </div>
         </section>
@@ -180,6 +194,28 @@ export default function StartHereClient() {
           아직 서둘러 시작할 항목이 없어요. 지금은 두 사람의 예산 기준과 원하는 분위기를 이야기해 두면 충분해요.
         </p>
       ) : null}
+
+      <details open={dday === null} className="mt-10 rounded-[20px] border border-[#243832]/12 bg-white px-5 py-4">
+        <summary className="cursor-pointer text-base font-bold text-[#243832]">
+          전체 준비 순서 한눈에
+        </summary>
+        <p className="mt-1 text-sm leading-6 text-[#243832]/65">
+          권장 마감이 이른 순서예요. 지역·가족마다 달라서 정답은 아니고, 빠뜨리기 쉬운 것을 짚어보는 용도예요.
+        </p>
+        <ol className="mt-4 space-y-3">
+          {overview.map((category) => (
+            <li key={category.key} className="border-t border-[#243832]/8 pt-3 first:border-t-0 first:pt-0">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="text-sm font-bold text-[#243832]">{category.label}</span>
+                <span className="text-[13px] font-semibold text-[#8F6662]">{category.window}</span>
+              </div>
+              {category.firstStep ? (
+                <p className="mt-1 text-[13px] leading-6 text-[#243832]/70">첫 걸음 · {category.firstStep}</p>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </details>
 
       <section className="mt-10" aria-label="우리는 안 하는 항목">
         <h2 className="text-base font-bold text-[#243832]">우리는 안 하는 것도 있어요</h2>

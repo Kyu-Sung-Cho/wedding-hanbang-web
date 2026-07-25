@@ -494,5 +494,12 @@ describe("PriceExplorer", () => {
     expect(agencyControl?.parentElement?.className).toContain("flex-wrap");
     expect(agencyControl?.parentElement?.className).not.toContain("overflow-x-auto");
     expect(wishlistOnly?.className).toContain("min-h-11");
+
+    // 2026-07-25 회귀: 같은 함정이 카테고리 탭에서 재발했다 — 375px에서 네 번째
+    // 탭(웨딩홀)이 화면 밖에 놓여 스크롤 힌트 없이 사라졌다. 탭도 줄바꿈으로 담는다.
+    const categoryNav = container.querySelector<HTMLElement>('nav[aria-label="가격 카테고리"]');
+    expect(categoryNav?.className).toContain("flex-wrap");
+    expect(categoryNav?.className).not.toContain("overflow-x-auto");
+    expect(categoryNav?.querySelectorAll("a").length).toBe(4);
   });
 });

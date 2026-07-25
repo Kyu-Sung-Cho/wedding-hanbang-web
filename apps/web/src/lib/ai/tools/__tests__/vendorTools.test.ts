@@ -229,7 +229,9 @@ describe("vendorTools", () => {
     const result = await executeSearchVendors(
       { category: "한복", limit: 5 },
       {
-        coupleId: "couple-1",
+        // 실제 커플 id는 uuid다. 체험 상담의 "demo-couple" 같은 비-uuid 값으로는
+        // 개인화 기록을 남기지 않는다(uuid 컬럼 비교 에러 방지).
+        coupleId: "11111111-1111-4111-8111-111111111111",
         weddingContext: {
           budget: 50000000,
           progress: {},
