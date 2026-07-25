@@ -1,0 +1,114 @@
+"use client";
+
+import { MapPin } from "lucide-react";
+
+import { PRICE_REGION_OPTIONS, priceRegionLabel } from "@/lib/price/labels";
+
+export type RegionCount = { code: string; label: string; count: number };
+
+type RegionFirstPickerProps = {
+  counts: RegionCount[];
+  totalCount: number;
+  onSelect: (regionCode: string) => void;
+};
+
+/**
+ * 지역을 먼저 고르게 하는 첫 단계.
+ *
+ * 같은 샵이 여러 대행사에 걸쳐 있으면 한 카드로 묶이는데, 대행사 지역이 다르면
+ * 가격도 다르다. 그래서 지역을 안 고른 목록은 "어디 가격인지 모르는 목록"이 된다.
+ * 다만 막아 세우진 않는다 — 전체 보기를 눌러 그냥 둘러볼 수도 있어야 하고,
+ * 목록 자체는 이 카드 아래에 그대로 렌더돼 검색 노출도 잃지 않는다.
+ */
+export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstPickerProps) {
+  return (
+    <section
+      aria-labelledby="region-first-heading"
+      className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 sm:pt-7"
+    >
+      <div className="rounded-[24px] border border-[#8F6662]/20 bg-white p-5 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-6">
+        <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8F5150]">
+          <MapPin aria-hidden="true" className="size-3.5" />
+          먼저 지역부터
+        </p>
+        <h2 id="region-first-heading" className="mt-2 text-xl font-bold sm:text-2xl">
+          어느 지역에서 준비하세요?
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+          같은 업체라도 어느 대행사를 끼는지에 따라 가격이 달라요. 지역을 고르면 그
+          지역 대행사가 공시한 가격만 보여드릴게요.
+        </p>
+
+        <ul className="mt-5 flex flex-wrap gap-2">
+          {counts.map(({ code, label, count }) => (
+            <li key={code}>
+              <button
+                type="button"
+                onClick={() => onSelect(code)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#243832]/12 bg-[#FBF8F2] px-4 text-sm font-bold text-[#243832] transition-colors hover:border-[#8F6662]/45 hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+              >
+                {label}
+                <span className="text-xs font-semibold tabular-nums text-[#36534E]/60">
+                  {count.toLocaleString("ko-KR")}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={() => onSelect("")}
+          className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[#36534E] underline underline-offset-4 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+        >
+          지역 상관없이 전체 {totalCount.toLocaleString("ko-KR")}곳 둘러보기
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type RegionChipProps = {
+  regionCode: string;
+  count: number;
+  onChange: () => void;
+};
+
+/** 지역을 고른 뒤 목록 위에 남는 표시 — 지금 무슨 지역을 보고 있는지 항상 보이게. */
+export function RegionChip({ regionCode, count, onChange }: RegionChipProps) {
+  return (
+    <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pt-5 sm:px-6 sm:pt-7">
+      <span className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#F0E4DC] px-3.5 text-sm font-bold text-[#8F5150]">
+        <MapPin aria-hidden="true" className="size-3.5" />
+        {regionCode ? priceRegionLabel(regionCode) : "전체 지역"}
+        <span className="text-xs font-semibold tabular-nums text-[#8F5150]/70">
+          {count.toLocaleString("ko-KR")}곳
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={onChange}
+        className="inline-flex min-h-9 items-center rounded-full border border-[#243832]/12 px-3.5 text-sm font-semibold text-[#36534E] hover:border-[#8F6662]/45 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+      >
+        지역 바꾸기
+      </button>
+    </div>
+  );
+}
+
+/** 카테고리 안에서 지역별 업체 수 — 고르기 전에 어디에 얼마나 있는지 보이게 한다. */
+export function buildRegionCounts(
+  regionCodesOf: (index: number) => string[],
+  vendorCount: number,
+): RegionCount[] {
+  const tally = new Map<string, number>();
+  for (let index = 0; index < vendorCount; index += 1) {
+    // 한 업체가 여러 지역 대행사에 걸쳐 있으면 각 지역에서 모두 셀 수 있어야 한다.
+    for (const code of new Set(regionCodesOf(index))) {
+      tally.set(code, (tally.get(code) ?? 0) + 1);
+    }
+  }
+  return PRICE_REGION_OPTIONS
+    .map(([code, label]) => ({ code, label, count: tally.get(code) ?? 0 }))
+    .filter(({ count }) => count > 0);
+}

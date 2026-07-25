@@ -18,10 +18,16 @@ import type { BudgetCombination } from "@/lib/price/budgetFinder";
 import {
   filterPriceCatalog,
   PRICE_CATEGORIES,
+  vendorRegionCodes,
   type PriceCatalog,
   type PriceCategory,
   type PriceVendor,
 } from "@/lib/price/catalog";
+import {
+  buildRegionCounts,
+  RegionChip,
+  RegionFirstPicker,
+} from "@/components/price/RegionFirstPicker";
 import {
   createPriceComboStore,
   type ComboCategory,
@@ -47,6 +53,8 @@ import { PriceEmptyState } from "./PriceEmptyState";
 import { PriceVendorCard } from "./PriceVendorCard";
 
 const PAGE_SIZE = 20;
+// 고른 지역은 브라우저에 남긴다 — 올 때마다 다시 묻지 않기 위해서.
+const REGION_STORAGE_KEY = "hanbang.price.region";
 // 접힌 상태에서 보여줄 대행사 칩 수 — 나머지는 "모두 보기"로 펼친다.
 const AGENCY_PREVIEW_COUNT = 12;
 const comboStore = createPriceComboStore();
@@ -89,6 +97,10 @@ export function PriceExplorer({
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionCode, setRegionCode] = useState("");
+  // 지역을 아직 한 번도 안 골랐을 때만 첫 단계 카드를 띄운다. localStorage는
+  // 렌더 중에 못 읽으므로(하이드레이션 불일치) 확정 전까지는 "미정"으로 둔다.
+  const [regionChoiceStatus, setRegionChoiceStatus] =
+    useState<"unknown" | "needed" | "chosen">("unknown");
   const [agencyIds, setAgencyIds] = useState<string[]>([]);
   const [minimumManwon, setMinimumManwon] = useState("");
   const [maximumManwon, setMaximumManwon] = useState("");
@@ -128,6 +140,47 @@ export function PriceExplorer({
     const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
     return () => clearTimeout(timer);
   }, [searchInput]);
+
+  // 지역 결정: URL(?region=) > 저장된 선택 > 미정. 링크를 공유하면 상대도 같은
+  // 지역을 보고, 다음 방문에는 다시 묻지 않는다.
+  useEffect(() => {
+    if (preview) {
+      setRegionChoiceStatus("chosen");
+      return;
+    }
+    let stored: string | null = null;
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("region");
+      stored = fromUrl ?? window.localStorage.getItem(REGION_STORAGE_KEY);
+    } catch {
+      stored = null;
+    }
+    if (stored === null) {
+      setRegionChoiceStatus("needed");
+      return;
+    }
+    const valid = stored === "" || PRICE_REGION_OPTIONS.some(([code]) => code === stored);
+    if (!valid) {
+      setRegionChoiceStatus("needed");
+      return;
+    }
+    setRegionCode(stored);
+    setRegionChoiceStatus("chosen");
+  }, [preview]);
+
+  const chooseRegion = useCallback((nextRegion: string) => {
+    setRegionCode(nextRegion);
+    setRegionChoiceStatus("chosen");
+    try {
+      window.localStorage.setItem(REGION_STORAGE_KEY, nextRegion);
+      const url = new URL(window.location.href);
+      if (nextRegion) url.searchParams.set("region", nextRegion);
+      else url.searchParams.delete("region");
+      window.history.replaceState(null, "", url);
+    } catch {
+      // 저장 실패는 조용히 넘긴다 — 이번 방문에는 그대로 동작한다.
+    }
+  }, []);
 
   useEffect(() => {
     if (preview) return;
@@ -246,6 +299,17 @@ export function PriceExplorer({
     ));
     return catalog.agencies.filter(({ id }) => categoryAgencyIds.every((ids) => ids.has(id)));
   }, [catalog.agencies, catalog.categories]);
+  const regionCounts = useMemo(
+    () => buildRegionCounts((index) => vendorRegionCodes(vendors[index]), vendors.length),
+    [vendors],
+  );
+  // 칩에 붙는 수는 "이 지역에 몇 곳"이어야 한다. 검색어·가격 필터까지 반영한
+  // filtered.length를 쓰면 "서울 강남권 3곳"처럼 지역 규모를 잘못 알려준다.
+  const regionOnlyCount = useMemo(() => (
+    regionCode
+      ? vendors.filter((vendor) => vendorRegionCodes(vendor).includes(regionCode)).length
+      : vendors.length
+  ), [regionCode, vendors]);
   const minimumKrw = manwonToKrw(minimumManwon);
   const maximumKrw = manwonToKrw(maximumManwon);
   const filtered = useMemo(() => filterPriceCatalog(vendors, {
@@ -325,7 +389,7 @@ export function PriceExplorer({
     + (wishlistOnly ? 1 : 0);
 
   const resetFilters = () => {
-    setRegionCode("");
+    chooseRegion("");
     setAgencyIds([]);
     setMinimumManwon("");
     setMaximumManwon("");
@@ -657,6 +721,21 @@ export function PriceExplorer({
         </div>
       </section>
 
+      {regionChoiceStatus === "needed" ? (
+        <RegionFirstPicker
+          counts={regionCounts}
+          totalCount={vendors.length}
+          onSelect={chooseRegion}
+        />
+      ) : null}
+      {regionChoiceStatus === "chosen" && !preview ? (
+        <RegionChip
+          regionCode={regionCode}
+          count={regionOnlyCount}
+          onChange={() => setRegionChoiceStatus("needed")}
+        />
+      ) : null}
+
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7" aria-label="업체 가격 찾기">
         <div className="rounded-[24px] border border-[#243832]/10 bg-white p-3 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-4">
           <div className="flex gap-2">
@@ -677,7 +756,7 @@ export function PriceExplorer({
               <label className="text-xs font-bold text-[#243832]/65">
                 지역
                 <select value={regionCode} onChange={(event) => {
-                  setRegionCode(event.target.value);
+                  chooseRegion(event.target.value);
                 }} className="mt-2 min-h-11 w-full rounded-xl border border-[#243832]/12 bg-[#FBF8F2] px-3 text-sm font-medium text-[#243832] outline-none focus:ring-2 focus:ring-[#B89785]">
                   <option value="">전체 지역</option>
                   {PRICE_REGION_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}

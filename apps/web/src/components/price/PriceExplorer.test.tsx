@@ -41,6 +41,24 @@ function studio(id: string, name: string): PriceVendor {
 const firstVendor = studio("vendor-first", "첫 번째 스튜디오");
 const secondVendor = studio("vendor-second", "두 번째 스튜디오");
 
+// 병합된 업체는 대행사 지역이 여럿이라 지역 코드도 여럿이다.
+const mergedVendor: PriceVendor = {
+  ...studio("vendor-merged", "여러 지역 스튜디오"),
+  regionCode: "seoul_gangnam3",
+  regionCodes: ["seoul_gangnam3", "gangwon"],
+};
+const gangwonVendor: PriceVendor = {
+  ...studio("vendor-gangwon", "강원 스튜디오"),
+  regionCode: "gangwon",
+  regionCodes: ["gangwon"],
+};
+const regionCatalog: PriceCatalog = {
+  periodLabel: "2026Q3",
+  categories: { studio: [mergedVendor, gangwonVendor], dress: [], makeup: [], hall: [] },
+  counts: { studio: 2, dress: 0, makeup: 0, hall: 0 },
+  agencies: [{ id: "agency-a", name: "대행사 A" }],
+};
+
 const catalog: PriceCatalog = {
   periodLabel: "2026Q3",
   categories: {
@@ -71,6 +89,7 @@ describe("PriceExplorer", () => {
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -501,5 +520,48 @@ describe("PriceExplorer", () => {
     expect(categoryNav?.className).toContain("flex-wrap");
     expect(categoryNav?.className).not.toContain("overflow-x-auto");
     expect(categoryNav?.querySelectorAll("a").length).toBe(4);
+  });
+
+  // 병합 이후 목록은 여러 지역이 섞인다 — 어느 지역 가격인지 모른 채 보게 두지
+  // 않으려고 지역을 먼저 묻는다. 단, 막아 세우진 않고 목록은 그대로 렌더한다.
+  it("asks for a region first, then remembers the choice", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ combos: [] }, 401))));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={regionCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    expect(container.querySelector("#region-first-heading")).not.toBeNull();
+    // 고르기 전에도 업체는 보인다 — 검색 노출과 "그냥 둘러보기"를 잃지 않는다.
+    expect(container.textContent).toContain("여러 지역 스튜디오");
+
+    const chips = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    const gangwon = chips.find((button) => button.textContent?.startsWith("강원"));
+    // 여러 지역에 걸친 업체는 각 지역에서 모두 세어야 한다(강원 = 병합 1 + 전용 1).
+    expect(gangwon?.textContent).toContain("2");
+
+    await act(async () => {
+      gangwon?.click();
+      await flushAsyncWork();
+    });
+
+    expect(container.querySelector("#region-first-heading")).toBeNull();
+    expect(container.textContent).toContain("지역 바꾸기");
+    expect(window.localStorage.getItem("hanbang.price.region")).toBe("gangwon");
+  });
+
+  it("skips the region step when a choice is already stored", async () => {
+    window.localStorage.setItem("hanbang.price.region", "");
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ combos: [] }, 401))));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={regionCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    // 빈 문자열은 "전체 지역을 골랐다"는 뜻이다 — 다시 묻지 않는다.
+    expect(container.querySelector("#region-first-heading")).toBeNull();
+    expect(container.textContent).toContain("전체 지역");
   });
 });
