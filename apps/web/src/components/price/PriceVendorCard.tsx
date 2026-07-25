@@ -140,6 +140,7 @@ export function PriceVendorCard({
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={detailHref}
+              prefetch={false}
               onClick={preview ? undefined : () => track("vendor_card_click", {
                 vendor_id: vendor.id,
                 surface: "price_list",
