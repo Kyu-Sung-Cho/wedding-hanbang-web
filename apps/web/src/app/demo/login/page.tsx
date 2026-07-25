@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +32,7 @@ function isPasswordValid(checks: PasswordCheck): boolean {
 }
 
 export default function DemoLoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -123,18 +125,10 @@ export default function DemoLoginPage() {
       const supabase = createClient();
 
       if (mode === "signup") {
-        // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          setError(result.error || "회원가입에 실패했습니다.");
-        } else {
-          setSuccess("인증 이메일을 보냈습니다. 메일함을 확인해주세요!");
-        }
+        // 이 화면에는 Turnstile 위젯이 없다. 키가 발급되면 여기서 보낸 가입은
+        // 토큰 누락으로 영구 실패하므로, 위젯이 있는 정식 가입 화면으로 넘긴다.
+        router.push("/login?mode=signup");
+        return;
       } else if (mode === "forgot") {
         // 서버 API로 비밀번호 재설정 이메일 발송
         const res = await fetch("/api/auth/forgot-password", {

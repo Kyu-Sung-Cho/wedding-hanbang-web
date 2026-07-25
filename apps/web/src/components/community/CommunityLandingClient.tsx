@@ -1108,10 +1108,16 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               <Eye className="h-3.5 w-3.5 stroke-[1.6]" />
               {post.view_count ?? 0}
             </span>
-            <span className="inline-flex items-center gap-0.5 text-[#34445a]">
+            {/* pointer-events-auto 행 안이라 span이면 카드 링크를 가로채고도
+                아무 데도 가지 않는다 — 글로 직접 보내는 링크로 만든다. */}
+            <Link
+              {...communityPostLinkProps(post.id)}
+              className="inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[#34445a] transition-colors hover:bg-[#fff8ec]"
+              aria-label={(post.comment_count ?? 0) > 0 ? `댓글 ${post.comment_count}개 보기` : "첫 댓글 남기기"}
+            >
               <MessageCircle className="h-3.5 w-3.5 stroke-[1.6]" />
               {(post.comment_count ?? 0) > 0 ? post.comment_count : "첫 댓글"}
-            </span>
+            </Link>
             <button
               type="button"
               onClick={handleBookmark}
