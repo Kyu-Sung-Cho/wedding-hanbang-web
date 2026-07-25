@@ -124,6 +124,10 @@
     {
       "file": "20260722200000_vendor_disclosure_dedupe_link_replay.sql",
       "sha256": "7259b4cfde45aa5355763cc716e860d031558f235d5bca88ca39e2d76e4e6100"
+    },
+    {
+      "file": "20260726090000_public_vendor_policies.sql",
+      "sha256": "b2c789fc6a56fafdcbd1531dbcddc3ed22e6545bd7d4f6d7e7b01ab3b4b20e52"
     }
   ],
   "deploymentEvidence": {
