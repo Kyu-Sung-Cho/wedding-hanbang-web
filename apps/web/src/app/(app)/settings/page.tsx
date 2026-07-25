@@ -27,6 +27,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import {
   canChangeCareConsent,
+  careChannelsAvailable,
   hasCareConsent,
   parseCareAvailability,
   type CareAvailability,
@@ -554,17 +555,21 @@ export default function SettingsPage() {
   );
   const careStatus = !careAvailability
     ? "상태 확인 중"
-    : !careAvailability.outboundEnabled
+    : !careChannelsAvailable(careAvailability)
       ? careNotificationsConsented ? "발송 일시중지" : "준비 중"
-      : careDeliveryEmail ? "사용 가능" : "이메일 인증 필요";
+      : !careAvailability.outboundEnabled
+        ? "앱에서 먼저 알려드려요"
+        : careDeliveryEmail ? "사용 가능" : "이메일 인증 필요";
   const careDescription = !careAvailability
     ? careNotificationsConsented
       ? "아모라 케어 발송 상태를 확인하고 있어요. 기존 동의는 언제든 해제할 수 있어요."
       : "아모라 케어 발송 상태를 확인하고 있어요."
-    : !careAvailability.outboundEnabled
+    : !careChannelsAvailable(careAvailability)
       ? careNotificationsConsented
         ? "아모라 먼저 챙기기 발송이 일시중지됐어요. 기존 동의는 유지되며 언제든 해제할 수 있어요."
         : "아모라 먼저 챙기기는 현재 준비 중이에요. 발송을 시작하면 여기서 켤 수 있어요."
+    : !careAvailability.outboundEnabled
+      ? "상견례·본식 같은 고비 전후로 아모라가 앱에서 먼저 말을 걸어드려요. 이메일 발송은 아직 준비 중이라 앱 안에서만 알려드리고, 언제든 여기서 해제할 수 있어요."
       : careDeliveryEmail
         ? `상견례·청첩장 모임 전후 공유 대화와 이메일을 가입 이메일 ${careDeliveryEmail}로 보내요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작되고, 언제든 여기서 해제할 수 있어요.`
         : "상견례·청첩장 모임 전후 아모라 케어를 준비해요. 가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작돼요.";

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,12 +24,22 @@ import { useAuthStore } from "@/stores/authStore";
 const isComingSoon = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 const hiddenInComingSoon = ["/money"];
 
-const menuItems = [
+type SidebarMenuItem = {
+  legacyPath: string;
+  /** /wedding 베이스패스 밖 표면일 때만 사용 (없으면 weddingLinkProps 경유) */
+  absolutePath?: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  tutorialTarget?: string;
+};
+
+const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라 상담", tutorialTarget: "service-nav-amora" },
   { legacyPath: "/budget", icon: Wallet, label: "예산 관리", tutorialTarget: "service-nav-budget" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정 관리", tutorialTarget: "service-nav-schedule" },
-  { legacyPath: "/market-prices", icon: BarChart3, label: "시세 정보", tutorialTarget: "service-nav-market" },
+  // 공시 가격은 /wedding 베이스패스 밖 최상위 표면이라 절대 경로로 직접 연결한다.
+  { legacyPath: "/price", absolutePath: "/price", icon: BarChart3, label: "공시 가격", tutorialTarget: "service-nav-market" },
   { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
   { legacyPath: "/etiquette", icon: BookOpen, label: "가족 조율" },
@@ -86,7 +97,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               return (
                 <Link
                   key={item.legacyPath}
-                  {...weddingLinkProps(item.legacyPath)}
+                  {...(item.absolutePath ? { href: item.absolutePath } : weddingLinkProps(item.legacyPath))}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${

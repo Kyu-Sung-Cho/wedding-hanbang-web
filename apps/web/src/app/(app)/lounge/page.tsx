@@ -24,6 +24,7 @@ import WeeklyCard from "@/components/app/WeeklyCard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { buildAmoraLifecyclePlan, type AmoraGuardrailSeverity } from "@/lib/amora/lifecycle";
 import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
+import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
@@ -356,6 +357,14 @@ export default function LoungePage() {
   const budgetWidth = Math.min(100, Math.max(0, budgetPercent));
   const progressPercent = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
   const partnerLabel = partner?.name ? `${partner.name}님과 함께` : couple ? "커플 연결 대기 중" : "커플 정보 없음";
+
+  // 모멘트 루프 시동 — 로그인 후 첫 화면이 라운지이므로 여기서 한 번 깨운다.
+  // (예전엔 dashboard에만 있었는데 그 라우트가 라운지로 리다이렉트되면서
+  //  "먼저 챙기는 언니"가 채팅 탭을 직접 누른 사람에게만 작동하고 있었다.)
+  useEffect(() => {
+    if (isDemo || !userId) return;
+    void requestProactiveCare();
+  }, [isDemo, userId]);
 
   useEffect(() => {
     let cancelled = false;

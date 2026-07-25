@@ -640,6 +640,9 @@ export function PriceExplorer({
                 href={surface === "app"
                   ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
                   : `/price/${value}`}
+                // 카테고리 페이지 RSC가 600~900KB라 자동 프리페치는 모바일에서
+                // 안 볼 탭까지 수 MB를 미리 받게 만든다 — 클릭 시에만 가져온다.
+                prefetch={false}
                 aria-current={value === category ? "page" : undefined}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[#243832] bg-[#36534E] text-white" : "border-[#243832]/12 bg-white text-[#243832] hover:bg-[#F5ECE4]"}`}
               >

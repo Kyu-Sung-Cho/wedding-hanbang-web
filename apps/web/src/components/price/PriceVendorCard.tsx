@@ -347,6 +347,8 @@ export function PriceVendorCard({
       <div className="flex items-center gap-3 px-4 py-4 sm:px-6">
         <Link
           href={detailHref}
+          // 목록에 카드가 수십 장이라 자동 프리페치가 상세 RSC를 무더기로 당겨온다.
+          prefetch={false}
           onClick={preview ? undefined : () => track("vendor_card_click", {
             vendor_id: vendor.id,
             surface: "price_list",

@@ -11,6 +11,7 @@ import { marketPriceProvider } from "@/lib/marketPrice/provider";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
 import { buildPriceVendorStructuredData } from "@/lib/price/vendorJsonLd";
+import { withParticle } from "@/lib/korean/particles";
 import { isPreviewStubMode } from "@/lib/previewStub";
 import {
   assertPublishedVendorCatalog,
@@ -114,7 +115,7 @@ export async function generateMetadata({
   );
   return {
     title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,
-    description: `${region ? `${region} ` : ""}${category} ${profile.vendor.name}의 공시 가격 ${range}과 공개 근거를 확인하세요.`,
+    description: `${region ? `${region} ` : ""}${category} ${profile.vendor.name}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
     alternates: { canonical: `/price/vendor/${profile.vendor.slug}` },
     openGraph: {
       title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,

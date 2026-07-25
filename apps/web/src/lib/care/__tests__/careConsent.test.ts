@@ -62,7 +62,7 @@ describe("shared proactive-care consent", () => {
       emailVerified: true,
     });
 
-    expect(paused).toEqual({ outboundEnabled: false, emailVerified: true });
+    expect(paused).toEqual({ outboundEnabled: false, proactiveChatEnabled: false, emailVerified: true });
     expect(canChangeCareConsent(false, paused)).toBe(false);
     expect(canChangeCareConsent(true, paused)).toBe(true);
     expect(canChangeCareConsent(false, null)).toBe(false);
@@ -70,6 +70,17 @@ describe("shared proactive-care consent", () => {
       outboundEnabled: true,
       emailVerified: false,
     })).toBe(true);
+  });
+
+  it("인앱 선제 대화만 켜져 있어도 새 동의를 허용한다 (이메일 스위치와 독립)", () => {
+    const inAppOnly = parseCareAvailability({
+      outboundEnabled: false,
+      proactiveChatEnabled: true,
+      emailVerified: false,
+    });
+
+    expect(inAppOnly).toEqual({ outboundEnabled: false, proactiveChatEnabled: true, emailVerified: false });
+    expect(canChangeCareConsent(false, inAppOnly)).toBe(true);
   });
 
   it("rejects malformed care availability instead of guessing delivery state", () => {

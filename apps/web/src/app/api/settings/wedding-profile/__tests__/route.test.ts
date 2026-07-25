@@ -89,7 +89,7 @@ describe("/api/settings/wedding-profile", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       settings: currentSettings,
-      careAvailability: { outboundEnabled: true, emailVerified: true },
+      careAvailability: { outboundEnabled: true, proactiveChatEnabled: false, emailVerified: true },
     });
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith("get_wedding_settings_snapshot", {

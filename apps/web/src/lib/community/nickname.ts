@@ -113,9 +113,11 @@ export function getCommunityNicknameFallback(userId: string): string {
   return `user-${suffix}`;
 }
 
-export function getSafeDefaultCommunityNickname(rawName: unknown, userId: string): string {
-  const result = validateCommunityNickname(rawName);
-  return result.ok ? result.nickname : getCommunityNicknameFallback(userId);
+// 가입 실명을 커뮤니티 닉네임으로 자동 승격하지 않는다.
+// 업체명과 실제 견적가가 오가는 공간이라, 실명 공개는 사용자가 설정에서
+// 직접 닉네임을 정할 때만 일어나야 한다("실명 없이 안전하게 공유" 약속과 일치).
+export function getSafeDefaultCommunityNickname(_rawName: unknown, userId: string): string {
+  return getCommunityNicknameFallback(userId);
 }
 
 export function isCommunityNicknameUniqueViolation(error: unknown): boolean {

@@ -74,14 +74,14 @@ export default function OnboardingPage() {
     try {
       const progress: Record<string, unknown> = {};
       store.progressChecklist.forEach((item) => {
-        // cost는 만원 단위 입력 → 원 단위로 변환 (완료 항목만)
+        // 입력은 만원 단위 → 원 단위로 변환 (완료 항목만).
+        // 저장은 반드시 spent/budget(원 단위)에 한다. 레거시 cost 필드는 읽는 쪽이
+        // "10만 미만이면 만원 단위"로 해석하므로, 여기에 원 단위를 넣으면
+        // 10만원 미만 항목의 지출이 10,000배로 부풀어 오른다.
         const costInWon = item.status === "completed" && item.cost ? item.cost * 10000 : null;
-        progress[item.key] = {
-          status: item.status,
-          cost: costInWon,
-          // 완료 항목에 비용 입력 시 예산도 동일하게 설정
-          budget: costInWon,
-        };
+        progress[item.key] = costInWon
+          ? { status: item.status, spent: costInWon, budget: costInWon }
+          : { status: item.status };
       });
 
       // 웨딩 스타일 선호도 저장

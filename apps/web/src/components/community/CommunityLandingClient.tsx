@@ -1278,7 +1278,8 @@ function AmoraSidebarPanel() {
 
 function MarketSnapshotPanel() {
   const categories = [
-    { label: "웨딩홀", href: "/price/venue", icon: Building2 },
+    // 공시가 카테고리 슬러그는 hall이다 (venue는 DB 카테고리명 — 라우트에는 없어 404였다)
+    { label: "웨딩홀", href: "/price/hall", icon: Building2 },
     { label: "스튜디오", href: "/price/studio", icon: Camera },
     { label: "드레스", href: "/price/dress", icon: Shirt },
     { label: "메이크업", href: "/price/makeup", icon: Palette },

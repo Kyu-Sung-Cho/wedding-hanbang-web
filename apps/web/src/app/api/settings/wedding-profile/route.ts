@@ -64,6 +64,7 @@ function privateResponse(body: unknown, status = 200) {
 function careAvailabilityFor(user: { email_confirmed_at?: string | null }) {
   return {
     outboundEnabled: process.env.AMORA_CARE_OUTBOUND_ENABLED === "true",
+    proactiveChatEnabled: process.env.AMORA_PROACTIVE_CHAT_ENABLED === "true",
     emailVerified:
       typeof user.email_confirmed_at === "string" &&
       user.email_confirmed_at.trim().length > 0,

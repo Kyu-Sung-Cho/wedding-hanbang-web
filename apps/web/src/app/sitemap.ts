@@ -69,10 +69,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/wedding/market-prices`,
+      url: `${BASE_URL}/price`,
       lastModified: new Date(),
       changeFrequency: "weekly",
-      priority: 0.8,
+      priority: 0.9,
     },
     ...(["studio", "dress", "makeup", "hall"] as const).map((category) => ({
       url: `${BASE_URL}/price/${category}`,

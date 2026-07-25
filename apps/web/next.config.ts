@@ -109,6 +109,24 @@ const nextConfig: NextConfig = {
         destination: "/wedding/community/quote-check",
         permanent: false,
       },
+      // 시세표는 공시 가격 허브(/price)로 통합됐다. 페이지 안의 redirect()는 정적
+      // 프리렌더에서 meta refresh(흰 화면 번쩍)로 나가므로 엣지에서 한 번에 보낸다.
+      {
+        source: "/market-prices",
+        destination: "/price",
+        permanent: false,
+      },
+      // DB 카테고리명(venue)으로 들어와도 404가 아니라 웨딩홀 목록으로 보낸다.
+      {
+        source: "/price/venue",
+        destination: "/price/hall",
+        permanent: false,
+      },
+      {
+        source: "/wedding/market-prices",
+        destination: "/price",
+        permanent: false,
+      },
       {
         source: "/dashboard/:path*",
         destination: "/wedding/lounge/:path*",

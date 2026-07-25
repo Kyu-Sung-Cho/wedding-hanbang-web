@@ -217,6 +217,7 @@ describe("/api/profile GET", () => {
       },
       careAvailability: {
         outboundEnabled: true,
+        proactiveChatEnabled: false,
         emailVerified: true,
       },
     });
@@ -294,6 +295,7 @@ describe("/api/profile GET", () => {
     expect(response.status).toBe(200);
     expect(body.careAvailability).toEqual({
       outboundEnabled: false,
+      proactiveChatEnabled: false,
       emailVerified: false,
     });
     expect(JSON.stringify(body)).not.toContain("@");

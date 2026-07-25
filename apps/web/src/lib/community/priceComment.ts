@@ -1,4 +1,5 @@
 import { PRICE_PERIODS, getCategoryMarketPrice, getLatestPeriodId } from "@/constants/marketPrices";
+import { topicParticle } from "@/lib/korean/particles";
 import type { AiComment, PriceData } from "@/types/community.types";
 
 const CATEGORY_LABELS: Record<PriceData["vendor_category"], string> = {
@@ -51,7 +52,7 @@ export function buildSourceBackedPriceComment(priceData: PriceData): AiComment {
 
   if (!Number.isFinite(basePrice) || basePrice <= 0 || !benchmarkKey) {
     return {
-      text: `${categoryLabel}은 현재 공식 비교 기준이 충분히 연결되지 않아 평균 단정은 하지 않을게요. 입력한 금액 기준으로 포함 항목, 추가금 상한, 환불 조건을 계약 전 문서로 확인하세요.`,
+      text: `${categoryLabel}${topicParticle(categoryLabel)} 현재 공식 비교 기준이 충분히 연결되지 않아 평균 단정은 하지 않을게요. 입력한 금액 기준으로 포함 항목, 추가금 상한, 환불 조건을 계약 전 문서로 확인하세요.`,
       comparison: "unknown",
       percentage: 0,
       reference: "공식 비교 기준 부족 · 평균 단정 안 함",
@@ -62,7 +63,7 @@ export function buildSourceBackedPriceComment(priceData: PriceData): AiComment {
   const benchmark = getCategoryMarketPrice(benchmarkKey, scope);
   if (!benchmark || benchmark <= 0) {
     return {
-      text: `${categoryLabel}은 현재 ${scopeLabel} 공식 비교값을 찾지 못해 평균 단정은 하지 않을게요. 받은 견적의 포함 항목과 추가금 상한을 먼저 확인하세요.`,
+      text: `${categoryLabel}${topicParticle(categoryLabel)} 현재 ${scopeLabel} 공식 비교값을 찾지 못해 평균 단정은 하지 않을게요. 받은 견적의 포함 항목과 추가금 상한을 먼저 확인하세요.`,
       comparison: "unknown",
       percentage: 0,
       reference: "공식 비교 기준 부족 · 평균 단정 안 함",

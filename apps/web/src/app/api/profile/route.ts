@@ -5,6 +5,7 @@ import {
   isCommunityNicknameUniqueViolation,
   validateCommunityNickname,
 } from "@/lib/community/nickname";
+import { careChannelsAvailable } from "@/lib/care/careConsent";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalKoreanMobile,
@@ -37,6 +38,8 @@ function profileReadResponse(body: unknown, status = 200) {
 function careAvailabilityFor(user: { email_confirmed_at?: string | null }) {
   return {
     outboundEnabled: process.env.AMORA_CARE_OUTBOUND_ENABLED === "true",
+    // 인앱 선제 대화는 이메일과 독립 스위치다 — 둘 중 하나만 켜져도 동의할 수 있어야 한다.
+    proactiveChatEnabled: process.env.AMORA_PROACTIVE_CHAT_ENABLED === "true",
     emailVerified:
       typeof user.email_confirmed_at === "string" &&
       user.email_confirmed_at.trim().length > 0,
@@ -187,7 +190,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "알림 설정 값이 올바르지 않습니다." }, { status: 400 });
       }
       careConsentUpdate = body.care_notifications_enabled;
-      if (careConsentUpdate && !careAvailability.outboundEnabled) {
+      if (careConsentUpdate && !careChannelsAvailable(careAvailability)) {
         return profileReadResponse({
           error: "아모라 먼저 챙기기 발송은 현재 준비 중입니다.",
           code: "CARE_OUTBOUND_UNAVAILABLE",

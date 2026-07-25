@@ -916,16 +916,23 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
 
   const handleDeleteCategory = useCallback(
     async (key: string) => {
+      // progress[key]는 예산(budget/spent)과 일정 페이지 체크리스트를 같은 객체에 담는다.
+      // 통째로 지우면 예산에서 뺐을 뿐인데 체크 진행도까지 영구 소실되므로,
+      // 체크리스트가 있으면 금액만 비우고 항목 자체는 보존한다.
+      const item = progress[key] as ProgressItem | undefined;
+      const hasChecklist = Array.isArray(item?.checklist) && item.checklist.length > 0;
+      const next: Record<string, unknown> = { ...progress };
+      if (hasChecklist && item) {
+        const { budget: _budget, spent: _spent, cost: _cost, ...keep } = item;
+        next[key] = keep;
+      } else {
+        delete next[key];
+      }
       if (KNOWN_KEYS.has(key)) {
         const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
-        const rest = { ...progress };
-        delete rest[key];
-        await updateJourney({ progress: { ...rest, __hidden: [...hiddenList, key] } as unknown as Record<string, ProgressItem> });
-      } else {
-        const rest = { ...progress };
-        delete rest[key];
-        await updateJourney({ progress: rest });
+        next.__hidden = [...hiddenList, key];
       }
+      await updateJourney({ progress: next as unknown as Record<string, ProgressItem> });
       setDeletingKey(null);
     },
     [progress, updateJourney]
@@ -1089,9 +1096,9 @@ export default function BudgetContent({ embedded = false }: BudgetContentProps =
           </div>
         )}
 
-        {/* 검수된 공시가 비교 안내 */}
+        {/* 검수된 공시가 비교 안내 — /price는 베이스패스 밖 최상위 표면이라 절대 경로 */}
         <Link
-          {...weddingLinkProps("/market-prices")}
+          href="/price"
           className="group flex items-center gap-4 rounded-[18px] border border-[#eadfc9] bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-shadow hover:shadow-[0_12px_32px_rgba(8,22,38,0.055)] animate-fade-in md:px-5"
         >
           <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#f7f3ec]">

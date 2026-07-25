@@ -70,12 +70,13 @@ export default function AppClientLayout({ children }: { children: React.ReactNod
     <div
       className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
         isChatPage
-          ? "hanbang-service-theme h-screen overflow-hidden bg-[#fbf8f2]"
+          // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
+          ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[#fbf8f2]"
           : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#fbf8f2_0%,#ffffff_48%,#f6efe5_100%)]"
       }`}
     >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={isChatPage ? "flex h-screen flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
+      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} />
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
