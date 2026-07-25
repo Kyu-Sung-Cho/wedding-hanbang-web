@@ -243,3 +243,45 @@ describe("selectAmoraPendingProposalToolsWithCarryover", () => {
     expect(proposal("응 좋아", "오늘 날씨 어때?")).toEqual([]);
   });
 });
+
+describe("한국어 복합 금액 표기", () => {
+  // 결혼 예산은 "3천5백만원"·"1억5천만원"처럼 단위를 겹쳐 말하는 쪽이 더 흔하다.
+  // 숫자 하나에 단위 하나만 받던 시절 "총예산 4천2백만원으로 바꿔줘"가 확정
+  // 발화로 인식되지 않아, 아모라가 "예산을 수정할 수 없다"고 답했다
+  // (2026-07-25 실계정 전체 여정 E2E에서 발견).
+  it.each([
+    "우리 총예산 4천2백만원으로 바꿔줘",
+    "예산 3천5백만원이야",
+    "예산 1억5천만원으로 정했어",
+    "총예산 4천만원이야",
+    "예산 3500만원이야",
+  ])("확정 발화로 인식해 예산 확인 카드를 낼 수 있다: %s", (userText) => {
+    const tools = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      specialistType: "general",
+    }).map((tool) => tool.name);
+    expect(tools).toContain("update_budget");
+  });
+
+  it("금액이 없는 예산 잡담까지 확인 카드를 내지는 않는다", () => {
+    const tools = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText: "예산 얘기는 나중에 하자",
+      specialistType: "general",
+    }).map((tool) => tool.name);
+    expect(tools).not.toContain("update_schedule_event");
+  });
+
+  it.each([
+    "스튜디오 3백2십만원 결제했어",
+    "예식장 1억2천만원으로 정했어",
+  ])("카테고리 금액도 복합 표기를 받는다: %s", (userText) => {
+    const tools = selectAmoraPendingProposalTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      specialistType: "general",
+    }).map((tool) => tool.name);
+    expect(tools).toContain("update_category_budget");
+  });
+});
