@@ -1959,6 +1959,10 @@ export async function POST(request: Request) {
                 tools_used: toolsUsed,
                 tool_rounds: round + 1,
                 correction_count: correctionCount,
+                // 사전 토큰 계산을 건너뛴 턴이면 사유가 남는다. 이 값이 없으면
+                // 제공자 장애로 채팅이 죽어도 원인을 원장에서 볼 수 없다
+                // (2026-07-25 실제로 그래서 진단이 오래 걸렸다).
+                input_count_unavailable: result.inputCountUnavailableReason ?? null,
               },
             });
 

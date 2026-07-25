@@ -145,8 +145,12 @@ describe("consumer price presentation", () => {
     expect(html.slice(agencyB, direct)).toContain("200만원");
     expect(direct).toBeGreaterThan(agencyB);
     expect(html.slice(direct)).toContain("150만원");
-    expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("touch-pan-x");
+    // 2026-07-26: 대행사별 가격은 가로 컬럼이 아니라 세로 목록이다. 병합 뒤에는
+    // 한 업체가 대행사 9곳까지 가는데(최소폭 168px × 9 = 1,512px) 375px 화면에서
+    // 대부분이 화면 밖으로 밀린다 — 같은 함정을 공시가 탭·커뮤니티 카테고리에서
+    // 이미 두 번 고쳤다. 가로 스크롤이 되살아나면 이 테스트가 막는다.
+    expect(html).not.toContain("overflow-x-auto");
+    expect(html).not.toContain("grid-flow-col");
     expect(html).toContain("min-w-0");
   });
 

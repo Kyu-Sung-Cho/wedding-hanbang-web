@@ -495,15 +495,15 @@ export default function ChatBubble({
             </div>
             {partNumbers.length > 0 && (
               <Link
-                {...weddingLinkProps("/etiquette")}
+                {...weddingLinkProps("/chat")}
                 className="mt-3 flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
               >
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
                   <BookOpen className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-medium text-[#1A1A1F]">가족 조율 가이드</p>
-                  <p className="text-sm text-[#928980]">가족·문화마다 다른 준비 원칙 보기</p>
+                  <p className="truncate text-base font-medium text-[#1A1A1F]">가족 이야기 더 나누기</p>
+                  <p className="text-sm text-[#928980]">가족·지역마다 달라서 정답은 없어요. 상황을 말해주면 같이 정리해요</p>
                 </div>
                 <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#C4967E]" />
               </Link>

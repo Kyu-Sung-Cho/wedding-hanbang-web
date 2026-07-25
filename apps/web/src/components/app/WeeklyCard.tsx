@@ -128,20 +128,21 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           )}
         </div>
 
-        {/* 가족·문화마다 다른 준비 원칙 — 상세 콘텐츠 검증 중에도 안전한 공통 안내만 노출 */}
+        {/* 가족 조율은 정답을 주는 페이지 대신 아모라 대화로 — 가족·지역마다 달라
+            일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */}
         <Link
-          {...weddingLinkProps("/etiquette")}
+          {...weddingLinkProps("/chat")}
           className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
         >
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
             <BookOpen className="h-3.5 w-3.5" />
-            가족 조율 가이드
+            가족 이야기
           </p>
           <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
             정답보다 두 사람의 기준부터
           </p>
           <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-            가족·지역·문화마다 다르니 필요한 범위를 직접 확인해요.
+            예단·호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
           </p>
         </Link>
 

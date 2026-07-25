@@ -42,7 +42,6 @@ const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/price", absolutePath: "/price", icon: BarChart3, label: "공시 가격", tutorialTarget: "service-nav-market" },
   { legacyPath: "/vendors", icon: Building2, label: "업체 탐색", tutorialTarget: "service-nav-vendors" },
   { legacyPath: "/bookings", icon: CalendarClock, label: "예약 관리" },
-  { legacyPath: "/etiquette", icon: BookOpen, label: "가족 조율" },
   { legacyPath: "/money", icon: Banknote, label: "축의금 관리" },
   { legacyPath: "/settings", icon: Settings, label: "설정" },
 ].filter((item) => !isComingSoon || !hiddenInComingSoon.includes(item.legacyPath));

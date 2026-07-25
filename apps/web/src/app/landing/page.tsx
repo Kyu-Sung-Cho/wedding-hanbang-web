@@ -82,7 +82,6 @@ function SiteHeader() {
   const nav = [
     { href: weddingPath(), label: "커뮤니티" },
     { href: weddingPath("/market-prices"), label: "시세 정보" },
-    { href: weddingPath("/etiquette"), label: "가족 조율" },
     { href: "/about", label: "소개" },
     { href: "/beta", label: "베타 신청" },
   ];
@@ -574,7 +573,6 @@ function SiteFooter() {
       <FooterCol title="서비스" items={[
         { label: "커뮤니티", href: weddingPath() },
         { label: "시세 정보", href: weddingPath("/market-prices") },
-        { label: "가족 조율", href: weddingPath("/etiquette") },
         { label: "소개", href: "/about" },
       ]} />
       <FooterCol title="정책" items={[

@@ -91,6 +91,15 @@ export type PriceVendor = {
   aliases: string[];
   category: PriceCategory;
   regionCode: string | null;
+  /**
+   * 같은 업체를 취급하는 대행사들의 지역 전체.
+   *
+   * 스드메 공시 원본은 대행사별 파일이라 업체의 지역값은 "그 샵이 어디 있는지"가
+   * 아니라 "어느 대행사를 통하는지"다(2026-07-26 원본 1,551행 확인: 샵 주소는
+   * 0건). 그래서 같은 샵이 대행사 지역마다 다른 카드로 갈려 있었다. 병합한 뒤에는
+   * 한 지역만 대표로 내세울 수 없으므로 닿을 수 있는 지역을 모두 들고 다닌다.
+   */
+  regionCodes?: string[];
   offers: PriceOffer[];
   policies?: PricePolicy[];
 };
@@ -112,6 +121,16 @@ export type PriceCatalogFilter = {
   wishlistedIds?: ReadonlySet<string>;
   sort?: "name" | "lowest_price";
 };
+
+/**
+ * 이 업체에 닿을 수 있는 지역 전체.
+ * 병합된 카드는 regionCodes를, 아직 병합 전이거나 단일 지역인 업체는
+ * regionCode 하나를 갖는다 — 필터는 둘 다 같은 방식으로 다뤄야 한다.
+ */
+export function vendorRegionCodes(vendor: PriceVendor): string[] {
+  if (vendor.regionCodes && vendor.regionCodes.length > 0) return vendor.regionCodes;
+  return vendor.regionCode ? [vendor.regionCode] : [];
+}
 
 function normalizedSearchValue(value: string): string {
   return value.normalize("NFKC").replace(/\s+/g, "").toLocaleLowerCase("ko-KR");
@@ -138,7 +157,9 @@ export function filterPriceCatalog(
   return vendors
     .filter((vendor) => !query || [vendor.name, ...vendor.aliases]
       .some((value) => normalizedSearchValue(value).includes(query)))
-    .filter((vendor) => !filter.regionCode || vendor.regionCode === filter.regionCode)
+    // 병합된 업체는 여러 대행사 지역에서 닿을 수 있다 — 하나라도 맞으면 노출한다.
+    .filter((vendor) => !filter.regionCode
+      || vendorRegionCodes(vendor).includes(filter.regionCode))
     .filter((vendor) => agencyIds.size === 0 || offersFor(vendor).length > 0)
     .filter((vendor) => {
       // 예산대 탐색은 "이 예산으로 살 수 있는 상품이 있는가"를 묻는 것이다.

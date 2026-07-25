@@ -18,7 +18,6 @@ const pageTitles: Record<string, string> = {
   "/market-prices": "시세 정보",
   "/schedule": "일정 관리",
   "/favorites": "즐겨찾기",
-  "/etiquette": "가족 조율 가이드",
   "/settings": "설정",
   "/money": "축의금 관리",
 };

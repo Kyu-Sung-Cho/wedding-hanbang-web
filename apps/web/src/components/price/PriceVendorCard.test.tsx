@@ -301,4 +301,52 @@ describe("PriceVendorCard", () => {
 
     expect(container.textContent).toContain("지역 미표기");
   });
+
+  it("접어서 보여주고 펼치면 대행사 전부가 나온다", async () => {
+    // 병합 뒤 한 업체가 대행사 9곳까지 간다. 전부 세우면 카드가 너무 길고,
+    // 가로 컬럼으로 되돌리면 375px에서 대부분이 화면 밖으로 밀린다.
+    // 기본은 싼 곳 3개만, 나머지는 버튼으로 펼친다.
+    const vendor: PriceVendor = {
+      id: "vendor-many",
+      slug: "vendor-many",
+      name: "다대행 스튜디오",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_etc",
+      regionCodes: ["seoul_etc", "seoul_gangnam3"],
+      offers: ["가", "나", "다", "라", "마"].map((label, index) => ({
+        id: `offer-${index}`,
+        agencyId: `agency-${index}`,
+        agencyName: `대행사 ${label}`,
+        // 일부러 역순으로 넣어 싼 곳이 위로 올라오는지 본다.
+        minimumKrw: (5 - index) * 1_000_000,
+        maximumKrw: (5 - index) * 1_000_000,
+        priceNote: null,
+        baseSpec: null,
+        options: [],
+      })),
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    // 두 지역 모두 배지로 노출된다.
+    expect(container.textContent).toContain("서울 강남권");
+    // 가격 폭이 먼저 보인다.
+    expect(container.textContent).toContain("대행사 5곳");
+    // 기본은 3곳만, 가장 싼 "대행사 마"(100만원)가 먼저.
+    expect(container.textContent).toContain("대행사 마");
+    expect(container.textContent).not.toContain("대행사 가");
+    const toggle = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("더 보기"));
+    expect(toggle?.textContent).toContain("2곳 더 보기");
+
+    await act(async () => {
+      toggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("대행사 가");
+  });
 });

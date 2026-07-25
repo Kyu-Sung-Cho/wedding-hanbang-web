@@ -10,6 +10,7 @@ import {
   offerOptionCount,
   pricePolicyBadgeClass,
   pricePolicyLabel,
+  vendorRegionCodes,
   type PriceOffer,
   type PriceOption,
   type PriceVendor,
@@ -52,6 +53,7 @@ export function PriceVendorCard({
   // 슬림 카탈로그(옵션 본문 미탑재)의 지연 로드 상태 — 펼칠 때 1회 조회, 모듈 캐시 공유.
   const [lazyOptions, setLazyOptions] = useState<Map<string, PriceOption[]> | null>(null);
   const [lazyStatus, setLazyStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
+  const [showAllAgencies, setShowAllAgencies] = useState(false);
   const needsLazyLoad = vendor.offers.some(
     (offer) => offer.options.length === 0 && (offer.optionCount ?? 0) > 0,
   );
@@ -78,13 +80,39 @@ export function PriceVendorCard({
   // agencyOrder(다중 선택)는 컬럼 순서만 정하고, 컬럼 자체는 이 벤더가 실제 보유한
   // 대행사만 만든다 — 미보유 대행사를 "—" 컬럼으로 채우면 카드가 대시로 뒤덮이고
   // 진짜 가격이 가로 스크롤 밖으로 밀려 "선택한 대행사인데 안 보이는" 문제가 된다.
-  const displayedAgencies = agencyOrder
+  const agencyList = agencyOrder
     ? agencyOrder.filter((agency) => offersByAgency.has(agency.id))
     : [...new Map(
       vendor.offers.flatMap((offer) => offer.agencyId
         ? [[offer.agencyId, { id: offer.agencyId, name: offer.agencyName }] as const]
         : []),
     ).values()];
+  // 같은 샵을 여러 대행사가 취급하면 가격이 갈린다 — 그 차이가 이 카드의 핵심이라
+  // 싼 곳부터 세운다. 대행사를 직접 고른 경우(agencyOrder)는 사용자가 정한 순서를
+  // 존중해 그대로 둔다.
+  const agencyLowestKrw = (agencyId: string): number => {
+    const prices = (offersByAgency.get(agencyId) ?? [])
+      .map((offer) => offer.minimumKrw)
+      .filter((value): value is number => typeof value === "number");
+    return prices.length > 0 ? Math.min(...prices) : Number.MAX_SAFE_INTEGER;
+  };
+  const displayedAgencies = agencyOrder
+    ? agencyList
+    : [...agencyList].sort((left, right) =>
+      agencyLowestKrw(left.id) - agencyLowestKrw(right.id)
+      || left.name.localeCompare(right.name, "ko-KR"));
+  // 대행사가 많으면 가로 컬럼은 대부분이 화면 밖으로 밀린다(9곳이면 1,512px).
+  // 세로로 세우되 기본은 싼 곳 3개만 두고 나머지는 접는다.
+  const AGENCY_PREVIEW_COUNT = 3;
+  const hiddenAgencyCount = Math.max(0, displayedAgencies.length - AGENCY_PREVIEW_COUNT);
+  const visibleAgencies = showAllAgencies
+    ? displayedAgencies
+    : displayedAgencies.slice(0, AGENCY_PREVIEW_COUNT);
+  // 대행사가 둘 이상일 때만 "얼마부터 얼마까지"가 의미를 갖는다.
+  const spreadPrices = vendor.offers
+    .flatMap((offer) => [offer.minimumKrw, offer.maximumKrw])
+    .filter((value): value is number => typeof value === "number");
+  const showAgencySpread = displayedAgencies.length > 1 && spreadPrices.length > 0;
   const detailHref = preview
     ? `/wedding/vendors/${vendor.id}?preview=1`
     : `/price/vendor/${vendor.slug}`;
@@ -150,9 +178,16 @@ export function PriceVendorCard({
             >
               {vendor.name}
             </Link>
-            <span className="inline-flex rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/75">
-              {priceRegionLabel(vendor.regionCode)}
-            </span>
+            {/* 병합된 업체는 여러 대행사 지역에서 닿는다 — 하나만 내세우면
+                "부산 대행사로도 되는데 서울로만 보이는" 오해가 생긴다. */}
+            {(vendorRegionCodes(vendor).length > 0 ? vendorRegionCodes(vendor) : [null]).map((code) => (
+              <span
+                key={code ?? "unknown"}
+                className="inline-flex rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/75"
+              >
+                {priceRegionLabel(code)}
+              </span>
+            ))}
           </div>
           {vendor.aliases.length > 0 ? (
             <p className="mt-1 truncate text-xs text-[#243832]/55">
@@ -178,43 +213,60 @@ export function PriceVendorCard({
       {displayedAgencies.length > 0 || directOffers.length > 0 ? (
         <div className="border-y border-[#243832]/10 bg-[#FBF8F2]/70">
           {displayedAgencies.length > 0 ? (
-            <div
-              role="region"
-              aria-label={`${vendor.name} 대행사별 공시가`}
-              tabIndex={0}
-              className="max-w-full touch-pan-x overflow-x-auto overscroll-x-contain focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785]"
-            >
-              <div className="grid w-max min-w-full grid-flow-col auto-cols-[minmax(10.5rem,1fr)]">
-                {displayedAgencies.map((agency) => {
+            <div role="region" aria-label={`${vendor.name} 대행사별 공시가`}>
+              {/* 같은 샵인데 대행사마다 가격이 다르다는 사실이 이 카드의 핵심 —
+                  개별 가격보다 먼저 보이게 한다. */}
+              {showAgencySpread ? (
+                <p className="border-b border-[#243832]/10 px-4 py-3 text-sm font-bold text-[#243832] sm:px-6">
+                  {krwRangeLabel(Math.min(...spreadPrices), Math.max(...spreadPrices))}
+                  <span className="ml-2 text-xs font-semibold text-[#243832]/60">
+                    대행사 {displayedAgencies.length}곳 · 경로에 따라 다름
+                  </span>
+                </p>
+              ) : null}
+              <ul className="divide-y divide-[#243832]/10">
+                {visibleAgencies.map((agency) => {
                   const agencyOffers = offersByAgency.get(agency.id) ?? [];
                   return (
-                    <div key={agency.id} className="min-w-0 border-r border-[#243832]/10 px-4 py-4 last:border-r-0 sm:px-6">
-                      <p className="truncate text-xs font-semibold text-[#243832]/65" title={agency.name}>
-                        {agency.name}
-                      </p>
+                    <li key={agency.id} className="px-4 py-3 sm:px-6">
+                      <p className="text-xs font-semibold text-[#243832]/65">{agency.name}</p>
                       {agencyOffers.length > 0 ? (
-                        <div className="mt-1 divide-y divide-[#243832]/10">
+                        <div className="mt-1 space-y-1.5">
                           {agencyOffers.map((offer) => (
-                            <div key={offer.id} className="py-1 first:pt-0 last:pb-0">
+                            <div key={offer.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                               {offer.itemName && offer.itemName !== vendor.name ? (
-                                <p className="text-xs font-semibold leading-5 text-[#243832]/65">
+                                <p className="min-w-0 text-xs font-semibold leading-5 text-[#243832]/65">
                                   {offer.itemName}
                                 </p>
-                              ) : null}
+                              ) : <span />}
                               <p className="text-lg font-bold tabular-nums text-[#243832]">
                                 {offerPriceLabel(offer)}
                               </p>
                               {offer.priceNote ? (
-                                <p className="mt-1.5 text-xs leading-5 text-[#243832]/60">{offer.priceNote}</p>
+                                <p className="w-full text-xs leading-5 text-[#243832]/60">{offer.priceNote}</p>
                               ) : null}
                             </div>
                           ))}
                         </div>
                       ) : <p className="mt-1 text-lg font-bold text-[#243832]">—</p>}
-                    </div>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
+              {hiddenAgencyCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllAgencies((open) => !open)}
+                  aria-expanded={showAllAgencies}
+                  className="flex min-h-11 w-full items-center justify-center gap-1.5 border-t border-[#243832]/10 px-4 text-sm font-semibold text-[#36534E] hover:bg-[#F5ECE4] sm:px-6"
+                >
+                  {showAllAgencies ? "대행사 접기" : `대행사 ${hiddenAgencyCount}곳 더 보기`}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`size-4 transition-transform ${showAllAgencies ? "rotate-180" : ""}`}
+                  />
+                </button>
+              ) : null}
             </div>
           ) : null}
 

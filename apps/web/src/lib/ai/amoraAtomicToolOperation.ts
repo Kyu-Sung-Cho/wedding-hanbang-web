@@ -127,8 +127,10 @@ function defaultActionHref(categoryKey: string | null, source: string): string {
   if (source === "schedule" || categoryKey === "invitation") {
     return "/wedding/schedule";
   }
+  // 가족 조율 페이지는 제거됐다(2026-07-26) — 사회·답례품처럼 가족 합의가 필요한
+  // 항목은 일반 안내 대신 아모라와 상황을 정리하는 쪽으로 보낸다.
   if (categoryKey === "mc" || categoryKey === "gift") {
-    return "/wedding/etiquette";
+    return "/wedding/chat";
   }
   return "/wedding/lounge";
 }

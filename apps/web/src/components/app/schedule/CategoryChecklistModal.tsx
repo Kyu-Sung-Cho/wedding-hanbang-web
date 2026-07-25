@@ -266,7 +266,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           </div>
 
           <Link
-            {...weddingLinkProps("/etiquette")}
+            {...weddingLinkProps("/chat")}
             className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">

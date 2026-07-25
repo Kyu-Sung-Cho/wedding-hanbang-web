@@ -114,6 +114,48 @@ function money(value: number | null): number | null {
   return value !== null && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
+/**
+ * 같은 업체가 여러 대행사에 걸쳐 있어도 한 장으로 보여주기 위한 신원 키.
+ *
+ * 스드메 공시는 대행사별 xlsx다. 같은 샵을 여러 대행사가 취급하면 가격이 다르고,
+ * 그 차이가 이 서비스가 보여줘야 할 핵심 정보다. 그런데 적재 RPC가 신원 키에
+ * 지역을 넣어(vendors 조회 조건 + 슬러그 해시) 대행사 지역이 다르면 새 업체로
+ * 생성됐다. 그 결과 같은 샵이 최대 5장까지 갈렸다(2026-07-26 실측: 160그룹).
+ * 지역은 대행사의 것이지 샵의 것이 아니므로 신원 키에서 뺀다.
+ */
+function vendorIdentityKey(
+  category: PriceCategory,
+  vendorName: string,
+  vendorSlug: string,
+): string {
+  const normalized = normalizeVendorName(vendorName);
+  if (!normalized || SAME_NAME_DIFFERENT_BUSINESS.has(`${category}|${normalized}`)) {
+    // 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.
+    return `slug:${vendorSlug}`;
+  }
+  return `${category}|${normalized}`;
+}
+
+function normalizeVendorName(value: string): string {
+  return String(value ?? "")
+    .replace(/\(주\)|주식회사|㈜/g, "")
+    .replace(/[\s·\-_,.()]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * 이름은 같지만 공식 채널이 서로 달라 별개 업체로 확인된 건들.
+ * 합치면 다른 가게의 가격을 한 카드에 섞게 되므로 반드시 분리한다.
+ *   랑게        전라 @langhe_gj(광주)     ↔ 서울 @langhe_official
+ *   메이든스튜디오 서울 @maiden_studio       ↔ 경상 @maiden_daegu(대구)
+ *   라망        한쪽만 공식 사이트 보유 — 동일 업체 근거 없음
+ */
+const SAME_NAME_DIFFERENT_BUSINESS = new Set<string>([
+  "studio|랑게",
+  "studio|메이든스튜디오",
+  "studio|라망",
+]);
+
 function aliases(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.flatMap((alias) => (
@@ -203,6 +245,8 @@ export async function loadPublicPriceCatalog(
   }
 
   const vendorsById = new Map<string, PriceVendor>();
+  // 병합 키는 vendor_id가 아니라 (카테고리 + 정규화 이름)이다 — 아래
+  // vendorIdentityKey 주석 참고.
   const agencyNames = new Map<string, string>();
   const periods = new Set<string>();
   for (const row of priceRows) {
@@ -227,19 +271,27 @@ export async function loadPublicPriceCatalog(
         || left.name.localeCompare(right.name, "ko-KR")
         || left.id.localeCompare(right.id)),
     };
-    const existing = vendorsById.get(row.vendor_id);
+    const identity = vendorIdentityKey(priceCategory, row.vendor_name, row.vendor_slug);
+    const existing = vendorsById.get(identity);
     if (existing) {
       if (existing.aliases.length === 0) existing.aliases = aliases(row.vendor_aliases);
       if (existing.category === priceCategory) existing.offers.push(offer);
+      if (row.region_code) {
+        existing.regionCodes ??= [];
+        if (!existing.regionCodes.includes(row.region_code)) {
+          existing.regionCodes.push(row.region_code);
+        }
+      }
       continue;
     }
-    vendorsById.set(row.vendor_id, {
+    vendorsById.set(identity, {
       id: row.vendor_id,
       slug: row.vendor_slug,
       name: row.vendor_name,
       aliases: aliases(row.vendor_aliases),
       category: priceCategory,
       regionCode: row.region_code,
+      regionCodes: row.region_code ? [row.region_code] : [],
       offers: [offer],
     });
   }
