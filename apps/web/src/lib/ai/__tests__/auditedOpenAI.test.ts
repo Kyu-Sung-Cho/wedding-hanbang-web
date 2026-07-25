@@ -167,17 +167,22 @@ describe("audited OpenAI Responses", () => {
     }));
   });
 
-  it("records an input-count transport failure as a non-generation attempt", async () => {
+  // 사전 토큰 계산은 과대 입력을 미리 걸러내는 선택적 가드레일이다. 그 측정이
+  // 불가능해졌다고 대화를 죽이면 가드레일 하나가 서비스 전체를 멈춘다 —
+  // 2026-07-25 운영에서 실제로 count 호출이 계속 실패하며 "안녕" 한 마디까지
+  // 전부 AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다. 과대 입력은 제공자가 스스로
+  // 거부하고 그 경로는 아래 "blocks an oversized counted input" 테스트가 지킨다.
+  it("proceeds with generation when the input pre-count is unavailable", async () => {
     const count = vi.fn().mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count network"), {
         request_id: "req_count_failed",
       })),
     });
-    const create = vi.fn();
+    const create = vi.fn().mockReturnValue(apiResult(response()));
     const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
     const beforeGeneration = vi.fn();
 
-    await expect(createOpenAIResponseWithAudit({
+    const result = await createOpenAIResponseWithAudit({
       modelRole: "fast",
       instructions: "system",
       input: "input",
@@ -186,21 +191,17 @@ describe("audited OpenAI Responses", () => {
       beforeGeneration,
       client,
       audit: { interactionType: "chat_turn" },
-    })).rejects.toMatchObject({
-      requestId: "req_count_failed",
-      requestStage: "input_count",
     });
 
-    expect(beforeGeneration).not.toHaveBeenCalled();
-    expect(create).not.toHaveBeenCalled();
+    expect(result.text).toBe("안녕하세요");
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
-      success: false,
+      success: true,
       metadata: expect.objectContaining({
-        provider_attempted: false,
-        unknown_paid_attempt: false,
-        provider_request_id: null,
-        input_count_request_id: "req_count_failed",
-        provider_request_stage: "input_count",
+        provider_attempted: true,
+        // 가드레일이 꺼진 채 나간 턴이라는 사실은 원장에 남아야 한다.
+        input_count_unavailable: "transport",
       }),
     }));
   });
