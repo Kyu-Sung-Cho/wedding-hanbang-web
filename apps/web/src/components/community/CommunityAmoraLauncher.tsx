@@ -84,6 +84,7 @@ export default function CommunityAmoraLauncher() {
           className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[#d8c7ad] bg-[#fffdf7] text-[#36534E] shadow-[0_12px_30px_rgba(54,83,78,0.16)] transition-transform hover:-translate-y-0.5 hover:bg-[#f7f1e8] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
+          data-tutorial-target="landing-amora"
           disabled={checkingAuth}
         >
           <Sparkles className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />

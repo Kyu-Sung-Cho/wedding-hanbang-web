@@ -35,6 +35,8 @@ import EmptyFeedStarter from "@/components/community/EmptyFeedStarter";
 import EmptyState from "@/components/community/EmptyState";
 import PostSkeleton from "@/components/community/PostSkeleton";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
+import { PRICE_CATEGORIES, type PriceCategory } from "@/lib/price/catalog";
+import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -478,7 +480,7 @@ export default function CommunityLandingClient({
 // 도구를 랜딩 최상단에 세운다. 문구는 판정 금지 원칙 준수(좋다/나쁘다 없음).
 function QuoteCheckHero() {
   return (
-    <section className={`${shell} mt-4`}>
+    <section className={`${shell} mt-4`} data-tutorial-target="landing-quote-check">
       <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_52%,#eef4f1_100%)] px-5 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.05)] md:px-8 md:py-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
@@ -508,12 +510,14 @@ function QuoteCheckHero() {
             {/* 견적서가 없는 사람에게도 첫 행동을 준다(페르소나: 정보 과부하 신부·바쁜 신랑) */}
             <Link
               href="/start-here"
+              data-tutorial-target="landing-start-here"
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
               아직 견적 전이라면 · 지금 뭐부터?
             </Link>
             <Link
               href="/price"
+              data-tutorial-target="landing-price"
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
               업체별 공시가 먼저 보기
@@ -1294,15 +1298,22 @@ function AmoraSidebarPanel() {
   );
 }
 
-function MarketSnapshotPanel() {
-  const categories = [
-    // 공시가 카테고리 슬러그는 hall이다 (venue는 DB 카테고리명 — 라우트에는 없어 404였다)
-    { label: "웨딩홀", href: "/price/hall", icon: Building2 },
-    { label: "스튜디오", href: "/price/studio", icon: Camera },
-    { label: "드레스", href: "/price/dress", icon: Shirt },
-    { label: "메이크업", href: "/price/makeup", icon: Palette },
-  ];
+// 슬러그·라벨의 유일한 출처는 공시가 카탈로그다. 손으로 적으면 라우트에 없는 값
+// (DB 카테고리명 venue 등)이 섞여 404가 된다 — /price/[category]는 dynamicParams=false다.
+const MARKET_SNAPSHOT_ICONS: Record<PriceCategory, LucideIcon> = {
+  hall: Building2,
+  studio: Camera,
+  dress: Shirt,
+  makeup: Palette,
+};
 
+// 비용 비중이 가장 큰 웨딩홀만 맨 앞으로 올리고 나머지는 카탈로그 순서를 그대로 따른다.
+const MARKET_SNAPSHOT_CATEGORIES: readonly PriceCategory[] = [
+  "hall",
+  ...PRICE_CATEGORIES.filter((category) => category !== "hall"),
+];
+
+function MarketSnapshotPanel() {
   return (
     <article className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
       <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
@@ -1316,19 +1327,22 @@ function MarketSnapshotPanel() {
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        {categories.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[#eadfc9] bg-white/80 px-3 text-[13px] font-semibold text-[#071629] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
-          >
-            <span className="flex items-center gap-2">
-              <Icon className="h-4 w-4 text-[#b68a3a]" />
-              {label}
-            </span>
-            <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        ))}
+        {MARKET_SNAPSHOT_CATEGORIES.map((category) => {
+          const Icon = MARKET_SNAPSHOT_ICONS[category];
+          return (
+            <Link
+              key={category}
+              href={`/price/${category}`}
+              className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[#eadfc9] bg-white/80 px-3 text-[13px] font-semibold text-[#071629] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
+            >
+              <span className="flex items-center gap-2">
+                <Icon className="h-4 w-4 text-[#b68a3a]" />
+                {PRICE_CATEGORY_LABELS[category]}
+              </span>
+              <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          );
+        })}
       </div>
 
       <Link

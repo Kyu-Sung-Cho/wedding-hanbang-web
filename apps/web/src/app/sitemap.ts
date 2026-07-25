@@ -2,6 +2,7 @@ import { MetadataRoute } from "next";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { communityPostPath } from "@/lib/community/routes";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
+import { PRICE_CATEGORIES } from "@/lib/price/catalog";
 import {
   assertPublishedVendorCatalog,
   collectPublishedVendorSlugs,
@@ -80,7 +81,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
-    ...(["studio", "dress", "makeup", "hall"] as const).map((category) => ({
+    ...PRICE_CATEGORIES.map((category) => ({
       url: `${BASE_URL}/price/${category}`,
       lastModified: new Date(),
       changeFrequency: "daily" as const,

@@ -30,6 +30,12 @@ describe("AnalyticsProvider admin preview boundary", () => {
 
   beforeEach(() => {
     vi.resetModules();
+    // posthog-js는 초기 번들에서 빼려고 유휴 시점에 동적 로드한다.
+    // 테스트에서는 유휴 콜백을 즉시 실행해 그 지연만 걷어낸다.
+    vi.stubGlobal("requestIdleCallback", (cb: () => void) => {
+      cb();
+      return 0;
+    });
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test_key");
     mocks.pathname = "/wedding/vendors";
     mocks.searchParams = new URLSearchParams("preview=1");
@@ -50,7 +56,8 @@ describe("AnalyticsProvider admin preview boundary", () => {
     const { default: AnalyticsProvider } = await import("./AnalyticsProvider");
     await act(async () => {
       root.render(<AnalyticsProvider />);
-      await Promise.resolve();
+      // 동적 import 프라미스 체인이 풀릴 때까지 마이크로태스크를 비운다.
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
     });
   }
 
