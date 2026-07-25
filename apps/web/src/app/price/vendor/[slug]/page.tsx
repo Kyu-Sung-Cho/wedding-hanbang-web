@@ -23,7 +23,10 @@ import {
   type VendorAttributeCategory,
 } from "@/lib/vendors/attributeSchemas";
 import { createPublicClient } from "@/lib/supabase/public";
-import { loadPublicVendorPriceProfile } from "@/lib/vendors/publicVendorPriceData";
+import {
+  loadPublicVendorPolicies,
+  loadPublicVendorPriceProfile,
+} from "@/lib/vendors/publicVendorPriceData";
 
 export const revalidate = 86_400;
 export const dynamicParams = true;
@@ -55,6 +58,23 @@ const REGION_LABELS: Record<string, string> = {
 const loadProfile = cache((slug: string) =>
   loadPublicVendorPriceProfile(createPublicClient(), slug)
 );
+
+// cache 키는 문자열이어야 해서 업체 id 목록을 이어 붙인다.
+const loadPolicies = cache((vendorIdKey: string) =>
+  loadPublicVendorPolicies(createPublicClient(), vendorIdKey.split(","))
+);
+
+// 원문 그대로 보여주되 종류만 라벨링한다 — 요약·해석은 판정이 되므로 하지 않는다.
+const POLICY_SECTION_LABELS: Record<string, string> = {
+  penalty: "위약금",
+  refund: "환불",
+  refund_policy: "환불",
+  change: "일정 변경",
+};
+
+function policySectionLabel(semanticType: string): string {
+  return POLICY_SECTION_LABELS[semanticType] ?? "기타 계약 조건";
+}
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   if (isPreviewStubMode()) return [];
@@ -116,11 +136,12 @@ export async function generateMetadata({
   return {
     title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,
     description: `${region ? `${region} ` : ""}${category} ${profile.vendor.name}의 공시 가격 ${range}${withParticle(range)} 공개 근거를 확인하세요.`,
-    alternates: { canonical: `/price/vendor/${profile.vendor.slug}` },
+    // 형제 슬러그마다 같은 내용이 뜨므로 대표 주소 하나로 모은다.
+    alternates: { canonical: `/price/vendor/${profile.identity.canonicalSlug}` },
     openGraph: {
       title: `${profile.vendor.name} 공시 가격 | 웨딩한방`,
       description: `${category} 공시 가격 ${range}`,
-      url: `/price/vendor/${profile.vendor.slug}`,
+      url: `/price/vendor/${profile.identity.canonicalSlug}`,
       type: "website",
     },
   };
@@ -241,10 +262,13 @@ export default async function VendorPricePage({
   const marketDistribution = process.env.NEXT_PUBLIC_FEATURE_MARKET_OVERLAY === "true"
     ? await marketPriceProvider.getDistribution(profile.vendor.id)
     : null;
+  // 위약금·환불은 계약 직전에 가장 알고 싶은 정보다. 뷰가 아직 없으면 로더가
+  // 빈 배열을 돌려주므로 페이지는 그대로 뜬다.
+  const policies = await loadPolicies(profile.identity.vendorIds.join(","));
   const categoryLabel = CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category;
   const structuredData = buildPriceVendorStructuredData({
     vendorName: profile.vendor.name,
-    vendorSlug: profile.vendor.slug,
+    vendorSlug: profile.identity.canonicalSlug,
     category: profile.vendor.category,
     categoryLabel,
     periodLabel: currentPeriod,
@@ -273,7 +297,13 @@ export default async function VendorPricePage({
         <header className="mt-8 border-b border-[#243832]/15 pb-8">
           <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/75">
             <span>{CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category}</span>
-            {profile.vendor.region_code ? <><span aria-hidden="true">·</span><span>{REGION_LABELS[profile.vendor.region_code] ?? profile.vendor.region_code}</span></> : null}
+            {/* 같은 샵을 여러 지역 대행사가 취급하면 지역도 여러 개다(목록 카드와 같은 기준). */}
+            {profile.identity.regionCodes.map((regionCode) => (
+              <span key={regionCode} className="contents">
+                <span aria-hidden="true">·</span>
+                <span>{REGION_LABELS[regionCode] ?? regionCode}</span>
+              </span>
+            ))}
           </div>
           <div className="mt-3 flex items-center gap-4">
             <VendorAvatar id={profile.vendor.id} name={profile.vendor.name} size="lg" />
@@ -451,6 +481,34 @@ export default async function VendorPricePage({
                 </div>
               ))}
             </dl>
+          </section>
+        ) : null}
+
+        {policies.length > 0 ? (
+          <section aria-labelledby="policy-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
+            <h2 id="policy-heading" className="text-2xl font-bold">계약 전 확인 · 위약금과 환불</h2>
+            <p className="mt-2 text-sm leading-6 text-[#36534E]/75">
+              업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
+              계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
+            </p>
+            <ul className="mt-5 space-y-3">
+              {policies.map((policy) => (
+                <li key={policy.id} className="rounded-2xl border border-[#8F6662]/25 bg-[#FBF8F2] px-5 py-4">
+                  <p className="text-xs font-bold text-[#8F5150]">
+                    {policySectionLabel(policy.semanticType)}
+                    {policy.sourceAgency ? (
+                      <span className="ml-2 font-semibold text-[#36534E]/60">{policy.sourceAgency} 공시</span>
+                    ) : null}
+                  </p>
+                  {policy.title ? (
+                    <p className="mt-1 text-sm font-bold text-[#243832]">{policy.title}</p>
+                  ) : null}
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#243832]/85">
+                    {policy.contentVerbatim}
+                  </p>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 

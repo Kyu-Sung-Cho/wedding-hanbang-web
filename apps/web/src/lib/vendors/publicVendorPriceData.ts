@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  isSameNameDifferentBusiness,
+  normalizeVendorName,
+  vendorIdentityLikePattern,
+} from "@/lib/price/vendorIdentity";
+import {
   sanitizePublicVendorAttributes,
   vendorAttributeCategoryFromDb,
 } from "./attributeSchemas";
@@ -176,10 +181,107 @@ function compareOptions(
     || left.id.localeCompare(right.id);
 }
 
+export type VendorIdentityRow = {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  region_code: string | null;
+};
+
+/** 상세 페이지가 훑을 형제 후보 상한. 실측 최대 151(이름이 "스튜디오"인 1곳). */
+const IDENTITY_CANDIDATE_CAP = 200;
+
+/**
+ * 같은 샵인데 대행사 지역 때문에 vendors 행이 갈린 형제들을 찾는다.
+ *
+ * 목록 카드는 이미 (카테고리 + 정규화 이름)으로 한 장에 묶는데 상세는 슬러그
+ * 하나만 봤다. 그래서 "카드엔 대행사 4곳인데 눌러 보니 1곳"이 됐다
+ * (2026-07-26 실측: 157그룹 · 형제 185행이 상세에서 통째로 빠짐).
+ *
+ * 정규화가 공백·구두점을 지우는 것을 SQL에서 흉내낼 수 없어, 글자 사이에 %를
+ * 끼운 ILIKE로 후보만 넓게 긁고 최종 판정은 목록과 같은 함수로 한다.
+ * 조회가 실패하면 자기 자신만 반환한다 — 상세 페이지가 죽는 것보다 낫다.
+ */
+export async function loadVendorIdentityRows(
+  client: SupabaseClient,
+  vendor: PublicVendorProjection,
+): Promise<VendorIdentityRow[]> {
+  const self: VendorIdentityRow = {
+    id: vendor.id,
+    slug: vendor.slug,
+    name: vendor.name,
+    category: vendor.category,
+    region_code: vendor.region_code,
+  };
+  const normalized = normalizeVendorName(vendor.name);
+  const consumer = consumerCategory(vendor.category);
+  // 이름만 같고 실제로는 다른 업체는 목록에서도 분리하므로 형제를 찾지 않는다.
+  if (!normalized || isSameNameDifferentBusiness(consumer, normalized)) return [self];
+  const pattern = vendorIdentityLikePattern(vendor.name);
+  if (!pattern) return [self];
+
+  try {
+    const { data, error } = await client
+      .from("v_public_vendors")
+      .select("id, slug, name, category, region_code")
+      .eq("category", vendor.category)
+      .ilike("name", pattern)
+      .order("slug", { ascending: true })
+      .limit(IDENTITY_CANDIDATE_CAP);
+    if (error || !Array.isArray(data)) return [self];
+    const rows = (data as VendorIdentityRow[]).filter((row) => (
+      typeof row?.id === "string"
+      && typeof row?.slug === "string"
+      && typeof row?.name === "string"
+      && normalizeVendorName(row.name) === normalized
+      && consumerCategory(row.category) === consumer
+    ));
+    if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);
+    return rows.sort((left, right) => left.slug.localeCompare(right.slug));
+  } catch {
+    return [self];
+  }
+}
+
+export type VendorIdentitySummary = {
+  vendorIds: string[];
+  slugs: string[];
+  regionCodes: string[];
+  /**
+   * 같은 묶음의 대표 URL. 형제 슬러그마다 같은 내용이 뜨면 검색엔진에는 중복
+   * 문서가 된다(실측 185개). 목록 카드도 이 규칙으로 링크를 만든다.
+   */
+  canonicalSlug: string;
+};
+
+function identitySummary(
+  vendor: PublicVendorProjection,
+  identityRows?: VendorIdentityRow[],
+): VendorIdentitySummary {
+  const rows = identityRows && identityRows.length > 0
+    ? identityRows
+    : [{
+        id: vendor.id,
+        slug: vendor.slug,
+        name: vendor.name,
+        category: vendor.category,
+        region_code: vendor.region_code,
+      }];
+  const slugs = [...new Set(rows.map(({ slug }) => slug))];
+  return {
+    vendorIds: [...new Set(rows.map(({ id }) => id))],
+    slugs,
+    regionCodes: [...new Set(rows.flatMap(({ region_code }) => (region_code ? [region_code] : [])))],
+    canonicalSlug: [...slugs].sort()[0] ?? vendor.slug,
+  };
+}
+
 export function assemblePublicVendorPriceProfile(
   vendor: PublicVendorProjection,
   prices: PublicPriceProjection[],
   options: PublicOptionProjection[],
+  identityRows?: VendorIdentityRow[],
 ) {
   const attributeCategory = vendorAttributeCategoryFromDb(vendor.category);
   const orderedPrices = [...prices].sort(comparePrices);
@@ -205,6 +307,8 @@ export function assemblePublicVendorPriceProfile(
         naver_place: vendor.naver_place_url,
       },
     },
+    // 같은 샵이 대행사 지역 때문에 여러 행으로 갈려 있어도 상세는 한 곳으로 본다.
+    identity: identitySummary(vendor, identityRows),
     attributes: attributeCategory
       ? sanitizePublicVendorAttributes(attributeCategory, vendor.attributes)
       : {},
@@ -259,15 +363,20 @@ export async function loadPublicVendorPriceProfile(
   if (vendorError) throw new Error("PUBLIC_VENDOR_PRICE_UNAVAILABLE");
   if (!vendorData) return null;
 
+  const identityRows = await loadVendorIdentityRows(
+    client,
+    vendorData as PublicVendorProjection,
+  );
+
   const prices = await collectPublicVendorRelationChunks<PublicPriceProjection>(
-    [[slug]],
-    async ([vendorSlug], from, to) => {
+    chunks(identityRows.map(({ slug: identitySlug }) => identitySlug), OPTION_ID_CHUNK_SIZE),
+    async (vendorSlugs, from, to) => {
       const result = await client
         .from("v_public_official_prices")
         .select(
           "id, period_label, price_category, item_name, base_spec, price_min_krw, price_max_krw, vat_note, price_note, source_label, agency_id, agency_slug, agency_display_name, is_current, published_at",
         )
-        .eq("vendor_slug", vendorSlug)
+        .in("vendor_slug", vendorSlugs)
         .eq("source", "kca_tprice")
         .order("period_label", { ascending: false })
         .order("price_min_krw", { ascending: true, nullsFirst: false })
@@ -313,5 +422,83 @@ export async function loadPublicVendorPriceProfile(
     vendorData as PublicVendorProjection,
     prices,
     options,
+    identityRows,
   );
+}
+
+export type PublicVendorPolicy = {
+  id: string;
+  semanticType: string;
+  title: string | null;
+  contentVerbatim: string;
+  sourceAgency: string | null;
+};
+
+const POLICY_CAP = 80;
+
+// 계약 직전에 급한 순서. 알파벳순(change → other → penalty → refund)으로 두면
+// 정작 위약금이 맨 뒤로 밀린다.
+const POLICY_TYPE_RANK: Record<string, number> = {
+  penalty: 0,
+  refund: 1,
+  refund_policy: 1,
+  change: 2,
+};
+
+function policyTypeRank(semanticType: string): number {
+  return POLICY_TYPE_RANK[semanticType] ?? 3;
+}
+
+/**
+ * 업체의 위약금·환불·계약 조건 원문.
+ *
+ * 공시 원본에는 업체별 위약금이 들어 있고 적재도 끝나 있었지만 공개 경로가 없어
+ * 화면에는 추가금만 보이고 위약금은 빠져 있었다 — 계약 직전에 가장 알고 싶은
+ * 정보다. v_public_vendor_policies는 발행 스냅샷의 검수 통과분만 원문 그대로
+ * 노출한다(요약·해석은 판정이 되므로 담지 않는다).
+ *
+ * 뷰가 아직 적용되지 않은 환경에서도 상세 페이지 전체가 죽지 않도록, 조회
+ * 실패는 빈 목록으로 흘린다 — 위약금은 부가 정보이고 가격이 본문이다.
+ */
+export async function loadPublicVendorPolicies(
+  client: SupabaseClient,
+  vendorIds: string[],
+): Promise<PublicVendorPolicy[]> {
+  const ids = [...new Set(vendorIds.filter((id) => typeof id === "string" && id.length > 0))];
+  if (ids.length === 0) return [];
+  try {
+    const { data, error } = await client
+      .from("v_public_vendor_policies")
+      .select("id, semantic_type, title, content_verbatim, source_agency")
+      .in("vendor_id", ids)
+      .order("semantic_type", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(POLICY_CAP);
+    if (error || !Array.isArray(data)) return [];
+    // 대행사가 여러 곳이면 같은 약관이 그대로 반복된다. 화면에서는 같은 문장을
+    // 두 번 읽게 하지 않는다(공백 차이만 다른 것도 같은 문장으로 본다).
+    const seen = new Set<string>();
+    const policies = data.flatMap((row) => {
+      const content = typeof row.content_verbatim === "string" ? row.content_verbatim.trim() : "";
+      if (!content || typeof row.id !== "string") return [];
+      const semanticType = typeof row.semantic_type === "string" ? row.semantic_type : "other";
+      const fingerprint = `${semanticType}|${content.replace(/\s+/g, " ")}`;
+      if (seen.has(fingerprint)) return [];
+      seen.add(fingerprint);
+      return [{
+        id: row.id,
+        semanticType,
+        title: typeof row.title === "string" && row.title.trim() ? row.title.trim() : null,
+        contentVerbatim: content,
+        sourceAgency: typeof row.source_agency === "string" && row.source_agency.trim()
+          ? row.source_agency.trim()
+          : null,
+      }];
+    });
+    return policies.sort((left, right) =>
+      policyTypeRank(left.semanticType) - policyTypeRank(right.semanticType)
+      || left.id.localeCompare(right.id));
+  } catch {
+    return [];
+  }
 }

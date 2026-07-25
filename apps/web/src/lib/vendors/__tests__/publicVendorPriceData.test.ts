@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assemblePublicVendorPriceProfile,
   collectPublicVendorRelationChunks,
+  loadPublicVendorPolicies,
   loadPublicVendorPriceProfile,
 } from "../publicVendorPriceData";
 
@@ -15,6 +16,7 @@ function fakeSupabase(
     orders: string[];
     ranges: Array<[number, number]>;
     inValues: unknown[] | null;
+    ilike: [string, string] | null;
   }> = [];
   const client = {
     from(table: string) {
@@ -23,6 +25,7 @@ function fakeSupabase(
         orders: [] as string[],
         ranges: [] as Array<[number, number]>,
         inValues: null as unknown[] | null,
+        ilike: null as [string, string] | null,
       };
       calls.push(call);
       let rows = [...(fixtures[table] ?? [])];
@@ -37,6 +40,17 @@ function fakeSupabase(
         rows = rows.filter((row) => values.includes(row[column]));
         return query;
       };
+      // PostgREST ilike: %는 임의 문자열, 나머지는 대소문자 무시 그대로 비교.
+      query.ilike = (column: string, pattern: string) => {
+        call.ilike = [column, pattern];
+        const source = pattern
+          .split("%")
+          .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*");
+        const matcher = new RegExp(`^${source}$`, "i");
+        rows = rows.filter((row) => matcher.test(String(row[column] ?? "")));
+        return query;
+      };
       query.order = (column: string) => {
         call.orders.push(column);
         return query;
@@ -45,6 +59,8 @@ function fakeSupabase(
         call.ranges.push([from, to]);
         return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
       };
+      query.limit = (count: number) =>
+        Promise.resolve({ data: rows.slice(0, count), error: null });
       query.maybeSingle = () => Promise.resolve({ data: rows[0] ?? null, error: null });
       return query;
     },
@@ -307,5 +323,152 @@ describe("loadPublicVendorPriceProfile", () => {
     expect(optionCalls.every(({ inValues }) => (inValues?.length ?? 0) <= 50)).toBe(true);
     expect(optionCalls.every(({ ranges }) => ranges.length > 0)).toBe(true);
     expect(calls.map(({ table }) => table)).toContain("v_public_vendors");
+  });
+
+  // 목록 카드는 같은 샵을 한 장으로 묶는데 상세가 슬러그 하나만 보면
+  // "카드엔 대행사 4곳, 눌러 보니 1곳"이 된다. 표기가 달라도 형제를 찾아야 한다.
+  it("collects sibling vendor rows that only differ by spacing", async () => {
+    const vendorRow = (id: string, slug: string, name: string, regionCode: string) => ({
+      id,
+      slug,
+      name,
+      category: "studio",
+      region_code: regionCode,
+      aliases: [],
+      official_url: null,
+      instagram_url: null,
+      naver_place_url: null,
+      attributes: {},
+      tags: [],
+    });
+    const priceRow = (id: string, slug: string, agency: string) => ({
+      id,
+      vendor_slug: slug,
+      source: "kca_tprice",
+      period_label: "2026Q3",
+      price_category: "studio",
+      item_name: "촬영 상품",
+      base_spec: null,
+      price_min_krw: 1_000_000,
+      price_max_krw: 1_000_000,
+      vat_note: null,
+      price_note: null,
+      source_label: "한국소비자원 참가격 · 2026Q3",
+      agency_id: `agency-${agency}`,
+      agency_slug: agency,
+      agency_display_name: agency,
+      is_current: true,
+    });
+    const { client } = fakeSupabase({
+      v_public_vendors: [
+        vendorRow("vendor-1", "mei-studio-a", "메이스튜디오", "seoul_etc"),
+        vendorRow("vendor-2", "mei-studio-b", "메이 스튜디오", "gyeongsang"),
+        vendorRow("vendor-3", "other-studio", "전혀다른스튜디오", "busan"),
+      ],
+      v_public_official_prices: [
+        priceRow("price-a", "mei-studio-a", "가대행사"),
+        priceRow("price-b", "mei-studio-b", "나대행사"),
+        priceRow("price-c", "other-studio", "다대행사"),
+      ],
+      v_public_official_price_options: [],
+    });
+
+    const profile = await loadPublicVendorPriceProfile(client, "mei-studio-a");
+
+    expect(profile?.identity.vendorIds).toEqual(["vendor-1", "vendor-2"]);
+    expect(profile?.identity.regionCodes).toEqual(["seoul_etc", "gyeongsang"]);
+    expect(profile?.prices.map((price) => price.agency?.name)).toEqual(["가대행사", "나대행사"]);
+  });
+
+  it("keeps same-name-different-business vendors apart", async () => {
+    const { client, calls } = fakeSupabase({
+      v_public_vendors: [{
+        id: "vendor-1",
+        slug: "langhe-seoul",
+        name: "랑게",
+        category: "studio",
+        region_code: "seoul_etc",
+        aliases: [],
+        official_url: null,
+        instagram_url: null,
+        naver_place_url: null,
+        attributes: {},
+        tags: [],
+      }, {
+        id: "vendor-2",
+        slug: "langhe-gwangju",
+        name: "랑게",
+        category: "studio",
+        region_code: "jeolla",
+        aliases: [],
+        official_url: null,
+        instagram_url: null,
+        naver_place_url: null,
+        attributes: {},
+        tags: [],
+      }],
+      v_public_official_prices: [{
+        id: "price-a",
+        vendor_slug: "langhe-seoul",
+        source: "kca_tprice",
+        period_label: "2026Q3",
+        price_category: "studio",
+        item_name: "촬영 상품",
+        base_spec: null,
+        price_min_krw: 1_000_000,
+        price_max_krw: 1_000_000,
+        vat_note: null,
+        price_note: null,
+        source_label: "한국소비자원 참가격 · 2026Q3",
+        is_current: true,
+      }],
+      v_public_official_price_options: [],
+    });
+
+    const profile = await loadPublicVendorPriceProfile(client, "langhe-seoul");
+
+    expect(profile?.identity.vendorIds).toEqual(["vendor-1"]);
+    // 형제 조회 자체를 하지 않는다 — 동명이업은 합치면 안 되는 게 확정이다.
+    expect(calls.filter(({ ilike }) => ilike !== null)).toHaveLength(0);
+  });
+});
+
+describe("loadPublicVendorPolicies", () => {
+  const policyRow = (
+    id: string,
+    semanticType: string,
+    content: string,
+    sourceAgency: string | null = null,
+    vendorId = "vendor-1",
+  ) => ({
+    id,
+    vendor_id: vendorId,
+    semantic_type: semanticType,
+    title: null,
+    content_verbatim: content,
+    source_agency: sourceAgency,
+  });
+
+  it("puts penalties first and drops text repeated across agencies", async () => {
+    const { client, calls } = fakeSupabase({
+      v_public_vendor_policies: [
+        policyRow("p-3", "change", "날짜 변경시 60일 전 22만원", "나대행사"),
+        policyRow("p-1", "penalty", "촬영일 30일 전 상품가의 50%", "가대행사"),
+        policyRow("p-2", "penalty", "촬영일  30일 전 상품가의 50%", "나대행사", "vendor-2"),
+        policyRow("p-4", "refund", "계약금 환불 불가", "가대행사"),
+        policyRow("p-5", "other", "  ", "가대행사"),
+      ],
+    });
+
+    const policies = await loadPublicVendorPolicies(client, ["vendor-1", "vendor-2", "vendor-1"]);
+
+    expect(policies.map(({ id }) => id)).toEqual(["p-1", "p-4", "p-3"]);
+    expect(calls[0]?.inValues).toEqual(["vendor-1", "vendor-2"]);
+  });
+
+  it("returns nothing instead of throwing when the view is missing", async () => {
+    const { client } = fakeSupabase({});
+    await expect(loadPublicVendorPolicies(client, ["vendor-1"])).resolves.toEqual([]);
+    await expect(loadPublicVendorPolicies(client, [])).resolves.toEqual([]);
   });
 });
