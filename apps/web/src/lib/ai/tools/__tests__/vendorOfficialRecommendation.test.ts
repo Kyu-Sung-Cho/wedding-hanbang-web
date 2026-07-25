@@ -5,6 +5,7 @@ import { WEDDING_TOOLS } from "@/lib/ai/tools";
 
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
+  createPublicClient: vi.fn(),
   loadRecommendationCandidates: vi.fn(),
   logRecommendationImpressions: vi.fn(),
   loadVendorProfile: vi.fn(),
@@ -12,6 +13,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
+}));
+
+// 후보 조회는 공개 뷰다 — service_role은 vendor_enrichment_url_is_allowed()
+// EXECUTE가 없어 42501로 거부되므로 공개 클라이언트로만 읽어야 한다.
+vi.mock("@/lib/supabase/public", () => ({
+  createPublicClient: mocks.createPublicClient,
 }));
 
 vi.mock("@/lib/vendors/recommendationData", async (importOriginal) => {
@@ -57,6 +64,7 @@ function candidate(): RecommendationCandidate {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.createAdminClient.mockReturnValue({ from: vi.fn() });
+  mocks.createPublicClient.mockReturnValue({ from: vi.fn() });
   mocks.loadRecommendationCandidates.mockResolvedValue([candidate()]);
   mocks.logRecommendationImpressions.mockResolvedValue(true);
   mocks.loadVendorProfile.mockResolvedValue(null);
@@ -76,7 +84,7 @@ describe("Amora official vendor recommendation", () => {
 
   it("uses the same explainable public-price engine as the internal API", async () => {
     const client = { from: vi.fn() };
-    mocks.createAdminClient.mockReturnValue(client);
+    mocks.createPublicClient.mockReturnValue(client);
 
     const result = await executeRecommendVendors({
       category: "스튜디오",
@@ -107,7 +115,7 @@ describe("Amora official vendor recommendation", () => {
 
   it("does not bypass the official path because of harmless category whitespace or casing", async () => {
     const client = { from: vi.fn() };
-    mocks.createAdminClient.mockReturnValue(client);
+    mocks.createPublicClient.mockReturnValue(client);
 
     const result = await executeRecommendVendors({
       category: " Studio ",
@@ -315,7 +323,7 @@ describe("Amora official vendor recommendation", () => {
 
   it("routes supported-category discovery from search_vendors through the official engine", async () => {
     const client = { from: vi.fn() };
-    mocks.createAdminClient.mockReturnValue(client);
+    mocks.createPublicClient.mockReturnValue(client);
 
     const result = await executeSearchVendors({
       category: "예식장",

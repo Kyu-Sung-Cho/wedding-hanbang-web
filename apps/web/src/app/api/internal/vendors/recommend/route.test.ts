@@ -6,12 +6,19 @@ import type { RecommendationCandidate } from "@/lib/vendors/recommendation";
 
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
+  createPublicClient: vi.fn(),
   loadRecommendationCandidates: vi.fn(),
   logRecommendationImpressions: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: mocks.createAdminClient,
+}));
+
+// 후보 조회는 공개 뷰다 — service_role은 vendor_enrichment_url_is_allowed()
+// EXECUTE가 없어 42501로 거부되므로 공개 클라이언트로만 읽어야 한다.
+vi.mock("@/lib/supabase/public", () => ({
+  createPublicClient: mocks.createPublicClient,
 }));
 
 vi.mock("@/lib/vendors/recommendationData", async (importOriginal) => {
@@ -63,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("VENDOR_INTERNAL_TOKEN", secret);
   mocks.createAdminClient.mockReturnValue({ from: vi.fn() });
+  mocks.createPublicClient.mockReturnValue({ from: vi.fn() });
   mocks.loadRecommendationCandidates.mockResolvedValue([sampleCandidate()]);
   mocks.logRecommendationImpressions.mockResolvedValue(true);
 });
@@ -104,8 +112,12 @@ describe("POST /api/internal/vendors/recommend", () => {
       wedding_month: "2026-11",
       limit: 5,
     };
-    const client = { from: vi.fn() };
-    mocks.createAdminClient.mockReturnValue(client);
+    // 후보 조회는 공개 클라이언트, 노출 기록은 admin — 두 역할이 섞이면
+    // service_role 권한 부재로 조회 전체가 42501로 죽는다.
+    const publicClient = { from: vi.fn() };
+    const adminClient = { from: vi.fn() };
+    mocks.createPublicClient.mockReturnValue(publicClient);
+    mocks.createAdminClient.mockReturnValue(adminClient);
 
     const response = await POST(request(body));
     const responseBody = await response.json();
@@ -116,9 +128,9 @@ describe("POST /api/internal/vendors/recommend", () => {
       vendor: { id: "vendor-1", category: "studio" },
       match_reasons: expect.arrayContaining(["원본 제공 조건 충족"]),
     });
-    expect(mocks.loadRecommendationCandidates).toHaveBeenCalledWith(client, "studio");
+    expect(mocks.loadRecommendationCandidates).toHaveBeenCalledWith(publicClient, "studio");
     expect(mocks.logRecommendationImpressions).toHaveBeenCalledWith(
-      client,
+      adminClient,
       expect.objectContaining(body),
       expect.objectContaining({ results: expect.any(Array) }),
     );

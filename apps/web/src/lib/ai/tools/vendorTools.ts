@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   ymdInKst,
@@ -638,7 +639,14 @@ export async function executeRecommendVendors(
     }
 
     try {
-      const officialCandidates = await loadRecommendationCandidates(admin, officialCategory);
+      // v_public_vendor_enrichment는 vendor_enrichment_url_is_allowed()를 거치는데
+      // 그 함수 EXECUTE가 anon·authenticated에만 부여돼 service_role은 42501로
+      // 거부된다(20260718130000). 공개 카탈로그이므로 공개 클라이언트로 읽는다
+      // — 최소 권한에도 맞고, 이 때문에 추천이 전 사용자에게 실패하고 있었다.
+      const officialCandidates = await loadRecommendationCandidates(
+        createPublicClient(),
+        officialCategory,
+      );
       {
         const recommendation = rankVendorRecommendations(
           parsedRequest.data,

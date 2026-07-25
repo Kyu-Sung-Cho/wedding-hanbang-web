@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 import { verifyInternalVendorRequest } from "@/lib/vendors/internalAuth";
 import { rankVendorRecommendations } from "@/lib/vendors/recommendation";
 import {
@@ -95,7 +96,12 @@ export async function POST(request: Request) {
 
   try {
     const client = createAdminClient();
-    const candidates = await loadRecommendationCandidates(client, parsed.data.category);
+    // 후보 조회는 공개 뷰이고 service_role은 vendor_enrichment_url_is_allowed()
+    // EXECUTE가 없어 거부된다 — 노출 기록만 admin으로 남긴다.
+    const candidates = await loadRecommendationCandidates(
+      createPublicClient(),
+      parsed.data.category,
+    );
     const response = rankVendorRecommendations(parsed.data, candidates);
 
     try {
