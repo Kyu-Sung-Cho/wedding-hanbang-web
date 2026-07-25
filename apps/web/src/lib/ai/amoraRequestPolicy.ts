@@ -7,7 +7,10 @@
  * PDFs can all change the final token count.
  */
 export const AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL = 64_000;
-export const AMORA_MAX_OUTPUT_TOKENS_PER_PROVIDER_CALL = 800;
+// 800토큰(한국어 약 600~1,000자)은 예산 표·중재 블록·제안 블록·pending 마커가
+// 한 답변에 함께 나와야 하는 고가치 턴에서 구조적으로 모자랐다. 상한에 닿으면
+// 답변이 잘리므로, 가장 결정적인 순간을 위해 여유를 준다.
+export const AMORA_MAX_OUTPUT_TOKENS_PER_PROVIDER_CALL = 1_400;
 export const AMORA_MAX_TOOL_ROUNDS = 2;
 export const AMORA_MAX_PROVIDER_CALLS_PER_TURN = AMORA_MAX_TOOL_ROUNDS + 1;
 export const OPENAI_LONG_CONTEXT_SURCHARGE_THRESHOLD = 272_000;
@@ -20,10 +23,14 @@ export const AMORA_MAX_TOOL_RESULT_CHARS = 16_000;
 export const AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN = 32_000;
 export const AMORA_MAX_TOOL_CALLS_PER_TURN = 8;
 
-/** Conservative cache-write bound for one paid provider call, in micro-USD. */
+/**
+ * Conservative cache-write bound for one paid provider call, in micro-USD.
+ * Must stay in sync with AMORA_MAX_INPUT/OUTPUT_TOKENS_PER_PROVIDER_CALL and
+ * config/amora-model-pricing.json (the policy test recomputes and locks these).
+ */
 export const AMORA_MAX_PROVIDER_CALL_COST_MICROUSD_BY_ROLE = {
-  fast: 84_800,
-  primary: 212_000,
+  fast: 88_400,
+  primary: 221_000,
 } as const;
 
 /**

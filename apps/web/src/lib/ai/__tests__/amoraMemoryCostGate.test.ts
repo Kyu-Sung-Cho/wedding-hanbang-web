@@ -28,7 +28,7 @@ describe("Amora memory provider cost gate", () => {
       coupleId: COUPLE_ID,
       isAdmin: false,
       quotaScope: "background",
-      maxCostMicrousd: 84_800,
+      maxCostMicrousd: 88_400,
     });
   });
 

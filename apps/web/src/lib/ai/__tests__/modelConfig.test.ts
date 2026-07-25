@@ -140,8 +140,8 @@ describe("Amora GPT-5.6 model policy", () => {
     })).toBe("primary");
   });
 
-  it("enforces the shared 800-token output ceiling", () => {
-    expect(() => assertAmoraOutputTokenLimit(800)).not.toThrow();
-    expect(() => assertAmoraOutputTokenLimit(801)).toThrow("between 1 and 800");
+  it("enforces the shared 1,400-token output ceiling", () => {
+    expect(() => assertAmoraOutputTokenLimit(1_400)).not.toThrow();
+    expect(() => assertAmoraOutputTokenLimit(1_401)).toThrow("between 1 and 1400");
   });
 });

@@ -857,7 +857,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     for (const [providerArgs] of mocks.provider.mock.calls) {
       expect(providerArgs).toEqual(expect.objectContaining({
         maxInputTokens: 64_000,
-        maxOutputTokens: 800,
+        maxOutputTokens: 1_400,
       }));
     }
     for (let call = 0; call < 2; call++) {
@@ -1947,7 +1947,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     );
     expect(mocks.provider).toHaveBeenCalledWith(expect.objectContaining({
       maxInputTokens: 64_000,
-      maxOutputTokens: 800,
+      maxOutputTokens: 1_400,
     }));
   });
 
@@ -2434,7 +2434,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         coupleId: "00000000-0000-4000-8000-000000000001",
         isAdmin: false,
         quotaScope: "release_eval",
-        maxCostMicrousd: 84_800,
+        maxCostMicrousd: 88_400,
       },
     );
     expect(mocks.rateLimit).toHaveBeenCalledWith(

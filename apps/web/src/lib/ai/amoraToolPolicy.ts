@@ -65,7 +65,7 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 const BUDGET_INTENT = /예산|비용|금액|가격|견적|시세|돈|식대|지출|썼|결제|budget|price|quote/i;
-const SCHEDULE_INTENT = /일정|스케줄|날짜|체크리스트|할\s*일|준비\s*목록|schedule|date|task/i;
+const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본식|웨딩|체크리스트|할\s*일|준비\s*목록|schedule|date|task/i;
 const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
 const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
@@ -120,10 +120,24 @@ export function selectAmoraPendingProposalTools({
   specialistType,
 }: SelectAmoraToolsInput): AiToolDefinition[] {
   const selected = new Set<string>();
-  if (BUDGET_INTENT.test(userText) || specialistType === "budget_optimizer") {
+  // 제안 경로는 쓰기 권한이 아니라 "확인 카드를 낼 수 있는가"만 정한다(아래 주석 참고).
+  // 좁게 잡으면 "내년 5월 20일에 결혼해"처럼 가장 자연스러운 확정 발화가
+  // 저장으로 이어지지 못하므로, 확정형 선언 정규식도 함께 인정한다.
+  if (
+    BUDGET_INTENT.test(userText)
+    || DIRECT_TOTAL_BUDGET_DECLARATION.test(userText)
+    || DIRECT_CATEGORY_BUDGET_DECLARATION.test(userText)
+    || specialistType === "budget_optimizer"
+  ) {
     addAll(selected, BUDGET_WRITE_TOOLS);
   }
-  if (SCHEDULE_INTENT.test(userText) || specialistType === "ceremony_coordinator") {
+  if (
+    SCHEDULE_INTENT.test(userText)
+    || DIRECT_WEDDING_DATE_DECLARATION.test(userText)
+    || DIRECT_SCHEDULE_DECLARATION.test(userText)
+    || DIRECT_TASK_STATUS_DECLARATION.test(userText)
+    || specialistType === "ceremony_coordinator"
+  ) {
     addAll(selected, SCHEDULE_WRITE_TOOLS);
   }
   if (/(?:웨딩홀|예식장|식장|장소|venue)/i.test(userText)) {

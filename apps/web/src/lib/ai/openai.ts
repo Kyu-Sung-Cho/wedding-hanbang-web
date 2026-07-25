@@ -648,6 +648,7 @@ export async function chatWithToolsStream(options: {
   let refusalText = "";
   let finalResponse: OpenAIResponse | null = null;
   let responseId: string | null | undefined;
+  let truncatedByMaxOutput = false;
   try {
     for await (const event of stream) {
       signal?.throwIfAborted();
@@ -668,6 +669,14 @@ export async function chatWithToolsStream(options: {
       } else if (event.type === "response.incomplete") {
         const usage = normalizeResponseUsage(event.response);
         const reason = event.response.incomplete_details?.reason ?? "incomplete";
+        // 출력 상한에 걸렸어도 이미 사용자 화면에 스트리밍된 답변이 있으면 버리지 않는다.
+        // (예전엔 여기서 throw → text_clear로 방금 읽던 답변이 사라지고 일반 오류가 떴다.)
+        if (reason === "max_output_tokens" && (fullText.trim() || refusalText.trim())) {
+          finalResponse = event.response;
+          responseId = event.response.id;
+          truncatedByMaxOutput = true;
+          continue;
+        }
         throw new OpenAIProviderError("[openai] incomplete response", {
           category: reason === "max_output_tokens" ? "incomplete_max_output" : "response_invalid",
           model: event.response.model,
@@ -783,7 +792,11 @@ export async function chatWithToolsStream(options: {
       requestId,
       responseId: finalResponse.id,
     }),
-    stopReason: resolvedRefusal ? "refusal" : "completed",
+    stopReason: resolvedRefusal
+      ? "refusal"
+      : truncatedByMaxOutput
+        ? "max_output_tokens"
+        : "completed",
     usage,
     usageStatus: usage ? "complete" : "unknown",
     model: finalResponse.model,

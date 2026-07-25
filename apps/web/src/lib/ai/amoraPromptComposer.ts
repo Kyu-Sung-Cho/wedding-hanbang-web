@@ -243,12 +243,15 @@ function finalTurnGuardForTools(
   // 변경 함수가 도구 목록에서 빠진 뒤(2026-07-24)에도 저장 제안 턴에서는
   // 혼합 감정 원칙이 유지돼야 한다 — 실행의 수단만 표식 제안으로 바뀐다.
   // 최종 신뢰 라인이 프롬프트 최후미라는 불변식을 지키기 위해 그 앞에 삽입한다.
-  if (!hasPendingOfferContract) return withoutDirectExecutionRule;
   const guardLines = withoutDirectExecutionRule.split("\n");
   guardLines.splice(
     guardLines.length - 1,
     0,
-    "- 감정 표현과 섞여 있어도 실행 역할이 우선입니다. 사용자의 확정형 저장 발화에는 [서버 발급 후속 확인 계약]의 pending_action 표식 제안으로 응답하고, 표식을 낼 수 없으면 반영되지 않았다고 분명히 말하세요.",
+    hasPendingOfferContract
+      ? "- 감정 표현과 섞여 있어도 실행 역할이 우선입니다. 사용자의 확정형 저장 발화에는 [서버 발급 후속 확인 계약]의 pending_action 표식 제안으로 응답하고, 표식을 낼 수 없으면 반영되지 않았다고 분명히 말하세요."
+      // 제안 표식조차 없는 턴에서 이 문장이 빠지면 모델이 "저장해뒀어요"라고
+      // 얼버무리는 저장 환각이 난다(과거 운영에서 실제로 겪은 실패).
+      : "- 사용자가 저장·변경을 요청했는데 이번 턴에 낼 수 있는 확인 표식이 없으면, 아직 저장되지 않았다는 사실을 먼저 분명히 말하고 어디서 직접 입력할 수 있는지 한 곳만 안내하세요. 저장했다고 말하거나 나중에 저장해두겠다고 약속하지 마세요.",
   );
   return guardLines.join("\n");
 }
@@ -378,9 +381,14 @@ export function buildAmoraSystemPrompt(
     scopedOptionalPrompt,
     "## 현재 실행 가능한 도구 계약",
   );
+  // 판정 금지·업체 상대 발언 금지는 제품 확정 규칙이라 길이 예산에 밀려 잘리면 안 된다.
+  const detachedVerdictBan = detachTopLevelSection(
+    detachedToolContract.remainder,
+    "## 판정 금지 · 업체 상대 발언 금지",
+  );
   const mandatorySuffix = `${detachedContext.mandatoryContext}${
-    detachedToolContract.section ? `\n\n${detachedToolContract.section}` : ""
-  }${finalSuffix}`;
+    detachedVerdictBan.section ? `\n\n${detachedVerdictBan.section}` : ""
+  }${detachedToolContract.section ? `\n\n${detachedToolContract.section}` : ""}${finalSuffix}`;
   if (!Number.isInteger(maxChars) || maxChars < mandatorySuffix.length) {
     throw new Error(
       "maxChars must be an integer large enough for current context and final Amora contracts",
@@ -388,13 +396,14 @@ export function buildAmoraSystemPrompt(
   }
 
   const optionalBudget = maxChars - mandatorySuffix.length;
-  if (detachedToolContract.remainder.length + specialistPrompt.length <= optionalBudget) {
-    return `${detachedToolContract.remainder}${specialistPrompt}${mandatorySuffix}`;
+  const optionalBase = detachedVerdictBan.remainder;
+  if (optionalBase.length + specialistPrompt.length <= optionalBudget) {
+    return `${optionalBase}${specialistPrompt}${mandatorySuffix}`;
   }
   if (specialistPrompt.length >= optionalBudget) {
     return `${truncateAtLineBoundary(specialistPrompt, optionalBudget)}${mandatorySuffix}`;
   }
   const baseBudget = optionalBudget - specialistPrompt.length;
-  const boundedBase = truncateAtLineBoundary(detachedToolContract.remainder, baseBudget);
+  const boundedBase = truncateAtLineBoundary(optionalBase, baseBudget);
   return `${boundedBase}${specialistPrompt}${mandatorySuffix}`;
 }

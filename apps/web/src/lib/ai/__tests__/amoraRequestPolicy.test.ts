@@ -28,7 +28,7 @@ describe("Amora provider request envelope", () => {
     for (let index = 1; index <= AMORA_MAX_PROVIDER_CALLS_PER_TURN; index += 1) {
       expect(getAmoraProviderRequestPolicy(index)).toEqual({
         maxInputTokens: 64_000,
-        maxOutputTokens: 800,
+        maxOutputTokens: 1_400,
         exactInputCountRequired: true,
       });
     }
@@ -106,8 +106,8 @@ describe("Amora provider request envelope", () => {
       0,
     );
 
-    expect((lunaPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.2544, 8);
-    expect((terraPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.636, 8);
+    expect((lunaPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.2652, 8);
+    expect((terraPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.663, 8);
     expect(getAmoraProviderCallCostReservationMicrousd("fast")).toBe(
       Math.round((lunaPerCall ?? 0) * 1_000_000),
     );

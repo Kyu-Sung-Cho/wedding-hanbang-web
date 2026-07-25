@@ -878,7 +878,13 @@ async function executeChatProviderRequest(
     if (!isCurrentLifecycle()) return;
 
     const completedToolResults = get().streamingToolResults;
-    if (completedToolResults.length === 0 && (!gotDone || !fullContent.trim())) {
+    const ephemeralPlaceResults = completedToolResults.filter(
+      (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
+    );
+    // 글자가 없으면 저장하지 않는다 — 도구를 쓴 턴이 실패했을 때 카드만 있고
+    // 말은 없는 빈 말풍선이 남았다. 단 장소 검색 결과는 클라이언트에만 존재해
+    // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
+    if (!gotDone || (!fullContent.trim() && ephemeralPlaceResults.length === 0)) {
       set({
         failedRequest: request,
         error: get().error ?? "AI 응답이 중단되었습니다. 다시 시도해주세요.",
@@ -888,9 +894,6 @@ async function executeChatProviderRequest(
     }
 
     const completedMetadata = finalMetadata as ChatMessageMetadata | null;
-    const ephemeralPlaceResults = completedToolResults.filter(
-      (result) => result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
-    );
     const aiMetadata: ChatMessageMetadata = {
       ...(completedMetadata ?? {}),
       ...(ephemeralPlaceResults.length > 0
@@ -916,7 +919,9 @@ async function executeChatProviderRequest(
       await useAuthStore.getState().refreshJourney();
     }
 
-    set({ failedRequest: null, error: null });
+    // 저장까지 성공했을 때만 재시도 상태를 지운다. 서버가 보낸 안내(예: 일부 저장
+    // 실패)는 사용자가 읽어야 하므로 여기서 함께 지우지 않는다.
+    set({ failedRequest: null });
   } catch (err) {
     if (!isCurrentLifecycle()) return;
     console.error("AI 응답 에러:", err);

@@ -180,7 +180,7 @@ describe("OpenAI Responses adapter", () => {
       service_tier: "default",
       prompt_cache_options: { mode: "explicit" },
       reasoning: { effort: "none" },
-      max_output_tokens: 800,
+      max_output_tokens: 1_400,
       parallel_tool_calls: false,
       tools: [expect.objectContaining({
         type: "function",

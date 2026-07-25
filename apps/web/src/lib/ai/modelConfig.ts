@@ -19,7 +19,7 @@ export interface AmoraModelConfig {
   verbosity: "low";
 }
 
-export const MAX_AMORA_OUTPUT_TOKENS = 800;
+export const MAX_AMORA_OUTPUT_TOKENS = 1_400;
 
 export function assertAmoraOutputTokenLimit(value: number): void {
   if (!Number.isSafeInteger(value) || value < 1 || value > MAX_AMORA_OUTPUT_TOKENS) {

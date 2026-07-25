@@ -551,7 +551,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
         coupleId: COUPLE_ID,
         isAdmin: false,
         quotaScope: "background",
-        maxCostMicrousd: 84_800,
+        maxCostMicrousd: 88_400,
       },
     }));
     expect(mocks.providerLedger.mock.calls[1]?.[0]).toEqual(expect.objectContaining({
@@ -565,7 +565,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
         coupleId: COUPLE_ID,
         isAdmin: false,
         quotaScope: "background",
-        maxCostMicrousd: 212_000,
+        maxCostMicrousd: 221_000,
       },
     }));
     expect(mocks.structuredResponse).toHaveBeenCalledTimes(1);
