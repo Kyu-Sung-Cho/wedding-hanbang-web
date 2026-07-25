@@ -37,7 +37,8 @@ export function getImminentCategories(
   for (const cat of CATEGORY_CHECKLISTS) {
     const item = progress[cat.key];
     const status: ProgressItem["status"] = item?.status ?? "not_started";
-    if (status === "completed") continue;
+    // 완료했거나 "해당 없음"으로 끈 항목은 마감 알림에서 제외한다.
+    if (status === "completed" || status === "not_applicable") continue;
 
     const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
     if (scheduledEvent) continue;

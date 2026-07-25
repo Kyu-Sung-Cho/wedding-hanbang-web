@@ -307,7 +307,8 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
           daysUntilDeadline: dday - cat.ddayDeadline,
         };
       })
-      .filter((item) => item.status !== "completed")
+      // "해당 없음"은 마감 가드레일에서도 빼야 잔소리가 되지 않는다.
+      .filter((item) => item.status !== "completed" && item.status !== "not_applicable")
       .sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline);
 
     for (const item of deadlineItems.filter((entry) => entry.daysUntilDeadline < 0).slice(0, 2)) {
@@ -320,7 +321,7 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
 
     const hasCoreOpen = ["venue", "studio", "dress", "makeup", "ring"].some((key) => {
       const item = getCategoryCompletion(progress, key);
-      return item.status !== "completed";
+      return item.status !== "completed" && item.status !== "not_applicable";
     });
     if (hasCoreOpen && dday <= 300) {
       guardrails.push({

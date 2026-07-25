@@ -29,7 +29,7 @@ export interface OnboardingState {
   progressChecklist: ProgressChecklistItem[];
 }
 
-export type ChecklistStatus = "not_started" | "in_progress" | "completed";
+export type ChecklistStatus = "not_started" | "in_progress" | "completed" | "not_applicable";
 
 export interface ProgressChecklistItem {
   key: string;

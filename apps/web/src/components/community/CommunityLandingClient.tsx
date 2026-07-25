@@ -490,8 +490,10 @@ function QuoteCheckHero() {
               스드메 견적서, 빠진 항목 없는지 확인해 보세요
             </h1>
             <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.65] text-[#5d6879] md:text-[14px]">
-              좋다·나쁘다 판정 대신 사실만 — 확인 안 된 항목, 한국소비자원 평균가,
-              계약 전에 업체에 보낼 질문까지 정리해 드려요.
+              {/* 평균가 비교는 제품이 의도적으로 하지 않는다(구성을 모르는 채의 가격 판정 금지).
+                  실제로 주는 것만 약속한다 — 없는 것을 약속하면 정직이라는 해자가 깎인다. */}
+              좋다·나쁘다 판정 대신 사실만 — 견적서에서 확인 안 된 항목과
+              계약 전에 업체에 보낼 질문을 정리해 드려요.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
@@ -502,6 +504,13 @@ function QuoteCheckHero() {
             >
               내 견적 확인하기
               <ChevronRight className="h-4 w-4" />
+            </Link>
+            {/* 견적서가 없는 사람에게도 첫 행동을 준다(페르소나: 정보 과부하 신부·바쁜 신랑) */}
+            <Link
+              href="/start-here"
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
+            >
+              아직 견적 전이라면 · 지금 뭐부터?
             </Link>
             <Link
               href="/price"

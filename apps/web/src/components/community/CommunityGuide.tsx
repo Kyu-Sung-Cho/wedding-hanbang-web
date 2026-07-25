@@ -34,7 +34,7 @@ function SlideEmpathy() {
       <div className="w-full max-w-[380px] flex flex-col gap-3 mb-7">
         {[
           { text: "스드메 가격이 적정한 건지 모르겠어요...", align: "left" as const },
-          { text: "다른 신부들은 어디서 예약했어요?", align: "right" as const },
+          { text: "다들 어디서 예약했어요?", align: "right" as const },
           { text: "예식장 견적에서 별도 항목을 놓칠 뻔했어요 😢", align: "left" as const },
         ].map((bubble, i) => (
           <div
@@ -368,7 +368,7 @@ function SlideHowToUse() {
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">좋은 글은 투표로</div>
             <div className="text-sm text-[#635b51] font-light leading-relaxed">
-              도움 된 글에 ▲ 투표하면 다른 신부들도 찾기 쉬워져요
+              도움 된 글에 ▲ 투표하면 다른 예비부부도 찾기 쉬워져요
             </div>
           </div>
         </div>

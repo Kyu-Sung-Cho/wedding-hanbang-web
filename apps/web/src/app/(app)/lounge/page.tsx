@@ -69,12 +69,14 @@ const STATUS_LABEL: Record<Status, string> = {
   not_started: "예정",
   in_progress: "진행 중",
   completed: "완료",
+  not_applicable: "해당 없음",
 };
 
 const STATUS_TONE: Record<Status, string> = {
   not_started: "border-[#eadfc9] bg-white text-[#5d6879]",
   in_progress: "border-[#dfc88f] bg-[#fff8ec] text-[#9d6f36]",
   completed: "border-[#cdd8bf] bg-[#f4f8ee] text-[#607044]",
+  not_applicable: "border-[#e3e0da] bg-[#f6f4f0] text-[#8b857c]",
 };
 
 const GUARDRAIL_TONE: Record<AmoraGuardrailSeverity, LoungePriority["tone"]> = {
@@ -158,13 +160,19 @@ function getProgressSummary(progress: Record<string, ProgressItem>) {
   return CATEGORY_CHECKLISTS.reduce(
     (acc, category) => {
       const status = getStatus(progress, category.key);
+      // "해당 없음"으로 끈 항목은 진행률 분모에서 빠진다 —
+      // 함·폐백·예단을 생략한 커플이 영원히 미완료로 남지 않게.
+      if (status === "not_applicable") {
+        acc.not_applicable += 1;
+        return acc;
+      }
       const counts = getChecklistProgress(progress, category.key);
       acc[status] += 1;
       acc.done += counts.done;
       acc.total += counts.total;
       return acc;
     },
-    { completed: 0, in_progress: 0, not_started: 0, done: 0, total: 0 }
+    { completed: 0, in_progress: 0, not_started: 0, not_applicable: 0, done: 0, total: 0 }
   );
 }
 

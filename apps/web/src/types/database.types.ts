@@ -82,7 +82,11 @@ export type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_par
 export interface ProgressItem {
   category?: string;
   label?: string;
-  status: "not_started" | "in_progress" | "completed";
+  /**
+   * not_applicable = 이 커플에게 해당 없는 항목(작은결혼식·재혼 등에서 함·폐백·예단 생략).
+   * 진행률 분모와 마감 알림에서 제외되며, "영구 미완료"로 남지 않는다.
+   */
+  status: "not_started" | "in_progress" | "completed" | "not_applicable";
   budget?: number;
   spent?: number;
   cost?: number;

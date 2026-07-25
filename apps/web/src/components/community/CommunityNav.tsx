@@ -10,6 +10,7 @@ import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const baseNavItems = [
+  { linkProps: { href: "/start-here" } as const, legacyPath: "/start-here", label: "지금 뭐부터?" },
   { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
   // 공시 가격 탐색은 wedding 베이스패스 밖 최상위 표면이라 평 href를 쓴다.
   { linkProps: { href: "/price" } as const, legacyPath: "/price", label: "공시 가격" },

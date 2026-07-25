@@ -61,12 +61,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-sage-500",
   in_progress: "bg-[#795252]",
   not_started: "bg-[#B5ADA3]",
+  not_applicable: "bg-[#8b857c]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
   in_progress: "진행중",
   not_started: "시작전",
+  not_applicable: "해당 없음",
 };
 
 interface Props {
@@ -120,6 +122,28 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
     [checklist, saving, progress, categoryKey, existing, updateJourney]
   );
 
+  const isNotApplicable = existing?.status === "not_applicable";
+
+  // 우리 결혼에는 해당 없는 항목(함·폐백·예단 등)을 끄고 켠다.
+  // 끄면 진행률 분모와 마감 알림에서 빠져 "영구 미완료"로 남지 않는다.
+  const toggleNotApplicable = async () => {
+    if (saving) return;
+    const nextStatus = isNotApplicable ? calculateStatus(checklist) : "not_applicable";
+    setSaving(true);
+    await updateJourney({
+      progress: {
+        ...progress,
+        [categoryKey]: {
+          ...(existing ?? { category: categoryKey }),
+          category: categoryKey,
+          status: nextStatus,
+          checklist,
+        },
+      } as Record<string, ProgressItem>,
+    });
+    setSaving(false);
+  };
+
   if (!template || !isOpen) return null;
 
   const Icon = ICON_MAP[template.icon] ?? Circle;
@@ -149,10 +173,12 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               <div>
                 <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[status]}`}>
-                    {STATUS_LABELS[status]}
+                  <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
+                    {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
-                  <span className="text-sm text-[#B5ADA3]">{done}/{total} 완료</span>
+                  <span className="text-sm text-[#B5ADA3]">
+                    {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -172,6 +198,30 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             />
           </div>
           <p className="text-sm text-[#B5ADA3] mt-1.5 text-right">{percent}% 달성</p>
+
+          {/* 가족·지역마다 하는 항목이 달라서, 안 하는 건 안 한다고 말할 수 있어야 한다. */}
+          <button
+            type="button"
+            onClick={toggleNotApplicable}
+            disabled={saving}
+            className="mt-4 w-full rounded-xl border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
+          >
+            {isNotApplicable ? (
+              <>
+                <span className="font-medium text-[#1A1A1F]">다시 준비 목록에 넣기</span>
+                <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
+                  지금은 진행률과 마감 알림에서 빠져 있어요.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-[#1A1A1F]">우리는 이건 안 해요</span>
+                <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
+                  진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
+                </span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* 체크리스트 */}

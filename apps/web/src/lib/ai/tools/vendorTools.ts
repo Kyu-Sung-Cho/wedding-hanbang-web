@@ -180,6 +180,23 @@ function officialCategoryDbName(category: VendorAttributeCategory): string {
   return category === "hall" ? "venue" : category;
 }
 
+// 서울 동네만 사전에 있어서, 지방 사용자가 자기 동네 이름을 대면 못 알아듣고
+// "예: 홍대, 서초, 송파"라고 되물었다. 지방 주요 상권도 같은 대우를 받아야 한다.
+const LOCAL_LANDMARK_REGIONS: Array<[RegExp, string]> = [
+  [/해운대|서면|센텀|광안리|남포동|사상|기장|동래|수영구|영도/, "busan"],
+  [/수성구|동성로|반월당|칠곡|달서|들안길/, "daegu"],
+  [/삼산동|성남동|무거동|울산대/, "ulsan"],
+  [/둔산|유성|노은|봉명동|은행동/, "daejeon"],
+  [/상무지구|첨단지구|충장로|수완지구/, "gwangju"],
+  [/송도|청라|영종|구월동|부평/, "incheon"],
+  [/분당|판교|일산|수원|용인|동탄|광교|평촌|산본|김포|하남|남양주|의정부/, "gyeonggi"],
+  [/천안|불당|아산|청주|오창|세종/, "chungcheong"],
+  [/전주|익산|군산|여수|순천|목포/, "jeolla"],
+  [/창원|김해|진주|포항|경주|구미|양산/, "gyeongsang"],
+  [/강릉|속초|원주|춘천|평창/, "gangwon"],
+  [/서귀포|애월|중문/, "jeju"],
+];
+
 const RECOMMENDATION_REGION_LABELS: Array<[string, string]> = [
   ["경기", "gyeonggi"],
   ["인천", "incheon"],
@@ -233,6 +250,11 @@ function recommendationRegions(location: unknown): string[] {
   } else if (normalized.includes("서울")) {
     regions.add("seoul_gangnam3");
     regions.add("seoul_etc");
+  }
+  // 지방 주요 상권도 시·도 이름 없이 지명만으로 인식한다.
+  // (부산 사람이 "해운대"라고 말했는데 못 알아듣고 되묻는 일을 없앤다)
+  for (const [pattern, code] of LOCAL_LANDMARK_REGIONS) {
+    if (pattern.test(normalized)) regions.add(code);
   }
   for (const [label, code] of RECOMMENDATION_REGION_LABELS) {
     if (normalized.includes(label)) regions.add(code);
@@ -587,7 +609,7 @@ export async function executeRecommendVendors(
           error: "unrecognized_recommendation_location",
         },
         success: false,
-        displayMessage: "말씀하신 지역 범위를 정확히 확인하고 싶어요. 시·도나 서울 권역(예: 홍대, 서초, 송파)으로 한 번만 알려주세요.",
+        displayMessage: "말씀하신 지역 범위를 정확히 확인하고 싶어요. 시·도(예: 부산, 대구, 경기)나 동네 이름으로 한 번만 알려주세요.",
       };
     }
     const parsedRequest = parseVendorRecommendationRequest({

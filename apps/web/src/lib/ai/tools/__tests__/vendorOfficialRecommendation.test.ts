@@ -277,7 +277,7 @@ describe("Amora official vendor recommendation", () => {
         error: "unrecognized_recommendation_location",
       },
     });
-    expect(result.displayMessage).toContain("시·도나 서울 권역");
+    expect(result.displayMessage).toContain("시·도(예: 부산, 대구, 경기)나 동네 이름");
     expect(mocks.loadRecommendationCandidates).not.toHaveBeenCalled();
   });
 
