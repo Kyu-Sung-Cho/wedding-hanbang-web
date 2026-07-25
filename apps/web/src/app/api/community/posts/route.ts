@@ -186,7 +186,8 @@ export async function GET(req: NextRequest) {
       // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
       query = query.eq("author_id", user.id).order("created_at", { ascending: false });
     } else if (sort === "new") {
-      query = query.order("created_at", { ascending: false });
+      // 고정 글 우선(운영자 앵커) → 그 다음 최신순
+      query = query.order("is_pinned", { ascending: false }).order("created_at", { ascending: false });
     } else if (sort === "top") {
       // 기간 필터
       if (period !== "all") {

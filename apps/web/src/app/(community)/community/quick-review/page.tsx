@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Star } from "lucide-react";
 import ImageUploader from "@/components/community/ImageUploader";
@@ -8,13 +9,19 @@ import AdDisclosureModal from "@/components/community/AdDisclosureModal";
 import { useToast } from "@/components/community/Toast";
 import { COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { communityPostPath } from "@/lib/community/routes";
+import { useAuthStore } from "@/stores/authStore";
 import type { AdDisclosure } from "@/types/community.types";
+
+// 로그인이 필요한 화면인데 제출 직후에야 401을 맞으면 다 쓴 후기가 헛수고가 된다.
+// 미리 알려주고, 로그인 뒤 이 자리로 돌아오게 한다.
+const QUICK_REVIEW_LOGIN_HREF = "/login?redirect=%2Fwedding%2Fcommunity%2Fquick-review";
 
 type Category = (typeof COHORT_CONTRACT_CATEGORIES)[number]["key"];
 
 export default function QuickReviewPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const profile = useAuthStore((state) => state.profile);
 
   const [vendorName, setVendorName] = useState("");
   const [category, setCategory] = useState<Category>("studio");
@@ -71,6 +78,11 @@ export default function QuickReviewPage() {
         }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        toast.error("로그인하면 방금 쓰신 후기를 이어서 올릴 수 있어요.");
+        router.push(QUICK_REVIEW_LOGIN_HREF);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error || "작성에 실패했습니다.");
       toast.success("15초 후기가 등록되었어요.");
       router.push(communityPostPath(data.post.id));
@@ -92,6 +104,21 @@ export default function QuickReviewPage() {
       <p className="text-[#878680] mb-8 text-sm">
         투어 끝나고 차 안에서 끝낼 수 있어요.
       </p>
+
+      {!profile ? (
+        <div className="mb-6 rounded-2xl border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
+          <p className="text-sm font-semibold text-[#243832]">후기를 올리려면 로그인이 필요해요</p>
+          <p className="mt-1 text-sm leading-6 text-[#243832]/70">
+            먼저 로그인해두면 다 쓰고 나서 다시 쓰는 일이 없어요. 닉네임은 익명으로 시작하고, 실명은 공개되지 않아요.
+          </p>
+          <Link
+            href={QUICK_REVIEW_LOGIN_HREF}
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white"
+          >
+            로그인하고 이어서 쓰기
+          </Link>
+        </div>
+      ) : null}
 
       <form
         onSubmit={handleSubmitClick}

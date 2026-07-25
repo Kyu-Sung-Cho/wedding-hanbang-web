@@ -24,6 +24,7 @@ export default function MoneyPage() {
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<Side | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -81,6 +82,8 @@ export default function MoneyPage() {
 
   const handleSubmit = async () => {
     if (!form.guest_name.trim() || !form.amount) return;
+    setSaveError(null);
+    try {
     if (editId) {
       await updateMoney(editId, {
         guest_name: form.guest_name,
@@ -101,6 +104,11 @@ export default function MoneyPage() {
         memo: form.memo || null,
         received_at: form.received_at,
       });
+    }
+    } catch (err) {
+      // 저장에 실패했으면 폼을 비우지 않는다 — 하객 앞에서 다시 받아 적을 수는 없다.
+      setSaveError(err instanceof Error ? err.message : "저장하지 못했어요. 다시 시도해 주세요.");
+      return;
     }
     resetForm();
   };
@@ -274,6 +282,11 @@ export default function MoneyPage() {
             placeholder="메모 (선택)"
             className="w-full mt-3 px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           />
+          {saveError ? (
+            <p role="alert" className="mt-3 rounded-xl bg-[#FCEDEA] px-4 py-3 text-sm leading-6 text-[#8A3D2E]">
+              {saveError}
+            </p>
+          ) : null}
           <button
             onClick={handleSubmit}
             disabled={!form.guest_name.trim() || !form.amount}

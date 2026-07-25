@@ -24,6 +24,8 @@ export async function getInitialCommunityFeed(limit = DEFAULT_LIMIT): Promise<In
       .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+      // 고정 글을 먼저 — 새 글이 뜸한 시기에도 첫 화면이 비어 보이지 않게 한다.
+      .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false })
       .range(0, queryLimit - 1);
 

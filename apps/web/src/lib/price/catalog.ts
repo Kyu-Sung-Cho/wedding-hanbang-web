@@ -141,10 +141,18 @@ export function filterPriceCatalog(
     .filter((vendor) => !filter.regionCode || vendor.regionCode === filter.regionCode)
     .filter((vendor) => agencyIds.size === 0 || offersFor(vendor).length > 0)
     .filter((vendor) => {
-      const minimum = minimumFor(vendor);
-      if (filter.minimumKrw != null && (minimum === null || minimum < filter.minimumKrw)) return false;
-      if (filter.maximumKrw != null && (minimum === null || minimum > filter.maximumKrw)) return false;
-      return true;
+      // 예산대 탐색은 "이 예산으로 살 수 있는 상품이 있는가"를 묻는 것이다.
+      // 업체 최저가 하나만 보면 150만·250만 상품을 가진 업체가 "200~300만"
+      // 검색에서 빠져, 사실상 저가 상품 보유 업체를 제외하는 필터가 된다.
+      if (filter.minimumKrw == null && filter.maximumKrw == null) return true;
+      return offersFor(vendor).some((offer) => {
+        if (offer.minimumKrw === null && offer.maximumKrw === null) return false;
+        const low = offer.minimumKrw ?? offer.maximumKrw!;
+        const high = offer.maximumKrw ?? offer.minimumKrw!;
+        if (filter.minimumKrw != null && high < filter.minimumKrw) return false;
+        if (filter.maximumKrw != null && low > filter.maximumKrw) return false;
+        return true;
+      });
     })
     .filter((vendor) => !filter.wishlistOnly || filter.wishlistedIds?.has(vendor.id) === true)
     .sort((left, right) => {

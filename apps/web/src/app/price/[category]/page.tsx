@@ -9,6 +9,7 @@ import {
   slimPriceCatalogOptions,
   type PriceCatalog,
   type PriceCategory,
+  type PriceVendor,
 } from "@/lib/price/catalog";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
 import {
@@ -34,6 +35,31 @@ function isPriceCategory(value: string): value is PriceCategory {
   return PRICE_CATEGORIES.includes(value as PriceCategory);
 }
 
+// 비활성 카테고리 데이터의 유일한 소비자는 예산 조합 찾기(budgetFinder)이고,
+// 거기서는 "허용된 대행사 중 최저가 오퍼 1건"만 읽는다. 그래서 대행사별 최저가만
+// 남기고 나머지 오퍼는 전송하지 않는다 — 의미는 그대로, 바이트만 줄어든다.
+function cheapestOfferPerAgency(offers: PriceVendor["offers"]): PriceVendor["offers"] {
+  const cheapest = new Map<string, PriceVendor["offers"][number]>();
+  for (const offer of offers) {
+    if (offer.minimumKrw === null) continue;
+    const key = offer.agencyId ?? "";
+    const current = cheapest.get(key);
+    if (!current || (current.minimumKrw ?? Number.POSITIVE_INFINITY) > offer.minimumKrw) {
+      cheapest.set(key, offer);
+    }
+  }
+  return [...cheapest.values()].map((offer) => ({
+    id: offer.id,
+    agencyId: offer.agencyId,
+    agencyName: offer.agencyName,
+    minimumKrw: offer.minimumKrw,
+    maximumKrw: null,
+    priceNote: null,
+    baseSpec: null,
+    options: [],
+  }));
+}
+
 function catalogForBrowser(catalog: PriceCatalog, activeCategory: PriceCategory): PriceCatalog {
   const budgetCategories = new Set<PriceCategory>(["studio", "dress", "makeup"]);
   const categories = Object.fromEntries(PRICE_CATEGORIES.map((category) => {
@@ -43,12 +69,7 @@ function catalogForBrowser(catalog: PriceCatalog, activeCategory: PriceCategory)
       ...vendor,
       aliases: [],
       regionCode: null,
-      offers: vendor.offers.map((offer) => ({
-        ...offer,
-        priceNote: null,
-        baseSpec: null,
-        options: [],
-      })),
+      offers: cheapestOfferPerAgency(vendor.offers),
     }))];
   })) as PriceCatalog["categories"];
   return { ...catalog, categories };

@@ -28,6 +28,10 @@ export function getImminentCategories(
   if (!weddingDate) return [];
 
   const now = new Date();
+  // 남은 일수는 "날짜 차이"여야 한다. 벽시계 시각으로 빼면 오전 시간대에만
+  // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
@@ -41,9 +45,10 @@ export function getImminentCategories(
     // 마감일 = 결혼일 - ddayDeadline일
     const deadlineDate = new Date(weddingDate);
     deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
+    deadlineDate.setHours(0, 0, 0, 0);
 
-    const daysLeft = Math.ceil(
-      (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    const daysLeft = Math.round(
+      (deadlineDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // 60일 이내만 표시
@@ -90,6 +95,10 @@ export function getCompletedImminentCategories(
   if (!weddingDate) return [];
 
   const now = new Date();
+  // 남은 일수는 "날짜 차이"여야 한다. 벽시계 시각으로 빼면 오전 시간대에만
+  // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
@@ -99,9 +108,10 @@ export function getCompletedImminentCategories(
 
     const deadlineDate = new Date(weddingDate);
     deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
+    deadlineDate.setHours(0, 0, 0, 0);
 
-    const daysLeft = Math.ceil(
-      (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    const daysLeft = Math.round(
+      (deadlineDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     if (daysLeft > 60) continue;

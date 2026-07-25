@@ -27,6 +27,7 @@ type PublicPriceRow = {
   price_min_krw: number | null;
   price_max_krw: number | null;
   price_note: string | null;
+  vat_note: string | null;
 };
 
 export type PublicOptionRow = {
@@ -145,7 +146,7 @@ export async function loadPublicPriceCatalog(
     const result = await client
       .from("v_public_official_prices")
       .select(
-        "id, period_label, vendor_id, vendor_slug, vendor_name, vendor_aliases, vendor_category, region_code, agency_id, agency_name, agency_display_name, price_category, item_name, base_spec, price_min_krw, price_max_krw, price_note",
+        "id, period_label, vendor_id, vendor_slug, vendor_name, vendor_aliases, vendor_category, region_code, agency_id, agency_name, agency_display_name, price_category, item_name, base_spec, price_min_krw, price_max_krw, price_note, vat_note",
       )
       .eq("source", "kca_tprice")
       .eq("is_current", true)
@@ -217,7 +218,8 @@ export async function loadPublicPriceCatalog(
       agencyName: agencyLabel,
       minimumKrw: money(row.price_min_krw),
       maximumKrw: money(row.price_max_krw),
-      priceNote: row.price_note,
+      // 부가세 표기는 비교의 핵심인데 목록에서만 빠져 있었다(상세엔 노출 중).
+      priceNote: [row.vat_note, row.price_note].filter(Boolean).join(" · ") || null,
       baseSpec: row.base_spec,
       options: (optionsByPrice.get(row.id) ?? []).sort((left, right) =>
         (left.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.sortOrder ?? Number.MAX_SAFE_INTEGER)

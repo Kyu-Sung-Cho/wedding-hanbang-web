@@ -90,11 +90,19 @@ export const useMoneyStore = create<MoneyStoreState>((set, get) => ({
         set((s) => ({ moneyList: [localMoney, ...s.moneyList], moneyLocalMode: true }));
         return;
       }
-      if (!res.ok) throw new Error("축의금 추가 실패");
+      if (!res.ok) {
+        // 서버는 "금액을 0~1억원 사이 숫자로 입력해주세요." 같은 한국어 안내를 주는데
+        // 예전엔 전부 버려지고 폼만 비워져, 사용자는 저장된 줄 알았다.
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? "축의금을 저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+      }
       const result = await res.json();
       set((s) => ({ moneyList: [result.money, ...s.moneyList] }));
     } catch (err) {
       console.error("축의금 추가 에러:", err);
+      throw err instanceof Error
+        ? err
+        : new Error("축의금을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   },
 
