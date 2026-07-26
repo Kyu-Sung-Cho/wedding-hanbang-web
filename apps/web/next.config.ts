@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertPreviewStubDeployment } from "./previewStubConfig";
 import { assertVendorDisclosureProductionBuild } from "./vendorDisclosureProductionBuildFence";
+import { WEDDING_APP_ROUTES } from "./weddingAppRoutes";
 
 assertPreviewStubDeployment();
 
@@ -54,20 +55,7 @@ const localResearchContentSecurityPolicy = [
   "manifest-src 'none'",
 ].join("; ");
 
-const weddingAppRoutes = [
-  "lounge",
-  "chat",
-  "budget",
-  "schedule",
-  "etiquette",
-  "settings",
-  "bookings",
-  "money",
-  "vendors",
-  "market-prices",
-  "favorites",
-  "onboarding",
-];
+const weddingAppRoutes = [...WEDDING_APP_ROUTES];
 
 const nextConfig: NextConfig = {
   devIndicators: process.env.WEDDING_CODE_RESEARCH_PREVIEW === "true" ? false : undefined,
