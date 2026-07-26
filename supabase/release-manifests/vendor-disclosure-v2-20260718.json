@@ -132,6 +132,10 @@
     {
       "file": "20260726120000_amora_saved_notes.sql",
       "sha256": "25d14623dd9bc4c24b1941bf037084d97eb54ba05d30901cc522e5f90a425de7"
+    },
+    {
+      "file": "20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
+      "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
     }
   ],
   "deploymentEvidence": {
