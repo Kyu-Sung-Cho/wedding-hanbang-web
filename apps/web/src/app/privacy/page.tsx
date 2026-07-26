@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+
+import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
 import { ArrowLeft } from "lucide-react";
 
 export default function PrivacyPage() {
+  const businessInfo = readBusinessInfo();
   return (
     <div className="min-h-screen bg-ivory-50">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
@@ -186,6 +189,21 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (개인정보 처리방침의 변경)</h2>
             <p>본 방침은 법령·정책 또는 보안기술의 변경에 따라 내용이 추가·삭제 및 수정될 수 있으며, 변경 시 사전에 공지합니다.</p>
           </section>
+
+          {/* 사업자 식별 정보 — 값이 설정되지 않으면 렌더하지 않는다.
+              없는 정보를 자리표시자로 띄우면 그게 곧 허위 표시다. */}
+          {businessInfo ? (
+            <section>
+              <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">사업자 정보</h2>
+              <div className="mt-3 px-4 py-3 bg-white rounded-xl">
+                <ul className="space-y-1 text-[13px] text-charcoal">
+                  {businessInfoRows(businessInfo).map(([label, value]) => (
+                    <li key={label}>{label}: {value}</li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
             <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 17일부터 시행합니다.</p>
