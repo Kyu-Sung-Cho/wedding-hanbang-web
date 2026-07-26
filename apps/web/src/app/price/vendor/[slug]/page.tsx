@@ -265,6 +265,10 @@ export default async function VendorPricePage({
   // 위약금·환불은 계약 직전에 가장 알고 싶은 정보다. 뷰가 아직 없으면 로더가
   // 빈 배열을 돌려주므로 페이지는 그대로 뜬다.
   const policies = await loadPolicies(profile.identity.vendorIds.join(","));
+  // 같은 문구는 로더가 이미 합친다 — 남은 공시의 대행사 수가 곧 "서로 다른 문구"의 수다.
+  const policyAgencyCount = new Set(
+    policies.flatMap((policy) => (policy.sourceAgency ? [policy.sourceAgency] : [])),
+  ).size;
   const categoryLabel = CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category;
   const structuredData = buildPriceVendorStructuredData({
     vendorName: profile.vendor.name,
@@ -491,6 +495,17 @@ export default async function VendorPricePage({
               업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
               계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
             </p>
+            {/* 문구가 같은 공시는 이미 하나로 합쳐 보여준다. 그래서 여러 장이 남았다는
+                건 곧 대행사마다 문구가 다르다는 사실이다 — 해석이 아니라 관찰이다.
+                실측(2026-07-26)에서 같은 샵인데 대행사에 따라 60일 전 위약금이
+                20%와 100%로 갈리는 경우까지 있었다. 왜 여러 장인지 모르면 그냥
+                스크롤로 지나친다. */}
+            {policyAgencyCount >= 2 ? (
+              <p className="mt-3 rounded-xl bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
+                이 업체는 대행사 {policyAgencyCount}곳이 서로 다른 문구로 공시했어요.
+                계약할 대행사의 조건을 직접 비교해 보세요.
+              </p>
+            ) : null}
             <ul className="mt-5 space-y-3">
               {policies.map((policy) => (
                 <li key={policy.id} className="rounded-2xl border border-[#8F6662]/25 bg-[#FBF8F2] px-5 py-4">

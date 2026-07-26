@@ -9,6 +9,7 @@ import {
   failChatRequest,
 } from "@/lib/ai/chatRequestClaim";
 import { createHash } from "node:crypto";
+import { shouldRecallSavedNotes } from "@/lib/amora/savedNotesRecall";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 
 const MUTATION_RESPONSE_HEADERS = {
@@ -178,6 +179,42 @@ async function handleProactiveRequest(req: NextRequest) {
         kind: "moment",
         messageId: insertedMessageId,
       });
+    }
+
+    // 1.5순위: 저장해 둔 이야기 회수.
+    //
+    // 저장 버튼은 만들었는데 저장본이 스스로 찾아오지 않으면 아무도 다시 안 본다.
+    // 위약금·확인할 것을 저장해 두는 시점은 대개 알아보는 중이고, 정작 필요한 건
+    // 계약이 몰리는 예식 두 달 전이다. 그날 한 번만 조용히 알린다.
+    //
+    // 내용은 언급하지 않는다 — 저장본은 커플의 것이고, 우리가 요약하면 그것도 해석이다.
+    const { count: savedNoteCount } = await admin
+      .from("amora_saved_notes")
+      .select("id", { count: "exact", head: true })
+      .eq("couple_id", profile.couple_id);
+    const savedRecall = shouldRecallSavedNotes({
+      weddingDate: journey.wedding_date,
+      savedCount: savedNoteCount ?? 0,
+    });
+    if (savedRecall) {
+      const { data: recallMessageId, error: recallError } = await admin.rpc(
+        "insert_amora_care_message",
+        {
+          p_couple_id: profile.couple_id,
+          p_content: savedRecall.message,
+          p_metadata: { client_request_id: savedRecall.requestId },
+        },
+      );
+      // 23505 = 동시 요청이 먼저 발화 — 중복 없이 조용히 종료
+      if (recallError && recallError.code !== "23505") {
+        console.error("저장본 회수 발화 실패:", recallError);
+      } else if (typeof recallMessageId === "string") {
+        return NextResponse.json({
+          triggered: true,
+          kind: "saved_notes_recall",
+          messageId: recallMessageId,
+        });
+      }
     }
 
     // 2순위: lifecycle 가드레일 — 기존 동작 유지 (6시간 쿨다운 적용)
