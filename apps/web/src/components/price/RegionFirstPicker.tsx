@@ -68,6 +68,45 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
   );
 }
 
+/**
+ * 공시 업체가 적은 지역에서 왜 적은지 알려준다.
+ *
+ * 지역별 공급이 크게 기울어 있다(2026-07-26 실측: 서울 강남권 509 · 인천 5 · 대구 6).
+ * 얇은 지역을 고른 사람에게 한두 곳만 덩그러니 보여주면 "이 서비스 별거 없네"로
+ * 읽힌다. 실제로는 "공시한 업체만 싣는다"는 원칙의 결과다 — 그 이유를 말하고
+ * 빠져나갈 길을 준다.
+ */
+export function ThinCoverageNotice({
+  regionCode,
+  count,
+  onShowAll,
+}: {
+  regionCode: string;
+  count: number;
+  onShowAll: () => void;
+}) {
+  if (!regionCode || count > THIN_COVERAGE_THRESHOLD) return null;
+  return (
+    <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6">
+      <p className="rounded-xl bg-[#F7F1E8] px-4 py-3 text-sm leading-6 text-[#36534E]">
+        {priceRegionLabel(regionCode)}은 아직 가격을 공시한 업체가{" "}
+        <span className="font-bold">{count.toLocaleString("ko-KR")}곳</span>뿐이에요.
+        공시한 업체만 싣기 때문이라, 실제 업체 수와는 다릅니다.{" "}
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="font-bold text-[#8F5150] underline underline-offset-4 hover:text-[#C4967E]"
+        >
+          전체 지역에서 찾아보기
+        </button>
+      </p>
+    </div>
+  );
+}
+
+/** 이 수 이하면 "적다"고 알린다 — 한 화면(20곳)의 절반이 기준. */
+const THIN_COVERAGE_THRESHOLD = 10;
+
 type RegionChipProps = {
   regionCode: string;
   count: number;

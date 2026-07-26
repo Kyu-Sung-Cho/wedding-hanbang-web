@@ -551,6 +551,31 @@ describe("PriceExplorer", () => {
     expect(window.localStorage.getItem("hanbang.price.region")).toBe("gangwon");
   });
 
+  // 공시 업체가 얇은 지역을 고르면 한두 곳만 덩그러니 보인다. 왜 적은지 말하지
+  // 않으면 "이 서비스 별거 없네"로 읽힌다.
+  it("explains thin coverage and offers a way out", async () => {
+    window.localStorage.setItem("hanbang.price.region", "gangwon");
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ combos: [] }, 401))));
+
+    await act(async () => {
+      root.render(<PriceExplorer catalog={regionCatalog} category="studio" />);
+      await flushAsyncWork();
+    });
+
+    expect(container.textContent).toContain("가격을 공시한 업체가");
+    expect(container.textContent).toContain("실제 업체 수와는 다릅니다");
+    const escape = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent === "전체 지역에서 찾아보기");
+    expect(escape).not.toBeUndefined();
+
+    await act(async () => {
+      escape?.click();
+      await flushAsyncWork();
+    });
+    // 전체 지역으로 빠져나가면 안내는 사라진다.
+    expect(container.textContent).not.toContain("가격을 공시한 업체가");
+  });
+
   it("skips the region step when a choice is already stored", async () => {
     window.localStorage.setItem("hanbang.price.region", "");
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ combos: [] }, 401))));

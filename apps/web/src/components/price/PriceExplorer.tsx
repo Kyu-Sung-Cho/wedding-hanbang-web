@@ -27,6 +27,7 @@ import {
   buildRegionCounts,
   RegionChip,
   RegionFirstPicker,
+  ThinCoverageNotice,
 } from "@/components/price/RegionFirstPicker";
 import {
   createPriceComboStore,
@@ -733,6 +734,13 @@ export function PriceExplorer({
           regionCode={regionCode}
           count={regionOnlyCount}
           onChange={() => setRegionChoiceStatus("needed")}
+        />
+      ) : null}
+      {regionChoiceStatus === "chosen" && !preview ? (
+        <ThinCoverageNotice
+          regionCode={regionCode}
+          count={regionOnlyCount}
+          onShowAll={() => chooseRegion("")}
         />
       ) : null}
 
