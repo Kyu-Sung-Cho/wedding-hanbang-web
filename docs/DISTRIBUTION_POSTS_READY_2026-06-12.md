@@ -1,4 +1,9 @@
-# 유통 테스트 — 바로 올리는 완성본 (2026-06-12)
+# 유통 테스트 — 바로 올리는 완성본 (2026-06-12, 2026-07-26 갱신)
+
+> **2026-07-26 갱신**: 위약금·환불 규정 공개(502개 업체 831건)가 라이브에 올라가
+> 카페 글 A(§1)와 지식iN ④(§3)에 반영했다. 공시 가격 링크는 `c` 계열 UTM으로
+> 따로 나눠, 견적 체크(`a`)·홈(`b`)과 어느 쪽 반응이 나은지 비교할 수 있게 했다.
+> 업체명은 어디에도 쓰지 않는다 — 특정 업체를 불리하게 지목하는 글이 되면 안 된다.
 
 > 키트(`DISTRIBUTION_TEST_KIT`)·답변뱅크(`KIN_ANSWER_BANK`)의 실전 게시본.
 > 카페 글은 **그대로 복붙** 가능. 지식iN은 첫 줄만 실제 질문에 맞게 교체(아래 표시).
@@ -20,9 +25,14 @@ https://hanbang.ai/wedding?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1
 https://hanbang.ai/check?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=a02
 # 지식iN B — 답변마다 b02, b03 … 으로 +1
 https://hanbang.ai/wedding?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=b02
+
+# 공시 가격·위약금 (2026-07-26 추가) — 카페 c01, 지식iN은 c02부터 +1
+https://hanbang.ai/price?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1_w1&utm_content=c01
+https://hanbang.ai/price?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c02
 ```
 
-> 카페=`a01/b01`, 지식iN은 `a02`부터 시작해 답변마다 1씩. 기록표(키트 §5)에 적기.
+> 카페=`a01/b01/c01`, 지식iN은 `a02`·`b02`·`c02`부터 시작해 답변마다 1씩. 기록표(키트 §5)에 적기.
+> `c` 계열은 위약금·공시 가격을 직접 보여주는 링크라, 어느 쪽이 더 반응이 좋은지 비교용으로 나눠 둔다.
 
 ---
 
@@ -60,12 +70,25 @@ https://hanbang.ai/wedding?utm_source=naver_kin&utm_medium=answer&utm_campaign=g
 - 취소·환불 규정 (예식 며칠 전부터 위약금 몇 %인지)
 2025년 11월부터 가격·위약금 표시가 의무화돼서, 명시해달라고 요구할 근거도 생겼어요.
 
+■ 5. 위약금은 "업체"가 아니라 "어느 대행사를 끼느냐"로도 갈리더라고요
+공시 자료를 모아 보다가 알게 된 건데, 같은 스튜디오·같은 드레스샵이어도
+계약을 어느 대행사를 통해 하느냐에 따라 위약금 조건이 다른 경우가 있었어요.
+촬영 60일 전 취소 기준으로 한쪽은 상품가의 20%인데 다른 쪽은 100%인 곳도 있었습니다.
+같은 샵인데 계약 경로만 다른 거였어요.
+
+투어 다닐 때 "이 샵 얼마예요"만 묻고 끝냈다면, "이 대행사로 계약하면 취소 조건이
+어떻게 되냐"까지 물어보시는 걸 권합니다. 어차피 서면으로 받아둘 항목이니까요.
+
 정부 2024년 결혼서비스 실태조사에선 스드메 기본금이 평균 346만인데 실제 지불은
 520만 — 추가금만 평균 174만원이더라고요. 싸 보이는 견적일수록 빠진 항목을 봐야 했습니다.
 
 분야·지역 고르면 빠지기 쉬운 항목과 위 평균가를 한 번에 보여주는 무료 페이지를
 만들어 뒀어요. 로그인 없이 보입니다 (제가 개발 중인 서비스라 참고로만):
 https://hanbang.ai/check?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1_w1&utm_content=a01
+
+공시된 업체별 가격이랑 위약금 규정 원문도 같이 정리해 뒀어요. 502개 업체 831건인데,
+저희가 요약하거나 판단하지 않고 업체가 공시한 문장 그대로만 올려뒀습니다. 이것도 로그인 없이 보여요:
+https://hanbang.ai/price?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1_w1&utm_content=c01
 
 다들 좋은 견적 받으시길요 :)
 ```
@@ -178,13 +201,18 @@ https://hanbang.ai/wedding?utm_source=naver_kin&utm_medium=answer&utm_campaign=g
 - 예식 150일 전 이전: 계약금 전액 환급
 - 이후 구간별 총비용 10% → 20% → 40% → 50% → 당일 70%
 
-주의 2가지:
+주의 3가지:
 1) 이건 "기준"이라 업체 약관이 다를 수 있어요. 계약서 취소 조항과 대조하고,
    기준보다 불리하면 소비자원 분쟁조정(국번없이 1372) 가능합니다.
 2) 보증인원 조항도 같이 보세요 — 미달이어도 보증인원만큼 식대를 냅니다.
+3) 스드메는 같은 업체여도 어느 대행사를 통해 계약하느냐에 따라 위약금 조건이
+   다른 경우가 있어요. 촬영 60일 전 기준으로 한쪽은 상품가의 20%인데 다른 쪽은
+   100%인 곳도 있었습니다. "이 대행사로 계약하면 취소 조건이 어떻게 되냐"를
+   따로 물어보시는 게 좋아요.
 
-계약 전·후 확인 항목을 정리한 무료 체크리스트입니다 (개발 중):
-https://hanbang.ai/check?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=a04
+업체들이 공시한 위약금·환불 규정 원문을 502개 업체 831건 모아뒀어요. 저희가 요약하거나
+어디가 낫다고 판단하지 않고, 공시된 문장 그대로만 올렸습니다. 로그인 없이 보입니다 (개발 중):
+https://hanbang.ai/price?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c02
 ```
 
 ### ⑤ "보증인원이 뭔가요 / 하객 적으면?" → A
