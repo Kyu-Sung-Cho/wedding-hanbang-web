@@ -78,7 +78,9 @@ export default function SpotlightTutorial({
     }
 
     if (mode === "event" && triggerEvent) {
-      tryStart();
+      // 이벤트 모드는 "부를 때만 뜬다"는 뜻이다. 여기서 tryStart()를 먼저 부르면
+      // 마운트되자마자 열려 auto와 똑같아진다 — 2026-07-26 랜딩에서 실제로
+      // 그렇게 동작해, 첫 화면을 가리지 않으려던 변경이 아무 효과가 없었다.
       const handler = () => tryStart();
       window.addEventListener(triggerEvent, handler);
       return () => window.removeEventListener(triggerEvent, handler);

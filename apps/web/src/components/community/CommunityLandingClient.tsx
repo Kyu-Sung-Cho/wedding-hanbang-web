@@ -50,6 +50,7 @@ import type {
 } from "@/types/community.types";
 import { timeAgo } from "@/utils/timeAgo";
 import { communityPostLinkProps, communityPostUrl, isCommunityCategory } from "@/lib/community/routes";
+import { COMMUNITY_TOUR_EVENT } from "@/components/community/CommunityFirstVisitTour";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { captureEvent } from "@/lib/analytics";
 import { isPreviewStubMode } from "@/lib/previewStub";
@@ -437,6 +438,7 @@ export default function CommunityLandingClient({
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
       <QuoteCheckHero />
+      <WhatWeDo />
       <SearchHub
         searchDraft={searchDraft}
         searchQuery={searchQuery}
@@ -484,6 +486,74 @@ export default function CommunityLandingClient({
  */
 const PUBLISHED_VENDOR_COUNT = 502;
 const PUBLISHED_POLICY_COUNT = 831;
+
+/**
+ * "그래서 여기서 뭘 할 수 있는데?"에 대한 답.
+ *
+ * 그동안 이 답을 첫방문 투어(CommunityFirstVisitTour)가 대신하고 있었다. 하지만
+ * 투어는 5단계를 따라와야 값을 주고, 그전에 화면을 가린다 — 볼까 말까 하는 사람에게
+ * 설명을 먼저 요구하는 셈이다. 페이지가 스스로 말하게 한다.
+ *
+ * 각 줄은 동사와 숫자로 쓴다. "결혼 준비를 같이 정리해요" 같은 문장은 아무것도
+ * 약속하지 않는다. 로그인이 필요한지도 그 자리에서 밝힌다 — 눌러보고 나서
+ * 가입을 요구받으면 그게 배신이다.
+ */
+function WhatWeDo() {
+  const items = [
+    {
+      href: "/price",
+      label: "업체 가격·위약금 보기",
+      body: `공시한 스튜디오·드레스·메이크업·예식장 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳의 기본가, 추가금, 위약금 원문을 한 화면에서.`,
+      note: "로그인 없이",
+      external: true,
+    },
+    {
+      href: "/community/quote-check",
+      label: "받은 견적서 점검하기",
+      body: "견적서에서 확인 안 된 항목과, 계약 전 업체에 보낼 질문을 3분 만에 정리해 드려요.",
+      note: "로그인 없이 · 3분",
+      external: false,
+    },
+    {
+      href: "/chat",
+      label: "아모라와 순서 잡기",
+      body: "예식일만 알려주면 지금 뭐부터 해야 하는지, 예산을 어떻게 나눌지 같이 정리해요.",
+      note: "가입 필요 · 무료",
+      external: false,
+    },
+  ];
+
+  return (
+    <section className={`${shell} mt-4`} aria-labelledby="what-we-do-heading">
+      <h2 id="what-we-do-heading" className="sr-only">웨딩한방에서 할 수 있는 것</h2>
+      <ul className="grid gap-3 md:grid-cols-3">
+        {items.map((item) => (
+          <li key={item.href}>
+            <Link
+              {...(item.external ? { href: item.href } : weddingLinkProps(item.href))}
+              className="flex h-full flex-col rounded-[18px] border border-[#061a34]/10 bg-white px-5 py-4 transition-colors hover:border-[#36534E]/40"
+            >
+              <span className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#071629]">
+                {item.label}
+                <ChevronRight className="h-4 w-4 text-[#36534E]" />
+              </span>
+              <span className="mt-1.5 text-[13px] leading-[1.6] text-[#5d6879]">{item.body}</span>
+              <span className="mt-2 text-[11px] font-semibold text-[#9d6f36]">{item.note}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {/* 투어는 이제 자동으로 뜨지 않는다 — 원하는 사람만 연다. */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent(COMMUNITY_TOUR_EVENT))}
+        className="mt-3 inline-flex min-h-9 items-center text-[12px] font-semibold text-[#5d6879] underline underline-offset-4 hover:text-[#36534E]"
+      >
+        처음이신가요? 화면 따라 한 바퀴 보기
+      </button>
+    </section>
+  );
+}
 
 function QuoteCheckHero() {
   return (

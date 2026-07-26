@@ -42,14 +42,25 @@ const STEPS: SpotlightStep[] = [
   },
 ];
 
+/** 이 이벤트를 쏘면 투어가 열린다 — "이 서비스 어떻게 쓰나요?" 같은 명시적 요청용. */
+export const COMMUNITY_TOUR_EVENT = "hanbang:start-first-visit-tour";
+
 export default function CommunityFirstVisitTour() {
   return (
     <SpotlightTutorial
       steps={STEPS}
       storageKey="hanbang_first_visit_tour_seen"
-      mode="auto"
-      // 첫 화면이 다 그려진 뒤에 뜨도록 — 로딩 중에 겹치면 위치가 어긋난다.
-      delayMs={1_200}
+      // 2026-07-26: 자동 실행을 끈다.
+      //
+      // 이 투어는 "첫 화면만 보고는 무슨 서비스인지 모르겠다"를 풀려고 만들었는데,
+      // 정작 뜨자마자 그 첫 화면을 가려버렸다. 볼까 말까 하는 사람에게 5단계 설명을
+      // 먼저 요구하는 셈이라, 훅을 읽기도 전에 이탈한다.
+      //
+      // 같은 문제는 이제 랜딩의 WhatWeDo 블록이 화면 자체로 답한다. 투어는 지우지
+      // 않고 요청이 있을 때만 연다 — 쓰기로 마음먹은 사람에게는 여전히 쓸모가 있다.
+      mode="event"
+      triggerEvent={COMMUNITY_TOUR_EVENT}
+      delayMs={300}
     />
   );
 }
