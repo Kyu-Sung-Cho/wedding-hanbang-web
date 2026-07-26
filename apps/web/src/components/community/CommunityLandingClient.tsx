@@ -478,6 +478,13 @@ export default function CommunityLandingClient({
 // 첫 방문자에게 커뮤니티(피드)보다 먼저 보여줄 "쐐기" — 견적 체크.
 // 콜드스타트 단계에서 빈 피드가 첫인상이 되지 않도록, 로그인 없이 바로 쓰는
 // 도구를 랜딩 최상단에 세운다. 문구는 판정 금지 원칙 준수(좋다/나쁘다 없음).
+/**
+ * 첫 화면에 세우는 공시 규모. 분기마다 공시가 갱신되므로 값이 바뀐다.
+ * 2026-07-26 운영 v_public_vendor_policies 실조회: 831행 / 502업체.
+ */
+const PUBLISHED_VENDOR_COUNT = 502;
+const PUBLISHED_POLICY_COUNT = 831;
+
 function QuoteCheckHero() {
   return (
     <section className={`${shell} mt-4`} data-tutorial-target="landing-quote-check">
@@ -486,26 +493,38 @@ function QuoteCheckHero() {
           <div className="min-w-0">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
               <ClipboardCheck className="h-3.5 w-3.5" />
-              계약 전 3분 체크 · 로그인 없이 무료
+              업체 {PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳 · 위약금 원문 {PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건 · 로그인 없이
             </span>
+            {/* 첫 화면에는 우리만 가진 사실을 세운다.
+                이전 문구("견적서 빠진 항목 확인")는 견적서를 이미 받은 사람만 대상으로
+                삼아, 아직 알아보는 중인 대다수에게는 걸릴 것이 없었다. 아래 문장은
+                공시 원문 대조에서 실제로 확인한 것이고(2026-07-26), 다른 어디서도
+                볼 수 없다. 단정하지 않으려고 "경우가 있어요"까지 붙인다. */}
             <h1 className="mt-2.5 font-serif-kr text-[26px] font-medium leading-[1.3] text-[#071629] md:text-[30px]">
-              스드메 견적서, 빠진 항목 없는지 확인해 보세요
+              같은 업체인데, 어느 대행사로 계약하냐에 따라 위약금이 달라요
             </h1>
             <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.65] text-[#5d6879] md:text-[14px]">
-              {/* 평균가 비교는 제품이 의도적으로 하지 않는다(구성을 모르는 채의 가격 판정 금지).
-                  실제로 주는 것만 약속한다 — 없는 것을 약속하면 정직이라는 해자가 깎인다. */}
-              좋다·나쁘다 판정 대신 사실만 — 견적서에서 확인 안 된 항목과
-              계약 전에 업체에 보낼 질문을 정리해 드려요.
+              촬영 60일 전 취소 기준으로 한쪽은 상품가의 20%인데 다른 쪽은 100%인
+              경우가 있었어요. 업체가 공시한 위약금·환불 규정 원문을 그대로 모았습니다 —
+              요약도, 어디가 낫다는 판정도 하지 않아요.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
+            {/* 가장 강한 것을 첫 버튼으로. 로그인·견적서 없이 바로 값을 받는 경로다. */}
+            <Link
+              href="/price"
+              onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642]"
+            >
+              업체별 위약금 보기
+              <ChevronRight className="h-4 w-4" />
+            </Link>
             <Link
               {...weddingLinkProps("/community/quote-check")}
               onClick={() => captureEvent("quote_check_hero_click", { source: "landing_hero" })}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642]"
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
-              내 견적 확인하기
-              <ChevronRight className="h-4 w-4" />
+              내 견적서도 확인하기
             </Link>
             {/* 견적서가 없는 사람에게도 첫 행동을 준다(페르소나: 정보 과부하 신부·바쁜 신랑) */}
             <Link
