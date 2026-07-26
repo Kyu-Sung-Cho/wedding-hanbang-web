@@ -31,7 +31,7 @@ const DEPLOYMENT_EVIDENCE_KEYS = [
   "hostedStaging",
   "storage",
 ];
-const TOP_LEVEL_KEYS = [
+const BLOCKED_TOP_LEVEL_KEYS = [
   "deploymentEvidence",
   "expandMigrations",
   "migrationFloor",
@@ -41,6 +41,19 @@ const TOP_LEVEL_KEYS = [
   "requiredRemoteHead",
   "status",
 ];
+// 증거를 고정한 매니페스트만 backupContract를 추가로 갖는다. 차단 상태에서는
+// 이 키가 있으면 형태 위반이다 — 증거 없이 백업 계약만 선언하지 못하게 한다.
+const PINNED_TOP_LEVEL_KEYS = [...BLOCKED_TOP_LEVEL_KEYS, "backupContract"].sort();
+const BLOCKED_STATUS = "deployment_blocked";
+const PINNED_STATUS = "evidence_pinned";
+// 증거 한 건이 갖춰야 할 필드. 전부 있어야 하고 그 외에는 없어야 한다.
+const EVIDENCE_RECORD_KEYS = ["capturedAt", "file", "releaseCommit", "sha256"];
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const COMMIT_SHA = /^[a-f0-9]{40}$/;
+// 영수증에 자격증명이 섞여 들어오는 사고를 파일 이름 단계에서 한 번 더 막는다.
+const SECRET_LIKE_KEY = /(?:secret|token|password|passwd|credential|apikey|api_key|private)/i;
+// 증거는 이 디렉터리 안에만 둔다. 아무 데나 가리키면 무엇이 증거인지 흐려진다.
+const EVIDENCE_DIRECTORY = "docs/operations/evidence";
 
 export class SuccessorReleaseContractError extends Error {
   constructor(code, message) {
@@ -161,24 +174,110 @@ function verifyPinnedManifestChain({
   return { manifest, versions };
 }
 
-function validateDeploymentBlock(manifest) {
-  if (manifest.status !== "deployment_blocked") {
+/**
+ * 증거 한 건을 검증한다.
+ *
+ * 증거는 "어느 커밋을 대상으로, 어떤 파일이, 어떤 해시로, 언제" 확보됐는지를
+ * 전부 말해야 한다. 하나라도 빠지면 나중에 "그때 뭘 확인했더라"가 되고,
+ * 그 상태로 열린 게이트는 게이트가 아니다.
+ */
+function validateEvidenceRecord(repoRoot, name, record, expectedCommit) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence must be a pinned record`);
+  }
+  if (JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(EVIDENCE_RECORD_KEYS)) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence has missing or unexpected fields`);
+  }
+  if (typeof record.file !== "string"
+      || record.file.length === 0
+      || record.file.length > 200
+      || record.file.includes("\\")
+      || record.file.includes("//")
+      || record.file.includes("..")
+      || isAbsolute(record.file)
+      || SECRET_LIKE_KEY.test(record.file)) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence file path is unsafe`);
+  }
+  if (!SHA256.test(record.sha256 ?? "")) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence must pin a sha256`);
+  }
+  if (!ISO_TIMESTAMP.test(record.capturedAt ?? "")) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence capture time must be an ISO-8601 UTC instant`);
+  }
+  // 증거는 반드시 이 릴리스 커밋에 묶인다. 이전 릴리스 영수증 재사용을 막는다.
+  if (!COMMIT_SHA.test(record.releaseCommit ?? "")) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence must pin a release commit`);
+  }
+  if (expectedCommit && record.releaseCommit !== expectedCommit) {
     invalid(
-      "DEPLOYMENT_STATUS_INVALID",
-      "successor status must remain deployment_blocked until hosted evidence is pinned",
+      "DEPLOYMENT_EVIDENCE_COMMIT_DRIFT",
+      `${name} evidence is bound to a different release commit`,
     );
   }
+  if (!record.file.startsWith(`${EVIDENCE_DIRECTORY}/`)) {
+    invalid("DEPLOYMENT_EVIDENCE_INVALID", `${name} evidence must live under ${EVIDENCE_DIRECTORY}`);
+  }
+  // 해시만 적어 두고 파일이 없으면 증거가 아니라 증거의 흉내다. 선임 매니페스트와
+  // 같은 기준으로 실제 파일을 읽어 대조한다.
+  readPinnedRegularFile(
+    repoRoot,
+    { file: record.file, sha256: record.sha256 },
+    `${name} evidence`,
+    join(repoRoot, ...EVIDENCE_DIRECTORY.split("/")),
+  );
+  return record.releaseCommit;
+}
+
+/**
+ * 매니페스트가 어느 상태인지 판정하고, 그 상태의 규칙을 전부 강제한다.
+ *
+ *   deployment_blocked — 증거 5종이 전부 "missing"이어야 한다(오늘까지의 유일한 상태).
+ *   evidence_pinned    — 증거 5종이 전부 같은 릴리스 커밋에 묶인 기록이어야 하고,
+ *                        backupContract가 함께 있어야 한다.
+ *
+ * 둘 사이 어중간한 상태는 없다. "일부만 증거가 있다"는 곧 "확인 안 된 것이 섞여
+ * 있다"이고, 그런 매니페스트로 게이트를 열면 무엇이 검증됐는지 알 수 없게 된다.
+ */
+function validateDeploymentBlock(repoRoot, manifest) {
   const evidence = manifest.deploymentEvidence;
   const keys = evidence && typeof evidence === "object" && !Array.isArray(evidence)
     ? Object.keys(evidence).sort()
     : [];
-  if (JSON.stringify(keys) !== JSON.stringify(DEPLOYMENT_EVIDENCE_KEYS)
-      || keys.some((key) => evidence[key] !== "missing")) {
+  if (JSON.stringify(keys) !== JSON.stringify(DEPLOYMENT_EVIDENCE_KEYS)) {
     invalid(
       "DEPLOYMENT_EVIDENCE_INVALID",
-      "deployment-blocked successor must explicitly mark every hosted evidence class missing",
+      "successor must list exactly the five hosted evidence classes",
     );
   }
+
+  if (manifest.status === BLOCKED_STATUS) {
+    if (keys.some((key) => evidence[key] !== "missing")) {
+      invalid(
+        "DEPLOYMENT_EVIDENCE_INVALID",
+        "deployment-blocked successor must explicitly mark every hosted evidence class missing",
+      );
+    }
+    return { released: false, releaseCommit: null };
+  }
+
+  if (manifest.status !== PINNED_STATUS) {
+    invalid(
+      "DEPLOYMENT_STATUS_INVALID",
+      `successor status must be ${BLOCKED_STATUS} or ${PINNED_STATUS}`,
+    );
+  }
+
+  let releaseCommit = null;
+  for (const key of DEPLOYMENT_EVIDENCE_KEYS) {
+    if (evidence[key] === "missing") {
+      invalid(
+        "DEPLOYMENT_EVIDENCE_INVALID",
+        `evidence-pinned successor still marks ${key} missing`,
+      );
+    }
+    releaseCommit = validateEvidenceRecord(repoRoot, key, evidence[key], releaseCommit);
+  }
+  return { released: true, releaseCommit };
 }
 
 export function validateSuccessorReleaseContract({
@@ -201,7 +300,12 @@ export function validateSuccessorReleaseContract({
   } catch {
     invalid("MANIFEST_INVALID", "successor manifest is not valid JSON");
   }
-  if (JSON.stringify(Object.keys(manifest).sort()) !== JSON.stringify(TOP_LEVEL_KEYS)) {
+  // 허용 키는 상태에 따라 다르다 — 차단 상태에서 backupContract만 몰래 넣어 두는
+  // 것을 막고, 고정 상태에서 그것이 빠지는 것도 막는다.
+  const expectedKeys = manifest.status === PINNED_STATUS
+    ? PINNED_TOP_LEVEL_KEYS
+    : BLOCKED_TOP_LEVEL_KEYS;
+  if (JSON.stringify(Object.keys(manifest).sort()) !== JSON.stringify(expectedKeys)) {
     invalid("MANIFEST_SHAPE_INVALID", "successor manifest has missing or unexpected top-level fields");
   }
   if (!SAFE_RELEASE_ID.test(manifest.release ?? "")
@@ -209,7 +313,7 @@ export function validateSuccessorReleaseContract({
       || !SAFE_PROJECT_REF.test(manifest.projectRef ?? "")) {
     invalid("MANIFEST_IDENTITY_INVALID", "successor manifest identity is invalid");
   }
-  validateDeploymentBlock(manifest);
+  const deployment = validateDeploymentBlock(root, manifest);
   if (!/^\d{14}$/.test(manifest.migrationFloor ?? "")
       || !/^\d{14}$/.test(manifest.requiredRemoteHead ?? "")
       || manifest.requiredRemoteHead >= manifest.migrationFloor) {
@@ -263,5 +367,9 @@ export function validateSuccessorReleaseContract({
     manifest,
     migrationCount: expectedFiles.length,
     predecessorHead,
+    // 컨트롤러는 이 값만 보고 진행 여부를 정한다. 상태 문자열을 각자 해석하면
+    // 판정이 두 군데로 갈라진다.
+    deploymentBlocked: !deployment.released,
+    releaseCommit: deployment.releaseCommit,
   };
 }

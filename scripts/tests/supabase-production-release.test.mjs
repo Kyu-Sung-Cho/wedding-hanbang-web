@@ -154,6 +154,42 @@ async function addBlockedSuccessorRelease(fixture) {
   await write(fixture.root, `supabase/migrations/${migrationFile}`, migrationSql);
 }
 
+/**
+ * 증거가 전부 고정된 후속 릴리스를 만든다.
+ *
+ * 계약은 통과하지만 컨트롤러 본체가 아직 후속 릴리스를 대상으로 하지 않으므로,
+ * 여기서도 릴리스는 열리면 안 된다 — 다만 "증거가 없다"가 아니라 "본체가 없다"로
+ * 구분돼 막혀야 한다. 그 구분이 무너지면 증거만 채우고 배포가 열렸다고 착각한다.
+ */
+async function addEvidencePinnedSuccessorRelease(fixture) {
+  await addBlockedSuccessorRelease(fixture);
+  const manifestFile = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
+  const manifest = JSON.parse(await readFile(join(fixture.root, manifestFile), "utf8"));
+  const body = '{"verified":true}\n';
+  const evidence = {};
+  for (const [name, file] of [
+    ["backup", "backup-receipt.json"],
+    ["hostedStaging", "hosted-staging.json"],
+    ["hostedRestore", "hosted-restore.json"],
+    ["storage", "storage-drain.json"],
+    ["finalizer", "finalizer.json"],
+  ]) {
+    const relative = `docs/operations/evidence/${file}`;
+    await write(fixture.root, relative, body);
+    evidence[name] = {
+      file: relative,
+      sha256: sha256(body),
+      capturedAt: "2026-07-26T00:31:05Z",
+      releaseCommit: RELEASE_COMMIT,
+    };
+  }
+  manifest.status = "evidence_pinned";
+  manifest.deploymentEvidence = evidence;
+  manifest.backupContract = { id: "amora-db-current-baseline", version: 1 };
+  await write(fixture.root, manifestFile, `${JSON.stringify(manifest, null, 2)}
+`);
+}
+
 async function createFixture({ withPostPushOperation = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "amora-production-release-"));
   const receiptRoot = await mkdtemp(join(tmpdir(), "amora-production-receipt-"));
@@ -732,6 +768,59 @@ test("production release controller refuses a deployment-blocked successor befor
         ],
       }),
       (error) => error?.code === "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("증거를 고정해도 후속 릴리스 본체가 없으면 다른 코드로 계속 막는다", async () => {
+  const fixture = await createFixture();
+  try {
+    await addEvidencePinnedSuccessorRelease(fixture);
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--check-only",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
+        ],
+      }),
+      // 증거가 갖춰졌다고 선임 매니페스트를 대상으로 릴리스가 돌면 안 된다.
+      (error) => error?.code === "SUCCESSOR_RELEASE_CONTROLLER_NOT_IMPLEMENTED",
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("증거가 깨진 후속 릴리스는 계약 위반으로 막는다", async () => {
+  const fixture = await createFixture();
+  try {
+    await addEvidencePinnedSuccessorRelease(fixture);
+    const manifestFile = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
+    const manifest = JSON.parse(await readFile(join(fixture.root, manifestFile), "utf8"));
+    // 증거 파일 내용을 바꿔 해시를 어긋나게 한다 — 사후 위조 시나리오.
+    await write(fixture.root, manifest.deploymentEvidence.backup.file, '{"verified":false}\n');
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--check-only",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
+        ],
+      }),
+      (error) => error?.code === "SUCCESSOR_RELEASE_CONTRACT_INVALID",
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });

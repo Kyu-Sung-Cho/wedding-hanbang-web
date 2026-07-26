@@ -92,9 +92,18 @@ function assertSuccessorReleaseNotBlocked(repoRoot) {
     }
     throw error;
   }
+  if (successor.deploymentBlocked) {
+    blocked(
+      "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+      `successor release ${successor.manifest.release} is ${successor.manifest.status}; use only the static release fence until hosted evidence and a reviewed successor controller exist`,
+    );
+  }
+  // 증거는 갖춰졌다. 그래도 여기서 그냥 통과시키면 이 컨트롤러가 "선임" 매니페스트를
+  // 대상으로 릴리스를 돌린다 — 엉뚱한 릴리스를 배포하게 된다. 후속 릴리스 본체가
+  // 배선되기 전까지는 계속 막되, 무엇이 남았는지 코드로 구분해 알린다.
   blocked(
-    "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
-    `successor release ${successor.manifest.release} is ${successor.manifest.status}; use only the static release fence until hosted evidence and a reviewed successor controller exist`,
+    "SUCCESSOR_RELEASE_CONTROLLER_NOT_IMPLEMENTED",
+    `successor release ${successor.manifest.release} has pinned evidence at ${successor.releaseCommit}, but this controller still targets the predecessor manifest; wire the successor release body before releasing`,
   );
 }
 
