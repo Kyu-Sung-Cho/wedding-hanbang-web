@@ -11,6 +11,12 @@ import { formatDisclosurePeriod } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
+/**
+ * 공개된 위약금·환불 원문 건수. 분기 공시 갱신 때 함께 바뀐다.
+ * 2026-07-26 운영 v_public_vendor_policies 실조회: 831건 / 502업체.
+ */
+const PUBLISHED_POLICY_COUNT = 831;
+
 export const revalidate = 86_400;
 
 // 허브는 카테고리 수와 공시 기간만 필요하다 — 옵션 원문은 한 건도 받지 않는다.
@@ -32,8 +38,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const catalog = await loadCounts();
   const period = formatDisclosurePeriod(catalog.periodLabel);
   const total = PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0);
-  const title = "스드메·예식장 공시 가격 — 업체별 기본가와 추가금";
-  const description = `${period} 기준으로 가격을 공개한 업체 ${total.toLocaleString()}곳의 기본가와 추가금을 한 화면에서 비교하세요. 한국소비자원 참가격 공시 자료입니다.`;
+  const title = "스드메·예식장 공시 가격과 위약금 — 업체가 공개한 원문 그대로";
+  const description = `${period} 기준 업체 ${total.toLocaleString()}곳의 기본가·추가금과, 취소 위약금·환불 규정 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString()}건을 한 화면에서. 요약도 판정도 하지 않습니다.`;
   return {
     title,
     description,
@@ -53,7 +59,7 @@ export default async function PriceIndexPage() {
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">한국소비자원 참가격 공시</p>
           <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#243832] sm:text-4xl">
-            스드메·예식장 공시 가격
+            공시 가격과 위약금, 업체가 쓴 문장 그대로
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="inline-flex rounded-full bg-[#F5ECE4] px-3 py-1.5 text-xs font-bold text-[#7C5754]">
@@ -64,9 +70,21 @@ export default async function PriceIndexPage() {
             </p>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#243832]/65">
-            좋다·나쁘다 판정 없이, 업체가 직접 공개한 기본가와 추가금만 그대로 보여드려요.
-            계약 전에 무엇을 더 물어봐야 하는지도 함께 정리해 드립니다.
+            기본가와 추가금은 물론, 취소하면 얼마를 무는지까지 업체가 공시한 원문 그대로
+            {" "}{PUBLISHED_POLICY_COUNT.toLocaleString()}건을 실었어요. 좋다·나쁘다 판정은 하지 않습니다.
           </p>
+          {/* 유통 글의 c 계열 링크가 "위약금 원문을 모아뒀다"고 약속하고 여기로 보낸다.
+              그런데 이 페이지에는 위약금이라는 단어조차 없었다(2026-07-26 실측) — 약속하고
+              데려와 다른 걸 보여준 셈이다. 도착 즉시 그 약속을 눈으로 확인시킨다. */}
+          <div className="mt-4 rounded-2xl border border-[#8F6662]/25 bg-white px-5 py-4">
+            <p className="text-sm font-bold text-[#8F5150]">
+              같은 업체인데 대행사에 따라 위약금이 달라요
+            </p>
+            <p className="mt-1.5 text-sm leading-6 text-[#243832]/75">
+              촬영 60일 전 취소 기준으로 한쪽은 상품가의 20%인데 다른 쪽은 100%인 경우가
+              있었어요. 업체를 고른 뒤 &ldquo;계약 전 확인&rdquo; 항목에서 대행사별 원문을 비교해 보세요.
+            </p>
+          </div>
         </div>
       </section>
 
