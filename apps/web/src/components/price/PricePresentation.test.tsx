@@ -26,7 +26,9 @@ describe("consumer price presentation", () => {
 
     expect(html).toContain("<h1");
     expect(html).toContain("스드메·예식장 공시가 비교");
-    expect(html).toContain("2026년 3분기 공시 기준");
+    // 소비자 화면의 기준 시점은 확인된 공시 라운드(2025-11)다 — 내부 스냅샷 이름이 아니다.
+    expect(html).toContain("2025년 11월 공시 기준");
+    expect(html).not.toContain("2026년 3분기");
     expect(html).toContain("가격표시제에 따라 가격을 공개한 업체만 표시됩니다.");
     // 카테고리 nav는 가로 스크롤이 아니라 줄바꿈이다 — 375px에서 네 번째 탭(웨딩홀)이
     // 화면 밖에 놓여 스크롤 힌트도 없이 사라졌던 회귀(`15eca917`) 때문이다.
@@ -41,7 +43,7 @@ describe("consumer price presentation", () => {
     const html = renderToStaticMarkup(
       <>
         <PriceEmptyState />
-        <PriceDisclosureFooter periodLabel="2026Q3" />
+        <PriceDisclosureFooter />
       </>,
     );
 
@@ -50,7 +52,7 @@ describe("consumer price presentation", () => {
     expect(html).toContain("공시는 업체가 직접 공개한 것만 표시돼요.");
     expect(html).toContain("받은 견적 공유하고 다른 커플 돕기");
     expect(html).toContain("/wedding/community/quote-check");
-    expect(html).toContain("가격 출처: 한국소비자원 참가격 · 2026년 3분기 공시 기준");
+    expect(html).toContain("가격 출처: 한국소비자원 참가격 · 2025년 11월 공시 기준");
     expect(html).toContain("본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.");
   });
 

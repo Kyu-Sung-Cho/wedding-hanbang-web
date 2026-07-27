@@ -9,6 +9,7 @@ import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
 import { marketPriceProvider } from "@/lib/marketPrice/provider";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
 import { buildPriceVendorStructuredData } from "@/lib/price/vendorJsonLd";
 import { withParticle } from "@/lib/korean/particles";
@@ -98,10 +99,10 @@ export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   return slugs.map((slug) => ({ slug }));
 }
 
-function periodLabel(value: string): string {
-  const match = /^(\d{4})Q([1-4])$/.exec(value);
-  return match ? `${match[1]}년 ${match[2]}분기` : value;
-}
+// 기간 표기는 `disclosureRoundLabel()` 하나만 쓴다. 예전에는 여기서
+// `price_snapshots.period_label`(내부 스냅샷 이름 "2026Q3")을 그대로 "2026년 3분기"로
+// 렌더해, 2025-11 공시를 2026년 3분기 기준이라고 주장했다.
+// ※ 라운드가 둘 이상 적재되면 스냅샷별 라운드 매핑이 필요하다(현재는 1개).
 
 function jsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
@@ -364,7 +365,7 @@ export default async function VendorPricePage({
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
                       <p className="text-xs font-medium text-[#36534E]/65">
-                        {periodLabel(price.period_label)}
+                        {disclosureRoundLabel()}
                         {price.agency?.name ? ` · ${price.agency.name}` : " · 업체 직접 공시"}
                       </p>
                       <h3 className="mt-1 text-lg font-bold">{price.item_name}</h3>
@@ -435,7 +436,7 @@ export default async function VendorPricePage({
                 <tbody className="divide-y divide-[#243832]/10">
                   {profile.prices.map((price) => (
                     <tr key={`history-${price.id}`}>
-                      <td className="px-4 py-3 font-medium">{periodLabel(price.period_label)}</td>
+                      <td className="px-4 py-3 font-medium">{disclosureRoundLabel()}</td>
                       <td className="px-4 py-3 text-[#36534E]/75">{price.agency?.name ?? "업체 직접"}</td>
                       <td className="px-4 py-3 text-[#36534E]/75">{price.item_name}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">{krwRangeLabel(price.price_min_krw, price.price_max_krw)}</td>
@@ -574,7 +575,7 @@ export default async function VendorPricePage({
         </section>
 
         <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[#243832]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[#36534E] shadow-[0_-8px_24px_rgba(36,56,50,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
-          <p>가격 출처: 한국소비자원 참가격 · {periodLabel(currentPeriod)} 공시 기준</p>
+          <p>가격 출처: 한국소비자원 참가격 · {disclosureRoundLabel()} 공시 기준</p>
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>
       </div>

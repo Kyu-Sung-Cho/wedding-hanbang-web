@@ -258,7 +258,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
         ) : null}
 
         <div className="mt-10 overflow-hidden rounded-[20px] border border-[#243832]/10 bg-white">
-          <PriceDisclosureFooter periodLabel={catalog.periodLabel} />
+          <PriceDisclosureFooter />
         </div>
       </div>
     </main>

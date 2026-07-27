@@ -38,7 +38,7 @@ import {
   PRICE_CATEGORY_LABELS,
   PRICE_REGION_OPTIONS,
 } from "@/lib/price/labels";
-import { formatDisclosurePeriod } from "@/lib/price/period";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import {
   parseLatestSavedComboPayload,
   restoreSavedComboAgainstCatalog,
@@ -676,7 +676,7 @@ export function PriceExplorer({
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex rounded-full bg-[#F5ECE4] px-3 py-1.5 text-xs font-bold text-[#7C5754]">
-                  {formatDisclosurePeriod(catalog.periodLabel)} 공시 기준
+                  {disclosureRoundLabel()} 공시 기준
                 </span>
                 <p className="text-sm font-semibold leading-6 text-[#243832]/75">
                   {preview
@@ -980,7 +980,7 @@ export function PriceExplorer({
           ) : null}
         </div>
 
-        <PriceDisclosureFooter periodLabel={catalog.periodLabel} />
+        <PriceDisclosureFooter />
       </section>
 
       {!preview ? (
