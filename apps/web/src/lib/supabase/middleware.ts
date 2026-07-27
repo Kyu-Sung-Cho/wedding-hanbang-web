@@ -10,9 +10,9 @@ const CUSTOMER_PATHS = [
   "/wedding/money", "/wedding/vendors", "/wedding/favorites",
   "/wedding/onboarding",
 ];
-// /market-prices는 공개 시세, /etiquette는 noindex 상태의 중립적 가족 조율 안내다.
 // /market-prices는 의도적 공개 — 한국소비자원 공공 데이터(하드코딩 상수)라 보호할 개인정보가 없고,
-// "스드메 시세" 류 검색 유입의 유일한 입구다.
+// "스드메 시세" 류 검색 유입의 입구다(현재는 /price 허브로 리다이렉트된다).
+// ※ /etiquette(가족 조율 안내)는 2026-07-26에 페이지째 제거됐다 — 여기 목록에도 없다.
 function isProtectedPath(pathname: string): "customer" | "admin" | null {
   if (CUSTOMER_PATHS.some((p) => pathname.startsWith(p))) return "customer";
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
