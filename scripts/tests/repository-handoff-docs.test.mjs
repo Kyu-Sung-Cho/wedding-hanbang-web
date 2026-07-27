@@ -44,6 +44,9 @@ test("repository handoff docs describe the current monorepo and release source o
   // 다른 컴퓨터에서 이어받을 때 먼저 읽을 문서. 등록만 하고 계약에 안 넣으면
   // 다음 정리 때 조용히 빠지고, 그러면 존재를 모르는 상태로 돌아간다.
   assert.match(agents, /docs\/operations\/SESSION_HANDOFF_2026-07-28\.md/);
+  // 상세 작업 기록. 인계 문서는 방향만 주므로, 근거·판정 이유를 다시 파야 할 때
+  // 이 문서가 없으면 같은 조사를 처음부터 반복하게 된다.
+  assert.match(agents, /docs\/operations\/WORK_LOG_2026-07-27_28\.md/);
   // 업체 병합은 79쌍 전건을 사람 판정한 결과다. 근거 문서가 목록에서 빠지면
   // 다음 세션이 근거 없이 다시 판정하거나(오배정 위험) 이미 한 일을 반복한다.
   assert.match(agents, /docs\/operations\/VENDOR_MERGE_REVIEW_2026-07-27\.md/);
