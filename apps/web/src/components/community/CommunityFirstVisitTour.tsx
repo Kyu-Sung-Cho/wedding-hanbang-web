@@ -37,8 +37,12 @@ const STEPS: SpotlightStep[] = [
   {
     selector: '[data-tutorial-target="landing-amora"]',
     title: "막히면 아모라에게 물어보세요",
+    // 이 버튼(CommunityAmoraLauncher)은 데모 쿠키가 없으면 "로그인 후 이용할 수
+    // 있어요" 모달을 띄운다. 그래서 "가입 없이 바로 대화할 수 있고"는 사실이 아니고,
+    // 하필 그 문구를 보는 첫 방문자가 정확히 못 하는 사람이었다.
+    // 모달 문구·랜딩 WhatWeDo 카드("가입 필요 · 무료")와 같은 사실로 맞춘다.
     description:
-      "AI 웨딩 플래너예요. 가입 없이 바로 대화할 수 있고, 예산·일정·업체 질문을 이어서 기억해요. 지금 이 버튼을 눌러보세요.",
+      "AI 웨딩 플래너예요. 예산·일정·업체 질문을 이어서 기억해요. 내 예식일과 준비 상황을 바탕으로 답해야 해서 로그인이 필요해요 — 무료예요.",
   },
 ];
 
@@ -60,6 +64,10 @@ export default function CommunityFirstVisitTour() {
       // 않고 요청이 있을 때만 연다 — 쓰기로 마음먹은 사람에게는 여전히 쓸모가 있다.
       mode="event"
       triggerEvent={COMMUNITY_TOUR_EVENT}
+      // 이 이벤트는 "처음이신가요?" 버튼, 즉 사용자의 명시적 요청이다. 한 번 본
+      // 사람에게도 열려야 한다 — 자동 투어가 살아 있던 2026-07-25~26 사이에 한 번
+      // 닫은 방문자에게는 이 버튼이 무반응이었다.
+      replayOnTrigger
       delayMs={300}
     />
   );

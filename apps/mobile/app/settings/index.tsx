@@ -29,7 +29,6 @@ import {
   Lock,
   LogOut,
   Trash2,
-  FileText,
   X,
   Eye,
   EyeOff,
@@ -913,7 +912,7 @@ export default function SettingsScreen() {
                     {resettingCouple ? "준비 중..." : "새 커플로 다시 시작"}
                   </PrimaryButton>
                   <Pressable
-                    onPress={() => Linking.openURL("https://hanbang.ai/support")}
+                    onPress={() => Linking.openURL("mailto:ceo@hanbang.ai")}
                     style={({ pressed }) => [styles.supportLink, pressed && { opacity: 0.6 }]}
                     accessibilityRole="link"
                   >
@@ -927,7 +926,7 @@ export default function SettingsScreen() {
                     안전을 위해 새 멤버 초대는 잠시 멈췄어요. 다시 열어 보거나 고객지원에 문의해 주세요.
                   </Text>
                   <Pressable
-                    onPress={() => Linking.openURL("https://hanbang.ai/support")}
+                    onPress={() => Linking.openURL("mailto:ceo@hanbang.ai")}
                     style={({ pressed }) => [styles.supportLink, pressed && { opacity: 0.6 }]}
                     accessibilityRole="link"
                   >
@@ -993,14 +992,9 @@ export default function SettingsScreen() {
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
 
-          <View style={styles.divider} />
-
-          <ActionRow
-            icon={<FileText size={16} color={colors.noir[800]} />}
-            title="오픈소스 라이선스"
-            onPress={() => Linking.openURL("https://hanbang.ai/licenses")}
-            right={<ExternalLink size={16} color={colors.taupe[400]} />}
-          />
+          {/* 오픈소스 라이선스 행은 제거했다 — 대상 페이지(hanbang.ai)가 없어
+              외부 브라우저로 404를 열고 있었고, 404는 저작자 표시를 제공하지 않는다.
+              스토어 제출 전에 실제 고지 화면을 만들어 다시 넣어야 한다. */}
         </Surface>
 
         {/* 회원 탈퇴 (위험 영역) */}

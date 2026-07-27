@@ -28,6 +28,13 @@ describe("consumer price presentation", () => {
     expect(html).toContain("스드메·예식장 공시가 비교");
     expect(html).toContain("2026년 3분기 공시 기준");
     expect(html).toContain("가격표시제에 따라 가격을 공개한 업체만 표시됩니다.");
+    // 카테고리 nav는 가로 스크롤이 아니라 줄바꿈이다 — 375px에서 네 번째 탭(웨딩홀)이
+    // 화면 밖에 놓여 스크롤 힌트도 없이 사라졌던 회귀(`15eca917`) 때문이다.
+    // `scrollbar-hide`·`overflow-x-auto`로 되돌리지 말 것.
+    expect(html).toContain('class="mt-7 flex flex-wrap gap-2" aria-label="가격 카테고리"');
+    expect(html).not.toContain("scrollbar-hide");
+    // 업체 개명이 잦아 "이전 상호로도 검색된다"는 힌트는 placeholder에 보여야 한다.
+    expect(html).toContain('placeholder="업체명 또는 이전 상호 검색"');
   });
 
   it("renders the required zero-result recovery path and exact disclosure copy", () => {

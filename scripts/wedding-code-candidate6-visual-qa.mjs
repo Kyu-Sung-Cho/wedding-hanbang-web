@@ -114,7 +114,9 @@ async function runViewport(browser, viewport) {
   researchUrl.searchParams.set("supportOrder", viewport.supportOrder);
   // Wait through client hydration before taking screenshots. Playwright briefly
   // suppresses carets during capture, which can otherwise race React hydration.
-  const documentResponse = await page.goto(researchUrl.toString(), { waitUntil: "networkidle" });
+  // Next dev keeps development connections open, so networkidle can hang even
+  // after the hydrated research screen is ready for interaction.
+  const documentResponse = await page.goto(researchUrl.toString(), { waitUntil: "domcontentloaded" });
   assert(documentResponse?.status() === 200, `${viewport.name}: research route must return 200 locally`);
   const responseHeaders = documentResponse.headers();
   assert(
@@ -132,6 +134,7 @@ async function runViewport(browser, viewport) {
     `${viewport.name}: research CSP must block external analytics/data hosts`
   );
   await page.getByText("우리 대화는 어디서부터 시작하면 편할까?").waitFor();
+  await page.locator('html[data-wedding-code-research-hydrated="true"]').waitFor();
   await page.screenshot({ path: path.join(outputRoot, `${viewport.name}-intro.png`), fullPage: true });
   await assertNoHorizontalOverflow(page, `${viewport.name}/intro`);
   await page.getByLabel(viewport.applicabilityLabel).check();
@@ -275,13 +278,14 @@ async function runViewport(browser, viewport) {
   );
   assert(
     unexpectedRequests.length === 0,
-    `${viewport.name}: disallowed requests: ${JSON.stringify(unexpectedRequests)}`
+    `${viewport.name}: disallowed requests: ${JSON.stringify(unexpectedRequests)}; console errors: ${consoleErrors.join(" | ")}; failed requests: ${failedRequests.join(" | ")}`
   );
   assert(consoleErrors.length === 0, `${viewport.name}: console errors: ${consoleErrors.join(" | ")}`);
   assert(failedRequests.length === 0, `${viewport.name}: request failures: ${failedRequests.join(" | ")}`);
 
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByText("우리 대화는 어디서부터 시작하면 편할까?").waitFor();
+  await page.locator('html[data-wedding-code-research-hydrated="true"]').waitFor();
   assert(
     await page.getByRole("button", { name: "장면 시작하기" }).isDisabled(),
     `${viewport.name}: refresh must clear in-memory answers`

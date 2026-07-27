@@ -229,7 +229,13 @@ export async function loadVendorIdentityRows(
       .ilike("name", pattern)
       .order("slug", { ascending: true })
       .limit(IDENTITY_CANDIDATE_CAP);
-    if (error || !Array.isArray(data)) return [self];
+    if (error || !Array.isArray(data)) {
+      // self만 돌려주면 상세가 형제를 못 보고, 목록 카드에는 대행사 4곳인데 눌러
+      // 보면 1곳인 상태로 되돌아간다(`e7dd16bf`가 고친 사고, 실측 157그룹 누락).
+      // 빌드는 통과하면서 내용만 얇아지므로 로그가 유일한 신호다.
+      reportIdentityLoadFailure(error ?? new Error("v_public_vendors returned no array"));
+      return [self];
+    }
     const rows = (data as VendorIdentityRow[]).filter((row) => (
       typeof row?.id === "string"
       && typeof row?.slug === "string"
@@ -239,9 +245,14 @@ export async function loadVendorIdentityRows(
     ));
     if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);
     return rows.sort((left, right) => left.slug.localeCompare(right.slug));
-  } catch {
+  } catch (err) {
+    reportIdentityLoadFailure(err);
     return [self];
   }
+}
+
+function reportIdentityLoadFailure(cause: unknown): void {
+  console.error("[vendor-identity] 형제 업체 조회 실패 — 상세가 병합 전 상태로 얇아진다:", cause);
 }
 
 export type VendorIdentitySummary = {
@@ -253,6 +264,15 @@ export type VendorIdentitySummary = {
    * 문서가 된다(실측 185개). 목록 카드도 이 규칙으로 링크를 만든다.
    */
   canonicalSlug: string;
+  /**
+   * 같은 묶음의 대표 업체 id — 찜·가격알림·analytics의 저장 키다.
+   *
+   * 목록 카드는 병합할 때 슬러그가 더 작은 형제로 slug와 id를 **함께** 교체한다
+   * (`publicListData.ts`). 상세가 방문한 슬러그의 id를 쓰면 같은 샵이 서로 다른
+   * id로 두 번 찜되고, 목록에서 찜한 샵을 형제 주소로 열면 찜이 안 된 것으로
+   * 보인다. 그래서 대표 슬러그와 같은 형제의 id로 고정한다.
+   */
+  canonicalVendorId: string;
 };
 
 function identitySummary(
@@ -269,11 +289,17 @@ function identitySummary(
         region_code: vendor.region_code,
       }];
   const slugs = [...new Set(rows.map(({ slug }) => slug))];
+  // 목록의 병합 규칙(`row.vendor_slug < existing.slug`)과 같은 코드유닛 순서로
+  // 비교해야 대표가 갈리지 않는다 — localeCompare로 바꾸면 어긋난다.
+  const canonicalSlug = [...slugs].sort()[0] ?? vendor.slug;
   return {
     vendorIds: [...new Set(rows.map(({ id }) => id))],
     slugs,
     regionCodes: [...new Set(rows.flatMap(({ region_code }) => (region_code ? [region_code] : [])))],
-    canonicalSlug: [...slugs].sort()[0] ?? vendor.slug,
+    canonicalSlug,
+    // 대표 슬러그와 같은 형제의 id. 슬러그를 못 찾으면(형제 조회 실패 등)
+    // 방문한 업체 자신으로 떨어진다.
+    canonicalVendorId: rows.find(({ slug }) => slug === canonicalSlug)?.id ?? vendor.id,
   };
 }
 
@@ -460,6 +486,15 @@ function policyTypeRank(semanticType: string): number {
  * 뷰가 아직 적용되지 않은 환경에서도 상세 페이지 전체가 죽지 않도록, 조회
  * 실패는 빈 목록으로 흘린다 — 위약금은 부가 정보이고 가격이 본문이다.
  */
+/**
+ * 위약금 원문은 이 제품이 가진 가장 강한 사실이다. 그게 조용히 사라지면 유통 글이
+ * 약속한 것과 도착 화면이 어긋난다(2026-07-26 `c019c68c`가 고친 바로 그 사고 유형).
+ * 검색 가능한 접두어로 남겨 Vercel 함수 로그에서 바로 잡을 수 있게 한다.
+ */
+function reportPolicyLoadFailure(cause: unknown): void {
+  console.error("[vendor-policies] 위약금 공개 조회 실패 — 상세 화면에서 섹션이 사라진다:", cause);
+}
+
 export async function loadPublicVendorPolicies(
   client: SupabaseClient,
   vendorIds: string[],
@@ -474,7 +509,14 @@ export async function loadPublicVendorPolicies(
       .order("semantic_type", { ascending: true })
       .order("id", { ascending: true })
       .limit(POLICY_CAP);
-    if (error || !Array.isArray(data)) return [];
+    if (error || !Array.isArray(data)) {
+      // 페이지는 `policies.length > 0`일 때만 섹션을 렌더한다. 즉 뷰가 드롭되거나
+      // GRANT가 회수되면 위약금 831건이 **아무 에러 없이** 화면에서 사라진다.
+      // 가격은 계속 보이므로 눈으로는 알아채기 어렵다 — 로그로 남긴다.
+      // 정기 확인은 `pnpm audit:production`(공개 뷰 anon 200 + 행수)이 담당한다.
+      reportPolicyLoadFailure(error ?? new Error("v_public_vendor_policies returned no array"));
+      return [];
+    }
     // 대행사가 여러 곳이면 같은 약관이 그대로 반복된다. 화면에서는 같은 문장을
     // 두 번 읽게 하지 않는다(공백 차이만 다른 것도 같은 문장으로 본다).
     const seen = new Set<string>();
@@ -498,7 +540,8 @@ export async function loadPublicVendorPolicies(
     return policies.sort((left, right) =>
       policyTypeRank(left.semanticType) - policyTypeRank(right.semanticType)
       || left.id.localeCompare(right.id));
-  } catch {
+  } catch (err) {
+    reportPolicyLoadFailure(err);
     return [];
   }
 }

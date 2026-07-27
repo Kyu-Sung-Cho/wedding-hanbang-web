@@ -2,25 +2,59 @@
 // 전부 읽기 전용. 릴리스 전과 사고 조사 때 그대로 다시 돌린다.
 //
 // 실행: node scripts/audit/production-readiness-audit.mjs
-// 전제: ../wedding/apps/web/.env.local 에 SUPABASE_ACCESS_TOKEN과 anon 키가 있어야 한다
-//       (이 저장소는 워크트리이고 비밀값은 형제 체크아웃에 둔다).
+// 전제: apps/web/.env.local 에 SUPABASE_ACCESS_TOKEN과 anon 키가 있어야 한다.
+//       워크트리에서 비밀값을 형제 체크아웃에 두는 배치도 그대로 지원한다.
 //
 // 2026-07-27 이 점검에서 두 결함을 찾았다 — 저장본 외래키가 엉뚱한 테이블을
 // 가리켜 기능이 죽어 있었고, 버려진 messages 테이블이 anon에게 전면 개방돼 있었다.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const PROD = "slrtobkksjmxgzatjyqb";
-const env = readFileSync(path.resolve(ROOT, "..", "wedding", "apps", "web", ".env.local"), "utf8");
-const TOKEN = env.match(/^SUPABASE_ACCESS_TOKEN=(.*)$/m)[1].trim().replace(/^["']|["']$/g, "");
-const ANON = env.match(/^NEXT_PUBLIC_SUPABASE_ANON_KEY="?([^"\r\n]+)"?/m)[1].trim();
+
+// 형제 체크아웃 경로만 하드코딩해 두면 그 배치를 쓰는 컴퓨터에서만 돌아간다.
+// 조사 때 다시 돌리려고 저장소에 넣은 스크립트이므로 자기 저장소를 먼저 본다.
+function readEnvFile() {
+  const candidates = [
+    path.resolve(ROOT, "apps", "web", ".env.local"),
+    path.resolve(ROOT, "..", "wedding", "apps", "web", ".env.local"),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) {
+    throw new Error(
+      `.env.local을 찾지 못했다. 다음 중 한 곳에 두라:\n  ${candidates.join("\n  ")}`,
+    );
+  }
+  return readFileSync(found, "utf8");
+}
+
+function requireKey(source, pattern, name) {
+  const matched = source.match(pattern);
+  if (!matched) throw new Error(`${name}이 .env.local에 없다 — 이 점검은 그 값 없이 돌 수 없다.`);
+  return matched[1].trim().replace(/^["']|["']$/g, "");
+}
+
+const env = readEnvFile();
+const TOKEN = requireKey(env, /^SUPABASE_ACCESS_TOKEN=(.*)$/m, "SUPABASE_ACCESS_TOKEN");
+const ANON = requireKey(
+  env,
+  /^NEXT_PUBLIC_SUPABASE_ANON_KEY="?([^"\r\n]+)"?/m,
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+);
 const REST = `https://${PROD}.supabase.co/rest/v1`;
 
 const results = [];
 const check = (name, pass, detail = "") => {
   results.push({ name, pass });
   console.log(`  ${pass ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`);
+};
+
+// `apps/web/src/app/price/vendor/[slug]/page.tsx`의 periodLabel과 같은 규칙.
+// 사용자가 실제로 보는 문구를 그대로 재현해야 대조에 쓸 수 있다.
+const quarterLabel = (value) => {
+  const matched = /^(\d{4})Q([1-4])$/.exec(String(value ?? ""));
+  return matched ? `${matched[1]}년 ${matched[2]}분기` : String(value ?? "");
 };
 
 async function sql(query) {
@@ -50,14 +84,50 @@ const [counts] = await sql(`select
     (select count(*) from public.vendors) as vendors,
     (select count(*) from public.amora_saved_notes) as saved_notes,
     (select count(*) from public.messages) as messages,
-    (select count(*) from auth.users) as users`);
+    (select count(*) from auth.users) as users,
+    -- E2E(saved-notes-real-path-e2e.mjs)가 만드는 임시 계정 도메인. 정리 실패를 잡는다.
+    (select count(*) from auth.users
+      where email like '%@hanbang-test.invalid') as leftover_test_users`);
 console.log("  현황:", counts);
 check("위약금 공개 831행", Number(counts.policies) === 831, `${counts.policies}행`);
 check("위약금 공개 502업체", Number(counts.policy_vendors) === 502, `${counts.policy_vendors}업체`);
 check("원본 시맨틱 895행 보존", Number(counts.semantic_total) === 895, `${counts.semantic_total}행`);
 check("가격 2,611행 보존", Number(counts.prices) === 2611, `${counts.prices}행`);
-check("테스트 계정 잔여 없음", Number(counts.users) === 0 || true, `사용자 ${counts.users}명`);
+// `=== 0 || true`로 적어 두어 절대 실패하지 않던 검사였다. 실사용자가 생기면
+// 전체 사용자 수는 당연히 0이 아니므로, 정말 확인하려던 것(E2E 임시 계정 정리)만 본다.
+check(
+  "테스트 계정 잔여 없음",
+  Number(counts.leftover_test_users) === 0,
+  `잔여 ${counts.leftover_test_users}건 · 전체 사용자 ${counts.users}명`,
+);
 check("저장본 오염 없음", Number(counts.saved_notes) === 0, `${counts.saved_notes}건`);
+
+// 화면은 `period_label`을 "YYYY년 N분기"로 그대로 렌더한다
+// (`price/vendor/[slug]/page.tsx`). 그 값이 실제 공시 라운드와 다르면 사이트가
+// 소비자에게 틀린 기준 시점을 주장하게 된다 — 이 제품의 전제가 무너지는 자리다.
+// 자기 일관성으로는 잡히지 않는다(`collected_at`은 적재 시점이라 라벨과 우연히
+// 맞는다). 그래서 값을 그대로 찍어 사람이 공시 게시일과 대조하게 한다.
+// 출처: 한국소비자원 참가격 → 서비스가격정보 → 결혼서비스 중요정보 공개 →
+//       결혼준비대행서비스 (지역별 게시물). 게시일을 아래 값과 비교할 것.
+console.log("\n=== 1-b. 공시 스냅샷 출처 (사람 대조 필요) ===");
+const snapshots = await sql(`select period_label, source, source_note,
+    collected_at, published_at, is_current, published
+  from public.price_snapshots
+  order by is_current desc, collected_at desc
+  limit 5`);
+for (const snapshot of snapshots) {
+  console.log(
+    `  ${snapshot.is_current ? "[현재]" : "      "} period_label=${snapshot.period_label}`
+    + ` · 화면표기="${quarterLabel(snapshot.period_label)}"`
+    + ` · source=${snapshot.source} · collected_at=${snapshot.collected_at}`
+    + ` · published_at=${snapshot.published_at} · published=${snapshot.published}`,
+  );
+  if (snapshot.source_note) console.log(`           source_note=${snapshot.source_note}`);
+}
+console.log(
+  "  ↑ 화면표기가 실제 공시 게시일과 다르면 period_label을 고쳐야 한다"
+  + " (운영 DB 값이므로 코드 배포로는 안 바뀐다).",
+);
 
 console.log("\n=== 2. 공개 경계 (anon 접근) ===");
 const openable = [

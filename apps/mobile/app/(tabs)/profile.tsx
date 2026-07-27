@@ -17,7 +17,6 @@ import {
   ChevronRight,
   LogOut,
   HelpCircle,
-  BookOpen,
   Store,
   Settings,
   MessageCircle,
@@ -282,17 +281,18 @@ export default function ProfileScreen() {
               label="예산 관리"
               onPress={() => router.push({ pathname: "/budget" as const })}
             />
+            {/* 웹은 "업체 공시가"가 이제 기본가·추가금만이 아니라 위약금 원문까지
+                싣는다. 라벨이 "업체 탐색"이면 앱 사용자는 그게 있는 줄 모른다. */}
             <MenuItem
               icon={Store}
-              label="업체 탐색"
+              label="공시가·위약금 보기"
               onPress={() => router.push({ pathname: "/market-prices" })}
-            />
-            <MenuItem
-              icon={BookOpen}
-              label="예절 가이드"
-              onPress={() => router.push({ pathname: "/etiquette" })}
               isLast
             />
+            {/* "예절 가이드"(→ hanbang.ai/etiquette)는 지웠다. 그 페이지는 2026-07-26에
+                제거됐고(가족·지역마다 답이 달라 일반 안내보다 아모라가 상황을 듣고
+                정리하는 쪽이 맞다는 판단), 메뉴만 남아 404 웹뷰를 열고 있었다.
+                같은 주제는 아모라 채팅 탭에서 다룬다. */}
           </View>
 
           {/* 커뮤니티 메뉴 */}
@@ -328,7 +328,7 @@ export default function ProfileScreen() {
               icon={HelpCircle}
               label="고객센터"
               onPress={() =>
-                Linking.openURL("https://hanbang.ai/support")
+                Linking.openURL("mailto:ceo@hanbang.ai")
               }
             />
             <MenuItem

@@ -27,8 +27,19 @@ test("research dev environment inherits only non-secret operating-system keys", 
   assert.equal(environment.NODE_ENV, "development");
   assert.equal(environment.WEDDING_CODE_RESEARCH_PREVIEW, "true");
   assert.equal(environment.NEXT_PUBLIC_POSTHOG_KEY, "");
+  assert.equal(
+    environment.NEXT_PUBLIC_SUPABASE_URL,
+    "https://abcdefghijklmnopqrst.supabase.co"
+  );
+  assert.equal(environment.NEXT_PUBLIC_SUPABASE_ANON_KEY, "placeholder_anon_key");
+  assert.equal(
+    environment.SUPABASE_SERVICE_ROLE_KEY,
+    "sb_secret_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  );
+  assert.equal(environment.SUPABASE_EXPECTED_PROJECT_REF, "abcdefghijklmnopqrst");
+  assert.equal(environment.SUPABASE_PRODUCTION_PROJECT_REF, "zyxwvutsrqponmlkjihg");
+  assert.equal(environment.SUPABASE_PRODUCTION_WRITE_CONFIRM, "");
   assert.equal(environment.OPENAI_API_KEY, undefined);
-  assert.equal(environment.SUPABASE_SERVICE_ROLE_KEY, undefined);
   assert.equal(environment.VERCEL_OIDC_TOKEN, undefined);
 });
 
@@ -92,6 +103,16 @@ test("research request allowlisting compares parsed origins and rejects userinfo
     url: `${appOrigin}/_next/image?url=https%3A%2F%2Fleak.supabase.co%2Fprivate.png&w=64&q=75`,
     method: "GET",
     resourceType: "image",
+  }, appOrigin), false);
+  assert.equal(isAllowedWeddingCodeResearchRequest({
+    url: `${appOrigin}/__nextjs_font/geist-latin.woff2`,
+    method: "GET",
+    resourceType: "font",
+  }, appOrigin), true);
+  assert.equal(isAllowedWeddingCodeResearchRequest({
+    url: `${appOrigin}/__nextjs_font/geist-latin.woff2`,
+    method: "POST",
+    resourceType: "font",
   }, appOrigin), false);
 });
 

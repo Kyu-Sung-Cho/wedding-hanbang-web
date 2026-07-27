@@ -6,15 +6,66 @@
 //
 // 실행: node scripts/audit/saved-notes-real-path-e2e.mjs
 // 주의: 운영에 임시 계정·커플·메시지를 만들고 끝에서 전부 지운다.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+import { verifySupabaseServiceDestination } from "../lib/supabase-service-destination.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const REF = "slrtobkksjmxgzatjyqb";
-const env = readFileSync(path.resolve(ROOT, "..", "wedding", "apps", "web", ".env.local"), "utf8");
-const ANON = env.match(/^NEXT_PUBLIC_SUPABASE_ANON_KEY="?([^"\r\n]+)"?/m)[1].trim();
-const SERVICE = env.match(/^SUPABASE_SERVICE_ROLE_KEY="?([^"\r\n]+)"?/m)[1].trim();
+
+// 형제 체크아웃 경로만 하드코딩하면 그 배치를 쓰는 컴퓨터에서만 돌아간다.
+function readEnvFile() {
+  const candidates = [
+    path.resolve(ROOT, "apps", "web", ".env.local"),
+    path.resolve(ROOT, "..", "wedding", "apps", "web", ".env.local"),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) {
+    throw new Error(
+      `.env.local을 찾지 못했다. 다음 중 한 곳에 두라:\n  ${candidates.join("\n  ")}`,
+    );
+  }
+  return readFileSync(found, "utf8");
+}
+
+function requireKey(source, pattern, name) {
+  const matched = source.match(pattern);
+  if (!matched) throw new Error(`${name}이 .env.local에 없다 — 이 E2E는 그 값 없이 돌 수 없다.`);
+  return matched[1].trim();
+}
+
+const env = readEnvFile();
+const ANON = requireKey(
+  env,
+  /^NEXT_PUBLIC_SUPABASE_ANON_KEY="?([^"\r\n]+)"?/m,
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+);
+const SERVICE = requireKey(
+  env,
+  /^SUPABASE_SERVICE_ROLE_KEY="?([^"\r\n]+)"?/m,
+  "SUPABASE_SERVICE_ROLE_KEY",
+);
 const BASE = `https://${REF}.supabase.co`;
+
+// 이 스크립트는 운영에 임시 계정·커플·메시지를 **실제로 만든다.** 저장소의 다른
+// service-role 경로는 전부 목적지 검증을 통과해야 하는데(`supabase-service-destination`
+// 계약) 이 스크립트만 그 밖에 있었다 — 검증 없이 운영에 쓰고 있었다.
+//
+// 프로덕션 쓰기는 별도 확인값을 요구한다:
+//   SUPABASE_PRODUCTION_WRITE_CONFIRM=OPERATOR_WRITE:<project_ref>
+// 없으면 PRODUCTION_WRITE_CONFIRMATION_REQUIRED로 막힌다. 실수로 돌려서 운영에
+// 계정이 생기는 것보다 막히는 게 낫다.
+verifySupabaseServiceDestination({
+  url: BASE,
+  serviceRoleKey: SERVICE,
+  expectedUrl: BASE,
+  expectedProjectRef: REF,
+  productionProjectRef: REF,
+  productionWriteConfirmation: env
+    .match(/^SUPABASE_PRODUCTION_WRITE_CONFIRM="?([^"\r\n]*)"?/m)?.[1]?.trim(),
+  access: "operator-write",
+});
 const email = "saved-realpath@hanbang-test.invalid";
 const password = "Test!RealPath#2026";
 

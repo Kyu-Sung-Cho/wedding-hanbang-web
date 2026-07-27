@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { Eye, EyeOff } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 
@@ -124,23 +125,12 @@ export default function DemoLoginPage() {
     try {
       const supabase = createClient();
 
-      if (mode === "signup") {
-        // 이 화면에는 Turnstile 위젯이 없다. 키가 발급되면 여기서 보낸 가입은
-        // 토큰 누락으로 영구 실패하므로, 위젯이 있는 정식 가입 화면으로 넘긴다.
-        router.push("/login?mode=signup");
+      if (mode === "signup" || mode === "forgot") {
+        // 이 화면에는 Turnstile 위젯이 없다. 키가 발급되면 여기서 보낸 요청은
+        // 토큰 누락으로 영구 실패하므로, 위젯이 있는 정식 화면으로 넘긴다.
+        // `/api/auth/signup`과 `/api/auth/forgot-password` 둘 다 게이트 대상이다.
+        router.push(`/login?mode=${mode}`);
         return;
-      } else if (mode === "forgot") {
-        // 서버 API로 비밀번호 재설정 이메일 발송
-        const res = await fetch("/api/auth/forgot-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (res.ok) {
-          setSuccess("비밀번호 재설정 링크를 이메일로 보냈습니다.");
-        } else {
-          setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
-        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -269,20 +259,11 @@ export default function DemoLoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
+                aria-pressed={showPassword}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                tabIndex={-1}
               >
-                {showPassword ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
+                {showPassword ? <EyeOff aria-hidden="true" className="size-[18px]" /> : <Eye aria-hidden="true" className="size-[18px]" />}
               </button>
             </div>}
 
@@ -334,20 +315,11 @@ export default function DemoLoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                    aria-label={showPasswordConfirm ? "비밀번호 확인 숨기기" : "비밀번호 확인 표시"}
+                    aria-pressed={showPasswordConfirm}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-taupe-400 hover:text-noir-800 transition-colors"
-                    tabIndex={-1}
                   >
-                    {showPasswordConfirm ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
+                    {showPasswordConfirm ? <EyeOff aria-hidden="true" className="size-[18px]" /> : <Eye aria-hidden="true" className="size-[18px]" />}
                   </button>
                 </div>
                 {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (

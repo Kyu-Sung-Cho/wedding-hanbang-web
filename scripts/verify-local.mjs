@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createLocalQaWebBuildEnvironment } from "./lib/local-qa-environment.mjs";
 
 function createCommand(args) {
   if (process.platform !== "win32" && process.env.PNPM_HOME && args[0] === "pnpm") {
@@ -31,6 +32,7 @@ const checks = [
   {
     name: "web production build",
     args: ["pnpm", "--filter", "@hanbang/web", "build"],
+    createEnvironment: createLocalQaWebBuildEnvironment,
   },
   {
     name: "mobile release readiness",
@@ -69,7 +71,7 @@ for (const check of checks) {
   const { command, args } = createCommand(check.args);
   const result = spawnSync(command, args, {
     cwd: process.cwd(),
-    env: process.env,
+    env: check.createEnvironment?.(process.env) ?? process.env,
     stdio: "inherit",
   });
 

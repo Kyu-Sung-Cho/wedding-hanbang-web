@@ -335,9 +335,11 @@ export default async function VendorPricePage({
               </span>
             ))}
           </div>
+          {/* 찜·가격알림은 목록 카드와 같은 대표 id로 저장해야 한다 — 방문한
+              형제 슬러그의 id를 쓰면 같은 샵이 두 번 찜된다. */}
           <VendorDetailActions
-            vendorId={profile.vendor.id}
-            redirectPath={`/price/vendor/${profile.vendor.slug}`}
+            vendorId={profile.identity.canonicalVendorId}
+            redirectPath={`/price/vendor/${profile.identity.canonicalSlug}`}
           />
         </header>
 

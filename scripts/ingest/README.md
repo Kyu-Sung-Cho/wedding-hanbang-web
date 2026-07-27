@@ -153,10 +153,22 @@ corepack pnpm ingest score `
 
 ## staging 적재 계약
 
-아래 `--apply` 명령과 fence는 상태 인식형 25건 배치 러너가 구현·리뷰된 뒤에만 사용할
-미래 계약이다. 현재 CLI와 `loadValidated({ apply: true })`는 환경 변수가 모두 맞아도
-`load_apply_blocked_pending_state_aware_batch_runner`로 무조건 중단한다. 현재 가능한
-적재 검증은 `--apply` 없는 dry-run뿐이다.
+> **2026-07-27 정정.** 이 절에는 "`load_apply_blocked_pending_state_aware_batch_runner`로
+> 무조건 중단한다"고 적혀 있었으나 **사실이 아니다.** 상태 인식형 배치 러너는
+> `e0ab5a0d`에서 구현되며 그 throw가 제거됐고, 지금 이 문자열은 코드 어디에도 없다
+> (이 README 한 곳에만 남아 있었다). README만 읽고 "적재는 아직 코드에서 막혀 있다"고
+> 판단하지 말 것 — 실제 상태는 `pnpm ingest status`로 확인한다.
+
+적재는 3단계다. 각 단계는 앞 단계의 sha256을 요구하므로 순서를 건너뛸 수 없다.
+
+1. `load --prepare-apply` — 실행 계획과 authorization 해시를 낸다.
+2. `load --apply` — `--expected-full-plan-sha256`, `--expected-authorization-sha256`,
+   `--expected-run-sha256` 3개가 모두 맞아야 진행한다.
+3. `finalize-staging-run --apply-finalize` — 적재를 확정한다.
+   실패 시에는 `abort-staging-run`·`complete-storage-rollback`·`invalidate-staging-run`을 쓴다.
+
+적재 대상은 **staging ref만** 가능하다. 운영 ref는 `destination.ts`가 denylist로
+하드코딩해 CLI 경로에서는 선택될 수 없다. `--apply` 없는 dry-run은 언제든 안전하다.
 
 ```powershell
 corepack pnpm ingest load --snapshot 2026Q3 --apply --confirm-project-ref <STAGING_PROJECT_REF>

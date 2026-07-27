@@ -19,13 +19,47 @@ export type BusinessInfo = {
   contactPhone: string | null;
 };
 
+/** 이 모듈이 읽는 공개 환경변수 전체. 테스트가 리터럴 접근 여부를 이 목록으로 검사한다. */
+export const BUSINESS_INFO_ENV_KEYS = [
+  "NEXT_PUBLIC_BUSINESS_NAME",
+  "NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER",
+  "NEXT_PUBLIC_BUSINESS_REPRESENTATIVE",
+  "NEXT_PUBLIC_BUSINESS_MAIL_ORDER_NUMBER",
+  "NEXT_PUBLIC_BUSINESS_ADDRESS",
+  "NEXT_PUBLIC_BUSINESS_CONTACT_EMAIL",
+  "NEXT_PUBLIC_BUSINESS_CONTACT_PHONE",
+] as const;
+
+/**
+ * 빌드 시점에 값이 박히는 기본 env 소스.
+ *
+ * 개인정보처리방침 페이지는 `"use client"`다. Next는 소스에 **리터럴**로 적힌
+ * `process.env.NEXT_PUBLIC_X`만 클라이언트 번들에서 값으로 치환한다.
+ * 예전처럼 `process.env`를 객체째로 받아 `env[key]`로 꺼내면 브라우저에서는
+ * undefined가 되어, 서버 프리렌더 HTML에는 보이던 사업자 정보가
+ * 하이드레이션 직후 사라진다(값을 넣고도 안 나오는 것처럼 보이는 함정).
+ */
+function buildInlinedEnv(): Record<string, string | undefined> {
+  return {
+    NEXT_PUBLIC_BUSINESS_NAME: process.env.NEXT_PUBLIC_BUSINESS_NAME,
+    NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER:
+      process.env.NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER,
+    NEXT_PUBLIC_BUSINESS_REPRESENTATIVE: process.env.NEXT_PUBLIC_BUSINESS_REPRESENTATIVE,
+    NEXT_PUBLIC_BUSINESS_MAIL_ORDER_NUMBER:
+      process.env.NEXT_PUBLIC_BUSINESS_MAIL_ORDER_NUMBER,
+    NEXT_PUBLIC_BUSINESS_ADDRESS: process.env.NEXT_PUBLIC_BUSINESS_ADDRESS,
+    NEXT_PUBLIC_BUSINESS_CONTACT_EMAIL: process.env.NEXT_PUBLIC_BUSINESS_CONTACT_EMAIL,
+    NEXT_PUBLIC_BUSINESS_CONTACT_PHONE: process.env.NEXT_PUBLIC_BUSINESS_CONTACT_PHONE,
+  };
+}
+
 function clean(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
 }
 
 export function readBusinessInfo(
-  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  env: Record<string, string | undefined> = buildInlinedEnv(),
 ): BusinessInfo | null {
   const companyName = clean(env.NEXT_PUBLIC_BUSINESS_NAME);
   const registrationNumber = clean(env.NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER);

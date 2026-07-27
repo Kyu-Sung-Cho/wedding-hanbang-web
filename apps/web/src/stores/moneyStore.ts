@@ -131,13 +131,21 @@ export const useMoneyStore = create<MoneyStoreState>((set, get) => ({
         }));
         return;
       }
-      if (!res.ok) throw new Error("축의금 수정 실패");
+      if (!res.ok) {
+        // 삼키면 화면의 저장 실패 안내가 실행되지 않아, 사용자는 금액을 고치고
+        // 저장을 눌렀는데 아무 일도 없는 이유를 모른다(addMoney와 같은 처방).
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? "축의금을 수정하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+      }
       const result = await res.json();
       set((s) => ({
         moneyList: s.moneyList.map((m) => (m.id === id ? result.money : m)),
       }));
     } catch (err) {
       console.error("축의금 수정 에러:", err);
+      throw err instanceof Error
+        ? err
+        : new Error("축의금을 수정하지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   },
 
@@ -153,10 +161,16 @@ export const useMoneyStore = create<MoneyStoreState>((set, get) => ({
         set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id), moneyLocalMode: true }));
         return;
       }
-      if (!res.ok) throw new Error("축의금 삭제 실패");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? "축의금을 삭제하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");
+      }
       set((s) => ({ moneyList: s.moneyList.filter((m) => m.id !== id) }));
     } catch (err) {
       console.error("축의금 삭제 에러:", err);
+      throw err instanceof Error
+        ? err
+        : new Error("축의금을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   },
 

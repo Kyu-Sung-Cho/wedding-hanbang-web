@@ -40,6 +40,7 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
   });
 
   it("starts with an honest promise, no inferred result, and no unmeasured duration claim", () => {
+    expect(document.documentElement.dataset.weddingCodeResearchHydrated).toBe("true");
     expect(container.textContent).toContain("우리 대화는 어디서부터 시작하면 편할까?");
     expect(container.textContent).toContain("점수·유형·궁합이 없어요");
     expect(container.textContent).toContain("걸리는 시간은 실제 사용성 검증 뒤 정확하게 안내할게요");
@@ -56,12 +57,12 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     expect(progress?.getAttribute("aria-valuenow")).toBe("1");
     expect(progress?.getAttribute("aria-valuemax")).toBe("19");
     expect(container.textContent).toContain("축하할 장소나 진행 방식 두 개를 마지막으로 비교하는 장면");
-    expect(container.textContent).toContain("첫째 많이");
-    expect(container.textContent).toContain("첫째 조금");
-    expect(container.textContent).toContain("나란히");
-    expect(container.textContent).toContain("둘째 조금");
-    expect(container.textContent).toContain("둘째 많이");
-    expect(container.textContent).toContain("아래에서 5개 답을 비교하세요 ↓");
+    expect(container.textContent).toContain("첫째부터");
+    expect(container.textContent).toContain("첫째 먼저");
+    expect(container.textContent).toContain("같이 시작");
+    expect(container.textContent).toContain("둘째 먼저");
+    expect(container.textContent).toContain("둘째부터");
+    expect(container.textContent).toContain("5개 답을 비교한 뒤 하나를 골라주세요.");
     expect(buttonByText(container, "선택 확인하고 다음").disabled).toBe(true);
 
     const firstChoice = container.querySelector(
