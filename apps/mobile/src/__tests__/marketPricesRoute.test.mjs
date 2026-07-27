@@ -18,8 +18,12 @@ test("mobile price entry opens the current vendor disclosure explorer", async ()
   const source = await readFile(sourceUrl, "utf8");
 
   assert.match(source, /resolveMobileSiteOrigin\(\s*process\.env\.EXPO_PUBLIC_SITE_URL/);
-  assert.match(source, /buildMobileSiteUrl\("\/price\/studio"/);
-  assert.doesNotMatch(source, /https:\/\/hanbang\.ai\/price\/studio/);
+  // 카테고리로 바로 들어가면 허브의 위약금 안내를 건너뛴다 — h1과 대행사별 차이
+  // 예시, "업체 상세의 '계약 전 확인'에서 비교하세요"가 전부 허브에 있다(`c019c68c`).
+  // 앱 메뉴가 "공시가·위약금"이라고 약속하므로 도착 화면도 그걸 말해야 한다.
+  assert.match(source, /buildMobileSiteUrl\("\/price"/);
+  assert.doesNotMatch(source, /\/price\/studio/);
+  assert.doesNotMatch(source, /https:\/\/hanbang\.ai\/price/);
 
   const webviewSource = await readFile(webviewUrl, "utf8");
   assert.match(webviewSource, /resolveMobileSiteOrigin\(\s*process\.env\.EXPO_PUBLIC_SITE_URL/);
@@ -41,6 +45,31 @@ test("mobile price entry opens the current vendor disclosure explorer", async ()
     const entrySource = await readFile(entryUrl, "utf8");
     assert.match(entrySource, /\/market-prices/);
     assert.doesNotMatch(entrySource, /(?:route:\s*|pathname:\s*|router\.push\()["']\/vendors["']/);
+  }
+});
+
+// 웹은 2026-07-26에 위약금 원문 831건(502개 업체)을 공개하고 첫 화면 h1까지
+// 그 사실로 바꿨다. 그런데 앱 진입점은 "업체 탐색 / 업체 찾기"로 남아, 앱 사용자는
+// 그게 있는 줄 알 방법이 없었다 — 주간 최대 가치가 앱에서 발견 불가였다.
+test("mobile price entries say what the destination actually holds", async () => {
+  const entries = [
+    ["dashboard", new URL("../../app/(tabs)/dashboard.tsx", import.meta.url)],
+    ["profile", new URL("../../app/(tabs)/profile.tsx", import.meta.url)],
+  ];
+
+  for (const [name, url] of entries) {
+    const source = await readFile(url, "utf8");
+    const entryBlock = source.slice(Math.max(0, source.indexOf("/market-prices") - 400));
+    assert.match(
+      entryBlock,
+      /위약금/,
+      `${name}의 공시가 진입점이 위약금을 말하지 않는다 — 앱에서 그 값이 보이지 않는다`,
+    );
+    assert.doesNotMatch(
+      entryBlock.split("/market-prices")[0].slice(-200),
+      /업체 찾기/,
+      `${name}이 여전히 "업체 찾기"로 소개한다`,
+    );
   }
 });
 

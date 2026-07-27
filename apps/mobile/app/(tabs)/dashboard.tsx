@@ -585,8 +585,8 @@ export default function DashboardScreen() {
       route: "/budget" as const,
     },
     {
-      title: "업체 탐색",
-      desc: "업체 찾기",
+      title: "공시가·위약금",
+      desc: "업체가 공개한 원문",
       icon: Store,
       iconColor: colors.rose[500],
       iconBg: colors.ivory[200],

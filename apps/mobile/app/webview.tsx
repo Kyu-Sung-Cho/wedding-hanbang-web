@@ -53,7 +53,6 @@ function titleFromUrl(url: string): string {
     if (pathname === "/price" || pathname.startsWith("/price/")) return "업체 공시가";
     const segment = pathname.split("/").filter(Boolean).pop();
     const map: Record<string, string> = {
-      etiquette: "예절 가이드",
       vendors: "업체 탐색",
       budget: "예산 관리",
       schedule: "일정 관리",
