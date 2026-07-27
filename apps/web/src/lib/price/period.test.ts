@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DISCLOSURE_ROUND,
   disclosureRoundLabel,
+  displaySourceLabel,
   formatDisclosurePeriod,
   priceDisclosureLines,
 } from "./period";
@@ -34,6 +35,30 @@ describe("disclosureRoundLabel", () => {
     // `2026Q3`은 우리 스냅샷 이름이다. 소비자 문구에 나오면 안 된다.
     expect(disclosureRoundLabel()).not.toContain("분기");
     expect(priceDisclosureLines()[0]).not.toContain("2026");
+  });
+});
+
+/**
+ * DB의 `source_label`에는 적재 당시 스냅샷 이름이 박혀 있다
+ * (운영 실측: `"한국소비자원 참가격 · 2026Q3"`). "가격 근거 보기"에 그대로 띄우면
+ * 우리 내부 이름을 출처인 것처럼 주장한다 — 근거를 보여주는 자리라 더 나쁘다.
+ */
+describe("displaySourceLabel", () => {
+  it("스냅샷 토큰만 확인된 라운드로 바꾼다", () => {
+    expect(displaySourceLabel("한국소비자원 참가격 · 2026Q3"))
+      .toBe("한국소비자원 참가격 · 2025년 11월");
+  });
+
+  it("스냅샷 토큰이 없는 원문은 그대로 둔다", () => {
+    expect(displaySourceLabel("한국소비자원 참가격 공시 자료"))
+      .toBe("한국소비자원 참가격 공시 자료");
+    expect(displaySourceLabel("")).toBe("");
+  });
+
+  it("어떤 분기 토큰도 남기지 않는다", () => {
+    for (const raw of ["2025Q1", "참가격 · 2026q4 기준", "a2026Q2b"]) {
+      expect(displaySourceLabel(raw)).not.toMatch(/\d{4}Q[1-4]/i);
+    }
   });
 });
 

@@ -42,6 +42,18 @@ export function disclosureRoundLabel(): string {
   return formatDisclosurePeriod(DISCLOSURE_ROUND);
 }
 
+/**
+ * DB에 저장된 `source_label`을 소비자에게 보여줄 때 쓴다.
+ *
+ * 그 값에는 적재 당시 스냅샷 이름이 박혀 있다(운영 실측:
+ * `"한국소비자원 참가격 · 2026Q3"`). 그대로 "가격 근거"로 띄우면 우리 내부 이름을
+ * 출처인 것처럼 주장하게 된다 — 하필 근거를 보여주는 자리라 더 나쁘다.
+ * 스냅샷 토큰만 확인된 라운드로 바꾸고 나머지 원문은 손대지 않는다.
+ */
+export function displaySourceLabel(sourceLabel: string): string {
+  return sourceLabel.replace(/\d{4}Q[1-4]/gi, disclosureRoundLabel());
+}
+
 export function priceDisclosureLines(): readonly [string, string] {
   return [
     `가격 출처: 한국소비자원 참가격 · ${disclosureRoundLabel()} 공시 기준`,

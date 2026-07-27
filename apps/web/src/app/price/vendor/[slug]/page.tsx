@@ -9,7 +9,7 @@ import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
 import { marketPriceProvider } from "@/lib/marketPrice/provider";
 import { isPriceCatalogBuildPlaceholderEnvironment } from "@/lib/price/buildCatalog";
-import { disclosureRoundLabel } from "@/lib/price/period";
+import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "@/lib/price/categoryJsonLd";
 import { buildPriceVendorStructuredData } from "@/lib/price/vendorJsonLd";
 import { withParticle } from "@/lib/korean/particles";
@@ -410,7 +410,7 @@ export default async function VendorPricePage({
                       가격 근거 보기
                     </summary>
                     <p className="mt-3 border-l-2 border-[#B89785] pl-4 text-sm leading-6 text-[#36534E]/80">
-                      {price.source}
+                      {displaySourceLabel(price.source)}
                     </p>
                   </details>
                 </article>
