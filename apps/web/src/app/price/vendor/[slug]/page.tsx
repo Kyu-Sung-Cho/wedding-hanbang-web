@@ -276,7 +276,6 @@ export default async function VendorPricePage({
     vendorSlug: profile.identity.canonicalSlug,
     category: profile.vendor.category,
     categoryLabel,
-    periodLabel: currentPeriod,
   });
 
   return (

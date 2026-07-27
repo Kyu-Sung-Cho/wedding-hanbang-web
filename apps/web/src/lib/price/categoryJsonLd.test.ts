@@ -22,7 +22,6 @@ describe("price category SEO", () => {
     const [breadcrumb, dataset] = buildPriceCategoryStructuredData({
       category: "studio",
       categoryLabel: "스튜디오",
-      periodLabel: "2026Q3",
       period: "2026년 3분기",
       vendorCount: 12,
     });
@@ -56,7 +55,7 @@ describe("price category SEO", () => {
       "@type": "Dataset",
       name: "결혼서비스 공시 가격 비교 데이터",
       description: "2026년 3분기 기준 가격을 공개한 스튜디오 12곳의 공시 가격을 비교하세요.",
-      temporalCoverage: "2026Q3",
+      temporalCoverage: "2025-11",
       url: "https://hanbang.ai/price/studio",
       creator: {
         "@type": "Organization",
@@ -70,7 +69,6 @@ describe("price category SEO", () => {
     const [, , faq] = buildPriceCategoryStructuredData({
       category: "dress",
       categoryLabel: "드레스",
-      periodLabel: "2026Q3",
       period: "2026년 3분기",
       vendorCount: 9,
     });
@@ -111,7 +109,6 @@ describe("price category SEO", () => {
     const schemas = buildPriceCategoryStructuredData({
       category: "makeup",
       categoryLabel: "메이크업 </script><script>alert(1)</script>",
-      periodLabel: "2026Q3",
       period: "2026년 3분기",
       vendorCount: 4,
     });

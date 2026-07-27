@@ -121,7 +121,6 @@ export default async function PriceCategoryPage({
   const structuredData = buildPriceCategoryStructuredData({
     category,
     categoryLabel: label,
-    periodLabel: catalog.periodLabel,
     period,
     vendorCount: catalog.counts[category],
   });

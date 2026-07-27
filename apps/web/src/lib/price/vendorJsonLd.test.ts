@@ -9,7 +9,6 @@ describe("buildPriceVendorStructuredData", () => {
       vendorSlug: "sample-studio-a",
       category: "studio",
       categoryLabel: "스튜디오",
-      periodLabel: "2026Q3",
     });
 
     expect(graph.map((entry) => entry["@type"])).toEqual([
@@ -19,7 +18,7 @@ describe("buildPriceVendorStructuredData", () => {
       "FAQPage",
     ]);
     expect(graph[2]).toMatchObject({
-      temporalCoverage: "2026Q3",
+      temporalCoverage: "2025-11",
       creator: { name: "한국소비자원" },
       publisher: { name: "웨딩한방" },
       citation: "한국소비자원 참가격",
