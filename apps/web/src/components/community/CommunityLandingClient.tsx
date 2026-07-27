@@ -590,8 +590,12 @@ function QuoteCheckHero() {
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
             {/* 가장 강한 것을 첫 버튼으로. 로그인·견적서 없이 바로 값을 받는 경로다. */}
+            {/* 첫 화면의 /price 링크가 2개("업체별 위약금 보기"·"업체별 공시가 먼저 보기")였다.
+                같은 곳으로 가는 버튼이 둘이면 고르는 데만 시간이 든다 — 강한 쪽만 남기고
+                투어 타겟(landing-price)도 여기로 옮겼다. */}
             <Link
               href="/price"
+              data-tutorial-target="landing-price"
               onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642]"
             >
@@ -612,16 +616,6 @@ function QuoteCheckHero() {
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
               아직 견적 전이라면 · 지금 뭐부터?
-            </Link>
-            <Link
-              href="/price"
-              data-tutorial-target="landing-price"
-              // 유통 테스트에서 어느 진입점이 전환되는지 읽어야 한다 — 첫 화면의
-              // /price 링크가 4개인데 1차 CTA만 계측되고 있었다(source로 구분).
-              onClick={() => captureEvent("price_hero_click", { source: "landing_hero_secondary" })}
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
-            >
-              업체별 공시가 먼저 보기
             </Link>
           </div>
         </div>

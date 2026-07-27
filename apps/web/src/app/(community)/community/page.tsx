@@ -23,9 +23,10 @@ const loadSharedInitialFeed = unstable_cache(
 );
 
 export const metadata = {
-  title: "웨딩한방 커뮤니티 — 결혼 준비 경험과 질문을 나눠요",
+  title: "웨딩한방 — 스드메 공시가·위약금 원문과 예비부부 커뮤니티",
   description:
-    "이용자가 남긴 경험 글, 견적 질문과 준비 이야기를 한 곳에서 확인하는 웨딩한방 커뮤니티.",
+    "업체가 공시한 기본가·추가금과 취소 위약금 규정 원문을 그대로 확인하고, "
+    + "먼저 겪은 예비부부들의 글도 함께 보세요. 요약도, 어디가 낫다는 판정도 하지 않습니다.",
 };
 
 export default async function CommunityFeedPage({

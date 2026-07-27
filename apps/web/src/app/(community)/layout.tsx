@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Instagram, Mail, MessageCircle, Play, ShieldCheck } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
 import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLauncher";
@@ -47,22 +47,9 @@ function CommunityFooter() {
           <p className="mt-3 text-[13px] font-medium text-white/70">
             AI가 함께하는 가장 든든한 결혼 준비
           </p>
-          <div className="mt-5 flex gap-3">
-            {[
-              { icon: Instagram, label: "Instagram" },
-              { icon: Play, label: "YouTube" },
-              { icon: MessageCircle, label: "Kakao" },
-            ].map((item) => (
-              <Link
-                key={item.label}
-                {...weddingLinkProps()}
-                aria-label={item.label}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 transition-colors hover:border-[#d8c79a] hover:text-[#f2e8c8]"
-              >
-                <item.icon className="h-4 w-4" />
-              </Link>
-            ))}
-          </div>
+          {/* Instagram·YouTube·Kakao 아이콘은 제거했다. 계정이 없는데 아이콘만 있었고
+              셋 다 /wedding으로 돌아왔다 — 있는 척하는 링크는 신뢰를 깎는다.
+              실제 계정이 생기면 그때 실제 주소로 다시 넣는다. */}
         </div>
 
         <FooterColumn
