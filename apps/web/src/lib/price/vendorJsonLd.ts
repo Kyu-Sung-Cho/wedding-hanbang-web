@@ -1,4 +1,5 @@
 import { PRICE_DISCLOSURE_FAQ_MAIN_ENTITY } from "./categoryJsonLd";
+import { DISCLOSURE_ROUND } from "./period";
 
 const BASE_URL = "https://hanbang.ai";
 
@@ -7,7 +8,6 @@ export interface PriceVendorStructuredDataInput {
   vendorSlug: string;
   category: string;
   categoryLabel: string;
-  periodLabel: string;
 }
 
 export function buildPriceVendorStructuredData({
@@ -15,7 +15,6 @@ export function buildPriceVendorStructuredData({
   vendorSlug,
   category,
   categoryLabel,
-  periodLabel,
 }: PriceVendorStructuredDataInput) {
   const categoryUrl = `${BASE_URL}/price/${category}`;
   const vendorUrl = `${BASE_URL}/price/vendor/${vendorSlug}`;
@@ -41,7 +40,9 @@ export function buildPriceVendorStructuredData({
       "@context": "https://schema.org",
       "@type": "Dataset",
       name: `${vendorName} 결혼서비스 공시 가격`,
-      temporalCoverage: periodLabel,
+      // 검색엔진에 하는 공개 선언이다. 내부 스냅샷 이름(2026Q3)을 넣으면
+      // 2025-11 공시를 2026년 3분기 데이터라고 기계가 읽는다. ISO 8601 연-월로 준다.
+      temporalCoverage: DISCLOSURE_ROUND,
       creator: { "@type": "Organization", name: "한국소비자원" },
       publisher: { "@type": "Organization", name: "웨딩한방" },
       citation: "한국소비자원 참가격",

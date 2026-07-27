@@ -6,8 +6,9 @@ export interface PriceCategorySeoInput {
 
 interface PriceCategoryStructuredDataInput extends PriceCategorySeoInput {
   category: "studio" | "dress" | "makeup" | "hall";
-  periodLabel: string;
 }
+
+import { DISCLOSURE_ROUND } from "./period";
 
 const BASE_URL = "https://hanbang.ai";
 
@@ -52,7 +53,6 @@ export function buildPriceCategorySeo({
 export function buildPriceCategoryStructuredData({
   category,
   categoryLabel,
-  periodLabel,
   period,
   vendorCount,
 }: PriceCategoryStructuredDataInput) {
@@ -88,7 +88,8 @@ export function buildPriceCategoryStructuredData({
       "@type": "Dataset",
       name: "결혼서비스 공시 가격 비교 데이터",
       description,
-      temporalCoverage: periodLabel,
+      // 화면 문구와 같은 이유로 확인된 공시 라운드를 쓴다(ISO 8601 연-월).
+      temporalCoverage: DISCLOSURE_ROUND,
       url: categoryUrl,
       creator: { "@type": "Organization", name: "한국소비자원" },
       citation: "한국소비자원 참가격",
