@@ -22,6 +22,23 @@ const DISCLOSURE_DISCLAIMER =
  */
 export const DISCLOSURE_ROUND = "2025-11";
 
+/**
+ * 위 `DISCLOSURE_ROUND`가 근거로 삼은 **내부 스냅샷 이름**들.
+ *
+ * 표시값을 DB에서 떼어낸 대가로 새 함정이 생겼다: 다음 라운드를 적재하고 이
+ * 상수를 안 고치면 화면이 **옛 공시 시점을 계속 주장**하는데, 단위 테스트는
+ * 리터럴("2025-11")만 고정하므로 전부 통과한다. 즉 "가드가 있는 것처럼 보이지만
+ * 실제로는 없는" 상태가 된다.
+ *
+ * 그래서 이 라운드가 어느 스냅샷을 근거로 하는지 함께 적어 둔다.
+ * `pnpm audit:production`이 운영 DB의 **발행된** 스냅샷 목록을 이 값과 대조해,
+ * 목록에 없는 스냅샷이 발행돼 있으면 실패한다(= 새 라운드가 들어왔으니
+ * `DISCLOSURE_ROUND`를 게시일 기준으로 갱신하라는 신호).
+ *
+ * 운영 실측(2026-07-27): 발행 스냅샷은 `2026Q3` 하나다.
+ */
+export const DISCLOSURE_ROUND_SNAPSHOT_LABELS = ["2026Q3"] as const;
+
 /** 스냅샷 이름을 사람이 읽는 문구로. 내부 표시(관리자 미리보기·디버깅)에만 쓴다. */
 export function formatDisclosurePeriod(periodLabel: string): string {
   const normalized = periodLabel.trim();
