@@ -410,7 +410,10 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         href: {
           type: "string",
-          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget, /wedding/etiquette",
+          // 예시는 defaultActionHref·prompts.ts의 안내와 같은 경로만 둔다.
+          // 없는 경로를 예시로 주면 모델이 그대로 복사해 404 카드를 만든다
+          // (가족 조율 페이지 제거 후 /wedding/etiquette가 그렇게 남아 있었다).
+          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget",
         },
       },
       required: ["title"],
