@@ -25,6 +25,7 @@ export default function MoneyPage() {
   const [filterSide, setFilterSide] = useState<Side | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // 폼 상태
   const [form, setForm] = useState({
@@ -128,7 +129,14 @@ export default function MoneyPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteMoney(id);
+    setDeleteError(null);
+    try {
+      await deleteMoney(id);
+    } catch (err) {
+      // 실패했으면 확인 창을 닫지 않는다 — 지워진 것처럼 보이면 안 된다.
+      setDeleteError(err instanceof Error ? err.message : "삭제하지 못했어요. 다시 시도해 주세요.");
+      return;
+    }
     setDeleteConfirm(null);
   };
 
@@ -380,25 +388,32 @@ export default function MoneyPage() {
                   <Edit3 className="w-5 h-5" />
                 </button>
                 {deleteConfirm === money.id ? (
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setDeleteConfirm(null)}
-                      aria-label={`${money.guest_name} 축의금 삭제 취소`}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={() => handleDelete(money.id)}
-                      aria-label={`${money.guest_name} 축의금 삭제 확정`}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => { setDeleteConfirm(null); setDeleteError(null); }}
+                        aria-label={`${money.guest_name} 축의금 삭제 취소`}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[#504444] text-sm"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={() => handleDelete(money.id)}
+                        aria-label={`${money.guest_name} 축의금 삭제 확정`}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {deleteError ? (
+                      <p role="alert" className="max-w-[220px] text-right text-xs leading-5 text-[#8A3D2E]">
+                        {deleteError}
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <button
-                    onClick={() => setDeleteConfirm(money.id)}
+                    onClick={() => { setDeleteConfirm(money.id); setDeleteError(null); }}
                     aria-label={`${money.guest_name} 축의금 삭제`}
                     className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 text-[#B5ADA3] hover:text-red-500 transition-colors"
                   >
