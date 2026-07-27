@@ -253,6 +253,15 @@ export type VendorIdentitySummary = {
    * 문서가 된다(실측 185개). 목록 카드도 이 규칙으로 링크를 만든다.
    */
   canonicalSlug: string;
+  /**
+   * 같은 묶음의 대표 업체 id — 찜·가격알림·analytics의 저장 키다.
+   *
+   * 목록 카드는 병합할 때 슬러그가 더 작은 형제로 slug와 id를 **함께** 교체한다
+   * (`publicListData.ts`). 상세가 방문한 슬러그의 id를 쓰면 같은 샵이 서로 다른
+   * id로 두 번 찜되고, 목록에서 찜한 샵을 형제 주소로 열면 찜이 안 된 것으로
+   * 보인다. 그래서 대표 슬러그와 같은 형제의 id로 고정한다.
+   */
+  canonicalVendorId: string;
 };
 
 function identitySummary(
@@ -269,11 +278,17 @@ function identitySummary(
         region_code: vendor.region_code,
       }];
   const slugs = [...new Set(rows.map(({ slug }) => slug))];
+  // 목록의 병합 규칙(`row.vendor_slug < existing.slug`)과 같은 코드유닛 순서로
+  // 비교해야 대표가 갈리지 않는다 — localeCompare로 바꾸면 어긋난다.
+  const canonicalSlug = [...slugs].sort()[0] ?? vendor.slug;
   return {
     vendorIds: [...new Set(rows.map(({ id }) => id))],
     slugs,
     regionCodes: [...new Set(rows.flatMap(({ region_code }) => (region_code ? [region_code] : [])))],
-    canonicalSlug: [...slugs].sort()[0] ?? vendor.slug,
+    canonicalSlug,
+    // 대표 슬러그와 같은 형제의 id. 슬러그를 못 찾으면(형제 조회 실패 등)
+    // 방문한 업체 자신으로 떨어진다.
+    canonicalVendorId: rows.find(({ slug }) => slug === canonicalSlug)?.id ?? vendor.id,
   };
 }
 

@@ -378,6 +378,65 @@ describe("loadPublicVendorPriceProfile", () => {
     expect(profile?.identity.vendorIds).toEqual(["vendor-1", "vendor-2"]);
     expect(profile?.identity.regionCodes).toEqual(["seoul_etc", "gyeongsang"]);
     expect(profile?.prices.map((price) => price.agency?.name)).toEqual(["가대행사", "나대행사"]);
+    // 대표 id는 대표 슬러그(사전순 최솟값)와 같은 형제의 것이어야 한다.
+    expect(profile?.identity.canonicalSlug).toBe("mei-studio-a");
+    expect(profile?.identity.canonicalVendorId).toBe("vendor-1");
+  });
+
+  // 목록 카드는 병합된 묶음의 대표 id로 찜·가격알림을 저장한다
+  // (publicListData.ts: 슬러그가 더 작으면 slug와 id를 함께 대표로 교체).
+  // 상세가 방문한 슬러그의 id를 쓰면 같은 샵이 두 개의 서로 다른 id로 찜되고,
+  // 목록에서 찜한 샵을 형제 주소로 열면 찜이 안 된 것으로 보인다.
+  it("형제 슬러그로 들어와도 대표 id·슬러그는 같은 값을 준다", async () => {
+    const vendorRow = (id: string, slug: string, name: string, regionCode: string) => ({
+      id,
+      slug,
+      name,
+      category: "studio",
+      region_code: regionCode,
+      aliases: [],
+      official_url: null,
+      instagram_url: null,
+      naver_place_url: null,
+      attributes: {},
+      tags: [],
+    });
+    const priceRow = (id: string, slug: string, agency: string) => ({
+      id,
+      vendor_slug: slug,
+      source: "kca_tprice",
+      period_label: "2026Q3",
+      price_category: "studio",
+      item_name: "촬영 상품",
+      base_spec: null,
+      price_min_krw: 1_000_000,
+      price_max_krw: 1_000_000,
+      vat_note: null,
+      price_note: null,
+      source_label: "한국소비자원 참가격 · 2026Q3",
+      agency_id: `agency-${agency}`,
+      agency_slug: agency,
+      agency_display_name: agency,
+      is_current: true,
+    });
+    const { client } = fakeSupabase({
+      v_public_vendors: [
+        vendorRow("vendor-1", "mei-studio-a", "메이스튜디오", "seoul_etc"),
+        vendorRow("vendor-2", "mei-studio-b", "메이 스튜디오", "gyeongsang"),
+      ],
+      v_public_official_prices: [
+        priceRow("price-a", "mei-studio-a", "가대행사"),
+        priceRow("price-b", "mei-studio-b", "나대행사"),
+      ],
+      v_public_official_price_options: [],
+    });
+
+    // 대표가 아닌 형제 주소로 들어온다.
+    const profile = await loadPublicVendorPriceProfile(client, "mei-studio-b");
+
+    expect(profile?.vendor.slug).toBe("mei-studio-b");
+    expect(profile?.identity.canonicalSlug).toBe("mei-studio-a");
+    expect(profile?.identity.canonicalVendorId).toBe("vendor-1");
   });
 
   it("keeps same-name-different-business vendors apart", async () => {
