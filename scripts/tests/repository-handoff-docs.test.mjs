@@ -39,6 +39,8 @@ test("repository handoff docs describe the current monorepo and release source o
   // 최신 세션 기록이 기준 문서 목록에 없으면 다음 세션이 그 존재를 모른다
   // (2026-07-27 실측: LAUNCH_PREP_SESSION_2026-07-26.md가 어느 쪽에도 없었다).
   assert.match(agents, /docs\/operations\/LAUNCH_PREP_SESSION_2026-07-26\.md/);
+  // 공시 원본이 어느 라운드에서 왔는지 기록이 없으면 화면의 기준 시점을 대조할 수 없다.
+  assert.match(agents, /docs\/operations\/DISCLOSURE_SOURCE_PROVENANCE\.md/);
 
   for (const document of [agents, readme]) {
     assert.match(document, /docs\/operations\/CURRENT_WORKSPACE_HANDOFF_2026-07-20\.md/);

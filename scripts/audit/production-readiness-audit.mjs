@@ -50,6 +50,13 @@ const check = (name, pass, detail = "") => {
   console.log(`  ${pass ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`);
 };
 
+// `apps/web/src/app/price/vendor/[slug]/page.tsx`의 periodLabel과 같은 규칙.
+// 사용자가 실제로 보는 문구를 그대로 재현해야 대조에 쓸 수 있다.
+const quarterLabel = (value) => {
+  const matched = /^(\d{4})Q([1-4])$/.exec(String(value ?? ""));
+  return matched ? `${matched[1]}년 ${matched[2]}분기` : String(value ?? "");
+};
+
 async function sql(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${PROD}/database/query`, {
     method: "POST",
@@ -94,6 +101,33 @@ check(
   `잔여 ${counts.leftover_test_users}건 · 전체 사용자 ${counts.users}명`,
 );
 check("저장본 오염 없음", Number(counts.saved_notes) === 0, `${counts.saved_notes}건`);
+
+// 화면은 `period_label`을 "YYYY년 N분기"로 그대로 렌더한다
+// (`price/vendor/[slug]/page.tsx`). 그 값이 실제 공시 라운드와 다르면 사이트가
+// 소비자에게 틀린 기준 시점을 주장하게 된다 — 이 제품의 전제가 무너지는 자리다.
+// 자기 일관성으로는 잡히지 않는다(`collected_at`은 적재 시점이라 라벨과 우연히
+// 맞는다). 그래서 값을 그대로 찍어 사람이 공시 게시일과 대조하게 한다.
+// 출처: 한국소비자원 참가격 → 서비스가격정보 → 결혼서비스 중요정보 공개 →
+//       결혼준비대행서비스 (지역별 게시물). 게시일을 아래 값과 비교할 것.
+console.log("\n=== 1-b. 공시 스냅샷 출처 (사람 대조 필요) ===");
+const snapshots = await sql(`select period_label, source, source_note,
+    collected_at, published_at, is_current, published
+  from public.price_snapshots
+  order by is_current desc, collected_at desc
+  limit 5`);
+for (const snapshot of snapshots) {
+  console.log(
+    `  ${snapshot.is_current ? "[현재]" : "      "} period_label=${snapshot.period_label}`
+    + ` · 화면표기="${quarterLabel(snapshot.period_label)}"`
+    + ` · source=${snapshot.source} · collected_at=${snapshot.collected_at}`
+    + ` · published_at=${snapshot.published_at} · published=${snapshot.published}`,
+  );
+  if (snapshot.source_note) console.log(`           source_note=${snapshot.source_note}`);
+}
+console.log(
+  "  ↑ 화면표기가 실제 공시 게시일과 다르면 period_label을 고쳐야 한다"
+  + " (운영 DB 값이므로 코드 배포로는 안 바뀐다).",
+);
 
 console.log("\n=== 2. 공개 경계 (anon 접근) ===");
 const openable = [

@@ -53,6 +53,8 @@
 - 최신 세션 기록(출시 준비 · 위약금 공개 · 발견 결함과 오판):
   `docs/operations/LAUNCH_PREP_SESSION_2026-07-26.md`
 - 업체 공시 실행 기준: `scripts/ingest/README.md`
+- 공시 원본 출처·기준 시점(확인 필요 항목 포함):
+  `docs/operations/DISCLOSURE_SOURCE_PROVENANCE.md`
 - 업체 공시 전수 감사:
   `docs/operations/VENDOR_DISCLOSURE_FULL_SOURCE_AUDIT_2026-07-20.md`
 - 업체 공시 고정 8건 실행:
