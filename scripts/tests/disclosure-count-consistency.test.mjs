@@ -1,0 +1,92 @@
+// 위약금 공시 규모(건수·업체수)가 여러 파일에 하드코딩돼 있다.
+//
+// 분기마다 공시가 갱신되면 이 값들이 함께 바뀌어야 한다. 하나만 고치면
+// ① 첫 화면이 DB와 다른 숫자를 사용자에게 주장하고
+// ② 운영 점검 스크립트가 같은 순간에 FAIL한다.
+// 어느 쪽도 조용히 일어나면 안 되므로 세 곳을 한 테스트로 묶는다.
+//
+// 값을 갱신할 때는 반드시 `pnpm audit:production`으로 실제 DB 수치를 먼저 확인한다.
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+const read = (relativePath) => readFileSync(join(REPO_ROOT, relativePath), "utf8");
+
+function single(source, pattern, label) {
+  const matches = [...source.matchAll(pattern)];
+  assert.equal(matches.length, 1, `${label}: 정확히 한 곳에서 선언돼야 한다 (발견 ${matches.length})`);
+  return Number(matches[0][1]);
+}
+
+test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한다", () => {
+  const landing = read("apps/web/src/components/community/CommunityLandingClient.tsx");
+  const priceHub = read("apps/web/src/app/price/page.tsx");
+  const audit = read("scripts/audit/production-readiness-audit.mjs");
+
+  const landingVendors = single(
+    landing,
+    /const PUBLISHED_VENDOR_COUNT = (\d+);/g,
+    "랜딩 업체 수",
+  );
+  const landingPolicies = single(
+    landing,
+    /const PUBLISHED_POLICY_COUNT = (\d+);/g,
+    "랜딩 위약금 건수",
+  );
+  const hubPolicies = single(
+    priceHub,
+    /const PUBLISHED_POLICY_COUNT = (\d+);/g,
+    "공시 허브 위약금 건수",
+  );
+  const auditPolicies = single(
+    audit,
+    /Number\(counts\.policies\) === (\d+)/g,
+    "감사 위약금 건수",
+  );
+  const auditVendors = single(
+    audit,
+    /Number\(counts\.policy_vendors\) === (\d+)/g,
+    "감사 업체 수",
+  );
+
+  assert.equal(
+    landingPolicies,
+    auditPolicies,
+    `위약금 건수 불일치: 첫 화면 ${landingPolicies} vs 감사 ${auditPolicies}`,
+  );
+  assert.equal(
+    hubPolicies,
+    auditPolicies,
+    `위약금 건수 불일치: 공시 허브 ${hubPolicies} vs 감사 ${auditPolicies}`,
+  );
+  assert.equal(
+    landingVendors,
+    auditVendors,
+    `업체 수 불일치: 첫 화면 ${landingVendors} vs 감사 ${auditVendors}`,
+  );
+});
+
+test("업체 수는 위약금 공시 업체로만 쓴다", () => {
+  const landing = read("apps/web/src/components/community/CommunityLandingClient.tsx");
+  const vendorCount = single(landing, /const PUBLISHED_VENDOR_COUNT = (\d+);/g, "랜딩 업체 수");
+
+  // 이 숫자는 `count(distinct vendor_id) from v_public_vendor_policies`다.
+  // 가격을 공개한 업체는 이보다 많으므로, 이 수에 기본가·추가금까지 묶어
+  // "N곳의 기본가·추가금·위약금"이라고 주장하면 틀린 문장이 된다.
+  const claimsAllThreeOnVendorCount = new RegExp(
+    `\\$\\{PUBLISHED_VENDOR_COUNT[^}]*\\}곳의[^\`]*기본가`,
+  ).test(landing);
+
+  assert.equal(
+    claimsAllThreeOnVendorCount,
+    false,
+    "위약금 공시 업체 수에 기본가·추가금을 함께 붙여 주장하고 있다"
+      + " — 가격 공개 업체 수는 이보다 많다",
+  );
+  assert.ok(vendorCount > 0);
+});

@@ -503,7 +503,9 @@ function WhatWeDo() {
     {
       href: "/price",
       label: "업체 가격·위약금 보기",
-      body: `공시한 스튜디오·드레스·메이크업·예식장 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳의 기본가, 추가금, 위약금 원문을 한 화면에서.`,
+      // 502는 **위약금을 공시한** 업체 수다(가격을 공개한 업체는 더 많다).
+      // 한 숫자에 기본가·추가금·위약금 셋을 다 붙이면 틀린 주장이 된다.
+      body: `공시한 스튜디오·드레스·메이크업·예식장의 기본가·추가금, 그리고 위약금 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건(업체 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳)을 한 화면에서.`,
       note: "로그인 없이",
       external: true,
     },
