@@ -30,6 +30,16 @@ interface Props {
   triggerEvent?: string;
   /** mode="prerequisite" 또는 "event" 일 때 — 선행 조건 localStorage 키 */
   prerequisiteKey?: string;
+  /**
+   * mode="event"에서 triggerEvent가 **사용자의 명시적 요청**일 때 true.
+   *
+   * `storageKey`는 "자동으로 다시 뜨지 않게" 하는 장치다. 그런데 event 모드가 같은
+   * 검사를 써서, 한 번 본 사람이 "처음이신가요?"를 눌러도 아무 일도 일어나지
+   * 않았다(2026-07-25~26 자동 투어를 한 번 닫은 방문자에게는 죽은 버튼이었다).
+   * 반대로 선행 가이드 완료 신호로 열리는 투어(ServiceDashboardTutorial 등)는
+   * 이미 본 사람에게 다시 뜨면 안 되므로 기본값은 false다.
+   */
+  replayOnTrigger?: boolean;
   /** 시작 딜레이 (ms). 기본 600 */
   delayMs?: number;
 }
@@ -43,6 +53,7 @@ export default function SpotlightTutorial({
   mode = "auto",
   triggerEvent,
   prerequisiteKey,
+  replayOnTrigger = false,
   delayMs = 600,
 }: Props) {
   const [visible, setVisible] = useState(false);
@@ -57,14 +68,24 @@ export default function SpotlightTutorial({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const tryStart = () => {
+    // 선행 조건만 보고 연다. 사용자가 직접 요청한 경우에 쓴다.
+    const startNow = () => {
       try {
-        if (localStorage.getItem(storageKey)) return;
         if (prerequisiteKey && !localStorage.getItem(prerequisiteKey)) return;
       } catch {
         return;
       }
       window.setTimeout(() => setVisible(true), delayMs);
+    };
+
+    // 이미 본 사람에게는 열지 않는다. 자동 시작 경로에 쓴다.
+    const tryStart = () => {
+      try {
+        if (localStorage.getItem(storageKey)) return;
+      } catch {
+        return;
+      }
+      startNow();
     };
 
     if (mode === "auto") {
@@ -81,11 +102,12 @@ export default function SpotlightTutorial({
       // 이벤트 모드는 "부를 때만 뜬다"는 뜻이다. 여기서 tryStart()를 먼저 부르면
       // 마운트되자마자 열려 auto와 똑같아진다 — 2026-07-26 랜딩에서 실제로
       // 그렇게 동작해, 첫 화면을 가리지 않으려던 변경이 아무 효과가 없었다.
-      const handler = () => tryStart();
+      // 사용자가 직접 부른 것이면 "이미 봤음"으로 막지 않는다 — 그게 죽은 버튼이었다.
+      const handler = () => (replayOnTrigger ? startNow() : tryStart());
       window.addEventListener(triggerEvent, handler);
       return () => window.removeEventListener(triggerEvent, handler);
     }
-  }, [mode, triggerEvent, prerequisiteKey, storageKey, delayMs]);
+  }, [mode, triggerEvent, prerequisiteKey, replayOnTrigger, storageKey, delayMs]);
 
   // ─── 타겟 요소 위치 추적 ────────────────────────────────────
   const currentStep = steps[stepIndex];

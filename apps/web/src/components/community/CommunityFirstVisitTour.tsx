@@ -64,6 +64,10 @@ export default function CommunityFirstVisitTour() {
       // 않고 요청이 있을 때만 연다 — 쓰기로 마음먹은 사람에게는 여전히 쓸모가 있다.
       mode="event"
       triggerEvent={COMMUNITY_TOUR_EVENT}
+      // 이 이벤트는 "처음이신가요?" 버튼, 즉 사용자의 명시적 요청이다. 한 번 본
+      // 사람에게도 열려야 한다 — 자동 투어가 살아 있던 2026-07-25~26 사이에 한 번
+      // 닫은 방문자에게는 이 버튼이 무반응이었다.
+      replayOnTrigger
       delayMs={300}
     />
   );
