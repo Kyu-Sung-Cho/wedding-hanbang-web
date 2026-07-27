@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  canonicalVendorName,
   isSameNameDifferentBusiness,
-  normalizeVendorName,
   vendorIdentityLikePattern,
 } from "@/lib/price/vendorIdentity";
 import {
@@ -214,11 +214,13 @@ export async function loadVendorIdentityRows(
     category: vendor.category,
     region_code: vendor.region_code,
   };
-  const normalized = normalizeVendorName(vendor.name);
   const consumer = consumerCategory(vendor.category);
+  // 표기만 다른 같은 업체("가을" ↔ "가을스튜디오")까지 흡수한 대표 이름으로 본다.
+  // 목록(`vendorIdentityKey`)과 같은 함수를 써야 판정이 갈리지 않는다.
+  const normalized = canonicalVendorName(consumer, vendor.name);
   // 이름만 같고 실제로는 다른 업체는 목록에서도 분리하므로 형제를 찾지 않는다.
   if (!normalized || isSameNameDifferentBusiness(consumer, normalized)) return [self];
-  const pattern = vendorIdentityLikePattern(vendor.name);
+  const pattern = vendorIdentityLikePattern(vendor.name, consumer);
   if (!pattern) return [self];
 
   try {
@@ -240,7 +242,7 @@ export async function loadVendorIdentityRows(
       typeof row?.id === "string"
       && typeof row?.slug === "string"
       && typeof row?.name === "string"
-      && normalizeVendorName(row.name) === normalized
+      && canonicalVendorName(consumerCategory(row.category), row.name) === normalized
       && consumerCategory(row.category) === consumer
     ));
     if (!rows.some((row) => row.slug === vendor.slug)) rows.push(self);

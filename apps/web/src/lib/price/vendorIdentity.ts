@@ -39,17 +39,68 @@ export function isSameNameDifferentBusiness(
   return SAME_NAME_DIFFERENT_BUSINESS.has(`${category}|${normalizedName}`);
 }
 
+/**
+ * 표기만 다른 **같은 업체** — 근거로 확인된 것만 넣는다. 값은 대표(정규화) 이름.
+ *
+ * 정규화는 `(주)`와 공백·구두점만 지우므로 `"가을"`과 `"가을스튜디오"`처럼 대행사가
+ * 카테고리 접미를 붙여 적은 경우 서로 다른 업체로 갈린다(2026-07-27 실측 79쌍).
+ * 접미를 자동으로 떼면 `"스튜디오고유"`처럼 접미가 이름의 일부인 업체가 깨지고
+ * 실제로 `"스튜디오"`라는 이름의 업체가 1곳 있어 과매칭이 폭발한다. 그래서
+ * 자동 규칙이 아니라 **건별 확인 목록**으로 둔다.
+ *
+ * 등재 기준(전부 충족해야 한다):
+ *   1. 양쪽 행이 **각각 독립적으로** 같은 공식 채널(사이트·인스타)로 확인됐다.
+ *      한쪽만 채널이 있거나 이름 유사성만으로 배정된 건은 넣지 않는다.
+ *   2. 확인 근거에 주소·전화·사이트 타이틀 같은 **업체 식별 정보**가 있다.
+ *   3. 같은 브랜드라도 **지역이 다른 지점은 넣지 않는다** — 다른 샵이고 가격도
+ *      다르다(`지니어스` 서울 ↔ 강릉 지점은 그래서 제외했다. `[천안] 아우라`류
+ *      대괄호 지역 표기를 분리 유지하는 것과 같은 원칙이다).
+ *
+ * 판정 근거와 미결 목록: `docs/operations/VENDOR_MERGE_REVIEW_2026-07-27.md`
+ * 후보 재확인: `pnpm audit:vendor-merge`
+ */
+export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map<string, string>([
+  ["studio|가을스튜디오", "가을"],
+  ["studio|디하우스스튜디오", "디하우스"],
+  ["studio|라뮤즈스튜디오", "라뮤즈"],
+  ["studio|메종드힐스튜디오", "메종드힐"],
+  ["studio|박개인주의스튜디오", "박개인주의"],
+  ["studio|온뜰에피움스튜디오", "온뜰에피움"],
+  ["studio|클레브스튜디오", "클레브"],
+  ["studio|타임포유스튜디오", "타임포유"],
+  ["studio|탱자스튜디오", "탱자"],
+  ["studio|테레지아스튜디오", "테레지아"],
+  ["dress|루비나엘웨딩", "루비나엘"],
+  ["dress|르블랑웨딩", "르블랑"],
+  ["dress|마이도터스웨딩", "마이도터스"],
+  ["dress|보네르웨딩", "보네르"],
+  ["dress|아비가일웨딩", "아비가일"],
+  ["dress|클라라웨딩", "클라라"],
+]);
+
+/**
+ * 그룹 판정에 쓸 대표 이름. 표기 차이를 흡수한 뒤의 정규화 이름이다.
+ *
+ * 목록·상세·형제 조회가 **모두** 이 함수를 거쳐야 한다. 한 곳만 빠지면
+ * "카드엔 대행사 4곳인데 눌러 보니 1곳"이 다시 생긴다.
+ */
+export function canonicalVendorName(category: string, vendorName: string): string {
+  const normalized = normalizeVendorName(vendorName);
+  if (!normalized) return normalized;
+  return SAME_BUSINESS_DIFFERENT_NAME.get(`${category}|${normalized}`) ?? normalized;
+}
+
 export function vendorIdentityKey(
   category: PriceCategory,
   vendorName: string,
   vendorSlug: string,
 ): string {
-  const normalized = normalizeVendorName(vendorName);
-  if (!normalized || isSameNameDifferentBusiness(category, normalized)) {
+  const canonical = canonicalVendorName(category, vendorName);
+  if (!canonical || isSameNameDifferentBusiness(category, canonical)) {
     // 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.
     return `slug:${vendorSlug}`;
   }
-  return `${category}|${normalized}`;
+  return `${category}|${canonical}`;
 }
 
 const IDENTITY_LIKE_MAX_LENGTH = 40;
@@ -62,8 +113,15 @@ const IDENTITY_LIKE_MAX_LENGTH = 40;
  * 실제 판정은 normalizeVendorName으로 다시 한다 — 과매칭은 걸러지고 누락만
  * 없어진다. 실측 24개 그룹이 표기만 다른 형제였다(2026-07-26).
  */
-export function vendorIdentityLikePattern(vendorName: string): string | null {
-  const normalized = normalizeVendorName(vendorName);
+export function vendorIdentityLikePattern(
+  vendorName: string,
+  category?: string,
+): string | null {
+  // 대표 이름으로 패턴을 만든다. 방문한 이름이 긴 쪽("가을스튜디오")이면 그것으로
+  // 만든 패턴은 짧은 형제("가을")를 못 잡아 한 방향만 병합되는 상태가 된다.
+  const normalized = category === undefined
+    ? normalizeVendorName(vendorName)
+    : canonicalVendorName(category, vendorName);
   if (!normalized) return null;
   // 너무 긴 이름은 패턴이 커져 인덱스 없이 훑는 비용만 늘어난다. 앞부분만 써도
   // 후보를 좁히는 목적은 달성되고, 최종 판정은 JS 정규화 비교가 한다.
