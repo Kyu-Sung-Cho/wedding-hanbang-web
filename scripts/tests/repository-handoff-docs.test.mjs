@@ -58,3 +58,28 @@ test("repository handoff docs describe the current monorepo and release source o
     assert.doesNotMatch(document, /다른 컴퓨터 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-19\.md/);
   }
 });
+
+// 스크립트가 요구하는 환경변수가 `.env.example`에 없으면, 새 컴퓨터에서 예시 파일을
+// 복사한 사람은 무엇을 채워야 하는지 알 수 없다. 2026-07-28 실측:
+// `SUPABASE_ACCESS_TOKEN`이 10개 파일에서 쓰이는데 예시에는 없어서
+// `pnpm audit:production`이 "키가 없다"로 죽고 원인을 안내하지 못했다.
+// CLAUDE.md가 `.env.example`을 환경변수의 정본으로 지정하므로 그 계약을 지킨다.
+test("운영 스크립트가 요구하는 env 키가 .env.example에 문서화돼 있다", async () => {
+  const [example, audit] = await Promise.all([
+    readFile(new URL("apps/web/.env.example", root), "utf8"),
+    readFile(new URL("scripts/audit/production-readiness-audit.mjs", root), "utf8"),
+  ]);
+  // 앱 런타임이 아니라 **스크립트**가 요구하는 키들. 빠지면 새 컴퓨터에서 막힌다.
+  for (const key of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_SERVICE_ROLE_KEY"]) {
+    assert.match(
+      example,
+      new RegExp(`^${key}=`, "m"),
+      `${key}가 .env.example에 없다 — 새 컴퓨터에서 무엇을 채울지 알 수 없다`,
+    );
+  }
+  assert.match(
+    audit,
+    /SUPABASE_ACCESS_TOKEN/,
+    "감사 스크립트가 더 이상 그 키를 쓰지 않으면 이 계약을 갱신할 것",
+  );
+});

@@ -49,6 +49,43 @@
 **그 테스트만** 실패하는지 본다. 이 세션에서 CI 7종·공시 라운드 6종·업체 병합 8종·
 공시 규모 4종을 그렇게 확인했고, 그 과정에서 내 새 코드의 결함 5개를 잡았다.
 
+## 새 컴퓨터에서 시작하기
+
+### 작업별로 실제 필요한 것
+
+| 하려는 일 | 필요한 것 | 비밀값 |
+|---|---|---|
+| **유통 글 게시** | 브라우저 + `docs/DISTRIBUTION_POSTS_READY_2026-06-12.md` | **없음** |
+| 게시 결과 기록 | `docs/DISTRIBUTION_TEST_KIT_2026-06-12.md` §5 기록표 | 없음 |
+| 지식iN 추가 답변 | `docs/KIN_ANSWER_BANK_2026-06-12.md` | 없음 |
+| Vercel 환경변수 입력 | Vercel 대시보드 | 없음(로그인만) |
+| 아모라 상한 변경 | Vercel `AMORA_GLOBAL_DAILY_MESSAGE_CAP`(현재 300) | 없음 |
+| 코드 수정·테스트 | 저장소 + `pnpm install` | 없음 |
+| `audit:production` | `apps/web/.env.local`의 `SUPABASE_ACCESS_TOKEN` | **필요** |
+| 배포 | main push(Vercel 자동) | 없음 |
+
+**유통 글 게시는 이 저장소를 클론할 필요도 없다** — GitHub 웹에서 파일을 열어
+복붙하면 된다. 비밀값·설치 과정이 하나도 필요 없는 작업이다.
+
+### 코드 작업까지 하려면
+
+```bash
+git clone <repo> && cd <repo>
+npx pnpm@11.7.0 install --frozen-lockfile
+npx pnpm@11.7.0 hooks:install          # 체크아웃마다 한 번. pre-push 게이트
+cp apps/web/.env.example apps/web/.env.local
+```
+
+`.env.local`은 예시값이라 그대로는 운영 점검이 안 된다. 실제로 필요한 최소는:
+
+- `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase
+  Dashboard → Project Settings → API
+- `SUPABASE_ACCESS_TOKEN` — Supabase Dashboard → Account → Access Tokens.
+  **`audit:production`이 이것 없이는 못 돈다.**
+
+전체 목록과 각 키의 용도는 `apps/web/.env.example`이 정본이다(코드에 값을 베끼지
+않는다 — 베끼면 드리프트다).
+
 ## 검증할 때 쓰는 명령
 
 ```bash
