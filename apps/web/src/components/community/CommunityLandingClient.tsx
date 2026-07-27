@@ -482,9 +482,19 @@ export default function CommunityLandingClient({
 // 도구를 랜딩 최상단에 세운다. 문구는 판정 금지 원칙 준수(좋다/나쁘다 없음).
 /**
  * 첫 화면에 세우는 공시 규모. 분기마다 공시가 갱신되므로 값이 바뀐다.
- * 2026-07-26 운영 v_public_vendor_policies 실조회: 831행 / 502업체.
+ *
+ * **업체 수는 DB 행 수가 아니라 "화면에 보이는 카드 수"다.**
+ * `v_public_vendor_policies`의 `count(distinct vendor_id)`는 502지만, 같은 샵이
+ * 대행사별로 여러 행에 들어와 있고 목록은 그것을 `vendorIdentityKey`로 한 장에
+ * 묶는다. 그래서 사용자가 실제로 세는 업체는 412곳이다(2026-07-28 실측).
+ *
+ * 502를 쓰면 첫 화면이 실제보다 22% 많은 수를 주장하게 된다 — 세어 보는 사람에게
+ * 바로 들키는 종류의 과장이고, 하필 "판정하지 않고 사실만 보여준다"가 이 서비스의
+ * 주장이라 더 나쁘다. 2026-07-26부터 이 상태였고 유통 글 게시 직전에 잡았다.
+ *
+ * 갱신 확인: `pnpm audit:production` (=== 1-c. 공시 규모 표기 ===)
  */
-const PUBLISHED_VENDOR_COUNT = 502;
+const PUBLISHED_VENDOR_COUNT = 412;
 const PUBLISHED_POLICY_COUNT = 831;
 
 /**
@@ -503,7 +513,7 @@ function WhatWeDo() {
     {
       href: "/price",
       label: "업체 가격·위약금 보기",
-      // 502는 **위약금을 공시한** 업체 수다(가격을 공개한 업체는 더 많다).
+      // 412는 **위약금을 공시한** 업체 카드 수다(가격을 공개한 업체는 더 많다).
       // 한 숫자에 기본가·추가금·위약금 셋을 다 붙이면 틀린 주장이 된다.
       body: `공시한 스튜디오·드레스·메이크업·예식장의 기본가·추가금, 그리고 위약금 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건(업체 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳)을 한 화면에서.`,
       note: "로그인 없이",

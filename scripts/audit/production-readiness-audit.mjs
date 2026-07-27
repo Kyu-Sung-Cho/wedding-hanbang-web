@@ -149,7 +149,7 @@ const [counts] = await sql(`select
       where email like '%@hanbang-test.invalid') as leftover_test_users`);
 console.log("  현황:", counts);
 check("위약금 공개 831행", Number(counts.policies) === 831, `${counts.policies}행`);
-check("위약금 공개 502업체", Number(counts.policy_vendors) === 502, `${counts.policy_vendors}업체`);
+check("위약금 공개 502 vendor 행", Number(counts.policy_vendors) === 502, `${counts.policy_vendors}행`);
 check("원본 시맨틱 895행 보존", Number(counts.semantic_total) === 895, `${counts.semantic_total}행`);
 check("가격 2,611행 보존", Number(counts.prices) === 2611, `${counts.prices}행`);
 // `=== 0 || true`로 적어 두어 절대 실패하지 않던 검사였다. 실사용자가 생기면
@@ -168,6 +168,64 @@ check("저장본 오염 없음", Number(counts.saved_notes) === 0, `${counts.sav
 // 맞는다). 그래서 값을 그대로 찍어 사람이 공시 게시일과 대조하게 한다.
 // 출처: 한국소비자원 참가격 → 서비스가격정보 → 결혼서비스 중요정보 공개 →
 //       결혼준비대행서비스 (지역별 게시물). 게시일을 아래 값과 비교할 것.
+// 첫 화면이 주장하는 "업체 N곳"이 **화면에서 셀 수 있는 수**와 맞는지 본다.
+//
+// `count(distinct vendor_id)`는 502지만 같은 샵이 대행사별로 여러 행에 들어와 있고
+// 목록은 그것을 한 카드로 묶는다(`vendorIdentityKey`). 2026-07-26부터 첫 화면이
+// 502를 주장해 실제(412)보다 22% 부풀어 있었다. 기존 정합성 테스트는 첫 화면·허브·
+// 이 스크립트가 **같은 숫자**를 말하는지만 봐서 셋이 사이좋게 틀리면 통과했다.
+console.log("\n=== 1-c. 공시 규모 표기 (화면 기준) ===");
+{
+  const identitySource = readFileSync(
+    path.resolve(ROOT, "apps", "web", "src", "lib", "price", "vendorIdentity.ts"),
+    "utf8",
+  );
+  const landingSource = readFileSync(
+    path.resolve(ROOT, "apps", "web", "src", "components", "community", "CommunityLandingClient.tsx"),
+    "utf8",
+  );
+  const claimed = /const PUBLISHED_VENDOR_COUNT = (\d+);/.exec(landingSource);
+  if (!claimed) throw new Error("첫 화면의 PUBLISHED_VENDOR_COUNT를 못 읽었다 — 이 대조가 죽는다.");
+
+  const mergeBlock = /SAME_BUSINESS_DIFFERENT_NAME[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
+  const separateBlock = /SAME_NAME_DIFFERENT_BUSINESS[^[]*\[([\s\S]*?)\n\]\);/.exec(identitySource);
+  if (!mergeBlock || !separateBlock) {
+    throw new Error("vendorIdentity.ts의 신원 목록을 못 읽었다 — 이 대조가 죽는다.");
+  }
+  const mergeMap = new Map(
+    [...mergeBlock[1].matchAll(/"([^"]+)",\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]),
+  );
+  const keepSeparate = new Set(
+    [...separateBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]),
+  );
+  if (mergeMap.size === 0) throw new Error("병합 대응표가 비었다 — 파싱이 깨졌다.");
+
+  const normalize = (value) => String(value ?? "")
+    .replace(/\(주\)|주식회사|㈜/g, "").replace(/[\s·\-_,.()]/g, "").toLowerCase();
+  const consumerCategory = (value) => (value === "venue" ? "hall" : value);
+
+  const policyVendors = await sql(`select v.slug, v.name, v.category
+    from public.v_public_vendor_policies p
+    join public.vendors v on v.id = p.vendor_id
+    group by 1, 2, 3`);
+  const cards = new Set();
+  for (const row of policyVendors) {
+    const category = consumerCategory(row.category);
+    const canonical = mergeMap.get(`${category}|${normalize(row.name)}`) ?? normalize(row.name);
+    cards.add(keepSeparate.has(`${category}|${canonical}`) ? `slug:${row.slug}` : `${category}|${canonical}`);
+  }
+  console.log(
+    `  vendor 행 ${policyVendors.length} → 화면 카드 ${cards.size}`
+    + ` (병합 대응표 ${mergeMap.size} · 분리 ${keepSeparate.size})`,
+  );
+  check(
+    "첫 화면의 업체 수가 화면에서 셀 수 있는 값과 일치",
+    Number(claimed[1]) === cards.size,
+    `주장 ${claimed[1]}곳 · 실제 카드 ${cards.size}곳`
+    + (Number(claimed[1]) === cards.size ? "" : " — CommunityLandingClient의 PUBLISHED_VENDOR_COUNT를 고칠 것"),
+  );
+}
+
 console.log("\n=== 1-b. 공시 스냅샷 출처 (사람 대조 필요) ===");
 const snapshots = await sql(`select period_label, source, source_note,
     collected_at, published_at, is_current, published

@@ -48,10 +48,32 @@ test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한
     /Number\(counts\.policies\) === (\d+)/g,
     "감사 위약금 건수",
   );
-  const auditVendors = single(
+  // 업체 수는 **DB 행 수와 다른 수량**이다. `count(distinct vendor_id)`는 502지만
+  // 같은 샵이 대행사별로 여러 행에 들어와 있고 목록은 한 카드로 묶는다.
+  // 2026-07-26~28 첫 화면이 502를 주장해 실제(412)보다 22% 부풀어 있었는데,
+  // 예전 이 테스트는 두 값이 **같아야 한다**고 봐서 오히려 틀린 값을 고정하고 있었다.
+  // 이제는 감사가 화면 기준으로 대조하는지만 확인하고, 값 자체의 검증은
+  // DB를 볼 수 있는 `audit:production`(=== 1-c ===)에 맡긴다.
+  const auditVendorRows = single(
     audit,
     /Number\(counts\.policy_vendors\) === (\d+)/g,
-    "감사 업체 수",
+    "감사 vendor 행 수",
+  );
+  assert.ok(
+    auditVendorRows >= landingVendors,
+    `vendor 행 수(${auditVendorRows})가 화면 업체 수(${landingVendors})보다 적을 수 없다`
+    + " — 병합은 행을 줄이지 늘리지 않는다",
+  );
+  assert.match(
+    audit,
+    /=== 1-c\. 공시 규모 표기 \(화면 기준\) ===/,
+    "감사에 화면 기준 대조 구간이 없다 — 첫 화면 숫자가 틀려도 아무도 모른다",
+  );
+  // 감사가 첫 화면 파일을 실제로 읽어 그 상수를 꺼내는지 본다. 값을 베껴 두면
+  // 첫 화면이 바뀌어도 감사는 옛 값과 비교하게 되어 대조가 무의미해진다.
+  assert.ok(
+    audit.includes("CommunityLandingClient.tsx") && audit.includes("PUBLISHED_VENDOR_COUNT"),
+    "감사가 첫 화면의 업체 수를 읽지 않는다 — 대조가 성립하지 않는다",
   );
 
   assert.equal(
@@ -64,11 +86,7 @@ test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한
     auditPolicies,
     `위약금 건수 불일치: 공시 허브 ${hubPolicies} vs 감사 ${auditPolicies}`,
   );
-  assert.equal(
-    landingVendors,
-    auditVendors,
-    `업체 수 불일치: 첫 화면 ${landingVendors} vs 감사 ${auditVendors}`,
-  );
+
 });
 
 test("업체 수는 위약금 공시 업체로만 쓴다", () => {
