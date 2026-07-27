@@ -58,7 +58,7 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
     }
   });
 
-  it("확인된 16쌍이 실제로 한 그룹으로 묶인다", () => {
+  it("확인된 26쌍이 실제로 한 그룹으로 묶인다", () => {
     // 목록 카드의 그룹 키가 같아야 한 장으로 나온다.
     const pairs: Array<[string, string, string]> = [
       ["studio", "가을", "가을스튜디오"],
@@ -74,7 +74,7 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
         `${base} ↔ ${variant}가 안 묶인다`,
       ).toBe(vendorIdentityKey(category as never, base, "slug-base"));
     }
-    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(16);
+    expect(SAME_BUSINESS_DIFFERENT_NAME.size).toBe(26);
   });
 
   it("형제 조회 패턴이 양방향으로 상대를 잡는다", () => {
@@ -113,5 +113,10 @@ describe("SAME_BUSINESS_DIFFERENT_NAME 대응표", () => {
     expect(vendorIdentityKey("studio" as never, "지니어스 스튜디오", "slug-a"))
       .not.toBe(vendorIdentityKey("studio" as never, "지니어스", "slug-b"));
     expect(canonicalVendorName("studio", "[천안] 아우라")).not.toBe("아우라");
+    // 헤이허니는 인스타 프로필이 '서울 부산 광주 웨딩 스튜디오'인 다지역 브랜드고,
+    // 변형 행의 확인 근거가 광주 운영을 직접 가리킨다 — 같은 브랜드의 다른 지점이다.
+    expect(SAME_BUSINESS_DIFFERENT_NAME.has("studio|헤이허니스튜디오")).toBe(false);
+    // 루미에(서울 테헤란로 ↔ 안산 루미에웨딩스튜디오)는 실제로 두 업체가 확인됐다.
+    expect(SAME_BUSINESS_DIFFERENT_NAME.has("studio|루미에스튜디오")).toBe(false);
   });
 });
