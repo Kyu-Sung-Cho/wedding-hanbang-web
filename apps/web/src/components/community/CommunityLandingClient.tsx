@@ -533,6 +533,13 @@ function WhatWeDo() {
           <li key={item.href}>
             <Link
               {...(item.external ? { href: item.href } : weddingLinkProps(item.href))}
+              // 3블록 중 어느 약속을 고르는지가 첫 화면 개편의 성패 지표다.
+              onClick={() => {
+                captureEvent("what_we_do_click", { href: item.href, label: item.label });
+                if (item.href === "/price") {
+                  captureEvent("price_hero_click", { source: "landing_what_we_do" });
+                }
+              }}
               className="flex h-full flex-col rounded-[18px] border border-[#061a34]/10 bg-white px-5 py-4 transition-colors hover:border-[#36534E]/40"
             >
               <span className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#071629]">
@@ -609,6 +616,9 @@ function QuoteCheckHero() {
             <Link
               href="/price"
               data-tutorial-target="landing-price"
+              // 유통 테스트에서 어느 진입점이 전환되는지 읽어야 한다 — 첫 화면의
+              // /price 링크가 4개인데 1차 CTA만 계측되고 있었다(source로 구분).
+              onClick={() => captureEvent("price_hero_click", { source: "landing_hero_secondary" })}
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
             >
               업체별 공시가 먼저 보기
@@ -1438,6 +1448,7 @@ function MarketSnapshotPanel() {
 
       <Link
         href="/price"
+        onClick={() => captureEvent("price_hero_click", { source: "landing_market_snapshot" })}
         className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
       >
         전체 공시가 보기
