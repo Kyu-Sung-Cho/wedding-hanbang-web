@@ -1,0 +1,423 @@
+{
+ "generatedFor": "SAME_BUSINESS_DIFFERENT_NAME",
+ "note": "work/logo-hunt/results-*.json(gitignore)에서 판정에 쓴 근거만 추린 것. 원본 코퍼스 없이도 판정을 재검증할 수 있게 남긴다.",
+ "mergedPairs": 26,
+ "entries": [
+  {
+   "category": "studio",
+   "canonical": "가을",
+   "variant": "가을스튜디오",
+   "key": "studio|가을스튜디오",
+   "base": {
+    "url": "http://www.gaeulstudio.com",
+    "conf": "high",
+    "ev": "공식 사이트 gaeulstudio.com의 og:title에 상호+업종이 함께 등장(og:site_name '가을스튜디오', title '가을스튜디오 | 가장 행복한 순간을 : 가을'). 서울 송파 소재 웨딩스튜디오로 지역(서울) 일치, 인스타 @gaeul_studio(Seoul) 확인. 사이트가 https 미지원이라 http 표기."
+   },
+   "variantEvidence": {
+    "url": "http://www.gaeulstudio.com",
+    "conf": "high",
+    "ev": "상호 완전 일치. 공식 사이트 gaeulstudio.com og:site_name '가을스튜디오', 루트 og:image가 g_logo.jpg(로고 자산). 서울 송파 소재 웨딩스튜디오로 지역(서울 강남 표기) 서울권 일치, 인스타 @gaeul_studio 확인."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "구호",
+   "variant": "구호 스튜디오",
+   "key": "studio|구호스튜디오",
+   "base": {
+    "url": "http://www.kuhostudio.co.kr",
+    "conf": "high",
+    "ev": "공식 사이트 kuhostudio.co.kr(타이틀 '구호스튜디오') 메타 키워드에 상호 '구호'와 업종 '웨딩 스튜디오'가 한 문맥에 등장. WEDDING 메뉴 운영, 주소 서울시 성동구 성수동2가 280-18로 서울 일치. https 미지원이라 http 표기, 로고는 사이트 헤더 로고 이미지."
+   },
+   "variantEvidence": {
+    "url": "http://www.kuhostudio.co.kr",
+    "conf": "high",
+    "ev": "상호 '구호 스튜디오'가 공식 사이트 메타 키워드에 그대로 등장하며 같은 문맥에 '웨딩 스튜디오' 업종 신호 포함. 사이트 타이틀 '구호스튜디오', 주소 서울시 성동구로 지역 일치."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "더청담",
+   "variant": "더청담스튜디오",
+   "key": "studio|더청담스튜디오",
+   "base": {
+    "url": "https://www.thechungdamstudio.com",
+    "conf": "high",
+    "ev": "공식 사이트 thechungdamstudio.com(청담동 49-5, 02-3444-4155, '웨딩전문 토탈스튜디오')+인스타 @the_chungdam_studio로 상호+웨딩 확인, 청담=서울 일치. 동일 브랜드 id a06d/60986과 같은 업체. logo는 사이트 헤더 'THE CHUNGDAM' 워드마크(자기 서버, 육안 확인). ※사이트 https 인증서 만료(2024-12)로 자동 적용기가 official/logo 페치에 실패할 수 있음"
+   },
+   "variantEvidence": {
+    "url": "https://www.thechungdamstudio.com",
+    "conf": "high",
+    "ev": "공식 사이트 thechungdamstudio.com+인스타 @the_chungdam_studio로 상호(더청담스튜디오)+웨딩 동일 확인, 청담=서울 강남 일치. 25년 노하우 웨딩전문 토탈스튜디오. logo는 헤더 'THE CHUNGDAM' 워드마크. ※https 인증서 만료로 적용기 official/logo 페치 실패 가능"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "디하우스",
+   "variant": "디하우스스튜디오",
+   "key": "studio|디하우스스튜디오",
+   "base": {
+    "url": "https://www.dhaus.co.kr",
+    "conf": "high",
+    "ev": "공식 사이트 dhaus.co.kr(강남구 논현동 웨딩전문 스튜디오) 타이틀+인스타 @d_haus_st로 상호(디하우스)+웨딩스튜디오 확인, 사이트가 인스타 d_haus_st 링크(귀속), 강남=서울 강남 일치. logo는 사이트의 'D'HAUS' 워드마크 PNG(자기 서버, 육안 확인 · 흰색 svg는 제외). id 946618과 동일 업체"
+   },
+   "variantEvidence": {
+    "url": "https://www.dhaus.co.kr",
+    "conf": "high",
+    "ev": "공식 사이트 dhaus.co.kr 타이틀에 상호(디하우스스튜디오)+웨딩스튜디오 동일 확인, 인스타 @d_haus_st 사이트 링크로 귀속, 강남 논현=서울 강남 일치. logo는 'D'HAUS' 워드마크 PNG(자기 서버). id 51f0과 동일 업체"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "라뮤즈",
+   "variant": "라뮤즈스튜디오",
+   "key": "studio|라뮤즈스튜디오",
+   "base": {
+    "url": "https://instagram.com/lamuze_studio_",
+    "conf": "high",
+    "ev": "웨딩스튜디오 '라뮤즈'는 남양주 조안면 대형 야외 스튜디오(강남 고객센터 운영)로 인스타 @lamuze_studio_가 공식계정. 동명 화장품 브랜드 lamuse.co.kr(라뮤즈 LAMUSE)은 업종이 달라 배제. 공식 홈페이지는 확인되지 않아 비움"
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/lamuze_studio_",
+    "conf": "high",
+    "ev": "상호 완전 일치. 인스타 공식계정 @lamuze_studio_ 프로필명 '라뮤즈스튜디오/실내&야외촬영/토탈웨딩/커스텀촬영/본식스냅'로 업종 확인, 강남 고객센터 운영으로 지역(서울 강남)과도 모순 없음. 자체 홈페이지 미확인이라 로고는 비움"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "메종드힐",
+   "variant": "메종드힐 스튜디오",
+   "key": "studio|메종드힐스튜디오",
+   "base": {
+    "url": "https://instagram.com/maison_de_hill_",
+    "conf": "high",
+    "ev": "인스타 프로필 og:title에 한글 상호+웨딩스튜디오/웨딩촬영/웨딩스냅 동일 문맥 확인(직접 조회), 다이렉트결혼준비 /studio/maisondehill 주소 '서울 강남구 봉은사로 16길 37'로 '서울 강남' 일치. 동명 타업체 없음. 공식 홈페이지 미발견 — 인스타만 있어 규칙대로 logo_candidates 비움"
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/maison_de_hill_",
+    "conf": "high",
+    "ev": "인스타 프로필 og:title에 상호 '메종드힐 스튜디오' 완전 일치+웨딩스튜디오/웨딩촬영/웨딩스냅 업종 동일 문맥 확인(직접 조회). 소재 서울 강남구 봉은사로16길 37로 '서울 강남' 일치. 위 '메종드힐' 행과 동일 업체. 공식 홈페이지 미발견 — 인스타뿐이라 logo_candidates 비움"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "바시움",
+   "variant": "바시움스튜디오",
+   "key": "studio|바시움스튜디오",
+   "base": {
+    "url": "https://basium.modoo.at",
+    "conf": "high",
+    "ev": "상호 '바시움' 완전 일치 + '웨딩 스튜디오' 동일 문맥(다이렉트결혼준비 업체 페이지). 해당 페이지 본문 '바시움은 인물중심의 스튜디오입니다', 주소 '서울 강남구 봉은사로51길 26 정원빌리지'로 서울 강남 일치. 아이웨딩에도 '웨딩스튜디오 스튜디오바시움'으로 등재. 공식 채널은 모두(modoo) 사이트 basium.modoo.at(색인 타이틀 '[바시움 스튜디오 - 홈]')이며 JS 셸이라 로고 이미지 URL은 추출 불가 — 비움"
+   },
+   "variantEvidence": {
+    "url": "https://basium.modoo.at",
+    "conf": "high",
+    "ev": "공백 제거 후 '바시움스튜디오' 완전 일치(웨딩북/웨딩스퀘어 스튜디오 리뷰 페이지) + '웨딩' 업종 신호 동일 문맥. 다이렉트결혼준비 '바시움 스튜디오 - 웨딩 스튜디오', 아이웨딩 '웨딩스튜디오 스튜디오바시움'으로 교차 확인, 소재 서울 강남구 봉은사로51길 26. 로고는 modoo 셸이라 추출 불가"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "박개인주의",
+   "variant": "박개인주의스튜디오",
+   "key": "studio|박개인주의스튜디오",
+   "base": {
+    "url": "https://www.individualismcinema.com",
+    "conf": "high",
+    "ev": "인스타 프로필 타이틀에 한글 상호 '박개인주의' 완전 일치 + '웨딩스튜디오' 동일 문맥. 공식 사이트 individualismcinema.com은 <title>박개인주의 스튜디오</title>, keywords '박개인주의,빈티지웨딩,웨딩스냅,웨딩영상,식전영상,웨딩스튜디오'로 동일 업체 확인(서울 서초구 신흥말길 39). 로고 후보는 그 사이트 자체 CDN의 apple-touch-icon(152x152)과 icon(196x196) — 헤더 로고 <img>는 없음, 파비콘 프록시 미사용"
+   },
+   "variantEvidence": {
+    "url": "https://www.individualismcinema.com",
+    "conf": "high",
+    "ev": "공식 사이트 <title>/og:title이 '박개인주의 스튜디오'로 공백 제거 시 상호 완전 일치, 같은 페이지 keywords '박개인주의,빈티지웨딩,웨딩스냅,웨딩영상,식전영상,웨딩스튜디오'로 웨딩 업종 신호 확인. 인스타 '웨딩스튜디오 | 박개인주의(@individualism_studio)'도 동일 업체. 로고는 사이트 자체 CDN 아이콘 2종"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "버드투블룸",
+   "variant": "버드투블룸스튜디오",
+   "key": "studio|버드투블룸스튜디오",
+   "base": {
+    "url": "http://www.budtobloom.co.kr",
+    "conf": "high",
+    "ev": "공식 사이트 budtobloom.co.kr의 og:description 원문에 상호 '버드투블룸' 완전 일치 + '웨딩스튜디오' 동일 문맥(og:title '버드투블룸 스튜디오'). 상호가 매우 독특해 동명 타업체 가능성 없음. 지역은 '경기'지만 본점 서울 강남 청담 + 인천 남동구 지점(아이티웨딩 등재)으로 수도권 동일 상권이라 기각 사유로 보지 않음. 로고는 자체 서버 헤더 로고(280x90); 사이트가 https 미지원이라 http 원형 유지"
+   },
+   "variantEvidence": {
+    "url": "http://www.budtobloom.co.kr",
+    "conf": "high",
+    "ev": "아이웨딩 업체 페이지 타이틀에 '버드투블룸스튜디오' 완전 일치 + '웨딩스튜디오' 동일 문맥. 공식 사이트 og:title '버드투블룸 스튜디오', og:description '…프리미엄 웨딩스튜디오, 버드투블룸'으로 동일 업체 확정. 소재 서울 강남구 청담동으로 지역 일치"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "온뜰에피움",
+   "variant": "온뜰에피움스튜디오",
+   "key": "studio|온뜰에피움스튜디오",
+   "base": {
+    "url": "https://piumst.com/",
+    "conf": "high",
+    "ev": "공식 홈페이지 piumst.com, 인스타 pium_studio('온뜰에 피움 스튜디오 ㅣ웨딩스튜디오ㅣ웨딩촬영'), 서울 강남구 논현로140길 21. 로고는 사이트 헤더 img(alt=온뜰에피움)+apple-touch-icon+favicon. 지역(서울 강남) 일치."
+   },
+   "variantEvidence": {
+    "url": "https://piumst.com/",
+    "conf": "high",
+    "ev": "공식 홈페이지 piumst.com(정식 상호 온뜰에피움스튜디오), 인스타 pium_studio, 서울 강남구 논현로140길 21. 상호 정확 일치+지역(서울 강남) 일치. 로고는 자체 사이트 헤더 img+apple-touch-icon+favicon."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "클레브",
+   "variant": "클레브스튜디오",
+   "key": "studio|클레브스튜디오",
+   "base": {
+    "url": "https://instagram.com/cleve_soo",
+    "conf": "high",
+    "ev": "IG 프로필명 '클레브스튜디오ㅣ웨딩스튜디오'(@cleve_soo)로 확인, 유일 매칭. 자체 홈페이지 미발견—로고 미수집(IG 프로필사진 제외)."
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/cleve_soo",
+    "conf": "high",
+    "ev": "IG 프로필명 '클레브스튜디오ㅣ웨딩스튜디오'(@cleve_soo)로 상호·업종 확인. 자체 홈페이지 미발견—로고 미수집."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "타임포유",
+   "variant": "타임포유스튜디오",
+   "key": "studio|타임포유스튜디오",
+   "base": {
+    "url": "https://www.timeforyoust.com/",
+    "conf": "high",
+    "ev": "공식 timeforyoust.com(타임포유 스튜디오 | 웨딩촬영스튜디오, 성수동), iwedding '웨딩스튜디오 타임포유스튜디오'. 로고는 공식사이트 헤더 로고 img(209x50) — Wix(wixstatic) 호스팅, 고유 미디어경로라 오배정 위험 없음. 자체도메인만 허용 시 드롭 가능."
+   },
+   "variantEvidence": {
+    "url": "https://www.timeforyoust.com/",
+    "conf": "high",
+    "ev": "공식 timeforyoust.com, iwedding '웨딩스튜디오 타임포유스튜디오'(성수동). 로고는 공식사이트 헤더 로고 img — Wix(wixstatic) 호스팅, 고유 미디어경로. 자체도메인만 허용 시 드롭 가능."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "탱자",
+   "variant": "탱자 스튜디오",
+   "key": "studio|탱자스튜디오",
+   "base": {
+    "url": "https://www.taengjastudio.co.kr/",
+    "conf": "high",
+    "ev": "공식 taengjastudio.co.kr(탱자스튜디오, 성남 소재 대형 웨딩스튜디오), directwedding '탱자스튜디오 - 웨딩 스튜디오'. 로고는 자체도메인 헤더 로고(/web/upload/ga09/logo2.png) 수집."
+   },
+   "variantEvidence": {
+    "url": "https://www.taengjastudio.co.kr/",
+    "conf": "high",
+    "ev": "공식 taengjastudio.co.kr, directwedding '탱자스튜디오 - 웨딩 스튜디오'. 상호·업종 일치. 로고는 자체도메인 헤더 로고(logo2.png) 수집."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "테레지아",
+   "variant": "테레지아 스튜디오",
+   "key": "studio|테레지아스튜디오",
+   "base": {
+    "url": "https://instagram.com/teresia_studio",
+    "conf": "high",
+    "ev": "인스타 @teresia_studio 프로필 '테레지아 스튜디오🤍', 1998년~ 강남 논현동 웨딩스튜디오. 등록지역 서울강남 일치. 인스타 주채널이라 로고 비움"
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/teresia_studio",
+    "conf": "high",
+    "ev": "테레지아 브랜드가 천안불당점(@teresia_cheonan) 운영 — 천안=충청, 등록지역과 일치하는 동일 브랜드 지점. 고유상호이며 인스타 주채널이라 로고 비움"
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "헤이스",
+   "variant": "헤이스스튜디오",
+   "key": "studio|헤이스스튜디오",
+   "base": {
+    "url": "https://www.studiohayes.co.kr/",
+    "conf": "high",
+    "ev": "공식사이트 studiohayes.co.kr 자체 메타설명에 상호(스튜디오헤이스)+업종(웨딩사진/리허설촬영) 확인, 인스타 @studiohayes(헤이스 스튜디오)도 동일 업체. 서초 내곡동(강남권)으로 지역 일치. 사이트 로고가 텍스트이고 파비콘은 스퀘어스페이스 기본값이라 로고 이미지는 비움."
+   },
+   "variantEvidence": {
+    "url": "https://www.studiohayes.co.kr/",
+    "conf": "high",
+    "ev": "공식사이트 studiohayes.co.kr(스튜디오헤이스)+인스타 @studiohayes, 상호+웨딩사진/리허설촬영 확인. 서초 내곡동(강남권) 지역 일치. 로고는 텍스트+기본 파비콘뿐이라 비움."
+   }
+  },
+  {
+   "category": "studio",
+   "canonical": "ST정우",
+   "variant": "ST정우 스튜디오",
+   "key": "studio|st정우스튜디오",
+   "base": {
+    "url": "https://stjungwoo.co.kr",
+    "conf": "high",
+    "ev": "공식 사이트 stjungwoo.co.kr 제목에 상호 'ST정우'+업종 '웨딩스튜디오'가 그대로 병기. 인스타 프로필명도 '𝐒𝐓. 𝐉𝐮𝐧𝐠𝐰𝐨𝐨 - 𝗦𝗧정우 - 슈가제이'로 한글 상호 확인. 사업자는 주식회사 에스티정우(서울 강남구 청담동 22-9)로 전국 단일 브랜드 — 지점 접두가 없는 항목이라 region 경기는 공시 대행사 지역 상속으로 판단"
+   },
+   "variantEvidence": {
+    "url": "https://stjungwoo.co.kr",
+    "conf": "high",
+    "ev": "상호 'ST정우'가 그대로 포함되고 뒤 '스튜디오'는 업종어. ST정우는 영문 이니셜+한글명 고유 브랜드로 동명 타업체가 확인되지 않는 전국 단일 브랜드(주식회사 에스티정우, 청담). 같은 배치의 지역 업체들은 '[천안]·[청주]' 식 접두를 달고 있으나 이 항목은 접두가 없어 region 충청은 공시 대행사 지역 상속으로 판단"
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "루비나엘",
+   "variant": "루비나엘웨딩",
+   "key": "dress|루비나엘웨딩",
+   "base": {
+    "url": "https://luvinal.com/",
+    "conf": "high",
+    "ev": "공식사이트 luvinal.com(title '루비나엘 웨딩 | LUVINA.L', og:description '청담동 품격의 웨딩드레스') + 사이트 연결 IG @luvinalwedding. apple-touch-icon(금박 모노그램 로고) 실물 확인, 강남 선릉로 745 소재."
+   },
+   "variantEvidence": {
+    "url": "https://luvinal.com/",
+    "conf": "high",
+    "ev": "luvinal.com 페이지 타이틀에 상호 '루비나엘웨딩'과 웨딩드레스 업종이 함께 확인됨. 사이트 연결 IG @luvinalwedding, 강남 선릉로 745 소재."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "르블랑",
+   "variant": "르블랑웨딩",
+   "key": "dress|르블랑웨딩",
+   "base": {
+    "url": "http://leblancdress.com/",
+    "conf": "high",
+    "ev": "leblancdress.com meta 원문에서 3자 상호 '르블랑'+드레스 업종이 한 문장으로 확인(청담동 87-9, 강남 일치). 사이트 연결 IG @le_blanc_wedding_official. meta_logo.png는 'Le Blanc' 워드마크 실물 확인, https는 인증서 오류라 http 표기."
+   },
+   "variantEvidence": {
+    "url": "http://leblancdress.com/",
+    "conf": "high",
+    "ev": "공식사이트 leblancdress.com title/og:site_name '르블랑웨딩', og:description '하이엔드 웨딩드레스' 확인(청담동 87-9). 사이트 연결 IG @le_blanc_wedding_official, meta_logo.png 워드마크 실물 확인. https는 인증서 오류라 http 표기."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "마이도터스",
+   "variant": "마이도터스웨딩",
+   "key": "dress|마이도터스웨딩",
+   "base": {
+    "url": "https://instagram.com/mydaughters_wedding",
+    "conf": "high",
+    "ev": "MYWEDDING(디자인하우스) 기사 제목 원문. '마이도터스웨딩'의 축약 표기 — 2006년 오픈한 청담 수입 드레스샵(압구정로72길 17-1, 강남 정합). 인스타 og:title 'My Daughter's Wedding 마이도터스웨딩'으로 한글 상호 확인. 공식 홈페이지 미발견."
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/mydaughters_wedding",
+    "conf": "high",
+    "ev": "아이웨딩 업체 페이지(co_sl_d178) title 원문. 청담 수입 멀티 드레스샵(강남 정합). 인스타 og:title 'My Daughter's Wedding 마이도터스웨딩'으로 계정 확인. 공식 홈페이지 미발견."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "메라키",
+   "variant": "메라키웨딩",
+   "key": "dress|메라키웨딩",
+   "base": {
+    "url": "https://instagram.com/merakiwedding_official",
+    "conf": "high",
+    "ev": "드레스투어 후기 본문 원문 — '메라키' 단독 표기+스드메/투어 문맥 완전일치. 신부들이 메라키웨딩(강남 학동로 137-7, 자체제작 드레스샵)을 '메라키'로 지칭. 동명 웨딩드레스 업체 별도 부재 확인. 인스타 프로필명 '메라키웨딩 WEDDINGDRESS'. 공식 홈페이지 미발견."
+   },
+   "variantEvidence": {
+    "url": "https://instagram.com/merakiwedding_official",
+    "conf": "high",
+    "ev": "결직웨딩(kgwed.com) 소개 본문 원문. 아이웨딩 '웨딩드레스 메라키웨딩', 네이버 플레이스 서울 강남구 학동로 137-7(강남 정합). 인스타 프로필명 '메라키웨딩 WEDDINGDRESS (@merakiwedding_official)'. 공식 홈페이지 미발견."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "보네르",
+   "variant": "보네르웨딩",
+   "key": "dress|보네르웨딩",
+   "base": {
+    "url": "https://bonheur.kr",
+    "conf": "high",
+    "ev": "공식사이트 bonheur.kr(title '보네르웨딩 Bonheur Wedding Official Website')의 인스타그램 바로가기 버튼이 @bonheur__official_ 링크, 강남 자체제작 드레스샵"
+   },
+   "variantEvidence": {
+    "url": "https://bonheur.kr",
+    "conf": "high",
+    "ev": "공식사이트 title에 '보네르웨딩' 그대로 등장(curl 확인), 사이트 인스타 바로가기 버튼 @bonheur__official_"
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "아비가일",
+   "variant": "아비가일웨딩",
+   "key": "dress|아비가일웨딩",
+   "base": {
+    "url": "http://www.avigail.co.kr",
+    "conf": "high",
+    "ev": "공식사이트 avigail.co.kr About 원문(직접 확인) — 사이트 기재 전화 02-548-1844가 아이웨딩 '아비가일'(강남 논현, 02-548-1844~5)와 일치, 사이트가 @avigail.wedding 을 공식 인스타로 링크. https 미지원이라 http 기재, favicon/터치아이콘 미선언이라 로고 후보 비움"
+   },
+   "variantEvidence": {
+    "url": "http://www.avigail.co.kr",
+    "conf": "high",
+    "ev": "아비가일과 동일 업체 — 공식사이트 상호 표기 'AVIGAIL WEDDING / 아비가일 웨딩'이 '아비가일웨딩'과 공백 차이만 있음(강남구청역 도보 5분, 02-548-1844)"
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "장다인",
+   "variant": "장다인웨딩",
+   "key": "dress|장다인웨딩",
+   "base": {
+    "url": "http://www.jangdainwedding.co.kr",
+    "conf": "high",
+    "ev": "웨딩21뉴스 제목(디자이너 장다인 = 장다인 웨딩 대표) + 다음 플레이스 '장다인웨딩 웨딩드레스'(서울 강남구 선릉로135길 6 1층, 02-547-5568)가 홈페이지로 jangdainwedding.co.kr 연결(사이트 타이틀 '장다인웨딩'; https 미지원이라 http 유지). og:image sns_link.png(10.9KB) 로고 성격."
+   },
+   "variantEvidence": {
+    "url": "http://www.jangdainwedding.co.kr",
+    "conf": "high",
+    "ev": "다음 플레이스 카드 + 웨딩21뉴스 '장다인웨딩는 …자체 디자인 드레스와 수입 드레스를 보유하고 있는 웨딩숍이다'. 홈페이지 연동 확인(https 미지원이라 http 유지)."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "클라라",
+   "variant": "클라라웨딩",
+   "key": "dress|클라라웨딩",
+   "base": {
+    "url": "http://www.clarawedding.co.kr/",
+    "conf": "high",
+    "ev": "공식 사이트 clarawedding.co.kr 페이지 타이틀이 '클라라, 웨딩드레스' / '클라라 CLARA'로 상호+업종 동시 확인, 인스타 프로필명 '클라라웨딩(서울본사)'. 본점 서울 강남구 언주로170길 25(신사동)로 지역 일치. https 미지원이라 http 정규형 사용."
+   },
+   "variantEvidence": {
+    "url": "http://www.clarawedding.co.kr/",
+    "conf": "high",
+    "ev": "아이웨딩 업체 페이지 제목에 '클라라웨딩'+'웨딩드레스' 동시 등장, 공식 도메인 clarawedding.co.kr·인스타 프로필명 '클라라웨딩(서울본사)' 일치. 강남 신사동 본점으로 지역 일치."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "폴라리스",
+   "variant": "폴라리스웨딩",
+   "key": "dress|폴라리스웨딩",
+   "base": {
+    "url": "http://polariswed.co.kr/",
+    "conf": "high",
+    "ev": "공식 사이트 polariswed.co.kr, 서울 강남구 선릉로 731(논현동) 수입 웨딩드레스 멀티샵으로 지역·업종 일치. 상호 '폴라리스' 완전 일치 + '웨딩드레스' 동일 문맥. 인스타 계정은 미확인(스레드 핸들만 확인돼 비움). logo는 og:image(파일명 logo_*)."
+   },
+   "variantEvidence": {
+    "url": "http://polariswed.co.kr/",
+    "conf": "high",
+    "ev": "상호 '폴라리스웨딩' 그대로 등장 + 웨딩드레스 업종 신호 동일 문맥. 공식 도메인 polariswed.co.kr(서울 강남 논현동)."
+   }
+  },
+  {
+   "category": "dress",
+   "canonical": "플로렌스",
+   "variant": "플로렌스웨딩",
+   "key": "dress|플로렌스웨딩",
+   "base": {
+    "url": "https://florencewedding.co.kr/",
+    "conf": "high",
+    "ev": "공식 사이트 florencewedding.co.kr 브랜드 소개 페이지에서 상호 '플로렌스' 완전 일치 + '웨딩드레스' 동일 문맥. 청담(서울 강남) 소재로 지역 일치. logo_candidates는 head의 apple-touch-icon(152)·icon(196)."
+   },
+   "variantEvidence": {
+    "url": "https://florencewedding.co.kr/",
+    "conf": "high",
+    "ev": "상호 '플로렌스웨딩' 그대로 + 웨딩드레스 업종 신호 동일 문맥, 공식 도메인 florencewedding.co.kr(청담). 지역 '서울 강남' 일치."
+   }
+  }
+ ]
+}

@@ -50,8 +50,12 @@
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
 - 현재 인수인계:
   `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- **다른 컴퓨터에서 이어받을 때 먼저 읽는 문서**(가짜 가드 5건 · 검증 명령 · 남은 일):
+  `docs/operations/SESSION_HANDOFF_2026-07-28.md`
 - 최신 세션 기록(출시 준비 · 위약금 공개 · 발견 결함과 오판):
   `docs/operations/LAUNCH_PREP_SESSION_2026-07-26.md`
+- 업체 병합 판정(79쌍 전건 · 근거와 미결 사유):
+  `docs/operations/VENDOR_MERGE_REVIEW_2026-07-27.md`
 - 업체 공시 실행 기준: `scripts/ingest/README.md`
 - 공시 원본 출처·기준 시점(확인 필요 항목 포함):
   `docs/operations/DISCLOSURE_SOURCE_PROVENANCE.md`
