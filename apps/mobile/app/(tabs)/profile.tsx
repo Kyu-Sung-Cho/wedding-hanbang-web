@@ -328,7 +328,7 @@ export default function ProfileScreen() {
               icon={HelpCircle}
               label="고객센터"
               onPress={() =>
-                Linking.openURL("https://hanbang.ai/support")
+                Linking.openURL("mailto:ceo@hanbang.ai")
               }
             />
             <MenuItem
