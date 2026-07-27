@@ -201,6 +201,44 @@ jobs:
           echo "A clean-commit hosted-staging RLS receipt plus the remaining backup, restore, storage, and finalizer evidence must be independently pinned before production." >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
+  # 파손 신호 전용 집계.
+  #
+  # 아래 `ci`(Quality Gate)는 production_readiness의 성공을 요구하고 그 잡은
+  # 의도적으로 항상 실패한다 — "초록불을 보고 배포해도 된다고 믿는 사람이 없게"
+  # 하려는 결정이고, `vendor-public-rls-probe.test.mjs`가 그 구조를 못 박고 있다.
+  # 그 대가로 **이 커밋이 뭔가를 깼는지**를 알려 주는 신호가 없었다. 집계가 늘
+  # 빨간불이라 개별 잡을 열어 봐야 했고, 그래서 실수를 잡는 신호로는 약했다
+  # (`cebda752`가 pre-push 훅을 만든 이유).
+  #
+  # 그래서 차단은 그대로 두고 신호만 따로 낸다. 이 잡의 빨간불은 오직
+  # "코드 검사가 깨졌다"는 뜻이다. **릴리스 인가와는 무관하다** —
+  # 초록이어도 배포 가능하다는 뜻이 아니다.
+  code_quality_signal:
+    name: "Code Quality (breakage signal only — not a release authorization)"
+    if: ${{ always() }}
+    needs: [web_quality, mobile_quality, vendor_disclosure_quality, static_release_contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report whether this commit broke a code check
+        env:
+          WEB_RESULT: ${{ needs.web_quality.result }}
+          MOBILE_RESULT: ${{ needs.mobile_quality.result }}
+          VENDOR_DISCLOSURE_RESULT: ${{ needs.vendor_disclosure_quality.result }}
+          STATIC_RELEASE_RESULT: ${{ needs.static_release_contracts.result }}
+        run: |
+          echo "Web Quality: $WEB_RESULT"
+          echo "Mobile Quality: $MOBILE_RESULT"
+          echo "Vendor Disclosure Quality: $VENDOR_DISCLOSURE_RESULT"
+          echo "Static Release Contracts (Non-Deploy): $STATIC_RELEASE_RESULT"
+          echo ""
+          echo "This job is a breakage signal only. Production release stays BLOCKED regardless of its colour."
+          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ]; then
+            echo "A code check broke on this commit."
+            exit 1
+          fi
+
   ci:
     name: Quality Gate
     if: ${{ always() }}
