@@ -9,6 +9,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { verifySupabaseServiceDestination } from "../lib/supabase-service-destination.mjs";
+
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const REF = "slrtobkksjmxgzatjyqb";
 
@@ -45,6 +47,25 @@ const SERVICE = requireKey(
   "SUPABASE_SERVICE_ROLE_KEY",
 );
 const BASE = `https://${REF}.supabase.co`;
+
+// 이 스크립트는 운영에 임시 계정·커플·메시지를 **실제로 만든다.** 저장소의 다른
+// service-role 경로는 전부 목적지 검증을 통과해야 하는데(`supabase-service-destination`
+// 계약) 이 스크립트만 그 밖에 있었다 — 검증 없이 운영에 쓰고 있었다.
+//
+// 프로덕션 쓰기는 별도 확인값을 요구한다:
+//   SUPABASE_PRODUCTION_WRITE_CONFIRM=OPERATOR_WRITE:<project_ref>
+// 없으면 PRODUCTION_WRITE_CONFIRMATION_REQUIRED로 막힌다. 실수로 돌려서 운영에
+// 계정이 생기는 것보다 막히는 게 낫다.
+verifySupabaseServiceDestination({
+  url: BASE,
+  serviceRoleKey: SERVICE,
+  expectedUrl: BASE,
+  expectedProjectRef: REF,
+  productionProjectRef: REF,
+  productionWriteConfirmation: env
+    .match(/^SUPABASE_PRODUCTION_WRITE_CONFIRM="?([^"\r\n]*)"?/m)?.[1]?.trim(),
+  access: "operator-write",
+});
 const email = "saved-realpath@hanbang-test.invalid";
 const password = "Test!RealPath#2026";
 

@@ -104,6 +104,10 @@ test("every service-role operator/read script invokes the destination verifier",
   const scriptPaths = [
     "scripts/amora-cost-report.mjs",
     "scripts/audit-community-media-urls.mjs",
+    // 운영에 임시 계정·커플·메시지를 실제로 만드는 E2E다. `e162f2da`로 저장소에
+    // 들어올 때 이 목록에 없어, service-role로 운영에 쓰면서 목적지 검증만
+    // 통과하지 않는 유일한 경로였다(2026-07-27 발견).
+    "scripts/audit/saved-notes-real-path-e2e.mjs",
     "scripts/check-amora-production-env.mjs",
     "apps/web/scripts/amora-preview-integration.mjs",
     "apps/web/scripts/amora-engine-v2-hosted-integration.mjs",
