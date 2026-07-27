@@ -7,7 +7,7 @@ import { PriceAmoraBridge } from "@/components/price/PriceAmoraBridge";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES, type PriceCatalog, type PriceCategory } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
-import { formatDisclosurePeriod } from "@/lib/price/period";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -36,7 +36,7 @@ const CATEGORY_HINTS: Record<PriceCategory, string> = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const catalog = await loadCounts();
-  const period = formatDisclosurePeriod(catalog.periodLabel);
+  const period = disclosureRoundLabel();
   const total = PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0);
   const title = "스드메·예식장 공시 가격과 위약금 — 업체가 공개한 원문 그대로";
   const description = `${period} 기준 업체 ${total.toLocaleString()}곳의 기본가·추가금과, 취소 위약금·환불 규정 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString()}건을 한 화면에서. 요약도 판정도 하지 않습니다.`;
@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PriceIndexPage() {
   const catalog = await loadCounts();
-  const period = formatDisclosurePeriod(catalog.periodLabel);
+  const period = disclosureRoundLabel();
   const total = PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0);
 
   return (

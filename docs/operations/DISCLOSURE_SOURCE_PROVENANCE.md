@@ -26,37 +26,32 @@
 > 이 절은 **화면 관찰 기록**이며 원본 파일의 메타데이터로 검증한 것이 아니다.
 > 원본을 다시 스캔할 때 `ingest status`의 실제 파일 목록으로 갱신할 것.
 
-## ⚠️ 확인이 필요한 것 1 — 화면의 기준 시점
+## ✅ 해소됨 (2026-07-27) — 화면의 기준 시점
 
-`apps/web/src/app/price/vendor/[slug]/page.tsx`의 `periodLabel()`은
-`price_snapshots.period_label`을 그대로 문구로 만든다.
+**운영 실측 결과: `period_label=2026Q3`.** 공시 라운드는 2025-11이므로 화면이 틀린
+기준 시점을 주장하고 있었다("2026년 3분기 공시 기준"). 유통 글 본문조차 "2025년 11월부터
+가격·위약금 표시가 의무화"라고 쓰는데 도착 화면이 어긋난 상태였다.
 
-```
-period_label = "2026Q3"  →  화면 "2026년 3분기"
-```
+**해결: 표시를 스냅샷 이름과 분리했다.** DB는 건드리지 않았다
+(`price_snapshots_atomic_identity_fence` 트리거가 `period_label` UPDATE를 막고,
+그 값은 우리 내부 스냅샷 식별자로서는 유효하다).
 
-그런데 위 관찰대로 공시 라운드가 **2025-11**이면, 사이트는 소비자에게 틀린 기준
-시점을 주장하는 셈이다. 판정 금지·출처 명기가 이 제품의 전제이므로 가볍지 않다.
+- `apps/web/src/lib/price/period.ts`의 `DISCLOSURE_ROUND = "2025-11"`이 소비자 화면의
+  단일 출처다. `disclosureRoundLabel()`이 "2025년 11월"을 돌려준다.
+- `priceDisclosureLines()`와 `PriceDisclosureFooter`는 **스냅샷 이름을 인수/prop으로
+  받지 않는다** — 받게 두면 또 내부 이름이 기준일로 새어 나간다.
+- `formatDisclosurePeriod()`는 남겨 두되 내부 표시(관리자 미리보기·디버깅)에만 쓴다.
+- 바뀐 소비자 표면: `/price` 허브·메타데이터, `/price/[category]`, 두 OG 이미지,
+  `PriceExplorer` 히어로 배지, 업체 상세(가격 옆·이력 표·하단 출처).
+- 회귀 방지: `period.test.ts`가 라운드 값과 "소비자 문구에 2026이 나오지 않는다"를
+  잠근다. `PricePresentation.test.tsx`는 "2026년 3분기" 부재까지 단정한다.
 
-- 저장소의 예시 명령은 `--snapshot 2026Q3`이다(`scripts/ingest/README.md`).
-- 운영의 실제 값은 코드로 알 수 없다. **확인 방법**:
+### 다음 라운드를 적재할 때
 
-```bash
-npx pnpm@11.7.0 audit:production
-```
-
-`=== 1-b. 공시 스냅샷 출처 ===` 구간이 `period_label`·화면표기·`collected_at`·
-`published_at`·`source_note`를 그대로 찍는다. 게시일과 다르면 고쳐야 한다.
-
-**자기 일관성 검사로는 잡히지 않는다** — `collected_at`은 적재 시점(2026-07)이라
-`2026Q3` 라벨과 우연히 맞는다. 사람이 공시 게시일과 대조하는 수밖에 없다.
-
-고칠 때 주의: `period_label`은 **운영 DB 값**이라 코드 배포로 바뀌지 않는다.
-`price_snapshots`에 `price_snapshots_atomic_identity_fence` 트리거가
-`source`·`period_label` UPDATE를 막고 있으므로 릴리스 경로를 따라야 한다.
-그리고 이 데이터는 분기 시계열이 아니라 **날짜가 박힌 공시**다 — 분기 라벨 자체가
-맞지 않는 모양일 수 있고, 정직한 표기는 공시일이다(그 경우 `periodLabel()`의
-렌더링도 함께 바꿔야 한다).
+1. `DISCLOSURE_ROUND`를 새 게시일 기준으로 갱신한다(예: `"2026-05"`).
+2. **라운드가 둘 이상 동시에 살아 있으면** 업체 상세 이력 표가 모든 행에 같은 라벨을
+   찍는다 — 그때는 스냅샷별 라운드 매핑이 필요하다(현재는 스냅샷 1개라 문제없음).
+3. 831·502 숫자도 함께 바뀐다 → `disclosure-count-consistency` 테스트가 세 곳을 강제한다.
 
 ## ⚠️ 확인이 필요한 것 2 — 지역 6곳이 비어 있다
 

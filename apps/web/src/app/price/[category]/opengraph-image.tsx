@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
 import { krwRangeLabel } from "@/lib/format/krw";
 import { PRICE_CATEGORIES, type PriceCatalog, type PriceCategory } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
-import { formatDisclosurePeriod } from "@/lib/price/period";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -49,7 +49,7 @@ export default async function OpenGraphImage({
     // Social previews keep a truthful generic fallback during a data outage.
   }
   const label = PRICE_CATEGORY_LABELS[category];
-  const period = catalog ? formatDisclosurePeriod(catalog.periodLabel) : "최신 발행분";
+  const period = catalog ? disclosureRoundLabel() : "최신 발행분";
   const count = catalog?.counts[category] ?? 0;
   const range = catalog ? priceRange(catalog, category) : "공시가 확인";
 

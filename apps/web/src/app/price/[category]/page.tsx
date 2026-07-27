@@ -18,7 +18,7 @@ import {
   serializePriceCategoryJsonLd,
 } from "@/lib/price/categoryJsonLd";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
-import { formatDisclosurePeriod } from "@/lib/price/period";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -88,7 +88,7 @@ export async function generateMetadata({
   if (!isPriceCategory(category)) return {};
   const catalog = await loadCatalog(category);
   const label = PRICE_CATEGORY_LABELS[category];
-  const period = formatDisclosurePeriod(catalog.periodLabel);
+  const period = disclosureRoundLabel();
   const count = catalog.counts[category];
   const { title, description } = buildPriceCategorySeo({
     categoryLabel: label,
@@ -117,7 +117,7 @@ export default async function PriceCategoryPage({
   if (!isPriceCategory(category)) notFound();
   const catalog = await loadCatalog(category);
   const label = PRICE_CATEGORY_LABELS[category];
-  const period = formatDisclosurePeriod(catalog.periodLabel);
+  const period = disclosureRoundLabel();
   const structuredData = buildPriceCategoryStructuredData({
     category,
     categoryLabel: label,

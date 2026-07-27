@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
 import { PRICE_CATEGORIES, type PriceCatalog } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
-import { formatDisclosurePeriod } from "@/lib/price/period";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -30,7 +30,7 @@ export default async function OpenGraphImage() {
   } catch {
     // 데이터 장애 중에도 공유 카드는 정직한 일반 문구로 남는다.
   }
-  const period = catalog ? formatDisclosurePeriod(catalog.periodLabel) : "최신 발행분";
+  const period = catalog ? disclosureRoundLabel() : "최신 발행분";
   const total = catalog
     ? PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0)
     : 0;
