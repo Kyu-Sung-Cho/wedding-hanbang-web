@@ -49,11 +49,11 @@ const VISUAL_BIPOLAR_LABELS: Record<Candidate6BipolarDirection, string> = {
 };
 
 const VISUAL_BIPOLAR_SHORT_LABELS: Record<Candidate6BipolarDirection, string> = {
-  [-2]: "첫째 많이",
-  [-1]: "첫째 조금",
-  0: "나란히",
-  1: "둘째 조금",
-  2: "둘째 많이",
+  [-2]: "첫째부터",
+  [-1]: "첫째 먼저",
+  0: "같이 시작",
+  1: "둘째 먼저",
+  2: "둘째부터",
 };
 
 const surface =
@@ -97,6 +97,13 @@ export function Candidate6Prototype({
     questionScrollRef.current?.scrollTo?.({ top: 0 });
     if (focusRevision > 0) screenHeadingRef.current?.focus();
   }, [focusRevision, questionIndex]);
+
+  useEffect(() => {
+    document.documentElement.dataset.weddingCodeResearchHydrated = "true";
+    return () => {
+      delete document.documentElement.dataset.weddingCodeResearchHydrated;
+    };
+  }, []);
 
   function moveToStep(nextStep: PrototypeStep) {
     setStep(nextStep);
@@ -301,7 +308,7 @@ export function Candidate6Prototype({
 
             <div className="shrink-0 border-t border-[#EFE4D7] bg-white px-4 pb-3 pt-2 sm:px-8">
               <p className="mb-2 text-center text-[12px] font-semibold text-[#8F6662]">
-                <span className="sm:hidden">아래에서 5개 답을 비교하세요 ↓</span>
+                <span className="sm:hidden">5개 답을 비교한 뒤 하나를 골라주세요.</span>
                 <span className="hidden sm:inline">
                   다섯 답을 한눈에 비교하고, 딱 맞지 않으면 ‘다른 답’을 열어보세요.
                 </span>

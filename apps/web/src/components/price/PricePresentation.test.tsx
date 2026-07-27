@@ -28,6 +28,8 @@ describe("consumer price presentation", () => {
     expect(html).toContain("스드메·예식장 공시가 비교");
     expect(html).toContain("2026년 3분기 공시 기준");
     expect(html).toContain("가격표시제에 따라 가격을 공개한 업체만 표시됩니다.");
+    expect(html).toContain("scrollbar-hide");
+    expect(html).toContain('placeholder="업체명 검색"');
   });
 
   it("renders the required zero-result recovery path and exact disclosure copy", () => {

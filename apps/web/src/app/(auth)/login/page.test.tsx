@@ -76,4 +76,22 @@ describe("login return journey", () => {
       options: { redirectTo: "http://localhost:3000/api/auth/callback" },
     });
   });
+
+  it("gives every password visibility control an accessible name", async () => {
+    await act(async () => root.render(<LoginPage />));
+
+    expect(
+      container.querySelector('button[aria-label="비밀번호 표시"]'),
+    ).not.toBeNull();
+
+    const signupButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.trim() === "회원가입");
+    await act(async () => {
+      signupButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('button[aria-label="비밀번호 확인 표시"]'),
+    ).not.toBeNull();
+  });
 });

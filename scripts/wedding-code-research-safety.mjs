@@ -19,6 +19,9 @@ export function isAllowedWeddingCodeResearchRequest(request, appOrigin) {
     if (parsed.pathname.startsWith("/_next/static/")) {
       return STATIC_RESOURCE_TYPES.has(resourceType);
     }
+    if (parsed.pathname.startsWith("/__nextjs_font/")) {
+      return resourceType === "font";
+    }
     if (parsed.pathname === "/_next/image") {
       const source = parsed.searchParams.get("url");
       if (!source || resourceType !== "image") return false;

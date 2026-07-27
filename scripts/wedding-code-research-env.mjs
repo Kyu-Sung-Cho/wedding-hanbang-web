@@ -1,3 +1,5 @@
+import { SYNTHETIC_SUPABASE_ENVIRONMENT } from "./lib/synthetic-supabase-environment.mjs";
+
 const SAFE_PARENT_ENVIRONMENT_KEYS = [
   "PATH",
   "Path",
@@ -35,6 +37,7 @@ export function buildWeddingCodeResearchEnvironment(source = process.env) {
 
   return {
     ...environment,
+    ...SYNTHETIC_SUPABASE_ENVIRONMENT,
     NODE_ENV: "development",
     NEXT_PUBLIC_POSTHOG_HOST: "",
     NEXT_PUBLIC_POSTHOG_KEY: "",

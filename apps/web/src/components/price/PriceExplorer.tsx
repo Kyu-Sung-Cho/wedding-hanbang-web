@@ -700,7 +700,9 @@ export function PriceExplorer({
 
           {/* 375px에서 네 번째 탭(웨딩홀)이 화면 밖 x=386에 놓여 스크롤 힌트도 없이
               사라졌다 — 지출이 가장 큰 카테고리가 모바일에서 도달 불가였다.
-              대행사 칩과 같은 처방으로 가로 스크롤 대신 줄바꿈으로 담는다. */}
+              대행사 칩과 같은 처방으로 가로 스크롤 대신 줄바꿈으로 담는다.
+              ※ scrollbar-hide + overflow-x-auto로 되돌리지 말 것 —
+                 PriceExplorer.test.tsx가 overflow-x-auto 부재를 단정한다. */}
           <nav className="mt-7 flex flex-wrap gap-2" aria-label="가격 카테고리">
             {PRICE_CATEGORIES.map((value) => (
               <Link
@@ -747,7 +749,11 @@ export function PriceExplorer({
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7" aria-label="업체 가격 찾기">
         <div className="rounded-[24px] border border-[#243832]/10 bg-white p-3 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-4">
           <div className="flex gap-2">
-            <label className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl bg-[#FBF8F2] px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
+            {/* 좁은 화면에서는 여백을 줄여 입력 폭을 확보한다(오른쪽에 필터 버튼이 붙는다).
+                색은 라운지 팔레트(#243832·#B89785) 기준 — 구 팔레트(#1D3557·#B5977A)로
+                되돌리지 말 것. 그리고 "이전 상호로도 검색된다"는 힌트는 placeholder에
+                보이게 둔다(업체 개명이 잦아 sr-only로 숨기면 사용자가 모른다). */}
+            <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-xl bg-[#FBF8F2] px-3 focus-within:ring-2 focus-within:ring-[#B89785] sm:gap-3 sm:px-4">
               <Search aria-hidden="true" className="size-4 shrink-0 text-[#243832]/45" />
               <span className="sr-only">업체명 검색</span>
               <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업체명 또는 이전 상호 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#243832]/40" />
