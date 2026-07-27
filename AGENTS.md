@@ -96,8 +96,15 @@ release manifest는 과거 릴리스의 증거다. 상단의 superseded 안전 �
 ```powershell
 corepack enable
 corepack pnpm install --frozen-lockfile
+corepack pnpm hooks:install
 Copy-Item apps/web/.env.example apps/web/.env.local
 ```
+
+`hooks:install`은 `core.hooksPath`를 `.githooks`로 지정한다(컴퓨터마다 한 번).
+`pre-push`가 `typecheck·lint·test`를 돌려 깨진 상태의 push를 막는다 — turbo가
+캐시하므로 이미 돌려 본 상태면 수 초다. CI가 같은 검사를 하지만 이 저장소의 CI는
+집계 잡이 **설계상 항상 빨간불**이라 결과만 보고는 판단할 수 없어 로컬에서 한 번 막는다.
+정말 필요할 때만 `HANBANG_SKIP_PREPUSH=1 git push`로 넘긴다.
 
 - 운영 키를 개발 파일에 복사하지 않는다.
 - `NEXT_PUBLIC_*` 이외의 키는 브라우저 번들에 포함하지 않는다.

@@ -37,6 +37,7 @@
     "supabase:release:test": "node --test ./scripts/tests/amora-db-current-baseline-restore.test.mjs ./scripts/tests/storage-signed-upload-drain-evidence.test.mjs ./scripts/tests/production-write-fence-evidence.test.mjs ./scripts/tests/post-push-platform-evidence.test.mjs ./scripts/tests/production-windows-toolchain.test.mjs ./scripts/tests/production-external-gate-cli.test.mjs ./scripts/tests/production-external-gate-provenance.test.mjs ./scripts/tests/production-write-fence-finalizer.test.mjs ./scripts/tests/sql-read-only-envelope.test.mjs ./scripts/tests/vendor-public-rls-probe.test.mjs ./scripts/tests/supabase-release-fence.test.mjs ./scripts/tests/supabase-production-release.test.mjs ./scripts/tests/supabase-service-destination.test.mjs ./scripts/tests/successor-release-evidence-contract.test.mjs",
     "supabase:security:probe": "node ./scripts/supabase-anon-probe.mjs",
     "supabase:vendor-security:probe": "node ./scripts/vendor-public-rls-probe.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
     "audit:production": "node ./scripts/audit/production-readiness-audit.mjs",
     "amora:costs": "node ./scripts/amora-cost-report.mjs",
