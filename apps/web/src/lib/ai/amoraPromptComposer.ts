@@ -187,6 +187,53 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   return lines.join("\n");
 }
 
+/**
+ * 도구 유무·길이 예산과 무관하게 항상 적용되는 제품 확정 안전 규칙.
+ *
+ * 판정 금지와 환각 금지는 도구가 **없을 때 오히려 더 필요한** 규칙이다
+ * ("도구를 부르지 않았거나 결과가 비어 있으면 업체명을 한 곳도 적지 마세요").
+ * 그런데 도구 0개 프롬프트에서 '도구'가 든 줄을 지우는 필터가 이 섹션까지 훑어,
+ * 인젝션 가드와 환각 금지가 사라지고 남은 이어짐 줄이 엉뚱한 불릿에 붙는
+ * 파편까지 만들고 있었다(2026-07-27 실측). 도구를 쓴 모든 대화의 마지막
+ * 합성 턴(`phase:"final_no_tool"`)이 이 프롬프트를 쓰므로 죽은 경로가 아니다.
+ */
+const PRODUCT_SAFETY_HEADINGS = [
+  "## 판정 금지 · 업체 상대 발언 금지",
+  "## 할루시네이션 방지",
+] as const;
+
+/** 보호 섹션의 [시작, 끝) 구간. 문서 순서대로 정렬해 돌려준다. */
+function productSafetyRanges(prompt: string): Array<readonly [number, number]> {
+  return PRODUCT_SAFETY_HEADINGS
+    .map((heading) => {
+      const start = findHeading(prompt, heading);
+      if (start === -1) return null;
+      const next = prompt.indexOf("\n## ", start + heading.length);
+      return [start, next === -1 ? prompt.length : next] as const;
+    })
+    .filter((range): range is readonly [number, number] => range !== null)
+    .sort((left, right) => left[0] - right[0]);
+}
+
+/** 보호 섹션은 원문 그대로 두고 나머지 줄에만 필터를 적용한다(순서·줄바꿈 보존). */
+function filterLinesOutsideProductSafety(
+  prompt: string,
+  keepLine: (line: string) => boolean,
+): string {
+  const filter = (chunk: string) => chunk.split("\n").filter(keepLine).join("\n");
+  const ranges = productSafetyRanges(prompt);
+  if (ranges.length === 0) return filter(prompt);
+
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    parts.push(filter(prompt.slice(cursor, start)), prompt.slice(start, end));
+    cursor = end;
+  }
+  parts.push(filter(prompt.slice(cursor)));
+  return parts.join("");
+}
+
 function applyEnabledToolContract(
   prompt: string,
   enabledToolNames: readonly string[] | undefined,
@@ -208,13 +255,20 @@ function applyEnabledToolContract(
       "### 대화의 결 예시",
     );
   }
-  const filteredPrompt = capabilityScopedPrompt
+  // 비활성 도구 이름은 보호 섹션 안에서도 빼낸다 — 없는 도구를 이름으로 흘리면 안 된다.
+  const withoutDisabledToolNames = capabilityScopedPrompt
     .split("\n")
-    .filter((line) => enabled.size > 0 || !line.includes("도구"))
     .filter((line) => !KNOWN_TOOL_NAMES.some(
       (toolName) => line.includes(toolName) && !enabled.has(toolName),
     ))
     .join("\n");
+  // '도구'라는 낱말만 보고 지우는 것은 제품 확정 안전 규칙에는 적용하지 않는다.
+  const filteredPrompt = enabled.size > 0
+    ? withoutDisabledToolNames
+    : filterLinesOutsideProductSafety(
+      withoutDisabledToolNames,
+      (line) => !line.includes("도구"),
+    );
 
   const toolInstructions = buildEnabledToolInstructions(enabled);
   if (!toolInstructions) return filteredPrompt;
@@ -381,13 +435,18 @@ export function buildAmoraSystemPrompt(
     scopedOptionalPrompt,
     "## 현재 실행 가능한 도구 계약",
   );
-  // 판정 금지·업체 상대 발언 금지는 제품 확정 규칙이라 길이 예산에 밀려 잘리면 안 된다.
-  const detachedVerdictBan = detachTopLevelSection(
-    detachedToolContract.remainder,
-    "## 판정 금지 · 업체 상대 발언 금지",
-  );
+  // 제품 확정 안전 규칙은 길이 예산에 밀려 잘리면 안 된다. 도구 스코핑 보호와
+  // 같은 목록(PRODUCT_SAFETY_HEADINGS)을 써서 두 보호가 어긋나지 않게 한다 —
+  // 예전에는 판정 금지만 여기 있어서 할루시네이션 방지는 절단에 노출돼 있었다.
+  let safetyRemainder = detachedToolContract.remainder;
+  const detachedSafetySections: string[] = [];
+  for (const heading of PRODUCT_SAFETY_HEADINGS) {
+    const detached = detachTopLevelSection(safetyRemainder, heading);
+    safetyRemainder = detached.remainder;
+    if (detached.section) detachedSafetySections.push(detached.section);
+  }
   const mandatorySuffix = `${detachedContext.mandatoryContext}${
-    detachedVerdictBan.section ? `\n\n${detachedVerdictBan.section}` : ""
+    detachedSafetySections.map((section) => `\n\n${section}`).join("")
   }${detachedToolContract.section ? `\n\n${detachedToolContract.section}` : ""}${finalSuffix}`;
   if (!Number.isInteger(maxChars) || maxChars < mandatorySuffix.length) {
     throw new Error(
@@ -396,7 +455,7 @@ export function buildAmoraSystemPrompt(
   }
 
   const optionalBudget = maxChars - mandatorySuffix.length;
-  const optionalBase = detachedVerdictBan.remainder;
+  const optionalBase = safetyRemainder;
   if (optionalBase.length + specialistPrompt.length <= optionalBudget) {
     return `${optionalBase}${specialistPrompt}${mandatorySuffix}`;
   }
