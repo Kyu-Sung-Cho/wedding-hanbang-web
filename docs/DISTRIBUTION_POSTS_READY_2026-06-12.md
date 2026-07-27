@@ -29,7 +29,18 @@ https://hanbang.ai/wedding?utm_source=naver_kin&utm_medium=answer&utm_campaign=g
 # 공시 가격·위약금 (2026-07-26 추가) — 카페 c01, 지식iN은 c02부터 +1
 https://hanbang.ai/price?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1_w1&utm_content=c01
 https://hanbang.ai/price?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c02
+# 카테고리 직행 (2026-07-27 추가) — 질문 주제와 도착 화면을 맞춘 것
+https://hanbang.ai/price/studio?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c03
+https://hanbang.ai/price/hall?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c04
+https://hanbang.ai/price/dress?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c05
 ```
+
+> **2026-07-27 도착지 재배치**: 지식iN ②(추가금)·⑤(보증인원)·⑧(피팅비)이 `/check`로 가고
+> 있었다. 셋 다 "다른 업체는 얼마인가"가 답인 질문인데, 그 답을 가진 건 공시 데이터다.
+> 각각 `/price/studio`·`/price/hall`·`/price/dress`로 옮겼다(라이브에서 해당 항목이 실제로
+> 있는지 확인함 — 웨딩홀 보증인원·식대·대관료 ✅, 드레스 헬퍼비 12/12·피팅비 7/12).
+> **주의**: 위약금 원문은 공시 업체 전부에 있는 게 아니다(502/868 ≈ 58%). 글에서
+> "누르면 반드시 위약금이 나온다"고 쓰지 말 것.
 
 > 카페=`a01/b01/c01`, 지식iN은 `a02`·`b02`·`c02`부터 시작해 답변마다 1씩. 기록표(키트 §5)에 적기.
 > `c` 계열은 위약금·공시 가격을 직접 보여주는 링크라, 어느 쪽이 더 반응이 좋은지 비교용으로 나눠 둔다.
@@ -170,8 +181,10 @@ https://hanbang.ai/wedding?utm_source=naver_cafe&utm_medium=post&utm_campaign=g1
 "추가금 전체 항목과 상한을 견적서에 명시해달라"고 요청하고, 거절하면 그 자체가 정보입니다.
 2025년 11월부터 가격·위약금 표시가 의무화돼서(과태료 최대 1억) 요구할 근거도 생겼어요.
 
-계약 전 확인 질문을 정리한 무료 페이지입니다 (제가 만들고 있어요):
-https://hanbang.ai/check?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=a03
+스튜디오 313곳의 촬영 기본가와 추가 옵션을 한눈에 보고, 업체를 누르면 앨범·수정본·
+헬퍼비 같은 항목이 각각 얼마인지 업체가 공시한 원문 그대로 나와요. 저희가 요약하거나
+어디가 낫다고 판단하지 않습니다. 로그인 없이 보입니다 (개발 중):
+https://hanbang.ai/price/studio?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c03
 ```
 
 ### ③ "플래너 없이 셀프 가능?" → B
@@ -227,8 +240,10 @@ https://hanbang.ai/price?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_
 - 꽃·음향 등에도 최소금액이 붙는 홀이 있어요
 
 참고로 한국소비자원 2026년 5월 기준 1인 식대 중위가는 전국 5.9만 / 서울 8만 정도예요.
-계약 전 질문 목록으로 정리한 무료 페이지입니다 (제가 만들고 있어요):
-https://hanbang.ai/check?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=a05
+웨딩홀 190곳이 공시한 대관료·식대를 한눈에 보고, 업체를 누르면 보증인원 조건까지
+공시 원문 그대로 나와요. 요약도, 어디가 낫다는 판정도 하지 않습니다.
+로그인 없이 보입니다 (개발 중):
+https://hanbang.ai/price/hall?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c04
 ```
 
 ### ⑥ "상견례 뭐 준비?" → B
@@ -283,8 +298,10 @@ https://hanbang.ai/wedding?utm_source=naver_kin&utm_medium=answer&utm_campaign=g
 물어봐도 헛걸음을 줄일 수 있어요. 참고로 소비자원 2026년 5월 본식 드레스 대여
 중위가는 전국 145만 정도예요.
 
-빠지기 쉬운 비용 항목을 분야별로 정리한 무료 체크리스트입니다 (개발 중):
-https://hanbang.ai/check?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=a06
+드레스 215곳의 대여 기본가와 헬퍼비·피팅비 같은 추가 항목을 한눈에 보고, 업체를
+누르면 각각 얼마인지 공시 원문 그대로 나와요. 요약도 판정도 하지 않습니다.
+로그인 없이 보입니다 (개발 중):
+https://hanbang.ai/price/dress?utm_source=naver_kin&utm_medium=answer&utm_campaign=g1_w1&utm_content=c05
 ```
 
 ---
