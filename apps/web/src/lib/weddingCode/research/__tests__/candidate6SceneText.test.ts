@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe, expect, it, test } from "vitest";
 
 import {
   CANDIDATE6_ITEM_REVIEW_FLAGS,
@@ -240,4 +243,61 @@ describe("초대 복사 문자열", () => {
     expect(line).toBe(card!.prompt);
     expect(line).not.toMatch(/http|hanbang|웨딩코드|한방/);
   });
+});
+
+/**
+ * 상위 계약 준수 — `58_candidate6_product_research_contract_2026-07-17.md:163`
+ * 「clipboard/native share/OG answer metadata 금지」.
+ *
+ * doc 58은 README §1 권위 순서 **2순위**이고, 이 기능의 기획서(63)는 권위 순서에
+ * 등재조차 안 된 상태표 항목이라 §1-8 「위 문서와 충돌하면 사용하지 않음」이 적용된다.
+ * 즉 기획서가 상위 계약을 이길 수 없다.
+ *
+ * 2026-07-29 2차 감사: 초대 화면이 `navigator.clipboard.writeText`를 신설해 이 조항을
+ * 정면으로 위반했고, `62_..._current_state`가 「clipboard 없음」을 현재 사실로 적어둔
+ * 문장까지 함께 거짓이 됐다. 클립보드는 zero-I/O 프로토타입에서 유일하게 남은 실제
+ * 데이터 유출 경로다 — iOS 유니버설 클립보드·Windows 클라우드 클립보드는 기기 밖으로
+ * 동기화된다. 계약을 개정하려면 파운더 결정과 doc 58·62 개정이 먼저다.
+ */
+test("연구 프로토타입이 clipboard·native share를 쓰지 않는다 (doc 58 계약)", async () => {
+  // vitest root(apps/web) 기준. `new URL(..., import.meta.url)`은 Windows에서
+  // `C:\src\...`로 잘못 풀린다(2026-07-29 실측).
+  const files = ["Candidate6Prototype.tsx", "candidate6SceneText.ts"];
+  for (const name of files) {
+    const source = await readFile(
+      path.resolve(process.cwd(), "src/lib/weddingCode/research", name),
+      "utf8",
+    );
+    for (const banned of ["navigator.clipboard", "navigator.share", "execCommand"]) {
+      assert.ok(
+        !source.includes(banned),
+        `${name}이 ${banned}를 쓴다 — doc 58:163이 금지한다`,
+      );
+    }
+  }
+});
+
+/**
+ * 2차 감사 M6: 회수 목록에서 **세로로 맞닿는 두 행**의 문장이 대부분 같으면, 이 설계가
+ * 측정하려는 「알아봄」 대신 「기재가 찍어냈다」가 마지막 인상으로 남는다. 실제로 journey
+ * 끝에 붙는 SI1·SI2가 3줄 중 2줄이 글자 그대로 같았다(원문 항목의 premise·prompt가
+ * 동일한 탓이라 카피 실수가 아니었다).
+ */
+test("이웃한 회수 문장이 2줄 이상 겹치지 않는다", () => {
+  const authored: Array<{ id: string; lines: readonly string[] }> = [];
+  for (const id of ITEM_IDS) {
+    const lines = CANDIDATE6_SCENE_TEXT[id].recapLines;
+    if (lines !== null) authored.push({ id, lines });
+  }
+  assert.ok(authored.length > 10, "검사 대상이 없으면 공허하다");
+
+  for (let index = 1; index < authored.length; index += 1) {
+    const previous = authored[index - 1];
+    const current = authored[index];
+    const shared = current.lines.filter((line) => previous.lines.includes(line));
+    assert.ok(
+      shared.length < 2,
+      `${previous.id}와 ${current.id}가 ${shared.length}줄 겹친다: ${shared.join(" / ")}`,
+    );
+  }
 });

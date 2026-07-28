@@ -217,16 +217,22 @@ describe("카드 고르기 단계", () => {
       expect(preview?.dataset.inviteCopy).not.toMatch(/우리 얘기|우리 얘긴 아니에요/);
     });
 
-    it("안 보내고 끝내는 길이 같은 크기로 있다", async () => {
+    // `58_candidate6_product_research_contract`:163이 clipboard를 평문 금지하고 그 문서는
+    // README 권위 순서 2순위다. 화면이 이미 「말로 건네는 초대만 있어요」라고 말하므로
+    // 제거가 더 일관된다. 없는 기능을 찾아 헤매지 않도록 **없다는 사실을 화면이 말하는지**
+    // 함께 본다.
+    it("복사 경로가 없고, 없다는 사실을 화면이 말한다", async () => {
       await reachCard();
       await act(async () => buttonByText(container, "한 마디 건네기").click());
-      const copy = buttonByText(container, "이 한 줄만 복사");
-      const leave = buttonByText(container, "안 보내고 끝내기");
-      const sizeOf = (element: HTMLElement) =>
-        element.className.split(/\s+/).filter((token) => /^min-h-|^flex-1$|^w-full$/.test(token))
-          .sort().join(" ");
-      expect(sizeOf(leave)).toBe(sizeOf(copy));
-      expect(sizeOf(leave)).not.toBe("");
+
+      expect(container.textContent)
+        .toContain("이 화면은 아무것도 복사하지 않아요. 위 한 줄을 보고 그대로 말해주세요.");
+      const labels = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
+      expect(
+        labels.some((text) => text.includes("복사")),
+        `복사 버튼이 남아 있다: ${labels.join(" / ")}`,
+      ).toBe(false);
+      expect(buttonByText(container, "카드로 돌아가기")).toBeTruthy();
     });
   });
 });

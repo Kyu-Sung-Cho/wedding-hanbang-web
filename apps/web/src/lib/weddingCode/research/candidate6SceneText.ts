@@ -179,7 +179,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   },
   "C6-ES2": {
     sceneTitle: "복잡한 마음",
-    recapLines: ["후보가 너무 많다.", "머리가 복잡하다.", "오늘 정할 일은 없다."],
+    recapLines: ["후보가 너무 많다.", "머리가 복잡하다.", "지금 정하지 않아도 된다."],
     card: {
       prompt: "지금은 들어주는 게 좋아, 정하는 게 좋아?",
       when: "자기 전에 불 끄고 누워서",
@@ -217,7 +217,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   // ── 주변 의견 다루기 ──────────────────────────────────────────────
   "C6-SI1": {
     sceneTitle: "첫 초안",
-    recapLines: ["초안을 만들 차례다.", "의견은 듣기로 했다.", "순서만 남았다."],
+    recapLines: ["초안을 만들 차례다.", "의견은 듣기로 했다.", "아직 아무것도 안 정했다."],
     card: {
       prompt: "우리 그림부터 먼저 맞춰볼까?",
       when: "주말 아침에 아직 안 일어났을 때",
@@ -226,7 +226,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   },
   "C6-SI2": {
     sceneTitle: "함께할 경험",
-    recapLines: ["경험 두 가지가 있다.", "의견은 듣기로 했다.", "순서만 남았다."],
+    recapLines: ["경험 두 가지가 있다.", "의견은 듣기로 했다.", "둘 중 하나를 고른다."],
     card: {
       prompt: "우리 편한 쪽부터 얘기해볼까?",
       when: "밥 먹고 나서 앉은 자리에서",

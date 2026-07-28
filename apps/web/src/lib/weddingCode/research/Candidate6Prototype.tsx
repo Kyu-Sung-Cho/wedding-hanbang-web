@@ -129,7 +129,6 @@ export function Candidate6Prototype({
   const [givenCardId, setGivenCardId] = useState<Candidate6ItemId | null>(null);
   /** 확정 전 현재 화면의 선택. */
   const [draftCardId, setDraftCardId] = useState<Candidate6ItemId | null>(null);
-  const [copied, setCopied] = useState(false);
   const [sceneLabels, setSceneLabels] = useState<Partial<Record<Candidate6ItemId, SceneLabel>>>({});
   const [contentsOpen, setContentsOpen] = useState(false);
   /** 막간을 이미 보여준 문항 인덱스. 되돌아가도 같은 막간을 다시 띄우지 않는다. */
@@ -246,7 +245,6 @@ export function Candidate6Prototype({
     setMyCardId(null);
     setGivenCardId(null);
     setDraftCardId(null);
-    setCopied(false);
     setSceneLabels({});
     setContentsOpen(false);
     setShownInterludes([]);
@@ -385,16 +383,10 @@ export function Candidate6Prototype({
 
   if (step === "questions" && currentItem) {
     return (
-      <PrototypeShell viewportLocked showFooter={false}>
+      <PrototypeShell viewportLocked showFooter={false} tone={duskTone(questionIndex, journey.length)}>
         <div
           data-dusk={duskTone(questionIndex, journey.length)}
-          className={`flex min-h-0 flex-1 flex-col transition-colors duration-[450ms] motion-reduce:transition-none ${
-            duskTone(questionIndex, journey.length) === "#EFE4D7"
-              ? "bg-[#EFE4D7]"
-              : duskTone(questionIndex, journey.length) === "#F7F1E8"
-                ? "bg-[#F7F1E8]"
-                : "bg-[#FBF8F2]"
-          }`}
+          className="flex min-h-0 flex-1 flex-col"
         >
           <header className="mb-4 shrink-0">
             <div className="flex items-center justify-between gap-3 text-[12px] font-semibold text-[#36534E]">
@@ -738,7 +730,7 @@ export function Candidate6Prototype({
           </p>
 
           <p className="mt-5 text-[12px] font-semibold text-[#8F6662]">
-            복사되는 건 이 한 줄뿐이에요
+            건네는 건 이 한 줄뿐이에요
           </p>
           <p
             data-invite-copy={copyLine}
@@ -750,25 +742,26 @@ export function Candidate6Prototype({
             상대가 아무것도 안 해도 이 화면은 그대로예요.
           </p>
 
-          <div className="mt-6 flex gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard?.writeText?.(copyLine);
-                setCopied(true);
-              }}
-              className={`${primaryButton} min-h-[48px] flex-1`}
-            >
-              {copied ? "복사했어요" : "이 한 줄만 복사"}
-            </button>
-            <button
-              type="button"
-              onClick={() => moveToStep("card-face")}
-              className={`${secondaryButton} min-h-[48px] flex-1`}
-            >
-              안 보내고 끝내기
-            </button>
-          </div>
+          {/*
+            복사 버튼을 두지 않는다. `58_candidate6_product_research_contract`:163이
+            「clipboard/native share/OG answer metadata 금지」로 평문 금지하고, 그 문서는
+            README 권위 순서 2순위다(이 기능의 기획서는 권위 순서에 없다). 클립보드는
+            zero-I/O 프로토타입에서 유일하게 남는 실제 유출 경로이기도 하다 — iOS
+            유니버설 클립보드·Windows 클라우드 클립보드는 기기 밖으로 동기화된다.
+            화면이 이미 「말로 건네는 초대만 있어요」라고 말하므로 제거가 더 일관된다.
+          */}
+          <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#36534E]">
+            이 화면은 아무것도 복사하지 않아요. 위 한 줄을 보고 그대로 말해주세요.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => moveToStep("card-face")}
+            className={`${secondaryButton} mt-6 w-full`}
+          >
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            카드로 돌아가기
+          </button>
         </section>
       </PrototypeShell>
     );
@@ -828,7 +821,6 @@ export function Candidate6Prototype({
         <button
           type="button"
           onClick={() => {
-            setCopied(false);
             moveToStep("invite");
           }}
           className={`${primaryButton} mt-5 w-full`}
@@ -849,14 +841,23 @@ function PrototypeShell({
   children,
   viewportLocked = false,
   showFooter = true,
+  tone = "#FBF8F2",
 }: {
   children: React.ReactNode;
   viewportLocked?: boolean;
   showFooter?: boolean;
+  /**
+   * 황혼 색. **페이지 최상위에 칠해야 한다** — 안쪽 div에 주면 그 아래 `bg-white`
+   * surface가 세로를 전부 덮어 헤더 60px 띠만 물든다(2026-07-29 감사 M5 실측).
+   * §6 메커니즘 6은 「끝이 텍스트가 아니라 몸으로 온다」이므로 화면 전체가 깊어져야 한다.
+   */
+  tone?: string;
 }) {
+  const toneClass =
+    tone === "#EFE4D7" ? "bg-[#EFE4D7]" : tone === "#F7F1E8" ? "bg-[#F7F1E8]" : "bg-[#FBF8F2]";
   return (
     <main
-      className={`ph-no-capture bg-[#FBF8F2] px-2 py-4 sm:px-4 sm:py-10 ${
+      className={`ph-no-capture ${toneClass} px-2 py-4 transition-colors duration-[450ms] motion-reduce:transition-none sm:px-4 sm:py-10 ${
         viewportLocked ? "flex h-dvh overflow-hidden" : "min-h-dvh"
       }`}
       style={{
@@ -1208,6 +1209,21 @@ function ContentsSheet({
   onToggle: (itemId: Candidate6ItemId, label: SceneLabel) => void;
   onClose: () => void;
 }) {
+  /**
+   * 열 때 **한 번만** 제목으로 포커스를 옮긴다.
+   *
+   * 예전에는 인라인 콜백 ref(`ref={(node) => node?.focus()}`)를 썼는데, 렌더마다 ref
+   * 정체성이 바뀌어 React가 detach/attach를 반복하며 `focus()`를 다시 호출했다. 시트
+   * 안에서 라벨을 누르면 부모 `sceneLabels`가 바뀌어 시트가 리렌더되므로, **라벨을 누를
+   * 때마다 포커스가 제목으로 되돌아갔다** — 이 시트가 중도이탈자의 유일한 만회 경로인데
+   * 키보드·스크린리더 사용자에게는 매 토글마다 처음부터 다시 Tab하게 만들었다.
+   * 시트는 닫힐 때 언마운트되므로 마운트 스코프 effect면 다시 열 때 정상 재포커스된다.
+   */
+  const titleRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
+
   return (
     <>
       {/* 시트가 화면을 덮는다는 것을 시각으로도 알린다(기획서 §3 S1b). */}
@@ -1225,7 +1241,7 @@ function ContentsSheet({
       >
         <p
           id={`${CONTENTS_SHEET_ID}-title`}
-          ref={(node) => node?.focus()}
+          ref={titleRef}
           tabIndex={-1}
           className="rounded text-[16px] font-semibold text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >

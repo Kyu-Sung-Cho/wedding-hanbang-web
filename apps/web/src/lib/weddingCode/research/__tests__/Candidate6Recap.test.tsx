@@ -468,3 +468,55 @@ describe("회수 이후 뒤로 가기", () => {
       .toContain("오늘 꺼낼 한 마디를 골라주세요");
   });
 });
+
+/**
+ * 2차 감사 M3: 시트 제목의 **인라인 콜백 ref**가 리렌더마다 재실행돼, 시트 안에서
+ * 라벨을 누를 때마다 포커스를 제목으로 되빼앗았다. 라벨 토글이 부모 `sceneLabels`를
+ * 바꿔 시트를 리렌더하므로 매 클릭 재현된다. 1차 접근성 수정이 스스로 만든 회귀다.
+ *
+ * 기존 접근성 3건(열림 상태·dialog 이름·Escape 복귀)은 토글 **이후** 포커스를 보지
+ * 않아 전부 통과했다.
+ */
+describe("목차 시트에서 라벨을 눌러도 포커스를 뺏기지 않는다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+    for (let index = 0; index < 3; index += 1) {
+      const choice = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
+      await act(async () => (choice as HTMLInputElement).click());
+      await act(async () => buttonByText(container, "선택 확인하고 다음").click());
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
+    }
+    await act(async () => buttonByText(container, "지나온 장면").click());
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  it("열 때는 제목으로 포커스가 간다", () => {
+    expect(document.activeElement?.id).toBe("candidate6-contents-sheet-title");
+  });
+
+  it("라벨을 연속으로 눌러도 포커스가 그 라벨에 남는다", async () => {
+    const pills = [...container.querySelectorAll<HTMLElement>('[data-scene-label="ours"]')];
+    expect(pills.length, "시트에 라벨이 없으면 이 검사는 공허하다").toBeGreaterThan(1);
+
+    for (const pill of pills) {
+      pill.focus();
+      await act(async () => pill.click());
+      expect(document.activeElement, "포커스가 제목으로 튀었다").toBe(pill);
+      expect(pill.getAttribute("aria-pressed"), "토글이 반영되지 않았다").toBe("true");
+    }
+  });
+});

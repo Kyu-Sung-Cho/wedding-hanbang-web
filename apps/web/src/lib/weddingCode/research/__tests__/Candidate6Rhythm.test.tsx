@@ -251,3 +251,54 @@ describe("press feedback이 전 표면에서 같다", () => {
     expect(pressOf(buttonByText(container, "다음"))).toBe(pressOf(cell));
   });
 });
+
+/**
+ * 2차 감사 M5: 황혼이 `data-dusk` 속성에는 있는데 **화면에는 헤더 60px 띠에만** 칠해졌다.
+ * 그 div의 형제 `section`이 `bg-white` 불투명 + `flex-1`이라 나머지 세로를 전부 덮고,
+ * 바깥 `main`은 배경이 하드코딩이었기 때문이다. 기존 테스트는 속성 문자열만 봐서 통과했다.
+ *
+ * §6 메커니즘 6은 「끝이 텍스트가 아니라 **몸으로** 온다」이므로, 색이 페이지 전체를
+ * 덮는지를 구조로 확인한다.
+ */
+describe("황혼이 페이지 전체에 칠해진다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  it("페이지 최상위 요소가 황혼 색을 입는다 — 안쪽 띠가 아니라", async () => {
+    const page = container.querySelector<HTMLElement>("main");
+    expect(page, "main을 못 찾았다").not.toBeNull();
+
+    const toneClass = (element: HTMLElement) =>
+      element.className.split(/\s+/).find((token) => /^bg-\[#[0-9A-Fa-f]{6}\]$/.test(token));
+
+    const first = toneClass(page!);
+    expect(first, "페이지에 배경 토큰이 없다").toBeTruthy();
+
+    // 마지막 장면까지 가면 페이지 배경이 실제로 달라져야 한다.
+    for (let index = 0; index < JOURNEY.length - 1; index += 1) {
+      const choice = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
+      await act(async () => (choice as HTMLInputElement).click());
+      await act(async () => buttonByText(container, "다음").click());
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
+    }
+
+    const last = toneClass(container.querySelector<HTMLElement>("main")!);
+    expect(last, `마지막 장면에서도 페이지 배경이 그대로다: ${first}`).not.toBe(first);
+  });
+});
