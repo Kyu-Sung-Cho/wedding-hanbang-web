@@ -41,7 +41,8 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
 
   it("starts with an honest promise, no inferred result, and no unmeasured duration claim", () => {
     expect(document.documentElement.dataset.weddingCodeResearchHydrated).toBe("true");
-    expect(container.textContent).toContain("우리 대화는 어디서부터 시작하면 편할까?");
+    // 첫 화면의 상세 계약(문 앞 한 문장·퇴역 카드 미약속)은 `Candidate6Intro.test.tsx`에 있다.
+    expect(container.textContent).toContain("우리 얘기, 어디서부터 꺼낼까요");
     expect(container.textContent).toContain("점수·유형·궁합이 없어요");
     expect(container.textContent).toContain("걸리는 시간은 실제 사용성 검증 뒤 정확하게 안내할게요");
     expect(container.textContent).not.toContain("3분 테스트");

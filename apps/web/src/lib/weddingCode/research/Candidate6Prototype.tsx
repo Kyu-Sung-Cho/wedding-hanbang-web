@@ -275,16 +275,31 @@ export function Candidate6Prototype({
             <h1
               ref={screenHeadingRef}
               tabIndex={-1}
-              className="mt-3 rounded text-[28px] font-semibold leading-[1.25] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D7B1A9] sm:text-[38px]"
+              className="mt-3 rounded text-[24px] font-semibold leading-[1.3] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D7B1A9] sm:text-[30px]"
             >
-              우리 대화는 어디서부터 시작하면 편할까?
+              우리 얘기, 어디서부터 꺼낼까요
             </h1>
             <p className="mt-3 max-w-[520px] text-[15px] font-medium leading-[1.6] text-[#F7F1E8] sm:text-[16px]">
-              장면을 보며 편한 시작점을 골라보세요. 끝에는 오늘 꺼낼 대화 한 장을 직접 고릅니다.
+              장면을 하나씩 보고, 마지막에 오늘 꺼낼 한 마디를 직접 고릅니다.
             </p>
           </div>
 
           <div className="px-4 py-3 sm:px-8 sm:py-8">
+            {/*
+              시작 전에 재미가 한 번 터지는 자리. 어떤 문항도 "누가 먼저 꺼내는가"를
+              묻지 않고 어떤 anchor도 배정하지 않으므로 측정 오염 경로가 없다.
+              동시에 마지막 「주는 카드」가 회수하는 씨앗이다 — 이 문장이 없으면
+              S6의 「꺼내는 사람이 늘 나였다면」이 근거 없이 나온다.
+            */}
+            <p
+              data-intro-hook=""
+              className="mb-5 border-l-2 border-[#C7D1C2] pl-3 text-[16px] font-semibold leading-[1.55] text-[#243832]"
+            >
+              결혼 준비 얘기를 꺼내는 사람이,
+              <br />
+              늘 같은 사람이다.
+            </p>
+
             <fieldset>
               <legend className="text-[16px] font-semibold leading-relaxed text-[#243832]">
                 가족이나 주변 의견도 들을 예정인가요?
@@ -330,15 +345,15 @@ export function Candidate6Prototype({
               <TrustPoint title="결과를 단정하지 않아요" body="점수·유형·궁합이 없어요." />
             </div>
 
-            <div className="mt-6 rounded-[18px] bg-[#F7F1E8] px-5 py-5">
-              <p className="text-[12px] font-semibold tracking-wide text-[#8F6662]">마지막에 직접 고를 것</p>
-              <p className="mt-2 text-[18px] font-semibold leading-relaxed text-[#243832]">
-                “이번 선택은 조건부터 맞춰볼까, 원하는 장면부터 이야기해볼까?”
-              </p>
-              <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#36534E]">
-                답에서 성향을 추론한 문장이 아니라, 지금 필요한 중립 대화 카드예요.
-              </p>
-            </div>
+            {/*
+              예전에는 여기서 중립 카드 한 장을 미리 보여줬다. 사이클 3에서 카드 후보를
+              21장면 파생으로 바꾸면서 그 카드는 흐름에서 빠졌는데 미리보기만 남아,
+              첫 화면이 **끝까지 가도 만날 수 없는 카드**를 약속하고 있었다.
+              구체적인 카드 대신 절차만 알린다.
+            */}
+            <p className="mt-6 rounded-[18px] bg-[#F7F1E8] px-5 py-4 text-[14px] font-medium leading-[1.7] text-[#36534E]">
+              지나온 장면은 마지막에 다시 모아 보여드려요.
+            </p>
           </div>
         </section>
       </PrototypeShell>
