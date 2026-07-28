@@ -44,6 +44,7 @@
 | `59` | `AUTHORITATIVE-RESEARCH-COMPANION / M0` | Candidate 6.3 문항별 근거 한계·편향·폐기 기준 | 과학적·정확한 검사 주장 |
 | `60` | `RESEARCH-EXECUTION-DRAFT` | 사람 검증 준비 | 모집·녹음·수집 승인 |
 | `61` | `PRODUCT-DIRECTION / UNVALIDATED` | 안전한 소비자 여정·공유·제품화 순서 | 운영 출시 승인 |
+| `63` | `PRODUCT-DESIGN-PLAN / LOCAL-PROTOTYPE-ONLY` | `61`의 §2·§3을 화면·카피·파일로 내린 실행 기획과 2026-07-28 로컬 실측 | 운영 출시 승인, 차단 해제, 점수·유형 승인 |
 | `56`, `57` | `SUPERSEDED-RESEARCH-LINEAGE / M0` | Candidate 5 계보·회귀 비교 | 새 제품·연구 구현 기준 |
 | `00`, `02a`, `02b`, `22` | `REFERENCE-ONLY` | 출처 품질·시장 장면·안전 원칙 참고 | 선택지·축·점수의 타당도 주장 |
 | `21` | `RETIRED` | 과거 성장 아이디어 감사 | 답 공개, 분포, 유형, 게임화 구현 |
