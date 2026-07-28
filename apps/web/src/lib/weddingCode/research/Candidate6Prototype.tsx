@@ -21,8 +21,26 @@ import {
   type Candidate6StakeholderApplicability,
   type Candidate6SupportPairOrder,
 } from "./candidate6";
+import { CANDIDATE6_SCENE_TEXT } from "./candidate6SceneText";
 
-type PrototypeStep = "intro" | "questions" | "conversation-card" | "complete";
+type PrototypeStep = "intro" | "questions" | "recap" | "conversation-card" | "complete";
+
+/**
+ * 장면 라벨. **측정 응답과 완전히 분리된 별도 필드다.**
+ *
+ * 라벨은 아무것도 잠그지 않는다 — 회수 목록의 길이·순서·본문·버튼과 카드 후보가
+ * 라벨 상태와 무관하다. 그래서 이것은 보상 장치가 아니라 **불일치를 말할 자리**다.
+ * 업체를 안 쓰기로 한 커플, 기록을 안 남기는 커플이 소외되지 않고 "이건 우리 얘기
+ * 아님"이라고 말할 수 있는 유일한 채널이고, 그 표시는 어디에도 저장되지 않는다.
+ */
+type SceneLabel = "ours" | "not-ours";
+
+/** 두 라벨의 구조·촉감 클래스는 완전히 같다. 색만 다르다(테스트로 고정). */
+const sceneLabelBase =
+  "inline-flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-[12px]"
+  + " font-semibold transition-colors duration-150 ease-out active:-translate-y-[4px]"
+  + " active:scale-[1.015] motion-reduce:transform-none";
+const sceneLabelIdle = "bg-white text-[#36534E] border-[#C7D1C2]";
 
 const IMPACT_LABELS: Record<Candidate6ImpactLevel, string> = {
   strongly_hinders: "오히려 많이 방해돼요",
@@ -79,6 +97,8 @@ export function Candidate6Prototype({
   >({});
   const [selectedCardId, setSelectedCardId] =
     useState<Candidate6NeutralConversationCardId | null>(null);
+  const [sceneLabels, setSceneLabels] = useState<Partial<Record<Candidate6ItemId, SceneLabel>>>({});
+  const [contentsOpen, setContentsOpen] = useState(false);
   const screenHeadingRef = useRef<HTMLHeadingElement>(null);
   const questionScrollRef = useRef<HTMLDivElement>(null);
   const [focusRevision, setFocusRevision] = useState(0);
@@ -126,7 +146,17 @@ export function Candidate6Prototype({
       setQuestionIndex((value) => value + 1);
       return;
     }
-    moveToStep("conversation-card");
+    moveToStep("recap");
+  }
+
+  /** 같은 라벨을 다시 누르면 지운다. 어느 쪽도 기본값이 아니다. */
+  function toggleSceneLabel(itemId: Candidate6ItemId, label: SceneLabel) {
+    setSceneLabels((previous) => {
+      const next = { ...previous };
+      if (next[itemId] === label) delete next[itemId];
+      else next[itemId] = label;
+      return next;
+    });
   }
 
   function previousQuestion() {
@@ -143,6 +173,8 @@ export function Candidate6Prototype({
     setQuestionIndex(0);
     setResponses({});
     setSelectedCardId(null);
+    setSceneLabels({});
+    setContentsOpen(false);
   }
 
   if (step === "intro") {
@@ -234,7 +266,13 @@ export function Candidate6Prototype({
           <header className="mb-4 shrink-0">
             <div className="flex items-center justify-between gap-3 text-[12px] font-semibold text-[#36534E]">
               <span>장면 {questionIndex + 1}</span>
-              <span>{journey.length}개 중</span>
+              <button
+                type="button"
+                onClick={() => setContentsOpen(true)}
+                className="min-h-[44px] rounded text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
+              >
+                지나온 장면
+              </button>
             </div>
             <div
               role="progressbar"
@@ -325,7 +363,7 @@ export function Candidate6Prototype({
                   className={`${primaryButton} flex-1`}
                 >
                   {questionIndex + 1 === journey.length ? (
-                    "대화 카드 고르기"
+                    "지나온 장면 보기"
                   ) : (
                     <>
                       <span className="sr-only">선택 확인하고 </span>다음
@@ -336,7 +374,63 @@ export function Candidate6Prototype({
               </div>
             </div>
           </section>
+
+          {contentsOpen ? (
+            <ContentsSheet
+              items={journey.slice(0, questionIndex)}
+              labels={sceneLabels}
+              onToggle={toggleSceneLabel}
+              onClose={() => setContentsOpen(false)}
+            />
+          ) : null}
         </div>
+      </PrototypeShell>
+    );
+  }
+
+  if (step === "recap") {
+    return (
+      <PrototypeShell>
+        <section className={`${surface} px-4 py-6 sm:px-8 sm:py-9`}>
+          <h1
+            ref={screenHeadingRef}
+            tabIndex={-1}
+            className="rounded text-[28px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          >
+            지나온 장면이에요
+          </h1>
+          <p className="mt-3 text-[15px] font-medium leading-[1.7] text-[#36534E]">
+            저희가 해석한 게 아니라, 방금 지나오신 장면 그대로예요.
+          </p>
+          <p className="mt-2 text-[14px] font-medium leading-[1.7] text-[#36534E]">
+            마음에 걸리는 장면에 라벨을 붙여도 되고, 안 붙여도 돼요.
+          </p>
+          <p className="mt-1 text-[14px] font-medium leading-[1.7] text-[#8F6662]">
+            우리 얘기가 아닌 장면도 있어요. 그렇게 표시해두면 목록이 정직해져요.
+          </p>
+
+          <div className="mt-6 divide-y divide-[#EFE4D7] rounded-[20px] border border-[#EFE4D7]">
+            {journey.map((item) => (
+              <RecapRow
+                key={item.id}
+                itemId={item.id}
+                title={CANDIDATE6_SCENE_TEXT[item.id].sceneTitle}
+                bodyLines={CANDIDATE6_SCENE_TEXT[item.id].recapLines ?? [item.scenario]}
+                label={sceneLabels[item.id]}
+                onToggle={toggleSceneLabel}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => moveToStep("conversation-card")}
+            className={`${primaryButton} mt-6 w-full`}
+          >
+            오늘 꺼낼 한 마디 고르기
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </section>
       </PrototypeShell>
     );
   }
@@ -733,6 +827,124 @@ function AnchorCard({ label, text }: { label: string; text: string }) {
     <div className="px-3 py-3 sm:px-4 sm:py-4">
       <p className="text-[12px] font-semibold tracking-wide text-[#8F6662]">{label}</p>
       <p className="mt-1.5 text-[13px] font-semibold leading-[1.5] text-[#243832] sm:text-[15px] sm:leading-[1.6]">{text}</p>
+    </div>
+  );
+}
+
+/**
+ * 두 라벨. 구조·촉감 클래스가 완전히 같고 색만 다르다 — 어느 쪽도 기본값이 아니고,
+ * 어느 쪽을 눌러도 다음 화면이 바뀌지 않는다.
+ */
+function SceneLabelPills({
+  itemId,
+  label,
+  onToggle,
+}: {
+  itemId: Candidate6ItemId;
+  label: SceneLabel | undefined;
+  onToggle: (itemId: Candidate6ItemId, label: SceneLabel) => void;
+}) {
+  return (
+    <div className="mt-2 flex gap-2">
+      <button
+        type="button"
+        data-scene-label="ours"
+        aria-pressed={label === "ours"}
+        onClick={() => onToggle(itemId, "ours")}
+        className={`${sceneLabelBase} ${
+          label === "ours" ? "bg-[#36534E] text-white border-[#36534E]" : sceneLabelIdle
+        }`}
+      >
+        우리 얘기
+      </button>
+      <button
+        type="button"
+        data-scene-label="not-ours"
+        aria-pressed={label === "not-ours"}
+        onClick={() => onToggle(itemId, "not-ours")}
+        className={`${sceneLabelBase} ${
+          label === "not-ours" ? "bg-[#8F6662] text-white border-[#8F6662]" : sceneLabelIdle
+        }`}
+      >
+        우리 얘긴 아니에요
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 회수 목록의 한 행. `data-recap-body`는 라벨이 본문을 바꾸지 않는다는 것을 테스트가
+ * 스냅샷으로 고정하는 데 쓴다.
+ */
+function RecapRow({
+  itemId,
+  title,
+  bodyLines,
+  label,
+  onToggle,
+}: {
+  itemId: Candidate6ItemId;
+  title: string;
+  bodyLines: readonly string[];
+  label: SceneLabel | undefined;
+  onToggle: (itemId: Candidate6ItemId, label: SceneLabel) => void;
+}) {
+  return (
+    <div data-recap-row={itemId} data-recap-body={bodyLines.join(" ")} className="px-4 py-4">
+      <p className="text-[12px] font-semibold text-[#8F6662]">{title}</p>
+      {bodyLines.map((line) => (
+        <p key={line} className="mt-1 text-[16px] font-semibold leading-[1.5] text-[#243832]">
+          {line}
+        </p>
+      ))}
+      <SceneLabelPills itemId={itemId} label={label} onToggle={onToggle} />
+    </div>
+  );
+}
+
+/**
+ * 지나온 장면 목차. 회수 화면까지 가지 못하는 사람에게도 만회 기회를 준다.
+ * **답 내용과 답 여부를 적지 않는다** — 아직 측정 중이므로 회수 문장(Tier B)도 쓰지 않고
+ * 장면 제목만 둔다.
+ */
+function ContentsSheet({
+  items,
+  labels,
+  onToggle,
+  onClose,
+}: {
+  items: readonly { id: Candidate6ItemId }[];
+  labels: Partial<Record<Candidate6ItemId, SceneLabel>>;
+  onToggle: (itemId: Candidate6ItemId, label: SceneLabel) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]">
+      <p className="text-[16px] font-semibold text-[#243832]">지나온 장면</p>
+      <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#36534E]">
+        답은 여기 적지 않아요. 장면 제목만 있어요.
+      </p>
+
+      {items.length === 0 ? (
+        <p className="mt-4 text-[14px] font-medium leading-[1.6] text-[#8F6662]">
+          아직 지나온 장면이 없어요. 첫 장면을 넘기면 여기에 쌓여요.
+        </p>
+      ) : (
+        <div className="mt-3 max-h-[46vh] divide-y divide-[#EFE4D7] overflow-y-auto">
+          {items.map((item) => (
+            <div key={item.id} data-recap-row={item.id} data-recap-body="" className="py-3">
+              <p className="text-[14px] font-semibold text-[#243832]">
+                {CANDIDATE6_SCENE_TEXT[item.id].sceneTitle}
+              </p>
+              <SceneLabelPills itemId={item.id} label={labels[item.id]} onToggle={onToggle} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button type="button" onClick={onClose} className={`${secondaryButton} mt-4 w-full`}>
+        닫기
+      </button>
     </div>
   );
 }

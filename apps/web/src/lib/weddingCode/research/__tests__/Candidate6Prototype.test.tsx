@@ -130,9 +130,14 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
       );
       expect(choice, `question ${index + 1}`).toBeInstanceOf(HTMLInputElement);
       await act(async () => (choice as HTMLInputElement).click());
-      const label = index === 18 ? "대화 카드 고르기" : "선택 확인하고 다음";
+      const label = index === 18 ? "지나온 장면 보기" : "선택 확인하고 다음";
       await act(async () => buttonByText(container, label).click());
     }
+
+    // 마지막 답 뒤에는 회수 화면이 먼저 온다. 지나온 장면이 처음으로 문장이 되는
+    // 자리이고, 카드 고르기는 그 다음이다(`Candidate6Recap.test.tsx`가 계약을 지킨다).
+    expect(container.textContent).toContain("지나온 장면이에요");
+    await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
 
     expect(container.textContent).toContain("오늘 실제로 꺼내고 싶은 대화를 골라주세요");
     expect(buttonByText(container, "내 카드 보기").disabled).toBe(true);
