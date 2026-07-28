@@ -58,6 +58,8 @@
   `docs/operations/LAUNCH_PREP_SESSION_2026-07-26.md`
 - 업체 병합 판정(79쌍 전건 · 근거와 미결 사유):
   `docs/operations/VENDOR_MERGE_REVIEW_2026-07-27.md`
+- **WeddingCode 「오늘 한 마디」 인계**(PR #75 · 머지 전 닫을 M1~M4 · 실행 함정 3종):
+  `docs/operations/WEDDINGCODE_SESSION_HANDOFF_2026-07-28.md`
 - 업체 공시 실행 기준: `scripts/ingest/README.md`
 - 공시 원본 출처·기준 시점(확인 필요 항목 포함):
   `docs/operations/DISCLOSURE_SOURCE_PROVENANCE.md`
