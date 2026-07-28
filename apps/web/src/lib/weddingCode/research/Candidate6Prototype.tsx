@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, HeartHandshake, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, RotateCcw, ShieldCheck } from "lucide-react";
 import {
   buildCandidate6Journey,
   CANDIDATE6_BIPOLAR_DIRECTIONS,
   CANDIDATE6_ESCAPE_RESPONSES,
   CANDIDATE6_IMPACT_LEVELS,
-  CANDIDATE6_NEUTRAL_CONVERSATION_CARDS,
   CANDIDATE6_RESEARCH_EXACT_VERSION,
   isCandidate6BipolarVisuallyReversed,
   normalizeCandidate6BipolarVisualChoice,
@@ -16,14 +15,24 @@ import {
   type Candidate6Form,
   type Candidate6ImpactLevel,
   type Candidate6ItemId,
-  type Candidate6NeutralConversationCardId,
   type Candidate6ResearchResponse,
   type Candidate6StakeholderApplicability,
   type Candidate6SupportPairOrder,
 } from "./candidate6";
-import { CANDIDATE6_SCENE_TEXT } from "./candidate6SceneText";
+import {
+  buildInviteCopyLine,
+  CANDIDATE6_SCENE_TEXT,
+  deriveCardCandidates,
+} from "./candidate6SceneText";
 
-type PrototypeStep = "intro" | "questions" | "recap" | "conversation-card" | "complete";
+type PrototypeStep =
+  | "intro"
+  | "questions"
+  | "recap"
+  | "card-pick"
+  | "card-give"
+  | "card-face"
+  | "invite";
 
 /**
  * 장면 라벨. **측정 응답과 완전히 분리된 별도 필드다.**
@@ -95,8 +104,13 @@ export function Candidate6Prototype({
   const [responses, setResponses] = useState<
     Partial<Record<Candidate6ItemId, Candidate6ResearchResponse>>
   >({});
-  const [selectedCardId, setSelectedCardId] =
-    useState<Candidate6NeutralConversationCardId | null>(null);
+  /** 내가 물어볼 한 장. */
+  const [myCardId, setMyCardId] = useState<Candidate6ItemId | null>(null);
+  /** 상대가 나한테 물어줄 한 장. 고르지 않는 것도 선택이다. */
+  const [givenCardId, setGivenCardId] = useState<Candidate6ItemId | null>(null);
+  /** 확정 전 현재 화면의 선택. */
+  const [draftCardId, setDraftCardId] = useState<Candidate6ItemId | null>(null);
+  const [copied, setCopied] = useState(false);
   const [sceneLabels, setSceneLabels] = useState<Partial<Record<Candidate6ItemId, SceneLabel>>>({});
   const [contentsOpen, setContentsOpen] = useState(false);
   const screenHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -172,10 +186,22 @@ export function Candidate6Prototype({
     setStakeholderApplicability(null);
     setQuestionIndex(0);
     setResponses({});
-    setSelectedCardId(null);
+    setMyCardId(null);
+    setGivenCardId(null);
+    setDraftCardId(null);
+    setCopied(false);
     setSceneLabels({});
     setContentsOpen(false);
   }
+
+  /**
+   * 카드 후보. **응답도 라벨도 보지 않는다** — `deriveCardCandidates`가 투여된 항목에서
+   * 리뷰 플래그만 빼고 journey 순서를 보존한다.
+   */
+  const cardCandidates = useMemo(
+    () => deriveCardCandidates(journey.map((item) => item.id)),
+    [journey]
+  );
 
   if (step === "intro") {
     return (
@@ -424,7 +450,10 @@ export function Candidate6Prototype({
 
           <button
             type="button"
-            onClick={() => moveToStep("conversation-card")}
+            onClick={() => {
+              setDraftCardId(null);
+              moveToStep("card-pick");
+            }}
             className={`${primaryButton} mt-6 w-full`}
           >
             오늘 꺼낼 한 마디 고르기
@@ -435,74 +464,115 @@ export function Candidate6Prototype({
     );
   }
 
-  if (step === "conversation-card") {
+  if (step === "card-pick" || step === "card-give") {
+    const giving = step === "card-give";
+    const candidates = cardCandidates.filter((id) => id !== (giving ? myCardId : null));
+    const chosenSoFar = myCardId ? CANDIDATE6_SCENE_TEXT[myCardId] : null;
+    const missingCount = journey.filter(
+      (item) => CANDIDATE6_SCENE_TEXT[item.id].card === null
+    ).length;
+
     return (
       <PrototypeShell>
         <section className={`${surface} px-4 py-6 sm:px-8 sm:py-9`}>
-          <p className="text-[12px] font-semibold tracking-[0.12em] text-[#8F6662]">마지막 한 장</p>
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="mt-3 rounded text-[28px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+            className="rounded text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
           >
-            오늘 실제로 꺼내고 싶은 대화를 골라주세요
+            {giving
+              ? "이번엔 상대가 나한테 물어줄 한 마디를 골라주세요"
+              : "오늘 꺼낼 한 마디를 골라주세요"}
           </h1>
           <p className="mt-3 text-[15px] font-medium leading-[1.7] text-[#36534E]">
-            앞선 답을 점수로 바꾸지 않습니다. 지금 도움이 될 카드를 내가 직접 고릅니다.
+            {giving
+              ? "꺼내는 사람이 늘 나였다면, 이번 한 번은 상대에게 맡겨도 돼요."
+              : "지나온 장면 전부에서 고를 수 있어요. 라벨은 후보를 바꾸지 않아요."}
           </p>
 
-          <div className="mt-6 grid gap-3">
-            {CANDIDATE6_NEUTRAL_CONVERSATION_CARDS.map((card) => {
-              const selected = selectedCardId === card.id;
+          {giving && chosenSoFar ? (
+            <div className="mt-4 rounded-[16px] bg-[#F7F1E8] px-4 py-3">
+              <p className="text-[12px] font-semibold text-[#8F6662]">내가 물어볼 한 마디</p>
+              <p className="mt-1 truncate text-[14px] font-semibold text-[#243832]">
+                {chosenSoFar.card?.prompt}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-5 divide-y divide-[#EFE4D7] rounded-[20px] border border-[#EFE4D7]">
+            {candidates.map((id) => {
+              const entry = CANDIDATE6_SCENE_TEXT[id];
+              const selected = draftCardId === id;
               return (
                 <button
-                  key={card.id}
+                  key={id}
                   type="button"
-                  onClick={() => setSelectedCardId(card.id)}
+                  data-card-candidate={id}
                   aria-pressed={selected}
-                  className={`no-min-tap min-h-[48px] rounded-[18px] border px-5 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 ${
-                    selected
-                      ? "border-[#36534E] bg-[#F7F1E8]"
-                      : "border-[#EFE4D7] bg-white hover:border-[#C7D1C2]"
+                  onClick={() => setDraftCardId(id)}
+                  className={`no-min-tap flex min-h-[76px] w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] motion-reduce:transform-none ${
+                    selected ? "bg-[#F7F1E8]" : "bg-white"
                   }`}
                 >
-                  <span className="flex items-start justify-between gap-3">
-                    <span>
-                      <span className="block text-[12px] font-semibold text-[#8F6662]">{card.title}</span>
-                      <span className="mt-1.5 block text-[16px] font-semibold leading-[1.55] text-[#243832]">
-                        {card.prompt}
-                      </span>
+                  <span>
+                    <span className="block text-[12px] font-semibold text-[#8F6662]">
+                      {entry.sceneTitle}
                     </span>
-                    <span
-                      aria-hidden="true"
-                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                        selected ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#C7D1C2]"
-                      }`}
-                    >
-                      {selected && <Check className="h-4 w-4" />}
+                    <span className="mt-1 block text-[16px] font-semibold leading-[1.5] text-[#243832]">
+                      {entry.card?.prompt}
                     </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                      selected ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#C7D1C2]"
+                    }`}
+                  >
+                    {selected && <Check className="h-4 w-4" />}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-7 flex gap-3 border-t border-[#EFE4D7] pt-4">
+          {missingCount > 0 ? (
+            <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+              {missingCount}개 장면은 문장을 아직 다듬는 중이라 카드가 없어요.
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex gap-3">
+            {giving ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setGivenCardId(null);
+                  setDraftCardId(null);
+                  moveToStep("card-face");
+                }}
+                className={`${secondaryButton} min-h-[48px] flex-1`}
+              >
+                이번엔 안 고를게요
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={() => moveToStep("questions")}
-              className={secondaryButton}
+              disabled={!draftCardId}
+              onClick={() => {
+                if (!draftCardId) return;
+                if (giving) {
+                  setGivenCardId(draftCardId);
+                  setDraftCardId(null);
+                  moveToStep("card-face");
+                  return;
+                }
+                setMyCardId(draftCardId);
+                setDraftCardId(null);
+                moveToStep("card-give");
+              }}
+              className={`${primaryButton} min-h-[48px] flex-1`}
             >
-              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-              이전
-            </button>
-            <button
-              type="button"
-              onClick={() => selectedCardId && moveToStep("complete")}
-              disabled={!selectedCardId}
-              className={`${primaryButton} flex-1`}
-            >
-              내 카드 보기
+              이 카드로 정하기
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
@@ -511,46 +581,129 @@ export function Candidate6Prototype({
     );
   }
 
-  const selectedCard = CANDIDATE6_NEUTRAL_CONVERSATION_CARDS.find(
-    (card) => card.id === selectedCardId
-  );
-  return (
-    <PrototypeShell>
-      <section className={`${surface} overflow-hidden`}>
-        <div className="bg-[#243832] px-5 py-8 text-white sm:px-8 sm:py-10">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
-            <HeartHandshake aria-hidden="true" className="h-6 w-6 text-[#F7F1E8]" />
-          </div>
-          <p className="mt-5 text-[12px] font-semibold tracking-[0.14em] text-[#C7D1C2]">오늘의 대화 카드</p>
+  const myCard = myCardId ? CANDIDATE6_SCENE_TEXT[myCardId] : null;
+  const givenCard = givenCardId ? CANDIDATE6_SCENE_TEXT[givenCardId] : null;
+  const copyLine = myCard?.card ? buildInviteCopyLine(myCard.card.prompt) : "";
+
+  if (step === "invite") {
+    return (
+      <PrototypeShell>
+        <section className={`${surface} px-4 py-6 sm:px-8 sm:py-9`}>
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="mt-3 rounded text-[28px] font-semibold leading-[1.4] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D7B1A9] sm:text-[34px]"
+            className="rounded text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
           >
-            {selectedCard?.prompt}
+            답은 안 보내고, 한 마디만 건네요
           </h1>
-        </div>
-        <div className="px-5 py-6 sm:px-8 sm:py-8">
-          <p className="text-[12px] font-semibold tracking-wide text-[#8F6662]">10분 안에 해보기</p>
-          <p className="mt-2 text-[17px] font-semibold leading-[1.7] text-[#243832]">
-            {selectedCard?.action}
+          <p className="mt-3 text-[15px] font-medium leading-[1.7] text-[#36534E]">
+            링크는 아직 열려 있지 않아요. 지금은 말로 건네는 초대만 있어요.
           </p>
 
-          <p className="mt-6 border-y border-[#EFE4D7] py-5 text-[16px] font-semibold leading-[1.7] text-[#36534E]">
-            오늘은 이 한 문장만 꺼내도 충분해요.
+          <p className="mt-5 text-[12px] font-semibold text-[#8F6662]">
+            복사되는 건 이 한 줄뿐이에요
+          </p>
+          <p
+            data-invite-copy={copyLine}
+            className="mt-2 border-y border-[#EFE4D7] py-3 text-[14px] font-medium leading-[1.6] text-[#243832]"
+          >
+            {copyLine}
+          </p>
+          <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+            상대가 아무것도 안 해도 제 화면은 그대로예요.
           </p>
 
-          <div className="mt-5 rounded-[16px] bg-[#F7F1E8] px-4 py-4 text-[14px] font-medium leading-[1.7] text-[#36534E]">
-            이 카드는 성향 결과가 아니라 내가 직접 고른 대화 주제예요. 답은 이 화면 밖으로
-            보내지지 않으며, 새로고침하면 사라집니다.
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText?.(copyLine);
+                setCopied(true);
+              }}
+              className={`${primaryButton} min-h-[48px] flex-1`}
+            >
+              {copied ? "복사했어요" : "이 한 줄만 복사"}
+            </button>
+            <button
+              type="button"
+              onClick={() => moveToStep("card-face")}
+              className={`${secondaryButton} min-h-[48px] flex-1`}
+            >
+              안 보내고 끝내기
+            </button>
           </div>
+        </section>
+      </PrototypeShell>
+    );
+  }
 
-          <button type="button" onClick={restart} className={`${secondaryButton} mt-6 w-full`}>
-            <RotateCcw aria-hidden="true" className="h-4 w-4" />
-            처음부터 다시 보기
-          </button>
+  return (
+    <PrototypeShell>
+      <section
+        data-card-face=""
+        className={`${surface} mx-auto aspect-[5/8] w-full max-w-[320px] px-5 py-6`}
+      >
+        <p className="text-[12px] font-semibold text-[#8F6662]">{myCard?.sceneTitle}</p>
+        <h1
+          ref={screenHeadingRef}
+          tabIndex={-1}
+          className="mt-3 rounded text-[24px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+        >
+          {myCard?.card?.prompt}
+        </h1>
+
+        <div className="mt-5 border-t border-[#EFE4D7] pt-4">
+          <p className="text-[12px] font-semibold text-[#8F6662]">언제</p>
+          <p className="mt-1 text-[14px] font-medium leading-[1.6] text-[#243832]">
+            {myCard?.card?.when}
+          </p>
+          <p className="mt-3 text-[12px] font-semibold text-[#8F6662]">10분 안에</p>
+          <p className="mt-1 text-[14px] font-medium leading-[1.6] text-[#243832]">
+            {myCard?.card?.action}
+          </p>
         </div>
+
+        {givenCard ? (
+          <div className="mt-4 border-t border-[#EFE4D7] pt-4">
+            <p className="text-[12px] font-semibold text-[#8F6662]">상대가 물어줄 한 마디</p>
+            <p className="mt-1 text-[14px] font-medium leading-[1.6] text-[#243832]">
+              {givenCard.card?.prompt}
+            </p>
+          </div>
+        ) : null}
+
+        <p className="mt-5 text-[12px] font-medium text-[#8F6662]">
+          웨딩코드 로컬 미리보기 · 정식 검사 아님
+        </p>
       </section>
+
+      <div className="mx-auto mt-5 w-full max-w-[320px]">
+        <p className="text-[14px] font-medium leading-[1.7] text-[#36534E]">
+          그대로 말해도 되고, 두 분 말투로 바꿔도 돼요.
+        </p>
+        <p className="mt-2 text-[16px] font-semibold leading-[1.7] text-[#243832]">
+          오늘은 이 한 문장만 꺼내도 충분해요.
+        </p>
+        <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#8F6662]">
+          우리는 이 카드를 보관하지 않았어요. 새로고침하면 사라져요.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCopied(false);
+            moveToStep("invite");
+          }}
+          className={`${primaryButton} mt-5 w-full`}
+        >
+          한 마디 건네기
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={restart} className={`${secondaryButton} mt-3 w-full`}>
+          <RotateCcw aria-hidden="true" className="h-4 w-4" />
+          처음부터 다시 보기
+        </button>
+      </div>
     </PrototypeShell>
   );
 }

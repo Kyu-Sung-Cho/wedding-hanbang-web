@@ -139,15 +139,18 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     expect(container.textContent).toContain("지나온 장면이에요");
     await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
 
-    expect(container.textContent).toContain("오늘 실제로 꺼내고 싶은 대화를 골라주세요");
-    expect(buttonByText(container, "내 카드 보기").disabled).toBe(true);
-    await act(async () => buttonByText(container, "이번 선택은 조건부터 맞춰볼까").click());
-    await act(async () => buttonByText(container, "내 카드 보기").click());
+    // 카드는 응답에서 파생되지 않는다. 후보 목록에서 사용자가 직접 고르고, 그 사실을
+    // 화면이 그대로 말한다. 상세 계약은 `Candidate6CardSteps.test.tsx`에 있다.
+    expect(container.textContent).toContain("오늘 꺼낼 한 마디를 골라주세요");
+    expect(buttonByText(container, "이 카드로 정하기").disabled).toBe(true);
+    const firstCandidate = container.querySelector("[data-card-candidate]");
+    await act(async () => (firstCandidate as HTMLButtonElement).click());
+    await act(async () => buttonByText(container, "이 카드로 정하기").click());
+    await act(async () => buttonByText(container, "이번엔 안 고를게요").click());
 
-    expect(container.textContent).toContain("오늘의 대화 카드");
-    expect(container.textContent).toContain("내가 직접 고른 대화 주제예요");
     expect(container.textContent).toContain("오늘은 이 한 문장만 꺼내도 충분해요");
-    expect(container.textContent).toContain("새로고침하면 사라집니다");
+    expect(container.textContent).toContain("우리는 이 카드를 보관하지 않았어요.");
+    expect(container.textContent).toContain("웨딩코드 로컬 미리보기 · 정식 검사 아님");
     expect(container.textContent).not.toMatch(/살펴본 장면|모름·상황 차이·넘김/);
     expect(container.textContent).not.toMatch(/궁합 점수|정확도|희귀도|상위 \d+%/);
   });
