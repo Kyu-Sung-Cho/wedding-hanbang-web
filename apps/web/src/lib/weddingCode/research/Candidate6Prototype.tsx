@@ -67,6 +67,9 @@ const sceneLabelBase =
   + " active:scale-[1.015] motion-reduce:transform-none";
 const sceneLabelIdle = "bg-white text-[#36534E] border-[#C7D1C2]";
 
+/** 트리거의 `aria-controls`와 시트의 `id`가 가리키는 같은 값. */
+const CONTENTS_SHEET_ID = "candidate6-contents-sheet";
+
 const IMPACT_LABELS: Record<Candidate6ImpactLevel, string> = {
   strongly_hinders: "오히려 많이 방해돼요",
   slightly_hinders: "조금 방해돼요",
@@ -134,6 +137,8 @@ export function Candidate6Prototype({
   const [pendingInterlude, setPendingInterlude] = useState<number | null>(null);
   const screenHeadingRef = useRef<HTMLHeadingElement>(null);
   const questionScrollRef = useRef<HTMLDivElement>(null);
+  /** 시트를 닫을 때 포커스를 돌려줄 자리. 없으면 포커스가 body로 유실된다. */
+  const contentsTriggerRef = useRef<HTMLButtonElement>(null);
   const [focusRevision, setFocusRevision] = useState(0);
 
   const journey = useMemo(
@@ -157,6 +162,24 @@ export function Candidate6Prototype({
       delete document.documentElement.dataset.weddingCodeResearchHydrated;
     };
   }, []);
+
+  // 시트는 화면을 덮으므로 Escape로 닫히고 포커스가 트리거로 돌아와야 한다.
+  // 이 시트가 중도이탈자의 유일한 만회 경로라 키보드 사용자에게 닫혀 있으면 안 된다.
+  useEffect(() => {
+    if (!contentsOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setContentsOpen(false);
+      contentsTriggerRef.current?.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [contentsOpen]);
+
+  function closeContents() {
+    setContentsOpen(false);
+    contentsTriggerRef.current?.focus();
+  }
 
   function moveToStep(nextStep: PrototypeStep) {
     setStep(nextStep);
@@ -386,7 +409,10 @@ export function Candidate6Prototype({
                 {sceneRhythmLabel(questionIndex, journey.length)}
               </span>
               <button
+                ref={contentsTriggerRef}
                 type="button"
+                aria-expanded={contentsOpen}
+                aria-controls={CONTENTS_SHEET_ID}
                 onClick={() => setContentsOpen(true)}
                 className="min-h-[44px] rounded text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
               >
@@ -496,7 +522,7 @@ export function Candidate6Prototype({
               items={journey.slice(0, questionIndex)}
               labels={sceneLabels}
               onToggle={toggleSceneLabel}
-              onClose={() => setContentsOpen(false)}
+              onClose={closeContents}
             />
           ) : null}
         </div>
@@ -632,6 +658,27 @@ export function Candidate6Prototype({
           ) : null}
 
           <div className="mt-6 flex gap-3">
+            {/*
+              되돌아갈 길. 예전에는 회수 이후 전 구간에 뒤로가 없어서, 카드를 잘못
+              확정하면 19~21개 답을 전부 날리는 전면 재시작뿐이었다(2026-07-28 감사).
+              답은 보존한 채 한 걸음씩 되돌린다.
+            */}
+            <button
+              type="button"
+              onClick={() => {
+                if (giving) {
+                  setDraftCardId(myCardId);
+                  moveToStep("card-pick");
+                  return;
+                }
+                setDraftCardId(null);
+                moveToStep("recap");
+              }}
+              className={secondaryButton}
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              이전
+            </button>
             {giving ? (
               <button
                 type="button"
@@ -1162,8 +1209,28 @@ function ContentsSheet({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]">
-      <p className="text-[16px] font-semibold text-[#243832]">지나온 장면</p>
+    <>
+      {/* 시트가 화면을 덮는다는 것을 시각으로도 알린다(기획서 §3 S1b). */}
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        className="fixed inset-0 z-10 bg-[#243832]/20 transition-opacity duration-[220ms] motion-reduce:transition-none"
+      />
+      <div
+        id={CONTENTS_SHEET_ID}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${CONTENTS_SHEET_ID}-title`}
+        className="fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]"
+      >
+        <p
+          id={`${CONTENTS_SHEET_ID}-title`}
+          ref={(node) => node?.focus()}
+          tabIndex={-1}
+          className="rounded text-[16px] font-semibold text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+        >
+          지나온 장면
+        </p>
       <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#36534E]">
         답은 여기 적지 않아요. 장면 제목만 있어요.
       </p>
@@ -1185,9 +1252,10 @@ function ContentsSheet({
         </div>
       )}
 
-      <button type="button" onClick={onClose} className={`${secondaryButton} mt-4 w-full`}>
-        닫기
-      </button>
-    </div>
+        <button type="button" onClick={onClose} className={`${secondaryButton} mt-4 w-full`}>
+          닫기
+        </button>
+      </div>
+    </>
   );
 }

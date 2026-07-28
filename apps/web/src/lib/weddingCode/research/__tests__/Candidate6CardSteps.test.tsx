@@ -230,3 +230,65 @@ describe("카드 고르기 단계", () => {
     });
   });
 });
+
+/**
+ * 후보가 **응답**과도 무관한지 본다.
+ *
+ * 2026-07-28 독립 감사가 이 자리의 구멍을 찾았다: 카드 화면에 도달하는 워크스루가
+ * 전부 `input[value^="bipolar-"], input[value^="impact-"]`의 **첫 라디오만** 눌러서
+ * escape가 한 번도 선택되지 않았고, `cardCandidates`에 `responses[id]?.kind !== "escape"`
+ * 필터를 심은 변이가 통과했다. `deriveCardCandidates`의 arity 검사는 순수함수 내부만
+ * 막고 호출 지점을 제약하지 못한다.
+ *
+ * 「넘긴 장면은 후보에서 빼주는 게 친절하다」는 자연스러운 오판이 들어오면 사용자는
+ * 21문항 직후 짧아진 목록을 보며 「내 답을 보고 걸렀다」고 믿는다 — 기획서 위험 5가
+ * 카피로 막으려던 오해를 코드가 만들어낸다.
+ */
+describe("카드 후보가 응답과도 무관하다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  /** 전 문항을 주어진 방식으로 답하고 카드 고르기 화면까지 간다. */
+  async function walkWith(mode: "escape" | "neutral") {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+
+    for (let index = 0; index < JOURNEY.length; index += 1) {
+      if (mode === "escape") {
+        const toggle = [...container.querySelectorAll("button")].find((button) =>
+          button.textContent?.includes("딱 맞는 답이 없어요"));
+        if (toggle) await act(async () => toggle.click());
+      }
+      const picked = mode === "escape"
+        ? container.querySelector('input[value^="escape-"]')
+        : container.querySelector('input[value$="neutral_impact"], input[value="bipolar-0"]');
+      const fallback = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
+      await act(async () => ((picked ?? fallback) as HTMLInputElement).click());
+      await act(async () =>
+        buttonByText(container, index === JOURNEY.length - 1 ? "지나온 장면 보기" : "다음").click());
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
+    }
+    await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
+  }
+
+  it("전 항목을 「딱 맞는 답이 없어요」로 넘겨도 후보가 그대로다", async () => {
+    await walkWith("escape");
+    expect(candidateIds(container)).toEqual([...EXPECTED_CANDIDATES]);
+  });
+
+  it("전 항목을 중립으로 답해도 후보가 그대로다", async () => {
+    await walkWith("neutral");
+    expect(candidateIds(container)).toEqual([...EXPECTED_CANDIDATES]);
+  });
+});
