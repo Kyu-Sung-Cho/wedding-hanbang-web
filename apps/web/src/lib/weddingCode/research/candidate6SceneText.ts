@@ -72,7 +72,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   // ── 선택의 첫 단추 ────────────────────────────────────────────────
   "C6-DS1": {
     sceneTitle: "마지막 두 곳",
-    recapLines: ["조건은 둘 다 맞다.", "두 곳이 남았다.", "이제 취향 얘기다."],
+    recapLines: ["조건은 둘 다 맞다.", "두 곳이 남았다.", "이제 이야기만 남았다."],
     card: {
       prompt: "조건 말고, 어느 쪽이 더 좋았어?",
       when: "자기 전에 불 끄고 누워서",
@@ -139,7 +139,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   },
   "C6-OA3": {
     sceneTitle: "작은 일을 맡았다",
-    recapLines: ["작은 일은 한 명이 맡았다.", "범위는 합의했다.", "순서는 내가 정한다."],
+    recapLines: ["작은 일은 한 명이 맡았다.", "범위는 합의했다.", "순서는 담당이 정한다."],
     card: {
       prompt: "순서는 내가 정해도 괜찮아?",
       when: "지하철에서 나란히 앉아서",
@@ -148,7 +148,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   },
   "C6-CP1": {
     sceneTitle: "중간에 확인",
-    recapLines: ["며칠 걸리는 일이다.", "중간 시점을 약속했다.", "같이 확인하면 된다."],
+    recapLines: ["며칠 걸리는 일이다.", "중간 시점을 약속했다.", "함께 볼 자리가 있다."],
     card: {
       prompt: "중간에 한 번 같이 볼 날 정할래?",
       when: "카톡으로 딱 이 한 줄만",
@@ -206,7 +206,7 @@ export const CANDIDATE6_SCENE_TEXT = {
   },
   "C6-AS3": {
     sceneTitle: "대안 첫 단계",
-    recapLines: ["원했던 게 어려워졌다.", "대안을 봐야 한다.", "시간은 아직 있다."],
+    recapLines: ["원했던 게 어려워졌다.", "대안이 남아 있다.", "시간은 아직 있다."],
     card: {
       prompt: "대안 찾는 첫 단계만 같이 정할래?",
       when: "지하철에서 나란히 앉아서",

@@ -159,7 +159,7 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     await act(async () => buttonByText(container, "이번엔 안 고를게요").click());
 
     expect(container.textContent).toContain("오늘은 이 한 문장만 꺼내도 충분해요");
-    expect(container.textContent).toContain("우리는 이 카드를 보관하지 않았어요.");
+    expect(container.textContent).toContain("저희는 이 카드를 보관하지 않았어요.");
     expect(container.textContent).toContain("웨딩코드 로컬 미리보기 · 정식 검사 아님");
     expect(container.textContent).not.toMatch(/살펴본 장면|모름·상황 차이·넘김/);
     expect(container.textContent).not.toMatch(/궁합 점수|정확도|희귀도|상위 \d+%/);

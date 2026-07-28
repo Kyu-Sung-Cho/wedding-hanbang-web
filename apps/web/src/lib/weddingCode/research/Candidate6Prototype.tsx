@@ -105,9 +105,9 @@ const VISUAL_BIPOLAR_SHORT_LABELS: Record<Candidate6BipolarDirection, string> = 
 const surface =
   "rounded-[24px] border border-[#EFE4D7] bg-white shadow-[0_18px_50px_rgba(36,56,50,0.07)]";
 const primaryButton =
-  "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40";
+  "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
-  "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2";
+  "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none";
 
 export function Candidate6Prototype({
   form,
@@ -276,11 +276,11 @@ export function Candidate6Prototype({
         <h1
           ref={screenHeadingRef}
           tabIndex={-1}
-          className="max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.5] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          className="c6-fade-up max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.5] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >
           {sentence}
         </h1>
-        <button type="button" onClick={leaveInterlude} className={`${secondaryButton} mt-8`}>
+        <button type="button" onClick={leaveInterlude} className={`${secondaryButton} c6-fade-up c6-delay-80 mt-8`}>
           넘기기
         </button>
       </main>
@@ -603,7 +603,7 @@ export function Candidate6Prototype({
           <p className="mt-3 text-[15px] font-medium leading-[1.7] text-[#36534E]">
             {giving
               ? "꺼내는 사람이 늘 나였다면, 이번 한 번은 상대에게 맡겨도 돼요."
-              : "지나온 장면 전부에서 고를 수 있어요. 라벨은 후보를 바꾸지 않아요."}
+              : "지나온 장면에서 고르는 거예요. 답이나 라벨로 걸러내지 않았어요."}
           </p>
 
           {giving && chosenSoFar ? (
@@ -747,7 +747,7 @@ export function Candidate6Prototype({
             {copyLine}
           </p>
           <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
-            상대가 아무것도 안 해도 제 화면은 그대로예요.
+            상대가 아무것도 안 해도 이 화면은 그대로예요.
           </p>
 
           <div className="mt-6 flex gap-3">
@@ -822,7 +822,7 @@ export function Candidate6Prototype({
           오늘은 이 한 문장만 꺼내도 충분해요.
         </p>
         <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#8F6662]">
-          우리는 이 카드를 보관하지 않았어요. 새로고침하면 사라져요.
+          저희는 이 카드를 보관하지 않았어요. 새로고침하면 사라져요.
         </p>
 
         <button
@@ -1053,7 +1053,7 @@ function ScaleChoice({
 }) {
   return (
     <label
-      className={`no-min-tap flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border px-1 py-2 text-center text-[12px] font-semibold leading-[1.25] transition duration-150 active:scale-[0.98] motion-reduce:transform-none focus-within:outline-none focus-within:ring-2 focus-within:ring-[#36534E] focus-within:ring-offset-1 ${
+      className={`no-min-tap flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border px-1 py-2 text-center text-[12px] font-semibold leading-[1.25] transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none focus-within:outline-none focus-within:ring-2 focus-within:ring-[#36534E] focus-within:ring-offset-1 ${
         selected
           ? "border-[#36534E] bg-[#F7F1E8] text-[#243832]"
           : "border-[#EFE4D7] bg-white text-[#36534E] hover:border-[#C7D1C2]"
@@ -1098,7 +1098,7 @@ function ChoiceRow({
 }) {
   return (
     <label
-      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-semibold leading-relaxed transition duration-150 active:scale-[0.99] motion-reduce:transform-none ${
+      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-semibold leading-relaxed transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none ${
         selected
           ? "border-[#36534E] bg-[#F7F1E8] text-[#243832]"
           : quiet
@@ -1214,14 +1214,14 @@ function ContentsSheet({
       <div
         aria-hidden="true"
         onClick={onClose}
-        className="fixed inset-0 z-10 bg-[#243832]/20 transition-opacity duration-[220ms] motion-reduce:transition-none"
+        className="c6-fade-in fixed inset-0 z-10 bg-[#243832]/20"
       />
       <div
         id={CONTENTS_SHEET_ID}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${CONTENTS_SHEET_ID}-title`}
-        className="fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]"
+        className="c6-sheet-in fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]"
       >
         <p
           id={`${CONTENTS_SHEET_ID}-title`}

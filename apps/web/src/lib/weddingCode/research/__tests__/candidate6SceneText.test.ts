@@ -106,7 +106,10 @@ describe("장면 텍스트 상수", () => {
         ? [entry.card.prompt, entry.card.when]
         : [])];
       for (const text of outsideAction) {
-        expect(text, `${id}: "${text}"에 시간 표기`).not.toMatch(/\d+\s*(분|초)/);
+        // 아라비아 숫자만 보면 「오 분만」·「십 분짜리」가 통과한다(2026-07-28 감사).
+        // 기획서 §7 카피 덱의 예시 자신이 그 형태였다.
+        expect(text, `${id}: "${text}"에 시간 표기`)
+          .not.toMatch(/(\d+|[영일이삼사오육칠팔구십반몇])\s*(분|초|시간)/);
       }
     }
   });

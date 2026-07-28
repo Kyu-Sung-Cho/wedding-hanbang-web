@@ -198,3 +198,56 @@ describe("이야기 리듬 · 막간 · 황혼", () => {
       .toBe(String(longJourney.length));
   });
 });
+
+/**
+ * press feedback은 **손가락이 집는 방향으로 뜬다**(기획 §6-2). 그리고 다섯 답·escape
+ * 4택·모든 버튼에 **완전히 동일하게** 적용해야 특정 응답 차등이 0이 된다(§3 S0).
+ *
+ * 2026-07-28 감사: 다섯 답과 escape 4택이 오히려 반대 방향(가라앉음)이었고 주/보조
+ * 버튼에는 `active:` 변형이 아예 없었다. 반전이 들어간 곳은 라벨과 카드 후보 행뿐이었다.
+ */
+describe("press feedback이 전 표면에서 같다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  const pressOf = (element: HTMLElement) =>
+    element.className.split(/\s+/).filter((token) => token.startsWith("active:")).sort().join(" ");
+
+  it("다섯 답이 전부 같은 press를 쓴다 — 특정 응답 차등 0", () => {
+    const cells = [...container.querySelectorAll<HTMLElement>("label")]
+      .filter((label) => label.querySelector('input[value^="bipolar-"], input[value^="impact-"]'));
+    expect(cells.length, "다섯 답을 못 찾았다").toBe(5);
+
+    const presses = new Set(cells.map(pressOf));
+    expect(presses.size, `답마다 press가 다르다: ${[...presses].join(" / ")}`).toBe(1);
+    expect([...presses][0], "press가 비어 있다").not.toBe("");
+  });
+
+  it("누르면 가라앉지 않고 뜬다 — 손가락이 집는 방향", () => {
+    const cell = [...container.querySelectorAll<HTMLElement>("label")]
+      .find((label) => label.querySelector('input[value^="bipolar-"]'))!;
+    const press = pressOf(cell);
+    expect(press, "위로 뜨는 이동이 없다").toContain("active:-translate-y-");
+    expect(press, "축소는 가라앉는 방향이다").not.toMatch(/active:scale-\[0\./);
+  });
+
+  it("주 버튼과 답이 같은 press를 쓴다", () => {
+    const cell = [...container.querySelectorAll<HTMLElement>("label")]
+      .find((label) => label.querySelector('input[value^="bipolar-"]'))!;
+    expect(pressOf(buttonByText(container, "다음"))).toBe(pressOf(cell));
+  });
+});

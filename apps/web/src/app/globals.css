@@ -1019,3 +1019,42 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 :where(.hanbang-service-theme, .hanbang-community-theme) [class*="rgba(8,22,38"] {
   box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
+
+/*
+ * WeddingCode 로컬 연구 프로토타입 전용 진입 모션.
+ * 기획서 63번 §3 S1b·S2의 사양을 인라인 style 없이 구현한다.
+ * `prefers-reduced-motion`에서는 즉시 최종 상태로 간다.
+ */
+@keyframes c6-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes c6-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.c6-sheet-in {
+  animation: c6-sheet-in 220ms ease-out both;
+}
+
+.c6-fade-in {
+  animation: c6-fade-up 220ms ease-out both;
+}
+
+.c6-fade-up {
+  animation: c6-fade-up 300ms ease-out both;
+}
+
+.c6-delay-80 {
+  animation-delay: 80ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c6-sheet-in,
+  .c6-fade-in,
+  .c6-fade-up {
+    animation: none;
+  }
+}

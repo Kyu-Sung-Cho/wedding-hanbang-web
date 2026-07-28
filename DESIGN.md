@@ -92,3 +92,5 @@
 | 2026-06-30 | Initial design system created | Consolidated existing Wedding Hanbang documents, design tokens, and mobile app direction into one source of truth. |
 | 2026-07-02 | Aligned mobile tokens with the web eucalyptus palette | The web app had moved to Eucalyptus Ink, Dusty Mauve, and Pearl Ivory; shared mobile tokens now match that production visual direction. |
 | 2026-07-02 | Standardized web and mobile typography on Paperlogy | User selected Paperlogy from Noonnu; self-hosted web WOFF2 and mobile TTF assets now provide one consistent brand font. |
+| 2026-07-28 | WeddingCode 로컬 연구 프로토타입은 화면 이름·화법에서 이 문서의 마케팅 화법 예외를 받는다 | 측정 도구라 문구가 응답에 영향을 준다. 운영자 어조(해요체)는 유지하되 마스코트 화법은 계속 금지한다. 대상은 `apps/web/src/lib/weddingCode/research/**` 뿐이고 운영 표면에는 적용되지 않는다. |
+| 2026-07-28 | 같은 프로토타입의 off-scale 타입 값(13·15·17·28)과 `rounded-[24px]`·`rounded-[14px]`를 잠정 유지한다 | 문항 화면의 세로 배분이 §5 가설2("다섯 답 동시 비교")에 직접 걸려 있어, 스케일 정렬이 접힘선을 움직인다. R1-UX 실기기 관찰 뒤 일괄 정렬한다. 근거·실측: `docs/wedding-code/63_today_one_line_design_plan_2026-07-28.md` §13-2·13-3. |

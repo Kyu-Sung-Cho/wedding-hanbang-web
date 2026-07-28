@@ -73,7 +73,7 @@ describe("카드 고르기 단계", () => {
   // 답을 보고 골라줬다는 오해 경로를 카피가 아니라 화면에 적어서 닫는다.
   it("후보의 출처를 화면에 그대로 적는다", () => {
     expect(container.textContent)
-      .toContain("지나온 장면 전부에서 고를 수 있어요. 라벨은 후보를 바꾸지 않아요.");
+      .toContain("지나온 장면에서 고르는 거예요. 답이나 라벨로 걸러내지 않았어요.");
   });
 
   // 21문항 답한 직후 일부가 빠진 목록을 보면 "내 답을 보고 걸렀다"고 믿는 사용자가
@@ -188,7 +188,7 @@ describe("카드 고르기 단계", () => {
 
     it("보관하지 않는다는 것을 사과가 아니라 약속으로 적는다", async () => {
       await reachCard();
-      expect(container.textContent).toContain("우리는 이 카드를 보관하지 않았어요.");
+      expect(container.textContent).toContain("저희는 이 카드를 보관하지 않았어요.");
     });
 
     // 완료에 고유 연출이 붙으면 "특정 응답을 보상하는 장치"가 된다.
@@ -205,7 +205,7 @@ describe("카드 고르기 단계", () => {
 
       expect(container.textContent).toContain("답은 안 보내고, 한 마디만 건네요");
       expect(container.textContent).toContain("링크는 아직 열려 있지 않아요");
-      expect(container.textContent).toContain("상대가 아무것도 안 해도 제 화면은 그대로예요.");
+      expect(container.textContent).toContain("상대가 아무것도 안 해도 이 화면은 그대로예요.");
 
       const preview = container.querySelector<HTMLElement>("[data-invite-copy]");
       expect(preview?.dataset.inviteCopy).toBe(card?.prompt);
