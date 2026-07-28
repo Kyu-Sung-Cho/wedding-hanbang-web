@@ -21,13 +21,29 @@ import {
 } from "./candidate6";
 import {
   buildInviteCopyLine,
+  CANDIDATE6_INTERLUDE_SENTENCES,
   CANDIDATE6_SCENE_TEXT,
   deriveCardCandidates,
+  interludeIndexes,
+  sceneRhythmLabel,
 } from "./candidate6SceneText";
+
+/**
+ * 마지막 세 장에서 배경이 깊어진다. 끝이 텍스트가 아니라 몸으로 온다.
+ * **위치 기반이라 넘기기·비해당을 골라도 똑같이 발생한다** — 응답과 무관하므로
+ * 보상 장치가 아니다.
+ */
+function duskTone(index: number, total: number): string {
+  const remaining = total - 1 - index;
+  if (remaining === 0) return "#EFE4D7";
+  if (remaining === 1) return "#F7F1E8";
+  return "#FBF8F2";
+}
 
 type PrototypeStep =
   | "intro"
   | "questions"
+  | "interlude"
   | "recap"
   | "card-pick"
   | "card-give"
@@ -113,6 +129,9 @@ export function Candidate6Prototype({
   const [copied, setCopied] = useState(false);
   const [sceneLabels, setSceneLabels] = useState<Partial<Record<Candidate6ItemId, SceneLabel>>>({});
   const [contentsOpen, setContentsOpen] = useState(false);
+  /** 막간을 이미 보여준 문항 인덱스. 되돌아가도 같은 막간을 다시 띄우지 않는다. */
+  const [shownInterludes, setShownInterludes] = useState<readonly number[]>([]);
+  const [pendingInterlude, setPendingInterlude] = useState<number | null>(null);
   const screenHeadingRef = useRef<HTMLHeadingElement>(null);
   const questionScrollRef = useRef<HTMLDivElement>(null);
   const [focusRevision, setFocusRevision] = useState(0);
@@ -156,11 +175,26 @@ export function Candidate6Prototype({
 
   function nextQuestion() {
     if (!currentItem || !currentResponse) return;
-    if (questionIndex + 1 < journey.length) {
-      setQuestionIndex((value) => value + 1);
+    const next = questionIndex + 1;
+    if (next < journey.length) {
+      // 막간은 **위치만의 함수**다. 응답 종류를 보지 않으므로 특정 응답을 보상하지 않는다.
+      if (interludes.includes(next) && !shownInterludes.includes(next)) {
+        setPendingInterlude(next);
+        moveToStep("interlude");
+        return;
+      }
+      setQuestionIndex(next);
       return;
     }
     moveToStep("recap");
+  }
+
+  function leaveInterlude() {
+    if (pendingInterlude === null) return;
+    setShownInterludes((previous) => [...previous, pendingInterlude]);
+    setQuestionIndex(pendingInterlude);
+    setPendingInterlude(null);
+    moveToStep("questions");
   }
 
   /** 같은 라벨을 다시 누르면 지운다. 어느 쪽도 기본값이 아니다. */
@@ -192,6 +226,8 @@ export function Candidate6Prototype({
     setCopied(false);
     setSceneLabels({});
     setContentsOpen(false);
+    setShownInterludes([]);
+    setPendingInterlude(null);
   }
 
   /**
@@ -202,6 +238,31 @@ export function Candidate6Prototype({
     () => deriveCardCandidates(journey.map((item) => item.id)),
     [journey]
   );
+  // 길이만의 순수 함수라 memo가 필요 없다(React Compiler가 memo 보존을 거부한다).
+  const interludes = interludeIndexes(journey.length);
+
+  if (step === "interlude" && pendingInterlude !== null) {
+    const sentence =
+      CANDIDATE6_INTERLUDE_SENTENCES[interludes.indexOf(pendingInterlude)]
+      ?? CANDIDATE6_INTERLUDE_SENTENCES[0];
+    return (
+      <main
+        data-interlude={sentence}
+        className="ph-no-capture flex min-h-dvh flex-col items-center justify-center bg-[#F7F1E8] px-6"
+      >
+        <h1
+          ref={screenHeadingRef}
+          tabIndex={-1}
+          className="max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.5] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+        >
+          {sentence}
+        </h1>
+        <button type="button" onClick={leaveInterlude} className={`${secondaryButton} mt-8`}>
+          넘기기
+        </button>
+      </main>
+    );
+  }
 
   if (step === "intro") {
     return (
@@ -285,13 +346,30 @@ export function Candidate6Prototype({
   }
 
   if (step === "questions" && currentItem) {
-    const progress = Math.round(((questionIndex + 1) / journey.length) * 100);
     return (
       <PrototypeShell viewportLocked showFooter={false}>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          data-dusk={duskTone(questionIndex, journey.length)}
+          className={`flex min-h-0 flex-1 flex-col transition-colors duration-[450ms] motion-reduce:transition-none ${
+            duskTone(questionIndex, journey.length) === "#EFE4D7"
+              ? "bg-[#EFE4D7]"
+              : duskTone(questionIndex, journey.length) === "#F7F1E8"
+                ? "bg-[#F7F1E8]"
+                : "bg-[#FBF8F2]"
+          }`}
+        >
           <header className="mb-4 shrink-0">
             <div className="flex items-center justify-between gap-3 text-[12px] font-semibold text-[#36534E]">
-              <span>장면 {questionIndex + 1}</span>
+              {/*
+                진행률 바 대신 이야기 리듬. 마지막 세 장에서 숫자가 문장으로 바뀌는
+                순간 자체가 "끝이 온다"는 신호가 된다. 퍼센트·분수를 만들지 않는다.
+              */}
+              <span
+                data-scene-rhythm=""
+                className="transition-opacity duration-[220ms] motion-reduce:transition-none"
+              >
+                {sceneRhythmLabel(questionIndex, journey.length)}
+              </span>
               <button
                 type="button"
                 onClick={() => setContentsOpen(true)}
@@ -300,22 +378,19 @@ export function Candidate6Prototype({
                 지나온 장면
               </button>
             </div>
-            <div
-              role="progressbar"
-              aria-label="웨딩코드 장면 진행률"
-              aria-valuemin={1}
-              aria-valuemax={journey.length}
-              aria-valuenow={questionIndex + 1}
-              className="mt-2 h-2 overflow-hidden rounded-full bg-[#EFE4D7]"
-            >
-              <div
-                className="h-full rounded-full bg-[#A77B74] transition-[width] duration-300 motion-reduce:transition-none"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            {/* 보이는 사람과 안 보이는 사람이 같은 수를 받는다. */}
+            <span data-scene-total={journey.length} className="sr-only">
+              전체 {journey.length}장 중 {questionIndex + 1}번째 장면
+            </span>
           </header>
 
-          <section className={`${surface} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+          {/* champagne는 전 경험에서 마지막 한 장에만 쓴다. */}
+          <section
+            {...(questionIndex === journey.length - 1 ? { "data-dusk-edge": "" } : {})}
+            className={`${surface} flex min-h-0 flex-1 flex-col overflow-hidden transition-colors duration-[220ms] motion-reduce:transition-none ${
+              questionIndex === journey.length - 1 ? "border-[#E2D3C8]" : ""
+            }`}
+          >
             <div
               ref={questionScrollRef}
               role="region"

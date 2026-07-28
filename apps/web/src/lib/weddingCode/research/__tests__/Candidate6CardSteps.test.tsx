@@ -53,6 +53,9 @@ describe("카드 고르기 단계", () => {
       await act(async () => (choice as HTMLInputElement).click());
       await act(async () =>
         buttonByText(container, index === JOURNEY.length - 1 ? "지나온 장면 보기" : "다음").click());
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
     }
     await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
   });
@@ -110,6 +113,9 @@ describe("카드 고르기 단계", () => {
         await act(async () => (choice as HTMLInputElement).click());
         await act(async () =>
           buttonByText(fresh, index === JOURNEY.length - 1 ? "지나온 장면 보기" : "다음").click());
+        if (fresh.querySelector("[data-interlude]")) {
+          await act(async () => buttonByText(fresh, "넘기기").click());
+        }
       }
       for (const pill of [...fresh.querySelectorAll<HTMLElement>(`[data-scene-label="${kind}"]`)]) {
         await act(async () => pill.click());

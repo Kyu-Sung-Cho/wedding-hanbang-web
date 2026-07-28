@@ -55,12 +55,18 @@ describe("회수 화면과 장면 라벨", () => {
     document.body.replaceChildren();
   });
 
-  /** 현재 문항에 답하고 다음으로. 마지막이면 회수 화면으로 넘어간다. */
+  /**
+   * 현재 문항에 답하고 다음으로. 마지막이면 회수 화면으로 넘어간다.
+   * 사이에 막간이 끼면 넘긴다(자동 넘김이 없으므로 명시적으로 눌러야 한다).
+   */
   async function answerCurrent(isLast: boolean) {
     const choice = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
     await act(async () => (choice as HTMLInputElement).click());
     await act(async () =>
       buttonByText(container, isLast ? "지나온 장면 보기" : "선택 확인하고 다음").click());
+    if (container.querySelector("[data-interlude]")) {
+      await act(async () => buttonByText(container, "넘기기").click());
+    }
   }
 
   async function walkToRecap() {
