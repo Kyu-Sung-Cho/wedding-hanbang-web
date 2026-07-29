@@ -520,3 +520,62 @@ describe("목차 시트에서 라벨을 눌러도 포커스를 뺏기지 않는�
     }
   });
 });
+
+/**
+ * 3차 감사: `62_..._current_state`:412·777과 `60_..._validation_execution_kit`:180이
+ * **최소 48px 터치 영역**을 요구하는데 라벨 pill과 시트 트리거가 44px였다. 기획서 §13은
+ * 44를 기준선으로 적어 "충족"으로 기록해 위반을 감췄다.
+ *
+ * 이걸 잡던 유일한 자동 가드(`scripts/wedding-code-candidate6-visual-qa.mjs`의 `>=48`
+ * 단정)는 이 브랜치가 삭제한 progressbar와 교체한 옛 카드 흐름 문자열을 참조해 깨졌고,
+ * 애초에 어떤 npm script에도 연결돼 있지 않다. jsdom에서라도 클래스 수준으로 고정한다.
+ */
+describe("터치 영역이 상위 계약의 48px를 지킨다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  /** `min-h-[NNpx]` 토큰에서 숫자를 꺼낸다. 없으면 null. */
+  const minHeight = (element: HTMLElement): number | null => {
+    const token = element.className.split(/\s+/).find((t) => /^min-h-\[\d+px\]$/.test(t));
+    return token ? Number(token.replace(/\D/g, "")) : null;
+  };
+
+  it("문항 화면의 모든 버튼이 48px 이상이다", () => {
+    const buttons = [...container.querySelectorAll<HTMLElement>("button")];
+    expect(buttons.length).toBeGreaterThan(2);
+    for (const button of buttons) {
+      const height = minHeight(button);
+      expect(height, `버튼 "${button.textContent?.trim().slice(0, 14)}"에 min-h 토큰이 없다`)
+        .not.toBeNull();
+      expect(height, `버튼 "${button.textContent?.trim().slice(0, 14)}"이 ${height}px`)
+        .toBeGreaterThanOrEqual(48);
+    }
+  });
+
+  it("목차 시트의 라벨도 48px 이상이다", async () => {
+    const choice = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
+    await act(async () => (choice as HTMLInputElement).click());
+    await act(async () => buttonByText(container, "선택 확인하고 다음").click());
+    await act(async () => buttonByText(container, "지나온 장면").click());
+
+    const pills = [...container.querySelectorAll<HTMLElement>("[data-scene-label]")];
+    expect(pills.length, "시트에 라벨이 없으면 공허하다").toBeGreaterThan(0);
+    for (const pill of pills) {
+      expect(minHeight(pill), `라벨 "${pill.textContent}"이 48px 미만`).toBeGreaterThanOrEqual(48);
+    }
+  });
+});

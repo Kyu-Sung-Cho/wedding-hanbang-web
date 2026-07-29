@@ -60,9 +60,16 @@ type PrototypeStep =
  */
 type SceneLabel = "ours" | "not-ours";
 
-/** 두 라벨의 구조·촉감 클래스는 완전히 같다. 색만 다르다(테스트로 고정). */
+/**
+ * 두 라벨의 구조·촉감 클래스는 완전히 같다. 색만 다르다(테스트로 고정).
+ *
+ * 높이 48px는 `62_..._current_state`:412·777과 `60_..._validation_execution_kit`:180의
+ * 「최소 48px 터치 영역」이다. 44로 두면 상위 계약 위반이고, 그걸 잡던 유일한 자동
+ * 가드(`scripts/wedding-code-candidate6-visual-qa.mjs`의 >=48 단정)는 이 브랜치가
+ * 삭제한 progressbar를 참조해 깨진 데다 어떤 npm script에도 연결돼 있지 않다.
+ */
 const sceneLabelBase =
-  "inline-flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-[12px]"
+  "inline-flex min-h-[48px] items-center gap-1 rounded-full border px-3 text-[12px]"
   + " font-semibold transition-colors duration-150 ease-out active:-translate-y-[4px]"
   + " active:scale-[1.015] motion-reduce:transform-none";
 const sceneLabelIdle = "bg-white text-[#36534E] border-[#C7D1C2]";
@@ -406,7 +413,7 @@ export function Candidate6Prototype({
                 aria-expanded={contentsOpen}
                 aria-controls={CONTENTS_SHEET_ID}
                 onClick={() => setContentsOpen(true)}
-                className="min-h-[44px] rounded text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
+                className="min-h-[48px] rounded text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
               >
                 지나온 장면
               </button>
