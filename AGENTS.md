@@ -50,6 +50,8 @@
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
 - 현재 인수인계:
   `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
+- **가장 최신 인계**(웨딩코드 v0.6 · 오늘 한 마디 · 로컬 dev 띄우는 법 · 깨면 안 되는 불변식 9개):
+  `docs/operations/SESSION_HANDOFF_2026-07-29.md`
 - **다른 컴퓨터에서 이어받을 때 먼저 읽는 문서**(가짜 가드 5건 · 검증 명령 · 남은 일):
   `docs/operations/SESSION_HANDOFF_2026-07-28.md`
 - 상세 작업 기록(가짜 검증 5건 · 변이 테스트 실적 · 검증 함정):
