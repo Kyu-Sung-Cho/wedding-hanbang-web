@@ -26,6 +26,7 @@ function single(source, pattern, label) {
 test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한다", () => {
   const landing = read("apps/web/src/components/community/CommunityLandingClient.tsx");
   const priceHub = read("apps/web/src/app/price/page.tsx");
+  const servicePage = read("apps/web/src/app/landing/page.tsx");
   const audit = read("scripts/audit/production-readiness-audit.mjs");
 
   const landingVendors = single(
@@ -87,6 +88,29 @@ test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한
     `위약금 건수 불일치: 공시 허브 ${hubPolicies} vs 감사 ${auditPolicies}`,
   );
 
+  // 2026-07-29부터 루트(`/`)가 착지하는 서비스 랜딩도 같은 두 숫자를 말한다.
+  // 표면이 하나 늘었으니 대조 대상도 함께 늘린다 — 안 그러면 이 페이지만
+  // 조용히 옛 값을 주장하게 된다.
+  const servicePolicies = single(
+    servicePage,
+    /const PUBLISHED_POLICY_COUNT = (\d+);/g,
+    "서비스 랜딩 위약금 건수",
+  );
+  const serviceVendors = single(
+    servicePage,
+    /const PUBLISHED_VENDOR_COUNT = (\d+);/g,
+    "서비스 랜딩 업체 수",
+  );
+  assert.equal(
+    servicePolicies,
+    auditPolicies,
+    `위약금 건수 불일치: 서비스 랜딩 ${servicePolicies} vs 감사 ${auditPolicies}`,
+  );
+  assert.equal(
+    serviceVendors,
+    landingVendors,
+    `업체 수 불일치: 서비스 랜딩 ${serviceVendors} vs 첫 화면 ${landingVendors}`,
+  );
 });
 
 test("업체 수는 위약금 공시 업체로만 쓴다", () => {

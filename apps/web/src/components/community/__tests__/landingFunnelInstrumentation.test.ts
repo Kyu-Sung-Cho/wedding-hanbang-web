@@ -71,27 +71,42 @@ describe("첫 화면 퍼널 계측", () => {
  * 히어로는 위약금을 앞세우는데 제목은 "웨딩한방 커뮤니티 — 결혼 준비 경험과 질문을
  * 나눠요"였다(2026-07-27 라이브 실측). 무엇을 주는 곳인지 제목이 말하지 않으면
  * 클릭 전에 걸러진다.
+ *
+ * 2026-07-29: 루트가 커뮤니티 피드가 아니라 **서비스 랜딩**으로 간다. 그래서 감시
+ * 대상은 `app/page.tsx`(폴백 리다이렉트) · `app/landing/page.tsx`(실제 착지) ·
+ * 커뮤니티 피드 셋이다. 제목이 **같아야 한다는 단정은 뺐다** — 이제 서로 다른
+ * 페이지이고, 랜딩은 서비스 전체를, 피드는 커뮤니티를 설명하는 것이 맞다.
+ * 대신 셋 다 차별점을 말하는지는 계속 강제한다.
  */
 describe("첫 화면 메타데이터", () => {
   const files = [
     resolve(process.cwd(), "src", "app", "page.tsx"),
+    resolve(process.cwd(), "src", "app", "landing", "page.tsx"),
     resolve(process.cwd(), "src", "app", "(community)", "community", "page.tsx"),
   ];
 
-  it.each(files)("%s 제목이 무엇을 주는 곳인지 말한다", (file) => {
+  // 선언 위치를 좁혀서 읽는다. 그냥 `title:\s*"..."`로 잡으면 페이지 본문의 다른
+  // `title:` 키(문제 카드 목록 등)가 먼저 걸려 엉뚱한 문자열을 제목으로 읽는다 —
+  // 실제로 이 테스트가 "비교할 기준 자체가 없다"를 제목으로 집어냈다.
+  const readTitle = (file: string): string => {
     const text = stripComments(readFileSync(file, "utf8"));
-    const title = /title:\s*"([^"]+)"/.exec(text)?.[1] ?? "";
+    const fromGenerateMetadata = /generateMetadata[\s\S]*?const title\s*=\s*"([^"]+)"/.exec(text)?.[1];
+    if (fromGenerateMetadata) return fromGenerateMetadata;
+    return /export const metadata\s*=\s*\{[\s\S]*?title:\s*"([^"]+)"/.exec(text)?.[1] ?? "";
+  };
+
+  it.each(files)("%s 제목이 무엇을 주는 곳인지 말한다", (file) => {
+    const title = readTitle(file);
 
     expect(title.length).toBeGreaterThan(0);
-    expect(title, `제목에 차별점이 없다: ${title}`).toMatch(/공시가|공시 가격|위약금/);
+    expect(title, `제목에 차별점이 없다: ${title}`).toMatch(/공시가|공시 가격|공시된 가격|위약금/);
   });
 
-  it("두 진입 파일의 제목이 같다", () => {
-    // `/`는 `/wedding`으로 리다이렉트되고 그게 다시 커뮤니티로 rewrite된다.
-    // 두 곳이 갈리면 유입 경로마다 다른 제목이 보인다.
-    const titles = files.map((file) => (
-      /title:\s*"([^"]+)"/.exec(stripComments(readFileSync(file, "utf8")))?.[1] ?? ""
-    ));
-    expect(new Set(titles).size).toBe(1);
+  it("루트 폴백과 실제 착지 랜딩의 제목이 같다", () => {
+    // `/`는 엣지 리다이렉트로 `/landing`에 가지만, 리다이렉트가 걸리지 않는
+    // 환경에서는 `app/page.tsx`가 폴백으로 돈다. 둘이 갈리면 유입 경로마다
+    // 다른 제목이 보인다.
+    const [root, landing] = [files[0], files[1]].map(readTitle);
+    expect(root).toBe(landing);
   });
 });
