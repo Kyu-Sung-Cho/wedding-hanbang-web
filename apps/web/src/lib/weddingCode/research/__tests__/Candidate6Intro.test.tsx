@@ -109,3 +109,41 @@ describe("문 앞 화면", () => {
     expect(container.textContent ?? "").not.toMatch(/성향|유형 결과|궁합을|정확도|테스트하기/);
   });
 });
+
+/**
+ * 파운더가 승인한 결정 1: **화면 이름은 「오늘 한 마디」**, `웨딩코드`는 연구 provenance
+ * 문자열에만 남긴다. 「코드」가 "부여받는 식별자 = 검증된 검사 결과"로 읽히기 때문이고,
+ * 이름은 카피보다 강한 고지라 여기서 지는 싸움을 카피로 만회할 수 없다.
+ *
+ * 2026-07-29 확인: 이 결정이 승인됐는데 **구현되지 않은 채** 있었다. intro 최상단 배지가
+ * 「웨딩코드 · 로컬 연구 미리보기」로 남아 화면 정체성을 여전히 「웨딩코드」로 말했다.
+ */
+describe("화면 이름이 승인된 결정을 따른다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root.render(<Candidate6Prototype form="A" />));
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  it("첫 화면이 스스로를 「오늘 한 마디」로 소개한다", () => {
+    expect(container.textContent).toContain("오늘 한 마디");
+  });
+
+  // provenance는 남아야 한다 — 이 프로토타입이 무엇에서 나왔는지는 지워지면 안 된다.
+  // 다만 그 자리는 하단 고지이지 화면 정체성이 아니다.
+  it("「웨딩코드」는 화면 정체성이 아니라 고지에만 남는다", () => {
+    const badge = container.querySelector<HTMLElement>("[data-screen-identity]");
+    expect(badge, "정체성 배지를 못 찾았다").not.toBeNull();
+    expect(badge?.textContent).toContain("오늘 한 마디");
+    expect(badge?.textContent, "정체성 배지가 아직 웨딩코드다").not.toContain("웨딩코드");
+  });
+});

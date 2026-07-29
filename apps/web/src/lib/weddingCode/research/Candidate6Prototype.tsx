@@ -48,7 +48,9 @@ type PrototypeStep =
   | "card-pick"
   | "card-give"
   | "card-face"
-  | "invite";
+  | "invite"
+  | "handoff-confirm"
+  | "handoff";
 
 /**
  * 장면 라벨. **측정 응답과 완전히 분리된 별도 필드다.**
@@ -119,9 +121,19 @@ const secondaryButton =
 export function Candidate6Prototype({
   form,
   supportPairOrder = "ES_FIRST",
+  handoffPreview = false,
 }: {
   form: Candidate6Form;
   supportPairOrder?: Candidate6SupportPairOrder;
+  /**
+   * 넘겨주기(S8) 잠금 해제. **기본은 꺼져 있고 로컬 프리뷰도 켜지 않는다.**
+   *
+   * 이 화면은 **동의하지 않은 제2인에게 화면을 투여**하므로 README §4의 미통과 게이트
+   * (독립 동의 커플 최소 3쌍의 비난·도구화 검증 = R4) 정중앙에 있다. 파운더 승인 결정은
+   * 「미루되 코드에는 넣고 잠근다」였다. 상수로 잠그면 잠긴 화면 자체를 검증할 수 없어
+   * 또 다른 미검증 코드가 되므로, 테스트만 켤 수 있는 prop으로 잠근다.
+   */
+  handoffPreview?: boolean;
 }) {
   const [step, setStep] = useState<PrototypeStep>("intro");
   const [stakeholderApplicability, setStakeholderApplicability] =
@@ -138,6 +150,8 @@ export function Candidate6Prototype({
   const [draftCardId, setDraftCardId] = useState<Candidate6ItemId | null>(null);
   const [sceneLabels, setSceneLabels] = useState<Partial<Record<Candidate6ItemId, SceneLabel>>>({});
   const [contentsOpen, setContentsOpen] = useState(false);
+  /** 넘겨주기에서 돌아왔는지. 파트너가 무엇을 눌렀는지는 담지 않는다. */
+  const [handoffReturned, setHandoffReturned] = useState(false);
   /** 막간을 이미 보여준 문항 인덱스. 되돌아가도 같은 막간을 다시 띄우지 않는다. */
   const [shownInterludes, setShownInterludes] = useState<readonly number[]>([]);
   const [pendingInterlude, setPendingInterlude] = useState<number | null>(null);
@@ -254,6 +268,7 @@ export function Candidate6Prototype({
     setDraftCardId(null);
     setSceneLabels({});
     setContentsOpen(false);
+    setHandoffReturned(false);
     setShownInterludes([]);
     setPendingInterlude(null);
   }
@@ -297,8 +312,16 @@ export function Candidate6Prototype({
       <PrototypeShell>
         <section className={`${surface} overflow-hidden`}>
           <div className="bg-[#243832] px-5 py-4 text-white sm:px-8 sm:py-10">
-            <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">
-              웨딩코드 · 로컬 연구 미리보기
+            {/*
+              화면 정체성. 파운더 승인 결정 1 — 「코드」는 "부여받는 식별자 = 검증된 검사
+              결과"로 읽히므로 화면 이름에서 뺀다. `웨딩코드`는 카드 face와 셸 하단의
+              **provenance 고지에만** 남는다(그건 출처라 지우면 안 된다).
+            */}
+            <p
+              data-screen-identity=""
+              className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]"
+            >
+              오늘 한 마디 · 로컬 연구 미리보기
             </p>
             <h1
               ref={screenHeadingRef}
@@ -721,6 +744,79 @@ export function Candidate6Prototype({
   const givenCard = givenCardId ? CANDIDATE6_SCENE_TEXT[givenCardId] : null;
   const copyLine = myCard?.card ? buildInviteCopyLine(myCard.card.prompt) : "";
 
+  if (step === "handoff-confirm") {
+    return (
+      <PrototypeShell>
+        <section className={`${surface} px-4 py-6 sm:px-8 sm:py-9`}>
+          <h1
+            ref={screenHeadingRef}
+            tabIndex={-1}
+            className="rounded text-[20px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          >
+            이 화면을 상대에게 보여줄까요? 상대가 고른 건 저장되지 않아요.
+          </h1>
+          <div className="mt-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => moveToStep("card-face")}
+              className={`${secondaryButton} min-h-[48px] flex-1`}
+            >
+              아니요
+            </button>
+            <button
+              type="button"
+              onClick={() => moveToStep("handoff")}
+              className={`${primaryButton} min-h-[48px] flex-1`}
+            >
+              보여줄게요
+            </button>
+          </div>
+        </section>
+      </PrototypeShell>
+    );
+  }
+
+  if (step === "handoff") {
+    /*
+      앞선 모든 화면이 정보 밀도가 높기 때문에 이 저밀도가 극적 장치로 작동한다.
+      입력 필드 0개, 서버 0, 수집 0. 거절 3경로는 순응 버튼과 **같은 크기**다 —
+      작아지면 선택지가 아니라 압박이 된다. 파트너가 무엇을 눌렀는지는 내 상태에
+      전이되지 않는다(세 경로가 같은 곳으로, 같은 문구로 돌아온다).
+    */
+    return (
+      <main className="ph-no-capture flex min-h-dvh flex-col items-center justify-center bg-[#FBF8F2] px-6">
+        <p className="text-[12px] font-semibold text-[#8F6662]">
+          지금 이 폰을 준 사람이 고른 한 마디예요.
+        </p>
+        <h1
+          ref={screenHeadingRef}
+          tabIndex={-1}
+          className="my-10 max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.45] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+        >
+          {myCard?.card?.prompt}
+        </h1>
+        <p className="text-[12px] font-medium text-[#8F6662]">
+          답은 어디에도 저장되지 않아요. 말로만 해요.
+        </p>
+        <div className="mt-8 flex w-full max-w-[420px] gap-3">
+          {["읽었어요", "나중에 할래요", "안 할래요"].map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setHandoffReturned(true);
+                moveToStep("card-face");
+              }}
+              className={`${secondaryButton} min-h-[48px] flex-1`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </main>
+    );
+  }
+
   if (step === "invite") {
     return (
       <PrototypeShell>
@@ -825,6 +921,12 @@ export function Candidate6Prototype({
           저희는 이 카드를 보관하지 않았어요. 새로고침하면 사라져요.
         </p>
 
+        {handoffReturned ? (
+          <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#8F6662]">
+            어땠는지는 묻지 않을게요. 저장할 곳이 없어서요.
+          </p>
+        ) : null}
+
         <button
           type="button"
           onClick={() => {
@@ -835,6 +937,15 @@ export function Candidate6Prototype({
           한 마디 건네기
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </button>
+        {handoffPreview ? (
+          <button
+            type="button"
+            onClick={() => moveToStep("handoff-confirm")}
+            className={`${secondaryButton} mt-3 w-full`}
+          >
+            휴대폰 넘겨주기
+          </button>
+        ) : null}
         <button type="button" onClick={restart} className={`${secondaryButton} mt-3 w-full`}>
           <RotateCcw aria-hidden="true" className="h-4 w-4" />
           처음부터 다시 보기

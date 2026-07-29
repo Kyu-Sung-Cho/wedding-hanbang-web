@@ -298,3 +298,85 @@ describe("카드 후보가 응답과도 무관하다", () => {
     expect(candidateIds(container)).toEqual([...EXPECTED_CANDIDATES]);
   });
 });
+
+/**
+ * 파운더가 승인한 결정 2: **넘겨주기(S8)는 R4(독립 동의 커플 3쌍) 통과 뒤로 미루되
+ * 코드에는 넣고 dev 플래그로 잠근다.**
+ *
+ * 2026-07-29 확인: 이 결정이 승인됐는데 **코드에 아예 없었다.** 나는 「미구현(의도적)」으로
+ * 보고했지만 승인된 것은 「미구현」이 아니라 「구현 후 잠금」이었다. 잠금은 prop 기본값
+ * `false`로 건다 — 상수로 잠그면 잠긴 화면 자체를 검증할 수 없어 또 다른 미검증 코드가 된다.
+ */
+describe("넘겨주기는 기본으로 잠겨 있다", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+  });
+
+  async function reachCardFace(handoffPreview: boolean) {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () =>
+      root.render(<Candidate6Prototype form="A" handoffPreview={handoffPreview} />));
+    await act(async () => radioInsideLabel(container, "둘이 정하기로 했어요").click());
+    await act(async () => buttonByText(container, "장면 시작하기").click());
+    for (let index = 0; index < JOURNEY.length; index += 1) {
+      const choice = container.querySelector('input[value^="bipolar-"], input[value^="impact-"]');
+      await act(async () => (choice as HTMLInputElement).click());
+      await act(async () =>
+        buttonByText(container, index === JOURNEY.length - 1 ? "지나온 장면 보기" : "다음").click());
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
+    }
+    await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
+    await act(async () => candidateRows(container)[0].click());
+    await act(async () => buttonByText(container, "이 카드로 정하기").click());
+    await act(async () => buttonByText(container, "이번엔 안 고를게요").click());
+  }
+
+  it("기본값에서는 넘겨주기 경로가 화면에 없다", async () => {
+    await reachCardFace(false);
+    const labels = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
+    expect(labels.some((t) => t.includes("넘겨주기")), labels.join(" / ")).toBe(false);
+  });
+
+  it("켜면 진입 전 확인을 먼저 거친다 — 제2인 투여는 명시적이어야 한다", async () => {
+    await reachCardFace(true);
+    await act(async () => buttonByText(container, "휴대폰 넘겨주기").click());
+    expect(container.textContent)
+      .toContain("이 화면을 상대에게 보여줄까요? 상대가 고른 건 저장되지 않아요.");
+  });
+
+  // 거절 경로가 순응 버튼보다 작으면 그건 선택지가 아니라 압박이다.
+  it("켜면 거절 3경로가 같은 크기로 있고, 어느 쪽이든 내 화면이 같다", async () => {
+    await reachCardFace(true);
+    await act(async () => buttonByText(container, "휴대폰 넘겨주기").click());
+    await act(async () => buttonByText(container, "보여줄게요").click());
+
+    expect(container.querySelectorAll("input"), "넘겨준 화면에 입력 필드가 있다").toHaveLength(0);
+    const sizeOf = (t: string) =>
+      buttonByText(container, t).className.split(/\s+/)
+        .filter((k) => /^min-h-|^flex-1$/.test(k)).sort().join(" ");
+    expect(sizeOf("나중에 할래요")).toBe(sizeOf("읽었어요"));
+    expect(sizeOf("안 할래요")).toBe(sizeOf("읽었어요"));
+
+    // 세 경로 모두 같은 곳으로, 같은 문구로 돌아온다 — 파트너 행동이 내 상태를 바꾸지 않는다.
+    const returns: string[] = [];
+    for (const path of ["읽었어요", "나중에 할래요", "안 할래요"]) {
+      if (!container.textContent?.includes("지금 이 폰을 준 사람이")) {
+        await act(async () => buttonByText(container, "휴대폰 넘겨주기").click());
+        await act(async () => buttonByText(container, "보여줄게요").click());
+      }
+      await act(async () => buttonByText(container, path).click());
+      returns.push(container.textContent ?? "");
+    }
+    for (const text of returns) {
+      expect(text).toContain("어땠는지는 묻지 않을게요. 저장할 곳이 없어서요.");
+    }
+  });
+});
