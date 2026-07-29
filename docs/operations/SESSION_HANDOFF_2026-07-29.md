@@ -101,7 +101,11 @@ SUPABASE_SERVICE_ROLE_KEY=<ref가 abcdefghijklmnopqrst인 서명 없는 HS256 JW
 
 ## 5. 사용자(파운더) 몫
 
-- **GitHub Actions 결제.** 지금 CI는 잡이 **스텝 0개로 11초 만에** 실패한다 — 코드 문제가
-  아니라 결제다. `main`도 같다. 풀기 전까지 CI 색깔은 아무 의미가 없고, 로컬
-  `corepack pnpm qa:local`과 pre-push 훅만이 유일한 안전망이다.
+- **GitHub Actions는 지금까지 한 번도 실행된 적이 없다.** 실측: 전체 이력 91회가 전부
+  **스텝 0개로 1~9초 만에** 실패했고, 성공 7건은 Dependabot 잡뿐이다. 코드 문제가 아니라
+  계정 수준에서 막혀 있는 것이고, 그래서 소모된 Actions 시간도 0분이다(무료 한도는 그대로 남아 있다).
+  **켤지 말지는 파운더 결정이다.** 안 켜도 되지만, 그 경우 푸시되는 코드를 검사하는 것은
+  `.githooks/pre-push` 하나뿐이라는 점을 알고 있어야 한다. 그 훅은 `pnpm install` 때
+  `prepare` 스크립트가 자동으로 켜준다(`scripts/install-git-hooks.mjs`) — 이 배선이 빠지면
+  새 컴퓨터에서 안전망이 **아무 경고 없이 0이 된다**(`scripts/tests/git-hooks-autoinstall.test.mjs`가 강제).
 - 유통 글 게시, `SUPABASE_ACCESS_TOKEN`, Vercel 사업자 정보.
