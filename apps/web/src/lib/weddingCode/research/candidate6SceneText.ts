@@ -74,9 +74,9 @@ export const CANDIDATE6_SCENE_TEXT = {
     sceneTitle: "마지막 두 곳",
     recapLines: ["조건은 둘 다 맞다.", "두 곳이 남았다.", "이제 이야기만 남았다."],
     card: {
-      prompt: "조건 말고, 어느 쪽이 더 좋았어?",
+      prompt: "이제 뭐부터 얘기해볼까?",
       when: "자기 전에 불 끄고 누워서",
-      action: "각자 마음에 남은 쪽 하나만 말하기",
+      action: "각자 마음에 남은 쪽을 말해보기",
     },
   },
   "C6-DS2": {
@@ -84,8 +84,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["기록은 남기기로 했다.", "방법이 둘 남았다.", "쓸 조건은 둘 다 맞다."],
     card: {
       prompt: "우리 나중에 뭘 제일 다시 볼까?",
-      when: "주말 아침에 아직 안 일어났을 때",
-      action: "각자 다시 볼 것 하나만 말하기",
+      when: "소파에서 각자 폰 보고 있을 때",
+      action: "다시 볼 것 하나만 서로 말하기",
     },
   },
   "C6-DS3": { sceneTitle: "도와줄 두 곳", recapLines: null, card: null },
@@ -98,7 +98,7 @@ export const CANDIDATE6_SCENE_TEXT = {
     card: {
       prompt: "첫 목록만 오늘 같이 만들어볼래?",
       when: "밥 먹고 나서 앉은 자리에서",
-      action: "각자 한 개씩만 올려서 목록 시작하기",
+      action: "각자 한 개씩 올려 목록 시작하기",
     },
   },
   "C6-JI2": {
@@ -107,7 +107,7 @@ export const CANDIDATE6_SCENE_TEXT = {
     card: {
       prompt: "마지막 비교는 같이 앉아서 볼래?",
       when: "주말 아침에 아직 안 일어났을 때",
-      action: "같이 볼 시간 하나만 정하기",
+      action: "같이 볼 시간을 달력에 적기",
     },
   },
   "C6-JI3": {
@@ -115,8 +115,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["작은 일들이 쌓였다.", "급한 마감은 없다.", "하나만 골라도 된다."],
     card: {
       prompt: "짧은 것 하나만 오늘 같이 끝낼래?",
-      when: "자기 전에 불 끄고 누워서",
-      action: "제일 짧은 하나를 골라 지금 끝내기",
+      when: "배달 기다리는 동안",
+      action: "제일 짧은 걸 골라 지금 끝내기",
     },
   },
   "C6-OA1": {
@@ -124,8 +124,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["찾기는 한 명이 맡았다.", "범위는 합의했다.", "방법은 아직 안 정했다."],
     card: {
       prompt: "방법은 내 방식대로 해도 괜찮아?",
-      when: "밥 먹고 나서 앉은 자리에서",
-      action: "어디까지 내가 정할지 한 줄로 맞추기",
+      when: "산책 나가서 신호 기다릴 때",
+      action: "어디까지 내가 정할지 한 줄로 적기",
     },
   },
   "C6-OA2": {
@@ -134,16 +134,16 @@ export const CANDIDATE6_SCENE_TEXT = {
     card: {
       prompt: "정리 방식은 내가 정해도 괜찮아?",
       when: "카톡으로 딱 이 한 줄만",
-      action: "정리 방식 한 가지만 적어 보내기",
+      action: "생각한 방식을 그대로 적어 보내기",
     },
   },
   "C6-OA3": {
     sceneTitle: "작은 일을 맡았다",
     recapLines: ["작은 일은 한 명이 맡았다.", "범위는 합의했다.", "순서는 담당이 정한다."],
     card: {
-      prompt: "순서는 내가 정해도 괜찮아?",
+      prompt: "순서는 내가 정할까?",
       when: "지하철에서 나란히 앉아서",
-      action: "먼저 할 것 하나만 정해 말하기",
+      action: "먼저 할 것부터 소리 내 말하기",
     },
   },
   "C6-CP1": {
@@ -151,17 +151,17 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["며칠 걸리는 일이다.", "중간 시점을 약속했다.", "함께 볼 자리가 있다."],
     card: {
       prompt: "중간에 한 번 같이 볼 날 정할래?",
-      when: "카톡으로 딱 이 한 줄만",
-      action: "중간에 볼 날 하나만 정하기",
+      when: "엘리베이터 기다리면서",
+      action: "중간에 볼 날을 서로 불러보기",
     },
   },
   "C6-CP2": {
     sceneTitle: "확정 직전",
     recapLines: ["준비는 끝났다.", "확정만 안 눌렀다.", "아직 고칠 수 있다."],
     card: {
-      prompt: "확정 누르기 전에 같이 볼래?",
-      when: "카톡으로 딱 이 한 줄만",
-      action: "확정 전에 볼 항목 두 개만 정하기",
+      prompt: "확정 누르기 전에 같이 볼까?",
+      when: "씻고 나와서 머리 말리다가",
+      action: "확정 전에 볼 항목 두 개 정하기",
     },
   },
   "C6-CP3": { sceneTitle: "막힌 일이 생겼다", recapLines: null, card: null },
@@ -173,8 +173,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["일정이 밀렸다.", "우리가 정한 게 아니다.", "오늘 마감은 없다."],
     card: {
       prompt: "다음 할 일 하나만 정해줄래?",
-      when: "지하철에서 나란히 앉아서",
-      action: "다음 한 가지만 골라 말하기",
+      when: "편의점 다녀오는 길에",
+      action: "다음 한 가지를 골라 말하기",
     },
   },
   "C6-ES2": {
@@ -183,7 +183,7 @@ export const CANDIDATE6_SCENE_TEXT = {
     card: {
       prompt: "지금은 들어주는 게 좋아, 정하는 게 좋아?",
       when: "자기 전에 불 끄고 누워서",
-      action: "지금 더 필요한 쪽을 골라 말로 말하기",
+      action: "더 필요한 쪽을 짐작 말고 말로 하기",
     },
   },
   "C6-AS2": {
@@ -192,7 +192,7 @@ export const CANDIDATE6_SCENE_TEXT = {
     card: {
       prompt: "비교할 기준 하나만 정해줄래?",
       when: "밥 먹고 나서 앉은 자리에서",
-      action: "기준 하나만 골라 적어두기",
+      action: "기준을 적어두고 나머지는 덮기",
     },
   },
   "C6-ES3": {
@@ -200,8 +200,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["원했던 게 어려워졌다.", "아쉬움이 남는다.", "살펴볼 시간은 있다."],
     card: {
       prompt: "아쉬운 얘기 잠깐 들어줄래?",
-      when: "자기 전에 불 끄고 누워서",
-      action: "아쉬운 점 하나만 말하기",
+      when: "불 켜기 전에 잠깐",
+      action: "아쉬운 점을 말하고 그냥 듣기",
     },
   },
   "C6-AS3": {
@@ -209,8 +209,8 @@ export const CANDIDATE6_SCENE_TEXT = {
     recapLines: ["원했던 게 어려워졌다.", "대안이 남아 있다.", "시간은 아직 있다."],
     card: {
       prompt: "대안 찾는 첫 단계만 같이 정할래?",
-      when: "지하철에서 나란히 앉아서",
-      action: "제일 먼저 볼 것 하나만 정하기",
+      when: "산책 나가서 신호 기다릴 때",
+      action: "제일 먼저 볼 것까지만 정하고 멈추기",
     },
   },
 
@@ -219,18 +219,18 @@ export const CANDIDATE6_SCENE_TEXT = {
     sceneTitle: "첫 초안",
     recapLines: ["초안을 만들 차례다.", "의견은 듣기로 했다.", "아직 아무것도 안 정했다."],
     card: {
-      prompt: "우리 그림부터 먼저 맞춰볼까?",
+      prompt: "초안은 어디서부터 시작할까?",
       when: "주말 아침에 아직 안 일어났을 때",
-      action: "우리가 편한 쪽 하나만 먼저 정하기",
+      action: "우리가 편한 쪽을 서로 말해보기",
     },
   },
   "C6-SI2": {
     sceneTitle: "함께할 경험",
     recapLines: ["경험 두 가지가 있다.", "의견은 듣기로 했다.", "둘 중 하나를 고른다."],
     card: {
-      prompt: "우리 편한 쪽부터 얘기해볼까?",
-      when: "밥 먹고 나서 앉은 자리에서",
-      action: "편한 쪽 하나만 먼저 말하기",
+      prompt: "어느 쪽부터 얘기할지 먼저 정할까?",
+      when: "소파에서 각자 폰 보고 있을 때",
+      action: "먼저 말할 쪽을 정하고 시작하기",
     },
   },
 } as const satisfies Record<Candidate6ItemId, Candidate6SceneTextEntry>;

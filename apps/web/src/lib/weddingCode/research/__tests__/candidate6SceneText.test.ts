@@ -301,3 +301,91 @@ test("이웃한 회수 문장이 2줄 이상 겹치지 않는다", () => {
     );
   }
 });
+
+/**
+ * 카드 다양성. 2026-07-29 실측에서 17장이 목록으로 뭉개지는 원인이 수치로 나왔다 —
+ * 「언제」가 **고유값 5개**를 돌려쓰고(4·4·3·3·3회), 행동의 **15/17**이 「하나만」류이며,
+ * 「~해도 괜찮아?」가 OA1·OA2·OA3에 연속으로 붙었다.
+ *
+ * 파운더의 최우선 요구가 「무엇보다 재미있어야 해」인데, 재미의 한 축인 카드가 서로
+ * 구분되지 않으면 그 요구가 무너진다. 문장을 바꾸는 것은 저작 규칙(원문에 없는 사실 0개)을
+ * 어기지 않으므로 지금 고칠 수 있는 유일한 재미 축이다.
+ */
+describe("카드가 서로 구분된다", () => {
+  const cards = ITEM_IDS
+    .map((id) => CANDIDATE6_SCENE_TEXT[id].card)
+    .filter((card): card is NonNullable<typeof card> => card !== null);
+
+  it("검사 대상이 있다", () => {
+    expect(cards.length).toBeGreaterThan(12);
+  });
+
+  it("「언제」가 같은 값으로 3번 이상 반복되지 않는다", () => {
+    const counts = new Map<string, number>();
+    for (const card of cards) counts.set(card.when, (counts.get(card.when) ?? 0) + 1);
+    const worst = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    expect(counts.size, `고유값이 ${counts.size}개뿐이다`).toBeGreaterThanOrEqual(9);
+    expect(worst[1], `"${worst[0]}"이 ${worst[1]}회`).toBeLessThanOrEqual(2);
+  });
+
+  it("행동이 「하나만」 한 가지 형태로 쏠리지 않는다", () => {
+    const oneOnly = cards.filter((card) => /하나만|한 가지|한 개|하나를/.test(card.action)).length;
+    expect(oneOnly / cards.length, `${oneOnly}/${cards.length}이 「하나만」류`)
+      .toBeLessThanOrEqual(0.6);
+  });
+
+  it("질문 어미가 같은 형태로 3번 이상 반복되지 않는다", () => {
+    const counts = new Map<string, number>();
+    for (const card of cards) {
+      const ending = card.prompt.slice(-6);
+      counts.set(ending, (counts.get(ending) ?? 0) + 1);
+    }
+    const worst = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    expect(worst[1], `"…${worst[0]}"이 ${worst[1]}회`).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
+ * 카드가 **한쪽 극을 처방하지 않는다.**
+ *
+ * 이 파일의 저작 규칙은 「두 anchor 중 어느 쪽에도 구체 후보를 배정하지 않는다」인데,
+ * 그 규칙을 강제하는 검사가 **막간 문장에만** 있었다(2026-07-29 3차 감사). 정작 실제로
+ * 권고를 하는 유일한 층은 카드다. SI는 양가 의견이 걸린 축이고 근거 등급 S0이라,
+ * 앱이 「우리 먼저」 쪽을 미는 것은 규범적 입장을 취하는 것이다.
+ *
+ * 검사 방법: 한쪽 anchor에만 있고 다른 쪽에는 없는 **고유 어절**을 뽑아, 카드가 그걸
+ * 쓰면 실패시킨다. 두 anchor에 공통인 말("먼저 이야기하기" 등)은 극을 가리지 않으므로 뺀다.
+ */
+describe("카드가 anchor 한쪽을 처방하지 않는다", () => {
+  const bipolar = CANDIDATE6_RESEARCH_ITEMS.filter(
+    (item): item is typeof item & { leftAnchor: string; rightAnchor: string } =>
+      "leftAnchor" in item && "rightAnchor" in item);
+
+  it("검사 대상 bipolar 문항이 있다", () => {
+    expect(bipolar.length).toBeGreaterThan(3);
+  });
+
+  it("카드 질문·행동에 한쪽 anchor 고유 어절이 없다", () => {
+    /** 2자 이상 어절만. 조사·어미가 붙어 있어도 어간이 겹치면 잡히도록 앞 2자를 본다. */
+    const stems = (text: string) =>
+      new Set(text.split(/\s+/).filter((word) => word.length >= 2).map((word) => word.slice(0, 2)));
+
+    for (const item of bipolar) {
+      const card = CANDIDATE6_SCENE_TEXT[item.id].card;
+      if (!card) continue;
+
+      const left = stems(item.leftAnchor);
+      const right = stems(item.rightAnchor);
+      const onlyLeft = [...left].filter((stem) => !right.has(stem));
+      const onlyRight = [...right].filter((stem) => !left.has(stem));
+      expect(onlyLeft.length + onlyRight.length, `${item.id} anchor가 구분되지 않는다`)
+        .toBeGreaterThan(0);
+
+      const said = `${card.prompt} ${card.action}`;
+      for (const stem of [...onlyLeft, ...onlyRight]) {
+        expect(said, `${item.id} 카드가 한쪽 극의 어절 "${stem}"을 쓴다: "${card.prompt}"`)
+          .not.toContain(stem);
+      }
+    }
+  });
+});
