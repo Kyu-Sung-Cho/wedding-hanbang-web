@@ -8,6 +8,8 @@ import GuideOpenButton from "@/components/common/GuideOpenButton";
 import { getInitialCommunityFeed } from "@/lib/community/initialFeed";
 import { canUseServerInitialCommunityFeed, normalizeCommunityFeedQuery } from "@/lib/community/feedQuery";
 import { isPreviewStubMode } from "@/lib/previewStub";
+import { EMPTY_AGENCY_SPREAD_SUMMARY } from "@/lib/price/agencySpread";
+import { loadLandingAgencySpread } from "@/lib/price/landingAgencySpread";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,14 @@ const loadSharedInitialFeed = unstable_cache(
   () => getInitialCommunityFeed(10),
   ["community-initial-feed-v1"],
   { revalidate: 60, tags: ["community-initial-feed"] },
+);
+
+// 공시는 분기마다 갱신된다. 매 방문마다 수천 행을 다시 훑을 이유가 없어 하루
+// 단위로 공유 캐시한다 — /price 허브의 revalidate와 같은 주기다.
+const loadSharedAgencySpread = unstable_cache(
+  () => loadLandingAgencySpread(),
+  ["community-agency-spread-v1"],
+  { revalidate: 86_400, tags: ["price-catalog"] },
 );
 
 export const metadata = {
@@ -36,15 +46,22 @@ export default async function CommunityFeedPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const initialQuery = normalizeCommunityFeedQuery(resolvedSearchParams);
-  const initialFeed = !isPreviewStubMode() && canUseServerInitialCommunityFeed(initialQuery)
-    ? await loadSharedInitialFeed()
-    : undefined;
+  const previewStub = isPreviewStubMode();
+
+  // 피드와 공시 요약은 서로를 기다릴 이유가 없다 — 직렬로 두면 첫 화면 대기가 합쳐진다.
+  const [initialFeed, agencySpread] = await Promise.all([
+    !previewStub && canUseServerInitialCommunityFeed(initialQuery)
+      ? loadSharedInitialFeed()
+      : undefined,
+    previewStub ? EMPTY_AGENCY_SPREAD_SUMMARY : loadSharedAgencySpread(),
+  ]);
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#fffdf7]" />}>
       <CommunityLandingClient
         initialFeed={initialFeed}
         initialQuery={initialQuery}
+        agencySpread={agencySpread}
       />
       <GuideOpenButton eventName="hanbang:open-community-guide" label="커뮤니티 이용 가이드 보기" />
       <CommunityGuide />

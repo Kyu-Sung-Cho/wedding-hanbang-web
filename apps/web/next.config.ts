@@ -86,9 +86,13 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // 루트는 **서비스를 설명하는 랜딩**으로 보낸다(2026-07-29).
+      // 그전에는 커뮤니티 피드로 바로 떨어졌는데, 피드는 이 서비스를 이미 아는
+      // 사람에게나 쓸모 있는 화면이라 첫 방문자는 "여기가 뭐 하는 곳인지" 알 수
+      // 없었다. 앱으로 들어가는 문(`/wedding`)은 랜딩 안에서 링크로 연다.
       {
         source: "/",
-        destination: "/wedding",
+        destination: "/landing",
         permanent: false,
       },
       // 유통 테스트 착지 A — 비로그인 견적·추가금 진단 (UTM 쿼리는 자동 보존됨)

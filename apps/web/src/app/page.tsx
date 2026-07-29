@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "웨딩한방 — 스드메 공시가·위약금 원문과 예비부부 커뮤니티",
+  title: "웨딩한방 — 공시된 가격·위약금 원문과 AI 웨딩 플래너 아모라",
   description:
-    "업체가 공시한 기본가·추가금과 취소 위약금 규정 원문을 그대로 확인하고, "
-    + "먼저 겪은 예비부부들의 글도 함께 보세요. 요약도, 어디가 낫다는 판정도 하지 않습니다.",
+    "업체가 공시한 스드메·예식장 기본가와 추가금, 취소 위약금 규정을 원문 그대로 봅니다. "
+    + "예산·일정·업체 준비는 AI 아모라가 같이 잡습니다. 요약도, 어디가 낫다는 판정도 하지 않습니다.",
 };
 
-// 메인 도메인은 웨딩한방 시작점(/wedding)으로 보낸다.
-// 마케팅 랜딩은 /landing으로 보존.
+// 메인 도메인은 서비스를 설명하는 랜딩(/landing)으로 보낸다. 앱(커뮤니티 피드)은
+// 랜딩 안의 링크로 들어간다 — 자세한 이유는 next.config.ts의 같은 리다이렉트 주석.
+// 이 페이지는 엣지 리다이렉트가 걸리지 않는 환경을 위한 폴백이라 목적지를 맞춰 둔다.
 export default async function HomePage({
   searchParams,
 }: {
@@ -28,5 +29,5 @@ export default async function HomePage({
   });
 
   const query = params.toString();
-  redirect(query ? `/wedding?${query}` : "/wedding");
+  redirect(query ? `/landing?${query}` : "/landing");
 }

@@ -5,7 +5,7 @@ import { Candidate6Prototype } from "./Candidate6Prototype";
 import type { Candidate6Form, Candidate6SupportPairOrder } from "./candidate6";
 
 export const metadata: Metadata = {
-  title: "WeddingCode 로컬 연구 미리보기",
+  title: "오늘 한 마디 · 로컬 연구 미리보기",
   description: "응답을 저장하거나 전송하지 않는 WeddingCode 로컬 연구 프로토타입입니다.",
   robots: { index: false, follow: false, nocache: true },
 };

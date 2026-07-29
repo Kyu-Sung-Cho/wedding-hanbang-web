@@ -41,7 +41,8 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
 
   it("starts with an honest promise, no inferred result, and no unmeasured duration claim", () => {
     expect(document.documentElement.dataset.weddingCodeResearchHydrated).toBe("true");
-    expect(container.textContent).toContain("우리 대화는 어디서부터 시작하면 편할까?");
+    // 첫 화면의 상세 계약(문 앞 한 문장·퇴역 카드 미약속)은 `Candidate6Intro.test.tsx`에 있다.
+    expect(container.textContent).toContain("우리 얘기, 어디서부터 꺼낼까요");
     expect(container.textContent).toContain("점수·유형·궁합이 없어요");
     expect(container.textContent).toContain("걸리는 시간은 실제 사용성 검증 뒤 정확하게 안내할게요");
     expect(container.textContent).not.toContain("3분 테스트");
@@ -53,9 +54,12 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     expect(buttonByText(container, "장면 시작하기").disabled).toBe(false);
 
     await act(async () => buttonByText(container, "장면 시작하기").click());
-    const progress = container.querySelector('[role="progressbar"]');
-    expect(progress?.getAttribute("aria-valuenow")).toBe("1");
-    expect(progress?.getAttribute("aria-valuemax")).toBe("19");
+    // 진행률 바는 없앴다. 진행은 이야기 리듬 라벨로 오고, 총수는 sr-only로만 준다
+    // (`Candidate6Rhythm.test.tsx`가 라벨 경계와 총수 일치를 지킨다).
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    expect(container.querySelector("[data-scene-rhythm]")?.textContent).toBe("첫 장면");
+    expect(container.querySelector("[data-scene-total]")?.getAttribute("data-scene-total"))
+      .toBe("19");
     expect(container.textContent).toContain("축하할 장소나 진행 방식 두 개를 마지막으로 비교하는 장면");
     expect(container.textContent).toContain("첫째부터");
     expect(container.textContent).toContain("첫째 먼저");
@@ -71,7 +75,8 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     expect(firstChoice).toBeInstanceOf(HTMLInputElement);
     await act(async () => (firstChoice as HTMLInputElement).click());
 
-    expect(container.textContent).toContain("장면 1");
+    // 답을 골라도 자동으로 넘어가지 않는다 — 여전히 첫 장면이다.
+    expect(container.querySelector("[data-scene-rhythm]")?.textContent).toBe("첫 장면");
     expect(buttonByText(container, "선택 확인하고 다음").disabled).toBe(false);
   });
 
@@ -90,7 +95,7 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
     const heading = container.querySelector("h1[tabindex='-1']");
     expect(heading?.textContent).toContain("이 한 행동은 지금 나에게 어떤 영향을 줄까요?");
     expect(document.activeElement).toBe(heading);
-    expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("2");
+    expect(container.querySelector("[data-scene-rhythm]")?.textContent).toBe("장면 2");
     expect(container.textContent).toContain("첫 후보 목록을 둘이 함께 만든다");
   });
 
@@ -117,7 +122,8 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
   it("adds exactly two stakeholder scenes only when explicitly applicable", async () => {
     await act(async () => radioInsideLabel(container, "의견을 들을 사람이 있어요").click());
     await act(async () => buttonByText(container, "장면 시작하기").click());
-    expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuemax")).toBe("21");
+    expect(container.querySelector("[data-scene-total]")?.getAttribute("data-scene-total"))
+      .toBe("21");
   });
 
   it("finishes with a directly selected neutral card instead of an inferred type", async () => {
@@ -130,19 +136,31 @@ describe("Candidate 6 zero-I/O consumer prototype", () => {
       );
       expect(choice, `question ${index + 1}`).toBeInstanceOf(HTMLInputElement);
       await act(async () => (choice as HTMLInputElement).click());
-      const label = index === 18 ? "대화 카드 고르기" : "선택 확인하고 다음";
+      const label = index === 18 ? "지나온 장면 보기" : "선택 확인하고 다음";
       await act(async () => buttonByText(container, label).click());
+      // 막간은 자동으로 넘어가지 않는다. 명시적으로 눌러야 다음 장면이 온다.
+      if (container.querySelector("[data-interlude]")) {
+        await act(async () => buttonByText(container, "넘기기").click());
+      }
     }
 
-    expect(container.textContent).toContain("오늘 실제로 꺼내고 싶은 대화를 골라주세요");
-    expect(buttonByText(container, "내 카드 보기").disabled).toBe(true);
-    await act(async () => buttonByText(container, "이번 선택은 조건부터 맞춰볼까").click());
-    await act(async () => buttonByText(container, "내 카드 보기").click());
+    // 마지막 답 뒤에는 회수 화면이 먼저 온다. 지나온 장면이 처음으로 문장이 되는
+    // 자리이고, 카드 고르기는 그 다음이다(`Candidate6Recap.test.tsx`가 계약을 지킨다).
+    expect(container.textContent).toContain("지나온 장면이에요");
+    await act(async () => buttonByText(container, "오늘 꺼낼 한 마디 고르기").click());
 
-    expect(container.textContent).toContain("오늘의 대화 카드");
-    expect(container.textContent).toContain("내가 직접 고른 대화 주제예요");
+    // 카드는 응답에서 파생되지 않는다. 후보 목록에서 사용자가 직접 고르고, 그 사실을
+    // 화면이 그대로 말한다. 상세 계약은 `Candidate6CardSteps.test.tsx`에 있다.
+    expect(container.textContent).toContain("오늘 꺼낼 한 마디를 골라주세요");
+    expect(buttonByText(container, "이 카드로 정하기").disabled).toBe(true);
+    const firstCandidate = container.querySelector("[data-card-candidate]");
+    await act(async () => (firstCandidate as HTMLButtonElement).click());
+    await act(async () => buttonByText(container, "이 카드로 정하기").click());
+    await act(async () => buttonByText(container, "이번엔 안 고를게요").click());
+
     expect(container.textContent).toContain("오늘은 이 한 문장만 꺼내도 충분해요");
-    expect(container.textContent).toContain("새로고침하면 사라집니다");
+    expect(container.textContent).toContain("저희는 이 카드를 보관하지 않았어요.");
+    expect(container.textContent).toContain("웨딩코드 로컬 미리보기 · 정식 검사 아님");
     expect(container.textContent).not.toMatch(/살펴본 장면|모름·상황 차이·넘김/);
     expect(container.textContent).not.toMatch(/궁합 점수|정확도|희귀도|상위 \d+%/);
   });

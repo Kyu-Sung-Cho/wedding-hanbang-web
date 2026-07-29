@@ -41,6 +41,7 @@
     "community:media:audit": "node ./scripts/audit-community-media-urls.mjs",
     "audit:production": "node ./scripts/audit/production-readiness-audit.mjs",
     "audit:vendor-merge": "node ./scripts/audit/vendor-merge-review.mjs",
+    "audit:distribution": "tsx ./scripts/audit/distribution-claims-audit.mjs",
     "amora:costs": "node ./scripts/amora-cost-report.mjs",
     "amora:eval": "node ./scripts/amora-conversation-eval.mjs",
     "amora:eval:live": "node ./scripts/amora-conversation-eval.mjs --base-url=https://hanbang.ai --samples=1",

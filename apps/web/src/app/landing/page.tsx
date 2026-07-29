@@ -1,615 +1,706 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { cache } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
+  ArrowUpRight,
   Bell,
-  Building2,
-  Calculator,
   CalendarCheck,
-  ClipboardList,
-  FileSearch,
-  Heart,
-  Landmark,
-  LockKeyhole,
-  MessageCircle,
-  MoreHorizontal,
-  Sparkles,
-  Target,
+  Coins,
+  ScrollText,
+  Search,
+  Users,
+  Wallet,
 } from "lucide-react";
-import { CONTACT } from "@/lib/constants/contact";
+
+import { formatKrwManwon } from "@/lib/price/agencySpread";
+import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
+import { PRICE_CATEGORIES } from "@/lib/price/catalog";
+import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
+import { loadLandingAgencySpread } from "@/lib/price/landingAgencySpread";
+import { disclosureRoundLabel } from "@/lib/price/period";
+import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
+import { createPublicClient } from "@/lib/supabase/public";
 import { weddingPath } from "@/lib/weddingPaths";
 
-export const metadata = {
-  title: "웨딩한방 — 당신만의 AI 웨딩 플래너, 아모라",
-  description:
-    "견적의 확인 질문, 예산과 일정 변경안을 먼저 보여주고 사용자가 승인한 내용만 반영하는 AI 도우미 아모라.",
-};
+/**
+ * 웨딩한방을 처음 보는 사람에게 **서비스 전체**를 설명하는 페이지.
+ *
+ * 이 자리에 있던 이전 랜딩은 2026-06-11 대수술 이전 화면이었다. 아모라 이야기만 있고
+ * 이 서비스가 유일하게 가진 공시가·위약금은 한 번도 나오지 않았으며, 그 뒤 삭제된
+ * 기능을 현재형으로 약속하고 있어 미링크로 봉인돼 있었다 — 결과적으로 **첫 방문자에게
+ * 서비스를 설명하는 화면이 아예 없었다.**
+ *
+ * ## 시각 판단은 DESIGN.md를 따른다
+ *
+ * 이 페이지는 앱이 아니라 **마케팅 표면**이다. DESIGN.md의 Layout 규칙이
+ * "Marketing: Editorial composition, emotional first viewport, richer imagery"라고
+ * 따로 적어 둔 자리다. 그래서 첫 화면은 숫자 카드를 늘어놓지 않는다 — 사진과 문장
+ * 하나로 먼저 걸고, 증거(공시 수치)는 바로 다음 띠에서 크게 말한다.
+ *
+ * 색·타입·라운드는 전부 DESIGN.md 값만 쓴다. Eucalyptus Ink(#243832·#36534E)로
+ * 신뢰 구간을, Dusty Mauve(#A77B74)로 주 행동을, Pearl Ivory(#FBF8F2·#F7F1E8)로
+ * 바탕을 만든다. Champagne Taupe(#B89785·#E2D3C8)는 드문 하이라이트에만 쓴다
+ * ("not primary buttons everywhere"). 폰트는 Paperlogy 하나이고 굵기·크기로만
+ * 위계를 만든다. 카드 안에 카드를 넣지 않는다.
+ *
+ * ## 문구 규칙 (PRINCIPLES.md P1·P5)
+ *
+ *  - **없는 기능을 쓰지 않는다.** 여기 적힌 것은 전부 지금 라우트가 존재한다.
+ *  - **숫자는 살아 있는 값을 쓴다.** 공시 규모와 대행사 간 차이는 렌더 시점에
+ *    공시 카탈로그에서 계산한다. 손으로 적으면 분기 갱신 때 어긋난다.
+ *  - **사용자 수·후기 수를 말하지 않는다.** 실사용자가 사실상 0명이라 어떤 숫자를
+ *    적어도 허수가 된다. 과거 랜딩의 "후기 120만+"이 그 사고였다.
+ *  - **판정하지 않는다.** 어느 업체가 낫다·안전하다는 문장을 만들지 않는다.
+ *  - **한계를 눈에 띄는 자리에 먼저 적는다.** 들어와서 스스로 알아채면 그때는
+ *    "숨겼다"가 되고, 그건 이 서비스가 파는 것과 정확히 반대다.
+ */
 
-const shell = "mx-auto w-[calc(100%_-_48px)] max-w-[1180px]";
+export const revalidate = 86_400;
 
-const heroFeatures: Array<{ icon: LucideIcon; label: string }> = [
-  { icon: Heart, label: "취향 분석" },
-  { icon: MessageCircle, label: "컨설팅 & 조율" },
-  { icon: ClipboardList, label: "일정 기록" },
-  { icon: CalendarCheck, label: "준비 저장" },
-];
+/**
+ * 위약금·환불 원문 규모. 분기 공시 갱신 때 함께 바뀐다.
+ * 갱신 확인: `pnpm audit:production` (=== 1-c. 공시 규모 표기 ===)
+ * 네 표면(첫 화면·공시 허브·이 랜딩·감사)의 값 일치는
+ * `scripts/tests/disclosure-count-consistency.test.mjs`가 강제한다.
+ */
+const PUBLISHED_POLICY_COUNT = 831;
+const PUBLISHED_VENDOR_COUNT = 412;
 
-const flowSteps: Array<{ icon: LucideIcon; title: string; desc: string }> = [
-  {
-    icon: Heart,
-    title: "커뮤니티 인사이트",
-    desc: "이용자가 남긴 경험 글과 질문에서 참고할 점을 찾아요.",
-  },
-  {
-    icon: Target,
-    title: "견적 검토",
-    desc: "받은 견적의 포함·제외 항목과 확인할 질문을 정리해요.",
-  },
-  {
-    icon: MessageCircle,
-    title: "업체 답변 정리",
-    desc: "업체 답변을 요약하고 불분명한 조건을 다시 물어보게 도와요.",
-  },
-  {
-    icon: Calculator,
-    title: "예산 변경안 확인",
-    desc: "금액 변경안을 확인한 뒤 선택한 내용만 예산에 반영해요.",
-  },
-  {
-    icon: CalendarCheck,
-    title: "다음 할 일과 일정",
-    desc: "제안된 할 일과 날짜를 확인한 뒤 일정에 저장해요.",
-  },
-];
+const loadCatalogCounts = cache(() => (
+  loadPriceCatalogWithBuildFallback(() => (
+    loadPublicPriceCatalog(createPublicClient(), { optionCategories: [] })
+  ))
+));
 
-export default function LandingPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const title = "웨딩한방 — 공시된 가격·위약금 원문과 AI 웨딩 플래너 아모라";
+  const description =
+    "업체가 공시한 스드메·예식장 기본가와 추가금, 취소 위약금 규정을 원문 그대로 봅니다. "
+    + "예산·일정·업체 준비는 AI 아모라가 같이 잡습니다. 요약도, 어디가 낫다는 판정도 하지 않습니다.";
+  return {
+    title,
+    description,
+    alternates: { canonical: "/landing" },
+    openGraph: { title, description, url: "/landing", type: "website" },
+  };
+}
+
+const shell = "mx-auto w-full max-w-[1160px] px-6 sm:px-8 lg:px-10";
+
+export default async function LandingPage() {
+  const [catalog, spread] = await Promise.all([
+    loadCatalogCounts(),
+    loadLandingAgencySpread(),
+  ]);
+  const vendorCards = PRICE_CATEGORIES.reduce(
+    (sum, category) => sum + (catalog.counts[category] ?? 0),
+    0,
+  );
+
   return (
-    <main className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_54%,#fbf8ee_100%)] text-[#243044]">
+    <div className="min-h-screen bg-[#FBF8F2] text-[#243832]">
       <SiteHeader />
-      <HeroSection />
-      <FlowSection />
-      <FeatureCards />
-      <ConnectedSection />
-      <BetaBanner />
-      <OpenStrip />
+      <Hero />
+      <ProofBand vendorCards={vendorCards} spread={spread} />
+      <WhyWeExist />
+      <ThreeAxes vendorCards={vendorCards} counts={catalog.counts} />
+      <AmoraSection />
+      <WhatWeRefuse />
+      <HonestScope />
+      <ClosingCta />
       <SiteFooter />
-    </main>
+    </div>
   );
 }
 
 function SiteHeader() {
-  const nav = [
-    { href: weddingPath(), label: "커뮤니티" },
-    { href: weddingPath("/market-prices"), label: "시세 정보" },
-    { href: "/about", label: "소개" },
-    { href: "/beta", label: "베타 신청" },
+  const navItems = [
+    { label: "공시가·위약금", href: "/price" },
+    { label: "서비스 소개", href: "#what-we-do" },
+    { label: "커뮤니티", href: weddingPath() },
   ];
 
   return (
-    <header className={`${shell} flex h-[76px] items-center justify-between`}>
-      <Brand />
-
-      <nav className="hidden items-center gap-7 text-[14px] font-bold text-[#141f31] lg:flex">
-        {nav.slice(0, -1).map((item) => (
-          <Link key={item.href} href={item.href} className="transition-colors hover:text-[#b68a3a]">
-            {item.label}
-          </Link>
-        ))}
-        <Link
-          href="/beta"
-          className="rounded-full bg-[#061a34] px-[18px] py-[10px] text-[13px] text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
-        >
-          아모라 체험하기
+    <header className="sticky top-0 z-40 border-b border-[#243832]/8 bg-[#FBF8F2]/90 backdrop-blur">
+      <div className={`${shell} flex h-16 items-center justify-between gap-6`}>
+        <Link href="/landing" className="text-[20px] font-semibold tracking-[-0.02em] text-[#243832]">
+          웨딩한방
         </Link>
-      </nav>
-
-      <Link
-        href="/beta"
-        className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#061a34] px-4 text-[13px] font-extrabold text-white lg:hidden"
-      >
-        베타 안내
-      </Link>
+        <nav className="hidden items-center gap-8 md:flex">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-[14px] font-medium text-[#36534E]/75 transition-colors hover:text-[#243832]"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <Link
+          href="/price"
+          className="inline-flex min-h-10 items-center rounded-full bg-[#A77B74] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#8F6662]"
+        >
+          공시가 보기
+        </Link>
+      </div>
     </header>
   );
 }
 
-function Brand({ muted = false }: { muted?: boolean }) {
+/**
+ * 감정이 먼저 오는 첫 화면(DESIGN.md: "emotional first viewport, richer imagery").
+ * 숫자는 여기 두지 않는다 — 바로 아래 증거 띠가 통째로 맡는다.
+ */
+function Hero() {
   return (
-    <Link href="/landing" className="inline-flex items-center gap-[10px] whitespace-nowrap">
-      <span className="relative inline-block h-6 w-[34px] shrink-0" aria-hidden>
-        <span className="absolute left-0 top-[3px] h-[18px] w-[21px] rotate-[-22deg] rounded-full border-[2.4px] border-[#b68a3a]" />
-        <span className="absolute right-0 top-[3px] h-[18px] w-[21px] rotate-[22deg] rounded-full border-[2.4px] border-[#b68a3a]" />
-      </span>
-      <span className={`text-[24px] font-extrabold ${muted ? "text-[#071629]" : "text-[#071629]"}`}>
-        웨딩한방
-      </span>
-    </Link>
+    <section className={`${shell} pb-14 pt-12 md:pb-20 md:pt-20`}>
+      <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
+        <div className="animate-fade-in min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#B89785]">
+            Wedding Hanbang
+          </p>
+          <h1 className="mt-6 text-[36px] font-medium leading-[1.24] tracking-[-0.03em] text-[#243832] md:text-[48px]">
+            웨딩의 &lsquo;웨&rsquo;자를 몰라도,
+            <br />
+            <span className="text-[#36534E]">추가금에 안 당하고,</span>
+            <br />
+            결혼식까지.
+          </h1>
+          <p className="mt-7 max-w-lg text-[16px] font-normal leading-[1.8] text-[#36534E]/80">
+            웨딩 시장은 플래너와 업체가 정하는 대로 따라가게 설계돼 있습니다.
+            웨딩한방은 업체가 공시한 가격과 위약금을 원문 그대로 펼쳐 두고,
+            예산·일정·업체 정리는 AI 웨딩 플래너 아모라가 옆에서 같이 합니다.
+          </p>
+
+          <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <Link
+              href="/price"
+              className="group inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#A77B74] px-8 text-[16px] font-semibold text-white transition-colors duration-200 hover:bg-[#8F6662]"
+            >
+              공시가·위약금 보기
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+            </Link>
+            <Link
+              href={weddingPath("/chat")}
+              className="group inline-flex min-h-[52px] items-center gap-1.5 text-[16px] font-semibold text-[#36534E] transition-colors hover:text-[#243832]"
+            >
+              아모라와 시작하기
+              <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+          <p className="mt-5 text-[12px] font-medium leading-[1.7] text-[#36534E]/55">
+            공시가·위약금·커뮤니티는 로그인 없이 볼 수 있어요. 아모라는 내 예식일과
+            준비 상황을 바탕으로 답해야 해서 로그인이 필요하고, 무료예요.
+          </p>
+        </div>
+
+        {/* 사진을 배경 워시로 깔지 않고 한 장으로 세운다. 마케팅 표면에서 이미지는
+            분위기 장치가 아니라 첫인상 그 자체다. */}
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[28px] bg-[#F7F1E8] sm:aspect-[16/11] lg:aspect-[4/5]">
+          <Image
+            src="/images/amora-hero-bouquet-custom.webp"
+            alt="결혼 준비를 시작하는 예비부부의 부케"
+            fill
+            priority
+            sizes="(min-width: 1024px) 520px, 100vw"
+            className="object-cover"
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
-function HeroSection() {
+/**
+ * 증거 띠. Eucalyptus Ink 위에 큰 숫자만 놓는다 — 상자를 겹치지 않는다
+ * (DESIGN.md: 카드 안에 카드 금지, "Dense lists need rhythm, not more borders").
+ */
+function ProofBand({
+  vendorCards,
+  spread,
+}: {
+  vendorCards: number;
+  spread: Awaited<ReturnType<typeof loadLandingAgencySpread>>;
+}) {
+  const hasSpread = spread.differingVendors > 0 && spread.comparableVendors > 0;
+  const topSpread = spread.highlights[0] ?? null;
+
+  const stats = [
+    {
+      value: vendorCards > 0 ? vendorCards.toLocaleString("ko-KR") : "—",
+      unit: "곳",
+      label: "가격을 공시한 스튜디오·드레스·메이크업·예식장",
+    },
+    {
+      value: PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR"),
+      unit: "건",
+      label: `취소 위약금·환불 규정 원문 (업체 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳)`,
+    },
+    {
+      value: hasSpread ? spread.differingVendors.toLocaleString("ko-KR") : "—",
+      unit: "곳",
+      label: hasSpread
+        ? `대행사 2곳 이상이 공시한 ${spread.comparableVendors.toLocaleString("ko-KR")}곳 중, 대행사마다 기본가가 달랐던 업체`
+        : "대행사 간 공시가 비교",
+    },
+  ];
+
   return (
-    <section className={`${shell} relative mt-3 grid min-h-[470px] grid-cols-1 items-center gap-8 lg:grid-cols-[0.93fr_1.07fr]`}>
-      <div className="relative z-10 py-8">
-        <p className="mb-[22px] flex items-center gap-2 text-[16px] font-bold text-[#26364a]">
-          당신의 결혼 준비를 가장 잘 아는 AI
-          <Sparkles className="h-4 w-4 text-[#b68a3a]" />
+    <section className="bg-[#243832] text-white">
+      <div className={`${shell} py-14 md:py-20`}>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#E2D3C8]">
+          한국소비자원 참가격 · {disclosureRoundLabel()} 공시 기준
         </p>
+        <h2 className="mt-5 max-w-2xl text-[30px] font-medium leading-[1.34] tracking-[-0.02em] md:text-[36px]">
+          같은 업체인데, 어느 대행사를 통하느냐에 따라 가격이 다릅니다
+        </h2>
 
-        <h1 className="font-serif-kr text-[42px] font-bold leading-[1.18] text-[#061a34] sm:text-[52px] lg:text-[62px]">
-          당신만의
-          <br />
-          AI 웨딩 플래너, <span className="text-[#b68a3a]">아모라</span>
-        </h1>
+        <dl className="mt-12 grid gap-10 border-t border-white/12 pt-10 md:grid-cols-3 md:gap-8">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <dt className="flex items-baseline gap-1">
+                <span className="text-[48px] font-medium leading-none tracking-[-0.03em] text-white">
+                  {stat.value}
+                </span>
+                <span className="text-[20px] font-normal text-[#E2D3C8]">{stat.unit}</span>
+              </dt>
+              <dd className="mt-4 max-w-[26ch] text-[14px] font-normal leading-[1.7] text-white/60">
+                {stat.label}
+              </dd>
+            </div>
+          ))}
+        </dl>
 
-        <p className="my-7 text-[16px] font-medium leading-[1.9] text-[#38475c]">
-          당신의 조건을 함께 정리하고, 예산과 일정을 연결하며,
-          <br />
-          바뀌는 내용은 확인을 받은 뒤 반영하도록 설계했어요.
-        </p>
+        {hasSpread && topSpread && (
+          <p className="mt-12 border-t border-white/12 pt-8 text-[16px] font-normal leading-[1.8] text-white/75">
+            예를 들면 {PRICE_CATEGORY_LABELS[topSpread.category]} 한 곳은 대행사{" "}
+            {topSpread.agencyCount}곳이{" "}
+            <b className="font-medium text-[#E2D3C8]">{formatKrwManwon(topSpread.lowKrw)}</b>
+            부터{" "}
+            <b className="font-medium text-[#E2D3C8]">{formatKrwManwon(topSpread.highKrw)}</b>
+            까지 공시했습니다. 요약도, 어디가 낫다는 판정도 하지 않고 원문 그대로 보여드립니다.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
 
-        <div className="mb-[26px] grid max-w-[500px] grid-cols-2 gap-1 sm:grid-cols-4">
-          {heroFeatures.map((item, index) => (
+const PROBLEMS: Array<{ icon: LucideIcon; title: string; body: string }> = [
+  {
+    icon: Search,
+    title: "비교할 기준 자체가 없다",
+    body:
+      "가격을 공개하지 않는 업체가 많아, 받은 견적이 어느 수준인지 확인할 방법이 없습니다. "
+      + "그래서 대부분 플래너가 보여주는 목록 안에서만 고르게 됩니다.",
+  },
+  {
+    icon: Coins,
+    title: "계약하고 나서 금액이 벌어진다",
+    body:
+      "앨범 페이지, 원본·수정본, 헬퍼비, 얼리스타트처럼 나중에 붙는 항목이 계약 전에는 "
+      + "잘 보이지 않습니다. 처음 들은 금액과 최종 금액이 달라지는 자리입니다.",
+  },
+  {
+    icon: ScrollText,
+    title: "취소 조건은 계약 직전에야 본다",
+    body:
+      "같은 샵인데도 어느 대행사를 통하느냐에 따라 위약금 문구가 다릅니다. "
+      + "촬영 60일 전 취소 기준으로 한쪽은 상품가의 20%, 다른 쪽은 100%인 경우가 있었습니다.",
+  },
+];
+
+function WhyWeExist() {
+  return (
+    <section className={`${shell} py-16 md:py-24`}>
+      <SectionHeading eyebrow="왜 만들었나" title="정보를 가진 쪽이 조건을 정하는 시장이라서" />
+      <ul className="mt-12 grid gap-12 md:grid-cols-3 md:gap-10">
+        {PROBLEMS.map((problem) => (
+          <li key={problem.title} className="border-t border-[#243832]/12 pt-7">
+            <problem.icon className="h-6 w-6 stroke-[1.4] text-[#A77B74]" />
+            <h3 className="mt-5 text-[20px] font-medium leading-[1.4] tracking-[-0.02em] text-[#243832]">
+              {problem.title}
+            </h3>
+            <p className="mt-3 text-[15px] font-normal leading-[1.8] text-[#36534E]/75">{problem.body}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-12 max-w-3xl text-[13px] font-normal leading-[1.8] text-[#36534E]/55">
+        위약금 사례는 한국소비자원 참가격 {disclosureRoundLabel()} 공시 원문을 대조해 확인한
+        내용입니다. 모든 업체가 이렇다는 뜻은 아니며, 어느 쪽이 낫다는 판정은 하지 않습니다.
+      </p>
+    </section>
+  );
+}
+
+function ThreeAxes({
+  vendorCards,
+  counts,
+}: {
+  vendorCards: number;
+  counts: Awaited<ReturnType<typeof loadCatalogCounts>>["counts"];
+}) {
+  const categoryLine = PRICE_CATEGORIES
+    .map((category) => `${PRICE_CATEGORY_LABELS[category]} ${(counts[category] ?? 0).toLocaleString("ko-KR")}`)
+    .join(" · ");
+
+  const axes = [
+    {
+      index: "01",
+      title: "눈탱이 방지",
+      lede: "공시된 사실을 원문 그대로",
+      body:
+        vendorCards > 0
+          ? `가격을 공시한 ${vendorCards.toLocaleString("ko-KR")}곳(${categoryLine})의 기본가와 추가 항목, 그리고 취소 위약금·환불 규정 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건을 그대로 싣습니다. 요약하지 않고, 점수·등급도 매기지 않습니다.`
+          : "업체가 공시한 기본가와 추가 항목, 취소 위약금·환불 규정 원문을 그대로 싣습니다. 요약하지 않고, 점수·등급도 매기지 않습니다.",
+      items: [
+        { label: "업체별 공시가·추가금 비교", href: "/price" },
+        { label: "대행사별 위약금 원문", href: "/price" },
+        { label: "찜하고 조합해 총액 보기", href: "/price/wishlist" },
+      ],
+      note: "로그인 없이",
+    },
+    {
+      index: "02",
+      title: "셀프 준비",
+      lede: "플래너 없이 둘이서",
+      body:
+        "발품을 대신 팔아주지는 않습니다. 대신 발품 판 결과가 흩어지지 않게 담아 둡니다. "
+        + "예산은 20개 항목으로 나눠 추적하고, 일정은 체크리스트와 타임라인으로 봅니다.",
+      items: [
+        { label: "예산 20개 항목·분담 추적", href: weddingPath("/budget") },
+        { label: "체크리스트·타임라인·캘린더", href: weddingPath("/schedule") },
+        { label: "받은 견적서 점검", href: weddingPath("/community/quote-check") },
+        { label: "축의금 관리", href: weddingPath("/money") },
+      ],
+      note: "예산·일정·축의금은 로그인 필요 · 견적서 점검은 로그인 없이",
+    },
+    {
+      index: "03",
+      title: "동반자",
+      lede: "준비하는 내내 옆에",
+      body:
+        "한 번 말한 조건을 다시 묻지 않고, 상견례나 예식처럼 챙길 것이 많은 날 앞에서는 "
+        + "먼저 말을 겁니다. 비슷한 시기에 준비하는 사람들이 모인 동기방도 분기별로 열려 있습니다.",
+      items: [
+        { label: "아모라 상담", href: weddingPath("/chat") },
+        { label: "분기별 동기방", href: weddingPath("/community/cohort") },
+        { label: "후기·질문 커뮤니티", href: weddingPath() },
+      ],
+      note: "커뮤니티 읽기는 로그인 없이 · 아모라·동기방은 로그인 필요",
+    },
+  ];
+
+  return (
+    <section id="what-we-do" className="scroll-mt-16 bg-[#F7F1E8]">
+      <div className={`${shell} py-16 md:py-24`}>
+        <SectionHeading
+          eyebrow="웨딩한방이 하는 일"
+          title="셋으로 나뉩니다"
+          description="기능을 넓게 늘리는 대신, 이 셋을 깊게 합니다."
+        />
+
+        <div className="mt-12 divide-y divide-[#243832]/12 border-y border-[#243832]/12">
+          {axes.map((axis) => (
             <div
-              key={item.label}
-              className={`flex min-h-[72px] flex-col items-center justify-center gap-[9px] pr-3 text-[13px] font-bold text-[#34445a] ${
-                index < heroFeatures.length - 1 ? "sm:border-r sm:border-[#eadfc9]" : ""
-              }`}
+              key={axis.index}
+              className="grid gap-6 py-10 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.8fr)] lg:gap-12"
             >
-              <item.icon className="h-9 w-9 stroke-[1.5] text-[#b68a3a]" />
-              <span>{item.label}</span>
+              <span className="text-[14px] font-semibold tracking-[0.1em] text-[#B89785] lg:pt-1.5">
+                {axis.index}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-[24px] font-medium leading-[1.35] tracking-[-0.02em] text-[#243832] md:text-[30px]">
+                  {axis.title}
+                  <span className="ml-2.5 text-[16px] font-normal text-[#36534E]/60 md:text-[18px]">
+                    {axis.lede}
+                  </span>
+                </h3>
+                <p className="mt-4 max-w-xl text-[15px] font-normal leading-[1.85] text-[#36534E]/78">
+                  {axis.body}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <ul className="flex flex-col">
+                  {axis.items.map((item) => (
+                    <li key={item.label}>
+                      <Link
+                        href={item.href}
+                        className="group flex min-h-12 items-center justify-between gap-4 border-b border-[#243832]/10 text-[15px] font-medium text-[#36534E] transition-colors hover:text-[#A77B74]"
+                      >
+                        {item.label}
+                        <ArrowRight className="h-4 w-4 shrink-0 text-[#B89785] transition-transform duration-200 group-hover:translate-x-1" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-[12px] font-medium leading-[1.7] text-[#36534E]/55">{axis.note}</p>
+              </div>
             </div>
           ))}
         </div>
-
-        <div className="flex flex-wrap items-center gap-[18px]">
-          <Link
-            href="/beta"
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#061a34] px-6 text-[15px] font-extrabold text-white shadow-[0_14px_28px_rgba(6,26,52,0.18)] transition-transform hover:-translate-y-0.5"
-          >
-            베타 안내 보기
-            <ArrowRight className="ml-3 h-4 w-4" />
-          </Link>
-          <Link
-            href="/demo"
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#b68a3a] bg-white/60 px-7 text-[15px] font-extrabold text-[#061a34] transition-transform hover:-translate-y-0.5"
-          >
-            미리 체험하기
-          </Link>
-        </div>
-      </div>
-
-      <div className="relative min-h-[400px] self-stretch overflow-hidden rounded-bl-[64px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_48%] shadow-[inset_24px_0_44px_rgba(255,253,247,0.82)] max-lg:rounded-[28px]">
-        <div className="absolute inset-y-0 left-0 w-[23%] bg-[linear-gradient(90deg,#fffdf7,rgba(255,253,247,0))]" />
-        <div className="absolute bottom-[68px] left-[44%] w-[280px] border border-[#e8dcc8] bg-[#f7efe2]/95 px-9 py-7 text-center shadow-[0_14px_34px_rgba(38,32,24,0.12)] max-sm:left-1/2 max-sm:w-[220px] max-sm:-translate-x-1/2">
-          <p className="font-display text-[42px] leading-none text-[#9d6f36]">Amora</p>
-          <p className="mt-2 font-jakarta text-[9px] font-semibold uppercase text-[#8d7c64]">
-            AI Wedding Planner
-          </p>
-        </div>
       </div>
     </section>
   );
 }
 
-function FlowSection() {
+const AMORA_ABILITIES: Array<{ icon: LucideIcon; when: string; then: string }> = [
+  {
+    icon: CalendarCheck,
+    when: "예식일만 알려주면",
+    then: "지금 열어야 하는 항목과 다음 한 걸음을 순서로 잡아줍니다.",
+  },
+  {
+    icon: Wallet,
+    when: "총예산만 말하면",
+    then: "20개 항목으로 나눈 초안을 만들고, 조건이 바뀌면 같이 고칩니다.",
+  },
+  {
+    icon: Bell,
+    when: "상견례·예식이 다가오면",
+    then: "먼저 말을 걸어 그날 챙길 것을 짚어줍니다.",
+  },
+  {
+    icon: Users,
+    when: "둘의 의견이 갈리면",
+    then: "두 사람이 각각 같은 안에 동의한 뒤에만 공동 결정으로 남깁니다.",
+  },
+];
+
+function AmoraSection() {
   return (
-    <section className={`${shell} pt-11`}>
-      <h2 className="mb-7 text-center font-serif-kr text-[28px] font-semibold text-[#071629]">
-        웨딩한방 아모라가 함께하는 <span className="text-[#b68a3a]">결혼 준비 흐름</span>
-      </h2>
+    <section className={`${shell} py-16 md:py-24`}>
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-20">
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#B89785]">
+            AI 웨딩 플래너 아모라
+          </p>
+          <h2 className="mt-5 text-[30px] font-medium leading-[1.32] tracking-[-0.025em] text-[#243832] md:text-[36px]">
+            대신 결정하지 않습니다.
+            <br />
+            <span className="text-[#36534E]">같이 정리합니다.</span>
+          </h2>
+          <p className="mt-6 max-w-lg text-[15px] font-normal leading-[1.85] text-[#36534E]/78">
+            아모라는 결혼 준비를 대신 결정하는 챗봇이 아닙니다. 일정과 예산을 바꿀 때는
+            바뀔 내용을 먼저 보여주고{" "}
+            <b className="font-semibold text-[#243832]">사용자가 승인한 내용만 반영</b>합니다.
+            모르는 가격이나 계약 해석을 아는 척하지 않고, 출처와 기준 시점을 구분해 말합니다.
+          </p>
+          <p className="mt-4 max-w-lg text-[14px] font-normal leading-[1.8] text-[#36534E]/60">
+            장기기억은 기본이 꺼져 있습니다. 개인 기억은 본인이, 커플 공유 기억은 두 사람이
+            모두 동의해야 켜지고, 한 명이 철회하면 즉시 꺼집니다. 기억은 언제든 열어 보고
+            고치거나 지울 수 있습니다.
+          </p>
+          <Link
+            href={weddingPath("/chat")}
+            className="group mt-8 inline-flex min-h-[52px] items-center gap-2 rounded-full bg-[#36534E] px-8 text-[16px] font-semibold text-white transition-colors duration-200 hover:bg-[#243832]"
+          >
+            아모라와 시작하기
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+          </Link>
+          <p className="mt-4 text-[12px] font-medium text-[#36534E]/55">로그인이 필요해요 · 무료</p>
+        </div>
 
-      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_28px_1fr_28px_1fr_28px_1fr_28px_1fr]">
-        {flowSteps.map((step, index) => (
-          <FragmentWithArrow key={step.title} showArrow={index < flowSteps.length - 1}>
-            <article className="relative min-h-[166px] rounded-[18px] border border-[#f2eadc] bg-white/90 px-4 pb-5 pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-              <span className="absolute left-4 top-4 inline-flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[linear-gradient(135deg,#ecd7a4,#b68a3a)] text-[13px] font-black text-[#553d16]">
-                {index + 1}
+        <ul className="grid gap-x-10 gap-y-9 sm:grid-cols-2">
+          {AMORA_ABILITIES.map((ability) => (
+            <li key={ability.when} className="border-t border-[#243832]/12 pt-6">
+              <ability.icon className="h-5 w-5 stroke-[1.5] text-[#6D806E]" />
+              <b className="mt-4 block text-[16px] font-semibold leading-[1.5] text-[#243832]">
+                {ability.when}
+              </b>
+              <span className="mt-2 block text-[14px] font-normal leading-[1.8] text-[#36534E]/72">
+                {ability.then}
               </span>
-              <step.icon className="mx-auto mb-4 mt-[14px] h-12 w-12 stroke-[1.5] text-[#b68a3a]" />
-              <h3 className="mb-2 text-[17px] font-black text-[#071629]">{step.title}</h3>
-              <p className="text-[13px] font-semibold leading-[1.55] text-[#5d6676]">{step.desc}</p>
-            </article>
-          </FragmentWithArrow>
-        ))}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
 }
 
-function FragmentWithArrow({
-  children,
-  showArrow,
+const REFUSALS: Array<{ title: string; body: string }> = [
+  {
+    title: "돈 받고 순위를 올려주지 않습니다",
+    body: "유료 노출·프리미엄 순위는 영구히 만들지 않습니다. 광고를 싣게 되더라도 추천과는 완전히 분리해 표시합니다.",
+  },
+  {
+    title: "AI가 일반 사용자인 척하지 않습니다",
+    body: "커뮤니티에서 AI가 사람인 것처럼 글이나 댓글을 쓰지 않습니다. AI가 만든 것은 AI가 만들었다고 밝힙니다.",
+  },
+  {
+    title: "견적과 시세에 점수를 매기지 않습니다",
+    body: "구성을 모르는 채로 안전·위험을 판정하면 틀립니다. 확인되지 않은 항목이 무엇인지와, 계약 전 물어볼 질문까지만 드립니다.",
+  },
+  {
+    title: "계약서를 법률적으로 판단하지 않습니다",
+    body: "독소조항 판정이나 승소 가능성 같은 이야기는 하지 않습니다. 확인할 문구를 짚고 쉬운 말로 옮기는 데까지입니다.",
+  },
+];
+
+function WhatWeRefuse() {
+  return (
+    <section className="bg-[#243832] text-white">
+      <div className={`${shell} py-16 md:py-24`}>
+        <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#E2D3C8]">
+          하지 않는 것
+        </p>
+        <h2 className="mt-5 max-w-2xl text-[30px] font-medium leading-[1.34] tracking-[-0.025em] md:text-[36px]">
+          무엇을 안 하는지가 이 서비스의 정의입니다
+        </h2>
+        <p className="mt-5 max-w-xl text-[15px] font-normal leading-[1.85] text-white/60">
+          소비자 신뢰가 단기 매출보다 항상 앞선다는 것이 첫 번째 원칙입니다.
+        </p>
+
+        <ul className="mt-12 grid gap-10 border-t border-white/12 pt-10 md:grid-cols-2 md:gap-x-16">
+          {REFUSALS.map((refusal, index) => (
+            <li key={refusal.title}>
+              <span className="text-[13px] font-semibold tracking-[0.1em] text-[#B89785]">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <b className="mt-3 block text-[20px] font-medium leading-[1.45] tracking-[-0.02em] text-white">
+                {refusal.title}
+              </b>
+              <span className="mt-3 block max-w-md text-[14px] font-normal leading-[1.8] text-white/60">
+                {refusal.body}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function HonestScope() {
+  const notes = [
+    `공시 자료는 ${disclosureRoundLabel()} 라운드 기준입니다. 계약 시점·시즌·선택 옵션에 따라 실제 금액은 달라질 수 있어 계약 전 업체 확인이 필요합니다.`,
+    "지역별 공급이 고르지 않습니다. 공시한 업체만 싣기 때문에 실제 그 지역의 업체 수와 다르며, 목록에서 지역별 수를 숨기지 않고 그대로 보여줍니다.",
+    "업체 예약·결제·계약을 대행하지 않습니다. 계약은 사용자가 업체와 직접 합니다. 웨딩한방은 그 전에 필요한 사실과 절차만 제공합니다.",
+  ];
+
+  return (
+    <section className={`${shell} py-16 md:py-20`}>
+      <h2 className="text-[24px] font-medium leading-[1.4] tracking-[-0.02em] text-[#243832] md:text-[30px]">
+        지금 어디까지 와 있는지도 적어 둡니다
+      </h2>
+      <ul className="mt-8 grid gap-8 border-t border-[#243832]/12 pt-8 md:grid-cols-3 md:gap-10">
+        {notes.map((note) => (
+          <li key={note} className="text-[14px] font-normal leading-[1.85] text-[#36534E]/72">
+            {note}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ClosingCta() {
+  return (
+    <section className={`${shell} pb-20 pt-4`}>
+      <div className="overflow-hidden rounded-[28px] bg-[#36534E] px-8 py-16 text-center md:px-16 md:py-20">
+        <h2 className="mx-auto max-w-2xl text-[30px] font-medium leading-[1.34] tracking-[-0.025em] text-white md:text-[36px]">
+          아직 아무것도 안 알아봤어도 괜찮아요
+        </h2>
+        <p className="mx-auto mt-5 max-w-lg text-[16px] font-normal leading-[1.8] text-white/70">
+          공시된 가격부터 열어 보거나, 예식일만 알려주고 순서를 잡는 것부터 시작해 보세요.
+        </p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Link
+            href="/price"
+            className="group inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#A77B74] px-8 text-[16px] font-semibold text-white transition-colors duration-200 hover:bg-[#8F6662]"
+          >
+            공시가·위약금 보기
+            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+          </Link>
+          <Link
+            href="/start-here"
+            className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-white/25 px-8 text-[16px] font-medium text-white transition-colors hover:border-white/50"
+          >
+            지금 뭐부터 할지 보기
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
 }: {
-  children: ReactNode;
-  showArrow: boolean;
+  eyebrow: string;
+  title: string;
+  description?: string;
 }) {
   return (
-    <>
-      {children}
-      {showArrow && (
-        <div className="hidden text-center font-serif-kr text-[42px] leading-none text-[#b68a3a] lg:block">
-          ›
-        </div>
+    <div className="max-w-2xl">
+      <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#B89785]">{eyebrow}</p>
+      <h2 className="mt-5 text-[30px] font-medium leading-[1.32] tracking-[-0.025em] text-[#243832] md:text-[36px]">
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-5 text-[16px] font-normal leading-[1.8] text-[#36534E]/75">{description}</p>
       )}
-    </>
+    </div>
   );
 }
 
-function FeatureCards() {
-  return (
-    <section className={`${shell} pt-9`}>
-      <div className="grid grid-cols-1 gap-[18px] md:grid-cols-2 xl:grid-cols-4">
-        <article className="min-h-[410px] rounded-[18px] border border-[#f2eadc] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,243,0.88))] px-6 pb-[22px] pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-          <span className="mb-3 block text-[15px] font-black text-[#b68a3a]">01</span>
-          <h3 className="mb-3 font-serif-kr text-[22px] font-semibold leading-[1.35] text-[#2a2118]">
-            받은 견적 확인하기
-          </h3>
-          <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            입력한 견적에서 포함 여부를 확인하고,
-            <br />
-            계약 전에 물어볼 질문을 정리해요.
-          </p>
+const FOOTER_SERVICE_LINKS = [
+  { label: "공시가·위약금", href: "/price" },
+  { label: "커뮤니티", href: weddingPath() },
+  { label: "견적서 점검", href: weddingPath("/community/quote-check") },
+  { label: "아모라 상담", href: weddingPath("/chat") },
+];
 
-          <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-1 text-[14px] font-black text-[#061a34]">견적 확인 예시</h4>
-            <p className="mb-3 text-[10px] font-semibold text-[#87909d]">사용자가 입력한 내용만 정리해요</p>
-            {[
-              ["대관료", "견적 기재", "포함", "confirmed"],
-              ["꽃장식", "기본 범위", "질문", "question"],
-              ["보증 인원", "인원 기재", "조건", "question"],
-              ["부가세", "표기 없음", "확인", "question"],
-            ].map(([name, amount, delta, tone]) => (
-              <div
-                key={name}
-                className="grid grid-cols-[1fr_auto_36px] items-center gap-2 border-b border-dashed border-[#efe5d5] py-[7px] text-[12px] text-[#566172] last:border-b-0"
-              >
-                <span>{name}</span>
-                <b className="text-[12px] font-extrabold text-[#30394a]">{amount}</b>
-                <em
-                  className={`inline-flex min-w-[34px] justify-center rounded-full px-[7px] py-1 text-[11px] font-black not-italic ${
-                    tone === "confirmed" ? "bg-[#edf6ed] text-[#40724f]" : "bg-[#fbefd6] text-[#956622]"
-                  }`}
-                >
-                  {delta}
-                </em>
-              </div>
-            ))}
-          </div>
-
-          <CardLink />
-        </article>
-
-        <article className="min-h-[410px] rounded-[18px] border border-[#f2eadc] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,243,0.88))] px-6 pb-[22px] pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-          <span className="mb-3 block text-[15px] font-black text-[#b68a3a]">02</span>
-          <h3 className="mb-3 font-serif-kr text-[22px] font-semibold leading-[1.35] text-[#2a2118]">
-            업체 답변 같이 해석하기
-          </h3>
-          <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            업체 답변을 짧게 정리하고,
-            <br />
-            불분명한 조건을 다시 물어보게 도와요.
-          </p>
-
-          <div className="relative min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-[13px] text-[14px] font-black text-[#061a34]">답변 요약</h4>
-            <p className="rounded-xl bg-[#f8f4ec] p-3 text-[12px] font-semibold leading-[1.6] text-[#556274]">
-              선택 옵션에 따라 최종 금액이 달라질 수 있다고 안내받았어요.
-            </p>
-            <div className="mt-3 rounded-[13px] bg-[linear-gradient(135deg,rgba(240,224,191,0.55),rgba(255,255,255,0.8))] p-[13px] text-[12px] font-semibold leading-[1.55] text-[#4b5665]">
-              <b className="mb-1 block text-[#b68a3a]">다시 물어볼 질문</b>
-              옵션별 금액과 포함 범위를 서면으로 받을 수 있을까요?
-            </div>
-            <div className="absolute bottom-2 right-3 h-[46px] w-[46px] rounded-full border-[3px] border-white bg-[radial-gradient(circle_at_50%_28%,#f4c7aa_0_11px,transparent_12px),radial-gradient(circle_at_50%_46%,#33241d_0_20px,transparent_21px),radial-gradient(circle_at_50%_80%,#f4f0e8_0_18px,transparent_19px)] shadow-[0_8px_18px_rgba(38,32,24,0.12)]" />
-          </div>
-
-          <CardLink />
-        </article>
-
-        <article className="min-h-[410px] rounded-[18px] border border-[#f2eadc] bg-[linear-gradient(180deg,rgba(252,255,248,0.96),rgba(255,251,242,0.9))] px-6 pb-[22px] pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-          <span className="mb-3 block text-[15px] font-black text-[#b68a3a]">03</span>
-          <h3 className="mb-3 font-serif-kr text-[22px] font-semibold leading-[1.35] text-[#2a2118]">
-            예산 변경안 확인하기
-          </h3>
-          <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            아모라가 제안한 변경 내용을 먼저 보고,
-            <br />
-            승인한 항목만 예산에 반영해요.
-          </p>
-
-          <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-2 text-[14px] font-black text-[#061a34]">반영 전 확인</h4>
-            <div className="mb-[14px] rounded-full bg-[#fbefd6] px-3 py-2 text-center text-[11px] font-black text-[#956622]">
-              아직 저장된 예산은 바뀌지 않았어요
-            </div>
-            {[
-              ["변경 항목", "웨딩홀"],
-              ["현재 금액", "저장된 값"],
-              ["제안 금액", "사용자 입력값"],
-            ].map(([label, amount]) => (
-              <div key={label} className="flex items-center justify-between py-[5px] text-[12px] text-[#566172]">
-                <span>{label}</span>
-                <b className="font-bold text-[#2e3849]">{amount}</b>
-              </div>
-            ))}
-          </div>
-
-          <CardLink />
-        </article>
-
-        <article className="min-h-[410px] rounded-[18px] border border-[#f2eadc] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,251,243,0.88))] px-6 pb-[22px] pt-[26px] text-center shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-          <span className="mb-3 block text-[15px] font-black text-[#b68a3a]">04</span>
-          <h3 className="mb-3 font-serif-kr text-[22px] font-semibold leading-[1.35] text-[#061a34]">
-            다음 할 일 놓치지 않기
-          </h3>
-          <p className="mx-auto mb-[22px] text-[13px] font-semibold leading-[1.7] text-[#596477]">
-            다음 할 일과 날짜 제안을 먼저 확인하고,
-            <br />
-            필요한 항목만 일정에 저장해요.
-          </p>
-
-          <div className="min-h-[175px] rounded-2xl border border-[#f2eadc] bg-white/90 px-4 py-[18px] text-left">
-            <h4 className="mb-1 text-[14px] font-black text-[#061a34]">다음 할 일 예시</h4>
-            <p className="mb-3 text-[10px] font-semibold text-[#87909d]">날짜는 결혼일과 선택에 따라 달라져요</p>
-            {[
-              ["견적 포함 항목 확인", "제안"],
-              ["업체 답변 기록", "제안"],
-              ["커플과 최종 확인", "제안"],
-            ].map(([label, day]) => (
-              <label
-                key={label}
-                className="grid grid-cols-[18px_1fr_auto] items-center gap-[6px] border-b border-[#f0e8dc] py-[10px] text-[12px] font-bold text-[#535f72] last:border-b-0"
-              >
-                <span className="h-[14px] w-[14px] rounded-full border border-[#9da8b6] bg-white" />
-                <span>{label}</span>
-                <b className="text-[#061a34]">{day}</b>
-              </label>
-            ))}
-          </div>
-
-          <CardLink />
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function CardLink() {
-  return (
-    <Link href={weddingPath()} className="mt-[18px] inline-flex items-center gap-2 text-[13px] font-black text-[#061a34]">
-      자세히 보기
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Link>
-  );
-}
-
-function ConnectedSection() {
-  return (
-    <section className={`${shell} pt-9`}>
-      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1.27fr_0.98fr]">
-        <article className="grid min-h-[282px] grid-cols-1 gap-[22px] rounded-[18px] border border-[#f2eadc] bg-white/90 p-[26px] shadow-[0_10px_26px_rgba(8,22,38,0.06)] md:grid-cols-[1.05fr_0.85fr]">
-          <div>
-            <h2 className="mb-3 font-serif-kr text-[23px] font-semibold text-[#071629]">
-              커뮤니티 글과 공식 자료를 구분해 봐요.
-            </h2>
-            <p className="text-[13px] font-semibold leading-[1.8] text-[#5d6879]">
-              원문 링크가 있는 공개 자료와 이용자가 남긴 경험을 구분하고,
-              지역·시점·조건을 함께 확인하도록 안내해요.
-            </p>
-
-            <div className="mt-[38px] grid grid-cols-3 gap-[14px] border-t border-[#eadfc9] pt-6">
-              {[
-                { icon: FileSearch, label: "공식 자료", value: "원문", suffix: " 링크" },
-                { icon: Landmark, label: "견적 체크", value: "포함", suffix: " 질문" },
-                { icon: Building2, label: "커뮤니티", value: "경험", suffix: " 글" },
-              ].map((metric, index) => (
-                <div
-                  key={metric.label}
-                  className={`text-center ${index < 2 ? "border-r border-[#eadfc9]" : ""}`}
-                >
-                  <span className="mx-auto mb-[10px] inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-[#eadfc9] bg-[#fffdf7] text-[#b68a3a]">
-                    <metric.icon className="h-5 w-5 stroke-[1.5]" />
-                  </span>
-                  <span className="mb-[5px] block text-[12px] font-bold text-[#6c7584]">{metric.label}</span>
-                  <strong className="text-[20px] font-black text-[#061a34]">{metric.value}</strong>
-                  <em className="text-[12px] not-italic text-[#4f5b6c]">{metric.suffix}</em>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="self-center rounded-[17px] border border-[#f2eadc] bg-white p-4 shadow-[0_10px_24px_rgba(8,22,38,0.05)]">
-            <div className="mb-3 flex gap-[11px] text-[11px] font-extrabold text-[#7a8290]">
-              <b className="text-[#061a34]">전체</b>
-              <span>웨딩홀</span>
-              <span>스드메</span>
-              <span>예물</span>
-              <span>한복</span>
-            </div>
-            {[
-              ["공식 시세 확인", "출처·기준일·지역을 함께 확인해요"],
-              ["견적 질문 만들기", "포함·제외와 변경 조건을 적어요"],
-              ["경험 글 참고", "개별 경험이며 일반 기준은 아니에요"],
-            ].map(([title, desc]) => (
-              <div key={title} className="mb-2 rounded-xl bg-[#f8f7f3] p-3 last:mb-0">
-                <b className="mb-1 block text-[12px] text-[#061a34]">{title}</b>
-                <span className="block text-[12px] leading-[1.55] text-[#5d6777]">{desc}</span>
-              </div>
-            ))}
-            <Link href={weddingPath()} className="mt-1 inline-flex text-[12px] font-black text-[#061a34]">
-              자세히 보기
-            </Link>
-          </div>
-        </article>
-
-        <article className="relative min-h-[282px] rounded-[18px] border border-[#f2eadc] bg-white/90 px-[30px] pb-6 pt-[30px] shadow-[0_10px_26px_rgba(8,22,38,0.06)]">
-          <MoreHorizontal className="absolute right-6 top-6 h-5 w-5 text-[#061a34]" />
-          <h2 className="mb-3 font-serif-kr text-[23px] font-semibold text-[#061a34]">
-            아모라와 대화해 보세요.
-          </h2>
-          <p className="text-[13px] font-semibold leading-[1.8] text-[#5d6879]">
-            글로 준비의 고민, 아모라와 함께 해결해보세요.
-          </p>
-
-          <div className="mt-[26px]">
-            <div className="ml-auto max-w-[280px] rounded-[18px] rounded-br-md bg-[#061a34] px-[18px] py-4 text-[14px] font-extrabold leading-[1.55] text-white">
-              이 견적에서 계약 전에 꼭 확인할 항목을 정리해줘.
-            </div>
-            <div className="mt-[18px] flex items-end gap-3">
-              <div className="h-11 w-11 shrink-0 rounded-full border-[3px] border-white bg-[radial-gradient(circle_at_50%_28%,#f4c7aa_0_11px,transparent_12px),radial-gradient(circle_at_50%_46%,#33241d_0_20px,transparent_21px),radial-gradient(circle_at_50%_80%,#f4f0e8_0_18px,transparent_19px)] shadow-[0_8px_18px_rgba(38,32,24,0.12)]" />
-              <div className="max-w-[280px] rounded-[18px] rounded-bl-md bg-[#f7f4ee] px-[18px] py-4 text-[14px] font-extrabold leading-[1.55] text-[#495465]">
-                입력한 내용에서 포함 여부가 불분명한 항목과 확인 질문을 먼저 보여드릴게요.
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-[10px]">
-            {["견적 질문 정리", "예식 일정 확인", "예산 변경안 확인"].map((chip) => (
-              <Link
-                key={chip}
-                href={weddingPath("/chat")}
-                className="h-9 rounded-full border border-[#d9e0ea] bg-white px-4 text-[12px] font-black text-[#061a34]"
-              >
-                {chip}
-              </Link>
-            ))}
-          </div>
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function BetaBanner() {
-  return (
-    <section className={`${shell} mt-[38px] grid min-h-[206px] grid-cols-1 items-center gap-7 rounded-[18px] bg-[radial-gradient(circle_at_91%_8%,rgba(236,215,164,0.22),transparent_18rem),linear-gradient(135deg,#07192f_0%,#0b2444_62%,#06172c_100%)] px-9 py-[30px] text-white shadow-[0_22px_52px_rgba(6,26,52,0.24)] lg:grid-cols-[1.18fr_1.1fr_1.1fr]`}>
-      <div>
-        <span className="text-[13px] font-black text-[#d3af67]">함께 검증하는 결혼 준비 도구</span>
-        <h2 className="my-3 font-serif-kr text-[32px] font-bold leading-[1.3]">
-          운영 검증에 함께해 주실
-          <br />
-          베타 이용자를 모집합니다
-        </h2>
-        <p className="text-[13px] font-semibold leading-[1.7] text-white/75">
-          현재 열린 기능을 사용하고 불편한 점을 알려주세요.
-          제공 범위와 기간은 신청 안내에서 확인할 수 있어요.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-[18px] border-y border-[#ecd7a4]/25 py-6 lg:border-x lg:border-y-0 lg:px-[26px] lg:py-0">
-        <h3 className="col-span-3 text-[14px] font-black text-[#d3af67]">베타 참여 혜택</h3>
-        {[
-          { icon: ClipboardList, title: "기능 안내", desc: "열린 범위 사용" },
-          { icon: MessageCircle, title: "의견 전달", desc: "불편·오류 제보" },
-          { icon: Bell, title: "출시 소식", desc: "변경 사항 안내" },
-        ].map((benefit) => (
-          <div key={benefit.title} className="text-center">
-            <span className="mx-auto mb-[10px] inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-[#ecd7a4]/50 bg-white/[0.04] text-[#d3af67]">
-              <benefit.icon className="h-6 w-6 stroke-[1.5]" />
-            </span>
-            <b className="block text-[12px] text-white/85">{benefit.title}</b>
-            <span className="text-[11px] text-white/60">{benefit.desc}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex min-h-[140px] flex-col justify-center rounded-2xl border border-[#ecd7a4]/30 bg-white/[0.04] p-6">
-        <span className="text-[13px] font-black text-[#d3af67]">신청 전에 확인해 주세요</span>
-        <p className="mt-3 text-[13px] font-semibold leading-[1.75] text-white/75">
-          베타는 정식 상품이 아니며 기능이 바뀌거나 일시 중단될 수 있어요. 비용·기간·제공 기능은 신청 화면과 개별 안내가 우선합니다.
-        </p>
-        <Link href="/beta" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-full bg-white px-5 text-[13px] font-black text-[#061a34]">
-          베타 안내 확인하기
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function OpenStrip() {
-  return (
-    <section className={`${shell} mt-7 grid min-h-28 grid-cols-1 items-center gap-[22px] rounded-2xl border border-[#f2eadc] bg-[linear-gradient(90deg,#f9f1df,#fff9ee_48%,#ffffff)] px-7 py-5 shadow-[0_10px_26px_rgba(8,22,38,0.06)] lg:grid-cols-[auto_1fr_auto]`}>
-      <div className="relative h-[54px] w-[54px] rounded-[15px] bg-[linear-gradient(135deg,#d3af67,#b68a3a)]">
-        <LockKeyhole className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 text-[#fff8e8]" />
-      </div>
-      <div>
-        <h2 className="mb-[6px] text-[20px] font-black text-[#071629]">정식 운영 전 안전 검증 중입니다</h2>
-        <p className="text-[13px] font-semibold leading-[1.6] text-[#5d6878]">
-          신청 후 베타 제공 범위와 변경 사항을 안내받을 수 있어요.
-          운영 검증을 통과한 기능부터 순차적으로 열겠습니다.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/beta"
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d3af67] bg-white px-6 text-[15px] font-extrabold text-[#061a34]"
-        >
-          오픈 알림 신청하기
-          <Bell className="ml-3 h-4 w-4" />
-        </Link>
-        <Link
-          href="/demo"
-          className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#061a34] px-6 text-[15px] font-extrabold text-white"
-        >
-          기능 원칙 미리 보기
-          <ArrowRight className="ml-3 h-4 w-4" />
-        </Link>
-      </div>
-    </section>
-  );
-}
+const FOOTER_POLICY_LINKS = [
+  { label: "이용약관", href: "/terms" },
+  { label: "개인정보처리방침", href: "/privacy" },
+  { label: "AI 서비스 정책", href: "/ai-policy" },
+];
 
 function SiteFooter() {
   return (
-    <footer className={`${shell} relative grid gap-[26px] border-t border-[#eadfc9] bg-white py-7 pb-[46px] md:grid-cols-2 xl:grid-cols-[1.35fr_0.72fr_0.92fr_0.94fr_1.55fr]`}>
-      <div>
-        <Brand muted />
-        <p className="my-3 text-[13px] font-bold text-[#647083]">
-          확인한 내용을 이어서 정리하는 결혼 준비
-        </p>
+    <footer className="border-t border-[#243832]/10 bg-[#F7F1E8]">
+      <div className={`${shell} grid gap-10 py-14 md:grid-cols-[1.5fr_1fr_1fr]`}>
+        <div>
+          <span className="text-[20px] font-semibold tracking-[-0.02em] text-[#243832]">웨딩한방</span>
+          <p className="mt-4 max-w-sm text-[14px] font-normal leading-[1.85] text-[#36534E]/70">
+            업체가 공시한 가격과 위약금 원문을 그대로 보여주고, 준비하는 내내 옆에 있는
+            소비자 편 서비스입니다.
+          </p>
+        </div>
+        <FooterColumn title="서비스" items={FOOTER_SERVICE_LINKS} />
+        <FooterColumn title="정책" items={FOOTER_POLICY_LINKS} />
       </div>
-
-      <FooterCol title="서비스" items={[
-        { label: "커뮤니티", href: weddingPath() },
-        { label: "시세 정보", href: weddingPath("/market-prices") },
-        { label: "소개", href: "/about" },
-      ]} />
-      <FooterCol title="정책" items={[
-        { label: "이용약관", href: "/terms" },
-        { label: "개인정보처리방침", href: "/privacy" },
-        { label: "AI 서비스 정책", href: "/ai-policy" },
-      ]} />
-      <div className="flex flex-col gap-2">
-        <h3 className="mb-2 text-[14px] font-black text-[#071629]">연락</h3>
-        <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.email}</span>
-        <span className="text-[13px] font-semibold text-[#5b6676]">{CONTACT.hours}</span>
+      <div className={`${shell} border-t border-[#243832]/10 py-6 text-[12px] font-normal text-[#36534E]/55`}>
+        © 2026 Wedding Hanbang. 가격 출처: 한국소비자원 참가격 · {disclosureRoundLabel()} 공시 기준.
       </div>
-
-      <div className="rounded-[15px] border border-[#f2eadc] bg-[#fffdf7] px-5 py-[18px] md:col-span-2 xl:col-span-1">
-        <h3 className="mb-2 text-[14px] font-black text-[#071629]">AI 기반 서비스 고지</h3>
-        <p className="text-[12px] font-semibold leading-[1.7] text-[#5b6676]">
-          웨딩한방은 AI 기반 추천 및 상담 서비스를 제공합니다. 계약 전 최종 확인과
-          중요한 결정은 사용자 본인의 검토를 거쳐야 합니다.
-        </p>
-      </div>
-
-      <p className="absolute bottom-[15px] left-1/2 -translate-x-1/2 text-[12px] text-[#9aa2af]">
-        © 2026 Weddinghanbang. All rights reserved.
-      </p>
     </footer>
   );
 }
 
-function FooterCol({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
+function FooterColumn({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="mb-2 text-[14px] font-black text-[#071629]">{title}</h3>
-      {items.map((item) => (
-        <Link key={item.href} href={item.href} className="text-[13px] font-semibold text-[#5b6676]">
-          {item.label}
-        </Link>
-      ))}
+    <div>
+      <h3 className="text-[14px] font-semibold text-[#243832]">{title}</h3>
+      <ul className="mt-4 flex flex-col gap-3">
+        {items.map((item) => (
+          <li key={item.label}>
+            <Link
+              href={item.href}
+              className="text-[14px] font-normal text-[#36534E]/70 transition-colors hover:text-[#A77B74]"
+            >
+              {item.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
