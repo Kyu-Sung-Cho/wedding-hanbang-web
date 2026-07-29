@@ -37,6 +37,8 @@ import PostSkeleton from "@/components/community/PostSkeleton";
 import { CATEGORY_MAP } from "@/constants/communityCategories";
 import { PRICE_CATEGORIES, type PriceCategory } from "@/lib/price/catalog";
 import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
+import { formatKrwManwon, type AgencySpreadSummary } from "@/lib/price/agencySpread";
+import { disclosureRoundLabel } from "@/lib/price/period";
 import { useCommunityRealtime } from "@/hooks/useCommunityRealtime";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -222,9 +224,11 @@ function getPostImage(post: PostWithAuthor) {
 export default function CommunityLandingClient({
   initialFeed,
   initialQuery = {},
+  agencySpread,
 }: {
   initialFeed?: InitialCommunityFeed;
   initialQuery?: CommunityFeedQuery;
+  agencySpread?: AgencySpreadSummary;
 }) {
   const previewStubMode = isPreviewStubMode();
   useCommunityRealtime();
@@ -437,7 +441,7 @@ export default function CommunityLandingClient({
 
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
-      <QuoteCheckHero />
+      <DisclosureHero spread={agencySpread} />
       <WhatWeDo />
       <SearchHub
         searchDraft={searchDraft}
@@ -509,16 +513,10 @@ const PUBLISHED_POLICY_COUNT = 831;
  * 가입을 요구받으면 그게 배신이다.
  */
 function WhatWeDo() {
+  // `/price` 카드는 뺐다. 히어로의 강조 버튼과 증거 3줄이 전부 같은 곳으로 가는데
+  // 바로 아래에서 네 번째로 또 권하면, 첫 화면이 한 목적지를 다섯 번 말하는 셈이다.
+  // 남은 셋은 서로 다른 것을 준다 — 도구 / AI / 사람.
   const items = [
-    {
-      href: "/price",
-      label: "업체 가격·위약금 보기",
-      // 412는 **위약금을 공시한** 업체 카드 수다(가격을 공개한 업체는 더 많다).
-      // 한 숫자에 기본가·추가금·위약금 셋을 다 붙이면 틀린 주장이 된다.
-      body: `공시한 스튜디오·드레스·메이크업·예식장의 기본가·추가금, 그리고 위약금 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건(업체 ${PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳)을 한 화면에서.`,
-      note: "로그인 없이",
-      external: true,
-    },
     {
       href: "/community/quote-check",
       label: "받은 견적서 점검하기",
@@ -533,6 +531,13 @@ function WhatWeDo() {
       note: "가입 필요 · 무료",
       external: false,
     },
+    {
+      href: "/community?feed=all#community-feed",
+      label: "먼저 겪은 사람 글 보기",
+      body: "투어·계약에서 실제로 겪은 이야기와 \"이거 정상인가요?\" 질문들을 모았어요.",
+      note: "로그인 없이",
+      external: false,
+    },
   ];
 
   return (
@@ -544,12 +549,7 @@ function WhatWeDo() {
             <Link
               {...(item.external ? { href: item.href } : weddingLinkProps(item.href))}
               // 3블록 중 어느 약속을 고르는지가 첫 화면 개편의 성패 지표다.
-              onClick={() => {
-                captureEvent("what_we_do_click", { href: item.href, label: item.label });
-                if (item.href === "/price") {
-                  captureEvent("price_hero_click", { source: "landing_what_we_do" });
-                }
-              }}
+              onClick={() => captureEvent("what_we_do_click", { href: item.href, label: item.label })}
               className="flex h-full flex-col rounded-[18px] border border-[#061a34]/10 bg-white px-5 py-4 transition-colors hover:border-[#36534E]/40"
             >
               <span className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#071629]">
@@ -574,59 +574,161 @@ function WhatWeDo() {
   );
 }
 
-function QuoteCheckHero() {
+/**
+ * 첫 화면. 3초 안에 "여기가 뭐 하는 곳인지" 하나만 남기는 자리다.
+ *
+ * 직전 버전은 같은 사실을 **문장으로 설명**했다("같은 업체인데 대행사마다 위약금이
+ * 달라요"). 읽는 사람에게 그건 주장이고, 주장은 3초 안에 검증되지 않는다. 게다가
+ * 같은 무게의 버튼 3개 + 바로 아래 카드 3개 + 검색 타일 13개가 동시에 서 있어서
+ * 시선이 어디에도 멈추지 않았다.
+ *
+ * 그래서 두 가지만 바꾼다.
+ *   1. **주장을 숫자로 바꾼다.** 공시 카탈로그에서 그 자리에서 계산한 대행사 간
+ *      차액을 띄운다(`summarizeAgencySpread`). 우리가 유일하게 가진 자산이 화면에
+ *      직접 나오는 것이지, 가졌다고 말하는 게 아니다.
+ *   2. **결정을 1개로 줄인다.** 강조 버튼은 `/price` 하나, 나머지 둘은 텍스트 링크로
+ *      내린다. 투어 타겟 3개는 그대로 유지한다(CommunityFirstVisitTour가 참조).
+ *
+ * 숫자가 없으면(공시 조회 실패·프리뷰 스텁) 지어내지 않고 문장 버전으로 선다.
+ */
+function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
+  const highlights = spread?.highlights.slice(0, 3) ?? [];
+  const comparable = spread?.comparableVendors ?? 0;
+  const differing = spread?.differingVendors ?? 0;
+  const hasEvidence = highlights.length > 0 && differing > 0 && comparable >= differing;
+
   return (
     <section className={`${shell} mt-4`} data-tutorial-target="landing-quote-check">
-      <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_52%,#eef4f1_100%)] px-5 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.05)] md:px-8 md:py-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+      {/* 진한 초록은 이 화면에서 새로 만든 색이 아니라 푸터가 이미 쓰는 계열이다
+          (#183832 → #2f5f55 → #12302b). 크림색 페이지 위에서 첫 화면만 무게를
+          갖게 하되 팔레트는 늘리지 않는다. */}
+      <article className="overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#12302b_0%,#1f4a42_54%,#0e2723_100%)] px-5 py-6 shadow-[0_18px_46px_rgba(8,34,28,0.22)] md:px-9 md:py-8">
+        {/* 모바일은 세로 한 줄이고, 순서가 곧 우선순위다: 문장 → **증거** → 행동.
+            증거를 CTA 뒤로 두면 3초 안에 보이는 것이 다시 주장뿐이 된다.
+            데스크톱에서는 증거를 오른쪽 열에 세로로 붙인다. */}
+        <div
+          className={
+            hasEvidence
+              ? "flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-5"
+              : "flex flex-col gap-5"
+          }
+        >
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d8c79a]/35 bg-white/[0.07] px-3 py-1 text-[11px] font-semibold text-[#e8dcb8]">
               <ClipboardCheck className="h-3.5 w-3.5" />
-              업체 {PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳 · 위약금 원문 {PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건 · 로그인 없이
+              한국소비자원 참가격 · {disclosureRoundLabel()} 공시
             </span>
-            {/* 첫 화면에는 우리만 가진 사실을 세운다.
-                이전 문구("견적서 빠진 항목 확인")는 견적서를 이미 받은 사람만 대상으로
-                삼아, 아직 알아보는 중인 대다수에게는 걸릴 것이 없었다. 아래 문장은
-                공시 원문 대조에서 실제로 확인한 것이고(2026-07-26), 다른 어디서도
-                볼 수 없다. 단정하지 않으려고 "경우가 있어요"까지 붙인다. */}
-            <h1 className="mt-2.5 font-serif-kr text-[26px] font-medium leading-[1.3] text-[#071629] md:text-[30px]">
-              같은 업체인데, 어느 대행사로 계약하냐에 따라 위약금이 달라요
+
+            <h1 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.28] text-white md:text-[36px]">
+              같은 업체인데,
+              <br />
+              대행사마다 가격이 다릅니다
             </h1>
-            <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.65] text-[#5d6879] md:text-[14px]">
-              촬영 60일 전 취소 기준으로 한쪽은 상품가의 20%인데 다른 쪽은 100%인
-              경우가 있었어요. 업체가 공시한 위약금·환불 규정 원문을 그대로 모았습니다 —
-              요약도, 어디가 낫다는 판정도 하지 않아요.
+
+            {hasEvidence ? (
+              // 대표성은 최대 사례가 아니라 이 비율이 말한다. 최대 사례만 띄우면
+              // 그게 보통인 것처럼 읽히고, 그건 우리가 하지 않기로 한 과장이다.
+              <p className="mt-3 max-w-xl text-[14px] font-medium leading-[1.7] text-[#dbe7e0] md:text-[15px]">
+                대행사 2곳 이상이 공시한 업체 {comparable.toLocaleString("ko-KR")}곳 중{" "}
+                <b className="font-serif-kr text-[19px] font-medium text-[#f2e8c8] md:text-[21px]">
+                  {differing.toLocaleString("ko-KR")}곳
+                </b>
+                에서 대행사에 따라 공시 기본가가 달랐어요.
+              </p>
+            ) : (
+              <p className="mt-3 max-w-xl text-[14px] font-medium leading-[1.7] text-[#dbe7e0] md:text-[15px]">
+                업체가 공시한 기본가·추가금과 취소 위약금 규정을 원문 그대로 모았어요.
+              </p>
+            )}
+
+            <p className="mt-2 max-w-xl text-[12.5px] font-medium leading-[1.65] text-[#a9c0b7]">
+              업체가 쓴 문장 그대로 옮깁니다 — 요약도, 어디가 낫다는 판정도 하지 않아요.
             </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
-            {/* 가장 강한 것을 첫 버튼으로. 로그인·견적서 없이 바로 값을 받는 경로다. */}
-            {/* 첫 화면의 /price 링크가 2개("업체별 위약금 보기"·"업체별 공시가 먼저 보기")였다.
-                같은 곳으로 가는 버튼이 둘이면 고르는 데만 시간이 든다 — 강한 쪽만 남기고
-                투어 타겟(landing-price)도 여기로 옮겼다. */}
-            <Link
-              href="/price"
-              data-tutorial-target="landing-price"
-              onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642]"
-            >
-              업체별 위약금 보기
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              {...weddingLinkProps("/community/quote-check")}
-              onClick={() => captureEvent("quote_check_hero_click", { source: "landing_hero" })}
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
-            >
-              내 견적서도 확인하기
-            </Link>
-            {/* 견적서가 없는 사람에게도 첫 행동을 준다(페르소나: 정보 과부하 신부·바쁜 신랑) */}
-            <Link
-              href="/start-here"
-              data-tutorial-target="landing-start-here"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#36534E]/30 bg-white px-6 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/60"
-            >
-              아직 견적 전이라면 · 지금 뭐부터?
-            </Link>
+
+          {hasEvidence && (
+            <div className="min-w-0 rounded-[18px] border border-white/12 bg-white/[0.05] p-3.5 md:p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+              <p className="px-1 text-[11px] font-semibold text-[#9fb8ae]">
+                카테고리별로, 같은 업체를 취급한 대행사끼리 차이가 가장 컸던 사례
+              </p>
+              <ul className="mt-2.5 space-y-2">
+                {highlights.map((row) => (
+                  <li key={`${row.category}-${row.itemLabel ?? "vendor"}`}>
+                    <Link
+                      href={`/price/${row.category}`}
+                      prefetch={false}
+                      onClick={() => captureEvent("price_hero_click", { source: "landing_spread_row" })}
+                      className="group block rounded-[14px] border border-white/12 bg-white/[0.06] px-3.5 py-3 transition-colors hover:border-[#d8c79a]/55 hover:bg-white/[0.11]"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold">
+                        {/* 업체명은 세우지 않는다. 스드메 공시의 item_name은 샵 이름이라
+                            그대로 쓰면 첫 화면이 특정 업체를 지목하는 화면이 된다. */}
+                        <span className="min-w-0 truncate text-[#e8dcb8]">
+                          {PRICE_CATEGORY_LABELS[row.category]}
+                          {row.itemLabel ? ` · ${row.itemLabel}` : ""}
+                        </span>
+                        <span className="shrink-0 text-white/45">대행사 {row.agencyCount}곳</span>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2.5">
+                        <b className="shrink-0 font-serif-kr text-[19px] font-medium text-white">
+                          {formatKrwManwon(row.lowKrw)}
+                        </b>
+                        <span className="h-px min-w-4 flex-1 bg-[linear-gradient(90deg,rgba(216,199,154,0.2),rgba(216,199,154,0.8))]" />
+                        <b className="shrink-0 font-serif-kr text-[19px] font-medium text-white">
+                          {formatKrwManwon(row.highKrw)}
+                        </b>
+                        <span className="shrink-0 rounded-full bg-[#d8c79a]/16 px-2 py-0.5 text-[11px] font-bold text-[#f2e8c8]">
+                          +{formatKrwManwon(row.gapKrw)}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {/* 구성까지 같다고는 말할 수 없다(공시 문구가 글자까지 같은 업체는 실측
+                  16곳뿐). 첫 화면에서 미리 밝혀야 상세에서 다른 구성을 보고 배신감이
+                  들지 않는다. */}
+              <p className="mt-2.5 px-1 text-[11px] font-medium leading-[1.6] text-[#8fa89e]">
+                같은 업체를 취급하는 대행사들의 공시 기본가예요. 앨범 페이지·의상 벌수 같은
+                포함 구성도 함께 다를 수 있으니 계약 전 원문을 확인하세요.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+              {/* 강조는 하나. 로그인·견적서 없이 바로 값을 받는 경로다. */}
+              <Link
+                href="/price"
+                data-tutorial-target="landing-price"
+                onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
+                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#f2e8c8] px-7 py-3.5 text-[15px] font-bold text-[#12302b] shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:self-start"
+              >
+                내 업체는 얼마나 다른지 보기
+                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <p className="text-[11.5px] font-semibold text-[#9fb8ae]">
+                업체 {PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳 · 위약금 원문{" "}
+                {PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건 · 로그인 없이
+              </p>
+
+              {/* 나머지 두 경로는 남기되 무게를 낮춘다 — 같은 크기의 버튼 셋은
+                  고르는 데만 시간이 들고, 그 시간이 곧 이탈이다. */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-3">
+                <Link
+                  {...weddingLinkProps("/community/quote-check")}
+                  onClick={() => captureEvent("quote_check_hero_click", { source: "landing_hero" })}
+                  className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-[#e8dcb8] underline underline-offset-4 hover:text-white"
+                >
+                  이미 견적서를 받았다면 · 3분 점검
+                </Link>
+                <Link
+                  href="/start-here"
+                  data-tutorial-target="landing-start-here"
+                  className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-[#a9c0b7] underline underline-offset-4 hover:text-white"
+                >
+                  아직 견적 전이라면 · 뭐부터?
+                </Link>
+              </div>
           </div>
         </div>
       </article>

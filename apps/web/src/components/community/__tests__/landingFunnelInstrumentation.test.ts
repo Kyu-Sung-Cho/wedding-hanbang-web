@@ -22,11 +22,17 @@ const LANDING = resolve(
   "CommunityLandingClient.tsx",
 );
 
-/** 각 진입점을 구분하는 source 값. 새 진입점을 만들면 여기에도 추가한다. */
+/**
+ * 각 진입점을 구분하는 source 값. 새 진입점을 만들면 여기에도 추가한다.
+ *
+ * `landing_what_we_do`는 뺐다 — 히어로 CTA와 증거 3줄이 모두 `/price`로 가는데
+ * 바로 아래 3블록에서 또 권하면 한 목적지를 다섯 번 말하는 화면이 된다. 그래서
+ * 3블록의 `/price` 카드를 없앴고, 그 자리에 히어로의 공시가 차이 행이 들어왔다.
+ */
 const PRICE_ENTRY_SOURCES = [
   "landing_hero", // 히어로 1차 CTA
+  "landing_spread_row", // 히어로의 대행사 간 차액 행(카테고리별)
   "landing_market_snapshot", // 시세 스냅샷 패널
-  "landing_what_we_do", // "할 수 있는 것" 3블록
 ] as const;
 
 describe("첫 화면 퍼널 계측", () => {
