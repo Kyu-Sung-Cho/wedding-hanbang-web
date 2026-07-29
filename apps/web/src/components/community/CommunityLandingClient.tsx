@@ -442,6 +442,7 @@ export default function CommunityLandingClient({
   return (
     <div className="bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_50%,#fbf8ee_100%)] text-[#061a34]">
       <DisclosureHero spread={agencySpread} />
+      <AmoraBlock />
       <WhatWeDo />
       <SearchHub
         searchDraft={searchDraft}
@@ -512,23 +513,105 @@ const PUBLISHED_POLICY_COUNT = 831;
  * 약속하지 않는다. 로그인이 필요한지도 그 자리에서 밝힌다 — 눌러보고 나서
  * 가입을 요구받으면 그게 배신이다.
  */
+/**
+ * 두 번째 호흡 — "그래서 이 서비스는 뭐 하는 곳인가"의 답.
+ *
+ * 히어로(공시가 차이)는 **문**이지 집이 아니다. 그건 우리가 유일하게 가진, 로그인
+ * 없이 3초 안에 검증되는 사실이라 첫 자리를 줬을 뿐이고, 제품은 아모라다. 그런데
+ * 아모라는 그동안 3블록 카드 1개 + 피드 인라인 프로모 + 우측 패널 + 플로팅 버튼으로
+ * **네 군데에 흩어져 전부 약했다.** 첫방문 워크스루도 같은 것을 봤다(2026-07-25:
+ * "아모라는 다섯 번째 글쯤 내려가야 카드로 처음 등장했다"). 흩어진 것을 하나로 모아
+ * 히어로 바로 다음에 세운다.
+ *
+ * 문구는 "AI가 도와드려요"를 쓰지 않는다 — 웨딩 서비스가 전부 하는 말이라 3초 안에
+ * 아무것도 구분하지 못한다. 대신 **입력 → 결과**로 적는다. 셋 다 실제로 있는 기능이고
+ * (일정·예산 도구, 모멘트 루프), 로그인이 필요하다는 사실도 여기서 밝힌다 —
+ * 눌러보고 나서 요구받으면 그게 배신이다(첫방문 투어가 실제로 밟았던 함정).
+ */
+function AmoraBlock() {
+  const abilities = [
+    {
+      icon: CalendarCheck,
+      when: "예식일만 알려주면",
+      then: "지금 열어야 하는 항목과 다음 한 걸음을 순서로 잡아줘요.",
+    },
+    {
+      icon: ClipboardList,
+      when: "총예산만 말하면",
+      then: "20개 항목으로 나눈 초안을 만들고, 바뀔 때마다 같이 고쳐요.",
+    },
+    {
+      icon: HeartHandshake,
+      when: "상견례·예식이 다가오면",
+      then: "먼저 말을 걸어 그날 챙길 것을 짚어줘요.",
+    },
+  ];
+
+  return (
+    <section className={`${shell} mt-4`} data-tutorial-target="landing-amora">
+      <article className="rounded-[20px] border border-[#d8bb86] bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_58%,#eef4f1_100%)] px-5 py-5 shadow-[0_10px_30px_rgba(8,22,38,0.05)] md:px-8 md:py-6">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-10">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+              AI 웨딩 플래너 아모라
+            </span>
+            <h2 className="mt-2.5 font-serif-kr text-[24px] font-medium leading-[1.32] text-[#071629] md:text-[28px]">
+              가격을 다 봤어도,
+              <br className="hidden sm:block" />
+              순서는 또 다른 문제예요
+            </h2>
+            <p className="mt-2 max-w-md text-[13px] font-medium leading-[1.7] text-[#5d6879] md:text-[14px]">
+              아모라는 대신 결정하지 않아요. 승인한 일만 하고, 한 번 말한 건 다시 묻지
+              않아요. 플래너 없이 둘이 준비할 때 옆에 있는 쪽이에요.
+            </p>
+            <Link
+              {...weddingLinkProps("/chat")}
+              onClick={() => captureEvent("amora_block_click", { source: "landing_amora_block" })}
+              className="group mt-4 inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] sm:w-auto"
+            >
+              아모라와 시작하기
+              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <p className="mt-2 text-[11.5px] font-semibold text-[#9d6f36]">
+              로그인이 필요해요 · 무료
+            </p>
+          </div>
+
+          <ul className="grid gap-2.5">
+            {abilities.map((ability) => (
+              <li
+                key={ability.when}
+                className="flex items-start gap-3 rounded-[14px] border border-[#eadfc9] bg-white/70 px-4 py-3"
+              >
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef4f1]">
+                  <ability.icon className="h-4 w-4 stroke-[1.7] text-[#36534E]" />
+                </span>
+                <span className="min-w-0">
+                  <b className="block text-[13px] font-bold text-[#071629]">{ability.when}</b>
+                  <span className="mt-0.5 block text-[12.5px] font-medium leading-[1.6] text-[#5d6879]">
+                    {ability.then}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function WhatWeDo() {
-  // `/price` 카드는 뺐다. 히어로의 강조 버튼과 증거 3줄이 전부 같은 곳으로 가는데
-  // 바로 아래에서 네 번째로 또 권하면, 첫 화면이 한 목적지를 다섯 번 말하는 셈이다.
-  // 남은 셋은 서로 다른 것을 준다 — 도구 / AI / 사람.
+  // 히어로(공시)와 아모라 블록이 이미 두 축을 가져갔다. 여기 남는 것은 그 둘로
+  // 안 덮이는 두 가지 — 이미 견적서를 받은 사람용 도구와, 사람들의 글이다.
+  // `/price`·`/chat` 카드는 뺐다. 바로 위에서 각각 크게 말한 것을 네 번째로 또
+  // 권하면 첫 화면이 같은 목적지를 반복하는 셈이 된다.
   const items = [
     {
       href: "/community/quote-check",
       label: "받은 견적서 점검하기",
       body: "견적서에서 확인 안 된 항목과, 계약 전 업체에 보낼 질문을 3분 만에 정리해 드려요.",
       note: "로그인 없이 · 3분",
-      external: false,
-    },
-    {
-      href: "/chat",
-      label: "아모라와 순서 잡기",
-      body: "예식일만 알려주면 지금 뭐부터 해야 하는지, 예산을 어떻게 나눌지 같이 정리해요.",
-      note: "가입 필요 · 무료",
       external: false,
     },
     {
@@ -543,7 +626,7 @@ function WhatWeDo() {
   return (
     <section className={`${shell} mt-4`} aria-labelledby="what-we-do-heading">
       <h2 id="what-we-do-heading" className="sr-only">웨딩한방에서 할 수 있는 것</h2>
-      <ul className="grid gap-3 md:grid-cols-3">
+      <ul className="grid gap-3 md:grid-cols-2">
         {items.map((item) => (
           <li key={item.href}>
             <Link
@@ -598,7 +681,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
   const hasEvidence = highlights.length > 0 && differing > 0 && comparable >= differing;
 
   return (
-    <section className={`${shell} mt-4`} data-tutorial-target="landing-quote-check">
+    <section className={`${shell} mt-4`} data-tutorial-target="landing-hero">
       {/* 진한 초록은 이 화면에서 새로 만든 색이 아니라 푸터가 이미 쓰는 계열이다
           (#183832 → #2f5f55 → #12302b). 크림색 페이지 위에서 첫 화면만 무게를
           갖게 하되 팔레트는 늘리지 않는다. */}
@@ -711,22 +794,16 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                 {PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건 · 로그인 없이
               </p>
 
-              {/* 나머지 두 경로는 남기되 무게를 낮춘다 — 같은 크기의 버튼 셋은
-                  고르는 데만 시간이 들고, 그 시간이 곧 이탈이다. */}
+              {/* 견적서 점검은 히어로에서 뺐다. 견적서를 **이미 받은 사람**만 쓸 수
+                  있는 도구인데 첫 방문자 대다수는 아직 없고, 유통 글은 `/check`로
+                  직접 착지시키므로 이 자리를 거치지 않는다. 아래 3블록에 남긴다. */}
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-3">
-                <Link
-                  {...weddingLinkProps("/community/quote-check")}
-                  onClick={() => captureEvent("quote_check_hero_click", { source: "landing_hero" })}
-                  className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-[#e8dcb8] underline underline-offset-4 hover:text-white"
-                >
-                  이미 견적서를 받았다면 · 3분 점검
-                </Link>
                 <Link
                   href="/start-here"
                   data-tutorial-target="landing-start-here"
-                  className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-[#a9c0b7] underline underline-offset-4 hover:text-white"
+                  className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-[#e8dcb8] underline underline-offset-4 hover:text-white"
                 >
-                  아직 견적 전이라면 · 뭐부터?
+                  아직 아무것도 안 알아봤다면 · 지금 뭐부터?
                 </Link>
               </div>
           </div>
@@ -1140,7 +1217,6 @@ function LatestPosts({
           {posts.map((post, index) => (
             <Fragment key={post.id}>
               <CommunityPostRow post={post} priority={index < 2} />
-              {!isSearching && index === 1 && <AmoraInlinePromo />}
             </Fragment>
           ))}
           {isPreviewFeed && posts.length > 0 && (
@@ -1168,29 +1244,9 @@ function LatestPosts({
   );
 }
 
-function AmoraInlinePromo() {
-  return (
-    <div className="py-2.5">
-      <article className="relative overflow-hidden rounded-[14px] border border-[#d8bb86]/80 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_62%,#eef4eb_100%)] px-3.5 py-2.5 shadow-[0_8px_18px_rgba(8,22,38,0.04)] sm:flex sm:items-center sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <span className="inline-flex rounded-full bg-white/82 px-2 py-0.5 text-[10px] font-semibold text-[#9d6f36]">
-            아모라 추천
-          </span>
-          <h3 className="mt-1.5 line-clamp-1 font-serif-kr text-[17px] font-medium leading-[1.35] text-[#071629] sm:text-[18px]">
-            후기에서 생긴 궁금증, 아모라에게 바로 물어보세요.
-          </h3>
-        </div>
-        <Link
-          {...weddingLinkProps("/chat")}
-          className="group mt-2 inline-flex min-h-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-3.5 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)] transition-transform hover:-translate-y-0.5 sm:mt-0"
-        >
-          아모라에게 물어보기
-          <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </Link>
-      </article>
-    </div>
-  );
-}
+// 피드 사이 아모라 인라인 프로모는 제거했다 — 히어로 바로 다음에 아모라 블록이
+// 크게 서므로, 두 게시글 뒤에서 같은 곳을 다시 권하면 반복이 된다. 글 안에서의
+// 맥락 있는 진입은 우측 AmoraSidebarPanel과 플로팅 런처가 계속 맡는다.
 
 function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?: boolean }) {
   const categoryInfo = CATEGORY_MAP[post.category];

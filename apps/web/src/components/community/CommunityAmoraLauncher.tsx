@@ -84,7 +84,10 @@ export default function CommunityAmoraLauncher() {
           className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[#d8c7ad] bg-[#fffdf7] text-[#36534E] shadow-[0_12px_30px_rgba(54,83,78,0.16)] transition-transform hover:-translate-y-0.5 hover:bg-[#f7f1e8] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
-          data-tutorial-target="landing-amora"
+          // 투어 타겟(landing-amora)은 2026-07-29에 랜딩의 아모라 블록으로 옮겼다.
+          // 같은 이름이 두 곳에 있으면 스포트라이트가 어느 쪽을 잡을지 DOM 순서에
+          // 달리게 되고, 첫 방문자에게는 작은 버튼보다 무엇을 해주는지 적힌 블록을
+          // 비추는 편이 맞다.
           disabled={checkingAuth}
         >
           <Sparkles className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
