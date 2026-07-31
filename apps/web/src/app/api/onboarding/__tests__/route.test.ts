@@ -1589,9 +1589,11 @@ describe("/api/onboarding POST", () => {
       "id",
       "momentType",
       "sourceKey",
+      "status",
       "title",
       "updatedAt",
     ]);
+    expect(serializedEvent).toHaveProperty("status", "planned");
     expect(serializedEvent).not.toHaveProperty("memo");
     expect(JSON.stringify(secondChanges)).toBe(JSON.stringify(firstChanges));
   });

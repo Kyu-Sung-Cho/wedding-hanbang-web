@@ -116,7 +116,7 @@ describe("community consumer-value boundary", () => {
     expect(writePage).toContain("전화번호");
     expect(writePage).toContain("계좌");
     expect(writePage).toContain("서명");
-    expect(writePage).toContain("사진 속 글자는 자동으로 가려지지 않습니다");
+    expect(writePage).toContain("사진 속 글자는 자동으로 가려지지 않아요");
     expect(writePage).toContain("publicSafetyConfirmed");
     expect(writePage).toContain('type="checkbox"');
     expect(writePage).toContain('searchParams.set("resume", "1")');
