@@ -1,15 +1,15 @@
 # 전체 작업 트리·릴리스 인계 — 2026-07-31
 
 > [!IMPORTANT]
-> **상태: LOCAL SOURCE SNAPSHOT / MIXED DIRTY WORKTREE / PARTIAL RELEASE / DB NO-GO**
+> **상태: REMOTE RELEASE CANDIDATE / PROTECTED PREVIEW / PRODUCTION DB NO-GO**
 >
 > 이 문서는 2026-07-31 협업으로 모인 현재 로컬 작업 트리와 각 릴리스 표면을 구분해
 > 넘기는 source/release 상태 정본이다. 제품 방향 정본은 계속
 > `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`다.
 >
-> GitHub push, 새 웹 배포, DB migration 적용, 커뮤니티 공개, 모바일 출시는 이 문서
-> 작성만으로 승인되지 않는다. 명령·원격 commit·deployment receipt·운영 사후조건이
-> 없는 항목은 완료가 아니다.
+> GitHub Draft PR과 보호형 Vercel Preview는 완료했다. DB migration 적용, production
+> 웹 배포, 커뮤니티 공개, 모바일 출시는 이 문서 작성만으로 승인되지 않는다.
+> 명령·원격 commit·deployment receipt·운영 사후조건이 없는 항목은 완료가 아니다.
 
 ## 1. 30초 요약
 
@@ -75,6 +75,14 @@ commit의 READY 배포이고, 새 작업 트리는 GitHub Draft PR과 Vercel 보
 - origin: `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git`
 - base `HEAD`: `0f84665e9b8828f30e5a83ca5854ef618c3f4518`
 - `origin/main`: `0f84665e9b8828f30e5a83ca5854ef618c3f4518`
+- 최초 통합 snapshot commit:
+  `04f0ea1603c4ebbe5e9018f17ada5e239ac508c7`
+- 마지막 검증 code/config commit:
+  `2a13e2656c0b938ab5ec81064fd328e023e3347b`
+- remote branch:
+  `origin/agent/release-handoff-20260731`
+- Draft PR:
+  `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79`
 - inventory 기준 명령: `git status --porcelain=v1 -uall`
 - exact inventory:
   `docs/operations/evidence/full-workspace-release-inventory-2026-07-31.json`
@@ -380,7 +388,7 @@ commit 전에 각 경로의 참조 검색과 nearest test를 확인해야 한다
 | `node --test scripts/tests/repository-handoff-docs.test.mjs` | **5/5 통과** | 문서 권한·상태·inventory schema |
 | inventory JSON parse/schema와 current NUL status 대조 | **626 entries, `M 359 / D 46 / ?? 221`, 경로·status 1:1 일치** | JSON 문법·필드 최소화·삭제 fail-closed |
 | 문서 backtick path 존재 확인 | **124개 확인, 누락 0** | 의도된 tracked 삭제 참조 1개는 inventory와 대조 |
-| `git diff --check` | **통과** | whitespace 오류 0; 기존 CRLF→LF 경고 10개 |
+| `git diff --check origin/main...candidate` | **6개 기존 payload 표면 확인** | Markdown hard-break 공백 4개와 pnpm dependency patch payload 공백 2개다. 새 후속 commit의 staged diff는 각각 통과했다. |
 | `corepack pnpm supabase:release:fence` | **통과** | 48개 migration의 local static manifest 계약만 검증 |
 | 모바일 인증 수정 검증 | **161/161 test, release 104/104, typecheck·lint·Web/iOS/Android export 통과** | local candidate 증거; 실계정·signed device·provider 설정은 별도 |
 | production audit | **중단** | 로컬 `SUPABASE_ACCESS_TOKEN` 부재; 값을 문서·Git에 넣어 우회하지 않음 |
@@ -411,6 +419,14 @@ commit 전에 각 경로의 참조 검색과 nearest test를 확인해야 한다
   production은 hosted evidence 부재로 NO-GO
 - pre-push Turbo gate: 8/8 tasks PASS
 - 추가된 diff line의 비밀정보 후보: 0
+- 첫 merged gate는 DB-heavy shared-action case가 기본 15초를 넘어 18초에 실패했다.
+  production SQL 결함이 아니라 테스트 시간 예산 문제로 재현·분리했고, 두 무거운
+  case에만 30초 예산을 준 commit
+  `62f2035c3a1d7eaa668472a46be496432138ad64`를 추가했다.
+- 수정 뒤 해당 파일 43/43, 가장 무거운 PGlite 4파일 128/128, 전체 web suite를
+  원래 4 workers에서 461 files / 3,948 tests PASS로 재검증했다. 전역 workers를
+  2로 낮추는 임시 완화는 느리고 불필요해 final code/config
+  `2a13e2656c0b938ab5ec81064fd328e023e3347b`에서 되돌렸다.
 
 production build는 synthetic/local 환경 성공과 실제 production fence를 구분한다.
 manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
@@ -421,7 +437,7 @@ manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
 - local branch: `agent/release-handoff-20260731`
 - base/origin: `0f84665e9b8828f30e5a83ca5854ef618c3f4518`
 - 최초 통합 snapshot: `04f0ea1603c4ebbe5e9018f17ada5e239ac508c7`
-- 마지막 code/config 검증 commit: `41686ad60721092b6f1fd7088cb674ed5e7b43eb`
+- 마지막 code/config 검증 commit: `2a13e2656c0b938ab5ec81064fd328e023e3347b`
 - push: 완료
 - PR: Draft [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
 - GitHub checks:
@@ -444,7 +460,8 @@ gate를 확인하고, billing 차단을 테스트 실패처럼 고치거나 의�
 2. 46개 삭제와 16개 migration을 별도 diff로 검토한다.
 3. 같은 source state에서 전체 로컬 gate를 실행한다.
 4. 의도한 파일만 stage한다. `git add -A`로 범위를 숨기지 않는다.
-5. commit SHA를 이 문서와 release receipt에 다시 고정한다.
+5. commit SHA를 PR 본문과 외부 release receipt에 고정한다. 자기 자신을 포함하는
+   문서 commit SHA는 remote branch/PR HEAD로 확인한다.
 6. push 후 PR diff·checks를 확인한다.
 7. merge 전에 production build fence와 DB release gate를 다시 확인한다.
 
@@ -459,6 +476,11 @@ bypass를 사용한 read-only 확인에서 `/wedding`, `/login`, `/price`가 응
 일반 headless browser smoke는 앱 route가 아니라 Vercel SSO login으로 redirect돼
 중단됐다. Deployment Protection을 해제하지 않았으며, 이 결과를 앱 실패 또는
 production smoke 성공으로 기록하지 않는다.
+
+위 최초 receipt는 code SHA `41686ad60721092b6f1fd7088cb674ed5e7b43eb`에 묶인다.
+후속 변경은 테스트 시간 예산, 인계 receipt, 검증 설정 원복뿐이며 final branch/PR
+HEAD가 새 Preview를 다시 만든다. 최종 deployment ID와 source binding은 PR의 외부
+receipt를 정본으로 삼는다. 어떤 Preview receipt도 production 승인으로 승격하지 않는다.
 
 production 배포에는 exact clean commit, build 결과, deployment ID, commit binding,
 운영 URL smoke를 같은 외부 receipt에 남겨야 한다. 운영 DB가 필요한 route를 web만
@@ -631,12 +653,14 @@ engine 또는 Expo wrapper의 버전 검사를 삭제해 한 버전으로 억지
 
 ### Windows PowerShell
 
-Node 22.13.0을 활성화한 새 PowerShell에서:
+이 저장소는 private이다. 먼저 `gh auth status`가 성공하거나 동등한 Git credential/SSH
+권한이 있어야 한다. Node 22.13.0을 활성화한 새 PowerShell에서:
 
 ```powershell
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
 Set-Location wedding-hanbang-web
 git fetch --prune origin
+git switch --track origin/agent/release-handoff-20260731
 corepack enable
 corepack pnpm --version
 corepack pnpm install --frozen-lockfile
@@ -648,12 +672,13 @@ git status --short --branch
 
 ### macOS
 
-Node 22.13.0을 활성화한 Terminal에서:
+GitHub 인증을 먼저 확인한 뒤 Node 22.13.0을 활성화한 Terminal에서:
 
 ```bash
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
 cd wedding-hanbang-web
 git fetch --prune origin
+git switch --track origin/agent/release-handoff-20260731
 corepack enable
 corepack pnpm --version
 corepack pnpm install --frozen-lockfile
@@ -667,12 +692,13 @@ iOS Simulator가 필요할 때만 Xcode와 command-line tools를 별도로 준�
 
 ### Linux
 
-Node 22.13.0을 활성화한 shell에서:
+GitHub 인증을 먼저 확인한 뒤 Node 22.13.0을 활성화한 shell에서:
 
 ```bash
 git clone https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git
 cd wedding-hanbang-web
 git fetch --prune origin
+git switch --track origin/agent/release-handoff-20260731
 corepack enable
 corepack pnpm --version
 corepack pnpm install --frozen-lockfile
@@ -814,6 +840,14 @@ sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' apps/mobile/.env.local
 
 Vercel의 root `.vercel`과 `apps/web/.vercel`을 다른 컴퓨터로 복사하지 않는다. 권한 있는
 계정으로 root project를 다시 link하고 project 이름·team·production branch를 확인한다.
+
+```bash
+vercel link --project wedding-hanbang-web --scope hanbang --yes
+vercel project inspect wedding-hanbang-web --scope hanbang
+```
+
+두 명령은 repository root에서만 실행한다. `apps/web` 안에서 별도 `hanbang/web`
+project에 link하거나 production deploy를 실행하지 않는다.
 
 ## 25. 웹·모바일 로컬 실행
 

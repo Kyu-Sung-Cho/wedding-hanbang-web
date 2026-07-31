@@ -191,6 +191,34 @@ test("document authority chain is complete and old status claims stay historical
     documents.currentRelease,
     /New worktree[\s\S]*PREVIEW READY \/ PRODUCTION BLOCKED[\s\S]*wedding-hanbang-web-git-agent-release-handoff-20260731-hanbang\.vercel\.app/,
   );
+  assert.match(
+    documents.currentRelease,
+    /REMOTE RELEASE CANDIDATE \/ PROTECTED PREVIEW \/ PRODUCTION DB NO-GO/,
+  );
+  assert.match(
+    documents.currentRelease,
+    /마지막 code\/config 검증 commit: `2a13e2656c0b938ab5ec81064fd328e023e3347b`/,
+  );
+  assert.match(
+    documents.currentRelease,
+    /62f2035c3a1d7eaa668472a46be496432138ad64[\s\S]*461 files \/ 3,948 tests PASS/,
+  );
+  const freshCloneBlocks = [
+    ...documents.currentRelease.matchAll(
+      /git clone https:\/\/github\.com\/Kyu-Sung-Cho\/wedding-hanbang-web\.git[\s\S]*?git status --short --branch/g,
+    ),
+  ];
+  assert.equal(freshCloneBlocks.length, 3);
+  for (const [block] of freshCloneBlocks) {
+    assert.ok(
+      block.indexOf("git switch --track origin/agent/release-handoff-20260731")
+        < block.indexOf("corepack pnpm install --frozen-lockfile"),
+    );
+  }
+  assert.match(
+    documents.currentRelease,
+    /vercel link --project wedding-hanbang-web --scope hanbang --yes/,
+  );
   assert.match(documents.currentRelease, /Database[\s\S]*BLOCKED/);
   assert.match(documents.currentRelease, /Community[\s\S]*NO-GO/);
   assert.match(documents.currentRelease, /Mobile[\s\S]*NOT RELEASED/);
