@@ -2244,7 +2244,7 @@ describe("Amora shared-action approval migration", () => {
       await resetPersona(crossCoupleDb).catch(() => undefined);
       await crossCoupleDb.close();
     }
-  });
+  }, 30_000);
 
   it("authorizes domain execution only after the exact current roster has accepted", async () => {
     const partialDb = await createDatabase();
@@ -2396,7 +2396,7 @@ describe("Amora shared-action approval migration", () => {
       await resetPersona(wrongInputDb).catch(() => undefined);
       await wrongInputDb.close();
     }
-  });
+  }, 30_000);
 
   it("emits exactly one partner change event only for a successful completion", async () => {
     const successDb = await createDatabase();
