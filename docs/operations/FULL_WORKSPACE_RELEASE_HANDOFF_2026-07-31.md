@@ -24,16 +24,17 @@
 변경, 비공개 상담, 커뮤니티 신뢰, WeddingCode, 견적·공시, 모바일, DB migration,
 QA·릴리스 컨트롤러까지 큰 mixed worktree가 만들어졌다.
 
-이 후보 전체가 아직 하나의 검증된 release는 아니다. 현재 운영 웹은 아래 base commit의
-READY 배포이고, 새 작업 트리는 운영에 배포되지 않았다.
+이 후보 전체가 아직 하나의 production release는 아니다. 현재 운영 웹은 아래 base
+commit의 READY 배포이고, 새 작업 트리는 GitHub Draft PR과 Vercel 보호형 Preview까지
+배포됐다. DB·Community·Mobile production gate는 계속 닫혀 있다.
 
 ## 2. 표면별 현재 상태
 
 | 표면 | 현재 판정 | 직접 확인된 경계 |
 |---|---|---|
-| GitHub | **NOT PUSHED** | `agent/release-handoff-20260731`은 로컬 branch이며 새 commit·PR·checks receipt가 없다. |
+| GitHub | **PUSHED / DRAFT PR** | `agent/release-handoff-20260731`을 origin에 push했고 Draft PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)를 열었다. |
 | Production Web | **READY — base SHA `0f84665e9b8828f30e5a83ca5854ef618c3f4518`** | rollback 기준은 deployment `dpl_FHbiEU4qAVqPFTV6TzwmvmEFQvLL`, immutable URL `https://wedding-hanbang-o9fn2bc2c-hanbang.vercel.app`이다. live `https://hanbang.ai/landing?preview=final`은 HTTP 200이다. |
-| New worktree | **NOT DEPLOYED** | 현재 dirty source의 branch push, PR, preview deployment receipt는 모두 `PENDING / NOT PUSHED`다. |
+| New worktree | **PREVIEW READY / PRODUCTION BLOCKED** | Vercel branch alias `https://wedding-hanbang-web-git-agent-release-handoff-20260731-hanbang.vercel.app`이 Ready다. 최초 확인 receipt는 deployment `dpl_CByALSMu1zcnLPudFDmnCSM9egMC`와 code SHA `41686ad60721092b6f1fd7088cb674ed5e7b43eb`를 가리킨다. Preview는 Vercel Deployment Protection 뒤에 있고 production 승인이 아니다. |
 | Database | **BLOCKED** | manifest는 `deployment_blocked`, 필수 운영 증거 5종은 `missing`이고 운영 DB에는 후보 migration 16개가 pending이다. 적용하지 않았다. |
 | Community | **NO-GO** | 로컬 후보와 운영 공개는 별개다. 운영 DB·사람 답변 공급·신고 훈련·법률 검토가 없다. 쓰기를 열지 않는다. |
 | Mobile | **NOT RELEASED** | 이 컴퓨터의 global EAS CLI 18.7은 로그인되지 않았고, 저장소의 production gate는 의도적으로 미구현 상태다. 서명 빌드·실기기 증거가 없다. |
@@ -395,15 +396,21 @@ commit 전에 각 경로의 참조 검색과 nearest test를 확인해야 한다
 - 랜딩의 표적 테스트와 local build 결과가 있더라도 이후 다른 영역 source가 섞였으므로
   현재 전체 worktree의 release 승인을 뜻하지 않는다.
 
-### 현재 candidate에서 아직 다시 실행해야 하는 것
+### 현재 candidate에서 실행한 검증
 
-```powershell
-corepack pnpm qa:local
-corepack pnpm test
-corepack pnpm supabase:release:test
-node scripts/audit/community-release-readiness.mjs
-corepack pnpm --filter @hanbang/web build
-```
+- `corepack pnpm qa:local`: PASS
+  - web 461 files / 3,948 tests, typecheck, lint, 141-page production build
+  - mobile release readiness 104/104, tests 161/161, typecheck, lint,
+    Android/iOS/Web Expo export
+  - shared와 design-tokens typecheck
+- `corepack pnpm test:repo`: 260/260 PASS
+- `corepack pnpm supabase:release:test`: 189/189 PASS
+- `corepack pnpm supabase:release:fence`: 48개 successor migration 정적 검증 PASS,
+  상태는 의도대로 `deployment_blocked`
+- `node scripts/audit/community-release-readiness.mjs`: local contract는 READY,
+  production은 hosted evidence 부재로 NO-GO
+- pre-push Turbo gate: 8/8 tasks PASS
+- 추가된 diff line의 비밀정보 후보: 0
 
 production build는 synthetic/local 환경 성공과 실제 production fence를 구분한다.
 manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
@@ -413,10 +420,14 @@ manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`
 - local branch: `agent/release-handoff-20260731`
 - base/origin: `0f84665e9b8828f30e5a83ca5854ef618c3f4518`
-- 새 release commit: 없음
-- push: 하지 않음
-- PR: 없음
-- GitHub checks: 없음
+- 최초 통합 snapshot: `04f0ea1603c4ebbe5e9018f17ada5e239ac508c7`
+- 마지막 code/config 검증 commit: `41686ad60721092b6f1fd7088cb674ed5e7b43eb`
+- push: 완료
+- PR: Draft [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
+- GitHub checks:
+  - Vercel deployment와 Preview Comments는 PASS
+  - GitHub Actions jobs는 step 0개 상태에서 account payment/spending-limit
+    annotation으로 실패했다. 코드가 runner에서 실행된 실패가 아니다.
 
 GitHub Actions는 현재 두 종류의 빨간불을 구분해야 한다.
 
@@ -441,9 +452,17 @@ gate를 확인하고, billing 차단을 테스트 실패처럼 고치거나 의�
 
 ### Web
 
-새 worktree는 `NOT DEPLOYED`다. 배포하려면 exact clean commit, build 결과,
-deployment ID, commit binding, 운영 URL smoke를 같은 receipt에 남긴다. 운영 DB가
-필요한 route를 web만 먼저 노출하지 않는다.
+새 worktree는 보호형 Vercel Preview까지만 배포했다. branch alias는
+`https://wedding-hanbang-web-git-agent-release-handoff-20260731-hanbang.vercel.app`이고
+최초 확인 deployment는 `dpl_CByALSMu1zcnLPudFDmnCSM9egMC`다. Vercel CLI의 보호
+bypass를 사용한 read-only 확인에서 `/wedding`, `/login`, `/price`가 응답했다.
+일반 headless browser smoke는 앱 route가 아니라 Vercel SSO login으로 redirect돼
+중단됐다. Deployment Protection을 해제하지 않았으며, 이 결과를 앱 실패 또는
+production smoke 성공으로 기록하지 않는다.
+
+production 배포에는 exact clean commit, build 결과, deployment ID, commit binding,
+운영 URL smoke를 같은 외부 receipt에 남겨야 한다. 운영 DB가 필요한 route를 web만
+먼저 노출하지 않는다.
 
 Vercel project 정본은 저장소 root의 `.vercel`이 연결하는 `wedding-hanbang-web`이다.
 `apps/web/.vercel`은 잘못된 별도 project 연결이므로 production 배포 근거로 쓰거나

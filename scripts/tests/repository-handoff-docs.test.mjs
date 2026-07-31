@@ -179,12 +179,18 @@ test("document authority chain is complete and old status claims stay historical
   assert.ok(
     normalized(documents.currentRelease).includes(currentProductDefinition),
   );
-  assert.match(documents.currentRelease, /GitHub[\s\S]*NOT PUSHED/);
+  assert.match(
+    documents.currentRelease,
+    /GitHub[\s\S]*PUSHED \/ DRAFT PR[\s\S]*pull\/79/,
+  );
   assert.match(
     documents.currentRelease,
     /Production Web[\s\S]*READY[\s\S]*0f84665e9b8828f30e5a83ca5854ef618c3f4518/,
   );
-  assert.match(documents.currentRelease, /New worktree[\s\S]*NOT DEPLOYED/);
+  assert.match(
+    documents.currentRelease,
+    /New worktree[\s\S]*PREVIEW READY \/ PRODUCTION BLOCKED[\s\S]*wedding-hanbang-web-git-agent-release-handoff-20260731-hanbang\.vercel\.app/,
+  );
   assert.match(documents.currentRelease, /Database[\s\S]*BLOCKED/);
   assert.match(documents.currentRelease, /Community[\s\S]*NO-GO/);
   assert.match(documents.currentRelease, /Mobile[\s\S]*NOT RELEASED/);
