@@ -322,7 +322,8 @@ link를 증명하지 않는다. 운영 Supabase에서 Kakao provider를 활성�
 
 ## 14. migration 전수
 
-아래 16개 migration은 현재 모두 untracked source이며 운영에 적용되지 않았다.
+아래 16개 migration은 최초 통합 snapshot 직전에는 untracked source였고, 현재 후보
+branch에는 `04f0ea16` snapshot commit으로 추적되어 있다. 운영 DB에는 적용되지 않았다.
 manifest/controller의 정확한 순서·hash 검증과 hosted evidence 없이 직접 실행하지 않는다.
 
 | 순서 | migration | 목적 | 적용·rollback 경계 |
@@ -363,9 +364,11 @@ Git·Supabase·backup verifier를 호출하기 전에 멈춰야 한다.
 이것은 local static contract 증거다. 운영 DB의 16 pending migration, hosted
 staging/restore, backup/storage/finalizer evidence를 대체하지 않는다.
 
-## 15. tracked 삭제 46개
+## 15. 최초 snapshot의 tracked 삭제 46개
 
-`git status --porcelain=v1 -uall` 기준 tracked 삭제는 다음 다섯 묶음이다.
+최초 snapshot 직전 `git status --porcelain=v1 -uall`에서 tracked 삭제였던 경로는 다음
+다섯 묶음이다. 현재 후보 branch에는 삭제 상태가 commit되어 있어 clean clone의
+`git status`에는 나타나지 않는다. inventory는 삭제 의도 검토를 위한 snapshot ledger다.
 
 | 묶음 | 수 | 해석 |
 |---|---:|---|
@@ -526,6 +529,12 @@ store receipt를 남긴다.
 `scripts/mobile-eas-release-gate.mjs`가 허용하는 development/preview build만 사용하며,
 production build·submit은 `MOBILE_PRODUCTION_RELEASE_AUTHORIZATION_NOT_IMPLEMENTED`로
 provider 실행 전에 실패하는 것이 정상이다.
+
+Expo Web 정적 export를 올리는 공식 외부 preview 경로는 아직 없다. 모바일용 Vercel
+project·SPA rewrite·preview 전용 API/Supabase 환경이 없고, 별도 origin에서 운영
+`https://hanbang.ai/api/*`를 호출하면 브라우저 CORS 경계에 막힌다. root Vercel project나
+잘못 연결된 `apps/web/.vercel`에 모바일 산출물을 배포하지 않는다. 지금 허용되는 확인
+경로는 로컬 Metro web, tunnel/emulator, 또는 승인된 EAS internal preview build뿐이다.
 
 ## 19. rollback과 복구
 
@@ -886,6 +895,9 @@ network·AP isolation·VPN·방화벽 때문에 timeout이 날 수 있다.
 
    기본 주소는 `http://localhost:8081`이다. 화면·폼·라우팅에는 유용하지만 SecureStore,
    native Apple sign-in, push, deep link와 실기기 safe-area 증거는 아니다.
+   `expo export --platform web` 산출물은 현재 QA artifact일 뿐 공식 외부 preview가
+   아니다. 별도 모바일 web project·SPA fallback·preview API/CORS 경계를 승인하기 전
+   root `wedding-hanbang-web` project에 배포하지 않는다.
 
 2. Expo tunnel
 

@@ -222,6 +222,18 @@ test("document authority chain is complete and old status claims stay historical
   assert.match(documents.currentRelease, /Database[\s\S]*BLOCKED/);
   assert.match(documents.currentRelease, /Community[\s\S]*NO-GO/);
   assert.match(documents.currentRelease, /Mobile[\s\S]*NOT RELEASED/);
+  assert.match(
+    documents.currentRelease,
+    /16개 migration은 최초 통합 snapshot 직전에는 untracked source였고[\s\S]*현재 후보[\s\S]*04f0ea16[\s\S]*운영 DB에는 적용되지 않았다/,
+  );
+  assert.match(
+    documents.currentRelease,
+    /최초 snapshot의 tracked 삭제 46개[\s\S]*clean clone의[\s\S]*git status[\s\S]*나타나지 않는다/,
+  );
+  assert.match(
+    documents.currentRelease,
+    /Expo Web 정적 export를 올리는 공식 외부 preview 경로는 아직 없다[\s\S]*root Vercel project[\s\S]*배포하지 않는다/,
+  );
   for (const path of [
     currentReleaseInventoryPath,
     "docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md",
