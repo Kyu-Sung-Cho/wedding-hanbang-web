@@ -1,5 +1,15 @@
 # Migration 20260423 — 누락 테이블 추가 실행 가이드
 
+> [!CAUTION]
+> **역사 기록 / 실행 금지**
+>
+> 이 문서는 2026-04 당시의 일회성 안내이며 현재 운영 절차가 아니다.
+> `/customersurvey`는 종료됐고, 현재 저장소에서는 범위가 정해지지 않은
+> `supabase db push`를 금지한다. 아래 프로젝트 식별자·테이블 수·기능 설명·실행
+> 결과는 현재 상태를 증명하지 않는다. 운영 DB에는
+> [`AGENTS.md`](./AGENTS.md)의 release manifest/controller 절차와 최신
+> `docs/operations/` 문서만 사용한다.
+
 ## 목적
 코드가 참조하지만 migrations에 정의 없던 5개 테이블을 추가합니다.
 

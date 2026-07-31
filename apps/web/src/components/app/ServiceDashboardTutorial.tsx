@@ -5,45 +5,39 @@ import SpotlightTutorial, { type SpotlightStep } from "@/components/ui/Spotlight
 const STEPS: SpotlightStep[] = [
   {
     selector: '[data-tutorial-target="dashboard-hero"]',
-    title: "우리 결혼 준비 라운지",
+    title: "오늘 할 일부터 확인해요",
     description:
-      "결혼식까지 남은 날, 준비 진행률, 예산 현황, 오늘 먼저 볼 준비 항목을 한눈에 보는 공간이에요.",
+      "결혼식까지 남은 날, 준비 진행률, 예산 현황과 지금 먼저 할 일을 한눈에 보는 공간이에요.",
   },
   {
     selector: '[data-tutorial-target="service-nav-amora"]',
-    title: "아모라 상담은 여기서 시작해요",
+    title: "준비는 아모라에게 말하세요",
     description:
-      "견적서, 계약 조건, 일정 고민처럼 막히는 질문을 바로 물어보는 곳이에요. 답변을 받은 뒤 예산·일정·시세 화면으로 이어가면 좋아요.",
+      "지금 상황을 말하면 아모라가 할 일과 순서를 정리해요. 바뀔 내용을 확인하고 승인하면 예산·할 일·일정에 이어집니다.",
   },
   {
     selector: '[data-tutorial-target="service-nav-budget"]',
-    title: "예산 관리는 금액 정리용",
+    title: "예산은 계획과 지출을 함께",
     description:
-      "총예산, 사용 금액, 진행 중 금액을 나눠서 보는 곳이에요. 상담에서 받은 견적은 여기에 넣어두면 흐름이 덜 헷갈려요.",
+      "총예산과 실제로 쓴 금액을 항목별로 확인해요. 아모라에게 말한 금액도 승인 후 여기에 남길 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="service-nav-schedule"]',
-    title: "일정 관리는 예약과 할 일용",
+    title: "체크리스트와 일정을 한곳에서",
     description:
-      "투어, 상담, 계약, 촬영처럼 날짜가 있는 준비를 모아두는 곳이에요. 놓치기 쉬운 일정은 여기서 먼저 정리하세요.",
+      "해야 할 일은 체크하고, 날짜가 있는 준비는 일정으로 남겨요. 무엇을 언제까지 할지가 한 흐름으로 이어집니다.",
   },
   {
-    selector: '[data-tutorial-target="service-nav-market"]',
-    title: "시세 정보로 감을 먼저 잡아요",
+    selector: '[data-tutorial-target="service-nav-community"]',
+    title: "실제 경험은 커뮤니티에서",
     description:
-      "웨딩홀, 스드메, 드레스, 메이크업 평균가를 먼저 보고 내 견적이 어느 정도 위치인지 가볍게 비교할 수 있어요.",
-  },
-  {
-    selector: '[data-tutorial-target="service-nav-vendors"]',
-    title: "업체 탐색은 후보를 좁힐 때",
-    description:
-      "지역, 가격대, 스타일을 보며 후보 업체를 찾아보는 공간이에요. 마음에 드는 곳은 저장하고 상담 전 아모라에게 질문을 정리해보세요.",
+      "AI가 직접 겪을 수 없는 준비 경험을 찾아보고 물어보세요. 확인한 내용은 다시 아모라와 내 준비로 이어갈 수 있어요.",
   },
   {
     selector: '[data-tutorial-target="dashboard-start-guide"]',
-    title: "처음엔 이 순서가 편해요",
+    title: "이 흐름만 기억하면 돼요",
     description:
-      "궁금한 건 아모라에게 묻고, 받은 답은 예산·일정에 정리하고, 큰 금액은 시세와 업체 탐색으로 다시 확인하면 됩니다.",
+      "아모라에게 말하고, 바뀔 내용을 확인하고, 예산·할 일·일정에 남기세요. 실제 경험이 필요할 때만 커뮤니티에서 확인하면 됩니다.",
   },
 ];
 

@@ -15,6 +15,9 @@ import {
   FINALIZER_REQUIRED_CANARY_CHECKS,
   POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
 } from "../lib/amora-release-extended-contracts.mjs";
+import {
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
+} from "../lib/supabase-successor-release-contract.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(testDir, "../..");
@@ -417,6 +420,231 @@ async function addSuccessorRelease(root, {
   return successorManifest;
 }
 
+function runtimeEvidenceContracts(release) {
+  return Object.fromEntries(
+    Object.entries(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).map(
+      ([name, requirement]) => {
+        const slug = name.replace(/([A-Z])/g, "-$1").toLowerCase();
+        return [name, {
+          kind: requirement.kind,
+          receiptFileName: `${release}-${slug}-evidence.json`,
+          rawEvidenceFileName: `${release}-${slug}-raw.json`,
+          rawEvidenceSource: requirement.rawEvidenceSource,
+          maximumAgeMinutes: requirement.maximumAgeMinutes,
+          requiredChecks: [...requirement.requiredChecks],
+        }];
+      },
+    ),
+  );
+}
+
+async function addControllerReadySuccessorRelease(root) {
+  const successor = await addSuccessorRelease(root);
+  const predecessor = JSON.parse(await readFile(
+    join(root, "supabase/release-manifests/amora-engine-v2-20260716.json"),
+    "utf8",
+  ));
+  const versions = successor.expandMigrations.map((entry) => entry.file.slice(0, 14));
+  const baselineTables = predecessor.postExpandBackupContract.expectedTables;
+  const postExpandTables = [...baselineTables, "vendor_alias_proposals"].sort();
+  const listHash = (values) => sha256(`${values.join("\n")}\n`);
+  const postCheckSql = `BEGIN TRANSACTION READ ONLY;
+SELECT
+  0 AS successor_created_table_count,
+  1 AS account_deletion_auth_fk_contract_count,
+  4 AS couple_plan_change_auth_user_fk_count,
+  1 AS couple_plan_change_display_guard_count,
+  1 AS couple_plan_change_idempotency_index_count,
+  4 AS couple_plan_change_journey_write_fence_count,
+  3 AS couple_plan_change_terminal_event_count,
+  1 AS couple_plan_change_write_boundary_trigger_count,
+  1 AS successor_migration_head_count,
+  8 AS successor_feature_flags_off_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.wedding_court_votes'::regclass
+      AND conname = 'wedding_court_votes_user_id_fkey'
+      AND contype = 'f'
+      AND confrelid = 'auth.users'::regclass
+      AND confdeltype = 'c'
+      AND convalidated
+  ) AS wedding_court_auth_delete_fk_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.chat_feedback'::regclass
+      AND conname = 'chat_feedback_user_id_fkey'
+      AND contype = 'f'
+      AND confrelid = 'auth.users'::regclass
+      AND confdeltype = 'c'
+      AND convalidated
+  ) AS chat_feedback_auth_delete_fk_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.wedding_payment_ledger'::regclass
+      AND contype = 'f'
+      AND convalidated
+      AND (
+        (conname = 'wedding_payment_ledger_couple_id_fkey'
+          AND confrelid = 'public.couples'::regclass AND confdeltype = 'c')
+        OR (conname = 'wedding_payment_ledger_created_by_fkey'
+          AND confrelid = 'public.profiles'::regclass AND confdeltype = 'n')
+        OR (conname = 'wedding_payment_ledger_updated_by_fkey'
+          AND confrelid = 'public.profiles'::regclass AND confdeltype = 'n')
+      )
+  ) AS payment_ledger_fk_contract_count;
+ROLLBACK;
+`;
+  const capture = "# successor capture\n";
+  const verifier = "# successor verifier\n";
+  const contract = {
+    contractVersion: 1,
+    release: successor.release,
+    projectRef: successor.projectRef,
+    historicalEffectAudit: predecessor.historicalEffectAudit,
+    preApplyChecks: predecessor.preApplyChecks,
+    postPushChecks: predecessor.postPushChecks,
+    postApplyChecks: [{
+      id: "vendor-disclosure-successor-postcheck",
+      type: "read-only-sql",
+      file: "supabase/release-checks/vendor-disclosure-successor-post.sql",
+      sha256: sha256(postCheckSql),
+      expectedEvidence: {
+        account_deletion_auth_fk_contract_count: 1,
+        couple_plan_change_auth_user_fk_count: 4,
+        couple_plan_change_display_guard_count: 1,
+        couple_plan_change_idempotency_index_count: 1,
+        couple_plan_change_journey_write_fence_count: 4,
+        couple_plan_change_terminal_event_count: 3,
+        couple_plan_change_write_boundary_trigger_count: 1,
+        successor_created_table_count: 0,
+        successor_feature_flags_off_count: 8,
+        successor_migration_head_count: 1,
+        wedding_court_auth_delete_fk_count: 1,
+        chat_feedback_auth_delete_fk_count: 1,
+        payment_ledger_fk_contract_count: 3,
+      },
+    }],
+    forwardOnlySecurityOperations: [],
+    manualPlatformOperations: predecessor.manualPlatformOperations,
+    rollbackArtifacts: predecessor.rollbackArtifacts,
+    manualControlEvidence: {
+      ...predecessor.manualControlEvidence,
+      receiptFileName: `${successor.release}-production-write-fence.json`,
+      storageDrainReceiptFileName: `${successor.release}-storage-drain.json`,
+      postPushReceiptFileName: `${successor.release}-post-push.json`,
+    },
+    backupContract: {
+      id: `pre-${successor.release}-current-remote-backup`,
+      version: 2,
+      format: "hbam2-encrypted-current-user",
+      expectedTableCount: baselineTables.length,
+      expectedTables: baselineTables,
+      expectedTableContractSha256: listHash(baselineTables),
+      expectedMigrationHead: successor.requiredRemoteHead,
+      excludedEphemeralTables: predecessor.backupContract.excludedEphemeralTables,
+      ephemeralRebuildContract: predecessor.backupContract.ephemeralRebuildContract,
+      expectedCommitBinding: "release-expected-commit",
+      expectedOrigin: predecessor.backupContract.expectedOrigin,
+      verifier: predecessor.postExpandBackupContract.verifier,
+      providerPhysicalBackup: predecessor.backupContract.providerPhysicalBackup,
+      hostedRestoreEvidence: {
+        ...predecessor.backupContract.hostedRestoreEvidence,
+        receiptFileName: `${successor.release}-hosted-restore-evidence.json`,
+      },
+      supabaseCli: predecessor.backupContract.supabaseCli,
+      requiredReceiptValues:
+        predecessor.postExpandBackupContract.requiredReceiptValues,
+    },
+    postExpandBackupContract: {
+      ...predecessor.postExpandBackupContract,
+      id: `post-${successor.release}-backup`,
+      version: 2,
+      verificationReceiptFileName:
+        `${successor.release}-post-expand-backup-verification.json`,
+      expectedTableCount: postExpandTables.length,
+      expectedTables: postExpandTables,
+      expectedReleaseMigrationBaselineHead: successor.requiredRemoteHead,
+      expectedReleaseMigrationHead: versions.at(-1),
+      expectedReleaseMigrationVersions: versions,
+      expectedTableContractSha256: listHash(postExpandTables),
+      expectedReleaseMigrationContractSha256: listHash(versions),
+      capture: {
+        file: "scripts/vendor-disclosure-db-backup.ps1",
+        sha256: sha256(capture),
+      },
+      verifier: {
+        file: "scripts/vendor-disclosure-db-verify-backup.ps1",
+        sha256: sha256(verifier),
+      },
+      hostedRestoreEvidence: {
+        ...predecessor.postExpandBackupContract.hostedRestoreEvidence,
+        receiptFileName:
+          `${successor.release}-post-expand-hosted-restore-evidence.json`,
+      },
+    },
+    finalizationContract: {
+      ...predecessor.finalizationContract,
+      version: 2,
+    },
+    rollbackContract: {
+      version: 1,
+      strategy: "forward-fix-feature-off",
+      migrationRollback: "prohibited",
+      featureOffReceiptFileName:
+        `${successor.release}-feature-off-rollback.json`,
+      maximumAgeMinutes: 30,
+      requiredControls: {
+        AMORA_AUXILIARY_MEMORY_ENABLED: "false",
+        AMORA_CARE_OUTBOUND_ENABLED: "false",
+        AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+        AMORA_OPENAI_ENABLED: "false",
+        AMORA_PROACTIVE_CHAT_ENABLED: "false",
+        AMORA_COST_GUARD_ENABLED: "true",
+        WEDDING_COURT_ENABLED: "false",
+        WEDDING_PAYMENT_LEDGER_ENABLED: "false",
+      },
+      requiredChecks: [
+        "databaseWriteFenceHeld",
+        "storageWriteFenceHeld",
+        "authSignupDisabled",
+        "webWriteFenceEnabled",
+      ],
+    },
+    requiredDocuments: predecessor.requiredDocuments,
+  };
+  const contractFile =
+    "supabase/release-contracts/vendor-disclosure-production-controller-v1.json";
+  const contractText = `${JSON.stringify(contract, null, 2)}\n`;
+  await write(root, contractFile, contractText);
+  await write(
+    root,
+    "supabase/release-checks/vendor-disclosure-successor-post.sql",
+    postCheckSql,
+  );
+  await write(root, "scripts/vendor-disclosure-db-backup.ps1", capture);
+  await write(root, "scripts/vendor-disclosure-db-verify-backup.ps1", verifier);
+  successor.status = "controller_ready";
+  successor.deploymentEvidence = runtimeEvidenceContracts(successor.release);
+  successor.controllerContract = {
+    file: contractFile,
+    sha256: sha256(contractText),
+  };
+  await write(
+    root,
+    "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+    `${JSON.stringify(successor, null, 2)}\n`,
+  );
+  await write(
+    root,
+    "node_modules/supabase/dist/supabase.js",
+    `console.log('DRY RUN: migrations will not be pushed\\n • ${successor.expandMigrations[0].file}');\n`,
+  );
+  return successor;
+}
+
 test("deployment-blocked successor release statically verifies its predecessor and exact migration chain", async () => {
   const root = await createFixture();
   try {
@@ -519,6 +747,19 @@ test("deployment-blocked successor refuses remote verification before invoking S
     assert.notEqual(result.status, 0, result.stdout);
     assert.match(result.stderr, /vendor-disclosure-v2-20260718 is deployment_blocked/i);
     assert.doesNotMatch(result.stdout, /Remote pending set verified/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("controller-ready successor remote fence expects the successor pending set, never the predecessor 27-file set", async () => {
+  const root = await createFixture();
+  try {
+    const successor = await addControllerReadySuccessorRelease(root);
+    const result = runFence(root, ["--remote", "--expect=expand-only"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(successor.release));
+    assert.match(result.stdout, /expand-only \(1 migrations\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

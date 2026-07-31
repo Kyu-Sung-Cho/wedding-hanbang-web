@@ -4,6 +4,7 @@ import { WEDDING_CODE_V06_QUESTIONS } from "@/constants/weddingCodeV06";
 import {
   decodeWeddingCodeV06,
   encodeWeddingCodeV06,
+  isCompatibleWeddingCodeV06Version,
   isCompleteWeddingCodeV06,
 } from "../code";
 import type { WeddingCodeV06Answers } from "../gap";
@@ -75,5 +76,12 @@ describe("응답 코드", () => {
     const partial = { ...FULL };
     delete partial.C3;
     expect(isCompleteWeddingCodeV06(partial)).toBe(false);
+  });
+
+  it("새 링크는 현재 버전만 받고 버전 없는 초기 링크는 호환한다", () => {
+    expect(isCompatibleWeddingCodeV06Version(undefined)).toBe(true);
+    expect(isCompatibleWeddingCodeV06Version("")).toBe(true);
+    expect(isCompatibleWeddingCodeV06Version("v0.6-scene")).toBe(true);
+    expect(isCompatibleWeddingCodeV06Version("v9-unknown")).toBe(false);
   });
 });

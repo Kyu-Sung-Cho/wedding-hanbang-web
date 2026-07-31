@@ -123,9 +123,9 @@ describe("vendor attribute schemas", () => {
       internal: true,
       countsTowardCompleteness: false,
     });
-    expect(getAttributeCategoryLabel("studio")).toBe("스튜디오");
+    expect(getAttributeCategoryLabel("studio")).toBe("웨딩 사진 촬영");
     expect(getAttributeFieldLabel("studio", "original_files_policy")).toBe(
-      "원본 제공"
+      "촬영한 전체 사진 파일 받기"
     );
     expect(getAttributeFieldLabel("studio", "not_a_field")).toBeNull();
     expect(

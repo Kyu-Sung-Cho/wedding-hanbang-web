@@ -136,6 +136,70 @@
     {
       "file": "20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
       "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
+    },
+    {
+      "file": "20260730100000_retire_undisclosed_community_agents.sql",
+      "sha256": "51e3cd08f2b2e69d45c02861b97dc99a155e69bbe858426ab09c044d43c95868"
+    },
+    {
+      "file": "20260730101000_quote_check_explicit_consent.sql",
+      "sha256": "f9ab7b5f04a16a4a13c11c709ef29b41851afe16897bedd1aaf9e97bf0a3b5f5"
+    },
+    {
+      "file": "20260730102000_amora_shared_action_approval_and_notifications.sql",
+      "sha256": "f4e242bb3c3bfaeda284830a548c8d798f4c0f26aaa029014688d800d677d857"
+    },
+    {
+      "file": "20260731123000_couple_plan_change_write_boundary.sql",
+      "sha256": "78558fed4cc693ca9ac204be7a401ff4ee4451b42534bc70b8b55d4129a6e7db"
+    },
+    {
+      "file": "20260731170000_amora_personalization_preferences.sql",
+      "sha256": "3abe9a147276e30f6a3811d6dd98dd80bee54c10a49781ea900b1b7096ee3bb7"
+    },
+    {
+      "file": "20260731173000_private_chat_hard_delete_boundary.sql",
+      "sha256": "bf2333a9d5b29d7d1d04a6dff52747a20b8920e1e9b4df1bae655e34872d09c7"
+    },
+    {
+      "file": "20260731174000_amora_privacy_context_snapshot.sql",
+      "sha256": "7969c9885c428091601fbda6aa085ece3ba6c3a41a1371ab370013369564f86c"
+    },
+    {
+      "file": "20260731180000_community_release_trust_boundary.sql",
+      "sha256": "31f5e100c7a0bbdda39e1e2aaee7e8ddc3f62be504ebb9eb3e2f70f7482276c5"
+    },
+    {
+      "file": "20260731181000_community_reply_notifications.sql",
+      "sha256": "186d53d6647f5230bee2a7df806172503a1ff32c32e4806cf512df7960c3eb3c"
+    },
+    {
+      "file": "20260731182000_cohort_moderation_audit_boundary.sql",
+      "sha256": "b1b6520332d53a791dbb132a67de2ea86e8ac2e636256ac8c752462264639e18"
+    },
+    {
+      "file": "20260731183000_community_operational_health.sql",
+      "sha256": "aac22518fbe9d9b974d3f0f276f872621f2ed9e7222497da61a3155f785385e9"
+    },
+    {
+      "file": "20260731184000_amora_tone_style.sql",
+      "sha256": "97970d2259b7b8167998a061dba0b40ff93e0d979e407c9d2a7df8228dda7634"
+    },
+    {
+      "file": "20260731185000_community_api_only_write_boundary.sql",
+      "sha256": "17a3e0f43fc0ec3a5143f86e8844a83a5ad1e366c51083e7a8a10ec6c8e54956"
+    },
+    {
+      "file": "20260731190000_wedding_court_safe_mvp.sql",
+      "sha256": "f1a56e18861310d6b824d3e1882a6d0972351508622dd545b04ef01f2b870a12"
+    },
+    {
+      "file": "20260731191000_wedding_payment_ledger.sql",
+      "sha256": "99f2c63dbaaf604ddc58d96462453e96c7c866a431e2371db50455ab1a6db52c"
+    },
+    {
+      "file": "20260731192000_chat_feedback_account_delete_cascade.sql",
+      "sha256": "006650056787fbaa49fc4fa35fe53e6d4c94cd841e3e4edaa3c732fc9c02e75f"
     }
   ],
   "deploymentEvidence": {

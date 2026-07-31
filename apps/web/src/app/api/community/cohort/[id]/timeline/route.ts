@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortEventType } from "@/types/community.types";
 
 async function ensureActiveMember(
@@ -109,6 +110,14 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status }
+      );
     }
 
     const member = await ensureActiveMember(supabase, roomId, user.id);

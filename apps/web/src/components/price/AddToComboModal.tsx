@@ -40,9 +40,13 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
   }, [open, vendor]);
 
   const rawOffer = vendor?.offers.find((value) => value.id === offerId) ?? firstPricedOffer;
-  const offer = rawOffer && rawOffer.options.length === 0 && hydratedOptions?.get(rawOffer.id)?.length
-    ? { ...rawOffer, options: hydratedOptions.get(rawOffer.id)! }
-    : rawOffer;
+  const offer = useMemo(() => {
+    if (!rawOffer) return undefined;
+    const resolvedOptions = hydratedOptions?.get(rawOffer.id);
+    return rawOffer.options.length === 0 && resolvedOptions?.length
+      ? { ...rawOffer, options: resolvedOptions }
+      : rawOffer;
+  }, [hydratedOptions, rawOffer]);
   const customManwonValue = /^\d+(?:\.\d+)?$/.test(customManwon.trim())
     ? Number(customManwon)
     : Number.NaN;
@@ -51,7 +55,10 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
     ? customKrw
     : null;
   const customInputError = customManwon.trim() !== "" && validCustomKrw === null;
-  const options = useMemo(() => offer?.options.filter(({ id }) => selectedOptionIds.has(id)) ?? [], [offer, selectedOptionIds]);
+  const options = useMemo(
+    () => offer?.options.filter(({ id }) => selectedOptionIds.has(id)) ?? [],
+    [offer, selectedOptionIds],
+  );
   const optionMinimumTotal = options.reduce((sum, option) => sum + (option.minimumKrw ?? 0), 0);
   const optionMaximumTotal = options.every((option) => option.maximumKrw !== null)
     ? options.reduce((sum, option) => sum + (option.maximumKrw ?? 0), 0)
@@ -102,7 +109,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.12em] text-[#8F6662]">조합에 담기</p>
-            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#243832]">{vendor.name}</h2>
+            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-normal text-[#243832]">{vendor.name}</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-[#243832] hover:bg-white">
             <X aria-hidden="true" className="size-5" />

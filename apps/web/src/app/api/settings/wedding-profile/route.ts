@@ -257,11 +257,11 @@ function parsePatchBody(
   const venueProvided = hasOwn(changes, "venue");
   if (venueProvided) {
     if (!(changes.venue === null || typeof changes.venue === "string")) {
-      return { ok: false, error: "예식장 형식이 올바르지 않습니다." };
+      return { ok: false, error: "결혼식장 형식이 올바르지 않습니다." };
     }
     const parsedExpected = parseExpectedText(expected.venue);
     if (parsedExpected === undefined) {
-      return { ok: false, error: "이전 예식장 형식이 올바르지 않습니다." };
+      return { ok: false, error: "이전 결혼식장 형식이 올바르지 않습니다." };
     }
     const trimmed = typeof changes.venue === "string" ? changes.venue.trim() : "";
     venue = trimmed.length === 0 ? null : trimmed;
@@ -270,7 +270,7 @@ function parsePatchBody(
       venue !== null &&
       (Array.from(venue).length > 120 || hasControlCharacter(venue))
     ) {
-      return { ok: false, error: "예식장은 120자 이내로 입력해주세요." };
+      return { ok: false, error: "결혼식장은 120자 이내로 입력해 주세요." };
     }
   }
 
@@ -426,6 +426,12 @@ export async function PATCH(request: Request) {
         return privateResponse({
           error: "다른 기기에서 설정이 바뀌었어요. 다시 불러온 뒤 변경해주세요.",
           code: "SETTINGS_CHANGED",
+        }, 409);
+      }
+      if (/COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED/i.test(errorText)) {
+        return privateResponse({
+          error: "함께 쓰는 날짜·식장·예산은 파트너 확인이 필요해요. 웹의 예산 또는 일정 화면에서 변경해 주세요.",
+          code: "PARTNER_APPROVAL_REQUIRED",
         }, 409);
       }
       if (/WEDDING_SETTINGS_(?:JOURNEY_REQUIRED|JOURNEY_NOT_FOUND)/i.test(errorText)) {

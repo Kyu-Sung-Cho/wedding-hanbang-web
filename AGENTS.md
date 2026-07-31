@@ -2,8 +2,9 @@
 
 ## 최상위 원칙
 
-- 모든 제품 판단은 `PRINCIPLES.md`의 여섯 원칙을 따른다. 충돌 시 우선순위는
-  P1 > P3 > P2 > P4 > P5 > P6이다.
+- 모든 제품 판단은 `PRINCIPLES.md`의 여섯 원칙을 따른다. P6의 법령·보안·운영
+  조건은 다른 원칙과 교환할 수 없는 출시 게이트다. 그 조건을 통과한 선택지끼리는
+  P1 > P3 > P2 > P4 > P5 순서로 판단한다.
 - 시각·UI 판단 전에는 `DESIGN.md`를 읽는다.
 - AI 호출은 `ai_interactions_log`, 커플의 확정 의사결정은 `decision_nodes`에
   기록한다. 모델의 문장만으로 저장 성공을 간주하지 않는다.
@@ -14,10 +15,10 @@
 
 ## 프로젝트 개요
 
-웨딩한방은 한국 예비부부가 일정, 예산, 업체, 커뮤니티 정보와 커플 의사결정을
-한곳에서 관리하는 소비자 웹·모바일 서비스다. 아모라는 사용자의 조건과 선택을
-기억하고, 근거를 구분하며, 승인된 행동만 실행하는 OpenAI 기반 결혼 준비
-동반자다.
+현재 웹 MVP에서 웨딩한방은 아모라에게 결혼 준비를 말하면 예산·체크리스트·일정이
+함께 정리되는 서비스다. 아모라가 제품의 중심이고, 커뮤니티는 실제 경험을 찾고
+질문하는 보조 축이다. 업체·예약·축의금·모바일은 장기 범위에는 남아 있지만 MVP의
+전면 기능이나 주요 내비게이션으로 확장하지 않는다.
 
 현재 저장소는 모노레포다.
 
@@ -44,13 +45,27 @@
 
 ## 현재 기준 문서
 
+- 문서 권한·상태 해석: `docs/README.md`
+- **현재 전체 작업 트리·릴리스 인계**(exact inventory · 사용자와 확정한 결정 ·
+  GitHub/Web/DB/Community/Mobile 개별 상태 · rollback · 남은 게이트):
+  `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`
+- **현재 웹 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):
+  `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`
+- 과거 로컬 저장소 전체 감사(2026-07-30 source snapshot):
+  `docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`
+- 현재 Supabase successor controller 계약:
+  `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
+- 현재 커뮤니티 production release gate:
+  `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
 - 제품·디자인: `DESIGN.md`
 - 아모라 제품·기술 기준: `docs/AMORA_ENGINE_V2_2026-07-16.md`
-- 현행 운영 릴리스:
+- 과거 아모라 V2 운영 릴리스 계획:
   `docs/operations/AMORA_ENGINE_V2_PRODUCTION_RELEASE_2026-07-16.md`
-- 현재 인수인계:
+- 과거 업체 공시 브랜치 인수인계:
   `docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md`
-- **가장 최신 인계**(웨딩코드 v0.6 · 오늘 한 마디 · 로컬 dev 띄우는 법 · 깨면 안 되는 불변식 9개):
+- 과거 CTO 인계(2026-07-30 소비자 신뢰 감사 · 웨딩코드 · 견적 체크):
+  `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md`
+- 이전 세션 인계(웨딩코드 v0.6 · 오늘 한 마디 · 로컬 dev 띄우는 법 · 깨면 안 되는 불변식 9개):
   `docs/operations/SESSION_HANDOFF_2026-07-29.md`
 - **다른 컴퓨터에서 이어받을 때 먼저 읽는 문서**(가짜 가드 5건 · 검증 명령 · 남은 일):
   `docs/operations/SESSION_HANDOFF_2026-07-28.md`

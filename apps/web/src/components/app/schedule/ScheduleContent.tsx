@@ -5,12 +5,20 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { List, Calendar, Plus, Pencil, Trash2, CalendarDays, Sparkles, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import {
+  addEvent,
+  deleteEvent,
   findCategoryScheduleEvent,
-  getEvents,
+  getScheduleEventAssigneeLabel,
+  getScheduleEventStatus,
+  inspectScheduleEvents,
   sanitizeUserFacingScheduleMemo,
+  updateEvent,
   upsertCategoryEvent,
+  type ScheduleEventAssigneeContext,
+  type ScheduleEventDraft,
 } from "@/utils/scheduleEvents";
 import { getImminentCategories } from "@/utils/imminentChecklist";
 import TimelineView from "@/components/app/schedule/TimelineView";
@@ -19,7 +27,12 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
-import type { ChecklistItem, ScheduleEvent, ProgressItem } from "@/types/database.types";
+import type {
+  ChecklistItem,
+  ScheduleEvent,
+  ProgressItem,
+  WeddingJourney,
+} from "@/types/database.types";
 
 const CATEGORY_KEYS = [
   "meeting", "venue", "studio", "dress", "makeup", "ring",
@@ -28,14 +41,23 @@ const CATEGORY_KEYS = [
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례", venue: "예식장", studio: "스튜디오",
-  dress: "드레스/턱시도", makeup: "메이크업", ring: "예물(반지)",
-  hanbok: "한복", yedan: "예단", honeymoon: "신혼여행",
-  houseware: "혼수(가전/가구)", housing: "신혼집", invitation: "청첩장",
-  snap: "본식스냅/영상", shoes: "웨딩구두", bouquet: "부케/꽃장식",
-  gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
-  etiquette: "예절가이드",
+  ...PLANNING_CATEGORY_LABELS,
+  etiquette: "결혼 예절 참고",
 };
+
+export const SCHEDULE_EVENT_REPAIR_MESSAGE =
+  "저장된 일정 일부를 안전하게 읽지 못해 변경하지 않았어요. 새로고침 후에도 계속되면 고객센터에 문의해 주세요.";
+
+export function getScheduleEventMutationBlockReason(
+  progress: Record<string, unknown>,
+): string | null {
+  const inspection = inspectScheduleEvents(progress);
+  return inspection.malformedContainer
+    || inspection.rejectedCount > 0
+    || inspection.truncatedCount > 0
+    ? SCHEDULE_EVENT_REPAIR_MESSAGE
+    : null;
+}
 
 interface PendingChecklistSchedule {
   categoryKey: string;
@@ -87,7 +109,7 @@ interface ScheduleContentProps {
 }
 
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
-  const { journey, updateJourney } = useAuthStore();
+  const { journey, updateJourney, profile, partner } = useAuthStore();
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -98,6 +120,39 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingChecklistSchedule, setPendingChecklistSchedule] =
     useState<PendingChecklistSchedule | null>(null);
+  const [journeyNotice, setJourneyNotice] = useState("");
+  const [journeyError, setJourneyError] = useState("");
+
+  const saveJourney = useCallback(
+    async (
+      updates: Partial<
+        Pick<
+          WeddingJourney,
+          "wedding_date" | "total_budget" | "venue" | "progress"
+        >
+      >,
+    ) => {
+      setJourneyError("");
+      setJourneyNotice("");
+      try {
+        const result = await updateJourney(updates);
+        setJourneyNotice(
+          result.status === "pending_partner"
+            ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
+            : partner
+              ? "일정 변경을 저장했어요. 함께 보는 일정에 반영됐어요."
+              : "일정 변경을 저장했어요.",
+        );
+        return result;
+      } catch (error) {
+        setJourneyError(
+          "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+        );
+        throw error;
+      }
+    },
+    [partner, updateJourney],
+  );
 
   const progress = useMemo(
     () => (journey?.progress ?? {}) as Record<string, ProgressItem>,
@@ -109,14 +164,46 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     [weddingDateValue]
   );
 
-  // 이벤트 목록
-  const events = useMemo(() => getEvents(progress as Record<string, unknown>), [progress]);
+  // 일정 데이터가 일부라도 손상되었거나 잘렸다면, 유효한 항목만 다시 저장해
+  // 나머지를 지우는 대신 모든 일정 쓰기를 중단한다.
+  const eventInspection = useMemo(
+    () => inspectScheduleEvents(progress as Record<string, unknown>),
+    [progress],
+  );
+  const events = eventInspection.events;
+  const assigneeContext = useMemo<ScheduleEventAssigneeContext>(
+    () => ({
+      viewer: profile
+        ? { id: profile.id, name: profile.name }
+        : null,
+      partner: partner
+        ? { id: partner.id, name: partner.name }
+        : null,
+    }),
+    [partner, profile],
+  );
+  const eventMutationBlockReason = useMemo(
+    () => getScheduleEventMutationBlockReason(
+      progress as Record<string, unknown>,
+    ),
+    [progress],
+  );
+  const blockUnsafeEventMutation = useCallback(() => {
+    if (!eventMutationBlockReason) return false;
+    setJourneyNotice("");
+    setJourneyError(eventMutationBlockReason);
+    return true;
+  }, [eventMutationBlockReason]);
 
   // 다가오는 일정
   const todayStr = new Date().toISOString().slice(0, 10);
   const upcomingEvents = useMemo(() => {
     return events
-      .filter((e) => e.date >= todayStr)
+      .filter(
+        (event) =>
+          event.date >= todayStr
+          && getScheduleEventStatus(event) === "planned",
+      )
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 5);
   }, [events, todayStr]);
@@ -160,9 +247,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         itemId
       );
 
-      await updateJourney({ progress: newProgress as unknown as Record<string, ProgressItem> });
+      await saveJourney({ progress: newProgress as unknown as Record<string, ProgressItem> });
     },
-    [journey, progress, updateJourney]
+    [journey, progress, saveJourney]
   );
 
   const handleChecklistItemClick = useCallback(
@@ -188,6 +275,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const completeChecklistWithSchedule = useCallback(
     async (data: { date?: string; memo?: string }) => {
       if (!journey || !pendingChecklistSchedule) return;
+      if (data.date && blockUnsafeEventMutation()) return;
 
       let nextProgress = progress as unknown as Record<string, unknown>;
 
@@ -214,24 +302,32 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         true
       );
 
-      await updateJourney({ progress: nextProgress as unknown as Record<string, ProgressItem> });
+      await saveJourney({ progress: nextProgress as unknown as Record<string, ProgressItem> });
       setPendingChecklistSchedule(null);
     },
-    [journey, pendingChecklistSchedule, progress, updateJourney]
+    [
+      blockUnsafeEventMutation,
+      journey,
+      pendingChecklistSchedule,
+      progress,
+      saveJourney,
+    ]
   );
 
   // 이벤트 CRUD
   const handleAddEvent = useCallback((date: string) => {
+    if (blockUnsafeEventMutation()) return;
     setSelectedDateForAdd(date);
     setEditingEvent(null);
     setEventFormMode("add");
-  }, []);
+  }, [blockUnsafeEventMutation]);
 
   const handleAddEventQuick = useCallback(() => {
+    if (blockUnsafeEventMutation()) return;
     setSelectedDateForAdd(null);
     setEditingEvent(null);
     setEventFormMode("add");
-  }, []);
+  }, [blockUnsafeEventMutation]);
 
   // 대시보드에서 ?new=1 진입 시 자동으로 일정 추가 모달 오픈 (단 1회)
   const searchParams = useSearchParams();
@@ -251,26 +347,26 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   }, [searchParams, router, handleAddEventQuick]);
 
   const handleEditEvent = useCallback((event: ScheduleEvent) => {
+    if (blockUnsafeEventMutation()) return;
     setEditingEvent(event);
     setSelectedDateForAdd(null);
     setEventFormMode("edit");
-  }, []);
+  }, [blockUnsafeEventMutation]);
 
   const handleSaveEvent = useCallback(
-    async (data: { date: string; title: string; memo?: string; categoryKey?: string }) => {
+    async (data: ScheduleEventDraft) => {
       if (!journey) return;
+      if (blockUnsafeEventMutation()) return;
 
       const progressObj = progress as Record<string, unknown>;
-      const currentEvents = getEvents(progressObj);
 
       if (eventFormMode === "edit" && editingEvent) {
-        const updatedEvents = currentEvents.map((e) =>
-          e.id === editingEvent.id
-            ? { ...e, ...data, updatedAt: new Date().toISOString() }
-            : e
-        );
-        await updateJourney({
-          progress: { ...progress, __events: updatedEvents } as unknown as Record<string, ProgressItem>,
+        await saveJourney({
+          progress: updateEvent(
+            progressObj,
+            editingEvent.id,
+            data,
+          ) as unknown as Record<string, ProgressItem>,
         });
       } else if (data.categoryKey && data.categoryKey !== "general") {
         const { newProgress } = upsertCategoryEvent(
@@ -278,22 +374,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           data,
           CATEGORY_LABELS[data.categoryKey]
         );
-        await updateJourney({
+        await saveJourney({
           progress: newProgress as unknown as Record<string, ProgressItem>,
         });
       } else {
-        const now = new Date().toISOString();
-        const newEvent: ScheduleEvent = {
-          id: `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-          date: data.date,
-          title: data.title,
-          memo: data.memo,
-          categoryKey: data.categoryKey,
-          createdAt: now,
-          updatedAt: now,
-        };
-        await updateJourney({
-          progress: { ...progress, __events: [...currentEvents, newEvent] } as unknown as Record<string, ProgressItem>,
+        const { newProgress } = addEvent(progressObj, data);
+        await saveJourney({
+          progress: newProgress as unknown as Record<string, ProgressItem>,
         });
       }
 
@@ -301,25 +388,34 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       setEditingEvent(null);
       setSelectedDateForAdd(null);
     },
-    [journey, progress, eventFormMode, editingEvent, updateJourney]
+    [
+      blockUnsafeEventMutation,
+      journey,
+      progress,
+      eventFormMode,
+      editingEvent,
+      saveJourney,
+    ]
   );
 
   const handleDeleteEvent = useCallback(
     async (eventId: string) => {
       if (!journey) return;
+      if (blockUnsafeEventMutation()) return;
 
       const progressObj = progress as Record<string, unknown>;
-      const currentEvents = getEvents(progressObj);
-      const filtered = currentEvents.filter((e) => e.id !== eventId);
 
-      await updateJourney({
-        progress: { ...progress, __events: filtered } as unknown as Record<string, ProgressItem>,
+      await saveJourney({
+        progress: deleteEvent(
+          progressObj,
+          eventId,
+        ) as unknown as Record<string, ProgressItem>,
       });
 
       setEventFormMode(null);
       setEditingEvent(null);
     },
-    [journey, progress, updateJourney]
+    [blockUnsafeEventMutation, journey, progress, saveJourney]
   );
 
   // 날짜 포맷
@@ -352,6 +448,23 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             : "space-y-4"
         }
       >
+        {journeyNotice && (
+          <div
+            role="status"
+            className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+          >
+            {journeyNotice}
+          </div>
+        )}
+        {(eventMutationBlockReason || journeyError) && (
+          <div
+            role="alert"
+            className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+          >
+            {eventMutationBlockReason ?? journeyError}
+          </div>
+        )}
+
         {/* 3-column Stat Row */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 animate-fade-in">
           {/* D-day */}
@@ -404,6 +517,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="mt-3 text-[13px] font-medium text-[#5d6879]">다가오는 일정</p>
           </div>
         </div>
+        <p className="text-[12px] leading-5 text-[#5d6879]">
+          기본 체크리스트와 확인 시점은 시작을 돕는 예시이며, 업체나 가족과 정한 실제
+          일정이 우선입니다.
+        </p>
 
         {/* Main content: left view + right sidebar */}
         <div className="grid grid-cols-1 gap-4 animate-fade-in xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
@@ -437,7 +554,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               </div>
               <button
                 onClick={handleAddEventQuick}
-                className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
+                disabled={Boolean(eventMutationBlockReason)}
+                className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
                 일정 추가
@@ -454,6 +572,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   onEditEvent={handleEditEvent}
                   onDeleteEvent={handleDeleteEvent}
                   onAddEvent={handleAddEventQuick}
+                  assigneeContext={assigneeContext}
                 />
               ) : (
                 <CalendarView
@@ -461,6 +580,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   events={events}
                   onAddEvent={handleAddEvent}
                   onEditEvent={handleEditEvent}
+                  assigneeContext={assigneeContext}
                 />
               )}
             </div>
@@ -472,7 +592,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             {imminentCategories.length > 0 && (
               <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
                 <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
-                  긴급 확인
+                  기본 일정 확인
                 </h3>
                 <ImminentAlerts
                   items={imminentCategories}
@@ -521,7 +641,18 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                               {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                             </span>
                           )}
+                          <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                            {getScheduleEventAssigneeLabel(
+                              evt.assignee,
+                              assigneeContext,
+                            )}
+                          </span>
                         </div>
+                        {evt.completionCriteria && (
+                          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[#5d6879]">
+                            완료 기준 · {evt.completionCriteria}
+                          </p>
+                        )}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
@@ -532,8 +663,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             <>
                               <button
                                 onClick={() => {
-                                  handleDeleteEvent(evt.id);
-                                  setPendingDeleteId(null);
+                                  void handleDeleteEvent(evt.id)
+                                    .then(() => setPendingDeleteId(null))
+                                    .catch(() => undefined);
                                 }}
                                 className="px-2 py-1 rounded-md text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
                               >
@@ -550,12 +682,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             <>
                               <button
                                 onClick={() => handleEditEvent(evt)}
+                                aria-label={`${evt.title} 일정 수정`}
                                 className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-[#f6f3f2] hover:text-[#795252] transition-colors"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setPendingDeleteId(evt.id)}
+                                aria-label={`${evt.title} 일정 삭제`}
                                 className="w-7 h-7 rounded-md flex items-center justify-center text-[#d4c2c2] hover:bg-red-50 hover:text-red-400 transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -583,6 +717,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           pending={pendingChecklistSchedule}
           onClose={() => setPendingChecklistSchedule(null)}
           onComplete={completeChecklistWithSchedule}
+          scheduleMutationBlockReason={eventMutationBlockReason}
         />
 
         {/* 이벤트 추가/수정 모달 */}
@@ -591,6 +726,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           mode={eventFormMode ?? "add"}
           event={editingEvent}
           defaultDate={selectedDateForAdd}
+          assigneeContext={assigneeContext}
           onSave={handleSaveEvent}
           onDelete={editingEvent ? () => handleDeleteEvent(editingEvent.id) : undefined}
           onClose={() => {
@@ -608,10 +744,12 @@ export function ChecklistSchedulePrompt({
   pending,
   onClose,
   onComplete,
+  scheduleMutationBlockReason,
 }: {
   pending: PendingChecklistSchedule | null;
   onClose: () => void;
   onComplete: (data: { date?: string; memo?: string }) => Promise<void>;
+  scheduleMutationBlockReason?: string | null;
 }) {
   const [date, setDate] = useState("");
   const [memo, setMemo] = useState("");
@@ -707,6 +845,14 @@ export function ChecklistSchedulePrompt({
               이미 등록된 {pending.categoryLabel} 일정이 있어요. 저장하면 새로 만들지 않고 기존 일정 날짜를 바꿉니다.
             </p>
           )}
+          {scheduleMutationBlockReason && (
+            <p
+              role="alert"
+              className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
+            >
+              {scheduleMutationBlockReason}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t border-[#eadfc9] bg-[#fffdf7] px-6 py-4 sm:flex-row sm:justify-between">
@@ -721,7 +867,7 @@ export function ChecklistSchedulePrompt({
           <button
             type="button"
             onClick={saveWithDate}
-            disabled={saving || !date}
+            disabled={saving || !date || Boolean(scheduleMutationBlockReason)}
             className="rounded-full bg-[#36534E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending.existingEvent ? "일정 수정하고 완료" : "일정 저장하고 완료"}

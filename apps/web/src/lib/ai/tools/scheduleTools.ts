@@ -1,5 +1,5 @@
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
-import { CHECKLIST_MAP } from "@/constants/checklists";
+import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { mergeChecklist, calculateStatus } from "@/utils/checklist";
 import {
@@ -23,7 +23,7 @@ import {
 
 export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecutionResult {
   const progress = ctx.weddingContext.progress;
-  const allKeys = Object.keys(CATEGORY_LABELS);
+  const allKeys = CATEGORY_CHECKLISTS.map(({ key }) => key);
 
   const completed = allKeys.filter(
     (key) => progress[key]?.status === "completed"

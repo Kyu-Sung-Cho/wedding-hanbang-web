@@ -4,28 +4,42 @@ import { Redirect } from "expo-router";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { PrimaryButton } from "@/components/ui/AppUI";
 
 type Destination = "login" | "onboarding" | "dashboard";
+type GateStatus = "loading" | "ready" | "error";
 
 export default function Index() {
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<GateStatus>("loading");
   const [dest, setDest] = useState<Destination>("login");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    setStatus("loading");
+
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!active) return;
+
         if (!session) {
           setDest("login");
-          setLoading(false);
+          setStatus("ready");
           return;
         }
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("name, couple_id, onboarding_completed")
           .eq("id", session.user.id)
           .maybeSingle();
+        if (profileError) throw profileError;
+        if (!active) return;
 
         if (!profile || !profile.onboarding_completed) {
           setDest("onboarding");
@@ -33,17 +47,45 @@ export default function Index() {
           setDest("dashboard");
         }
       } catch {
-        setDest("login");
+        if (active) {
+          setStatus("error");
+        }
+        return;
       }
-      setLoading(false);
-    })();
-  }, []);
 
-  if (loading) {
+      if (active) {
+        setStatus("ready");
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [loadAttempt]);
+
+  if (status === "loading") {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={colors.rose[500]} size="large" />
         <Text style={styles.loadingText}>오늘의 웨딩 플랜을 준비하고 있어요</Text>
+      </View>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.errorTitle}>로그인 상태를 확인하지 못했어요</Text>
+        <Text style={styles.loadingText}>
+          연결을 확인한 뒤 다시 시도해주세요. 로그인 정보는 그대로 안전하게 유지돼요.
+        </Text>
+        <PrimaryButton
+          tone="rose"
+          style={styles.retryButton}
+          onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+        >
+          다시 시도
+        </PrimaryButton>
       </View>
     );
   }
@@ -73,5 +115,16 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontFamily: "NotoSerifKR_500Medium",
+    color: colors.noir[800],
+    textAlign: "center",
+  },
+  retryButton: {
+    width: "100%",
+    maxWidth: 320,
+    marginTop: 8,
   },
 });

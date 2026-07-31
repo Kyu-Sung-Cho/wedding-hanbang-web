@@ -46,7 +46,7 @@ export function AuthGateModal({ open, redirectPath, onClose }: AuthGateModalProp
         >
           <X aria-hidden="true" className="size-5" />
         </button>
-        <h2 id="price-auth-gate-title" className="pr-10 text-xl font-bold tracking-[-0.02em] text-[#243832]">
+        <h2 id="price-auth-gate-title" className="pr-10 text-xl font-bold tracking-normal text-[#243832]">
           저장하려면 로그인이 필요해요
         </h2>
         <p id="price-auth-gate-description" className="mt-3 text-sm leading-6 text-[#243832]/75">

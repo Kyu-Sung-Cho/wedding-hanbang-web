@@ -7,6 +7,8 @@ import { ArrowLeft } from "lucide-react";
 
 export default function PrivacyPage() {
   const businessInfo = readBusinessInfo();
+  const operatorName = businessInfo?.companyName ?? "웨딩한방 운영자";
+
   return (
     <div className="min-h-screen bg-ivory-50">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
@@ -20,41 +22,41 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 17일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 31일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
-            <p>주식회사 웨딩한방(이하 &quot;회사&quot;)은 「개인정보 보호법」 및 관련 법령을 준수하며, 회원의 개인정보를 소중히 보호합니다. 본 방침은 회사가 운영하는 웨딩한방 플랫폼(hanbang.ai)에서 제공하는 서비스에 적용됩니다.</p>
+            <p>{operatorName}(이하 &quot;운영자&quot;)는 「개인정보 보호법」과 관계 법령을 준수합니다. 본 방침은 웹사이트(hanbang.ai)와 모바일 애플리케이션에서 제공하는 웨딩한방 서비스에 적용됩니다.</p>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제1조 (개인정보의 수집 항목 및 수집 방법)</h2>
-            <p>회사는 서비스 제공을 위해 다음 항목을 수집합니다.</p>
+            <p>운영자는 회원이 사용하는 기능에 따라 다음 정보를 처리합니다. 사용하지 않은 기능의 입력값은 받지 않습니다.</p>
             <div className="mt-3 space-y-3">
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">필수 수집 항목</h3>
+                <h3 className="text-[14px] font-medium text-noir-800 mb-1">계정 생성·로그인</h3>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>이메일 주소 또는 카카오·구글·Apple 계정 식별자</li>
-                  <li>이름(닉네임), 비밀번호(이메일 가입 시)</li>
-                  <li>역할(신부/신랑), 결혼 예정일, 예산, 진행 상황</li>
-                  <li>커플 연동 정보(파트너 식별자)</li>
-                  <li>서비스 이용 기록(접속 IP, 쿠키, 기기 정보)</li>
+                  <li>이름 또는 닉네임</li>
+                  <li>이메일 가입 시 비밀번호는 인증 서비스 제공자인 Supabase가 처리합니다. 웨딩한방의 일반 서비스 데이터베이스에는 비밀번호 원문을 저장하지 않습니다.</li>
                 </ul>
               </div>
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">선택 수집 항목</h3>
+                <h3 className="text-[14px] font-medium text-noir-800 mb-1">회원이 기능을 사용할 때 입력하는 정보</h3>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>프로필 사진, 커뮤니티 게시 콘텐츠(사진·영상·글)</li>
-                  <li>청첩장 정보(인사말, 일시, 장소, 계좌번호)</li>
-                  <li>축의금 관리 데이터(이름, 관계, 금액)</li>
+                  <li>결혼 준비 역할, 함께 준비할 사람의 연결 정보, 결혼 예정일, 결혼식장, 총 예산, 준비 상태와 선호</li>
+                  <li>회원이 직접 고른 아모라 도움 방식(추천·비교 순서, 설명 분량, 힘들 때의 도움 순서, 준비·가족 의견을 정리하는 방식)</li>
+                  <li>예산 항목과 실제 지출, 할 일, 일정, 메모, 아모라에게 보낸 질문과 첨부 파일, 아모라의 답변</li>
+                  <li>프로필 사진과 커뮤니티에 올린 글·댓글·사진·파일</li>
                   <li>마케팅 수신 동의 여부</li>
                 </ul>
               </div>
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">자동 수집 항목</h3>
+                <h3 className="text-[14px] font-medium text-noir-800 mb-1">서비스 이용 중 자동으로 생기는 정보</h3>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>접속 로그, IP 주소, 브라우저·OS 정보, 페이지 조회 기록</li>
-                  <li>아모라(AI) 상호작용 기록(질문·응답·도구 호출)</li>
+                  <li>오류 기록과 보안 기록</li>
+                  <li>아모라 호출의 모델명, 토큰 수, 처리 시간, 성공 여부, 비용 등 운영 기록. 이 비용 기록에는 질문·답변·첨부 파일·도구 입력값 원문을 복제하지 않습니다.</li>
                 </ul>
               </div>
             </div>
@@ -63,26 +65,30 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제2조 (개인정보의 이용 목적)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원 식별, 본인 확인, 회원관리, 부정 이용 방지</li>
-              <li>서비스 제공: AI 상담, 예산·일정·체크리스트 관리, 업체 매칭</li>
-              <li>커플 연동 및 파트너 간 데이터 공유</li>
-              <li>업체 예약 중개, 결제 처리, 분쟁 조정</li>
-              <li>서비스 개선을 위한 통계 분석, 신규 기능 개발</li>
-              <li>법령상 의무 준수(전자상거래법·세법·AI 기본법 등)</li>
-              <li>마케팅 수신 동의자 대상 이벤트·프로모션 안내</li>
+              <li>회원 식별, 로그인, 계정 관리와 부정 이용 방지</li>
+              <li>아모라 대화와 회원이 승인한 예산·할 일·일정 반영</li>
+              <li>회원이 직접 고른 도움 방식에 맞춘 아모라 답변의 순서와 분량 조정</li>
+              <li>예산·할 일·일정 관리, 견적서 포함 항목 확인, 커뮤니티 기능 제공</li>
+              <li>초대 코드로 연결한 사람과 회원이 공유하기로 한 결혼 준비 정보 제공</li>
+              <li>오류 해결, 보안 대응, 서비스 이용 통계와 기능 개선</li>
+              <li>관계 법령에 따른 의무 이행과 분쟁 대응</li>
+              <li>별도로 마케팅 수신에 동의한 회원에게만 이벤트·프로모션 안내</li>
             </ol>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제3조 (개인정보의 보유 및 이용기간)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고, 발급된 임시 접근 링크의 만료와 파일 소유권 확인 등 안전한 삭제 절차가 시작됩니다. 회사는 해당 절차가 끝난 뒤 보유 목적이 사라진 개인정보를 지체 없이 파기합니다. 관련 법령상 별도 보관이 필요한 정보의 적용 범위·기간은 법률 검토와 전용 보관 경계가 검증된 뒤 구체적으로 고지합니다.
+              <li>계정과 결혼 준비 정보는 회원 탈퇴 또는 해당 처리 목적이 끝날 때까지 보관합니다. 탈퇴가 접수되면 커뮤니티 새 파일 업로드를 막고, 임시 파일 접근 링크의 만료와 파일 소유권 및 삭제 대상을 확인한 뒤 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 다른 법령에 따라 별도 보관해야 하는 정보는 전용 보관 경계가 검증된 뒤 적용 범위와 기간을 고지하고 다른 개인정보와 분리하여 보관합니다. 이 경계가 준비되지 않은 상태에서는 해당 보관 의무를 만드는 거래 기능을 운영하지 않습니다.
                 <ul className="list-disc pl-5 mt-2 space-y-1">
-                  <li>계약 또는 청약철회 등에 관한 기록: <strong>5년</strong> (전자상거래법)</li>
-                  <li>대금결제 및 재화 등의 공급에 관한 기록: <strong>5년</strong> (전자상거래법)</li>
-                  <li>소비자의 불만 또는 분쟁처리에 관한 기록: <strong>3년</strong> (전자상거래법)</li>
-                  <li>웹사이트 방문 기록: <strong>3개월</strong> (통신비밀보호법)</li>
-                  <li>AI 상호작용 기록: 원문과 비용·안전 메타데이터의 보유기간 및 자동 파기 일정을 재검증 중입니다. 확정 전에는 장기 보관을 전제로 추가 활용하지 않으며, 검증 완료 후 실제 적용일과 기간을 고지합니다.</li>
+                  <li>현재 웨딩한방은 업체 계약·예약·결제를 중개하지 않으므로 해당 거래 기록을 수집하거나 보관하지 않습니다.</li>
+                  <li>아모라 대화 원문은 대화 내역 제공을 위해 계정이 유지되는 동안 보관합니다. 비공개 대화 삭제를 선택하면 해당 대화 원문과 아모라가 자동 생성한 요약·기억을 삭제하고 그 범위의 기억 사용을 끕니다. 별도로 저장한 메모, 법적·보안 목적의 운영 기록과 백업은 각각 고지된 보관·파기 정책에 따라 처리합니다.</li>
+                  <li>아모라 도움 방식은 회원이 설정에서 직접 확인·수정·삭제할 수 있습니다. 모두 지우면 해당 개인 설정 행을 삭제하며, 계정을 탈퇴하면 프로필과 함께 삭제합니다.</li>
+                  <li>아모라 비용·오류 기록에는 대화 원문을 복제하지 않습니다. 식별정보 제거 시점과 운영 메타데이터의 최종 보유기간은 운영 환경의 자동 파기 증거와 법률 검토가 끝난 뒤 확정하며, 그 전에는 장기 분석이나 모델 학습에 사용하지 않습니다.</li>
+                  <li>접속·보안 기록의 정확한 보유기간도 실제 호스팅·인증·오류 수집 설정과 함께 출시 전에 확정하여 고지합니다. 검증되지 않은 법정 기간을 임의로 적용했다고 표시하지 않습니다.</li>
+                  <li>견적 점검: 새 입력은 분석 응답 생성 후 별도 DB에 저장하지 않으며 공개 결과 링크도 만들지 않습니다. 과거 저장 기록은 가격 통계와 업체 후보 신호에서 제외하고 공개 링크를 닫았습니다. 과거 기록의 열람·삭제는 고객센터로 요청할 수 있습니다.</li>
+                  <li>견적 점검 실행 횟수는 서비스 이용 통계로 기록될 수 있지만, 선택한 분야·항목 상태·견적 금액은 해당 통계 이벤트에 넣지 않습니다.</li>
+                  <li>웨딩코드: 답은 기기 안에서 계산하고 제품 분석·세션 녹화를 하지 않습니다. 새 공유 링크의 답 코드는 서버 요청에 포함되지 않는 주소의 # 뒤에 넣지만, 링크를 받은 사람은 답을 볼 수 있으므로 함께 비교할 사람에게만 보내야 합니다.</li>
                 </ul>
               </li>
             </ol>
@@ -91,19 +97,16 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제4조 (개인정보의 제3자 제공)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회사는 회원의 개인정보를 본인의 동의 없이 외부에 제공하지 않습니다.</li>
-              <li>다음의 경우는 예외로 합니다.
-                <ul className="list-disc pl-5 mt-2 space-y-1">
-                  <li>업체(파트너) 예약 시: 예약 진행에 필요한 최소한의 정보(이름, 연락처, 예약일시)를 해당 파트너에게 제공</li>
-                  <li>법령에 의해 요구되는 경우: 수사기관, 법원의 영장 등</li>
-                </ul>
-              </li>
+              <li>운영자는 회원의 동의 없이 개인정보를 다른 사업자에게 판매하거나 제공하지 않습니다.</li>
+              <li>함께 준비할 사람과 연결하면 예산·할 일·일정 등 공유 영역의 정보가 연결된 회원에게 보입니다. 개인 대화나 개인 설정처럼 비공개로 표시된 정보는 공유하지 않습니다.</li>
+              <li>커뮤니티에 올린 글·댓글·프로필 정보는 해당 화면의 공개 범위에 따라 다른 이용자에게 보입니다.</li>
+              <li>법령에 따라 수사기관 또는 법원이 적법한 절차로 요구하는 경우에는 필요한 범위에서 제공할 수 있습니다.</li>
             </ol>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제5조 (개인정보의 처리위탁)</h2>
-            <p>회사는 서비스 제공을 위해 다음과 같이 개인정보 처리를 위탁하고 있습니다.</p>
+            <p>운영자는 실제로 해당 기능을 켠 경우 다음 사업자에게 개인정보 처리를 맡길 수 있습니다.</p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-[13px] border-collapse">
                 <thead>
@@ -126,10 +129,6 @@ export default function PrivacyPage() {
                     <td className="py-2">AI 추론 처리(아모라)</td>
                   </tr>
                   <tr className="border-b border-black/[0.04]">
-                    <td className="py-2">㈜ 토스페이먼츠</td>
-                    <td className="py-2">결제 처리</td>
-                  </tr>
-                  <tr className="border-b border-black/[0.04]">
                     <td className="py-2">Resend, Inc.</td>
                     <td className="py-2">이메일 발송</td>
                   </tr>
@@ -144,23 +143,26 @@ export default function PrivacyPage() {
                 </tbody>
               </table>
             </div>
+            <p className="mt-3 text-[13px] text-taupe-500">
+              일부 사업자는 국외에서 정보를 처리할 수 있습니다. 실제 운영 계정의 처리 국가, 이전 항목·목적·시기·방법과 보유기간을 확인한 별도 국외 이전 고지가 완료되기 전에는 해당 국외 이전 기능을 운영 환경에서 켜지 않습니다.
+            </p>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원은 언제든지 자신의 개인정보를 조회·수정·삭제·처리정지 요청할 수 있습니다.</li>
+              <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
               <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다.</li>
-              <li>그 외 권리 행사는 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 요청할 수 있으며, 회사는 지체 없이 조치합니다.</li>
+              <li>그 밖의 요청은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제7조 (개인정보의 안전성 확보 조치)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>비밀번호는 일방향 암호화(해시)하여 저장합니다.</li>
+              <li>이메일 가입 비밀번호는 인증 서비스에서 안전한 방식으로 처리하며, 웨딩한방 일반 데이터베이스에는 원문을 저장하지 않습니다.</li>
               <li>전송 구간은 TLS/HTTPS로 암호화합니다.</li>
-              <li>데이터베이스 접근은 RLS(Row Level Security)로 본인 데이터에 한정합니다.</li>
+              <li>데이터베이스 접근은 행 단위 접근 제어를 적용하여 본인 정보와 회원이 명시적으로 공유한 정보에 한정합니다.</li>
               <li>관리자 접근 권한은 최소 인원에게만 부여하며 접속 기록을 보관합니다.</li>
             </ol>
           </section>
@@ -168,26 +170,26 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제8조 (쿠키 및 추적기술)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회사는 사용자 경험 개선을 위해 쿠키를 사용합니다.</li>
-              <li>회원은 브라우저 설정을 통해 쿠키 저장을 거부할 수 있으며, 이 경우 일부 서비스 이용에 제약이 있을 수 있습니다.</li>
+              <li>운영자는 로그인 유지와 보안 등 서비스에 필요한 쿠키를 사용합니다.</li>
+              <li>이용 통계 기능이 설정된 경우에는 자동 화면 수집과 세션 녹화를 끄고, 정해진 화면 이동·기능 사용 이벤트만 수집합니다. 웨딩코드 답변 화면과 내부 연구 화면에서는 이용 통계를 실행하지 않습니다.</li>
+              <li>회원은 브라우저 설정에서 쿠키 저장을 거부할 수 있습니다. 로그인 유지에 필요한 쿠키까지 막으면 일부 기능을 사용할 수 없습니다.</li>
             </ol>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제9조 (개인정보 보호책임자)</h2>
-            <p>회사는 개인정보 보호 관련 문의에 답변하고 처리 결과를 알려드리기 위해 다음과 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
-            <div className="mt-3 px-4 py-3 bg-white rounded-xl">
+            <p>개인정보 관련 문의와 권리 행사는 아래 연락처로 접수할 수 있습니다.</p>
+            <div className="mt-3 px-4 py-3 bg-white rounded-lg">
               <ul className="space-y-1 text-[13px] text-charcoal">
-                <li>성명: 조규성</li>
-                <li>직책: 대표이사</li>
-                <li>이메일: <a href="mailto:ceo@hanbang.ai" className="text-rose-500">ceo@hanbang.ai</a></li>
+                <li>담당: 웨딩한방 개인정보 보호 담당</li>
+                <li>이메일: <a href="mailto:support@hanbang.ai" className="text-rose-500">support@hanbang.ai</a></li>
               </ul>
             </div>
           </section>
 
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (개인정보 처리방침의 변경)</h2>
-            <p>본 방침은 법령·정책 또는 보안기술의 변경에 따라 내용이 추가·삭제 및 수정될 수 있으며, 변경 시 사전에 공지합니다.</p>
+            <p>본 방침이 바뀌면 적용일과 변경 이유를 서비스 안에서 미리 알립니다. 회원의 권리에 중요한 영향을 주는 변경은 필요한 경우 별도 동의를 받습니다.</p>
           </section>
 
           {/* 사업자 식별 정보 — 값이 설정되지 않으면 렌더하지 않는다.
@@ -195,7 +197,7 @@ export default function PrivacyPage() {
           {businessInfo ? (
             <section>
               <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">사업자 정보</h2>
-              <div className="mt-3 px-4 py-3 bg-white rounded-xl">
+              <div className="mt-3 px-4 py-3 bg-white rounded-lg">
                 <ul className="space-y-1 text-[13px] text-charcoal">
                   {businessInfoRows(businessInfo).map(([label, value]) => (
                     <li key={label}>{label}: {value}</li>
@@ -206,7 +208,7 @@ export default function PrivacyPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 17일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다.</p>
           </section>
         </div>
       </div>

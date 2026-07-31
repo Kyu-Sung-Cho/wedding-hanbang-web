@@ -219,6 +219,7 @@ export async function loadPublicPriceCatalog(
       itemName: row.item_name,
       agencyId: row.agency_id,
       agencyName: agencyLabel,
+      regionCode: row.region_code,
       minimumKrw: money(row.price_min_krw),
       maximumKrw: money(row.price_max_krw),
       // 부가세 표기는 비교의 핵심인데 목록에서만 빠져 있었다(상세엔 노출 중).
@@ -233,13 +234,23 @@ export async function loadPublicPriceCatalog(
     const identity = vendorIdentityKey(priceCategory, row.vendor_name, row.vendor_slug);
     const existing = vendorsById.get(identity);
     if (existing) {
-      if (existing.aliases.length === 0) existing.aliases = aliases(row.vendor_aliases);
+      // 검증된 동일 업체의 표기가 다르면 한 카드로 합친 뒤에도 두 이름 모두
+      // 검색되어야 한다. 각 형제 행의 기존 aliases도 버리지 않고 함께 보존한다.
+      const mergedAliases = new Set(existing.aliases);
+      const previousName = existing.name.trim().slice(0, 300);
+      if (previousName) mergedAliases.add(previousName);
+      const siblingName = row.vendor_name.trim().slice(0, 300);
+      if (siblingName) mergedAliases.add(siblingName);
+      for (const alias of aliases(row.vendor_aliases)) mergedAliases.add(alias);
       // 대표 URL은 슬러그 사전순 최솟값으로 고정한다 — 상세 페이지의 canonical과
       // 같은 규칙이어야 카드 링크와 정규 주소가 어긋나지 않는다.
       if (row.vendor_slug < existing.slug) {
         existing.slug = row.vendor_slug;
         existing.id = row.vendor_id;
+        existing.name = row.vendor_name;
       }
+      mergedAliases.delete(existing.name);
+      existing.aliases = [...mergedAliases].slice(0, 50);
       if (existing.category === priceCategory) existing.offers.push(offer);
       if (row.region_code) {
         existing.regionCodes ??= [];

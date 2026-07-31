@@ -28,7 +28,6 @@ describe("selectAmoraTools", () => {
       "get_schedule_summary",
       "get_wedding_info",
       "get_amora_actions",
-      "get_my_bookings",
     ]);
     expect(selected.length).toBeLessThan(BETA_SAFE_TOOLS.length);
   });
@@ -39,15 +38,14 @@ describe("selectAmoraTools", () => {
       "get_budget_summary",
       "get_market_price",
       "simulate_guest_guarantee",
-      "search_vendors",
     ]));
     expect(selected).not.toContain("update_budget");
     expect(selected).not.toContain("apply_budget_plan");
   });
 
-  it("routes nearby search only to non-vendor local places", () => {
-    expect(names("강남역 근처 상견례 식당 찾아줘")).toContain("search_nearby_places");
+  it("keeps local-place and vendor discovery outside the focused MVP", () => {
     for (const query of [
+      "강남역 근처 상견례 식당 찾아줘",
       "강남 근처 웨딩 스튜디오 찾아줘",
       "서울 근처 결혼식장 찾아줘",
       "근처 결혼 준비 업체 찾아줘",
@@ -58,6 +56,23 @@ describe("selectAmoraTools", () => {
       "근처 예식 업체 찾아줘",
     ]) {
       expect(names(query)).not.toContain("search_nearby_places");
+    }
+  });
+
+  it("does not expose marketplace or booking tools in the current MVP", () => {
+    const safeNames = new Set(BETA_SAFE_TOOLS.map((tool) => tool.name));
+    for (const retiredName of [
+      "search_vendors",
+      "check_vendor_availability",
+      "recommend_vendors",
+      "get_vendor_detail",
+      "get_available_slots",
+      "create_booking",
+      "get_my_bookings",
+      "cancel_booking",
+      "search_nearby_places",
+    ]) {
+      expect(safeNames.has(retiredName)).toBe(false);
     }
   });
 

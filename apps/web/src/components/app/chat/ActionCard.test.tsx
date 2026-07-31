@@ -66,7 +66,7 @@ describe("ActionCard budget results", () => {
       root.render(<ActionCard result={result({})} />);
     });
 
-    expect(container.querySelector('[aria-label="예물 예산 변경 결과"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="결혼반지·기념 선물 예산 변경 결과"]')).not.toBeNull();
     expect(container.textContent).toContain("예산");
     expect(container.textContent).toContain("300만원");
     expect(container.textContent).not.toContain("총 0원 / 2,700만원");
@@ -108,7 +108,7 @@ describe("ActionCard budget results", () => {
     });
 
     expect(container.textContent).toContain("카테고리 지출 변경");
-    expect(container.querySelector('[aria-label="예물 지출 변경 결과"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="결혼반지·기념 선물 지출 변경 결과"]')).not.toBeNull();
     expect(container.textContent).toContain("변경된 지출");
     expect(container.textContent).toContain("50만원");
     expect(container.textContent).not.toContain("총 0원 / 2,700만원");

@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
 import { apiJson } from "@/lib/api";
 import {
@@ -92,19 +93,19 @@ const STATUS_MAP: Record<BookingStatus, { label: string; tone: PillTone }> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  studio: "스튜디오",
-  dress: "드레스",
-  makeup: "메이크업",
-  venue: "예식장",
-  snap: "스냅",
-  hanbok: "한복",
-  jewelry: "예물",
-  ring: "예물",
-  honeymoon: "허니문",
-  package: "패키지",
-  dvd: "영상",
-  suit: "예복",
-  invitation: "청첩장",
+  studio: PLANNING_CATEGORY_LABELS.studio,
+  dress: PLANNING_CATEGORY_LABELS.dress,
+  makeup: PLANNING_CATEGORY_LABELS.makeup,
+  venue: PLANNING_CATEGORY_LABELS.venue,
+  snap: PLANNING_CATEGORY_LABELS.snap,
+  hanbok: PLANNING_CATEGORY_LABELS.hanbok,
+  jewelry: PLANNING_CATEGORY_LABELS.ring,
+  ring: PLANNING_CATEGORY_LABELS.ring,
+  honeymoon: PLANNING_CATEGORY_LABELS.honeymoon,
+  package: "묶음 상품",
+  dvd: "결혼식 날 영상",
+  suit: "예식 정장",
+  invitation: PLANNING_CATEGORY_LABELS.invitation,
 };
 
 function normalizeStatus(status: unknown): BookingStatus {
@@ -234,7 +235,7 @@ function getBookingAction(booking: Booking): BookingAction {
       return {
         label: "기록됨",
         title: "실제 금액 기록 완료",
-        description: "추가금 데이터가 다음 업체 추천과 예산 판단에 반영돼요.",
+        description: "입력한 실제 결제금액이 내 예약 기록과 예산에 반영돼요.",
         tone: "success",
       };
     }
@@ -242,7 +243,7 @@ function getBookingAction(booking: Booking): BookingAction {
     return {
       label: "완료",
       title: "진행 완료",
-      description: "실제 추가금과 만족도를 남기면 다음 추천 정확도가 좋아져요.",
+      description: "실제 결제금액과 만족도를 남겨 이번 예약을 정리해보세요.",
       tone: "warning",
     };
   }
@@ -545,7 +546,7 @@ export default function BookingsScreen() {
                   예정된 예약은 없어요
                 </AppText>
                 <AppText variant="body" style={s.summaryBody}>
-                  완료된 예약의 실제 추가금과 만족도를 정리하면 다음 업체 추천이 더 정확해져요.
+                  완료된 예약의 실제 결제금액과 만족도를 기록해두면 지출 내역을 다시 확인하기 쉬워요.
                 </AppText>
               </>
             )}
@@ -905,7 +906,7 @@ function BookingDetailSheet({
                     <View style={s.publicToggleCopy}>
                       <AppText variant="bodyStrong">공개 후기로 공유</AppText>
                       <AppText variant="caption">
-                        끄면 추천 개선용으로만 저장되고 공개 목록에는 보이지 않아요.
+                        끄면 후기 내용은 내 예약 기록에만 저장되고 공개 목록에는 보이지 않아요.
                       </AppText>
                     </View>
                     <Switch

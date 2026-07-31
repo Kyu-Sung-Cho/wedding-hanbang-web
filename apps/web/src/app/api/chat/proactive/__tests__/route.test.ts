@@ -39,8 +39,6 @@ vi.mock("@/lib/amora/lifecycle", () => ({
     stage: "planning",
     stageLabel: "준비 단계",
     stageSummary: "확인할 일이 있어요.",
-    riskLevel: "attention",
-    riskScore: 70,
     guardrails: [{ cta: "확인하기" }],
     primaryAction: {
       id: "budget-check",

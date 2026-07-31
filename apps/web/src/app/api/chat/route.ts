@@ -29,6 +29,7 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { guardDemoPersistenceDisclosure } from "@/lib/ai/amoraDemoPersistence";
+import { guardUnverifiedAmoraPersistenceClaims } from "@/lib/ai/amoraPersistenceClaims";
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { extractMediation } from "@/lib/ai/mediation";
@@ -39,9 +40,13 @@ import {
   toPromptAmoraProfiles,
 } from "@/lib/ai/amoraProfileProjection";
 import {
+  assertAmoraPrivacyContextSnapshotCurrent,
   enqueueAmoraMemoryJob,
-  getAmoraMemoryEnablement,
+  getAmoraPrivacyContextSnapshot,
+  type AmoraPrivacyContextErrorCode,
+  type AmoraPrivacyContextSnapshot,
 } from "@/lib/ai/amoraMemoryQueue";
+import { parseAmoraPersonalizationRow } from "@/lib/amora/personalization";
 import { isFactualAmoraMemorySummary } from "@/lib/ai/amoraMemoryCompiler";
 import { resolveAmoraWeddingContext } from "@/lib/ai/amoraWeddingContext";
 import {
@@ -65,6 +70,7 @@ import {
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
@@ -110,6 +116,7 @@ import {
   hasSignedDemoSessionFromCookieHeader,
 } from "@/lib/demoSession";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
@@ -156,6 +163,16 @@ function getAmoraInputStreamError(error: unknown): {
   return null;
 }
 
+function getAmoraPrivacyContextErrorCode(
+  error: unknown,
+): AmoraPrivacyContextErrorCode | null {
+  if (!isRecord(error)) return null;
+  return error.code === "AMORA_PRIVACY_CONTEXT_UNAVAILABLE"
+    || error.code === "AMORA_PRIVACY_CONTEXT_CHANGED"
+    ? error.code
+    : null;
+}
+
 function getEvalRequestLimit(request: Request): { key: string; maxRequests: number } {
   const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.+$/, "");
   const isProduction =
@@ -187,6 +204,24 @@ function deriveBoundRequestId(clientRequestId: string, userMessageId: string): s
     .slice(0, 32)
     .split("");
   // Keep the durable key compatible with the UUID-shaped database contract.
+  digest[12] = "5";
+  digest[16] = "8";
+  const value = digest.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function deriveConfirmedActionRequestId(
+  userMessageId: string,
+  confirmedActionId: string,
+): string {
+  const digest = createHash("sha256")
+    .update(
+      `amora-confirmed-action-request\0${userMessageId}\0${confirmedActionId}`,
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
   digest[12] = "5";
   digest[16] = "8";
   const value = digest.join("");
@@ -444,6 +479,12 @@ export async function POST(request: Request) {
       { status: 401, headers: { "Cache-Control": "no-store" } },
     );
   }
+  if (!isDemo && !isTrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { error: "요청 출처를 확인할 수 없습니다.", code: "UNTRUSTED_MUTATION_REQUEST" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // Real users authenticate with Supabase. The public demo is authorized by a
   // separate signed, HttpOnly session cookie and never receives database write access.
@@ -491,8 +532,8 @@ export async function POST(request: Request) {
   if (
     bodyRequestKind === "mediation" &&
     (typeof conflictContext !== "string" ||
-      !conflictContext.trim() ||
-      conflictContext.length > 2_000)
+      conflictContext.trim().length < 4 ||
+      conflictContext.length > 600)
   ) {
     return NextResponse.json({ error: "중재 맥락 형식이 올바르지 않습니다." }, { status: 400 });
   }
@@ -580,8 +621,15 @@ export async function POST(request: Request) {
 
   const visibleClientRequestKey = `chat:${actorId}:${rawClientRequestId}`;
   const durableClientRequestUuid =
-    requestKind === "chat" && typeof bodyUserMessageId === "string"
-      ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
+    requestKind === "chat"
+      && typeof bodyUserMessageId === "string"
+      && typeof bodyConfirmedActionId === "string"
+      ? deriveConfirmedActionRequestId(
+          bodyUserMessageId,
+          bodyConfirmedActionId,
+        )
+      : requestKind === "chat" && typeof bodyUserMessageId === "string"
+        ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
       : rawClientRequestId;
   const clientRequestId = requestKind === "initial_greeting"
     ? `greeting:${actorId}`
@@ -831,24 +879,63 @@ export async function POST(request: Request) {
   const requestedMemoryVisibilities = visibility === "shared"
     ? ["shared"] as const
     : ["shared", visibility] as const;
-  const memoryEnablement = isDemo
-    ? { shared: false, bride_private: false, groom_private: false }
-    : await getAmoraMemoryEnablement(dataCoupleId, requestedMemoryVisibilities);
+  let initialPrivacyContextSnapshot: AmoraPrivacyContextSnapshot | null = null;
+  if (!isDemo) {
+    try {
+      initialPrivacyContextSnapshot = await getAmoraPrivacyContextSnapshot(
+        dataCoupleId,
+        requestedMemoryVisibilities,
+        supabase,
+      );
+    } catch (error) {
+      const code =
+        getAmoraPrivacyContextErrorCode(error)
+        ?? "AMORA_PRIVACY_CONTEXT_UNAVAILABLE";
+      console.error("[chat] privacy context snapshot unavailable", code);
+      await releaseClaimBeforeStream(code);
+      return NextResponse.json(
+        {
+          error:
+            "개인정보 설정을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+          code,
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+  const memoryEnablement = initialPrivacyContextSnapshot?.memory ?? {
+    shared: { enabled: false, resetAt: null },
+    bride_private: { enabled: false, resetAt: null },
+    groom_private: { enabled: false, resetAt: null },
+  };
   const enabledMemoryVisibilities = requestedMemoryVisibilities.filter(
-    (candidate) => memoryEnablement[candidate] === true,
+    (candidate) => memoryEnablement[candidate].enabled,
   );
-  const memoryEnabledForTurn = memoryEnablement[visibility] === true;
-  const sharedMemoryEnabledForTurn = memoryEnablement.shared === true;
+  const memoryEnabledForTurn = memoryEnablement[visibility].enabled;
+  const sharedMemoryEnabledForTurn = memoryEnablement.shared.enabled;
+  const assertPrivacyContextStillCurrent = async () => {
+    if (!initialPrivacyContextSnapshot) return;
+    const currentSnapshot = await getAmoraPrivacyContextSnapshot(
+      dataCoupleId,
+      requestedMemoryVisibilities,
+      supabase,
+    );
+    assertAmoraPrivacyContextSnapshotCurrent(
+      initialPrivacyContextSnapshot,
+      currentSnapshot,
+      requestedMemoryVisibilities,
+    );
+  };
 
   // 병렬로 커플 관련 데이터 전체 조회
   const [
     journeyResult,
     profilesResult,
-    bookingsResult,
     summariesResult,
     decisionsResult,
     messagesResult,
     profileNodesResult,
+    personalizationResult,
   ] = await Promise.all([
     // 1. 웨딩 저니
     supabase.from("wedding_journeys").select("*").eq("couple_id", dataCoupleId).single(),
@@ -857,13 +944,7 @@ export async function POST(request: Request) {
       .from("couple_profile_directory")
       .select("id, name, role")
       .eq("couple_id", dataCoupleId),
-    // 3. 예약 내역 (취소 제외)
-    supabase.from("vendor_bookings")
-      .select("id, vendor_id, booking_date, booking_time, status, amount, contracted_amount, actual_amount, memo")
-      .eq("couple_id", dataCoupleId)
-      .neq("status", "cancelled")
-      .order("booking_date", { ascending: true }),
-    // 4. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
+    // 3. 대화 요약 (최근 3개) — visibility 격리 (2026-05-04)
     //    shared turn → shared summary만 / private turn → shared + 본인 visibility
     enabledMemoryVisibilities.length === 0
       ? Promise.resolve({ data: [], error: null })
@@ -880,7 +961,7 @@ export async function POST(request: Request) {
         ? q.eq("visibility", enabledMemoryVisibilities[0])
         : q.in("visibility", enabledMemoryVisibilities);
     })(),
-    // 5. Memory Step C: 의사결정 히스토리 (최근 50개, AI 추출 + manual/booking/onboarding 포함)
+    // 4. Memory Step C: 의사결정 히스토리 (최근 50개, 사용자가 확인한 결정 포함)
     //    사용자가 동의한 범위의 활성 기억과 명시적 제품 결정만 사용한다.
     //    RLS가 visibility 자동 필터: 본인 private + shared만 SELECT 됨. 파트너 private은 안 옴.
     supabase.from("decision_nodes")
@@ -888,7 +969,7 @@ export async function POST(request: Request) {
       .eq("couple_id", dataCoupleId)
       .order("created_at", { ascending: false })
       .limit(50),
-    // 6. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
+    // 5. canonical 대화 컨텍스트. 클라이언트가 보낸 assistant/history는
     // prompt source로 신뢰하지 않으며 사용자 RLS를 한 번 더 적용한다.
     (() => {
       const q = supabase
@@ -906,7 +987,7 @@ export async function POST(request: Request) {
         ? q.eq("visibility", "shared")
         : q.in("visibility", ["shared", visibility]);
     })(),
-    // 7. 검증된 V2 기억 노드에서 요청별 맞춤 정보를 결정론적으로 투영한다.
+    // 6. 검증된 V2 기억 노드에서 요청별 맞춤 정보를 결정론적으로 투영한다.
     // 최근 결정 50개와 분리해 오래된 active 근거도 누락하지 않는다.
     enabledMemoryVisibilities.length === 0
       ? Promise.resolve({ data: [], error: null })
@@ -925,6 +1006,18 @@ export async function POST(request: Request) {
             ? query.eq("visibility", enabledMemoryVisibilities[0])
             : query.in("visibility", enabledMemoryVisibilities);
         })(),
+    // 7. 현재 인증 사용자가 직접 확인한 개인 답변 방식.
+    // 커플 공용 데이터가 아니므로 actor id로 다시 고정하고, malformed/error는
+    // 중립 동작으로 닫는다. 체험에서는 읽거나 저장하지 않는다.
+    isDemo
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from("amora_personalization_preferences")
+          .select(
+            "decision_start, answer_detail, support_order, work_mode, family_order, tone_style, revision, confirmed_at, updated_at",
+          )
+          .eq("owner_user_id", actorId)
+          .maybeSingle(),
   ]);
 
   const journey = journeyResult.data;
@@ -939,17 +1032,21 @@ export async function POST(request: Request) {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
+  const canonicalJourneyStateRevision =
+    isDemo
+      ? 0
+      : isRecord(journey)
+        && typeof journey.state_revision === "number"
+        && Number.isSafeInteger(journey.state_revision)
+        && journey.state_revision >= 0
+        ? journey.state_revision
+        : null;
   const criticalContextFailure = !isDemo
     ? [
         {
           error: profilesResult.error,
           code: "COUPLE_DIRECTORY_UNAVAILABLE",
           message: "커플 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
-        },
-        {
-          error: bookingsResult.error,
-          code: "BOOKINGS_CONTEXT_UNAVAILABLE",
-          message: "예약·계약 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
         },
         {
           error: summariesResult.error,
@@ -977,32 +1074,6 @@ export async function POST(request: Request) {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
-  const bookingVendorIds = [
-    ...new Set((bookingsResult.data ?? []).map((booking) => booking.vendor_id)),
-  ];
-  const bookingVendorResult = bookingVendorIds.length > 0
-    ? await getServiceClient()
-        .from("vendors")
-        .select("id, name, category")
-        .in("id", bookingVendorIds)
-        .eq("status", "approved")
-    : { data: [], error: null };
-  if (bookingVendorResult.error) {
-    console.error("[chat] booking vendor context lookup failed", {
-      providerCode: bookingVendorResult.error.code ?? null,
-    });
-    await releaseClaimBeforeStream("BOOKINGS_CONTEXT_UNAVAILABLE");
-    return NextResponse.json(
-      {
-        error: "예약·계약 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
-        code: "BOOKINGS_CONTEXT_UNAVAILABLE",
-      },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-  const bookingVendorMap = new Map(
-    (bookingVendorResult.data ?? []).map((vendor) => [vendor.id, vendor]),
-  );
   const resolvedWeddingContext = resolveAmoraWeddingContext({
     canonicalJourney: journey,
     clientContext: weddingContext,
@@ -1034,6 +1105,42 @@ export async function POST(request: Request) {
   } else if (projection.rejectedReason) {
     console.warn("[chat] profile projection failed closed", projection.rejectedReason);
   }
+  const personalizationProfile = personalizationResult.error
+    ? null
+    : parseAmoraPersonalizationRow(personalizationResult.data);
+  if (personalizationResult.error) {
+    console.warn("[chat] personalization lookup failed", {
+      code: personalizationResult.error.code,
+    });
+  } else if (personalizationResult.data && !personalizationProfile) {
+    console.warn("[chat] personalization row failed closed");
+  }
+  if (
+    !isDemo
+    && initialPrivacyContextSnapshot
+    && !personalizationResult.error
+  ) {
+    const personalizationExists = personalizationResult.data != null;
+    const personalizationChanged =
+      personalizationExists
+        !== initialPrivacyContextSnapshot.personalization.exists
+      || (
+        personalizationProfile !== null
+        && personalizationProfile.revision
+          !== initialPrivacyContextSnapshot.personalization.revision
+      );
+    if (personalizationChanged) {
+      await releaseClaimBeforeStream("AMORA_PRIVACY_CONTEXT_CHANGED");
+      return NextResponse.json(
+        {
+          error:
+            "개인정보 설정이 대화 준비 중 변경됐어요. 최신 설정으로 다시 시도해주세요.",
+          code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
   const projectedAmoraProfiles = toPromptAmoraProfiles(projection.profiles, visibility);
   const consentedAmoraProfiles = {
     shared: sharedMemoryEnabledForTurn ? projectedAmoraProfiles.shared : null,
@@ -1041,30 +1148,6 @@ export async function POST(request: Request) {
       ? projectedAmoraProfiles.private
       : null,
   };
-
-  // 예약 내역 정리
-  const toAmount = (value: unknown): number | null => {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && /^\d+(\.\d+)?$/.test(value)) {
-      const amount = Number(value);
-      return Number.isFinite(amount) ? amount : null;
-    }
-    return null;
-  };
-
-  const bookings = (bookingsResult.data ?? []).map((b) => {
-    const vendor = bookingVendorMap.get(b.vendor_id);
-    return {
-      vendorName: vendor?.name ?? "알 수 없는 업체",
-      category: vendor?.category ?? "",
-      date: b.booking_date as string,
-      time: b.booking_time as string,
-      status: b.status as string,
-      amount: toAmount(b.amount),
-      contractedAmount: toAmount(b.contracted_amount),
-      actualAmount: toAmount(b.actual_amount),
-    };
-  });
 
   const {
     progress,
@@ -1259,7 +1342,7 @@ export async function POST(request: Request) {
       ...typedMessages,
       {
         role: "user",
-        content: `[${roleLabel}] [MEDIATION_REQUEST] 커플 대화의 의견 차이를 중립적으로 중재해주세요. 최근 맥락: ${String(conflictContext).trim()}`,
+        content: `[${roleLabel}] [MEDIATION_REQUEST] 커플 대화의 의견 차이를 중립적으로 중재해주세요. 요청자가 직접 작성한 요약: ${String(conflictContext).trim()}`,
       },
     ];
   } else if (isDemo) {
@@ -1322,6 +1405,82 @@ export async function POST(request: Request) {
       },
       { status: 409, headers: { "Cache-Control": "no-store" } },
     );
+  }
+  if (approvedPendingAction) {
+    const approvalPolicy = getAmoraActionApprovalPolicy(
+      approvedPendingAction.tool,
+      approvedPendingAction.input,
+    );
+    if (approvalPolicy === "blocked") {
+      await releaseClaimBeforeStream("AMORA_PENDING_ACTION_POLICY_BLOCKED");
+      return NextResponse.json(
+        {
+          error: "이 변경은 현재 아모라가 직접 반영하지 않도록 막아두었어요.",
+          code: "AMORA_PENDING_ACTION_POLICY_BLOCKED",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const { data, error } = await getServiceClient().rpc(
+      "authorize_amora_shared_action_execution",
+      {
+        p_action_id: approvedPendingAction.actionId,
+        p_confirmation_message_id: bodyUserMessageId,
+        p_couple_id: coupleId,
+        p_source_message_id: previousCanonicalRow!.id,
+        p_user_id: actorId,
+      },
+    );
+    const authorized = isRecord(data) && data.authorized === true;
+    if (error || !authorized) {
+      const failure = `${error?.code ?? ""} ${error?.message ?? ""}`;
+      const approvalRequired =
+        failure.includes("AMORA_SHARED_ACTION_APPROVAL_REQUIRED");
+      const applicationClaimRejected =
+        failure.includes("AMORA_SHARED_ACTION_APPLICATION_CLAIM");
+      const proposalChanged =
+        failure.includes("AMORA_SHARED_ACTION_PROPOSAL_CHANGED")
+        || failure.includes("AMORA_SHARED_ACTION_STALE_CONTEXT")
+        || failure.includes("AMORA_SHARED_ACTION_EXPIRED");
+      const knownConflict =
+        approvalRequired || applicationClaimRejected || proposalChanged;
+      await releaseClaimBeforeStream(
+        knownConflict
+          ? "AMORA_SHARED_ACTION_CONFIRMATION_REJECTED"
+          : "AMORA_SHARED_ACTION_AUTHORIZATION_UNAVAILABLE",
+      );
+      if (!knownConflict) {
+        console.error(
+          "[amora-shared-action] execution authorization unavailable",
+          error?.code ?? "invalid-response",
+        );
+      }
+      return NextResponse.json(
+        proposalChanged
+          ? {
+              error: "그 사이 내용이 바뀌어 아무것도 변경하지 않았어요. 최신 제안을 다시 확인해 주세요.",
+              code: "AMORA_SHARED_ACTION_PROPOSAL_CHANGED",
+            }
+          : applicationClaimRejected
+            ? {
+                error: "다른 화면의 적용 요청과 겹쳐 아무것도 변경하지 않았어요. 최신 상태를 확인한 뒤 다시 시도해 주세요.",
+                code: "AMORA_SHARED_ACTION_APPLICATION_CLAIM_REQUIRED",
+              }
+            : approvalRequired
+              ? {
+                  error: "두 분의 확인이 모두 끝나기 전이라 아직 아무것도 변경하지 않았어요.",
+                  code: "AMORA_SHARED_ACTION_APPROVAL_REQUIRED",
+                }
+              : {
+                  error: "확인 상태를 안전하게 검증하지 못해 아무것도 변경하지 않았어요.",
+                  code: "AMORA_SHARED_ACTION_AUTHORIZATION_UNAVAILABLE",
+                },
+        {
+          status: knownConflict ? 409 : 503,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
   }
 
   // --- Part 2 & 3: 불만족 자동 감지 + 세션 수준 실수 추적 ---
@@ -1439,7 +1598,10 @@ export async function POST(request: Request) {
             .find((row) => row.role === "user")?.content ?? null,
           specialistType,
           attachmentKind,
-        })
+        }).filter(
+          (tool) =>
+            getAmoraActionApprovalPolicy(tool.name) !== "blocked",
+        )
       : [];
   const pendingOfferEnabled = pendingProposalTools.length > 0;
   const serverIssuedActionContract = approvedPendingAction
@@ -1455,10 +1617,13 @@ export async function POST(request: Request) {
     brideName,
     groomName,
     senderName: safeSenderName,
-    bookings,
+    // Legacy booking rows are outside the current web MVP and are not sent
+    // to the model merely because they still exist in the database.
+    bookings: [],
     scheduleEvents,
     chatSummaries,
     preferences: preferences ?? undefined,
+    helpPreference: personalizationProfile?.preferences ?? null,
     amoraProfiles: consentedAmoraProfiles,
     pastDecisions,
     pastConflicts,
@@ -1676,6 +1841,12 @@ export async function POST(request: Request) {
             now: Date.now(),
             createActionId: randomUUID,
           });
+          if (
+            pendingExtraction.pendingAction
+            && canonicalJourneyStateRevision === null
+          ) {
+            throw new Error("AMORA_JOURNEY_REVISION_UNAVAILABLE");
+          }
           const { cleanText, mediation } = extractMediation(
             pendingExtraction.cleanText,
           );
@@ -1683,18 +1854,48 @@ export async function POST(request: Request) {
             guardDemoDisclosure && isDemo && requestKind === "chat"
               ? guardDemoPersistenceDisclosure(cleanText, lastUserText)
               : { text: cleanText, appendedNotice: null };
-          const persistenceSafeText = demoPersistenceGuard.text;
+          const persistenceClaimGuard = isDemo
+            ? {
+                text: demoPersistenceGuard.text,
+                corrected: false,
+                removedClaimCount: 0,
+              }
+            : guardUnverifiedAmoraPersistenceClaims({
+                text: demoPersistenceGuard.text,
+                hasVerifiedMutationReceipt: toolResults.some(
+                  (result) => result.success && isMutatingTool(result.toolName),
+                ),
+                hasPendingAction: pendingExtraction.pendingAction !== null,
+              });
+          const persistenceSafeText = persistenceClaimGuard.text;
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
+            ...(typeof bodyUserMessageId === "string"
+              ? { in_reply_to_user_message_id: bodyUserMessageId }
+              : {}),
+            ...(typeof bodyConfirmedActionId === "string"
+              ? { confirmed_amora_action_id: bodyConfirmedActionId }
+              : {}),
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
             ...(suggestions.length > 0 ? { suggestions } : {}),
             ...(mediation ? { mediation } : {}),
             ...(pendingExtraction.pendingAction
-              ? { pending_amora_action: pendingExtraction.pendingAction }
+              ? {
+                  pending_amora_action: pendingExtraction.pendingAction,
+                  pending_amora_action_journey_revision:
+                    canonicalJourneyStateRevision,
+                }
+              : {}),
+            ...(persistenceClaimGuard.corrected
+              ? {
+                  persistence_claim_corrected: true,
+                  persistence_claim_removed_count:
+                    persistenceClaimGuard.removedClaimCount,
+                }
               : {}),
           };
           return {
@@ -1703,6 +1904,7 @@ export async function POST(request: Request) {
             suggestions,
             pendingExtraction,
             demoPersistenceGuard,
+            persistenceClaimGuard,
             metadata,
           };
         };
@@ -1773,9 +1975,16 @@ export async function POST(request: Request) {
                 // Reserve this exact provider receipt before the durable
                 // action without marking the paid provider boundary. OpenAI
                 // marks that boundary with the shared reservation below.
-                await executeApprovedPendingAction(reserveBeforeSideEffect);
+                await executeApprovedPendingAction(async () => {
+                  await assertPrivacyContextStillCurrent();
+                  await reserveBeforeSideEffect();
+                });
               }
 
+              // OpenAI performs an input-token count request before its paid
+              // generation hook. Fence that provider request too; the hook
+              // below repeats the check after counting and before reservation.
+              await assertPrivacyContextStillCurrent();
               return chatWithToolsStream({
                 systemPrompt,
                 input: currentMessages,
@@ -1792,7 +2001,10 @@ export async function POST(request: Request) {
                 },
                 maxInputTokens: requestPolicy.maxInputTokens,
                 maxOutputTokens: requestPolicy.maxOutputTokens,
-                beforeGeneration: reserveBeforeGeneration,
+                beforeGeneration: async () => {
+                  await assertPrivacyContextStillCurrent();
+                  await reserveBeforeGeneration();
+                },
                 modelRole,
                 safetyIdentifierScope,
                 signal: toolExecutionCompleted
@@ -1861,12 +2073,17 @@ export async function POST(request: Request) {
               suggestions,
               pendingExtraction,
               demoPersistenceGuard,
+              persistenceClaimGuard,
               metadata,
             } = terminal;
 
-            if (pendingExtraction.hadPendingActionTag) {
+            if (
+              pendingExtraction.hadPendingActionTag
+              || persistenceClaimGuard.corrected
+            ) {
               // Provider tokens may already have contained the private marker.
-              // Replace the visible draft with the server-scrubbed text before done.
+              // A provider may also claim a write that has no server receipt.
+              // Replace either visible draft with server-scrubbed text before done.
               send({ type: "text_clear" });
               if (persistenceSafeText) {
                 send({ type: "text_delta", content: persistenceSafeText });
@@ -2119,24 +2336,32 @@ export async function POST(request: Request) {
               }
             },
           },
-          (reserveBeforeGeneration) => chatWithToolsStream({
-            systemPrompt: noToolSystemPrompt,
-            input: currentMessages,
-            // 최대 도구 라운드 이후에는 새 mutation 요청을 받지 않고 기존 결과를
-            // 사용자용 문장으로 정리하게 한다.
-            tools: [],
-            onTextDelta: (token) => {
-              send({ type: "text_delta", content: token });
-            },
-            maxInputTokens: finalRequestPolicy.maxInputTokens,
-            maxOutputTokens: finalRequestPolicy.maxOutputTokens,
-            beforeGeneration: reserveBeforeGeneration,
-            modelRole,
-            safetyIdentifierScope,
-            signal: toolExecutionCompleted
-              ? deadlineAbortController.signal
-              : preMutationAbortController.signal,
-          }),
+          async (reserveBeforeGeneration) => {
+            // This precedes OpenAI's input-token count request. The generation
+            // hook repeats the fence immediately before quota reservation.
+            await assertPrivacyContextStillCurrent();
+            return chatWithToolsStream({
+              systemPrompt: noToolSystemPrompt,
+              input: currentMessages,
+              // 최대 도구 라운드 이후에는 새 mutation 요청을 받지 않고 기존 결과를
+              // 사용자용 문장으로 정리하게 한다.
+              tools: [],
+              onTextDelta: (token) => {
+                send({ type: "text_delta", content: token });
+              },
+              maxInputTokens: finalRequestPolicy.maxInputTokens,
+              maxOutputTokens: finalRequestPolicy.maxOutputTokens,
+              beforeGeneration: async () => {
+                await assertPrivacyContextStillCurrent();
+                await reserveBeforeGeneration();
+              },
+              modelRole,
+              safetyIdentifierScope,
+              signal: toolExecutionCompleted
+                ? deadlineAbortController.signal
+                : preMutationAbortController.signal,
+            });
+          },
           {
             buildAtomicChatResponse: (providerResult) => {
               const terminal = prepareTerminalResponse(providerResult.fullText, false);
@@ -2173,15 +2398,21 @@ export async function POST(request: Request) {
           );
         }
         const {
-          cleanText,
+          persistenceSafeText: finalPersistenceSafeText,
           suggestions,
           pendingExtraction: pendingExtraction2,
+          persistenceClaimGuard: finalPersistenceClaimGuard,
           metadata: finalMetadata,
         } = finalTerminal;
 
-        if (pendingExtraction2.hadPendingActionTag) {
+        if (
+          pendingExtraction2.hadPendingActionTag
+          || finalPersistenceClaimGuard.corrected
+        ) {
           send({ type: "text_clear" });
-          if (cleanText) send({ type: "text_delta", content: cleanText });
+          if (finalPersistenceSafeText) {
+            send({ type: "text_delta", content: finalPersistenceSafeText });
+          }
         }
 
         if (suggestions.length > 0) {
@@ -2194,7 +2425,7 @@ export async function POST(request: Request) {
           insertResult2 = await persistAiMessage({
             isDemo: true,
             coupleId,
-            cleanText,
+            cleanText: finalPersistenceSafeText,
             clientRequestId,
             metadata: finalMetadata,
             stageTag,
@@ -2233,7 +2464,7 @@ export async function POST(request: Request) {
 
         send({
           type: "done",
-          fullContent: insertResult2.content ?? cleanText,
+          fullContent: insertResult2.content ?? finalPersistenceSafeText,
           metadata: getDoneMetadata(insertResult2),
         });
 
@@ -2269,12 +2500,18 @@ export async function POST(request: Request) {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         const inputStreamError = getAmoraInputStreamError(err);
+        const privacyContextErrorCode =
+          getAmoraPrivacyContextErrorCode(err);
         const costGuardError = err instanceof AmoraCostGuardError ? err : null;
         const durableErrorCode =
           err instanceof AiMessagePersistenceError || err instanceof ChatRequestClaimError
             ? err.code
             : null;
-        const publicErrorCode = durableErrorCode ?? costGuardError?.code ?? inputStreamError?.code;
+        const publicErrorCode =
+          durableErrorCode
+          ?? privacyContextErrorCode
+          ?? costGuardError?.code
+          ?? inputStreamError?.code;
         console.error("채팅 API 에러:", errMsg);
         if (requestClaimAcquired) {
           await failChatRequest({
@@ -2293,6 +2530,8 @@ export async function POST(request: Request) {
           code: publicErrorCode,
           message: durableErrorCode
             ? "답변 저장을 완료하지 못했어요. 같은 요청으로 다시 시도해주세요."
+            : privacyContextErrorCode
+              ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정으로 다시 시도해주세요."
             : costGuardError
               ? costGuardError.result.message ?? "아모라 사용량을 확인하지 못했어요. 잠시 후 다시 시도해주세요."
             : inputStreamError

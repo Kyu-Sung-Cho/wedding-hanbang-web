@@ -125,7 +125,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-[-0.035em] sm:text-4xl">
+              <h1 className="text-3xl font-bold tracking-normal sm:text-4xl">
                 찜한 공식 가격 업체
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[#243832]/70">
@@ -281,7 +281,7 @@ function StateCard({
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>
-      <h2 className="mt-5 text-xl font-bold tracking-[-0.02em]">{title}</h2>
+      <h2 className="mt-5 text-xl font-bold tracking-normal">{title}</h2>
       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#243832]/70">{description}</p>
       <div className="mt-6">{children}</div>
     </section>

@@ -4,7 +4,7 @@ import {
   type PriceCategory,
 } from "./catalog";
 
-const CI_PLACEHOLDER_PROJECT_REF = "abcdefghijklmnopqrst";
+const SYNTHETIC_PROJECT_REF = "abcdefghijklmnopqrst";
 
 function supabaseProjectRef(rawUrl: string | undefined): string | null {
   if (!rawUrl) return null;
@@ -23,8 +23,13 @@ export function isPriceCatalogBuildPlaceholderEnvironment(
   if (env.NEXT_PUBLIC_PREVIEW_STUB_MODE === "true") return true;
 
   const rawUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const projectRef = supabaseProjectRef(rawUrl);
+  if (env.HANBANG_SYNTHETIC_SUPABASE_ENVIRONMENT === "true") {
+    return projectRef === SYNTHETIC_PROJECT_REF;
+  }
+
   return env.CI === "true"
-    && supabaseProjectRef(rawUrl) === CI_PLACEHOLDER_PROJECT_REF;
+    && projectRef === SYNTHETIC_PROJECT_REF;
 }
 
 export function createEmptyPriceCatalog(): PriceCatalog {

@@ -63,9 +63,8 @@ interface WeeklyAction {
 }
 
 const CATEGORY_OPTIONS = [
-  "예식장", "스드메", "스튜디오", "드레스", "메이크업", "예복",
-  "한복", "예물", "혼수", "허니문", "청첩장", "부케",
-  "답례품", "스냅", "영상", "축가", "사회자", "기타",
+  ...CATEGORY_CHECKLISTS.map((category) => category.label),
+  "기타",
 ];
 
 function applyChecklistState(
@@ -127,7 +126,7 @@ function formatDday(dday: number | null): string {
 
 function getPhaseLabel(dday: number | null): string {
   if (dday === null) return "결혼 예정일 설정 필요";
-  if (dday < 0) return "본식 이후 정리";
+  if (dday < 0) return "결혼식 뒤 정리";
   if (dday <= 30) return "최종 점검";
   if (dday <= 90) return "마무리 준비";
   if (dday <= 180) return "세부 준비";
@@ -136,10 +135,10 @@ function getPhaseLabel(dday: number | null): string {
 }
 
 function getUrgencyLabel(urgency: ActionUrgency): string {
-  if (urgency === "overdue") return "마감 지남";
-  if (urgency === "urgent") return "이번 주";
-  if (urgency === "soon") return "곧 마감";
-  return "진행 권장";
+  if (urgency === "overdue") return "기본 확인 시점 지남";
+  if (urgency === "urgent") return "이번 주 확인";
+  if (urgency === "soon") return "확인 시점 가까움";
+  return "확인해 볼 항목";
 }
 
 function getUrgencyTone(urgency: ActionUrgency): "neutral" | "rose" | "warning" | "danger" {
@@ -425,12 +424,12 @@ export default function ScheduleScreen() {
 
       const deadlineLabel =
         daysUntilDeadline === null
-          ? "결혼 예정일을 넣으면 마감이 계산돼요"
+          ? "결혼식 날짜를 넣으면 기본 확인 순서를 정리해요"
           : daysUntilDeadline < 0
-            ? `${Math.abs(daysUntilDeadline)}일 지났어요`
+            ? `기본 확인 시점에서 ${Math.abs(daysUntilDeadline)}일 지났어요`
             : daysUntilDeadline === 0
-              ? "오늘까지 권장"
-              : `${daysUntilDeadline}일 남음`;
+              ? "오늘이 기본 확인 시점이에요"
+              : `기본 확인 시점까지 ${daysUntilDeadline}일`;
 
       return [{
         categoryKey: template.key,
@@ -666,8 +665,8 @@ export default function ScheduleScreen() {
           </View>
           <AppText variant="body" style={styles.opsCopy}>
             {weddingDate
-              ? `${getPhaseLabel(dday)} 단계예요. 이번 주에는 마감이 가까운 항목부터 정리하세요.`
-              : "결혼 예정일을 설정하면 D-day 기준으로 이번 주 할 일을 자동 정렬해요."}
+              ? `${getPhaseLabel(dday)} 단계예요. 기본 순서에서 먼저 확인할 항목을 모았어요. 실제 계약·업체·가족 일정이 우선이에요.`
+              : "결혼식 날짜를 설정하면 기본 확인 순서에 따라 먼저 볼 항목을 정리해요."}
           </AppText>
           <View style={styles.summaryTop}>
             <Text style={styles.summaryLabel}>전체 진행률</Text>
@@ -682,7 +681,7 @@ export default function ScheduleScreen() {
           <View style={styles.weeklyHeader}>
             <View>
               <AppText variant="eyebrow">WEEKLY ACTION</AppText>
-              <AppText variant="subtitle">이번 주 추천 행동</AppText>
+              <AppText variant="subtitle">이번 주 확인 제안</AppText>
             </View>
             <CalendarDays size={18} color={colors.rose[500]} />
           </View>
@@ -889,7 +888,7 @@ export default function ScheduleScreen() {
                 style={styles.input}
                 value={formTitle}
                 onChangeText={setFormTitle}
-                placeholder="예: 드레스 피팅"
+                placeholder="예: 드레스 입어보기"
                 placeholderTextColor={colors.textTertiary}
               />
 

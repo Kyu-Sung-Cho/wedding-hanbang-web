@@ -237,6 +237,22 @@ describe("/api/settings/wedding-profile", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed with a clear partner-approval response on legacy linked edits", async () => {
+    const rpc = mockAdmin({
+      data: null,
+      error: { message: "COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED" },
+    });
+
+    const response = await PATCH(patchRequest(validPatch()));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "PARTNER_APPROVAL_REQUIRED",
+      error: expect.stringContaining("파트너 확인"),
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("maps nickname uniqueness races without attempting a second write", async () => {
     const rpc = mockAdmin({
       data: null,

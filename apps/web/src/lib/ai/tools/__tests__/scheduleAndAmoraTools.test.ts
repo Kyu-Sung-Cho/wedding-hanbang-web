@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionContext } from "../toolTypes";
 import {
@@ -121,11 +122,15 @@ describe("scheduleTools", () => {
 
     expect(result.success).toBe(true);
     expect(result.toolOutput).toMatchObject({
-      total: 19,
-      progress_percent: 5,
+      total: CATEGORY_CHECKLISTS.length,
+      progress_percent: Math.round(100 / CATEGORY_CHECKLISTS.length),
     });
-    expect(result.toolOutput.completed).toEqual(expect.arrayContaining(["예식장"]));
-    expect(result.toolOutput.in_progress).toEqual(expect.arrayContaining(["스튜디오"]));
+    expect(result.toolOutput.completed).toEqual(
+      expect.arrayContaining(["결혼식장"]),
+    );
+    expect(result.toolOutput.in_progress).toEqual(
+      expect.arrayContaining(["웨딩 사진 촬영"]),
+    );
   });
 
   it("adds schedule events through the shared progress patch path", async () => {

@@ -6,7 +6,6 @@ const BASE_READ_TOOLS = [
   "get_budget_summary",
   "get_schedule_summary",
   "get_amora_actions",
-  "get_my_bookings",
 ] as const;
 
 const BUDGET_READ_TOOLS = [
@@ -29,19 +28,12 @@ const SCHEDULE_WRITE_TOOLS = [
   "toggle_checklist_item",
 ] as const;
 const VENDOR_READ_TOOLS = [
-  "search_vendors",
-  "check_vendor_availability",
-  "recommend_vendors",
-  "get_vendor_detail",
-  "get_available_slots",
-  "get_my_bookings",
   "get_market_price",
 ] as const;
 const CONTRACT_READ_TOOLS = [
   "analyze_contract_readiness",
   "analyze_quote",
   "get_market_price",
-  "get_vendor_detail",
 ] as const;
 const ACTION_READ_TOOLS = ["get_amora_actions"] as const;
 const ACTION_WRITE_TOOLS = [
@@ -60,7 +52,6 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...CONTRACT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
-  "search_nearby_places",
   "update_venue",
 ]);
 
@@ -69,7 +60,6 @@ const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본�
 const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
 const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
-const NEARBY_INTENT = /근처|주변|가까운|인근|nearby/i;
 const KNOWN_BUDGET_CATEGORY = /상견례|예식장|웨딩홀|스튜디오|드레스|턱시도|메이크업|예물|반지|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|영상|웨딩\s*구두|부케|꽃장식|답례품|사회|축가|폐백|예비비/i;
 const BUDGET_PLAN_WRITE = /(?:예산|비용).*(?:배분|플랜|계획|안).*(?:적용|저장|확정)|(?:배분|플랜|계획|안).*(?:적용|저장|확정).*(?:예산|비용)/i;
 const CUSTOM_BUDGET_CATEGORY_WRITE = /(?:예산\s*)?(?:카테고리|항목).*(?:추가|등록)|(?:추가|등록).*(?:예산\s*)?(?:카테고리|항목)/i;
@@ -222,10 +212,6 @@ export function selectAmoraTools({
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
   if (hasContractIntent) addAll(selected, CONTRACT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
-  if (NEARBY_INTENT.test(userText) && !hasVendorIntent) {
-    selected.add("search_nearby_places");
-  }
-
   // Each mutation family requires current-turn, domain-specific language.
   // Assistant prose and generic approvals are never authority to write.
   if (BUDGET_INTENT.test(userText)) {

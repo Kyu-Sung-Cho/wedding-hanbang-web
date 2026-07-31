@@ -24,7 +24,7 @@ export default function Hero() {
             className="flex flex-col items-center text-center md:items-start md:text-left"
           >
             {/* Display H1 */}
-            <h1 className="font-serif-kr text-[clamp(34px,6vw,68px)] text-noir-800 leading-[1.2] tracking-[-0.015em] font-light">
+            <h1 className="font-serif-kr text-[clamp(34px,6vw,68px)] text-noir-800 leading-[1.2] tracking-normal font-light">
               당신만의
               <br />
               AI 웨딩 플래너,
@@ -87,7 +87,7 @@ export default function Hero() {
                 </span>
                 <span className="font-serif-kr text-[15px] text-noir-800 font-medium">아모라</span>
                 <span className="text-[12px] text-taupe-400 tracking-[0.15em] ml-auto">
-                  · 24시간
+                  · 베타 운영 중
                 </span>
               </div>
 

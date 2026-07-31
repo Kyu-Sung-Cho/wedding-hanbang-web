@@ -19,7 +19,10 @@ test("mobile memory deletion and full reset require explicit confirmation", () =
   assert.match(memorySource, /action: "clear_scope"/);
 });
 
-test("native proactive-care switch persists explicit server consent", () => {
-  assert.match(settingsSource, /care_notifications_enabled: value/);
-  assert.match(settingsSource, /apiFetch\("\/api\/profile"/);
+test("native settings hides proactive-care opt-in while preserving legacy opt-out", () => {
+  assert.doesNotMatch(settingsSource, /care_notifications_enabled: value/);
+  assert.doesNotMatch(settingsSource, /care_notifications_enabled: true/);
+  assert.match(settingsSource, /care_notifications_enabled: false/);
+  assert.match(settingsSource, /legacyCareConsentActive \?/);
+  assert.doesNotMatch(settingsSource, /아모라 먼저 챙기기/);
 });

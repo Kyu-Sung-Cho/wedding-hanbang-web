@@ -25,7 +25,7 @@ describe("consumer price presentation", () => {
     );
 
     expect(html).toContain("<h1");
-    expect(html).toContain("스드메·예식장 공시가 비교");
+    expect(html).toContain("사진·드레스·메이크업·결혼식장 공시 가격 비교");
     // 소비자 화면의 기준 시점은 확인된 공시 라운드(2025-11)다 — 내부 스냅샷 이름이 아니다.
     expect(html).toContain("2025년 11월 공시 기준");
     expect(html).not.toContain("2026년 3분기");
@@ -35,8 +35,13 @@ describe("consumer price presentation", () => {
     // `scrollbar-hide`·`overflow-x-auto`로 되돌리지 말 것.
     expect(html).toContain('class="mt-7 flex flex-wrap gap-2" aria-label="가격 카테고리"');
     expect(html).not.toContain("scrollbar-hide");
-    // 업체 개명이 잦아 "이전 상호로도 검색된다"는 힌트는 placeholder에 보여야 한다.
-    expect(html).toContain('placeholder="업체명 또는 이전 상호 검색"');
+    // DB alias는 이전 상호뿐 아니라 띄어쓰기·접미사 차이도 담는다. 검색 힌트가
+    // 모든 경우를 정직하게 포괄해야 한다.
+    expect(html).toContain('placeholder="업체명 또는 다른 표기 검색"');
+    // 비슷한 이름을 자동 병합하면 다른 지점의 가격이 섞인다. 확인된 동일 업체만
+    // 합친다는 보수적 신원 경계를 소비자 화면에서도 설명한다.
+    expect(html).toContain("이름이 같거나 같은 업체로 확인된 표기는 한 카드로 모았어요.");
+    expect(html).toContain("지점·동명 업체로 확인된 표기는 따로 보여드려요.");
   });
 
   it("renders the required zero-result recovery path and exact disclosure copy", () => {
@@ -54,6 +59,16 @@ describe("consumer price presentation", () => {
     expect(html).toContain("/wedding/community/quote-check");
     expect(html).toContain("가격 출처: 한국소비자원 참가격 · 2025년 11월 공시 기준");
     expect(html).toContain("본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.");
+  });
+
+  it("keeps empty-state recovery inside the app surface and preserves preview", () => {
+    const html = renderToStaticMarkup(
+      <PriceEmptyState category="studio" surface="app" preview />,
+    );
+
+    expect(html).toContain("/wedding/vendors?category=dress&amp;preview=1");
+    expect(html).not.toContain('href="/price/dress"');
+    expect(html).toContain("min-h-11");
   });
 
   it("shows agency prices, source option text and mandatory-add-on guidance on a card", () => {
@@ -93,7 +108,7 @@ describe("consumer price presentation", () => {
     );
 
     expect(html).toContain("샘플 스튜디오");
-    expect(html).toContain("(구. 샘플 옛 상호)");
+    expect(html).toContain("다른 표기 · 샘플 옛 상호");
     expect(html).toContain("샘플 대행사");
     expect(html).toContain("100만원");
     expect(html).toContain("샘플 지정비 10만원");
@@ -285,7 +300,7 @@ describe("consumer price presentation", () => {
       />,
     );
 
-    expect(html).toContain("나의 스드메 조합 · 1/3");
+    expect(html).toContain("사진·드레스·메이크업 조합 · 1/3");
     expect(html).toContain("총 100만원");
     expect(html).toContain("스튜디오");
     expect(html).toContain("드레스");

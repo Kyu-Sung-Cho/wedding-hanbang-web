@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
       })
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+      .eq("ad_disclosure", "general")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest) {
         .or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`)
         .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
         .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
+        .eq("ad_disclosure", "general")
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 

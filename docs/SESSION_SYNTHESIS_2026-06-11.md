@@ -1,5 +1,12 @@
 # 세션 종합 — 보수적 감사 + 10점 경로 + 업체 0→1 (2026-06-11)
 
+> [!CAUTION]
+> **SUPERSEDED HISTORICAL HANDOFF**
+>
+> 아래 평점·전략·완료 상태는 2026-06-11 스냅샷이다. 현재 제품 범위나 출시 승인으로
+> 사용하지 않는다. 현재 기준은 `MVP_PRODUCT_DIRECTION_2026-07-30.md`와
+> `operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md`다.
+
 > 이 문서는 2026-06-11 세션의 모든 분석을 한 곳에 모은 **크로스 머신 인수인계용**이다.
 > 상위 전략은 `MASTER_BLUEPRINT_2026-06-10.md`, 시장성 판정은 `CONSERVATIVE_VIABILITY_2026-06-10.md`,
 > 수수료 모델은 `WINWINWIN_MODEL_VERDICT_2026-06-10.md` 와 함께 읽을 것.

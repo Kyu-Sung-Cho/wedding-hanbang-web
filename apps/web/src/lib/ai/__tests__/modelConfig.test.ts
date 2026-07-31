@@ -121,6 +121,13 @@ describe("Amora GPT-5.6 model policy", () => {
     "목을 맸다가 풀었어",
     "죽고 싶지 않지만 자해할 생각이 들어",
     "남편이 협박하고 있지 않지만 폭력을 쓰고 있어",
+    "그만 살고 싶어",
+    "약을 잔뜩 털어 넣었어",
+    "남편이 내 목을 졸랐어",
+    "나를 발로 찼어",
+    "강제로 관계를 맺었어",
+    "칼 들고 집 앞에 찾아왔어",
+    "내 위치를 추적해서 집 앞에서 기다리고 있어",
   ])("routes every deterministically classified crisis to Terra: %s", (userText) => {
     expect(chooseAmoraChatModelRole({
       specialistType: "general",

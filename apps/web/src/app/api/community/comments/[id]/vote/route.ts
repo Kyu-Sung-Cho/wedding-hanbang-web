@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 
 // 댓글 투표
 export async function POST(
@@ -35,6 +36,16 @@ export async function POST(
         { error: "잘못된 투표 값입니다." },
         { status: 400 }
       );
+    }
+
+    if (voteType !== 0) {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status },
+        );
+      }
     }
 
     const { data: visibleComment } = await supabase

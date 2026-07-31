@@ -369,6 +369,13 @@ describe("Amora memory compiler boundary", () => {
     "900101-5123456",
     "비번은 1234",
     "당뇨 때문에 인슐린 사용 중",
+    "난임 치료로 시험관 시술 중",
+    "난·임 치·료로 시·험·관 시술 중",
+    "산부인과 진료 일정을 조정해야 해",
+    "성\u200B생활 문제로 상담 중",
+    "family:fertility_plan\nfamily\n내년부터 준비",
+    "sexual_health:care\nhealth\n상담 일정",
+    "현재 &#51076;&#49888; 12주차",
     "서울시 강남구 테헤란로 123",
     "서울 강남구 역삼동 123-45",
     "110-245-123456",
@@ -418,6 +425,58 @@ describe("Amora memory compiler boundary", () => {
     expect(result.memories).toEqual([]);
   });
 
+  it("drops a generic-looking memory when its exact evidence reveals fertility treatment", () => {
+    const source = "난임 시술 때문에 매주 병원 일정을 조정해야 해";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        memory_key: "schedule:weekly_constraint",
+        category: "schedule",
+        title: "주간 일정 제약",
+        value: "매주 병원 일정을 조정",
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it("drops reproductive semantic keys even when their display value is euphemistic", () => {
+    const source = "내년부터 준비할게";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        memory_key: "family:fertility_plan",
+        category: "family",
+        title: "향후 계획",
+        value: source,
+        evidence: source,
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result).toEqual({ summary: null, memories: [] });
+  });
+
+  it("keeps ordinary family wedding preferences outside the sensitive boundary", () => {
+    const source = "양가 부모님 선물은 한과로 준비할게";
+    const result = validateAmoraMemoryCompilation({
+      memories: [validMemory({
+        memory_key: "family:gift_preference",
+        category: "family",
+        title: "가족 선물 선호",
+        value: "부모님 선물은 한과",
+        evidence: "부모님 선물은 한과",
+      })],
+    }, sourceMap([[USER_MESSAGE_ID, source, "bride"]]));
+
+    expect(result.memories).toHaveLength(1);
+    expect(result.memories[0]?.memoryKey).toBe("family:gift_preference");
+  });
+
+  it("does not confuse an ordinary healthy-menu preference with health data", () => {
+    expect(containsPotentialSensitiveData(
+      "meal:healthy_menu\nmeal\n건강한 메뉴 선호",
+    )).toBe(false);
+  });
+
   it.each([
     "연락처\n010\u200B-1234\u200B-5678",
     "주민번호\n900101-\u20605123456",
@@ -458,5 +517,10 @@ describe("Amora memory compiler boundary", () => {
   it("redacts a visually normal identifier after invisible-character canonicalization", () => {
     expect(redactPotentialSensitiveData("연락처는 010\u200B-1234\u200B-5678입니다."))
       .toBe("연락처는 [민감정보 제외]입니다.");
+  });
+
+  it("fails closed when punctuation splitting prevents precise sensitive-text redaction", () => {
+    expect(redactPotentialSensitiveData("현재 난·임 치·료 중이에요."))
+      .toBe("[민감정보 제외]");
   });
 });

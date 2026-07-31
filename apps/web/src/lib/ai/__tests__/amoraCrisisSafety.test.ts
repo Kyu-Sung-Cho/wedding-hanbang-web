@@ -115,6 +115,22 @@ describe("classifyAmoraCrisis", () => {
   });
 
   it.each([
+    ["그만 살고 싶어", "self_harm"],
+    ["죽고만 싶어", "self_harm"],
+    ["나 차라리 사라지고 싶어", "self_harm"],
+    ["지금 살고 싶은 마음이 하나도 없어", "self_harm"],
+    ["약을 잔뜩 털어 넣었어", "self_harm"],
+    ["친구가 그만 살고 싶다고 했어", "third_party_self_harm"],
+    ["친구가 약을 잔뜩 털어 넣었어", "third_party_self_harm"],
+    ["나는 친구가 그만 살고 싶다고 해서 걱정돼", "third_party_self_harm"],
+    ["나는 친구가 약을 잔뜩 털어 넣어서 걱정돼", "third_party_self_harm"],
+    ["친구는 내가 그만 살고 싶다고 해서 걱정해", "self_harm"],
+    ["친구는 내가 약을 잔뜩 털어 넣어서 걱정해", "self_harm"],
+  ] as const)("detects high-risk Korean euphemisms without losing attribution: %s", (text, kind) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind });
+  });
+
+  it.each([
     "지금 남자친구가 나를 때리고 있어",
     "방금 배우자에게 맞았어",
     "칼을 들고 죽이겠다고 협박해",
@@ -135,6 +151,13 @@ describe("classifyAmoraCrisis", () => {
     "남편이 지금 목을 조르고 있어요",
     "남자친구가 성관계를 강요해요",
     "남편이 저를 죽이려고 해요",
+    "남편이 내 목을 졸랐어",
+    "나를 발로 찼어",
+    "신랑이 주먹으로 쳤어",
+    "남편이 밀치고 물건을 던지고 있어",
+    "칼 들고 집 앞에 찾아왔어",
+    "내 위치를 추적해서 집 앞에서 기다리고 있어",
+    "강제로 관계를 맺었어",
   ])("detects a current violence, threat, or sexual-violence disclosure: %s", (text) => {
     expect(classifyAmoraCrisis(text)).toEqual({ kind: "interpersonal_danger" });
   });
@@ -192,6 +215,31 @@ describe("classifyAmoraCrisis", () => {
     "드레스 투어 너무 힘들어서 죽을 것 같아",
     "친구가 웃겨서 죽을 것 같아",
     "남편이 게임에서 나를 죽이려고 해",
+    "그만 살고 싶은 건 아니야",
+    "죽고만 싶은 건 아니야",
+    "차라리 사라지고 싶은 건 아니야",
+    "살고 싶은 마음이 없는 건 아니야",
+    "그만 살고 싶으면 어떻게 도와야 해?",
+    "약을 잔뜩 털어 넣은 건 아니야",
+    "약을 잔뜩 털어 넣으면 어떻게 돼?",
+    "영화에서 주인공이 약을 잔뜩 털어 넣는 장면을 검토해줘",
+    "친구가 약을 약통에 잔뜩 털어 넣었어",
+    "신랑이 넥타이를 너무 꽉 졸랐어",
+    "드레스 허리끈을 졸랐어",
+    "축구하다가 공을 발로 찼어",
+    "신랑이 축구공을 발로 찼어",
+    "신랑이 주먹으로 문을 쳤어",
+    "결혼식에서 꽃가루를 던지고 있어",
+    "업체와 강제로 관계를 맺었어",
+    "강제로 관계를 맺은 건 아니야",
+    "영화에서 주인공이 강제로 관계를 맺는 장면을 검토해줘",
+    "칼을 들고 집 앞에 찾아온 건 아니야",
+    "배송 기사 위치를 추적해서 집 앞에서 기다리고 있어",
+    "남편이 내 목을 조른 건 아니야",
+    "남편이 내 목을 조르지 않았어",
+    "나를 발로 차지 않았어",
+    "신랑이 주먹으로 치지 않았어",
+    "남편이 게임에서 칼 들고 집 앞에 찾아왔어",
   ])("avoids ambiguous, hypothetical, or non-current false positives: %s", (text) => {
     expect(classifyAmoraCrisis(text)).toBeNull();
   });

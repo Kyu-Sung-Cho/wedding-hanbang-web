@@ -23,6 +23,7 @@ import {
   type CommunityUploadSession,
 } from "@/lib/community/uploadSession";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -332,6 +333,15 @@ export async function POST(req: NextRequest) {
   const requestClient = await createClientFromRequest(req);
   const { data: { user } } = await requestClient.auth.getUser();
   if (!user) return json({ error: "로그인이 필요해요.", code: "AUTH_REQUIRED" }, 401);
+
+  const writeAccess = await checkCommunityWriteAccess(requestClient, user.id);
+  if (!writeAccess.allowed) {
+    return json(
+      { error: writeAccess.message, code: writeAccess.code },
+      writeAccess.status,
+      writeAccess.status === 503 ? { "Retry-After": "30" } : {},
+    );
+  }
 
   const finalizeGates = [
     {

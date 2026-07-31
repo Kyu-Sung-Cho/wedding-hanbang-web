@@ -24,13 +24,59 @@ export function normalizeVendorName(value: string): string {
  * 합치면 다른 가게의 가격을 한 카드에 섞게 되므로 반드시 분리한다.
  *   랑게        전라 @langhe_gj(광주)     ↔ 서울 @langhe_official
  *   메이든스튜디오 서울 @maiden_studio       ↔ 경상 @maiden_daegu(대구)
- *   라망        한쪽만 공식 사이트 보유 — 동일 업체 근거 없음
+ *   라망        전주 @lamantstudio_jeonju ↔ 서울 @lamantstudio_official
+ *
+ * 단, 서울 안에서 공식 채널이 같은 것으로 재확인된 랑게·라망 slug 쌍은 아래
+ * `VERIFIED_VENDOR_IDENTITY_BY_SLUG`가 행 단위로만 다시 모은다.
  */
 export const SAME_NAME_DIFFERENT_BUSINESS: ReadonlySet<string> = new Set<string>([
   "studio|랑게",
   "studio|메이든스튜디오",
   "studio|라망",
 ]);
+
+/**
+ * 이름 전체를 합칠 수는 없지만, 공개 행별 공식 채널이 같다고 확인된 slug만 묶는다.
+ *
+ * 키는 `카테고리|slug`, 값은 일반 이름 신원과 충돌하지 않는 검증 그룹 이름이다.
+ * 같은 이름의 다른 지점까지 합치는 `SAME_NAME_DIFFERENT_BUSINESS`의 반대 규칙이
+ * 아니라, 그 분리 규칙 안에서 확인된 행만 다시 모으는 더 좁은 예외다.
+ */
+export const VERIFIED_VENDOR_IDENTITY_BY_SLUG: ReadonlyMap<string, string> =
+  new Map<string, string>([
+    [
+      "studio|studio-ingest-8b66b01259700071",
+      "studio|verified-row|랑게서울",
+    ],
+    [
+      "studio|studio-ingest-712748b50059a490",
+      "studio|verified-row|랑게서울",
+    ],
+    [
+      "studio|studio-ingest-ee80fe60805b12d1",
+      "studio|verified-row|라망서울",
+    ],
+    [
+      "studio|studio-ingest-d0d04f7ed9330369",
+      "studio|verified-row|라망서울",
+    ],
+  ]);
+
+export function verifiedVendorIdentitySlugs(
+  category: string,
+  vendorSlug: string,
+): readonly string[] | null {
+  const identity = VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(`${category}|${vendorSlug}`);
+  if (!identity) return null;
+
+  return [...VERIFIED_VENDOR_IDENTITY_BY_SLUG.entries()]
+    .flatMap(([key, candidateIdentity]) => (
+      candidateIdentity === identity && key.startsWith(`${category}|`)
+        ? [key.slice(category.length + 1)]
+        : []
+    ))
+    .sort();
+}
 
 export function isSameNameDifferentBusiness(
   category: string,
@@ -69,7 +115,6 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|클레브스튜디오", "클레브"],
   ["studio|타임포유스튜디오", "타임포유"],
   ["studio|탱자스튜디오", "탱자"],
-  ["studio|테레지아스튜디오", "테레지아"],
   ["dress|루비나엘웨딩", "루비나엘"],
   ["dress|르블랑웨딩", "르블랑"],
   ["dress|마이도터스웨딩", "마이도터스"],
@@ -82,7 +127,6 @@ export const SAME_BUSINESS_DIFFERENT_NAME: ReadonlyMap<string, string> = new Map
   ["studio|구호스튜디오", "구호"], // 성동구 성수동2가 280-18
   ["studio|더청담스튜디오", "더청담"], // 청담동 49-5 · 02-3444-4155
   ["studio|바시움스튜디오", "바시움"], // 강남구 봉은사로51길 26
-  ["studio|버드투블룸스튜디오", "버드투블룸"], // 청담동 본점(양쪽 근거 모두 청담)
   ["studio|헤이스스튜디오", "헤이스"], // 서초 내곡동
   ["studio|st정우스튜디오", "st정우"], // (주)에스티정우 청담 — region 충청은 대행사 지역
   ["dress|메라키웨딩", "메라키"], // 강남 학동로 137-7
@@ -108,6 +152,11 @@ export function vendorIdentityKey(
   vendorName: string,
   vendorSlug: string,
 ): string {
+  const verifiedRowIdentity = VERIFIED_VENDOR_IDENTITY_BY_SLUG.get(
+    `${category}|${vendorSlug}`,
+  );
+  if (verifiedRowIdentity) return verifiedRowIdentity;
+
   const canonical = canonicalVendorName(category, vendorName);
   if (!canonical || isSameNameDifferentBusiness(category, canonical)) {
     // 이름만 같고 실제로는 다른 업체 — 슬러그를 그대로 써서 분리를 유지한다.

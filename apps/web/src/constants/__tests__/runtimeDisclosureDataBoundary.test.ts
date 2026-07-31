@@ -32,10 +32,6 @@ describe("runtime disclosure data boundary", () => {
     for (const path of [
       "apps/web/src/components/landing/NumbersAnchor.tsx",
       "apps/web/src/components/landing/ProblemReframe.tsx",
-      "apps/web/src/components/landing/PainPoints.tsx",
-      "apps/web/src/components/landing/Comparison.tsx",
-      "apps/web/src/components/customer-landing/CustomerPainPoints.tsx",
-      "apps/web/src/components/customer-landing/CustomerSolutions.tsx",
       "apps/web/src/components/app/budget/BudgetContent.tsx",
       "apps/web/src/components/community/CommunityGuide.tsx",
       "apps/mobile/app/budget/index.tsx",

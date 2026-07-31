@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { SlideMedia } from "@/types/community.types";
 
@@ -25,10 +25,10 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
   const touchStartX = useRef<number | null>(null);
   const total = slides.length;
 
-  const go = (next: number) => {
+  const go = useCallback((next: number) => {
     if (next < 0 || next >= total) return;
     setIndex(next);
-  };
+  }, [total]);
 
   // 키보드
   useEffect(() => {
@@ -40,8 +40,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
     };
     el.addEventListener("keydown", onKey);
     return () => el.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, total]);
+  }, [go, index]);
 
   // 모바일 swipe
   const onTouchStart = (e: React.TouchEvent) => {

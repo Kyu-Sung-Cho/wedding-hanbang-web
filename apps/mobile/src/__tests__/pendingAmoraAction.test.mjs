@@ -23,11 +23,13 @@ const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.
 const chatSource = readFileSync(chatPath, "utf8");
 
 const action = {
-  version: 1,
+  version: 2,
   actionId: "33333333-3333-4333-8333-333333333333",
-  tool: "update_budget",
-  input: { totalBudget: 30_000_000 },
-  confirmation: "총예산을 3,000만 원으로 변경할까요?",
+  tool: "add_schedule_event",
+  input: { date: "2026-08-01", title: "드레스 피팅" },
+  inputDigest: "a".repeat(64),
+  operationKey: "b".repeat(64),
+  confirmation: "드레스 피팅 일정을 추가할까요?",
   issuedAt: Date.parse("2026-07-17T00:00:00.000Z"),
   expiresAt: Date.parse("2026-07-17T00:10:00.000Z"),
 };
@@ -57,6 +59,17 @@ test("mobile accepts pending actions only from structurally valid shared AI meta
   assert.equal(getPendingAmoraAction(message({
     metadata: { pending_amora_action: { ...action, expiresAt: action.expiresAt + 1 } },
   })), null);
+  assert.equal(getPendingAmoraAction(message({
+    metadata: { pending_amora_action: { ...action, inputDigest: "wrong" } },
+  })), null);
+  assert.equal(getPendingAmoraAction(message({
+    metadata: { pending_amora_action: { ...action, operationKey: "wrong" } },
+  })), null);
+  assert.equal(getPendingAmoraAction(message({
+    metadata: {
+      pending_amora_action: { ...action, tool: "update_amora_action" },
+    },
+  })), null);
 });
 
 test("mobile disables expired, superseded, and in-flight actions", () => {
@@ -75,6 +88,91 @@ test("mobile confirmation button sends and retries the exact server action id", 
   assert.match(chatSource, /text: content/);
   assert.match(chatSource, /confirmedActionId: actionId/);
   assert.match(chatSource, /await streamAiRequest\(failure\.request\)/);
+});
+
+test("mobile obtains the single application lease before sending a confirmation", () => {
+  const handlerStart = chatSource.indexOf(
+    "async function handleApplyPendingAction(actionId: string)",
+  );
+  const handlerEnd = chatSource.indexOf(
+    "function handleScopeChange",
+    handlerStart,
+  );
+  const handler = chatSource.slice(handlerStart, handlerEnd);
+
+  assert.match(chatSource, /method: "PUT"/);
+  assert.match(chatSource, /Authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(
+    handler,
+    /await requestAmoraApplicationClaim\(\s*actionId,\s*latestSharedMessage\.id,\s*\)/,
+  );
+  assert.ok(
+    handler.indexOf("await requestAmoraApplicationClaim(")
+      < handler.indexOf("await sendAiDraft("),
+  );
+  assert.match(handler, /if \(!claim\.applicationGranted\)/);
+  assert.match(
+    chatSource,
+    /metadata: draft\.confirmedActionId\s*\?\s*\{ confirmed_amora_action_id: draft\.confirmedActionId \}/,
+  );
+});
+
+test("mobile retry reconciles a durable confirmation before reacquiring its lease", () => {
+  const senderStart = chatSource.indexOf(
+    "async function sendAiDraft(draft: AiDraft, reconcileFirst: boolean)",
+  );
+  const senderEnd = chatSource.indexOf(
+    "async function handleRetry()",
+    senderStart,
+  );
+  const sender = chatSource.slice(senderStart, senderEnd);
+
+  assert.match(chatSource, /amoraSourceMessageId\?: string/);
+  assert.match(
+    sender,
+    /let durableMessage = reconcileFirst\s*\?\s*await findDurableUserMessage\(draft, "ai"\)/,
+  );
+  assert.match(
+    sender,
+    /await requestAmoraApplicationClaim\(\s*draft\.confirmedActionId,\s*draft\.amoraSourceMessageId,\s*\)/,
+  );
+  assert.ok(
+    sender.indexOf('findDurableUserMessage(draft, "ai")')
+      < sender.indexOf("requestAmoraApplicationClaim("),
+  );
+  assert.match(
+    chatSource,
+    /amoraSourceMessageId: latestSharedMessage\.id/,
+  );
+  assert.match(
+    chatSource,
+    /if \(!draft\.confirmedActionId\) \{\s*query = query\.gte\("created_at", draft\.startedAt\)/,
+  );
+});
+
+test("mobile restores an owned durable confirmation and ignores direct partner chat for freshness", () => {
+  assert.match(
+    chatSource,
+    /\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(200\)/,
+  );
+  assert.match(
+    chatSource,
+    /\.or\("metadata->>target\.is\.null,metadata->>target\.neq\.partner"\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(1\)\s*\.maybeSingle\(\)/,
+  );
+  assert.match(chatSource, /const historyMessages = boundedHistory\s*\.sort\(/);
+  assert.match(
+    chatSource,
+    /const durableConfirmation = canonicalShared\[canonicalShared\.length - 1\]/,
+  );
+  assert.match(
+    chatSource,
+    /message\.visibility === "shared"\s*&& message\.metadata\?\.target !== "partner"/,
+  );
+  assert.match(
+    chatSource,
+    /message: "확인은 안전하게 저장됐어요\. 반영을 이어서 완료해 주세요\."/,
+  );
+  assert.match(chatSource, /"반영 계속하기"/);
 });
 
 test("mobile exposes explicit 44-point apply and dismiss controls", () => {

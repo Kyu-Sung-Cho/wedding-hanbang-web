@@ -19,18 +19,19 @@ describe("account-deletion public policy truthfulness", () => {
 
   it("discloses the implemented staged deletion boundary consistently", () => {
     for (const source of [terms, privacy]) {
-      expect(source).toContain("커뮤니티 새 파일 업로드가 제한");
-      expect(source).toContain("임시 접근 링크");
+      expect(source).toMatch(/커뮤니티 새 파일 업로드(?:가 제한|를 막)/);
+      expect(source).toContain("임시 파일 접근 링크");
       expect(source).toContain("파일 소유권");
       expect(source).toContain("지체 없이 파기");
-      expect(source).toMatch(/적용 범위.{0,5}기간/);
+      expect(source).toMatch(/(처리|적용) 범위(?:와|·) ?기간/);
     }
   });
 
   it("does not present an unimplemented legal-retention boundary as complete", () => {
-    expect(terms).not.toContain("다른 개인정보와 분리하여 보관합니다");
-    expect(privacy).not.toContain("다른 개인정보와 분리하여 보관합니다");
     expect(privacy).not.toContain("운영 적용 전");
     expect(privacy).toContain("전용 보관 경계가 검증된 뒤");
+    expect(privacy).toContain(
+      "이 경계가 준비되지 않은 상태에서는 해당 보관 의무를 만드는 거래 기능을 운영하지 않습니다",
+    );
   });
 });

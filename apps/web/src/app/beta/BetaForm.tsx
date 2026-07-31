@@ -91,7 +91,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <div className="w-12 h-12 rounded-full bg-rose-light/20 flex items-center justify-center mb-6">
           <Check className="w-6 h-6 text-rose-light" />
         </div>
-        <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-[-0.005em]">
+        <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-5 tracking-normal">
           신청 <em className="not-italic text-rose-light">접수 완료</em>
         </h2>
         <p className="text-white/80 text-[15px] leading-[1.85] font-light mb-3">
@@ -129,7 +129,7 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
         <>
           {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
           <div className="flex items-baseline gap-3 mb-3">
-            <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-[-0.02em]">
+            <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-normal">
               {current}
             </span>
             <span className="text-white/40 text-lg font-light tabular-nums">/ {total}쌍</span>

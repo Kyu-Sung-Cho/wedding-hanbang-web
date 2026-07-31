@@ -1,4 +1,8 @@
-import type { ScheduleEvent } from "@/types/database.types";
+import type {
+  ScheduleEvent,
+  ScheduleEventAssignee,
+  ScheduleEventStatus,
+} from "@/types/database.types";
 export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
 const EVENTS_KEY = "__events";
@@ -20,7 +24,10 @@ export type ScheduleEventDraftField =
   | "memo"
   | "categoryKey"
   | "sourceKey"
-  | "momentType";
+  | "momentType"
+  | "status"
+  | "completionCriteria"
+  | "assignee";
 
 export class ScheduleEventValidationError extends Error {
   readonly code = "invalid_schedule_event";
@@ -38,6 +45,8 @@ export const SCHEDULE_EVENT_STRING_LIMITS = {
   categoryKey: 100,
   sourceKey: 200,
   momentType: 100,
+  completionCriteria: 500,
+  externalAssigneeLabel: 80,
   createdAt: 100,
   updatedAt: 100,
 } as const;
@@ -47,7 +56,15 @@ const OPTIONAL_EVENT_STRING_LIMITS = {
   categoryKey: SCHEDULE_EVENT_STRING_LIMITS.categoryKey,
   sourceKey: SCHEDULE_EVENT_STRING_LIMITS.sourceKey,
   momentType: SCHEDULE_EVENT_STRING_LIMITS.momentType,
+  completionCriteria: SCHEDULE_EVENT_STRING_LIMITS.completionCriteria,
 } as const;
+
+const PROFILE_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidScheduleProfileId(value: unknown): value is string {
+  return typeof value === "string" && PROFILE_UUID_RE.test(value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -74,6 +91,42 @@ function isRequiredBoundedString(value: unknown, maxLength: number): value is st
     && value.length <= maxLength;
 }
 
+function hasUnsafeDisplayCharacter(value: string): boolean {
+  return /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function isScheduleEventStatus(value: unknown): value is ScheduleEventStatus {
+  return value === "planned" || value === "completed";
+}
+
+function isScheduleEventAssignee(value: unknown): value is ScheduleEventAssignee {
+  if (!isRecord(value) || typeof value.kind !== "string") return false;
+
+  if (value.kind === "member") {
+    return hasOnlyKeys(value, ["kind", "profileId"])
+      && isValidScheduleProfileId(value.profileId);
+  }
+
+  if (value.kind === "couple") {
+    return hasOnlyKeys(value, ["kind"]);
+  }
+
+  if (value.kind === "external") {
+    return hasOnlyKeys(value, ["kind", "label"])
+      && isRequiredBoundedString(
+        value.label,
+        SCHEDULE_EVENT_STRING_LIMITS.externalAssigneeLabel,
+      )
+      && !hasUnsafeDisplayCharacter(value.label);
+  }
+
+  return false;
+}
+
 function isValidEventTimestamp(value: unknown): value is string {
   if (!isRequiredBoundedString(value, SCHEDULE_EVENT_STRING_LIMITS.createdAt)) return false;
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
@@ -95,13 +148,16 @@ function hasOnlyBoundedOptionalStrings(value: Record<string, unknown>): boolean 
   });
 }
 
-type ScheduleEventDraft = {
+export type ScheduleEventDraft = {
   date: string;
   title: string;
   memo?: string;
   categoryKey?: string;
   sourceKey?: string;
   momentType?: string;
+  status?: ScheduleEventStatus;
+  completionCriteria?: string;
+  assignee?: ScheduleEventAssignee;
 };
 
 function assertValidScheduleEventDraft(data: ScheduleEventDraft): void {
@@ -118,6 +174,19 @@ function assertValidScheduleEventDraft(data: ScheduleEventDraft): void {
       throw new ScheduleEventValidationError(field as ScheduleEventDraftField);
     }
   }
+
+  if (data.status !== undefined && !isScheduleEventStatus(data.status)) {
+    throw new ScheduleEventValidationError("status");
+  }
+  if (
+    data.completionCriteria !== undefined
+    && hasUnsafeDisplayCharacter(data.completionCriteria)
+  ) {
+    throw new ScheduleEventValidationError("completionCriteria");
+  }
+  if (data.assignee !== undefined && !isScheduleEventAssignee(data.assignee)) {
+    throw new ScheduleEventValidationError("assignee");
+  }
 }
 
 function isScheduleEvent(value: unknown): value is ScheduleEvent {
@@ -127,7 +196,48 @@ function isScheduleEvent(value: unknown): value is ScheduleEvent {
     && isRequiredBoundedString(value.title, SCHEDULE_EVENT_STRING_LIMITS.title)
     && isValidEventTimestamp(value.createdAt)
     && isValidEventTimestamp(value.updatedAt)
-    && hasOnlyBoundedOptionalStrings(value);
+    && hasOnlyBoundedOptionalStrings(value)
+    && (
+      typeof value.completionCriteria !== "string"
+      || !hasUnsafeDisplayCharacter(value.completionCriteria)
+    )
+    && (value.status === undefined || isScheduleEventStatus(value.status))
+    && (value.assignee === undefined || isScheduleEventAssignee(value.assignee));
+}
+
+export function getScheduleEventStatus(event: ScheduleEvent): ScheduleEventStatus {
+  return event.status ?? "planned";
+}
+
+export type ScheduleEventAssigneeContext = {
+  viewer?: {
+    id: string;
+    name?: string | null;
+  } | null;
+  partner?: {
+    id: string;
+    name?: string | null;
+  } | null;
+};
+
+function getSafePersonLabel(name: string | null | undefined, fallback: string): string {
+  return name?.trim() || fallback;
+}
+
+export function getScheduleEventAssigneeLabel(
+  assignee: ScheduleEventAssignee | undefined,
+  context: ScheduleEventAssigneeContext,
+): string {
+  if (!assignee) return "담당 미정";
+  if (assignee.kind === "couple") return "함께";
+  if (assignee.kind === "external") return `외부 · ${assignee.label}`;
+  if (assignee.profileId === context.viewer?.id) {
+    return `${getSafePersonLabel(context.viewer.name, "나")} (나)`;
+  }
+  if (assignee.profileId === context.partner?.id) {
+    return `${getSafePersonLabel(context.partner.name, "파트너")} (파트너)`;
+  }
+  return "연결이 끊긴 기존 담당자";
 }
 
 export function getCategoryEventSourceKey(categoryKey: string): string {
@@ -230,6 +340,9 @@ export function addEvent(
     categoryKey: data.categoryKey,
     sourceKey: data.sourceKey,
     momentType: data.momentType,
+    status: data.status ?? "planned",
+    completionCriteria: data.completionCriteria,
+    assignee: data.assignee,
     createdAt: now,
     updatedAt: now,
   };
@@ -281,7 +394,7 @@ export function upsertMomentEvent(
 
 export function upsertCategoryEvent(
   progress: Record<string, unknown>,
-  data: { date: string; title: string; memo?: string; categoryKey?: string; sourceKey?: string },
+  data: ScheduleEventDraft,
   categoryLabel?: string
 ): { newProgress: Record<string, unknown>; event: ScheduleEvent; created: boolean } {
   assertValidScheduleEventDraft(data);
@@ -307,6 +420,11 @@ export function upsertCategoryEvent(
     memo: data.memo ?? existing.memo,
     categoryKey: data.categoryKey ?? existing.categoryKey,
     sourceKey: sourceKey ?? existing.sourceKey,
+    ...(Object.hasOwn(data, "status") ? { status: data.status } : {}),
+    ...(Object.hasOwn(data, "completionCriteria")
+      ? { completionCriteria: data.completionCriteria }
+      : {}),
+    ...(Object.hasOwn(data, "assignee") ? { assignee: data.assignee } : {}),
     updatedAt: new Date().toISOString(),
   };
 
@@ -326,7 +444,19 @@ export function upsertCategoryEvent(
 export function updateEvent(
   progress: Record<string, unknown>,
   eventId: string,
-  updates: Partial<Pick<ScheduleEvent, "date" | "title" | "memo" | "categoryKey" | "sourceKey">>
+  updates: Partial<
+    Pick<
+      ScheduleEvent,
+      | "date"
+      | "title"
+      | "memo"
+      | "categoryKey"
+      | "sourceKey"
+      | "status"
+      | "completionCriteria"
+      | "assignee"
+    >
+  >
 ): Record<string, unknown> {
   const events = getEventsForMutation(progress);
   return {

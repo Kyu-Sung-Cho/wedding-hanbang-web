@@ -32,7 +32,7 @@ export default function NumbersAnchor() {
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="숫자로 먼저" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-5">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal mb-5">
             가격 앞에는
             <br />
             확인 가능한 <em className="not-italic text-rose-500">근거</em>가 있어야 합니다.
@@ -59,7 +59,7 @@ export default function NumbersAnchor() {
               </p>
 
               {/* 핵심 원칙 */}
-              <p className="font-display text-rose-500 text-[clamp(40px,5.5vw,72px)] leading-none font-light tracking-[-0.02em] mb-auto">
+              <p className="font-display text-rose-500 text-[clamp(40px,5.5vw,72px)] leading-none font-light tracking-normal mb-auto">
                 {card.value}
               </p>
 

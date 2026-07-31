@@ -9,6 +9,8 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -31,6 +33,7 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
+import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 
@@ -77,6 +80,8 @@ export default function ProfileScreen() {
     totalUpvotes: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -154,16 +159,37 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, [loadProfile]);
 
-  async function handleLogout() {
+  async function performLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await signOut();
+      router.replace("/(auth)/login");
+    } catch {
+      const message = "로그아웃하지 못했어요. 연결을 확인하고 다시 시도해주세요.";
+      setLogoutError(message);
+      if (Platform.OS !== "web") {
+        Alert.alert("로그아웃 실패", message);
+      }
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  function handleLogout() {
+    if (Platform.OS === "web") {
+      void performLogout();
+      return;
+    }
+
     Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
       { text: "취소", style: "cancel" },
       {
         text: "로그아웃",
         style: "destructive",
-        onPress: async () => {
-          await supabase.auth.signOut();
-          router.replace("/(auth)/login");
-        },
+        onPress: () => void performLogout(),
       },
     ]);
   }
@@ -348,10 +374,22 @@ export default function ProfileScreen() {
             pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
           ]}
           onPress={handleLogout}
+          disabled={loggingOut}
         >
-          <LogOut size={18} color={colors.danger} />
-          <Text style={styles.logoutText}>로그아웃</Text>
+          {loggingOut ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <LogOut size={18} color={colors.danger} />
+          )}
+          <Text style={styles.logoutText}>
+            {loggingOut ? "로그아웃 중" : "로그아웃"}
+          </Text>
         </Pressable>
+        {logoutError ? (
+          <Text style={styles.logoutError} accessibilityRole="alert">
+            {logoutError}
+          </Text>
+        ) : null}
 
         {/* 하단 약관 링크 */}
         <View style={styles.footerLinks}>
@@ -639,6 +677,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NotoSansKR_500Medium",
     color: colors.danger,
+  },
+  logoutError: {
+    marginHorizontal: 24,
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.danger,
+    textAlign: "center",
   },
 
   /* 하단 약관 링크 */

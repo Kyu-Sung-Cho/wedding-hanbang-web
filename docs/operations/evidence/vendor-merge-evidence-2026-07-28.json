@@ -1,7 +1,94 @@
 {
- "generatedFor": "SAME_BUSINESS_DIFFERENT_NAME",
+ "generatedFor": "SAME_BUSINESS_DIFFERENT_NAME + VERIFIED_VENDOR_IDENTITY_BY_SLUG",
  "note": "work/logo-hunt/results-*.json(gitignore)에서 판정에 쓴 근거만 추린 것. 원본 코퍼스 없이도 판정을 재검증할 수 있게 남긴다.",
- "mergedPairs": 26,
+ "mergedPairs": 24,
+ "removedFromMerge": [
+  {
+   "key": "studio|테레지아스튜디오",
+   "reason": "2026-07-30 재감사: base는 강남 논현 @teresia_studio, variant 근거는 천안 불당 @teresia_cheonan으로 서로 다른 지점이다. 지역이 다른 지점을 합치지 않는 기준에 따라 분리한다."
+  },
+ {
+   "key": "studio|버드투블룸스튜디오",
+   "reason": "2026-07-30 재감사: 근거 자체가 청담 본점과 인천 남동 지점을 함께 인정한다. 공시 행별 지점 귀속을 확인하기 전에는 이름 전체에 적용되는 병합 규칙을 쓰지 않는다."
+  }
+ ],
+ "verifiedRowScopedGroups": [
+  {
+   "identity": "studio|verified-row|랑게서울",
+   "basis": "2026-07-30 v_public_vendors 공개행 재검증. 두 서울 행은 이름이 같고 인스타그램 @langhe_official이 정확히 일치한다. 전라 행은 @langhe_gj로 다른 공식 채널이므로 이 그룹에서 제외한다.",
+   "rows": [
+    {
+     "category": "studio",
+     "slug": "studio-ingest-8b66b01259700071",
+     "name": "랑게",
+     "regionCode": "seoul_etc",
+     "officialUrl": null,
+     "instagramUrl": "https://instagram.com/langhe_official"
+    },
+    {
+     "category": "studio",
+     "slug": "studio-ingest-712748b50059a490",
+     "name": "랑게",
+     "regionCode": "seoul_gangnam3",
+     "officialUrl": null,
+     "instagramUrl": "https://instagram.com/langhe_official"
+    }
+   ],
+   "keptSeparateRows": [
+    {
+     "category": "studio",
+     "slug": "studio-ingest-ad55657917fc0fc8",
+     "name": "랑게",
+     "regionCode": "jeolla",
+     "officialUrl": null,
+     "instagramUrl": "https://instagram.com/langhe_gj"
+    }
+   ]
+  },
+  {
+   "identity": "studio|verified-row|라망서울",
+   "basis": "2026-07-30 v_public_vendors 공개행 재검증. 서울의 라망·라망스튜디오 행은 공식 사이트 lamantstudio.co.kr과 인스타그램 @lamantstudio_official이 모두 정확히 일치한다. 전주 행은 @lamantstudio_jeonju로 다른 공식 채널이므로 이 그룹에서 제외한다.",
+   "rows": [
+    {
+     "category": "studio",
+     "slug": "studio-ingest-ee80fe60805b12d1",
+     "name": "라망",
+     "regionCode": "seoul_gangnam3",
+     "officialUrl": "https://lamantstudio.co.kr/",
+     "instagramUrl": "https://instagram.com/lamantstudio_official"
+    },
+    {
+     "category": "studio",
+     "slug": "studio-ingest-d0d04f7ed9330369",
+     "name": "라망스튜디오",
+     "regionCode": "seoul_gangnam3",
+     "officialUrl": "https://lamantstudio.co.kr/",
+     "instagramUrl": "https://instagram.com/lamantstudio_official"
+    }
+   ],
+   "keptSeparateRows": [
+    {
+     "category": "studio",
+     "slug": "studio-ingest-59a8e3a6c75781c0",
+     "name": "라망",
+     "regionCode": "jeolla",
+     "officialUrl": null,
+     "instagramUrl": "https://instagram.com/lamantstudio_jeonju"
+    }
+   ]
+  }
+ ],
+ "automaticSameNameAudit": {
+  "auditedAt": "2026-07-30",
+  "source": "공개 v_public_vendors 1,053행. official_url은 scheme·www·말미 slash, instagram_url은 handle, naver_place_url은 host·path를 정규화해 현재 vendorIdentityKey 그룹별로 비교했다.",
+  "automaticSameNameMultiGroups": 144,
+  "automaticSameNameRows": 313,
+  "allRowsSharePublicChannelGroups": 43,
+  "allRowsMissingPublicChannelGroups": 76,
+  "partialChannelWithoutAllRowProofGroups": 25,
+  "conflictingNonEmptyPublicChannelGroups": 0,
+  "decision": "추가 split 0건. 동일 category·동일 정규화명은 대행사 지역 때문에 행이 갈린 알려진 적재 모델이고, 서로 다른 업체라는 양의 공개 채널 근거가 없었다. 채널이 없는 101그룹을 일괄 slug 분리하면 125카드가 늘어나는 별도 정책 변경이므로 하지 않는다."
+ },
  "entries": [
   {
    "category": "studio",
@@ -133,22 +220,6 @@
   },
   {
    "category": "studio",
-   "canonical": "버드투블룸",
-   "variant": "버드투블룸스튜디오",
-   "key": "studio|버드투블룸스튜디오",
-   "base": {
-    "url": "http://www.budtobloom.co.kr",
-    "conf": "high",
-    "ev": "공식 사이트 budtobloom.co.kr의 og:description 원문에 상호 '버드투블룸' 완전 일치 + '웨딩스튜디오' 동일 문맥(og:title '버드투블룸 스튜디오'). 상호가 매우 독특해 동명 타업체 가능성 없음. 지역은 '경기'지만 본점 서울 강남 청담 + 인천 남동구 지점(아이티웨딩 등재)으로 수도권 동일 상권이라 기각 사유로 보지 않음. 로고는 자체 서버 헤더 로고(280x90); 사이트가 https 미지원이라 http 원형 유지"
-   },
-   "variantEvidence": {
-    "url": "http://www.budtobloom.co.kr",
-    "conf": "high",
-    "ev": "아이웨딩 업체 페이지 타이틀에 '버드투블룸스튜디오' 완전 일치 + '웨딩스튜디오' 동일 문맥. 공식 사이트 og:title '버드투블룸 스튜디오', og:description '…프리미엄 웨딩스튜디오, 버드투블룸'으로 동일 업체 확정. 소재 서울 강남구 청담동으로 지역 일치"
-   }
-  },
-  {
-   "category": "studio",
    "canonical": "온뜰에피움",
    "variant": "온뜰에피움스튜디오",
    "key": "studio|온뜰에피움스튜디오",
@@ -209,22 +280,6 @@
     "url": "https://www.taengjastudio.co.kr/",
     "conf": "high",
     "ev": "공식 taengjastudio.co.kr, directwedding '탱자스튜디오 - 웨딩 스튜디오'. 상호·업종 일치. 로고는 자체도메인 헤더 로고(logo2.png) 수집."
-   }
-  },
-  {
-   "category": "studio",
-   "canonical": "테레지아",
-   "variant": "테레지아 스튜디오",
-   "key": "studio|테레지아스튜디오",
-   "base": {
-    "url": "https://instagram.com/teresia_studio",
-    "conf": "high",
-    "ev": "인스타 @teresia_studio 프로필 '테레지아 스튜디오🤍', 1998년~ 강남 논현동 웨딩스튜디오. 등록지역 서울강남 일치. 인스타 주채널이라 로고 비움"
-   },
-   "variantEvidence": {
-    "url": "https://instagram.com/teresia_studio",
-    "conf": "high",
-    "ev": "테레지아 브랜드가 천안불당점(@teresia_cheonan) 운영 — 천안=충청, 등록지역과 일치하는 동일 브랜드 지점. 고유상호이며 인스타 주채널이라 로고 비움"
    }
   },
   {

@@ -29,11 +29,13 @@ import {
   SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   SuccessorReleaseContractError,
   validateSuccessorReleaseContract,
+  validateSuccessorRuntimeEvidence,
 } from "./supabase-successor-release-contract.mjs";
 
 const MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
 const MAX_RECEIPT_BYTES = 64 * 1024;
+const MAX_BACKUP_MANIFEST_BYTES = 256 * 1024;
 const MAX_BACKUP_AGE_MINUTES = 30;
 const MAX_BACKUP_RESUME_AGE_MINUTES = 5_256_000;
 const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -77,34 +79,48 @@ function blocked(code, message) {
   throw new ReleaseBlockedError(code, message);
 }
 
-function assertSuccessorReleaseNotBlocked(repoRoot) {
+async function selectReleaseManifest(repoRoot) {
   const path = join(repoRoot, SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH);
-  if (!existsSync(path)) return;
-  let successor;
-  try {
-    successor = validateSuccessorReleaseContract({ repoRoot });
-  } catch (error) {
-    if (error instanceof SuccessorReleaseContractError) {
+  if (existsSync(path)) {
+    let successor;
+    try {
+      successor = validateSuccessorReleaseContract({ repoRoot });
+    } catch (error) {
+      if (error instanceof SuccessorReleaseContractError) {
+        blocked(
+          "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+          `successor release contract is invalid (${error.code}: ${error.message}); production release remains blocked`,
+        );
+      }
+      throw error;
+    }
+    if (successor.deploymentBlocked) {
       blocked(
-        "SUCCESSOR_RELEASE_CONTRACT_INVALID",
-        `successor release contract is invalid (${error.code}); production release remains blocked`,
+        "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+        `successor release ${successor.manifest.release} is ${successor.manifest.status}; use only the static release fence until its controller contract and private runtime evidence are ready`,
       );
     }
-    throw error;
+    return {
+      manifest: successor.controllerManifest,
+      manifestPath: resolve(repoRoot, successor.manifest.controllerContract.file),
+      expectedMigrations:
+        successor.controllerManifest.expandMigrations.map((entry) => entry.file),
+      successor: true,
+      successorContract: successor,
+    };
   }
-  if (successor.deploymentBlocked) {
-    blocked(
-      "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
-      `successor release ${successor.manifest.release} is ${successor.manifest.status}; use only the static release fence until hosted evidence and a reviewed successor controller exist`,
-    );
-  }
-  // 증거는 갖춰졌다. 그래도 여기서 그냥 통과시키면 이 컨트롤러가 "선임" 매니페스트를
-  // 대상으로 릴리스를 돌린다 — 엉뚱한 릴리스를 배포하게 된다. 후속 릴리스 본체가
-  // 배선되기 전까지는 계속 막되, 무엇이 남았는지 코드로 구분해 알린다.
-  blocked(
-    "SUCCESSOR_RELEASE_CONTROLLER_NOT_IMPLEMENTED",
-    `successor release ${successor.manifest.release} has pinned evidence at ${successor.releaseCommit}, but this controller still targets the predecessor manifest; wire the successor release body before releasing`,
-  );
+  const manifestPath = join(repoRoot, MANIFEST_RELATIVE_PATH);
+  const manifest = await readBoundedJson(manifestPath, "release manifest");
+  return {
+    manifest,
+    manifestPath,
+    expectedMigrations:
+      Array.isArray(manifest.expandMigrations)
+        ? manifest.expandMigrations.map((entry) => entry?.file)
+        : [],
+    successor: false,
+    successorContract: null,
+  };
 }
 
 function assertSafeExecutionEnvironment(environment) {
@@ -192,6 +208,8 @@ async function defaultRunCommand(
 
 export const productionReleaseControllerTestHooks = Object.freeze({
   defaultRunCommand,
+  validateBackupReceipt,
+  selectReleaseManifest,
 });
 
 function parseArgs(argv) {
@@ -273,6 +291,31 @@ function canonicalTextHash(content) {
   return createHash("sha256")
     .update(content.replace(/\r\n?/g, "\n"), "utf8")
     .digest("hex");
+}
+
+function summarizeSuccessorRuntimeEvidence(evidence) {
+  if (!evidence) return null;
+  const records = Object.entries(evidence)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([name, record]) => ({
+      name,
+      receiptSha256: record.receiptSha256,
+      rawEvidenceSha256: record.rawEvidenceSha256,
+      verifiedAt: record.verifiedAt,
+      expiresAt: record.expiresAt,
+    }));
+  return Object.freeze({
+    records: Object.freeze(records.map((record) => Object.freeze(record))),
+    sha256: canonicalTextHash(
+      `${records.map((record) => [
+        record.name,
+        record.receiptSha256,
+        record.rawEvidenceSha256,
+        record.verifiedAt,
+        record.expiresAt,
+      ].join(":")).join("\n")}\n`,
+    ),
+  });
 }
 
 function inside(parent, child) {
@@ -616,9 +659,10 @@ async function validatePinnedReleaseArtifacts({ manifest, repoRoot }) {
   return extendedContracts;
 }
 
-async function loadManifest(repoRoot) {
-  const manifestPath = join(repoRoot, MANIFEST_RELATIVE_PATH);
-  const manifest = await readBoundedJson(manifestPath, "release manifest");
+async function loadManifest(repoRoot, selection = null) {
+  const manifestPath = selection?.manifestPath ?? join(repoRoot, MANIFEST_RELATIVE_PATH);
+  const manifest = selection?.manifest
+    ?? await readBoundedJson(manifestPath, "release manifest");
   if (typeof manifest.release !== "string" || !/^[a-z0-9][a-z0-9-]{2,80}$/.test(manifest.release)) {
     blocked("MANIFEST_INVALID", "release manifest has an invalid release identifier");
   }
@@ -649,7 +693,45 @@ async function loadManifest(repoRoot) {
     blocked("MANIFEST_INVALID", "preApplyChecks, postPushChecks and postApplyChecks must be arrays with non-empty outer checks");
   }
   const backupContract = manifest.backupContract;
-  if (backupContract?.id !== BASELINE_CONTRACT_ID
+  const successorBackupContract = manifest.status === "controller_ready"
+    && manifest.rollbackContract
+    && backupContract?.version === 2;
+  const successorBackupInvalid = successorBackupContract && (
+    backupContract.format !== "hbam2-encrypted-current-user"
+    || backupContract.expectedMigrationHead !== manifest.requiredRemoteHead
+    || !Array.isArray(backupContract.expectedTables)
+    || backupContract.expectedTables.length !== backupContract.expectedTableCount
+    || backupContract.expectedTableCount < 1
+    || new Set(backupContract.expectedTables).size !== backupContract.expectedTables.length
+    || backupContract.expectedTables.some(
+      (table, index) =>
+        !/^[a-z][a-z0-9_]{1,62}$/.test(table)
+        || (index > 0 && table <= backupContract.expectedTables[index - 1]),
+    )
+    || canonicalTextHash(`${backupContract.expectedTables.join("\n")}\n`)
+      !== backupContract.expectedTableContractSha256
+    || backupContract.expectedCommitBinding !== "release-expected-commit"
+    || !GITHUB_HTTPS_ORIGIN.test(backupContract.expectedOrigin ?? "")
+    || typeof backupContract.verifier?.file !== "string"
+    || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(backupContract.verifier.file)
+    || !SHA256.test(backupContract.verifier?.sha256 ?? "")
+    || backupContract.providerPhysicalBackup?.maximumAgeHours !== 26
+    || backupContract.providerPhysicalBackup?.requiredStatus !== "COMPLETED"
+    || backupContract.providerPhysicalBackup?.requirePhysicalBackup !== true
+    || backupContract.providerPhysicalBackup?.restoreCapability
+      !== "completed-physical-backup"
+    || backupContract.hostedRestoreEvidence?.receiptFileName
+      !== `${manifest.release}-hosted-restore-evidence.json`
+    || backupContract.hostedRestoreEvidence?.maximumAgeMinutes !== 1_440
+    || backupContract.hostedRestoreEvidence?.requiredTargetIsolation
+      !== "different-supabase-project"
+    || JSON.stringify(backupContract.hostedRestoreEvidence?.requiredChecks)
+      !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
+    || !/^\d+\.\d+\.\d+$/.test(backupContract.supabaseCli?.version ?? "")
+    || !UPPER_SHA256.test(backupContract.supabaseCli?.binarySha256 ?? "")
+  );
+  const predecessorBackupInvalid = !successorBackupContract && (
+    backupContract?.id !== BASELINE_CONTRACT_ID
       || backupContract.version !== 1
       || backupContract.expectedTableCount !== 14
       || backupContract.excludedEphemeralTables?.length !== 2
@@ -674,10 +756,12 @@ async function loadManifest(repoRoot) {
       || JSON.stringify(backupContract.hostedRestoreEvidence?.requiredChecks)
         !== JSON.stringify(HOSTED_RESTORE_REQUIRED_CHECKS)
       || !/^\d+\.\d+\.\d+$/.test(backupContract.supabaseCli?.version ?? "")
-      || !UPPER_SHA256.test(backupContract.supabaseCli?.binarySha256 ?? "")) {
+      || !UPPER_SHA256.test(backupContract.supabaseCli?.binarySha256 ?? "")
+  );
+  if (successorBackupInvalid || predecessorBackupInvalid) {
     blocked(
       "BACKUP_CONTRACT_INVALID",
-      "release manifest must pin the current 14-table backup, hosted restore evidence, ephemeral rebuild, origin and CLI provenance",
+      "release manifest must pin its exact current-remote backup, hosted restore, origin and CLI provenance",
     );
   }
   const postPushOperations = Array.isArray(manifest.manualPlatformOperations)
@@ -1051,7 +1135,91 @@ async function validateBackupReceipt({
     blocked("BACKUP_RECEIPT_SECRET_FIELD", "backup verification receipt contains a forbidden secret-like field");
   }
   const boundedCount = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000_000;
-  if (receipt.Verified !== true
+  const currentRemoteContract = backupContract.version === 2
+    && backupContract.format === "hbam2-encrypted-current-user";
+  const currentRemoteReceiptKeys = [
+    "AgeSeconds",
+    "BackupDirectory",
+    "BackupSetId",
+    "CreatedAtUtc",
+    "ExternalForeignKeysSkipped",
+    "ForeignKeysChecked",
+    "GitCommit",
+    "InventoryCapturedAt",
+    "InventoryContractSha256",
+    "LiveSchemaContractSha256",
+    "LogicalDataContractSha256",
+    "ManifestSha256",
+    "NodeSha256",
+    "NodeVersion",
+    "PGliteJsonbRoundTripVerified",
+    "PGliteTreeSha256",
+    "PGliteVersion",
+    "PlaintextWrittenToDisk",
+    "PrimaryConstraintsChecked",
+    "SourceCanonicalDigestsVerified",
+    "SourceCapturedAt",
+    "SourceRelationContractSha256",
+    "SupabaseCliBinarySha256",
+    "SupabaseCliVersion",
+    "TableCount",
+    "TotalRows",
+    "Verified",
+  ];
+  const createdAtMs = Date.parse(receipt.CreatedAtUtc ?? "");
+  const sourceCapturedAtMs = Date.parse(receipt.SourceCapturedAt ?? "");
+  const inventoryCapturedAtMs = Date.parse(receipt.InventoryCapturedAt ?? "");
+  const currentAgeSeconds = Number.isFinite(createdAtMs)
+    ? Math.floor((Date.now() - createdAtMs) / 1_000)
+    : Number.NaN;
+  if (currentRemoteContract && (
+    !hasExactKeys(receipt, currentRemoteReceiptKeys)
+    || receipt.Verified !== backupContract.requiredReceiptValues.Verified
+    || receipt.SourceCanonicalDigestsVerified
+      !== backupContract.requiredReceiptValues.SourceCanonicalDigestsVerified
+    || receipt.PGliteJsonbRoundTripVerified
+      !== backupContract.requiredReceiptValues.PGliteJsonbRoundTripVerified
+    || receipt.PlaintextWrittenToDisk
+      !== backupContract.requiredReceiptValues.PlaintextWrittenToDisk
+    || !isAbsolute(receipt.BackupDirectory ?? "")
+    || !BACKUP_SET_ID.test(receipt.BackupSetId ?? "")
+    || !UPPER_SHA256.test(receipt.ManifestSha256 ?? "")
+    || !UPPER_SHA256.test(receipt.InventoryContractSha256 ?? "")
+    || !UPPER_SHA256.test(receipt.SourceRelationContractSha256 ?? "")
+    || !UPPER_SHA256.test(receipt.LiveSchemaContractSha256 ?? "")
+    || !UPPER_SHA256.test(receipt.LogicalDataContractSha256 ?? "")
+    || receipt.GitCommit !== expectedCommit
+    || receipt.SupabaseCliVersion !== backupContract.supabaseCli.version
+    || receipt.SupabaseCliBinarySha256
+      !== backupContract.supabaseCli.binarySha256
+    || !/^v\d+\.\d+\.\d+$/.test(receipt.NodeVersion ?? "")
+    || !UPPER_SHA256.test(receipt.NodeSha256 ?? "")
+    || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(receipt.PGliteVersion ?? "")
+    || !UPPER_SHA256.test(receipt.PGliteTreeSha256 ?? "")
+    || !Number.isFinite(sourceCapturedAtMs)
+    || !Number.isFinite(inventoryCapturedAtMs)
+    || !Number.isFinite(createdAtMs)
+    || sourceCapturedAtMs > inventoryCapturedAtMs
+    || inventoryCapturedAtMs > createdAtMs
+    || !Number.isFinite(currentAgeSeconds)
+    || currentAgeSeconds < -60
+    || currentAgeSeconds > maximumAgeMinutes * 60
+    || !Number.isFinite(receipt.AgeSeconds)
+    || receipt.AgeSeconds < 0
+    || receipt.AgeSeconds > maximumAgeMinutes * 60
+    || receipt.AgeSeconds > currentAgeSeconds + 60
+    || receipt.TableCount !== backupContract.expectedTableCount
+    || !boundedCount(receipt.TotalRows)
+    || !boundedCount(receipt.PrimaryConstraintsChecked)
+    || !boundedCount(receipt.ForeignKeysChecked)
+    || !boundedCount(receipt.ExternalForeignKeysSkipped)
+  )) {
+    blocked(
+      "BACKUP_RECEIPT_INVALID",
+      "backup receipt does not prove the exact current-remote encrypted backup contract",
+    );
+  }
+  if (!currentRemoteContract && (receipt.Verified !== true
       || !isAbsolute(receipt.BackupDirectory ?? "")
       || !BACKUP_SET_ID.test(receipt.BackupSetId ?? "")
       || !UPPER_SHA256.test(receipt.ManifestSha256 ?? "")
@@ -1074,8 +1242,93 @@ async function validateBackupReceipt({
       || !boundedCount(receipt.ForeignKeysReplayed)
       || !boundedCount(receipt.ExternalForeignKeysSkipped)
       || !boundedCount(receipt.CheckConstraintsDocumented)
-      || receipt.CheckConstraintsReplayed !== 0) {
+      || receipt.CheckConstraintsReplayed !== 0)) {
     blocked("BACKUP_RECEIPT_INVALID", "backup receipt does not prove all required verification gates");
+  }
+
+  if (currentRemoteContract) {
+    const backupDirectory = await realpath(receipt.BackupDirectory).catch(() => null);
+    const backupDirectoryMetadata = await lstat(receipt.BackupDirectory).catch(() => null);
+    if (!backupDirectory
+        || !backupDirectoryMetadata?.isDirectory()
+        || backupDirectoryMetadata.isSymbolicLink()
+        || inside(repoRoot, backupDirectory)
+        || inside(backupSourceRepo, backupDirectory)) {
+      blocked(
+        "BACKUP_ARTIFACT_INVALID",
+        "current-remote backup directory must be a private non-symlink directory outside Git",
+      );
+    }
+    const expectedEntries = [
+      "logical-data.json.hbam2",
+      "logical-data.json.key.dpapi",
+      "manifest.json",
+      "schema-inventory.json.hbam2",
+      "schema-inventory.json.key.dpapi",
+    ];
+    const entries = await readdir(backupDirectory, { withFileTypes: true })
+      .catch(() => []);
+    const entryNames = entries.map((entry) => entry.name).sort();
+    if (entryNames.length !== expectedEntries.length
+        || entryNames.some((entry, index) => entry !== expectedEntries[index])
+        || entries.some((entry) => !entry.isFile() || entry.isSymbolicLink())) {
+      blocked(
+        "BACKUP_ARTIFACT_INVALID",
+        "current-remote backup directory does not contain the exact encrypted artifact set",
+      );
+    }
+    const privateManifestPath = join(backupDirectory, "manifest.json");
+    if (await rawFileSha256(privateManifestPath) !== receipt.ManifestSha256) {
+      blocked("BACKUP_ARTIFACT_INVALID", "private backup manifest hash differs from its receipt");
+    }
+    const privateManifestMetadata = await lstat(privateManifestPath).catch(() => null);
+    if (!privateManifestMetadata?.isFile()
+        || privateManifestMetadata.isSymbolicLink()
+        || privateManifestMetadata.size > MAX_BACKUP_MANIFEST_BYTES) {
+      blocked("BACKUP_ARTIFACT_INVALID", "private backup manifest is missing or oversized");
+    }
+    const privateManifest = await readBoundedJson(
+      privateManifestPath,
+      "private current-remote backup manifest",
+    );
+    const tableNames = privateManifest.tables
+      && typeof privateManifest.tables === "object"
+      && !Array.isArray(privateManifest.tables)
+      ? Object.keys(privateManifest.tables)
+      : [];
+    const cliRelativePath = privateManifest.supabase_cli?.invocation_relative_path;
+    if (privateManifest.format
+          !== "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser"
+        || privateManifest.format_version !== 2
+        || privateManifest.status !== "complete"
+        || privateManifest.backup_set_id !== receipt.BackupSetId
+        || privateManifest.created_at_utc !== receipt.CreatedAtUtc
+        || privateManifest.source_captured_at !== receipt.SourceCapturedAt
+        || privateManifest.inventory_captured_at !== receipt.InventoryCapturedAt
+        || privateManifest.inventory_contract_sha256
+          !== receipt.InventoryContractSha256
+        || privateManifest.source_relation_contract_sha256
+          !== receipt.SourceRelationContractSha256
+        || privateManifest.live_schema_contract_sha256
+          !== receipt.LiveSchemaContractSha256
+        || privateManifest.logical_data_contract_sha256
+          !== receipt.LogicalDataContractSha256
+        || privateManifest.source_project_ref !== projectRef
+        || privateManifest.implementation?.git_commit !== expectedCommit
+        || privateManifest.supabase_cli?.version !== backupContract.supabaseCli.version
+        || typeof cliRelativePath !== "string"
+        || privateManifest.supabase_cli?.files?.[cliRelativePath]
+          !== backupContract.supabaseCli.binarySha256
+        || privateManifest.plaintext_written_to_disk !== false
+        || tableNames.length !== backupContract.expectedTables.length
+        || tableNames.some(
+          (table, index) => table !== backupContract.expectedTables[index],
+        )) {
+      blocked(
+        "BACKUP_ARTIFACT_INVALID",
+        "private backup manifest does not bind the exact project, commit, CLI and baseline tables",
+      );
+    }
   }
 
   const clean = await requireCommandSuccess(
@@ -1168,13 +1421,34 @@ async function validateBackupReceipt({
     "TypedSchemaReplayed",
     "PlaintextWrittenToDisk",
   ];
-  if (fresh.Verified !== true
+  if (currentRemoteContract) {
+    const immutableKeys = currentRemoteReceiptKeys.filter((key) => key !== "AgeSeconds");
+    const freshAge = fresh?.AgeSeconds;
+    if (!hasExactKeys(fresh, currentRemoteReceiptKeys)
+        || immutableKeys.some((field) => fresh[field] !== receipt[field])
+        || !Number.isFinite(freshAge)
+        || freshAge < Math.max(0, receipt.AgeSeconds - 1)
+        || freshAge > maximumAgeMinutes * 60
+        || freshAge < currentAgeSeconds - 60
+        || freshAge > currentAgeSeconds + 10 * 60) {
+      blocked(
+        "BACKUP_REVERIFY_MISMATCH",
+        "fresh current-remote backup verification differs from the supplied receipt",
+      );
+    }
+  } else if (fresh.Verified !== true
       || fresh.LogicalRowReplayVerified !== true
       || matchedFields.some((field) => fresh[field] !== receipt[field])) {
     blocked("BACKUP_REVERIFY_MISMATCH", "fresh backup verification does not match the supplied receipt");
   }
   return {
     ...receipt,
+    ...(currentRemoteContract
+      ? {
+        SchemaContractSha256: receipt.LiveSchemaContractSha256,
+        SourceRelationContractSha256: receipt.LogicalDataContractSha256,
+      }
+      : {}),
     SupabaseCliVersion: backupContract.supabaseCli.version,
     SupabaseCliBinarySha256: backupContract.supabaseCli.binarySha256,
   };
@@ -2046,6 +2320,7 @@ async function runPostPushResume({
   lockPath,
   runCommand,
   now,
+  refreshSuccessorRuntimeEvidence = () => null,
 }) {
   const releaseLock = await validateReleaseLock({
     lockPath,
@@ -2262,6 +2537,8 @@ async function runPostPushResume({
     const preOperationIds = manifest.manualPlatformOperations
       .filter((operation) => operation.phase === "pre-backup")
       .map((operation) => operation.id);
+    const successorRuntimeEvidence =
+      refreshSuccessorRuntimeEvidence();
     if (!recoveredRemoteDeployingPhase) {
       await runRemoteReleaseLease({
         action: "mark_deploying_from_awaiting",
@@ -2317,6 +2594,14 @@ async function runPostPushResume({
       remoteReleaseLeaseRecoveredFromDeployingPhase: recoveredRemoteDeployingPhase,
       rerunProhibited: true,
       operatorAction: "DO_NOT_RERUN DB PUSH. Hand this exact lease owner and receipt to the deploy/canary/fence-finalization controller; release remains NO-GO until that controller atomically lifts the fence and closes the lease.",
+      ...(successorRuntimeEvidence
+        ? {
+          successorRuntimeEvidence:
+            successorRuntimeEvidence.records,
+          successorRuntimeEvidenceSetSha256:
+            successorRuntimeEvidence.sha256,
+        }
+        : {}),
     };
     await writeReceipt(options.receiptOut, finalReceipt);
     return finalReceipt;
@@ -2335,7 +2620,7 @@ export async function runProductionRelease({
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
   const options = parseArgs(argv ?? []);
   assertSafeExecutionEnvironment(process.env);
-  assertSuccessorReleaseNotBlocked(repoRoot);
+  const selection = await selectReleaseManifest(repoRoot);
   const {
     manifest,
     expectedMigrations,
@@ -2343,7 +2628,7 @@ export async function runProductionRelease({
     postPushChecks,
     postApplyChecks,
     forwardOnlyChecks,
-  } = await loadManifest(repoRoot);
+  } = await loadManifest(repoRoot, selection);
   const confirmationMode = options.checkOnly
     ? "CHECK"
     : options.resumePostPush
@@ -2353,6 +2638,28 @@ export async function runProductionRelease({
   if (options.confirmProduction !== confirmation) {
     blocked("PRODUCTION_CONFIRMATION_MISMATCH", "production confirmation does not match project, release and commit");
   }
+  const refreshSuccessorRuntimeEvidence = () => {
+    if (!selection.successor) return null;
+    try {
+      return summarizeSuccessorRuntimeEvidence(validateSuccessorRuntimeEvidence({
+        repoRoot,
+        receiptRoot: dirname(options.backupReceipt),
+        manifest: selection.successorContract.manifest,
+        controllerManifest: manifest,
+        expectedCommit: options.expectedCommit,
+        now,
+      }));
+    } catch (error) {
+      if (error instanceof SuccessorReleaseContractError) {
+        blocked(
+          error.code,
+          "successor private runtime evidence is missing, stale, mismatched or semantically incomplete",
+        );
+      }
+      throw error;
+    }
+  };
+  let successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
   if (options.apply || options.resumePostPush) {
     if (!isAbsolute(options.receiptOut) || inside(repoRoot, options.receiptOut)) {
       blocked("RECEIPT_PATH_INVALID", "--receipt-out must be an absolute JSON path outside the Git repository");
@@ -2395,6 +2702,7 @@ export async function runProductionRelease({
 
   const lockPath = join(repoRoot, "supabase", ".temp", "amora-production-release.lock");
   if (options.resumePostPush) {
+    successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
     return await runPostPushResume({
       repoRoot,
       options,
@@ -2406,6 +2714,7 @@ export async function runProductionRelease({
       lockPath,
       runCommand,
       now,
+      refreshSuccessorRuntimeEvidence,
     });
   }
   const lock = options.apply
@@ -2471,6 +2780,7 @@ export async function runProductionRelease({
     remoteLeaseLinkedRefFence = assertLinkedRef;
 
     if (options.apply) {
+      successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
       remoteReleaseLeaseClaimAttempted = true;
       preserveLock = true;
       try {
@@ -2593,6 +2903,7 @@ export async function runProductionRelease({
       runCommand,
     });
     await assertLinkedRef();
+    successorRuntimeEvidence = refreshSuccessorRuntimeEvidence();
 
     if (options.checkOnly) {
       return {
@@ -2627,6 +2938,14 @@ export async function runProductionRelease({
         forwardOnlySecurityOperationCount:
           forwardOnlySecurityOperationIds.length,
         forwardOnlySecurityCheckEvidence,
+        ...(successorRuntimeEvidence
+          ? {
+            successorRuntimeEvidence:
+              successorRuntimeEvidence.records,
+            successorRuntimeEvidenceSetSha256:
+              successorRuntimeEvidence.sha256,
+          }
+          : {}),
       };
     }
 
@@ -2679,6 +2998,14 @@ export async function runProductionRelease({
       status: "started",
       rerunProhibited: true,
       containsSecrets: false,
+      ...(successorRuntimeEvidence
+        ? {
+          successorRuntimeEvidence:
+            successorRuntimeEvidence.records,
+          successorRuntimeEvidenceSetSha256:
+            successorRuntimeEvidence.sha256,
+        }
+        : {}),
     };
     await writeReceipt(options.receiptOut, baseReceipt, { exclusive: true });
     receiptStarted = true;

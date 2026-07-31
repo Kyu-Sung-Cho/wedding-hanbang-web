@@ -3,9 +3,19 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../../", import.meta.url);
+const currentProductDefinition =
+  "웨딩한방은 아모라에게 결혼 준비를 말하면, 예산·체크리스트·일정이 함께 정리되는 서비스입니다.";
+const currentReleaseHandoffPath =
+  "docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md";
+const currentReleaseInventoryPath =
+  "docs/operations/evidence/full-workspace-release-inventory-2026-07-31.json";
 
 function escaped(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalized(value) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 test("repository handoff docs describe the current monorepo and release source of truth", async () => {
@@ -52,10 +62,219 @@ test("repository handoff docs describe the current monorepo and release source o
   assert.match(agents, /docs\/operations\/VENDOR_MERGE_REVIEW_2026-07-27\.md/);
 
   for (const document of [agents, readme]) {
+    assert.match(document, new RegExp(escaped(currentReleaseHandoffPath)));
     assert.match(document, /docs\/operations\/CURRENT_WORKSPACE_HANDOFF_2026-07-20\.md/);
     assert.match(document, /scripts\/ingest\/README\.md/);
     assert.doesNotMatch(document, /현재 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-17\.md/);
     assert.doesNotMatch(document, /다른 컴퓨터 인수인계:[\s\S]{0,100}CURRENT_WORKSPACE_HANDOFF_2026-07-19\.md/);
+  }
+});
+
+test("current MVP source is explicit and historical briefs cannot masquerade as current", async () => {
+  const [
+    agents,
+    readme,
+    currentMvp,
+    serviceOverview,
+    oldMasterBrief,
+    oldVendorHandoff,
+  ] = await Promise.all([
+    readFile(new URL("AGENTS.md", root), "utf8"),
+    readFile(new URL("README.md", root), "utf8"),
+    readFile(new URL("docs/MVP_PRODUCT_DIRECTION_2026-07-30.md", root), "utf8"),
+    readFile(new URL("WEDDINGHANBANG_SERVICE_DOC.md", root), "utf8"),
+    readFile(
+      new URL("docs/WEDDINGHANBANG_MASTER_BRIEF_2026-07-29.md", root),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "docs/operations/CURRENT_WORKSPACE_HANDOFF_2026-07-20.md",
+        root,
+      ),
+      "utf8",
+    ),
+  ]);
+
+  for (const document of [readme, currentMvp, serviceOverview]) {
+    assert.ok(
+      normalized(document).includes(currentProductDefinition),
+      "current product definition must stay exact",
+    );
+  }
+
+  for (const document of [agents, readme, serviceOverview, oldMasterBrief, oldVendorHandoff]) {
+    assert.match(document, /docs\/MVP_PRODUCT_DIRECTION_2026-07-30\.md/);
+    assert.match(
+      document,
+      /docs\/operations\/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30\.md/,
+    );
+  }
+  for (const document of [agents, readme]) {
+    assert.match(document, new RegExp(escaped(currentReleaseHandoffPath)));
+  }
+
+  assert.match(
+    oldMasterBrief,
+    /SUPERSEDED 2026-07-29 SNAPSHOT — NOT A CURRENT SINGLE SOURCE/,
+  );
+  assert.match(oldVendorHandoff, /SUPERSEDED HISTORICAL HANDOFF/);
+  assert.match(
+    serviceOverview,
+    /LONG-TERM \/ HISTORICAL OVERVIEW — NOT THE CURRENT MVP CONTRACT/,
+  );
+  assert.match(agents, /과거 업체 공시 브랜치 인수인계/);
+});
+
+test("document authority chain is complete and old status claims stay historical", async () => {
+  const paths = {
+    agents: "AGENTS.md",
+    claude: "CLAUDE.md",
+    rootReadme: "README.md",
+    docsIndex: "docs/README.md",
+    currentRelease: currentReleaseHandoffPath,
+    audit: "docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md",
+    handoff:
+      "docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md",
+    oldAudit: "AUDIT_2026-04-28.md",
+    oldMigration: "MIGRATION_20260423_GUIDE.md",
+    oldDemo: "docs/DEMO_SCRIPT_90s.md",
+    oldSynthesis: "docs/SESSION_SYNTHESIS_2026-06-11.md",
+    oldSession: "docs/SESSION_SYNTHESIS_2026-07-06.md",
+    oldCodexSession: "docs/codex-tasks/SESSION_HANDOFF_2026-07-02.md",
+    oldBacklog: "docs/BACKLOG.md",
+    updateLog: "UPDATE_LOG.md",
+  };
+  const entries = await Promise.all(
+    Object.entries(paths).map(async ([key, path]) => [
+      key,
+      await readFile(new URL(path, root), "utf8"),
+    ]),
+  );
+  const documents = Object.fromEntries(entries);
+  const auditPath =
+    "docs/operations/FULL_REPOSITORY_AUDIT_2026-07-30.md";
+
+  for (const document of [
+    documents.agents,
+    documents.claude,
+    documents.rootReadme,
+    documents.docsIndex,
+  ]) {
+    assert.match(
+      document,
+      new RegExp(escaped(currentReleaseHandoffPath)),
+    );
+  }
+
+  for (const document of [
+    documents.agents,
+    documents.claude,
+    documents.docsIndex,
+    documents.handoff,
+  ]) {
+    assert.match(document, new RegExp(escaped(auditPath)));
+  }
+
+  assert.ok(
+    normalized(documents.currentRelease).includes(currentProductDefinition),
+  );
+  assert.match(documents.currentRelease, /GitHub[\s\S]*NOT PUSHED/);
+  assert.match(
+    documents.currentRelease,
+    /Production Web[\s\S]*READY[\s\S]*0f84665e9b8828f30e5a83ca5854ef618c3f4518/,
+  );
+  assert.match(documents.currentRelease, /New worktree[\s\S]*NOT DEPLOYED/);
+  assert.match(documents.currentRelease, /Database[\s\S]*BLOCKED/);
+  assert.match(documents.currentRelease, /Community[\s\S]*NO-GO/);
+  assert.match(documents.currentRelease, /Mobile[\s\S]*NOT RELEASED/);
+  for (const path of [
+    currentReleaseInventoryPath,
+    "docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md",
+    "docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md",
+    "docs/operations/VENDOR_DISCLOSURE_PRODUCTION_BUILD_FENCE.md",
+  ]) {
+    assert.match(documents.currentRelease, new RegExp(escaped(path)));
+  }
+
+  assert.ok(normalized(documents.audit).includes(currentProductDefinition));
+  assert.match(documents.audit, /NOT COMMITTED \/ NOT PUSHED \/ NOT DEPLOYED/);
+  assert.match(documents.audit, /모든 줄을 사람이 같은 깊이로 의미 검토했다.*뜻이 아니다/);
+  for (const document of [documents.audit, documents.handoff]) {
+    assert.match(document, /SUPERSEDED FOR CURRENT RELEASE STATUS/);
+    assert.match(
+      document,
+      new RegExp(escaped(currentReleaseHandoffPath)),
+    );
+  }
+  assert.match(documents.docsIndex, /현재 권한 순서/);
+  assert.match(documents.docsIndex, /HISTORICAL.*SUPERSEDED/);
+  assert.match(documents.claude, /P6/);
+  assert.ok(normalized(documents.claude).includes(currentProductDefinition));
+  assert.doesNotMatch(documents.claude, /최상위 전략 문서|cancel_booking/);
+  assert.doesNotMatch(
+    documents.claude,
+    /모든 AI (호출|대화).*(원문|전체).*기록|모든 결정.*기록/,
+  );
+
+  assert.match(documents.oldAudit, /SUPERSEDED HISTORICAL AUDIT/);
+  assert.match(documents.oldMigration, /역사 기록 \/ 실행 금지/);
+  assert.match(documents.oldDemo, /역사 기록 \/ 현재 데모에 사용 금지/);
+  assert.match(documents.oldSynthesis, /SUPERSEDED HISTORICAL HANDOFF/);
+  assert.match(documents.oldSession, /SUPERSEDED HISTORICAL SESSION RECORD/);
+  assert.match(documents.oldCodexSession, /SUPERSEDED HISTORICAL HANDOFF/);
+  assert.match(documents.oldBacklog, /역사 백로그 \/ 현재 우선순위 아님/);
+  assert.match(documents.updateLog, /과거 배포 기록/);
+});
+
+test("current release inventory is exhaustive, minimal, and fail-closed", async () => {
+  const inventory = JSON.parse(
+    await readFile(new URL(currentReleaseInventoryPath, root), "utf8"),
+  );
+
+  assert.equal(inventory.schemaVersion, 1);
+  assert.equal(inventory.basis.command, "git status --porcelain=v1 -uall");
+  assert.equal(
+    inventory.basis.baseHead,
+    "0f84665e9b8828f30e5a83ca5854ef618c3f4518",
+  );
+  assert.equal(inventory.basis.originMain, inventory.basis.baseHead);
+  assert.equal(inventory.basis.branch, "agent/release-handoff-20260731");
+  assert.equal(inventory.entries.length, inventory.basis.entryCount);
+  assert.ok(inventory.entries.length > 500);
+
+  const allowedKeys = [
+    "area",
+    "intentStatus",
+    "path",
+    "releaseFacet",
+    "status",
+    "verificationStatus",
+  ];
+  const paths = new Set();
+  for (const entry of inventory.entries) {
+    assert.deepEqual(Object.keys(entry).sort(), allowedKeys);
+    assert.ok([" M", " D", "??"].includes(entry.status));
+    assert.ok(entry.path.length > 0);
+    assert.ok(entry.area.length > 0);
+    assert.ok(entry.releaseFacet.length > 0);
+    assert.ok(["confirmed", "review_required"].includes(entry.intentStatus));
+    assert.ok(entry.verificationStatus.length > 0);
+    assert.ok(!paths.has(entry.path), `duplicate inventory path: ${entry.path}`);
+    paths.add(entry.path);
+  }
+
+  const trackedDeletions = inventory.entries.filter(
+    (entry) => entry.status === " D",
+  );
+  assert.equal(trackedDeletions.length, 46);
+  assert.ok(
+    trackedDeletions.every(
+      (entry) => entry.intentStatus === "review_required",
+    ),
+  );
+  for (const path of [currentReleaseHandoffPath, currentReleaseInventoryPath]) {
+    assert.ok(paths.has(path), `inventory must include ${path}`);
   }
 });
 

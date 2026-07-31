@@ -12,7 +12,10 @@ test("mobile settings saves every editable identity and journey field through on
   const handleSaveStart = settingsSource.indexOf("async function handleSave()");
   const handleSave = settingsSource.slice(
     handleSaveStart,
-    settingsSource.indexOf("// 비밀번호 변경", handleSaveStart),
+    settingsSource.indexOf(
+      "async function handleRevokeLegacyCareConsent()",
+      handleSaveStart,
+    ),
   );
 
   assert.match(handleSave, /apiFetch\("\/api\/settings\/wedding-profile"/);

@@ -8,6 +8,8 @@ type PriceEmptyStateProps = {
   category?: PriceCategory;
   regionCode?: string;
   hasOtherFilters?: boolean;
+  surface?: "public" | "app";
+  preview?: boolean;
   onResetFilters?(): void;
 };
 
@@ -17,6 +19,8 @@ export function PriceEmptyState({
   category,
   regionCode,
   hasOtherFilters = false,
+  surface = "public",
+  preview = false,
   onResetFilters,
 }: PriceEmptyStateProps) {
   const regionLabel = regionCode ? priceRegionLabel(regionCode) : null;
@@ -36,7 +40,7 @@ export function PriceEmptyState({
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         <FileHeart aria-hidden="true" className="size-6" />
       </span>
-      <h2 className="mt-5 text-xl font-bold tracking-[-0.02em] text-[#243832]">
+      <h2 className="mt-5 text-xl font-bold tracking-normal text-[#243832]">
         {heading}
       </h2>
       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#243832]/70">
@@ -55,7 +59,9 @@ export function PriceEmptyState({
         {otherCategories.map((value) => (
           <Link
             key={value}
-            href={`/price/${value}`}
+            href={surface === "app"
+              ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
+              : `/price/${value}`}
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#243832]/15 bg-white px-4 py-2.5 text-sm font-semibold text-[#243832]/80 hover:bg-[#F5ECE4]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             {PRICE_CATEGORY_LABELS[value]} 공시 보기
@@ -64,7 +70,7 @@ export function PriceEmptyState({
       </div>
       <Link
         href="/wedding/community/quote-check"
-        className="mt-5 inline-flex items-center justify-center gap-1 text-xs font-semibold text-[#8F6662] underline-offset-4 hover:underline"
+        className="mt-5 inline-flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-semibold text-[#8F6662] underline-offset-4 hover:underline"
       >
         받은 견적 공유하고 다른 커플 돕기
         <ArrowRight aria-hidden="true" className="size-3.5" />

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import type { PollWithOptions } from "@/types/community.types";
 
@@ -161,6 +162,18 @@ export async function POST(
       .maybeSingle();
     if (!post || !canReadCommunityPost(post, { userId: user.id })) {
       return NextResponse.json({ error: "투표 권한이 없습니다." }, { status: 403 });
+    }
+
+    // 정지 상태에서도 본인이 남긴 반응은 철회할 수 있어야 한다.
+    const isRemovingExistingVote = poll.user_voted_option_ids.includes(optionId);
+    if (!isRemovingExistingVote) {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status }
+        );
+      }
     }
 
     const { data: rpcRaw, error: rpcError } = await serviceClient.rpc(

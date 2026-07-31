@@ -129,8 +129,7 @@ function VendorRecommendCards({
     );
   }
 
-  // DB에 매칭 업체가 0건일 때 — "AI 웨딩플래너인데 빈 카드/실패 X 표시가 줄줄이"
-  // 라는 인상 대신, 베타 안내 카드 1개로 깔끔하게 노출.
+  // Historical conversations may still contain a retired vendor-tool result.
   if (vendors.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
@@ -140,11 +139,10 @@ function VendorRecommendCards({
               <Sparkles className="w-5 h-5 text-[#C4967E]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">업체 추천은 준비 중이에요</p>
+              <p className="text-base font-semibold text-[#1A1A1F]">현재 업체 추천은 제공하지 않아요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#504444]">
-                지금은 업체 데이터베이스를 검수·정리하고 있어요. 곧 지역·예산·스타일에 맞는
-                실제 후보를 보여드릴 수 있게 준비 중입니다. 그동안 견적 체크·예산·일정 정리는
-                바로 도와드릴 수 있어요.
+                직접 받은 견적의 포함 항목·추가금·변경 및 환불 조건은 견적 체크에서 확인하고,
+                아모라와 예산·할 일·일정을 정리할 수 있어요.
               </p>
             </div>
           </div>

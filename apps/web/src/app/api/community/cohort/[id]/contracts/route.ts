@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortContractCategory } from "@/types/community.types";
 
 async function assertMember(
@@ -119,6 +120,14 @@ export async function POST(
       return NextResponse.json(
         { error: "인증이 필요합니다." },
         { status: 401 }
+      );
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status }
       );
     }
 

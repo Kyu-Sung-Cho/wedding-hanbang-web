@@ -140,7 +140,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   if (has("search_vendors", "recommend_vendors", "get_vendor_detail")) {
     lines.push(
       "- 업체는 활성 검색·조회 도구 결과에 있는 정보만 사용하세요. 조건 추천은 `recommend_vendors`의 공시 가격·match_reasons·coverageNote를 그대로 근거로 설명하고 disclaimer를 생략하지 마세요. 결과가 없으면 업체를 만들어내지 말고 데이터가 부족하다고 솔직히 안내하세요.",
-      "- 스튜디오·드레스·메이크업·예식장 조건 탐색은 `recommend_vendors`를 사용하고, `search_vendors`는 정확한 업체명 조회 또는 공시 추천 미지원 카테고리에만 사용하세요.",
+      "- 웨딩 사진 촬영·드레스·헤어·메이크업·결혼식장 조건 탐색은 `recommend_vendors`를 사용하고, `search_vendors`는 정확한 업체명 조회 또는 공시 추천 미지원 카테고리에만 사용하세요.",
       "- 공식 데이터 장애를 레거시 추천으로 대신하지 마세요. 정상 0건이면 조건을 조정해볼 수 있다고 안내하고, 장애이면 확인되지 않은 대체 업체를 제시하지 마세요.",
       "- 사용자가 카테고리 최대 예산을 직접 말했거나 해당 카테고리에 확정 저장한 한도가 있을 때만 가격 상한으로 쓰세요. 총예산에서 카테고리 한도를 임의로 계산하지 마세요.",
       "- 사용자가 지역을 말했는데 권역 코드로 인식되지 않으면 전국으로 넓히지 말고 지역을 다시 물어보세요.",
@@ -376,15 +376,27 @@ function detachMandatoryCurrentContext(prompt: string): {
   optionalPrompt: string;
   mandatoryContext: string;
 } {
-  const profile = detachTopLevelSection(prompt, "## 사용자가 명시한 맞춤 정보");
+  const helpPreference = detachTopLevelSection(
+    prompt,
+    "## 사용자가 확인한 도움 방식",
+  );
+  const profile = detachTopLevelSection(
+    helpPreference.remainder,
+    "## 사용자가 명시한 맞춤 정보",
+  );
   const preferences = detachTopLevelSection(
     profile.remainder,
-    "## 사용자 성향 프로필 (설정에서 입력한 값 — 다시 묻지 말 것)",
+    "## 사용자가 설정한 준비 참고값",
   );
   const couple = detachCurrentCoupleContext(preferences.remainder);
   const user = detachCurrentUserLine(couple.remainder);
-  const parts = [user.section, couple.section, preferences.section, profile.section]
-    .filter(Boolean);
+  const parts = [
+    user.section,
+    couple.section,
+    preferences.section,
+    helpPreference.section,
+    profile.section,
+  ].filter(Boolean);
   return {
     optionalPrompt: user.remainder,
     mandatoryContext: parts.length > 0

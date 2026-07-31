@@ -13,7 +13,7 @@ const SERVICE_ITEMS = [
   {
     icon: FileSearch,
     title: "받은 견적 확인하기",
-    desc: "금액보다 먼저 빠진 항목, 추가금 가능성, 계약 전 질문을 정리합니다.",
+    desc: "견적서에 적힌 포함 여부와 별도 금액을 확인할 질문을 정리합니다.",
     flow: ["견적 입력", "포함 항목 확인", "질문 리스트"],
     href: weddingPath("/community/quote-check"),
   },
@@ -27,7 +27,7 @@ const SERVICE_ITEMS = [
   {
     icon: Wallet,
     title: "예산에 바로 반영하기",
-    desc: "견적에서 확인한 금액과 숨은 비용을 내 예산표에 이어서 관리합니다.",
+    desc: "견적에서 확인한 금액과 별도 금액을 내 예산표에 이어서 관리합니다.",
     flow: ["견적 금액", "추가 비용", "예산 반영"],
     href: weddingPath("/budget"),
   },

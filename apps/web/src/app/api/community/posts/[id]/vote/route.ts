@@ -1,6 +1,7 @@
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 
 type PostVoteType = 0 | 1;
 
@@ -40,6 +41,16 @@ export async function POST(
         { error: "게시물 좋아요는 좋아요 또는 취소만 가능합니다." },
         { status: 400 }
       );
+    }
+
+    if (voteType !== 0) {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status },
+        );
+      }
     }
 
     const { data: visiblePost } = await supabase

@@ -14,7 +14,7 @@ export function PriceAmoraBridge() {
       <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_8px_20px_rgba(36,56,50,0.12)]">
         <MessageCircleHeart aria-hidden="true" className="size-6" />
       </span>
-      <h2 className="mt-4 text-lg font-bold tracking-[-0.02em] text-[#243832]">
+      <h2 className="mt-4 text-lg font-bold tracking-normal text-[#243832]">
         가격은 확인했는데, 뭐부터 해야 할지 막막하다면
       </h2>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#243832]/70">

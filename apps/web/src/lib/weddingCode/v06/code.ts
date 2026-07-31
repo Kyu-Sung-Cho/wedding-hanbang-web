@@ -1,7 +1,9 @@
 import {
+  WEDDING_CODE_V06_COMPATIBLE_VERSIONS,
   WEDDING_CODE_V06_QUESTIONS,
   type WeddingCodeV06OptionValue,
-  type WeddingCodeV06QuestionKey,
+  type WeddingCodeV06Question,
+  type WeddingCodeQuestionKey,
 } from "@/constants/weddingCodeV06";
 import type { WeddingCodeV06Answers } from "./gap";
 
@@ -14,9 +16,10 @@ import type { WeddingCodeV06Answers } from "./gap";
  * 「아직 상대 응답을 기다리고 있어요」 화면에서 대부분이 끝난다 — 상대가 가입하고,
  * 커플로 연결되고, 16문항을 다 풀 때까지 아무것도 못 본다. 관문이 세 개다.
  *
- * v0.6는 답을 **링크에 싣는다.** 16글자면 끝난다(`ABCDABCD…`). 로그인도 계정 연동도
- * 저장도 없다. 상대는 링크를 열고 자기 16문항만 풀면 그 자리에서 둘의 차이 지도를 본다.
- * 서버에 남는 게 없으므로 응답 보관·RLS·삭제 요청 문제도 생기지 않는다.
+ * v0.6는 답을 **링크에 싣는다.** 16글자면 끝난다(`ABCDABCD…`). 로그인이나 계정 연동,
+ * DB 저장은 하지 않는다. 상대는 링크를 열고 자기 16문항만 풀면 그 자리에서 둘의 차이
+ * 지도를 본다. 새 링크는 답을 fragment(`#`) 뒤에 넣어 서버 요청·referrer에서는 빼지만,
+ * 브라우저 방문 기록과 메신저에는 전체 링크가 남을 수 있다.
  *
  * 코드는 **비밀이 아니다.** 열여섯 글자로 무엇을 골랐는지 드러나므로, 링크를 받은 사람은
  * 상대가 뭘 골랐는지 알게 된다 — 그게 이 제품의 목적이다. 다만 제3자에게 흘러가면
@@ -29,8 +32,24 @@ const VALUE_SET = new Set<string>(VALUES);
 /** 코드 문자열 한 글자 = 문항 하나의 답. 미응답은 `-`. */
 export const WEDDING_CODE_V06_SKIP = "-";
 
-export function encodeWeddingCodeV06(answers: WeddingCodeV06Answers): string {
-  return WEDDING_CODE_V06_QUESTIONS.map(
+/**
+ * 버전이 없던 초기 v0.6 링크는 현재 문항 순서로만 해석해 이전 공유 링크를 살린다.
+ * 새 링크는 반드시 버전을 싣고, 명시된 미지원 버전은 조용히 현재 문항으로 읽지 않는다.
+ */
+export function isCompatibleWeddingCodeV06Version(
+  version: string | null | undefined,
+): boolean {
+  if (typeof version !== "string" || version.trim() === "") return true;
+  return WEDDING_CODE_V06_COMPATIBLE_VERSIONS.includes(
+    version.trim() as (typeof WEDDING_CODE_V06_COMPATIBLE_VERSIONS)[number],
+  );
+}
+
+export function encodeWeddingCodeV06(
+  answers: WeddingCodeV06Answers,
+  questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
+): string {
+  return questions.map(
     (question) => answers[question.key] ?? WEDDING_CODE_V06_SKIP,
   ).join("");
 }
@@ -41,10 +60,13 @@ export function encodeWeddingCodeV06(answers: WeddingCodeV06Answers): string {
  * 잘못된 코드에 **조용히 기본값을 채우지 않는다** — 그러면 상대가 고르지도 않은 답이
  * 「상대는 이렇게 답했어요」로 화면에 뜬다. 이 제품에서 그건 거짓말이다.
  */
-export function decodeWeddingCodeV06(code: string | null | undefined): WeddingCodeV06Answers | null {
+export function decodeWeddingCodeV06(
+  code: string | null | undefined,
+  questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
+): WeddingCodeV06Answers | null {
   if (typeof code !== "string") return null;
   const trimmed = code.trim().toUpperCase();
-  if (trimmed.length !== WEDDING_CODE_V06_QUESTIONS.length) return null;
+  if (trimmed.length !== questions.length) return null;
 
   const answers: WeddingCodeV06Answers = {};
   let answered = 0;
@@ -52,7 +74,7 @@ export function decodeWeddingCodeV06(code: string | null | undefined): WeddingCo
     const character = trimmed[index];
     if (character === WEDDING_CODE_V06_SKIP) continue;
     if (!VALUE_SET.has(character)) return null;
-    const key: WeddingCodeV06QuestionKey = WEDDING_CODE_V06_QUESTIONS[index].key;
+    const key: WeddingCodeQuestionKey = questions[index].key;
     answers[key] = character as WeddingCodeV06OptionValue;
     answered += 1;
   }
@@ -61,6 +83,9 @@ export function decodeWeddingCodeV06(code: string | null | undefined): WeddingCo
   return answers;
 }
 
-export function isCompleteWeddingCodeV06(answers: WeddingCodeV06Answers): boolean {
-  return WEDDING_CODE_V06_QUESTIONS.every((question) => Boolean(answers[question.key]));
+export function isCompleteWeddingCodeV06(
+  answers: WeddingCodeV06Answers,
+  questions: readonly WeddingCodeV06Question[] = WEDDING_CODE_V06_QUESTIONS,
+): boolean {
+  return questions.every((question) => Boolean(answers[question.key]));
 }

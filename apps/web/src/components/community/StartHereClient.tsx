@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { daysUntilWedding, normalizeWeddingDate } from "@/lib/utils/weddingDate";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
-// 예식일 하나만 받아 "지금 열어야 하는 항목"을 보여준다.
+// 결혼식 날짜 하나만 받아 지금 확인할 항목을 보여준다.
 // 로그인·가입 없이 첫 가치를 주는 것이 목적이라 아무것도 저장하지 않는다.
 
 type Preset = "standard" | "small";
@@ -22,23 +23,28 @@ function beforeLabel(days: number): string {
   return `${Math.round(days / 30)}개월 전`;
 }
 
-function daysUntil(dateText: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return null;
-  const [year, month, day] = dateText.split("-").map(Number);
-  const target = new Date(year, month - 1, day);
-  if (Number.isNaN(target.getTime())) return null;
-  target.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 export default function StartHereClient() {
   const [dateText, setDateText] = useState("");
   const [preset, setPreset] = useState<Preset>("standard");
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
 
-  const dday = useMemo(() => daysUntil(dateText), [dateText]);
+  const dday = useMemo(() => daysUntilWedding(dateText), [dateText]);
+
+  // 랜딩에서 고른 날짜는 서버·분석 URL로 보내지 않고 fragment로만 넘긴다.
+  // 읽은 즉시 주소에서 지워, "로그인 없이 · 저장하지 않아요" 약속을 그대로 지킨다.
+  useEffect(() => {
+    const match = /^#date=(\d{4}-\d{2}-\d{2})$/.exec(window.location.hash);
+    const initialDate = normalizeWeddingDate(match?.[1]);
+    if (!initialDate) return;
+
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}`,
+    );
+    const handoffTimer = window.setTimeout(() => setDateText(initialDate), 0);
+    return () => window.clearTimeout(handoffTimer);
+  }, []);
 
   const applyPreset = (next: Preset) => {
     setPreset(next);
@@ -54,7 +60,7 @@ export default function StartHereClient() {
     });
   };
 
-  // 지금 "열려 있는" 항목: 시작 권장일이 지났고 마감 권장일이 아직 남은 것.
+  // 기본 확인 구간에 들어온 항목을 먼저 보여준다. 실제 계약·업체 일정은 사용자가 따로 정한다.
   const openNow = useMemo(() => {
     if (dday === null) return [];
     return CATEGORY_CHECKLISTS
@@ -92,11 +98,11 @@ export default function StartHereClient() {
   return (
     <div className="mx-auto max-w-2xl px-4 pb-16 pt-8 sm:px-6">
       <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">로그인 없이 · 저장하지 않아요</p>
-      <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] text-[#243832] sm:text-4xl">
+      <h1 className="mt-2 text-3xl font-bold tracking-normal text-[#243832] sm:text-4xl">
         지금 뭐부터 하면 되나요?
       </h1>
       <p className="mt-3 text-sm leading-6 text-[#243832]/70">
-        예식일만 알려주시면, 지금 열어야 하는 항목 세 가지와 첫 걸음을 정리해 드려요.
+        결혼식 날짜만 알려주시면, 지금 확인할 항목 세 가지와 첫걸음을 정리해 드려요.
         아직 날짜가 없어도 대략만 넣어보세요 — 언제든 바꿀 수 있어요.
       </p>
 
@@ -140,7 +146,7 @@ export default function StartHereClient() {
 
       {openNow.length > 0 ? (
         <section className="mt-8" aria-label="지금 열어야 하는 항목">
-          <h2 className="text-lg font-bold tracking-[-0.02em] text-[#243832]">
+          <h2 className="text-lg font-bold tracking-normal text-[#243832]">
             예식까지 {dday}일 — 지금은 이것부터
           </h2>
           <ul className="mt-4 space-y-3">
@@ -150,8 +156,8 @@ export default function StartHereClient() {
                   <span className="text-base font-bold text-[#243832]">{category.label}</span>
                   <span className={`text-sm font-semibold ${category.daysUntilDeadline < 0 ? "text-[#B4524A]" : "text-[#8F6662]"}`}>
                     {category.daysUntilDeadline < 0
-                      ? `권장 마감보다 ${Math.abs(category.daysUntilDeadline)}일 지남`
-                      : `권장 마감까지 ${category.daysUntilDeadline}일`}
+                      ? `기본 확인 시점에서 ${Math.abs(category.daysUntilDeadline)}일 지남`
+                      : `기본 확인 시점까지 ${category.daysUntilDeadline}일`}
                   </span>
                 </div>
                 <ul className="mt-3 space-y-1.5">
@@ -200,7 +206,8 @@ export default function StartHereClient() {
           전체 준비 순서 한눈에
         </summary>
         <p className="mt-1 text-sm leading-6 text-[#243832]/65">
-          권장 마감이 이른 순서예요. 지역·가족마다 달라서 정답은 아니고, 빠뜨리기 쉬운 것을 짚어보는 용도예요.
+          기본 확인 시점이 이른 순서예요. 실제 계약서와 업체·가족과 정한 날짜가 우선이며,
+          아래 순서는 빠뜨리기 쉬운 항목을 살펴보는 참고용이에요.
         </p>
         <ol className="mt-4 space-y-3">
           {overview.map((category) => (

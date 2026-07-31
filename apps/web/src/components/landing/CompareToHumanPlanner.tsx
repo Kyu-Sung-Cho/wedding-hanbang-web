@@ -31,7 +31,7 @@ export default function CompareToHumanPlanner() {
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="역할이 다른 두 가지 도움" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em]">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal">
             아모라는 사람 플래너를
             <br />
             <em className="not-italic text-rose-500">대체한다고 약속하지 않아요.</em>

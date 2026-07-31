@@ -207,6 +207,38 @@ test("practical-price rule rejects 원본/확인 false positives", () => {
   );
 });
 
+test("natural-style gates reject reusable comfort copy and accept situation-specific listening", () => {
+  const budgetRules = scenario("budget_overwhelm").rules;
+  assert.ok(
+    evaluateText(
+      "많이 힘드시겠어요. 걱정하지 마세요. 하나씩 차근차근 제가 도와드릴게요.",
+      budgetRules,
+    ).includes("opened with a reusable comfort phrase"),
+  );
+  assert.deepEqual(
+    evaluateText(
+      "예산이 계속 늘어나는 게 버거운 건지, 어디를 줄여야 할지 막막한 건지부터 같이 볼게요. 지금은 어느 쪽이 더 커요?",
+      budgetRules,
+    ),
+    [],
+  );
+
+  const correctionRules = scenario("respond_to_robotic_feedback").rules;
+  assert.ok(
+    evaluateText(
+      "충분히 그럴 수 있어요. 제가 도와드릴게요.",
+      correctionRules,
+    ).includes("reused generic comfort after direct style feedback"),
+  );
+  assert.deepEqual(
+    evaluateText(
+      "알겠어요. 지금은 정리하지 않을게요. 예산 얘기에서 제일 숨 막혔던 순간부터 말해도 돼요.",
+      correctionRules,
+    ),
+    [],
+  );
+});
+
 test("demo persistence rule distinguishes positive and negative claims", () => {
   const rules = scenario("mixed_emotion_change_is_honest_without_tools").rules;
   assert.ok(evaluateText("5월 3일로 등록되어 있어요.", rules).length > 0);

@@ -22,7 +22,7 @@ export default function BudgetLoading() {
         </div>
       </div>
 
-      {/* 스드메 패키지 skeleton */}
+      {/* 사진 촬영·드레스·메이크업 묶음 로딩 상태 */}
       <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-black/[0.04] bg-gradient-to-r from-[#C4967E]/5 to-[#C9A96E]/5">
           <div className="flex items-center justify-between">

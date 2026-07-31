@@ -12,9 +12,9 @@ describe("community price comment after static market retirement", () => {
     });
 
     expect(comment.comparison).toBe("unknown");
-    expect(comment.reference).toBe("공식 비교 기준 부족 · 평균 단정 안 함");
-    expect(comment.text).toContain("평균 단정은 하지 않을게요");
+    expect(comment.reference).toBe("공식 비교값 미연결 · 가격 수준 판정 안 함");
+    expect(comment.text).toContain("비싸거나 저렴하다고 단정하지 않을게요");
     expect(comment.text).not.toMatch(/\d[\d,.]*만원/u);
-    expect(comment.text).not.toContain("최신 참가격 기준");
+    expect(comment.text).not.toContain("참가격 기준");
   });
 });

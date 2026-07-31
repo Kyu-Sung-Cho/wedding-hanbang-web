@@ -1,5 +1,14 @@
 # 현재 작업 인계 — 2026-07-21
 
+> 상태: `SUPERSEDED HISTORICAL HANDOFF`
+>
+> 이 문서는 2026-07-21 업체 공시 기능 브랜치의 작업 기록이다. 현재 브랜치·제품
+> 범위·미완료 운영 게이트를 판단할 때 사용하지 않는다. 현재 기준은 `AGENTS.md`,
+> `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`,
+> `docs/operations/FULL_WORKSPACE_RELEASE_HANDOFF_2026-07-31.md`다. 2026-07-30
+> 신뢰 패치의 계보는
+> `docs/operations/CTO_TRUST_AND_WEDDINGCODE_HANDOFF_2026-07-30.md`에 남아 있다.
+
 ## 기준
 
 - repository: `Kyu-Sung-Cho/wedding-hanbang-web`

@@ -331,7 +331,7 @@ export async function executeSearchVendors(
   const admin = getAdminClient();
   let query = admin
     .from("vendors")
-    .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend")
+    .select("id, slug, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags")
     .eq("status", "approved")
     .limit(boundedToolLimit(input.limit, 5, MAX_LEGACY_VENDOR_SEARCH_RESULTS));
 
@@ -389,7 +389,6 @@ export async function executeSearchVendors(
       rating: vendor.rating,
       reviewCount: vendor.review_count,
       tags: vendor.tags,
-      aiRecommend: vendor.ai_recommend,
       link: weddingPath(`/vendors/${vendor.id}`),
     });
 
@@ -750,7 +749,7 @@ export async function executeRecommendVendors(
 
   let query = admin
     .from("vendors")
-    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, ai_recommend, description")
+    .select("id, name, category, location, region, price_range, price_min, price_max, rating, review_count, tags, description")
     .eq("status", "approved")
     .eq("category", dbCat)
     .order("rating", { ascending: false })
@@ -848,7 +847,6 @@ export async function executeRecommendVendors(
   const days = ["월", "화", "수", "목", "금", "토", "일"];
   const results = selected.map((vendor) => {
     const reasons: string[] = [];
-    if (vendor.ai_recommend) reasons.push("한방 큐레이션 후보");
     if (mood) {
       const moodScore = (vendor as Record<string, unknown>)._moodScore as number ?? 0;
       if (moodScore > 0) reasons.push(`'${mood}' 분위기 매칭`);
@@ -866,7 +864,7 @@ export async function executeRecommendVendors(
       reasons.push(`${location} 지역`);
     }
     if (vendor.review_count > 10) reasons.push(`리뷰 ${vendor.review_count}개`);
-    if (reasons.length === 0) reasons.push("카테고리 인기 업체");
+    if (reasons.length === 0) reasons.push("조건과 일치하는 검색 결과");
 
     return {
       id: vendor.id,

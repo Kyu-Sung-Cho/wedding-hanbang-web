@@ -9,9 +9,10 @@ import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { signInWithOAuth } from "@/lib/auth";
+import { isOAuthProviderEnabled, signInWithOAuth } from "@/lib/auth";
 
 // Supabase 에러 메시지 한국어 변환
 function translateError(message: string): string {
@@ -34,6 +35,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState<null | "email" | "kakao" | "apple">(null);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const kakaoOAuthEnabled = isOAuthProviderEnabled("kakao");
+  const appleOAuthEnabled = isOAuthProviderEnabled("apple");
+  const hasSocialLogin = kakaoOAuthEnabled || appleOAuthEnabled;
 
   // 로고 페이드인 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,16 +59,27 @@ export default function LoginScreen() {
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  const emailInvalid = emailTouched && email.length > 0 && !isValidEmail(email);
+  const emailInvalid =
+    emailTouched &&
+    email.trim().length > 0 &&
+    !isValidEmail(email.trim());
   const isFormDisabled = loading !== null;
+
+  function showLoginError(title: string, message: string) {
+    setLoginError(message);
+    if (Platform.OS !== "web") {
+      Alert.alert(title, message);
+    }
+  }
 
   // 이메일 로그인
   async function handleEmailLogin() {
     if (!email.trim() || !password) return;
     if (!isValidEmail(email.trim())) {
-      Alert.alert("알림", "올바른 이메일 형식을 입력해주세요.");
+      showLoginError("알림", "올바른 이메일 형식을 입력해주세요.");
       return;
     }
+    setLoginError(null);
     setLoading("email");
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -71,12 +87,13 @@ export default function LoginScreen() {
         password,
       });
       if (error) {
-        Alert.alert("로그인 실패", translateError(error.message));
+        showLoginError("로그인 실패", translateError(error.message));
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // 루트가 onboarding_completed를 다시 확인한 뒤 올바른 화면으로 보낸다.
+      router.replace("/");
     } catch {
-      Alert.alert("오류", "로그인에 실패했어요. 다시 시도해주세요.");
+      showLoginError("오류", "로그인에 실패했어요. 다시 시도해주세요.");
     } finally {
       setLoading(null);
     }
@@ -85,6 +102,7 @@ export default function LoginScreen() {
   // 소셜 로그인
   async function handleSocialLogin(provider: "kakao" | "apple") {
     if (loading) return;
+    setLoginError(null);
     setLoading(provider);
     try {
       const result = await signInWithOAuth(provider);
@@ -92,10 +110,11 @@ export default function LoginScreen() {
         setLoading(null);
         return;
       }
-      router.replace("/(tabs)/dashboard");
+      // OAuth 신규 가입자도 온보딩을 건너뛰지 않게 공통 gate로 돌아간다.
+      router.replace("/");
     } catch (err) {
       const message = err instanceof Error ? err.message : "로그인에 실패했어요";
-      Alert.alert("로그인 오류", message);
+      showLoginError("로그인 오류", message);
     } finally {
       setLoading(null);
     }
@@ -126,7 +145,7 @@ export default function LoginScreen() {
             />
             <Text style={styles.title}>웨딩한방</Text>
             <Text style={styles.subtitle}>
-              AI 웨딩 플래너와 함께{"\n"}우리답게 결혼을 준비하세요
+              결혼 준비, 아모라와 정리하세요
             </Text>
           </Animated.View>
 
@@ -136,7 +155,10 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, emailInvalid && styles.inputError]}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setLoginError(null);
+                }}
                 onBlur={() => setEmailTouched(true)}
                 placeholder="이메일 주소를 입력해주세요"
                 placeholderTextColor={colors.taupe[400]}
@@ -156,7 +178,10 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setLoginError(null);
+                  }}
                   placeholder="비밀번호"
                   placeholderTextColor={colors.taupe[400]}
                   secureTextEntry={!showPassword}
@@ -175,6 +200,12 @@ export default function LoginScreen() {
               </View>
               <Text style={styles.fieldHint}>6자 이상</Text>
             </View>
+
+            {loginError ? (
+              <Text style={styles.loginError} accessibilityRole="alert">
+                {loginError}
+              </Text>
+            ) : null}
 
             <Pressable
               style={[styles.emailBtn, (!email.trim() || !password || emailInvalid) && { opacity: 0.4 }]}
@@ -201,15 +232,18 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* 구분선 */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>또는</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {hasSocialLogin ? (
+            <>
+              {/* 구분선 */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>또는</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          {/* 소셜 로그인 */}
-          <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
+              {/* 소셜 로그인 */}
+              <View style={[styles.socialButtons, isFormDisabled && { opacity: 0.5 }]}>
+            {kakaoOAuthEnabled ? (
             <Pressable
               style={({ pressed }) => [styles.kakaoButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("kakao")}
@@ -228,7 +262,9 @@ export default function LoginScreen() {
                 </View>
               )}
             </Pressable>
+            ) : null}
 
+            {appleOAuthEnabled ? (
             <Pressable
               style={({ pressed }) => [styles.appleButton, pressed && { opacity: 0.8 }]}
               onPress={() => handleSocialLogin("apple")}
@@ -240,12 +276,25 @@ export default function LoginScreen() {
                 <ActivityIndicator color={colors.textPrimary} />
               ) : (
                 <View style={styles.socialInner}>
-                  <Text style={styles.appleIcon}>{"\uF8FF"}</Text>
+                  <Ionicons
+                    name="logo-apple"
+                    size={20}
+                    color={colors.textPrimary}
+                  />
                   <Text style={styles.appleText}>Apple로 계속하기</Text>
                 </View>
               )}
             </Pressable>
-          </View>
+            ) : null}
+              </View>
+            </>
+          ) : (
+            <Text style={styles.socialUnavailable}>
+              {Platform.OS === "web"
+                ? "소셜 로그인은 설치한 앱에서 이용할 수 있어요."
+                : "소셜 로그인은 현재 준비 중이에요. 이메일 로그인을 이용해주세요."}
+            </Text>
+          )}
 
           <Text style={styles.disclaimer}>
             계속하면 이용약관과 개인정보처리방침에{"\n"}동의하는 것으로 간주됩니다
@@ -305,6 +354,16 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: 6,
     marginLeft: 4,
+  },
+  loginError: {
+    borderRadius: 12,
+    backgroundColor: colors.rose.pale,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.danger,
+    lineHeight: 20,
   },
   fieldHint: {
     fontSize: 12,
@@ -406,14 +465,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  appleIcon: {
-    fontSize: 18,
-    color: colors.textPrimary,
-  },
   appleText: {
     fontSize: 15,
     fontFamily: "NotoSansKR_600SemiBold",
     color: colors.textPrimary,
+  },
+  socialUnavailable: {
+    marginTop: 24,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    textAlign: "center",
   },
 
   disclaimer: {

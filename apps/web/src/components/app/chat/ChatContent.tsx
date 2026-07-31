@@ -13,6 +13,19 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import MediationConsentDialog from "@/components/app/chat/MediationConsentDialog";
+import {
+  AmoraPersonalizationConfirmation,
+  AmoraQuickStart,
+} from "@/components/app/chat/AmoraPersonalizationPrompt";
+import {
+  clearPendingAmoraPersonalizationChoice,
+  readPendingAmoraPersonalizationChoice,
+  rememberPendingAmoraPersonalizationChoice,
+  resolveAmoraPersonalizationReply,
+  shouldOfferAmoraQuickStart,
+  type PendingAmoraPersonalizationChoice,
+} from "@/components/app/chat/amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingActionDisabledReason,
@@ -28,6 +41,9 @@ import {
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
+import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
@@ -89,6 +105,14 @@ const SENSITIVE_TEXT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "계좌 정보", pattern: /(계좌|예금주|은행명|계좌번호)/ },
   { label: "연락처", pattern: /(연락처|전화번호|카카오톡|카톡\s*ID|오픈채팅|오픈톡)/i },
   { label: "계약 식별 정보", pattern: /(계약번호|예약번호|주민등록|상세주소|집주소)/ },
+  {
+    label: "건강·임신·성생활 정보",
+    pattern: /(임신|난임|불임|유산|낙태|당뇨|암|우울증|공황장애|병력|진단명|복용약|성생활|성관계)/,
+  },
+  {
+    label: "민감한 가족관계",
+    pattern: /(?:부모님|아버지|어머니|엄마|아빠|시댁|친정|가족).{0,24}(?:이혼|재혼|별거|절연|사망|입양|폭력|학대|채무|빚)/,
+  },
 ];
 
 const SYSTEM_ACTION_TOOL_NAMES = new Set([
@@ -186,7 +210,8 @@ function buildCommunityTitle(question: string, category: CommunityCategory): str
 }
 
 function extractCommunityContext(userQuestion: string, amoraAnswer: string): string[] {
-  const text = `${normalizeChatText(userQuestion)} ${normalizeChatText(amoraAnswer).replace(/\*\*/g, "")}`;
+  const text = normalizeChatText(userQuestion);
+  void amoraAnswer;
   const items: string[] = [];
   const seen = new Set<string>();
   const add = (item: string) => {
@@ -200,19 +225,7 @@ function extractCommunityContext(userQuestion: string, amoraAnswer: string): str
   if (budgetMatch) add(`총 예산은 ${budgetMatch[1]}만원 정도로 보고 있어요.`);
 
   if (/(예식장|웨딩홀)[^.!?\n]{0,30}(미정|아직|정하지|못 정)/.test(text) || /아직[^.!?\n]{0,20}(예식장|웨딩홀)/.test(text)) {
-    add("예식장은 아직 확정하지 않았어요.");
-  }
-
-  if (/(호텔|컨벤션|웨딩홀|야외)/.test(text) && /(예식\s*형태|웨딩\s*형태|예식장\s*비중|비중)/.test(text)) {
-    add("예식 형태에 따라 예식장/스드메 비중이 달라질 수 있다고 들었어요.");
-  }
-
-  if (/스드메|스튜디오|드레스|메이크업/.test(text) && /예산|분배|비중|추가금|비용/.test(text)) {
-    add("스드메와 예식장 사이에서 어느 쪽에 더 비중을 둘지 고민 중이에요.");
-  }
-
-  if (/계약|환불|위약금|취소|추가금/.test(text) && /견적|계약|업체/.test(text)) {
-    add("계약 전에 빠뜨리기 쉬운 비용이나 조건이 있는지도 같이 보고 싶어요.");
+    add("결혼식장은 아직 확정하지 않았어요.");
   }
 
   return items.slice(0, 3);
@@ -239,7 +252,7 @@ function buildCommunityGuideBullets(question: string, category: CommunityCategor
 
   if (/웨딩홀|예식장|식대|보증|하객|대관료/.test(text)) {
     return [
-      "예식장 상담 때 먼저 확인하면 좋은 조건",
+      "결혼식장 상담 때 먼저 확인하면 좋은 조건",
       "식대나 보증 인원에서 놓치기 쉬운 부분",
       "실제로 계약 후에 알았으면 좋았을 점",
     ];
@@ -364,6 +377,10 @@ function getCommunityAskCue(
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
   const { profile, couple, journey, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
+  const amoraPersonalization = useAmoraPersonalization(
+    !isDemo && Boolean(profile?.id),
+  );
+  const saveAmoraPersonalization = amoraPersonalization.save;
   const {
     messages,
     isStreaming,
@@ -380,6 +397,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    requestMediation: requestStructuredMediation,
     clearMessages,
     subscribeToMessages,
     pollNewMessages,
@@ -388,6 +406,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     retryFailedMessage,
     dismissFailedMessageRetry,
   } = useChatStore();
+  const isConfirmedActionRecovery =
+    failedRequest?.recoveryKind === "confirmed_action";
   const [input, setInput] = useState("");
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
   const [pendingSend, setPendingSend] = useState<{ text?: string } | null>(null);
@@ -406,6 +426,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
+  const [pendingPersonalization, setPendingPersonalization] =
+    useState<PendingAmoraPersonalizationChoice | null>(null);
   // 채팅 탭 — "shared" (둘이 함께 + 상대방에게) | "private" (나만의 1:1)
   const [activeTab, setActiveTab] = useState<"shared" | "private">("shared");
   const isPrivate = activeTab === "private"; // private 탭일 때만 비공개 모드
@@ -426,7 +448,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const timer = window.setInterval(updateNow, 1000);
     return () => window.clearInterval(timer);
   }, []);
-  const [showMediationBanner, setShowMediationBanner] = useState(false);
+  const [mediationDismissed, setMediationDismissed] = useState(false);
+  const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
+  const showMediationBanner =
+    activeTab === "shared"
+    && !mediationDismissed
+    && !mediationConsentOpen
+    && shouldOfferMediation(messages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -467,6 +495,22 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, [searchParams, router]);
   const greetingRequested = useRef(false);
   const coupleId = couple?.id;
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || isDemo) {
+      setPendingPersonalization(null);
+      return;
+    }
+    setPendingPersonalization(
+      readPendingAmoraPersonalizationChoice(profile.id, coupleId),
+    );
+  }, [coupleId, isDemo, profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || !amoraPersonalization.profile) return;
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
     if (!isDemo || !coupleId || !profile) return;
@@ -794,12 +838,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     followStreamRef.current = false; // 응답 완료 → 다음 발화까지 자동 follow 안 함
   }, [isStreaming, scrollContainerToBottom]);
 
-  // ⚠️ 갈등 감지 로직은 서버 사이드(/api/chat/check-couple-conflict)로 이전됨.
-  // chatStore.sendMessage 가 커플 메시지 INSERT 직후 fire-and-forget 으로 호출.
-  // 서버에서 휴리스틱 + 회상 필터 + 턴 패턴 + (borderline) LLM 검증 → 트리거 시
-  // mediation 메시지를 직접 INSERT 하며 Realtime 으로 양쪽 클라이언트에 자동 전달.
-  // 단일 진실원본이라 양쪽 디바이스 동시 트리거하는 race condition 제거.
-
   // 글로벌 붙여넣기 이벤트 (document level)
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
@@ -961,10 +999,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   })();
 
   const handleSend = useCallback(
-    async (text?: string) => {
+    async (text?: string, targetOverride?: ChatMessageTarget) => {
       if (isStreaming || isSending) return;
       const content = text ?? input.trim();
       if ((!content && attachments.length === 0) || !coupleId || !profile) return;
+      const sendTarget = targetOverride ?? messageTarget;
 
       const currentAttachments = [...attachments];
       const attachmentCheck = prepareChatAttachmentPayload(currentAttachments);
@@ -990,7 +1029,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       // private mode + AI 대상일 때만 visibility 분리. 그 외는 shared.
       const role = profile.role ?? "bride";
-      const visibility = isPrivate && messageTarget === "ai"
+      const visibility = isPrivate && sendTarget === "ai"
         ? (role === "groom" ? "groom_private" : "bride_private")
         : "shared";
 
@@ -1007,7 +1046,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           progress: journey?.progress ?? {},
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
-        target: messageTarget,
+        target: sendTarget,
         visibility,
       });
     },
@@ -1130,21 +1169,40 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
   }, [communityDraft, communityPosting]);
 
-  // 배너에서 수동 중재 요청
-  const handleManualMediation = useCallback(() => {
-    setShowMediationBanner(false);
-    setMessageTarget("ai");
+  const openMediationConsent = useCallback(() => {
+    setMediationConsentOpen(true);
+  }, []);
 
-    // 최근 대화에서 갈등 주제 추출
-    const recentConflictMsgs = messages
-      .filter((m) => m.sender_role !== "ai")
-      .slice(-5);
-    const lastTopic = recentConflictMsgs.length > 0
-      ? recentConflictMsgs[recentConflictMsgs.length - 1].content.slice(0, 50)
-      : "결혼 준비";
+  const cancelMediationConsent = useCallback(() => {
+    setMediationConsentOpen(false);
+    setMediationDismissed(true);
+  }, []);
 
-    handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
-  }, [messages, handleSend]);
+  const confirmMediationConsent = useCallback(
+    async (requesterSummary: string) => {
+      if (
+        !coupleId
+        || !profile
+        || (profile.role !== "bride" && profile.role !== "groom")
+      ) return;
+      setMediationConsentOpen(false);
+      setMediationDismissed(true);
+      setMessageTarget("ai");
+      await requestStructuredMediation({
+        coupleId,
+        senderRole: profile.role,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        conflictContext: requesterSummary,
+      });
+    },
+    [coupleId, journey, profile, requestStructuredMediation],
+  );
 
   // 사용자가 직접 send 버튼/엔터/제안 칩으로 보낼 때 게이트 — 파트너가 입력 중이거나
   // AI가 파트너 메시지에 응답 중이면 confirm 모달.
@@ -1172,6 +1230,113 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       handleSend,
     ]
   );
+
+  const personalizationReply = resolveAmoraPersonalizationReply(
+    messages,
+    profile?.id ?? null,
+    coupleId ?? null,
+    pendingPersonalization,
+  );
+  const personalizationReplyMessageId =
+    personalizationReply.replyMessageId;
+
+  useEffect(() => {
+    if (
+      !profile?.id ||
+      !coupleId ||
+      !pendingPersonalization ||
+      !initialLoadDone ||
+      amoraPersonalization.status !== "ready" ||
+      personalizationReply.state !== "stale"
+    ) {
+      return;
+    }
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [
+    amoraPersonalization.status,
+    coupleId,
+    initialLoadDone,
+    pendingPersonalization,
+    personalizationReply.state,
+    profile?.id,
+  ]);
+
+  const showPersonalizationConfirmation =
+    activeTab === "shared" &&
+    amoraPersonalization.status === "ready" &&
+    !amoraPersonalization.profile &&
+    Boolean(personalizationReplyMessageId) &&
+    Boolean(pendingPersonalization) &&
+    !isStreaming &&
+    !isSending;
+  const showAmoraQuickStart = shouldOfferAmoraQuickStart({
+    enabled:
+      !isDemo &&
+      initialLoadDone &&
+      Boolean(coupleId) &&
+      Boolean(profile),
+    status: amoraPersonalization.status,
+    hasSavedProfile: Boolean(amoraPersonalization.profile),
+    hasPendingChoice: Boolean(pendingPersonalization),
+    busy:
+      isStreaming ||
+      isSending ||
+      Boolean(aiResponding) ||
+      partnerTypingActive ||
+      input.trim().length > 0 ||
+      attachments.length > 0,
+    activeTab,
+    currentUserId: profile?.id ?? null,
+    messages,
+  });
+
+  const handlePersonalizationSelect = useCallback(
+    (option: AmoraQuickStartOption) => {
+      if (!showAmoraQuickStart || !profile || !coupleId) return;
+      const pending = rememberPendingAmoraPersonalizationChoice({
+        currentUserId: profile.id,
+        coupleId,
+        option,
+        existingUserMessageIds: messages
+          .filter(
+            (message) =>
+              message.sender_id === profile.id &&
+              message.sender_role !== "ai",
+          )
+          .map((message) => message.id),
+      });
+      if (!pending) return;
+      setPendingPersonalization(pending);
+      setMessageTarget("ai");
+      void handleSend(option.message, "ai");
+    },
+    [coupleId, handleSend, messages, profile, showAmoraQuickStart],
+  );
+
+  const confirmAmoraPersonalization = useCallback(async () => {
+    if (!pendingPersonalization) return;
+    const saved = await saveAmoraPersonalization(
+      pendingPersonalization.option.changes,
+    );
+    if (saved) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+      setPendingPersonalization(null);
+    }
+  }, [pendingPersonalization, saveAmoraPersonalization]);
+
+  const dismissAmoraPersonalization = useCallback(() => {
+    if (pendingPersonalization) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+    }
+    setPendingPersonalization(null);
+  }, [pendingPersonalization]);
 
   // "새 채팅" 버튼 클릭 — activeTab 따라 적절한 modal 단계로
   const openNewChatModal = useCallback(() => {
@@ -1340,7 +1505,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 <div className="max-h-[72dvh] overflow-y-auto px-5 py-4">
                   <div className="rounded-xl border border-[#F0E6D8] bg-[#FFF9EB] px-4 py-3">
                     <p className="text-sm leading-relaxed text-[#6E5732]">
-                      커뮤니티에 공개되는 글입니다. 이름, 전화번호, 이메일, 계좌, 계약번호가 들어가 있으면 지우고 올려주세요.
+                      커뮤니티에 공개되는 글입니다. 이름과 생년월일, 연락처, 정확한
+                      주소, 건강·임신·성생활·민감한 가족관계, 계약·예약번호가
+                      들어가 있으면 지우고 올려주세요. 사진 속 글자도 직접 확인해
+                      주세요.
                     </p>
                   </div>
 
@@ -1440,6 +1608,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         );
       })()}
 
+      {mediationConsentOpen && (
+        <MediationConsentDialog
+          onCancel={cancelMediationConsent}
+          onConfirm={confirmMediationConsent}
+        />
+      )}
+
     <div className="h-full flex flex-col w-full">
       {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
@@ -1532,6 +1707,17 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           )}
         </div>
       </div>
+      <p
+        role="status"
+        aria-live="polite"
+        className={`mx-auto -mt-1 mb-1 w-full max-w-[70rem] px-3 text-[0.6875rem] leading-relaxed ${
+          activeTab === "private" ? "text-[#5a6147]" : "text-[#795252]"
+        }`}
+      >
+        {activeTab === "private"
+          ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
+          : "현재 범위 · 함께 대화 — 파트너에게 보여요"}
+      </p>
 
       {/* AI 생성 배지 — 채팅 전체에 한 번만 표시 (메시지별 footer 대체).
           AI 기본법(2026.1.22) 표시 의무를 충족하면서 가독성 회복. */}
@@ -1695,7 +1881,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 <p className="text-sm text-[#504444] leading-relaxed mb-5">
                   지금까지의 비공개 상담 기록을 정리하시겠어요?
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">상대방은 영향받지 않습니다 (애초에 못 봤음).</span>
+                  <span className="text-[#928980] text-[12.5px]">
+                    상대방의 비공개 상담에는 영향이 없어요.
+                  </span>
                 </p>
                 <div className="space-y-2">
                   <button
@@ -1709,8 +1897,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     onClick={() => performClear("delete_private")}
                     className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-red-600 mb-1">영구 삭제</div>
-                    <div className="text-[12px] text-[#504444]">DB에서 완전히 삭제. <strong>복구 불가</strong>.</div>
+                    <div className="text-[14.5px] font-medium text-red-600 mb-1">
+                      비공개 대화·아모라 기억 삭제
+                    </div>
+                    <div className="text-[12px] leading-relaxed text-[#504444]">
+                      이 대화와 아모라가 만든 요약·기억을 삭제하고 비공개 기억
+                      사용을 꺼요. 별도 저장 메모·법적/보안 로그·백업은 각 보관
+                      정책에 따라 처리돼요.
+                    </div>
                   </button>
                 </div>
                 <div className="mt-5 flex justify-end">
@@ -1852,6 +2046,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 {pendingAction && (
                   <PendingAmoraActionCard
                     action={pendingAction}
+                    messageId={msg.id}
                     disabledReason={pendingActionDisabledReason}
                     isApplying={applyingPendingActionId === pendingAction.actionId}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
@@ -1886,10 +2081,28 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       </div>
                     )
                   )}
+                {pendingPersonalization &&
+                  msg.id === personalizationReplyMessageId &&
+                  showPersonalizationConfirmation && (
+                    <AmoraPersonalizationConfirmation
+                      option={pendingPersonalization.option}
+                      saving={amoraPersonalization.saving}
+                      error={amoraPersonalization.error}
+                      onConfirm={() => void confirmAmoraPersonalization()}
+                      onDismiss={dismissAmoraPersonalization}
+                    />
+                  )}
               </div>
             );
           });
         })()}
+
+        {showAmoraQuickStart && (
+          <AmoraQuickStart
+            disabled={isStreaming || isSending}
+            onSelect={handlePersonalizationSelect}
+          />
+        )}
 
         {isStreaming && (
           <div className="animate-fade-in">
@@ -1966,10 +2179,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 에러 메시지 */}
       {error && !isStreaming && (
         <div
-          className="mx-2 mt-2 rounded-xl border border-red-100 bg-red-50 p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
-          role="alert"
+          className={`mx-2 mt-2 rounded-xl border p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${
+            isConfirmedActionRecovery
+              ? "border-[#B9DAD5] bg-[#F0F8F6]"
+              : "border-red-100 bg-red-50"
+          }`}
+          role={isConfirmedActionRecovery ? "status" : "alert"}
         >
-          <p className="text-sm leading-relaxed text-red-700">{error}</p>
+          <p
+            className={`text-sm leading-relaxed ${
+              isConfirmedActionRecovery ? "text-[#245B56]" : "text-red-700"
+            }`}
+          >
+            {error}
+          </p>
           {failedRequest?.unavailableReason && (
             <p className="mt-1 text-xs leading-relaxed text-red-600">
               {failedRequest.unavailableReason}
@@ -1981,18 +2204,32 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 type="button"
                 onClick={() => void retryFailedMessage()}
                 disabled={isStreaming || isRetrying}
-                className="min-h-9 rounded-lg bg-red-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`min-h-9 rounded-lg px-3.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isConfirmedActionRecovery
+                    ? "bg-[#2F766F] hover:bg-[#245B56]"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
               >
-                {isRetrying ? "다시 시도 중..." : "다시 시도"}
+                {isConfirmedActionRecovery
+                  ? isRetrying
+                    ? "반영 확인 중..."
+                    : "반영 계속하기"
+                  : isRetrying
+                    ? "다시 시도 중..."
+                    : "다시 시도"}
               </button>
             )}
             <button
               type="button"
               onClick={dismissFailedMessageRetry}
               disabled={isStreaming || isRetrying}
-              className="min-h-9 rounded-lg border border-red-200 bg-white px-3.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`min-h-9 rounded-lg border bg-white px-3.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                isConfirmedActionRecovery
+                  ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
+                  : "border-red-200 text-red-700 hover:bg-red-100"
+              }`}
             >
-              닫기
+              {isConfirmedActionRecovery ? "나중에" : "닫기"}
             </button>
           </div>
         </div>
@@ -2058,7 +2295,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="px-2 pt-2">
           <div className="relative bg-white rounded-xl px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <button
-              onClick={() => { setShowMediationBanner(false); }}
+              onClick={() => {
+                setMediationDismissed(true);
+              }}
               className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
             >
               <X className="w-4 h-4" />
@@ -2075,7 +2314,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   아모라가 중립적으로 의견 조율을 도와드릴게요
                 </p>
                 <button
-                  onClick={handleManualMediation}
+                  onClick={openMediationConsent}
                   className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
@@ -2088,7 +2327,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 제안 버튼 — 입력창과 충분한 간격 유지 */}
-      {suggestions.length > 0 && !isStreaming && (
+      {suggestions.length > 0 &&
+        !isStreaming &&
+        !showAmoraQuickStart &&
+        !showPersonalizationConfirmation && (
         <div className="px-2 pt-2 pb-4 sm:pb-5 border-t border-[#F0EFED]/60 mt-2">
           <SuggestionButtons suggestions={suggestions} onSelect={attemptSend} disabled={isStreaming} />
         </div>
@@ -2212,7 +2454,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ? "상대방에게 메시지…"
                 : isPrivate
                   ? "아모라에게 솔직히…"
-                  : "무엇이든 물어보세요…"
+                  : "결혼 준비에서 궁금한 점을 물어보세요…"
             }
             disabled={isStreaming || isSending}
             className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[7.5rem] overflow-y-auto"

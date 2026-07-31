@@ -102,6 +102,7 @@ describe("web sealed-single settings contract", () => {
   it("explains that reinviting is blocked and offers restart and support paths", () => {
     expect(source).toContain("새 멤버를 이 커플에 초대할 수 없어요");
     expect(source).toContain("새 커플로 다시 시작");
-    expect(source).toContain("https://hanbang.ai/support");
+    expect(source).toContain("mailto:${CONTACT.email}");
+    expect(source).not.toContain("https://hanbang.ai/support");
   });
 });

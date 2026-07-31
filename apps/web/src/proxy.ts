@@ -132,7 +132,11 @@ export async function proxy(request: NextRequest) {
 
   if (
     isPreviewStubMode() &&
-    isApiPath
+    isApiPath &&
+    !(
+      request.nextUrl.pathname === "/api/demo/start" &&
+      request.method.toUpperCase() === "POST"
+    )
   ) {
     return NextResponse.json(
       { error: "preview_stub_api_disabled" },

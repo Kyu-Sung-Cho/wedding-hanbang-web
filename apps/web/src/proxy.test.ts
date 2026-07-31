@@ -104,6 +104,30 @@ describe("proxy preview stub write fence", () => {
     expect(middlewareMock.updateSession).not.toHaveBeenCalled();
   });
 
+  it("allows only the non-persistent demo-cookie starter through the preview fence", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    const request = new NextRequest("https://preview.example.test/api/demo/start", {
+      method: "POST",
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(middlewareMock.updateSession).toHaveBeenCalledOnce();
+    expect(middlewareMock.updateSession).toHaveBeenCalledWith(request);
+  });
+
+  it("does not exempt other methods on the demo path", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+
+    const response = await proxy(
+      new NextRequest("https://preview.example.test/api/demo/start"),
+    );
+
+    expect(response.status).toBe(503);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
   it("still renders public pages while the preview API fence is active", async () => {
     vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
     const request = new NextRequest("https://preview.example.test/wedding");

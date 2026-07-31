@@ -33,6 +33,26 @@ import { useAuthStore } from "./authStore";
 
 type ClearScope = "shared" | "private";
 
+function logChatDiagnostic(label: string, detail?: unknown) {
+  if (process.env.NODE_ENV === "production") return;
+
+  if (detail instanceof Error) {
+    console.warn(label, { name: detail.name, message: detail.message });
+    return;
+  }
+
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    console.warn(label, {
+      code: typeof record.code === "string" ? record.code : undefined,
+      message: typeof record.message === "string" ? record.message.slice(0, 300) : undefined,
+    });
+    return;
+  }
+
+  console.warn(label);
+}
+
 function createClientRequestId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -136,6 +156,8 @@ export interface FailedChatRequest {
   /** Immutable JSON snapshot, including safe base64 attachment copies. */
   requestBody: string;
   isDemo: boolean;
+  /** A durable confirmation exists, but its application turn still needs resuming. */
+  recoveryKind?: "confirmed_action";
 }
 
 interface ChatStoreState {
@@ -194,6 +216,7 @@ interface ChatStoreState {
     senderRole: MessageSenderRole;
     senderName: string;
     weddingContext: WeddingContext;
+    /** 요청자가 확인창에 직접 작성한 요약. 대화 원문을 자동 복사하면 안 된다. */
     conflictContext: string;
   }) => Promise<void>;
   clearMessages: (
@@ -595,7 +618,7 @@ async function parseSSEStream(
           return true;
       }
     } catch (e) {
-      console.warn("SSE 파싱 실패:", e);
+      logChatDiagnostic("SSE 파싱 실패", e);
     }
     return false;
   };
@@ -726,6 +749,84 @@ const PERMANENT_REQUEST_RETRY_UNAVAILABLE =
   "같은 요청을 다시 보내도 해결되지 않아요. 입력이나 첨부파일을 확인한 뒤 새 메시지로 보내주세요.";
 const EXPLICIT_ACTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export function buildConfirmedActionRecoveryRequest(
+  messages: ChatMessage[],
+  coupleId: string,
+): FailedChatRequest | null {
+  const authState = useAuthStore.getState();
+  const profile = authState.profile;
+  if (
+    !profile
+    || profile.couple_id !== coupleId
+    || (profile.role !== "bride" && profile.role !== "groom")
+  ) {
+    return null;
+  }
+
+  const canonicalShared = messages.filter(
+    (message) => (
+      message.visibility === "shared"
+      && message.metadata?.target !== "partner"
+    ),
+  );
+  const confirmation = canonicalShared[canonicalShared.length - 1];
+  const confirmedActionId = confirmation?.metadata?.confirmed_amora_action_id;
+  if (
+    !confirmation
+    || confirmation.sender_id !== profile.id
+    || confirmation.sender_role === "ai"
+    || typeof confirmedActionId !== "string"
+    || !EXPLICIT_ACTION_ID_PATTERN.test(confirmedActionId)
+  ) {
+    return null;
+  }
+
+  const clientRequestId = createClientRequestId();
+  const journey = authState.journey;
+  const recentMessages = canonicalShared.slice(-20).map((message) => {
+    if (message.sender_role === "ai") {
+      return { role: "assistant" as const, content: message.content };
+    }
+    const roleLabel = message.sender_role === "bride" ? "신부" : "신랑";
+    return {
+      role: "user" as const,
+      content: `[${roleLabel}] ${message.content}`,
+    };
+  });
+  const requestBody = JSON.stringify({
+    messages: recentMessages,
+    coupleId,
+    senderName: profile.name ?? "사용자",
+    senderRole: profile.role,
+    weddingContext: {
+      weddingDate: journey?.wedding_date ?? null,
+      budget: journey?.total_budget ?? 0,
+      venue: journey?.venue ?? null,
+      progress: journey?.progress ?? {},
+    },
+    isDemo: false,
+    clientRequestId,
+    userMessageId: confirmation.id,
+    visibility: "shared",
+    confirmedActionId,
+  });
+
+  return {
+    clientRequestId,
+    userMessageId: confirmation.id,
+    coupleId,
+    content: confirmation.content,
+    visibility: "shared",
+    confirmedActionId,
+    attachmentCount: 0,
+    canRetry: true,
+    unavailableReason: null,
+    requestBody,
+    isDemo: false,
+    recoveryKind: "confirmed_action",
+  };
+}
+
 class ChatProviderRequestError extends Error {
   constructor(
     message: string,
@@ -821,8 +922,11 @@ async function executeChatProviderRequest(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      console.error("AI API 에러:", res.status, errText);
       const parsed = parseChatHttpError(errText);
+      logChatDiagnostic("AI API 요청 실패", {
+        code: parsed.code,
+        message: `HTTP ${res.status}`,
+      });
       const retryable = isRetryableChatHttpError(res.status, parsed.code);
       const fallbackMessage = res.status === 429
         ? "지금은 잠시 쉬어가고 있어요. 잠시 후 다시 시도해주세요."
@@ -916,7 +1020,8 @@ async function executeChatProviderRequest(
     });
 
     if (progressTouched) {
-      await useAuthStore.getState().refreshJourney();
+      const authState = useAuthStore.getState();
+      await authState.refreshJourney(authState.user?.id);
     }
 
     // 저장까지 성공했을 때만 재시도 상태를 지운다. 서버가 보낸 안내(예: 일부 저장
@@ -924,7 +1029,7 @@ async function executeChatProviderRequest(
     set({ failedRequest: null });
   } catch (err) {
     if (!isCurrentLifecycle()) return;
-    console.error("AI 응답 에러:", err);
+    logChatDiagnostic("AI 응답 처리 실패", err);
     const isAbort = err instanceof DOMException && err.name === "AbortError";
     const requestError = err instanceof ChatProviderRequestError ? err : null;
     set({
@@ -979,7 +1084,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       const supabase = createClient();
 
       // 본인 프로필의 view-reset timestamp 조회 (병렬)
-      const [{ data: profileData }, { data: messagesData, error: messagesErr }] = await Promise.all([
+      const [
+        { data: profileData },
+        { data: messagesData, error: messagesErr },
+        { data: latestCanonicalData, error: latestCanonicalError },
+      ] = await Promise.all([
         supabase.auth.getUser().then(async ({ data: { user } }) => {
           if (!user) return { data: null };
           return supabase
@@ -992,11 +1101,23 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           .from("chat_messages")
           .select("*")
           .eq("couple_id", coupleId)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
           .limit(500),
+        supabase
+          .from("chat_messages")
+          .select("*")
+          .eq("couple_id", coupleId)
+          .eq("visibility", "shared")
+          .or("metadata->>target.is.null,metadata->>target.neq.partner")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (messagesErr) throw messagesErr;
+      if (latestCanonicalError) throw latestCanonicalError;
       if (get().isStreaming) return;
 
       const currentState = get();
@@ -1011,18 +1132,45 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         readLocalClearedAt(coupleId, "private")
       );
 
-      const allMessages = (messagesData ?? [])
+      const boundedRows = [...(messagesData ?? [])];
+      if (
+        latestCanonicalData
+        && !boundedRows.some((row) => row.id === latestCanonicalData.id)
+      ) {
+        boundedRows.push(latestCanonicalData);
+      }
+      const allMessages = boundedRows
+        .reverse()
         .map((m) => dbRowToMessage(m as Record<string, unknown>))
         .filter(canCurrentUserSeeMessage)
         .filter((m) => {
           // 본인의 view-reset timestamp 적용
           return isAfterClearedAt(m, sharedClearedAt, privateClearedAt);
+        })
+        .sort((left, right) => {
+          const byCreatedAt =
+            new Date(left.created_at).getTime()
+            - new Date(right.created_at).getTime();
+          return byCreatedAt || left.id.localeCompare(right.id);
         });
 
       // cleared_at 도 store 에 저장 — pollNewMessages 가 활용
-      set({ messages: allMessages, sharedClearedAt, privateClearedAt });
+      const recoveryRequest = get().failedRequest
+        ? null
+        : buildConfirmedActionRecoveryRequest(allMessages, coupleId);
+      set({
+        messages: allMessages,
+        sharedClearedAt,
+        privateClearedAt,
+        ...(recoveryRequest
+          ? {
+              failedRequest: recoveryRequest,
+              error: "확인은 안전하게 저장됐어요. 반영을 이어서 완료해 주세요.",
+            }
+          : {}),
+      });
     } catch (err) {
-      console.error("채팅 로드 에러:", err);
+      logChatDiagnostic("채팅 불러오기 실패", err);
       set({ error: "채팅을 불러오지 못했습니다." });
     } finally {
       set({ isLoading: false, initialLoadDone: true });
@@ -1120,7 +1268,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const isDemo = document.cookie.includes("demo_mode=true");
 
     // 메시지 메타데이터 (상대방에게 보내는 경우 target 표시)
-    const msgMetadata = target === "partner" ? { target: "partner" as const } : null;
+    const msgMetadata: ChatMessageMetadata | null =
+      target === "partner"
+        ? { target: "partner" }
+        : confirmedActionId
+          ? { confirmed_amora_action_id: confirmedActionId }
+          : null;
 
     // Idempotency용 UUID — 같은 sendMessage 호출의 모든 fetch (browser retry 포함)는
     // 동일한 ID를 사용. 서버는 이걸로 chat_messages dedup.
@@ -1146,10 +1299,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (!uploadErr) {
             imagePaths.push(fileName);
           } else {
-            console.warn("Storage 업로드 실패 (무시):", uploadErr.message);
+            logChatDiagnostic("채팅 이미지 저장 실패", uploadErr);
           }
         } catch (err) {
-          console.warn("Storage 업로드 에러 (무시):", err);
+          logChatDiagnostic("채팅 이미지 저장 중 예외", err);
         }
       }
     }
@@ -1167,7 +1320,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       // D3: 클라이언트 측 stage_tag 계산 (wedding_date 기반 순수 함수)
       const userStageTag = determineStage(weddingContext?.weddingDate ?? null);
 
-      const { data: inserted, error: insertErr } = await supabase
+      let { data: inserted, error: insertErr } = await supabase
         .from("chat_messages")
         .insert({
           couple_id: coupleId,
@@ -1182,8 +1335,27 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         .select()
         .single();
 
+      // A network error can hide a committed INSERT. Confirmation rows are
+      // uniquely bound by action/actor at the database boundary, so reconcile
+      // that exact durable row before ever asking the user to insert again.
+      if (insertErr && confirmedActionId) {
+        const { data: reconciled, error: reconcileErr } = await supabase
+          .from("chat_messages")
+          .select("*")
+          .eq("couple_id", coupleId)
+          .eq("sender_id", senderId)
+          .eq("role", "user")
+          .eq("visibility", "shared")
+          .eq("metadata->>confirmed_amora_action_id", confirmedActionId)
+          .maybeSingle();
+        if (!reconcileErr && reconciled) {
+          inserted = reconciled;
+          insertErr = null;
+        }
+      }
+
       if (insertErr) {
-        console.error("메시지 저장 에러:", insertErr);
+        logChatDiagnostic("메시지 저장 실패", insertErr);
         set({ error: "메시지 전송에 실패했습니다." });
         return;
       }
@@ -1250,7 +1422,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
       });
     } catch (error) {
-      console.error("AI 요청 직렬화 에러:", error);
+      logChatDiagnostic("AI 요청 정보 준비 실패", error);
       set({ error: "요청 정보를 안전하게 준비하지 못했습니다. 새 메시지로 다시 보내주세요." });
       return;
     }
@@ -1360,7 +1532,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
-      console.error("초기 인사 에러:", err);
+      logChatDiagnostic("초기 인사 요청 실패", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       set({
         error: isAbort
@@ -1373,9 +1545,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 
-  // 갈등 중재: 커플 대화 중 아모라가 자동 개입
+  // 갈등 중재: 사용자가 명시적으로 요청한 구조화 초안
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
     if (get().isStreaming) return;
+
+    const requesterSummary = conflictContext.trim().slice(0, 600);
+    if (requesterSummary.length < 4) {
+      set({ error: "아모라에게 전달할 상황을 짧게 적어주세요." });
+      return;
+    }
 
     set({
       isStreaming: true,
@@ -1392,24 +1570,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
 
     try {
-      // mediation은 항상 shared 컨텍스트 — private 메시지 절대 포함 금지
-      const sharedMessages = get().messages.filter((m) => m.visibility === "shared");
-      const recentMessages = sharedMessages.slice(-20).map((m) => {
-        if (m.sender_role === "ai") {
-          return { role: "assistant" as const, content: m.content };
-        }
-        const roleLabel = m.sender_role === "bride" ? "신부" : "신랑";
-        const isPartner = m.metadata?.target === "partner";
-        const prefix = isPartner ? `[${roleLabel}→상대방]` : `[${roleLabel}]`;
-        return { role: "user" as const, content: `${prefix} ${m.content}` };
-      });
-
-      // 중재 요청 메시지 추가
+      // 상대방에게 직접 보낸 원문이나 비공개 대화를 클라이언트 payload에
+      // 복사하지 않는다. 실제 사용자의 AI 문맥은 서버가 공유 canonical DB
+      // history 중 target=partner 행을 제외하고 재구성하며, 이번 조율 요청에는
+      // 아래의 요청자 요약만 추가한다.
       const roleLabel = senderRole === "bride" ? "신부" : "신랑";
-      recentMessages.push({
+      const mediationMessages = [{
         role: "user" as const,
-        content: `[${roleLabel}] [MEDIATION_REQUEST] 위 커플 대화에서 갈등/의견 차이가 감지되었습니다. 아모라가 중립적으로 중재해주세요. 최근 갈등 맥락: ${conflictContext}`,
-      });
+        content: `[${roleLabel}] [MEDIATION_REQUEST] 내가 직접 작성한 조율 요청 요약: ${requesterSummary}`,
+      }];
 
       const isDemo = document.cookie.includes("demo_mode=true");
       const clientRequestId = createClientRequestId();
@@ -1417,7 +1586,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: recentMessages,
+          messages: mediationMessages,
           coupleId,
           senderName,
           senderRole,
@@ -1425,7 +1594,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           isDemo,
           clientRequestId,
           requestKind: "mediation",
-          conflictContext,
+          conflictContext: requesterSummary,
+          visibility: "shared",
         }),
         signal: abortController.signal,
       });
@@ -1461,7 +1631,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
       }
     } catch (err) {
-      console.error("중재 요청 에러:", err);
+      logChatDiagnostic("중재 요청 실패", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       set({
         error: isAbort

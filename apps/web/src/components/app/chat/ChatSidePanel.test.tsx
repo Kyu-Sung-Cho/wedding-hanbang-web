@@ -3,21 +3,49 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatSidePanel from "./ChatSidePanel";
+import { amoraPersonalizationPendingStorageKey } from "./amoraPersonalizationFlow";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
+
+function pendingIdentity(
+  tool: string,
+  input: Record<string, unknown>,
+) {
+  const { inputDigest, operationKey } = getAmoraToolOperationIdentity(tool, input);
+  return { inputDigest, operationKey };
+}
 
 const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   loadMessages: vi.fn(),
   requestInitialGreeting: vi.fn(),
+  requestMediation: vi.fn(),
   clearMessages: vi.fn(),
   subscribeToMessages: vi.fn(() => vi.fn()),
   retryFailedMessage: vi.fn(),
   dismissFailedMessageRetry: vi.fn(),
+  applicationFetch: vi.fn(),
   setChatState: vi.fn(),
+  initialLoadDone: false,
+  personalizationStatus: "ready" as "idle" | "loading" | "ready" | "error",
+  personalizationProfile: null as null | {
+    preferences: {
+      decisionStart: "recommend_first";
+      answerDetail: "adaptive";
+      supportOrder: "ask_each_time";
+      workMode: "ask_each_time";
+      familyOrder: "ask_each_time";
+    };
+    revision: number;
+    confirmedAt: string;
+    updatedAt: string;
+  },
+  savePersonalization: vi.fn(),
   messages: [] as Array<{
     id: string;
+    couple_id?: string;
     sender_id: string | null;
     sender_role: "bride" | "groom" | "ai";
     content: string;
@@ -33,6 +61,7 @@ const mocks = vi.hoisted(() => ({
       canRetry: boolean;
       unavailableReason: string | null;
       visibility: "shared" | "bride_private" | "groom_private";
+      recoveryKind?: "confirmed_action";
     },
   },
 }));
@@ -50,6 +79,16 @@ vi.mock("@/stores/authStore", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useAmoraPersonalization", () => ({
+  useAmoraPersonalization: () => ({
+    profile: mocks.personalizationProfile,
+    status: mocks.personalizationStatus,
+    saving: false,
+    error: null,
+    save: mocks.savePersonalization,
+  }),
+}));
+
 vi.mock("@/stores/chatStore", () => {
   const useChatStore = Object.assign(
     () => ({
@@ -62,10 +101,11 @@ vi.mock("@/stores/chatStore", () => {
       error: mocks.chatState.error,
       failedRequest: mocks.chatState.failedRequest,
       isRetrying: false,
-      initialLoadDone: false,
+      initialLoadDone: mocks.initialLoadDone,
       loadMessages: mocks.loadMessages,
       sendMessage: mocks.sendMessage,
       requestInitialGreeting: mocks.requestInitialGreeting,
+      requestMediation: mocks.requestMediation,
       clearMessages: mocks.clearMessages,
       subscribeToMessages: mocks.subscribeToMessages,
       retryFailedMessage: mocks.retryFailedMessage,
@@ -100,10 +140,35 @@ describe("ChatSidePanel attachment sending", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     mocks.messages = [];
     mocks.profileRole = "bride";
+    mocks.initialLoadDone = false;
+    mocks.personalizationStatus = "ready";
+    mocks.personalizationProfile = null;
+    mocks.savePersonalization.mockResolvedValue({
+      preferences: {
+        decisionStart: "recommend_first",
+        answerDetail: "adaptive",
+        supportOrder: "ask_each_time",
+        workMode: "ask_each_time",
+        familyOrder: "ask_each_time",
+      },
+      revision: 1,
+      confirmedAt: "2026-07-31T00:00:00.000Z",
+      updatedAt: "2026-07-31T00:00:00.000Z",
+    });
     mocks.chatState.error = null;
     mocks.chatState.failedRequest = null;
+    mocks.applicationFetch.mockReset();
+    mocks.applicationFetch.mockResolvedValue(new Response(JSON.stringify({
+      applicationGranted: true,
+      retryAfterMs: 0,
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", mocks.applicationFetch);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -111,12 +176,13 @@ describe("ChatSidePanel attachment sending", () => {
 
     await act(async () => {
       root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
     });
   });
 
   afterEach(async () => {
     await act(async () => root.unmount());
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     document.body.replaceChildren();
   });
@@ -161,6 +227,374 @@ describe("ChatSidePanel attachment sending", () => {
     }));
   });
 
+  it("cancels a mediation offer without sending or creating a shared message", async () => {
+    mocks.messages = [
+      {
+        id: "conflict-bride",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: "너는 맨날 내 말을 안 들어서 너무 서운해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: "2026-07-31T00:00:00.000Z",
+      },
+      {
+        id: "conflict-groom",
+        couple_id: "couple-1",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "난 절대 반대야. 그건 동의 못 해.",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: "2026-07-31T00:00:01.000Z",
+      },
+    ];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const offerButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("아모라에게 상담 요청하기"));
+    expect(offerButton).toBeDefined();
+
+    await act(async () => offerButton?.click());
+    expect(container.textContent).toContain(
+      "상대방에게 직접 보낸 메시지나 비공개 대화는 자동으로 가져오지 않아요",
+    );
+
+    const cancelButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "취소");
+    await act(async () => cancelButton?.click());
+
+    expect(mocks.requestMediation).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("내가 전달할 상황 요약");
+  });
+
+  it("routes confirmed mediation through the structured request with only a self-summary", async () => {
+    mocks.messages = [
+      {
+        id: "conflict-bride",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: "너는 맨날 내 말을 안 들어서 너무 서운해. PARTNER_RAW_ONE",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: "2026-07-31T00:00:00.000Z",
+      },
+      {
+        id: "conflict-groom",
+        couple_id: "couple-1",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "난 절대 반대야. 그건 동의 못 해. PARTNER_RAW_TWO",
+        visibility: "shared",
+        metadata: { target: "partner" },
+        created_at: "2026-07-31T00:00:01.000Z",
+      },
+    ];
+    mocks.requestMediation.mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+    const offerButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("아모라에게 상담 요청하기"));
+    expect(offerButton).toBeDefined();
+    await act(async () => offerButton?.click());
+
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[role="dialog"] textarea',
+    );
+    await act(async () => {
+      if (!textarea) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(textarea, "예산 상한선을 두고 의견이 달라요.");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const confirmButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("이 요약으로 초안 요청"));
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.requestMediation).toHaveBeenCalledWith(expect.objectContaining({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      conflictContext: "예산 상한선을 두고 의견이 달라요.",
+    }));
+    const serializedCall = JSON.stringify(mocks.requestMediation.mock.calls[0]?.[0]);
+    expect(serializedCall).not.toContain("PARTNER_RAW_ONE");
+    expect(serializedCall).not.toContain("PARTNER_RAW_TWO");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("sends quick-start to shared Amora and confirms only the exact correlated reply", async () => {
+    const greeting = {
+      id: "greeting-1",
+      couple_id: "couple-1",
+      sender_id: null,
+      sender_role: "ai" as const,
+      content: "무엇부터 함께 정리할까요?",
+      visibility: "shared" as const,
+      metadata: { target: "ai" },
+      created_at: "2026-07-31T00:00:00.000Z",
+    };
+    const quickStartMessage =
+      "추천안 하나부터 보고 싶어요. 지금 제 결혼 준비에서 가장 먼저 정할 한 가지를 알려주세요.";
+    mocks.initialLoadDone = true;
+    mocks.messages = [greeting];
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("지금 어떤 도움부터 받을까요?");
+    const partnerButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "상대방에게");
+    await act(async () => {
+      partnerButton?.click();
+      await Promise.resolve();
+    });
+
+    const recommendationButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("추천안 하나부터"));
+    await act(async () => {
+      recommendationButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      content: quickStartMessage,
+      target: "ai",
+      visibility: "shared",
+    }));
+    const pendingStorageKey = amoraPersonalizationPendingStorageKey(
+      "user-1",
+      "couple-1",
+    );
+    expect(window.sessionStorage.getItem(pendingStorageKey)).toBe(
+      "recommendation",
+    );
+    expect(mocks.savePersonalization).not.toHaveBeenCalled();
+
+    const selectedUserMessage = {
+      id: "quick-user-1",
+      couple_id: "couple-1",
+      sender_id: "user-1",
+      sender_role: "bride" as const,
+      content: quickStartMessage,
+      visibility: "shared" as const,
+      metadata: { target: "ai" },
+      created_at: "2026-07-31T00:00:01.000Z",
+    };
+    mocks.messages = [
+      greeting,
+      selectedUserMessage,
+      {
+        id: "unrelated-ai-1",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "다른 질문에 대한 답변",
+        visibility: "shared",
+        metadata: { in_reply_to_user_message_id: "other-user-message" },
+        created_at: "2026-07-31T00:00:02.000Z",
+      },
+    ];
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain(
+      "앞으로 결정이 필요할 때 추천안 하나를 먼저 보여드릴까요?",
+    );
+    expect(mocks.savePersonalization).not.toHaveBeenCalled();
+
+    mocks.messages = [
+      ...mocks.messages,
+      {
+        id: "correlated-ai-1",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "먼저 예식 날짜 범위를 정해보세요.",
+        visibility: "shared",
+        metadata: { in_reply_to_user_message_id: "quick-user-1" },
+        created_at: "2026-07-31T00:00:03.000Z",
+      },
+    ];
+    await act(async () => {
+      root.unmount();
+    });
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(container.textContent).toContain(
+      "앞으로 결정이 필요할 때 추천안 하나를 먼저 보여드릴까요?",
+    );
+
+    const saveButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "이대로 저장");
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.savePersonalization).toHaveBeenCalledWith({
+      decisionStart: "recommend_first",
+    });
+    expect(window.sessionStorage.getItem(pendingStorageKey)).toBeNull();
+    expect(container.textContent).not.toContain(
+      "앞으로 결정이 필요할 때 추천안 하나를 먼저 보여드릴까요?",
+    );
+  });
+
+  it("clears a recovered quick-start choice immediately when used only once", async () => {
+    const quickStartMessage =
+      "추천안 하나부터 보고 싶어요. 지금 제 결혼 준비에서 가장 먼저 정할 한 가지를 알려주세요.";
+    const pendingStorageKey = amoraPersonalizationPendingStorageKey(
+      "user-1",
+      "couple-1",
+    );
+    window.sessionStorage.setItem(pendingStorageKey, "recommendation");
+    mocks.initialLoadDone = true;
+    mocks.messages = [
+      {
+        id: "quick-user-recovered",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: quickStartMessage,
+        visibility: "shared",
+        metadata: { target: "ai" },
+        created_at: "2026-07-31T00:00:01.000Z",
+      },
+      {
+        id: "quick-ai-recovered",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "먼저 예식 날짜 범위를 정해보세요.",
+        visibility: "shared",
+        metadata: {
+          in_reply_to_user_message_id: "quick-user-recovered",
+        },
+        created_at: "2026-07-31T00:00:02.000Z",
+      },
+    ];
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const confirmation = container.querySelector<HTMLElement>(
+      '[aria-labelledby="amora-personalization-confirm-title"]',
+    );
+    expect(confirmation).not.toBeNull();
+    const buttons = confirmation?.querySelectorAll<HTMLButtonElement>("button");
+    await act(async () => {
+      buttons?.item(1).click();
+      await Promise.resolve();
+    });
+
+    expect(window.sessionStorage.getItem(pendingStorageKey)).toBeNull();
+    expect(mocks.savePersonalization).not.toHaveBeenCalled();
+    expect(
+      container.querySelector(
+        '[aria-labelledby="amora-personalization-confirm-title"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("deletes a stale recovered choice after a newer shared Amora turn", async () => {
+    const quickStartMessage =
+      "추천안 하나부터 보고 싶어요. 지금 제 결혼 준비에서 가장 먼저 정할 한 가지를 알려주세요.";
+    const pendingStorageKey = amoraPersonalizationPendingStorageKey(
+      "user-1",
+      "couple-1",
+    );
+    window.sessionStorage.setItem(pendingStorageKey, "recommendation");
+    mocks.initialLoadDone = true;
+    mocks.messages = [
+      {
+        id: "quick-user-stale",
+        couple_id: "couple-1",
+        sender_id: "user-1",
+        sender_role: "bride",
+        content: quickStartMessage,
+        visibility: "shared",
+        metadata: { target: "ai" },
+        created_at: "2026-07-31T00:00:01.000Z",
+      },
+      {
+        id: "quick-ai-stale",
+        couple_id: "couple-1",
+        sender_id: null,
+        sender_role: "ai",
+        content: "먼저 예식 날짜 범위를 정해보세요.",
+        visibility: "shared",
+        metadata: {
+          in_reply_to_user_message_id: "quick-user-stale",
+        },
+        created_at: "2026-07-31T00:00:02.000Z",
+      },
+      {
+        id: "newer-amora-turn",
+        couple_id: "couple-1",
+        sender_id: "user-2",
+        sender_role: "groom",
+        content: "그다음에는 무엇을 할까요?",
+        visibility: "shared",
+        metadata: { target: "ai" },
+        created_at: "2026-07-31T00:00:03.000Z",
+      },
+    ];
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(window.sessionStorage.getItem(pendingStorageKey)).toBeNull();
+    expect(
+      container.querySelector(
+        '[aria-labelledby="amora-personalization-confirm-title"]',
+      ),
+    ).toBeNull();
+    expect(mocks.savePersonalization).not.toHaveBeenCalled();
+  });
+
   it("offers an explicit provider-only retry and a close action", async () => {
     mocks.chatState.error = "AI 응답을 받지 못했습니다.";
     mocks.chatState.failedRequest = {
@@ -186,6 +620,44 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
+    expect(mocks.retryFailedMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.dismissFailedMessageRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a durable confirmation recovery as a neutral continue action", async () => {
+    mocks.chatState.error =
+      "확인은 안전하게 저장됐어요. 반영을 이어서 완료해 주세요.";
+    mocks.chatState.failedRequest = {
+      canRetry: true,
+      unavailableReason: null,
+      visibility: "shared",
+      recoveryKind: "confirmed_action",
+    };
+
+    await act(async () => {
+      root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    );
+    const continueButton = buttons.find(
+      (button) => button.textContent?.trim() === "반영 계속하기",
+    );
+    const laterButton = buttons.find(
+      (button) => button.textContent?.trim() === "나중에",
+    );
+    expect(continueButton).toBeDefined();
+    expect(laterButton).toBeDefined();
+
+    await act(async () => {
+      continueButton?.click();
+      laterButton?.click();
+      await Promise.resolve();
+    });
     expect(mocks.retryFailedMessage).toHaveBeenCalledTimes(1);
     expect(mocks.dismissFailedMessageRetry).toHaveBeenCalledTimes(1);
   });
@@ -490,10 +962,11 @@ describe("ChatSidePanel attachment sending", () => {
       metadata: {
         target: "ai",
         pending_amora_action: {
-          version: 1,
+          version: 2,
           actionId,
-          tool: "add_budget_item",
-          input: { category: "venue", amount: 3_000_000 },
+          tool: "add_custom_category",
+          input: { label: "추가 예산" },
+          ...pendingIdentity("add_custom_category", { label: "추가 예산" }),
           confirmation: "예식장 예산에 300만 원을 추가할까요?",
           issuedAt,
           expiresAt: issuedAt + 10 * 60 * 1_000,
@@ -518,12 +991,14 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
-      content: "좋아요. 제안한 변경을 적용해 주세요.",
-      target: "ai",
-      visibility: "shared",
-      confirmedActionId: actionId,
-    }));
+    await vi.waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        content: "좋아요. 제안한 변경을 적용해 주세요.",
+        target: "ai",
+        visibility: "shared",
+        confirmedActionId: actionId,
+      }));
+    });
   });
 
   it("fails closed when a newer shared Amora-context message follows the proposal", async () => {
@@ -539,10 +1014,14 @@ describe("ChatSidePanel attachment sending", () => {
         metadata: {
           target: "ai",
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
-            tool: "create_schedule",
-            input: { title: "드레스 투어" },
+            tool: "add_schedule_event",
+            input: { date: "2026-08-01", title: "드레스 투어" },
+            ...pendingIdentity("add_schedule_event", {
+              date: "2026-08-01",
+              title: "드레스 투어",
+            }),
             confirmation: "드레스 투어 일정을 추가할까요?",
             issuedAt,
             expiresAt: issuedAt + 10 * 60 * 1_000,
@@ -592,11 +1071,15 @@ describe("ChatSidePanel attachment sending", () => {
         metadata: {
           target: "ai",
           pending_amora_action: {
-            version: 1,
+            version: 2,
             actionId,
-            tool: "update_budget",
-            input: { amount: 20_000_000 },
-            confirmation: "총예산을 2천만 원으로 바꿀까요?",
+            tool: "add_schedule_event",
+            input: { date: "2026-08-01", title: "드레스 투어" },
+            ...pendingIdentity("add_schedule_event", {
+              date: "2026-08-01",
+              title: "드레스 투어",
+            }),
+            confirmation: "드레스 투어 일정을 추가할까요?",
             issuedAt,
             expiresAt: issuedAt + 10 * 60 * 1_000,
           },
@@ -627,9 +1110,11 @@ describe("ChatSidePanel attachment sending", () => {
       applyButton?.click();
       await Promise.resolve();
     });
-    expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
-      confirmedActionId: actionId,
-    }));
+    await vi.waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        confirmedActionId: actionId,
+      }));
+    });
   });
 
   it("never renders an executable action from private-message metadata", async () => {
@@ -643,10 +1128,11 @@ describe("ChatSidePanel attachment sending", () => {
       metadata: {
         target: "ai",
         pending_amora_action: {
-          version: 1,
+          version: 2,
           actionId: "123e4567-e89b-42d3-a456-426614174003",
           tool: "update_budget",
           input: { amount: 20_000_000 },
+          ...pendingIdentity("update_budget", { amount: 20_000_000 }),
           confirmation: "총예산을 바꿀까요?",
           issuedAt,
           expiresAt: issuedAt + 10 * 60 * 1_000,

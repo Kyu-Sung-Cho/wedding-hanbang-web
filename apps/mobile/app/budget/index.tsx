@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { PLANNING_CATEGORY_LABELS, type PlanningCategoryKey } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
@@ -17,50 +18,38 @@ import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/Ap
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
 
-const PAYER_OPTIONS: { value: PayerType; label: string; emoji: string }[] = [
-  { value: "couple", label: "커플", emoji: "\uD83D\uDC6B" },
-  { value: "bride_parents", label: "신부측", emoji: "\uD83D\uDC70" },
-  { value: "groom_parents", label: "신랑측", emoji: "\uD83E\uDD35" },
-  { value: "both_parents", label: "양가", emoji: "\uD83E\uDD1D" },
+const PAYER_OPTIONS: { value: PayerType; label: string }[] = [
+  { value: "couple", label: "두 사람" },
+  { value: "bride_parents", label: "예비 신부 가족" },
+  { value: "groom_parents", label: "예비 신랑 가족" },
+  { value: "both_parents", label: "두 가족" },
 ];
 
 // 업체·상품마다 다른 포함/별도 확인 항목. 금액은 공시가 또는 사용자 견적에서만 표시한다.
 const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
-  studio: { warning: "원본 파일, 앨범, 보정본의 포함 범위", guidance: "공시가·견적서 기준 확인" },
-  dress: { warning: "속옷, 글러브, 베일, 슈즈의 포함 범위", guidance: "업체 서면 안내 확인" },
-  makeup: { warning: "리허설, 혼주 메이크업, 피부 관리의 포함 범위", guidance: "업체 서면 안내 확인" },
-  venue: { warning: "사회, 축가, 영상, 꽃장식, 폐백실의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  studio: { warning: "받는 사진 파일 수, 앨범, 밝기와 색을 다듬어 주는 사진 수의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
+  dress: { warning: "속옷, 장갑, 머리에 쓰는 면사포, 신발의 포함 범위", guidance: "업체 서면 안내 확인" },
+  makeup: { warning: "미리 받아보는 메이크업, 부모님 메이크업, 피부 관리의 포함 범위", guidance: "업체 서면 안내 확인" },
+  venue: { warning: "결혼식 진행자, 축하 노래, 영상, 꽃 장식, 결혼식 뒤 전통 인사 공간의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
   honeymoon: { warning: "보험, 선택 일정, 현지 비용의 포함 범위", guidance: "예약 문서 기준 확인" },
   hanbok: { warning: "수선, 소품, 세탁의 포함 범위", guidance: "업체 서면 안내 확인" },
   gift: { warning: "포장, 배송, 추가 수량의 포함 범위", guidance: "업체 서면 안내 확인" },
-  snap: { warning: "편집본, 원본, 액자의 포함 범위", guidance: "공시가·견적서 기준 확인" },
+  snap: { warning: "편집한 영상, 받는 사진 파일 수, 액자의 포함 범위", guidance: "업체 공개 가격·견적서 확인" },
   ham: { warning: "장식, 운송, 주차의 포함 범위", guidance: "업체 서면 안내 확인" },
-  bouquet: { warning: "보존, 부토니에, 양가 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
+  bouquet: { warning: "꽃 보존, 예식 정장에 다는 꽃, 두 가족에게 드리는 꽃의 포함 범위", guidance: "업체 서면 안내 확인" },
 };
 
-// 웹과 동일한 카테고리 비율 상수
-const CATEGORY_RATIOS = [
-  { key: "meeting", label: "상견례", ratio: 0.01 },
-  { key: "venue", label: "예식장", ratio: 0.20 },
-  { key: "studio", label: "스튜디오", ratio: 0.10 },
-  { key: "dress", label: "드레스/턱시도", ratio: 0.07 },
-  { key: "makeup", label: "메이크업", ratio: 0.05 },
-  { key: "snap", label: "본식 스냅/영상", ratio: 0.04 },
-  { key: "ring", label: "예물", ratio: 0.12 },
-  { key: "yedan", label: "예단", ratio: 0.05 },
-  { key: "hanbok", label: "한복", ratio: 0.03 },
-  { key: "shoes", label: "웨딩 구두", ratio: 0.01 },
-  { key: "bouquet", label: "부케/꽃장식", ratio: 0.01 },
-  { key: "honeymoon", label: "신혼여행", ratio: 0.12 },
-  { key: "houseware", label: "혼수", ratio: 0.07 },
-  { key: "housing", label: "신혼집", ratio: 0.00 },
-  { key: "invitation", label: "청첩장", ratio: 0.02 },
-  { key: "gift", label: "답례품", ratio: 0.02 },
-  { key: "mc", label: "사회/축가", ratio: 0.01 },
-  { key: "ham", label: "함", ratio: 0.01 },
-  { key: "pyebaek", label: "폐백", ratio: 0.01 },
-  { key: "reserve", label: "예비비", ratio: 0.05 },
+// 금액은 사용자가 입력하거나 계약·예약 결과로 확인된 값만 사용한다.
+const BUDGET_CATEGORY_KEYS: PlanningCategoryKey[] = [
+  "meeting", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
+  "hanbok", "shoes", "bouquet", "honeymoon", "houseware", "housing",
+  "invitation", "gift", "mc", "ham", "pyebaek", "reserve",
 ];
+
+const BUDGET_CATEGORIES = BUDGET_CATEGORY_KEYS.map((key) => ({
+  key,
+  label: PLANNING_CATEGORY_LABELS[key],
+}));
 
 interface ProgressItem {
   status?: string;
@@ -159,8 +148,7 @@ export default function BudgetScreen() {
     if (item?.budget && item.budget > 0) return item.budget;
     const cost = normalizeCost(item?.cost);
     if (cost > 0) return cost;
-    const r = CATEGORY_RATIOS.find((c) => c.key === key);
-    return r ? Math.round(totalBudget * r.ratio) : 0;
+    return 0;
   }
   function getCatSpent(key: string): number {
     const item = progress[key];
@@ -176,7 +164,7 @@ export default function BudgetScreen() {
   }
 
   // 분담별 지출 합계
-  const payerSummary = CATEGORY_RATIOS.reduce(
+  const payerSummary = BUDGET_CATEGORIES.reduce(
     (acc, c) => {
       const payer = getCatPayer(c.key);
       const spent = getCatSpent(c.key);
@@ -186,18 +174,14 @@ export default function BudgetScreen() {
     {} as Record<PayerType, number>,
   );
 
-  const totalSpent = CATEGORY_RATIOS.reduce((s, c) => s + getCatSpent(c.key), 0);
+  const totalSpent = BUDGET_CATEGORIES.reduce((s, c) => s + getCatSpent(c.key), 0);
   const remaining = totalBudget - totalSpent;
   const spentPct = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
-  const allocatedBudget = CATEGORY_RATIOS.reduce((a, c) => a + getCatBudget(c.key), 0);
-  const payerBreakdown = PAYER_OPTIONS.map((opt) => {
-    const amount = payerSummary[opt.value] ?? 0;
-    const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-    return { ...opt, amount, pct };
-  }).sort((a, b) => b.amount - a.amount);
-  const leadPayer = payerBreakdown[0];
+  const allocatedBudget = BUDGET_CATEGORIES.reduce((sum, category) => {
+    return sum + getCatBudget(category.key);
+  }, 0);
 
-  const categoryOverruns = CATEGORY_RATIOS
+  const categoryOverruns = BUDGET_CATEGORIES
     .map((cat) => {
       const budget = getCatBudget(cat.key);
       const spent = getCatSpent(cat.key);
@@ -211,7 +195,7 @@ export default function BudgetScreen() {
     .filter((cat) => cat.overrun > 0)
     .sort((a, b) => b.overrun - a.overrun);
 
-  const hiddenCostWatch = CATEGORY_RATIOS
+  const hiddenCostWatch = BUDGET_CATEGORIES
     .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "완료")
     .map((cat) => {
       const budget = getCatBudget(cat.key);
@@ -226,8 +210,8 @@ export default function BudgetScreen() {
     ...(totalBudget <= 0
       ? [{
           id: "missing-total",
-          title: "총 예산을 먼저 정해야 해요",
-          detail: "카테고리별 기준 예산과 초과 위험을 계산하려면 총 예산이 필요해요.",
+          title: "총 예산을 입력해주세요",
+          detail: "전체 예산과 실제 지출의 차이를 계산하려면 총 예산이 필요해요.",
           tone: "warning" as const,
         }]
       : []),
@@ -242,18 +226,10 @@ export default function BudgetScreen() {
     ...categoryOverruns.map((cat) => ({
       id: `overrun-${cat.key}`,
       title: `${cat.label} 예산 초과`,
-      detail: `${formatWon(cat.overrun)} 초과 · 배정 ${formatWon(cat.budget)} / 지출 ${formatWon(cat.spent)}`,
+      detail: `${formatWon(cat.overrun)} 초과 · 입력한 예산 ${formatWon(cat.budget)} / 지출 ${formatWon(cat.spent)}`,
       tone: "danger" as const,
       categoryKey: cat.key,
     })),
-    ...(leadPayer && leadPayer.amount > 0 && leadPayer.pct >= 70
-      ? [{
-          id: "payer-imbalance",
-          title: `${leadPayer.label} 분담 비중이 커요`,
-          detail: `${formatWon(leadPayer.amount)} · 전체 지출의 ${leadPayer.pct}%예요.`,
-          tone: "warning" as const,
-        }]
-      : []),
     ...hiddenCostWatch.map((cat) => {
       const hidden = HIDDEN_COSTS[cat.key]!;
       return {
@@ -268,12 +244,12 @@ export default function BudgetScreen() {
 
   const budgetStatus =
     totalBudget <= 0
-      ? { label: "설정 필요", tone: "warning" as const }
+      ? { label: "입력 필요", tone: "warning" as const }
       : remaining < 0
-        ? { label: "초과", tone: "danger" as const }
+        ? { label: "예산 초과", tone: "danger" as const }
         : budgetRisks.length > 0
-          ? { label: "주의", tone: "warning" as const }
-          : { label: "안정", tone: "success" as const };
+          ? { label: "확인할 항목", tone: "warning" as const }
+          : { label: "입력값 확인", tone: "success" as const };
 
   useEffect(() => {
     Animated.timing(progressAnim, { toValue: spentPct, duration: 800, useNativeDriver: false }).start();
@@ -330,9 +306,9 @@ export default function BudgetScreen() {
   function showHiddenCostAlert(key: string) {
     const data = HIDDEN_COSTS[key];
     if (!data) return;
-    const label = CATEGORY_RATIOS.find((c) => c.key === key)?.label ?? key;
+    const label = BUDGET_CATEGORIES.find((category) => category.key === key)?.label ?? key;
     Alert.alert(
-      `⚠️ ${label} 포함·별도 항목 확인`,
+      `${label} 포함·별도 항목 확인`,
       `${data.warning}\n\n${data.guidance}`,
       [{ text: "확인" }],
     );
@@ -392,8 +368,8 @@ export default function BudgetScreen() {
         <Surface style={s.riskPanel}>
           <View style={s.riskHeader}>
             <View>
-              <Text style={s.riskEyebrow}>BUDGET RISK</Text>
-              <Text style={s.riskTitle}>지금 먼저 볼 돈 문제</Text>
+              <Text style={s.riskEyebrow}>입력값 확인</Text>
+              <Text style={s.riskTitle}>지금 확인할 예산 항목</Text>
             </View>
             <AlertTriangle
               size={18}
@@ -420,7 +396,7 @@ export default function BudgetScreen() {
                   <Text style={s.riskRowDetail}>{risk.detail}</Text>
                 </View>
                 <StatusPill
-                  label={risk.tone === "danger" ? "위험" : "점검"}
+                  label={risk.tone === "danger" ? "초과" : "확인"}
                   tone={risk.tone}
                 />
               </Pressable>
@@ -428,9 +404,9 @@ export default function BudgetScreen() {
           ) : (
             <View style={s.safeBudgetBox}>
               <Check size={18} color={colors.rose[500]} />
-              <Text style={s.safeBudgetTitle}>현재 큰 예산 위험은 없어요</Text>
+              <Text style={s.safeBudgetTitle}>입력한 금액에서 초과를 찾지 못했어요</Text>
               <Text style={s.safeBudgetText}>
-                계약 전에는 카테고리별 포함·별도 항목과 검수된 공시가를 한 번 더 확인해두세요.
+                아직 입력하지 않은 금액과 계약서에 적히지 않은 추가 비용은 이 결과에 포함되지 않아요.
               </Text>
             </View>
           )}
@@ -450,6 +426,9 @@ export default function BudgetScreen() {
           <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
           <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
         </View>
+        <Text style={s.budgetEvidenceNote}>
+          직접 입력하거나 계약 금액으로 확인된 예산만 합산해요.
+        </Text>
 
         {/* 분담 현황 */}
         {totalSpent > 0 && (
@@ -461,7 +440,6 @@ export default function BudgetScreen() {
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
                   <View key={opt.value} style={s.payerCard}>
-                    <Text style={s.payerEmoji}>{opt.emoji}</Text>
                     <Text style={s.payerLabel}>{opt.label}</Text>
                     <Text style={s.payerAmount}>{formatWon(amount)}</Text>
                     {pct > 0 && <Text style={s.payerPct}>{pct}%</Text>}
@@ -473,7 +451,7 @@ export default function BudgetScreen() {
         )}
 
         {/* 카테고리 목록 */}
-        {CATEGORY_RATIOS.map((cat) => {
+        {BUDGET_CATEGORIES.map((cat) => {
           const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
           const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
           const hasHidden = !!HIDDEN_COSTS[cat.key];
@@ -496,7 +474,7 @@ export default function BudgetScreen() {
                 <View style={s.catHeadRight}>
                   {payerInfo && payerInfo.value !== "couple" && (
                     <View style={s.payerBadge}>
-                      <Text style={s.payerBadgeText}>{payerInfo.emoji} {payerInfo.label}</Text>
+                      <Text style={s.payerBadgeText}>{payerInfo.label}</Text>
                     </View>
                   )}
                   <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
@@ -504,11 +482,15 @@ export default function BudgetScreen() {
                   </View>
                 </View>
               </View>
-              <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b && b > 0 ? "#EF4444" : colors.rose[500] }]} /></View>
+              {b > 0 ? (
+                <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b ? "#EF4444" : colors.rose[500] }]} /></View>
+              ) : (
+                <Text style={s.categoryBudgetPending}>예산 입력 전</Text>
+              )}
               <View style={s.catFoot}>
                 <Text style={s.catSpent}>지출 {formatWon(sp)}</Text>
-                <Text style={s.catBudget}>/ {formatWon(b)}</Text>
-                <Text style={s.catPct}>{pct}%</Text>
+                <Text style={s.catBudget}>{b > 0 ? `/ 예산 ${formatWon(b)}` : "예산 미입력"}</Text>
+                {b > 0 && <Text style={s.catPct}>{pct}%</Text>}
               </View>
             </Pressable>
           );
@@ -521,7 +503,7 @@ export default function BudgetScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOv}>
           <View style={s.modalCon}>
             <View style={s.modalHandle} />
-            <View style={s.modalHead}><Text style={s.modalTitle}>{CATEGORY_RATIOS.find((c) => c.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={() => setEditingKey(null)}><X size={24} color={colors.textTertiary} /></Pressable></View>
+            <View style={s.modalHead}><Text style={s.modalTitle}>{BUDGET_CATEGORIES.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={() => setEditingKey(null)}><X size={24} color={colors.textTertiary} /></Pressable></View>
             <Text style={s.fLabel}>예산 (만원)</Text>
             <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>지출 (만원)</Text>
@@ -534,7 +516,6 @@ export default function BudgetScreen() {
                   style={[s.payerOption, payerInput === opt.value && s.payerOptionActive]}
                   onPress={() => setPayerInput(opt.value)}
                 >
-                  <Text style={s.payerOptionEmoji}>{opt.emoji}</Text>
                   <Text style={[s.payerOptionLabel, payerInput === opt.value && s.payerOptionLabelActive]}>{opt.label}</Text>
                 </Pressable>
               ))}
@@ -595,6 +576,7 @@ const s = StyleSheet.create({
   sumCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6 },
   sumLabel: { fontSize: 11, color: colors.textTertiary },
   sumVal: { fontSize: 15, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
+  budgetEvidenceNote: { marginTop: -10, marginBottom: 20, fontSize: 12, lineHeight: 18, color: colors.textTertiary, textAlign: "center" },
   catCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10 },
   catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   catLabel: { fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
@@ -606,6 +588,7 @@ const s = StyleSheet.create({
   badgeTextProg: { color: colors.gold.DEFAULT },
   catBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, overflow: "hidden", marginBottom: 8 },
   catFill: { height: "100%", borderRadius: 2 },
+  categoryBudgetPending: { marginBottom: 8, fontSize: 12, color: colors.textTertiary },
   catFoot: { flexDirection: "row", alignItems: "center", gap: 4 },
   catSpent: { fontSize: 13, fontFamily: "NotoSansKR_500Medium", color: colors.noir[800] },
   catBudget: { fontSize: 12, color: colors.textTertiary, flex: 1 },

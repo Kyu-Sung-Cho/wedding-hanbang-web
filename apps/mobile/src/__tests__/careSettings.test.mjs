@@ -68,8 +68,7 @@ test("a paused outbound channel blocks opt-in while preserving opt-out", () => {
 test("mobile settings reads its private profile through the authenticated server contract", () => {
   assert.match(settingsSource, /apiFetch\("\/api\/settings\/wedding-profile"\)/);
   assert.doesNotMatch(settingsSource, /\.from\("profiles"\)/);
-  assert.match(settingsSource, /care_notifications_consented_at/);
-  assert.match(settingsSource, /hasActiveCareConsent\(profile\)/);
+  assert.match(settingsSource, /profile\.id !== user\.id/);
 });
 
 test("mobile settings fails closed instead of presenting blank editable fields after a load error", () => {
@@ -84,7 +83,7 @@ test("mobile settings fails closed instead of presenting blank editable fields a
   assert.doesNotMatch(settingsSource, /communityNickname = profile\?\.name \?\? ""/);
 });
 
-test("settings load commits care, partner, form, and snapshot state only for the latest attempt", () => {
+test("settings load commits legacy consent, partner, form, and snapshot only for the latest attempt", () => {
   const loadStart = settingsSource.indexOf("// 현재 데이터 로드");
   const loadEnd = settingsSource.indexOf("function updateField", loadStart);
   const loadSource = settingsSource.slice(loadStart, loadEnd);
@@ -92,23 +91,26 @@ test("settings load commits care, partner, form, and snapshot state only for the
   assert.match(loadSource, /const loadToken = settingsLoadGate\.begin\(\)/);
   assert.match(
     loadSource,
-    /if \(loadToken\.isCurrent\(\)\) \{[\s\S]*setCareAvailability[\s\S]*setCareDeliveryEmail[\s\S]*setCareNotificationsEnabled[\s\S]*setPartnerName[\s\S]*setCoupleConnection[\s\S]*setData[\s\S]*setInitialData[\s\S]*setSettingsSnapshot/,
+    /if \(loadToken\.isCurrent\(\)\) \{[\s\S]*setPartnerName[\s\S]*setCoupleConnection[\s\S]*setLegacyCareConsentActive[\s\S]*setData[\s\S]*setInitialData[\s\S]*setSettingsSnapshot/,
   );
+  assert.doesNotMatch(loadSource, /setCareAvailability|setCareDeliveryEmail|setCareNotificationsEnabled/);
   assert.match(loadSource, /return \(\) => loadToken\.cancel\(\)/);
   assert.doesNotMatch(loadSource, /if \(!cancelled\)/);
 });
 
-test("mobile care disclosure trusts server availability and displays only a verified masked email", () => {
-  assert.doesNotMatch(settingsSource, /user\.email_confirmed_at/);
-  assert.match(settingsSource, /parsedSettings\.careAvailability/);
-  assert.match(settingsSource, /parseCareAvailability/);
-  assert.match(settingsSource, /maskSignupEmail\(user\.email\)/);
-  assert.match(settingsSource, /careDeliveryEmail/);
+test("unshipped care availability cannot block the general settings screen", () => {
+  assert.doesNotMatch(settingsSource, /parsedSettings\.careAvailability/);
+  assert.doesNotMatch(settingsSource, /parseCareAvailability/);
+  assert.doesNotMatch(settingsSource, /아모라 케어 발송 상태를 확인하지 못했어요/);
 });
 
-test("mobile care UI distinguishes preparation, pause, and unverified-email states", () => {
-  assert.match(settingsSource, /현재 준비 중이에요/);
-  assert.match(settingsSource, /발송이 일시중지됐어요/);
-  assert.match(settingsSource, /가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요/);
-  assert.match(settingsSource, /canChangeCareConsent/);
+test("mobile hides care opt-in but preserves a conditional legacy-consent opt-out", () => {
+  assert.doesNotMatch(settingsSource, /아모라 먼저 챙기기/);
+  assert.doesNotMatch(settingsSource, /발송이 일시중지됐어요/);
+  assert.doesNotMatch(settingsSource, /canChangeCareConsent/);
+  assert.match(settingsSource, /hasActiveCareConsent\(profile\)/);
+  assert.match(settingsSource, /legacyCareConsentActive \?/);
+  assert.match(settingsSource, /care_notifications_enabled: false/);
+  assert.match(settingsSource, /이전 이메일 수신 동의 해제/);
+  assert.match(settingsSource, /Linking\.openSettings\(\)/);
 });

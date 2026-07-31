@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { ImageResponse } from "next/og";
 
-export const alt = "결혼 준비 지금 뭐부터? — 예식일로 보는 이번 순서";
+export const alt = "결혼 준비 지금 뭐부터? — 결혼식 날짜로 보는 이번 순서";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
@@ -23,7 +23,9 @@ export default async function OpenGraphImage() {
           웨딩한방
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-          <div style={{ display: "flex", color: "#8F6662", fontSize: 28 }}>예식일만 넣으면 됩니다</div>
+          <div style={{ display: "flex", color: "#8F6662", fontSize: 28 }}>
+            결혼식 날짜만 넣으면 됩니다
+          </div>
           <div style={{ display: "flex", fontSize: 72, lineHeight: 1.14, letterSpacing: -2 }}>결혼 준비, 지금 뭐부터?</div>
           <div style={{ display: "flex", fontSize: 31, color: "#4E6A62" }}>
             지금 열어야 하는 항목과 첫 걸음을 3가지로 정리해 드려요

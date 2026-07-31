@@ -78,7 +78,7 @@ describe("Amora official vendor recommendation", () => {
 
     expect(search?.description).toContain("정확한 업체명");
     expect(search?.description).toContain("recommend_vendors");
-    expect(recommend?.description).toContain("공시 가격");
+    expect(recommend?.description).toContain("검수된 공개 가격");
     expect(detail?.description).toContain("공시 근거");
   });
 
@@ -107,7 +107,9 @@ describe("Amora official vendor recommendation", () => {
         id: "vendor-1",
         name: "샘플 스튜디오",
         link: "/price/vendor/sample-studio",
-        reasons: expect.arrayContaining(["원본 제공 조건 충족"]),
+        reasons: expect.arrayContaining([
+          "촬영한 전체 사진 파일 받기 조건 충족",
+        ]),
       }],
     });
     expect(result.displayMessage).toContain("공시 가격과 확인된 조건을 기준");

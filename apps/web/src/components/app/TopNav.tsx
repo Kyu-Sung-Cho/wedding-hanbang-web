@@ -8,15 +8,15 @@ import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
-import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
+import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
-  "/lounge": "웨딩 라운지",
-  "/chat": "아모라 상담",
-  "/budget": "예산 관리",
+  "/lounge": "오늘 할 일",
+  "/chat": "아모라",
+  "/budget": "예산",
   "/market-prices": "시세 정보",
-  "/schedule": "일정 관리",
+  "/schedule": "할 일·일정",
   "/favorites": "즐겨찾기",
   "/settings": "설정",
   "/money": "축의금 관리",
@@ -30,7 +30,8 @@ const pageTitlePrefixes: Array<{ prefix: string; title: string }> = [
 
 const quickLinks = [
   { linkProps: weddingLinkProps("/chat"), legacyPath: "/chat", label: "아모라" },
-  { linkProps: weddingLinkProps("/community/cohort"), legacyPath: "/community/cohort", label: "동기방" },
+  { linkProps: weddingLinkProps("/schedule"), legacyPath: "/schedule", label: "할 일·일정" },
+  { linkProps: weddingLinkProps("/budget"), legacyPath: "/budget", label: "예산" },
   { linkProps: weddingLinkProps(), legacyPath: "/community", label: "커뮤니티" },
 ];
 
@@ -89,7 +90,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
         <div className="flex items-center gap-2">
           <nav
-            aria-label="라운지 주요 바로가기"
+            aria-label="주요 기능 바로가기"
             className="mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[#071629] lg:flex"
           >
             {quickLinks.map((item, index) => {
@@ -113,16 +114,16 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           <div className="hidden items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-4 py-2 sm:flex">
             <span className="h-2 w-2 rounded-full bg-[#b68a3a]" />
             <span className="text-[13px] font-semibold text-[#071629]">
-              {dday === null ? "예식일 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
+              {dday === null ? "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
             </span>
           </div>
 
           <button
             type="button"
-            onClick={() => router.push("/price/studio")}
+            onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
             className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
-            aria-label="업체 검색"
-            title="업체 검색"
+            aria-label="커뮤니티 검색"
+            title="커뮤니티 검색"
           >
             <Search className="h-5 w-5" />
           </button>
@@ -149,6 +150,23 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
                   onDismiss={dismiss}
                   onDismissAll={dismissAll}
                   onCategoryClick={handleCategoryClick}
+                  onOpen={(notification) => {
+                    const isPendingPlanDecision =
+                      notification.type === "partner"
+                      && (
+                        notification.eventKind === "approval_requested"
+                        || notification.eventKind === "approval_pending"
+                      )
+                      && notification.toolName === "manual_plan_change"
+                      && Boolean(notification.actionId);
+                    if (!isPendingPlanDecision) {
+                      dismiss(notification.id);
+                    }
+                    setShowNotifications(false);
+                    if (notification.href) {
+                      router.push(weddingPath(notification.href));
+                    }
+                  }}
                   onClose={() => setShowNotifications(false)}
                 />
               )}

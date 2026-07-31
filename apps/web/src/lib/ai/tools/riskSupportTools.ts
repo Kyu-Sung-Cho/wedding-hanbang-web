@@ -118,6 +118,6 @@ export function executeSimulateGuestGuarantee(input: Record<string, unknown>): T
     displayMessage:
       result.mode === "input_needed"
         ? result.summaryText
-        : `${result.summaryTitle} (예상 식대 ${result.expectedMealTotalManwon}만원)`,
+        : `${result.summaryTitle} (입력값으로 계산한 식사비 ${result.expectedMealTotalManwon}만원)`,
   };
 }

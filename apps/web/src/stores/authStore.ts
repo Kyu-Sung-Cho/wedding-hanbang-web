@@ -2,10 +2,18 @@
 
 import { create } from "zustand";
 import { createClient } from "@/lib/supabase/client";
+import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
 import type { Profile, Couple, WeddingJourney } from "@/types/database.types";
 
 // 데모 모드 샘플 데이터
+function buildDemoChecklist(categoryKey: string, completedItemCount: number) {
+  return (CHECKLIST_MAP[categoryKey]?.items ?? []).map((item, index) => ({
+    ...item,
+    done: index < completedItemCount,
+  }));
+}
+
 const DEMO_PROFILE: Profile = {
   id: "demo",
   name: "김지은",
@@ -39,67 +47,24 @@ const DEMO_JOURNEY: WeddingJourney = {
   progress: {
     meeting: {
       category: "meeting", status: "completed", spent: 420000,
-      checklist: [
-        { id: "meeting_01", label: "상견례 일정 양가 조율", done: true },
-        { id: "meeting_02", label: "상견례 장소 선정 및 예약", done: true },
-        { id: "meeting_03", label: "복장 준비 (정장/단정한 옷차림)", done: true },
-        { id: "meeting_04", label: "양가 선물 준비 (과일바구니, 건강식품 등)", done: true },
-        { id: "meeting_05", label: "결혼 일정/예산 대략적 논의", done: true },
-        { id: "meeting_06", label: "혼수/예단 분담 방향 논의", done: true },
-      ],
+      checklist: buildDemoChecklist("meeting", Number.POSITIVE_INFINITY),
     },
     venue: {
       category: "venue", status: "completed", spent: 11500000,
-      checklist: [
-        { id: "venue_01", label: "예식장 스타일 결정 (호텔/하우스/채플/야외)", done: true },
-        { id: "venue_02", label: "후보 3곳 이상 리스트업", done: true },
-        { id: "venue_03", label: "예식장 투어 예약 및 방문", done: true },
-        { id: "venue_04", label: "식대 메뉴 비교 및 시식", done: true },
-        { id: "venue_05", label: "예식 시간대 확정 (오전/오후/저녁)", done: true },
-        { id: "venue_06", label: "계약 조건 확인 (위약금, 변경 가능 여부)", done: true },
-        { id: "venue_07", label: "계약금 납부 및 계약서 보관", done: true },
-        { id: "venue_08", label: "부대시설 확인 (대기실, 주차, 포토존)", done: true },
-      ],
+      checklist: buildDemoChecklist("venue", Number.POSITIVE_INFINITY),
     },
     studio: {
       category: "studio", status: "completed", spent: 1650000,
-      checklist: [
-        { id: "studio_01", label: "촬영 스타일 결정 (실내/야외/혼합)", done: true },
-        { id: "studio_02", label: "스튜디오 3곳 이상 비교", done: true },
-        { id: "studio_03", label: "포트폴리오 확인 및 상담", done: true },
-        { id: "studio_04", label: "패키지 비교 (보정본 수, 원본 제공)", done: true },
-        { id: "studio_05", label: "촬영 일정 확정", done: true },
-        { id: "studio_06", label: "계약 및 계약금 납부", done: true },
-        { id: "studio_07", label: "촬영 콘셉트 및 의상 협의", done: true },
-        { id: "studio_08", label: "보정본 확인 및 최종 선택", done: true },
-      ],
+      checklist: buildDemoChecklist("studio", Number.POSITIVE_INFINITY),
     },
     dress: {
       category: "dress", status: "in_progress", spent: 600000,
-      checklist: [
-        { id: "dress_01", label: "드레스 스타일 결정 (A라인/머메이드/볼가운)", done: true },
-        { id: "dress_02", label: "드레스샵 3곳 이상 리스트업", done: true },
-        { id: "dress_03", label: "드레스 투어 예약 및 방문", done: true },
-        { id: "dress_04", label: "최종 드레스 선정", done: false },
-        { id: "dress_05", label: "수선 일정 확정 (2회 이상)", done: false },
-        { id: "dress_06", label: "액세서리 매칭 (베일, 티아라, 글러브)", done: false },
-        { id: "dress_07", label: "턱시도 스타일 결정 및 대여/맞춤", done: false },
-        { id: "dress_08", label: "최종 피팅 및 확인", done: false },
-      ],
+      checklist: buildDemoChecklist("dress", 3),
     },
     makeup: { category: "makeup", status: "not_started" },
     ring: {
       category: "ring", status: "in_progress",
-      checklist: [
-        { id: "ring_01", label: "예물 예산 양가 합의", done: true },
-        { id: "ring_02", label: "예물 종류 결정 (반지, 시계, 목걸이 등)", done: true },
-        { id: "ring_03", label: "브랜드 vs 공방 결정", done: false },
-        { id: "ring_04", label: "매장 3곳 이상 방문 비교", done: false },
-        { id: "ring_05", label: "디자인 및 사이즈 확정", done: false },
-        { id: "ring_06", label: "주문 및 계약금 납부", done: false },
-        { id: "ring_07", label: "각인 문구 결정 (해당 시)", done: false },
-        { id: "ring_08", label: "최종 수령 및 확인", done: false },
-      ],
+      checklist: buildDemoChecklist("ring", 2),
     },
     hanbok: { category: "hanbok", status: "not_started" },
     yedan: { category: "yedan", status: "not_started" },
@@ -114,18 +79,18 @@ const DEMO_JOURNEY: WeddingJourney = {
     mc: { category: "mc", status: "not_started" },
     ham: { category: "ham", status: "not_started" },
     pyebaek: { category: "pyebaek", status: "not_started" },
-    // 데모 일정은 예식일(10/15) 이전의 다가오는 날짜여야 라운지 '다가오는 예약'이 살아 보인다.
+    // 데모 일정은 결혼식 날짜(10/15) 전에 두어 다가오는 일정 화면을 확인할 수 있게 한다.
     __events: [
-      { id: "evt_demo1", date: "2026-08-08", title: "드레스 최종 피팅", memo: "강남 드레스하우스 오후 2시", categoryKey: "dress", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
-      { id: "evt_demo2", date: "2026-08-22", title: "메이크업 리허설", memo: "청담 메이크업샵", categoryKey: "makeup", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
-      { id: "evt_demo3", date: "2026-09-05", title: "본식 스냅 작가 미팅", categoryKey: "snap", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
-      { id: "evt_demo4", date: "2026-06-20", title: "상견례 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-06-01T00:00:00Z" },
+      { id: "evt_demo1", date: "2026-08-08", title: "드레스를 몸에 맞게 고치는 날", memo: "강남 드레스 매장 오후 2시", categoryKey: "dress", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo2", date: "2026-08-22", title: "헤어·메이크업 미리 받아보기", memo: "청담 헤어·메이크업 매장", categoryKey: "makeup", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo3", date: "2026-09-05", title: "결혼식 날 사진 촬영 담당자 미팅", categoryKey: "snap", createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" },
+      { id: "evt_demo4", date: "2026-06-20", title: "양쪽 부모님 첫 식사", memo: "삼성동 한정식", categoryKey: "meeting", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-06-01T00:00:00Z" },
     ],
     __amora_actions: [
       {
         id: "act_demo_snap_original",
-        title: "스냅 원본 제공 범위 확인하기",
-        description: "견적서에 원본 제공 여부와 추가금 기준이 같은 말로 적혀 있는지 확인해두세요.",
+        title: "결혼식 날 받는 사진 파일 수 확인하기",
+        description: "견적서와 계약서에 받는 사진 수와 별도 금액이 같은 내용으로 적혀 있는지 확인해 두세요.",
         dueDate: "2026-06-18",
         categoryKey: "snap",
         priority: "high",
@@ -137,6 +102,7 @@ const DEMO_JOURNEY: WeddingJourney = {
       },
     ],
   } as unknown as WeddingJourney["progress"],
+  state_revision: 0,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
@@ -154,6 +120,30 @@ function isTransientAuthFetchError(err: unknown) {
   );
 }
 
+let journeyWriteSequence = 0;
+let authInitializeSequence = 0;
+const PLAN_CHANGE_REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isPlanChangeSummary(value: unknown): value is string {
+  return typeof value === "string"
+    && value.trim() === value
+    && value.length > 0
+    && Array.from(value).length <= 240
+    && !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
+}
+
+export type JourneyUpdateResult =
+  | {
+      status: "applied";
+      journey: WeddingJourney;
+    }
+  | {
+      status: "pending_partner";
+      requestId: string;
+      summary: string;
+    };
+
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
@@ -165,11 +155,15 @@ interface AuthState {
   isDemo: boolean;
 
   initialize: (options?: { force?: boolean }) => Promise<void>;
-  updateJourney: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => Promise<void>;
+  updateJourney: (
+    updates: Partial<
+      Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">
+    >,
+  ) => Promise<JourneyUpdateResult>;
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
-  refreshJourney: () => Promise<void>;
+  refreshJourney: (expectedUserId?: string) => Promise<boolean>;
   updateProfile: (
     updates: Partial<Pick<Profile, "name" | "care_notifications_enabled" | "phone">> & {
       sync_community_nickname?: boolean;
@@ -193,6 +187,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async (options) => {
     if (get().isInitialized && !options?.force) return;
+    const initializeSequence = ++authInitializeSequence;
+    const initializeJourneySequence = ++journeyWriteSequence;
     if (!options?.force) set({ isLoading: true });
 
     try {
@@ -201,6 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (res.ok) {
         const data = await res.json();
+        if (initializeSequence !== authInitializeSequence) return;
 
         if (data.user) {
           // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
@@ -208,12 +205,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             document.cookie = "demo_mode=; path=/; max-age=0";
           }
 
+          const current = get();
+          const sameUser = current.user?.id === data.user.id;
+          const nextJourney =
+            (
+              initializeJourneySequence === journeyWriteSequence
+              || !sameUser
+            )
+              ? data.journey ?? null
+              : current.journey;
+          if (!sameUser && initializeJourneySequence !== journeyWriteSequence) {
+            journeyWriteSequence += 1;
+          }
+
           set({
             user: data.user,
             profile: data.profile ?? null,
             couple: data.couple ?? null,
             partner: data.partner ?? null,
-            journey: data.journey ?? null,
+            journey: nextJourney,
             isDemo: false,
             isLoading: false,
             isInitialized: true,
@@ -222,8 +232,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
+      if (initializeSequence !== authInitializeSequence) return;
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
+        journeyWriteSequence += 1;
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -239,12 +251,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isLoading: false, isInitialized: true });
     } catch (err) {
+      if (initializeSequence !== authInitializeSequence) return;
       if (!isTransientAuthFetchError(err)) {
         console.error("Auth store init error:", err);
       }
 
       // fetch 에러 시에도 데모 모드 폴백
       if (isDemoMode()) {
+        journeyWriteSequence += 1;
         set({
           user: { id: "demo", email: "demo@hanbang.ai" },
           profile: DEMO_PROFILE,
@@ -264,36 +278,80 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // AI 도구 실행 후 로컬 상태만 업데이트 (서버가 이미 DB 저장)
   updateJourneyLocal: (updates) => {
+    journeyWriteSequence += 1;
     const { journey } = get();
     if (!journey) return;
     set({ journey: { ...journey, ...updates } });
   },
 
   // 서버에서 journey 만 강제 재fetch — AI 도구 실행 후 클라이언트 sync 안전망
-  refreshJourney: async () => {
-    const { isDemo } = get();
-    if (isDemo) return;
+  refreshJourney: async (expectedUserId) => {
+    const refreshSequence = ++journeyWriteSequence;
+    const { isDemo, user } = get();
+    if (isDemo) return true;
+    const identityToPreserve = expectedUserId ?? null;
+    if (expectedUserId && user?.id !== expectedUserId) return false;
     try {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.journey) {
-        set({ journey: data.journey });
-      }
+      if (!res.ok) return false;
+      const data = await res.json() as unknown;
+      if (
+        typeof data !== "object"
+        || data === null
+        || !("journey" in data)
+      ) return false;
+      const responseUserId =
+        "user" in data
+        && typeof data.user === "object"
+        && data.user !== null
+        && "id" in data.user
+        && typeof data.user.id === "string"
+          ? data.user.id
+          : null;
+      const current = get();
+      if (
+        refreshSequence !== journeyWriteSequence
+        || current.isDemo
+        || (
+          identityToPreserve !== null
+          && (
+            current.user?.id !== identityToPreserve
+            || responseUserId !== identityToPreserve
+          )
+        )
+      ) return false;
+      set({
+        journey:
+          (data as { journey: WeddingJourney | null }).journey ?? null,
+      });
+      return true;
     } catch (err) {
       if (!isTransientAuthFetchError(err)) {
         console.error("refreshJourney 실패:", err);
       }
+      return false;
     }
   },
 
   updateJourney: async (updates) => {
-    const { isDemo, journey } = get();
+    const { isDemo, journey, user, couple } = get();
 
     // 데모 모드: 로컬만 업데이트
     if (isDemo) {
-      set({ journey: journey ? { ...journey, ...updates } : null });
-      return;
+      journeyWriteSequence += 1;
+      const nextJourney = journey
+        ? {
+            ...journey,
+            ...updates,
+            state_revision: (journey.state_revision ?? 0) + 1,
+            updated_at: new Date().toISOString(),
+          }
+        : null;
+      set({ journey: nextJourney });
+      if (!nextJourney) {
+        throw new Error("결혼 준비 정보를 찾을 수 없습니다.");
+      }
+      return { status: "applied", journey: nextJourney };
     }
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
@@ -318,25 +376,97 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const otherFieldCount = Object.keys(body).length;
       if (Object.keys(patch).length === 0 && removeKeys.length === 0) {
         // progress 변경이 실제로 없으면 progress 파트는 생략 (no-op 방지)
-        if (otherFieldCount === 0) return;
+        if (otherFieldCount === 0) {
+          if (!journey) {
+            throw new Error("결혼 준비 정보를 찾을 수 없습니다.");
+          }
+          return { status: "applied", journey };
+        }
       } else {
         body.progress_patch = patch;
         body.progress_remove_keys = removeKeys;
       }
     }
 
+    const expectedRevision = journey?.state_revision ?? 0;
+    body.expected_revision = expectedRevision;
+
+    const updateSequence = ++journeyWriteSequence;
+    const expectedUserId = user?.id ?? null;
     try {
       const res = await fetch("/api/journey", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const data = await res.json();
-        set({ journey: data.journey });
+      const data = (await res.json().catch(() => null)) as
+        | {
+            status?: unknown;
+            journey?: unknown;
+            requestId?: unknown;
+            summary?: unknown;
+            error?: unknown;
+          }
+        | null;
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string"
+            ? data.error
+            : "결혼 준비 정보를 저장하지 못했습니다.",
+        );
       }
+
+      if (
+        data?.status === "pending_partner"
+        && typeof data.requestId === "string"
+        && PLAN_CHANGE_REQUEST_ID_PATTERN.test(data.requestId)
+        && isPlanChangeSummary(data.summary)
+      ) {
+        return {
+          status: "pending_partner",
+          requestId: data.requestId,
+          summary: data.summary,
+        };
+      }
+
+      if (
+        data?.status !== "applied"
+        || typeof data.requestId !== "string"
+        || !PLAN_CHANGE_REQUEST_ID_PATTERN.test(data.requestId)
+        || typeof data.journey !== "object"
+        || data.journey === null
+      ) {
+        throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
+      }
+
+      const appliedJourney = data.journey as WeddingJourney;
+      const expectedCoupleId = couple?.id ?? journey?.couple_id ?? null;
+      const appliedRevision = appliedJourney.state_revision;
+      if (
+        expectedCoupleId === null
+        || appliedJourney.couple_id !== expectedCoupleId
+        || typeof appliedRevision !== "number"
+        || !Number.isSafeInteger(appliedRevision)
+        || appliedRevision <= expectedRevision
+      ) {
+        throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
+      }
+      const current = get();
+      const sameUser =
+        expectedUserId === null
+        || current.user?.id === expectedUserId;
+      if (
+        updateSequence === journeyWriteSequence
+        && sameUser
+      ) {
+        set({ journey: appliedJourney });
+      } else if (sameUser) {
+        void current.refreshJourney(expectedUserId ?? undefined);
+      }
+      return { status: "applied", journey: appliedJourney };
     } catch (err) {
       console.error("Journey 업데이트 에러:", err);
+      throw err;
     }
   },
 
@@ -387,6 +517,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: () => {
+    authInitializeSequence += 1;
+    journeyWriteSequence += 1;
     set({
       user: null,
       profile: null,

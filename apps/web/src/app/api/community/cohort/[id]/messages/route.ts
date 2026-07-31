@@ -7,6 +7,7 @@ import {
   normalizeCohortThreadTopic,
   resolveCohortThreadTopic,
 } from "@/lib/community/cohortTopicClassifier";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
@@ -137,6 +138,14 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status }
+      );
     }
 
     const limited = checkRateLimit(rateLimitKey("cohort:message:create", req, user.id), {

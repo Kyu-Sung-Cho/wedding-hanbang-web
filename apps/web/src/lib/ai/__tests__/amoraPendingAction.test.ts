@@ -4,6 +4,7 @@ import {
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 
 const NOW = 1_789_000_000_000;
@@ -107,15 +108,33 @@ describe("Amora pending actions", () => {
     );
 
     expect(result.cleanText).toBe(confirmation);
+    const identity = getAmoraToolOperationIdentity(
+      "update_budget",
+      { total_budget: 30_000_000 },
+    );
     expect(result.pendingAction).toMatchObject({
-      version: 1,
+      version: 2,
       actionId: ACTION_ID,
       tool: "update_budget",
       input: { total_budget: 30_000_000 },
+      inputDigest: identity.inputDigest,
+      operationKey: identity.operationKey,
       confirmation,
       issuedAt: NOW,
-      expiresAt: NOW + 10 * 60 * 1_000,
+      expiresAt: NOW + 24 * 60 * 60 * 1_000,
     });
+  });
+
+  it("gives two-person decisions time to reach a partner but keeps reversible actions short-lived", () => {
+    const coupleAction = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+    const singleAction = extract(
+      '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅"}}[/pending_action]',
+    ).pendingAction;
+
+    expect(coupleAction?.expiresAt).toBe(NOW + 24 * 60 * 60 * 1_000);
+    expect(singleAction?.expiresAt).toBe(NOW + 10 * 60 * 1_000);
   });
 
   it.each([
@@ -166,8 +185,8 @@ describe("Amora pending actions", () => {
       '[pending_action]{"tool":"update_venue","input":{"venue":"completed"}}[/pending_action]',
     );
 
-    expect(result.cleanText).toContain('- 예식장: "completed"');
-    expect(result.cleanText).not.toContain("- 예식장: 완료");
+    expect(result.cleanText).toContain('- 결혼식장: "completed"');
+    expect(result.cleanText).not.toContain("- 결혼식장: 완료");
   });
 
   it("preserves meaningful whitespace in a text value instead of summarizing a different value", () => {
@@ -175,7 +194,7 @@ describe("Amora pending actions", () => {
       '[pending_action]{"tool":"update_venue","input":{"venue":"A  B"}}[/pending_action]',
     );
 
-    expect(result.cleanText).toContain('- 예식장: "A  B"');
+    expect(result.cleanText).toContain('- 결혼식장: "A  B"');
   });
 
   it("keeps normal memo line breaks as an exact escaped representation", () => {
@@ -234,8 +253,45 @@ describe("Amora pending actions", () => {
       value: pending,
       confirmedActionId: ACTION_ID,
       allowedTools: tools,
-      now: NOW + 10 * 60 * 1_000,
+      now: NOW + 24 * 60 * 60 * 1_000,
     })).toBeNull();
+  });
+
+  it("rejects a tampered lifetime even when the action has not expired yet", () => {
+    const pending = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+
+    expect(resolveAmoraPendingAction({
+      value: pending && { ...pending, expiresAt: NOW + 10 * 60 * 1_000 },
+      confirmedActionId: ACTION_ID,
+      allowedTools: tools,
+      now: NOW + 1,
+    })).toBeNull();
+  });
+
+  it("rejects legacy or tampered tool identities instead of approving a different input", () => {
+    const pending = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    ).pendingAction;
+    expect(pending).not.toBeNull();
+
+    for (const value of [
+      pending && { ...pending, version: 1 },
+      pending && { ...pending, inputDigest: "a".repeat(64) },
+      pending && { ...pending, operationKey: "b".repeat(64) },
+      pending && {
+        ...pending,
+        input: { total_budget: 60_000_000 },
+      },
+    ]) {
+      expect(resolveAmoraPendingAction({
+        value,
+        confirmedActionId: ACTION_ID,
+        allowedTools: tools,
+        now: NOW + 1,
+      })).toBeNull();
+    }
   });
 
   it("never treats generic reply text or a wrong or foreign id as authority", () => {

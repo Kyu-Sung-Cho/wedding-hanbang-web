@@ -1,19 +1,22 @@
 import Ajv, { type ValidateFunction } from "ajv";
+import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
+import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 
-const PENDING_ACTION_TTL_MS = 10 * 60 * 1_000;
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
 const MAX_CANONICAL_CONFIRMATION_CHARS = 2_000;
 const MAX_JSON_KEY_CHARS = 120;
 const ACTION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
 const FORBIDDEN_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const UNSAFE_DISPLAY_CONTROL_RE = /[\p{Cc}\u2028\u2029]/u;
 const UNSAFE_DISPLAY_FORMAT_RE = /\p{Cf}/u;
 const TOOL_LABELS: Readonly<Record<string, string>> = {
   update_budget: "총 결혼 예산 변경",
-  update_wedding_date: "결혼 예정일 변경",
+  update_wedding_date: "결혼식 날짜 변경",
   update_task_status: "준비 항목 상태 변경",
-  update_venue: "예식장 변경",
+  update_venue: "결혼식장 변경",
   update_category_budget: "카테고리 예산·지출 변경",
   apply_budget_plan: "예산 배분안 적용",
   add_custom_category: "맞춤 예산 항목 추가",
@@ -31,10 +34,10 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
 };
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   total_budget: "총 예산",
-  wedding_date: "결혼 예정일",
+  wedding_date: "결혼식 날짜",
   category: "카테고리",
   status: "상태",
-  venue: "예식장",
+  venue: "결혼식장",
   budget: "예산",
   spent: "지출",
   allocations: "카테고리별 배분",
@@ -76,13 +79,13 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
     low: "낮음",
   },
   moment_type: {
-    family_greeting: "양가 첫인사",
-    sanggyeonrye: "상견례",
-    venue_tour: "예식장 투어",
-    dress_tour: "드레스 투어",
-    studio_shoot: "스튜디오 촬영",
-    dress_fitting: "드레스 피팅",
-    invitation_meeting: "청첩장 모임",
+    family_greeting: "한쪽 가족에게 첫인사",
+    sanggyeonrye: "양쪽 부모님이 함께 만나는 자리",
+    venue_tour: "결혼식장 방문",
+    dress_tour: "드레스 매장 방문",
+    studio_shoot: "웨딩 사진 촬영",
+    dress_fitting: "드레스 수선·최종 확인",
+    invitation_meeting: "초대장 전달 모임",
     first_holiday: "결혼 후 첫 명절",
   },
   source: {
@@ -96,26 +99,7 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
 };
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
-  meeting: "상견례",
-  venue: "예식장",
-  studio: "스튜디오",
-  dress: "드레스·턱시도",
-  makeup: "메이크업",
-  ring: "예물",
-  hanbok: "한복",
-  yedan: "예단",
-  honeymoon: "신혼여행",
-  houseware: "혼수",
-  housing: "신혼집",
-  invitation: "청첩장",
-  snap: "본식 스냅·영상",
-  shoes: "웨딩 구두",
-  bouquet: "부케",
-  gift: "답례품",
-  mc: "사회·축가",
-  ham: "함",
-  pyebaek: "폐백",
-  reserve: "예비비",
+  ...PLANNING_CATEGORY_LABELS,
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
 const NESTED_FIELD_ORDER = ["category", "budget", "rationale"] as const;
@@ -129,10 +113,12 @@ const ajv = new Ajv({
 const validators = new WeakMap<object, ValidateFunction>();
 
 export interface StoredAmoraPendingAction {
-  version: 1;
+  version: 2;
   actionId: string;
   tool: string;
   input: Record<string, unknown>;
+  inputDigest: string;
+  operationKey: string;
   confirmation: string;
   issuedAt: number;
   expiresAt: number;
@@ -375,17 +361,20 @@ export function extractAmoraPendingAction({
   if (!ACTION_ID_RE.test(actionId)) {
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }
+  const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
   return {
     cleanText: marker.confirmation,
     hadPendingActionTag,
     pendingAction: {
-      version: 1,
+      version: 2,
       actionId,
       tool: marker.tool,
       input: marker.input,
+      inputDigest: identity.inputDigest,
+      operationKey: identity.operationKey,
       confirmation: marker.confirmation,
       issuedAt: now,
-      expiresAt: now + PENDING_ACTION_TTL_MS,
+      expiresAt: now + getAmoraPendingActionTtlMs(marker.tool, marker.input),
     },
   };
 }
@@ -398,24 +387,40 @@ export function resolveAmoraPendingAction({
 }: ResolvePendingActionInput): StoredAmoraPendingAction | null {
   if (typeof confirmedActionId !== "string" || !ACTION_ID_RE.test(confirmedActionId)) return null;
   if (!isRecord(value)) return null;
-  if (value.version !== 1 || typeof value.actionId !== "string") return null;
+  if (value.version !== 2 || typeof value.actionId !== "string") return null;
   if (!ACTION_ID_RE.test(value.actionId) || value.actionId !== confirmedActionId) return null;
+  if (
+    typeof value.inputDigest !== "string"
+    || !SHA256_HEX_RE.test(value.inputDigest)
+    || typeof value.operationKey !== "string"
+    || !SHA256_HEX_RE.test(value.operationKey)
+  ) return null;
   if (typeof value.issuedAt !== "number" || typeof value.expiresAt !== "number") return null;
   if (!Number.isInteger(value.issuedAt) || !Number.isInteger(value.expiresAt)) return null;
   if (value.issuedAt > now || value.expiresAt <= now) return null;
-  if (value.expiresAt - value.issuedAt !== PENDING_ACTION_TTL_MS) return null;
 
   const marker = validateMarker({
     tool: value.tool,
     input: value.input,
   }, allowedTools);
   if (!marker || value.confirmation !== marker.confirmation) return null;
+  const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
+  if (
+    value.inputDigest !== identity.inputDigest
+    || value.operationKey !== identity.operationKey
+  ) return null;
+  if (
+    value.expiresAt - value.issuedAt
+    !== getAmoraPendingActionTtlMs(marker.tool, marker.input)
+  ) return null;
 
   return {
-    version: 1,
+    version: 2,
     actionId: value.actionId,
     tool: marker.tool,
     input: marker.input,
+    inputDigest: identity.inputDigest,
+    operationKey: identity.operationKey,
     confirmation: marker.confirmation,
     issuedAt: value.issuedAt,
     expiresAt: value.expiresAt,

@@ -251,7 +251,7 @@ export default function MoneyPage() {
                     form.side === s ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[#504444]"
                   }`}
                 >
-                  {s === "groom" ? "신랑측" : "신부측"}
+                  {s === "groom" ? "예비 신랑 가족" : "예비 신부 가족"}
                 </button>
               ))}
             </div>

@@ -18,6 +18,14 @@ export type PriceOffer = {
   itemName?: string;
   agencyId: string | null;
   agencyName: string;
+  /**
+   * 이 가격 행이 귀속된 지역. 스드메는 대행사 경로, 예식장은 업체 지역이다.
+   *
+   * 병합된 업체는 여러 지역의 가격을 한 카드에 모으므로 업체 대표 regionCode만으로는
+   * 선택 지역의 가격 행을 가릴 수 없다. 공개 카탈로그는 행마다 이 값을 채운다.
+   * optional은 관리자 미리보기 등 기존 비공개 카탈로그와의 호환을 위한 경계다.
+   */
+  regionCode?: string | null;
   minimumKrw: number | null;
   maximumKrw: number | null;
   priceNote: string | null;
@@ -142,6 +150,15 @@ export function filterPriceCatalog(
 ): PriceVendor[] {
   const query = normalizedSearchValue(filter.search ?? "");
   const agencyIds = new Set(filter.agencyIds ?? []);
+  const offersInRegion = (vendor: PriceVendor): PriceOffer[] => {
+    const selectedRegion = filter.regionCode;
+    if (!selectedRegion) return vendor.offers;
+    return vendor.offers.filter((offer) => (
+      offer.regionCode === undefined
+        ? vendorRegionCodes(vendor).includes(selectedRegion)
+        : offer.regionCode === selectedRegion
+    ));
+  };
   const offersFor = (vendor: PriceVendor) => agencyIds.size === 0
     ? vendor.offers
     : vendor.offers.filter(({ agencyId }) => agencyId !== null && agencyIds.has(agencyId));
@@ -157,9 +174,22 @@ export function filterPriceCatalog(
   return vendors
     .filter((vendor) => !query || [vendor.name, ...vendor.aliases]
       .some((value) => normalizedSearchValue(value).includes(query)))
-    // 병합된 업체는 여러 대행사 지역에서 닿을 수 있다 — 하나라도 맞으면 노출한다.
+    // 전체 취급 지역으로 먼저 소속을 판정한 뒤, 아래에서 가격 행과 표시 배지를
+    // 선택 지역 하나로 좁힌다. 순서를 바꾸면 모든 카드가 선택 지역처럼 보인다.
     .filter((vendor) => !filter.regionCode
       || vendorRegionCodes(vendor).includes(filter.regionCode))
+    .map((vendor) => {
+      const offers = offersInRegion(vendor);
+      if (offers === vendor.offers) return vendor;
+      return {
+        ...vendor,
+        offers,
+        // 필터된 가격은 선택 지역의 행만 남는다. 카드 배지도 전체 취급 지역이
+        // 아니라 현재 비교 중인 지역 하나를 가리켜야 가격과 지역이 어긋나지 않는다.
+        regionCode: filter.regionCode ?? vendor.regionCode,
+        regionCodes: filter.regionCode ? [filter.regionCode] : vendor.regionCodes,
+      };
+    })
     .filter((vendor) => agencyIds.size === 0 || offersFor(vendor).length > 0)
     .filter((vendor) => {
       // 예산대 탐색은 "이 예산으로 살 수 있는 상품이 있는가"를 묻는 것이다.

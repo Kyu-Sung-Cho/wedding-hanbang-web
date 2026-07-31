@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import {
+  findObviousPublicPersonalInfo,
+  PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+} from "@/lib/community/publicPersonalInfo";
 import {
   validateCommunityAttachmentUrl,
   validateCommunityHtmlImageSources,
@@ -13,7 +18,13 @@ import {
   validateRetainedCommunityVideoUrl,
 } from "@/lib/community/mediaUrls";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
-import type { PostVisibility, UpdatePostInput, PollWithOptions } from "@/types/community.types";
+import type {
+  AdDisclosure,
+  PollWithOptions,
+  PostVisibility,
+  PriceData,
+  UpdatePostInput,
+} from "@/types/community.types";
 
 const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
 
@@ -208,13 +219,23 @@ export async function PATCH(
       );
     }
 
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status },
+      );
+    }
+
     const userIsAdmin = await isAdmin(user.id);
     const readClient = userIsAdmin ? getServiceClient() : supabase;
 
     // 작성자 확인. 관리자는 전체 커뮤니티 관리 권한으로 service role 조회를 사용한다.
     const { data: existingPost } = await readClient
       .from("community_posts")
-      .select("author_id, slides, images")
+      .select(
+        "author_id, slides, images, title, content, tags, cost_data, price_data, ad_disclosure, sponsorship_detail"
+      )
       .eq("id", id)
       .maybeSingle();
 
@@ -369,14 +390,139 @@ export async function PATCH(
         .map((t: string) => sanitizeText(typeof t === "string" ? t : "").slice(0, 30))
         .filter((t: string) => t.length > 0);
     }
+    if (
+      body.ad_disclosure !== undefined ||
+      body.sponsorship_detail !== undefined
+    ) {
+      const allowedDisclosures: AdDisclosure[] = [
+        "general",
+        "sponsored",
+        "ad",
+      ];
+      const nextDisclosure =
+        body.ad_disclosure ?? existingPost.ad_disclosure;
+      if (!allowedDisclosures.includes(nextDisclosure as AdDisclosure)) {
+        return NextResponse.json(
+          { error: "광고 표시 유형을 확인해 주세요." },
+          { status: 400 }
+        );
+      }
+
+      updateData.ad_disclosure = nextDisclosure;
+      if (nextDisclosure === "sponsored") {
+        const detail = sanitizeText(
+          typeof body.sponsorship_detail === "string"
+            ? body.sponsorship_detail
+            : existingPost.sponsorship_detail ?? ""
+        )
+          .trim()
+          .slice(0, 500);
+        if (detail.length < 5) {
+          return NextResponse.json(
+            { error: "협찬으로 받은 혜택을 5자 이상 적어 주세요." },
+            { status: 400 }
+          );
+        }
+        updateData.sponsorship_detail = detail;
+      } else {
+        updateData.sponsorship_detail = null;
+      }
+    }
+    if (body.price_data !== undefined) {
+      if (body.price_data === null) {
+        updateData.price_data = null;
+      } else if (
+        typeof body.price_data.base_price === "number" &&
+        Number.isFinite(body.price_data.base_price) &&
+        body.price_data.base_price > 0
+      ) {
+        const priceData: PriceData = {
+          vendor_category: body.price_data.vendor_category,
+          base_price: body.price_data.base_price,
+          extra_price:
+            typeof body.price_data.extra_price === "number" &&
+            Number.isFinite(body.price_data.extra_price)
+              ? body.price_data.extra_price
+              : undefined,
+          vendor_name:
+            typeof body.price_data.vendor_name === "string"
+              ? sanitizeText(body.price_data.vendor_name).trim().slice(0, 100)
+              : undefined,
+          region:
+            typeof body.price_data.region === "string"
+              ? sanitizeText(body.price_data.region).trim().slice(0, 100)
+              : undefined,
+          details:
+            typeof body.price_data.details === "string"
+              ? sanitizeText(body.price_data.details).trim().slice(0, 1_000)
+              : undefined,
+        };
+        updateData.price_data = priceData;
+      } else {
+        return NextResponse.json(
+          { error: "가격 정보의 기본 금액을 확인해 주세요." },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.is_resolved !== undefined) {
+      if (typeof body.is_resolved !== "boolean") {
+        return NextResponse.json(
+          { error: "해결 상태는 참 또는 거짓으로 보내주세요." },
+          { status: 400 }
+        );
+      }
+      updateData.is_resolved = body.is_resolved;
+    }
     if (body.cost_data !== undefined) updateData.cost_data = body.cost_data;
+
+    const nextPublicValue = (field: string, currentValue: unknown) =>
+      Object.prototype.hasOwnProperty.call(updateData, field)
+        ? updateData[field]
+        : currentValue;
+    const publicText = (value: unknown): string | null => {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return null;
+      return JSON.stringify(value);
+    };
+    const personalInfoKinds = findObviousPublicPersonalInfo(
+      publicText(nextPublicValue("title", existingPost.title)),
+      publicText(nextPublicValue("content", existingPost.content)),
+      publicText(
+        nextPublicValue(
+          "sponsorship_detail",
+          existingPost.sponsorship_detail
+        )
+      ),
+      publicText(nextPublicValue("tags", existingPost.tags)),
+      publicText(nextPublicValue("cost_data", existingPost.cost_data)),
+      publicText(nextPublicValue("price_data", existingPost.price_data))
+    );
+    if (personalInfoKinds.length > 0) {
+      return NextResponse.json(
+        {
+          error: PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+          code: "COMMUNITY_PERSONAL_INFO_DETECTED",
+          detected: personalInfoKinds,
+        },
+        { status: 422 }
+      );
+    }
+
     updateData.updated_at = new Date().toISOString();
 
-    const writeClient = userIsAdmin ? getServiceClient() : supabase;
-    const { data: updatedPost, error } = await writeClient
+    // Authenticated table writes are intentionally revoked. Ownership and
+    // moderation access were checked above; the validated mutation now uses
+    // only the server-held service role.
+    const writeClient = getServiceClient();
+    let postUpdate = writeClient
       .from("community_posts")
       .update(updateData)
-      .eq("id", id)
+      .eq("id", id);
+    if (!userIsAdmin) {
+      postUpdate = postUpdate.eq("author_id", user.id);
+    }
+    const { data: updatedPost, error } = await postUpdate
       .select("*")
       .single();
 

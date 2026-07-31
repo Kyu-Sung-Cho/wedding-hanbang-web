@@ -19,6 +19,11 @@ import {
   PUBLIC_COMMUNITY_POST_QUERY_FILTERS,
   communityReadablePostOrFilter,
 } from "@/lib/community/publicPostRules";
+import {
+  findObviousPublicPersonalInfo,
+  PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+} from "@/lib/community/publicPersonalInfo";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { isCommunityCategory } from "@/lib/community/routes";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -34,6 +39,19 @@ import type {
   CreatePollInput,
   PollSummary,
 } from "@/types/community.types";
+
+const POST_SORTS: PostSort[] = [
+  "hot",
+  "new",
+  "top",
+  "unanswered",
+  "resolved",
+  "my_cohort",
+  "my_posts",
+];
+// "free"에는 질문뿐 아니라 잡담도 섞이므로 상태 필터에 넣지 않는다.
+// 질문/후기 구분을 category와 분리하는 DB 필드가 생기기 전까지는 명시적 질문 카테고리만 사용한다.
+const QUESTION_CATEGORIES: CommunityCategory[] = ["is_normal", "ama"];
 
 async function generateAiPriceComment(priceData: PriceData): Promise<AiComment | null> {
   try {
@@ -69,7 +87,10 @@ export async function GET(req: NextRequest) {
 
     const categoryParam = searchParams.get("category");
     const category = isCommunityCategory(categoryParam) ? categoryParam : null;
-    const sort = (searchParams.get("sort") ?? "hot") as PostSort;
+    const requestedSort = searchParams.get("sort");
+    const sort = POST_SORTS.includes(requestedSort as PostSort)
+      ? (requestedSort as PostSort)
+      : "hot";
     const period = (searchParams.get("period") ?? "week") as TimePeriod;
     const page = Math.max(1, Math.min(1000, parseInt(searchParams.get("page") ?? "1") || 1));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") ?? "20") || 20));
@@ -83,7 +104,7 @@ export async function GET(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const isLatestFeed = sort === "new";
+    const isLatestFeed = sort === "new" || sort === "unanswered" || sort === "resolved";
     const isPersonalizedFeed = Boolean(user) || bookmarkedOnly || sort === "my_cohort" || sort === "my_posts";
     const feedCacheControl = isPersonalizedFeed
       ? "private, no-store, max-age=0"
@@ -146,6 +167,12 @@ export async function GET(req: NextRequest) {
         .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview);
     }
 
+    // 인기·추천 순위에는 광고와 협찬을 섞지 않는다. 최신순에서는 투명한 배지와
+    // 대가 내용을 붙여 열람할 수 있지만, 반응 점수로 노출을 증폭시키지는 않는다.
+    if (sort === "top" || sort === "hot" || sort === "unanswered" || sort === "resolved") {
+      query = query.eq("ad_disclosure", "general");
+    }
+
     // 정렬 + my_cohort / my_posts 필터
     if (sort === "my_cohort") {
       // 비로그인은 빈 결과
@@ -185,10 +212,24 @@ export async function GET(req: NextRequest) {
       }
       // 본인 글만 + 최신순 (본인 글이라 visibility 무관 — RLS는 위에서 이미 적용됨)
       query = query.eq("author_id", user.id).order("created_at", { ascending: false });
+    } else if (sort === "unanswered") {
+      query = query
+        .in("category", QUESTION_CATEGORIES)
+        .eq("is_resolved", false)
+        .eq("comment_count", 0)
+        .order("created_at", { ascending: false });
+    } else if (sort === "resolved") {
+      query = query
+        .in("category", QUESTION_CATEGORIES)
+        .eq("is_resolved", true)
+        .order("updated_at", { ascending: false });
     } else if (sort === "new") {
       // 고정 글 우선(운영자 앵커) → 그 다음 최신순
       query = query.order("is_pinned", { ascending: false }).order("created_at", { ascending: false });
     } else if (sort === "top") {
+      // "도움된순"은 실제 도움돼요 반응이 있는 글만 뜻한다.
+      // 0표 글까지 순위로 보여주면 빈 커뮤니티를 인기 목록처럼 오인시킨다.
+      query = query.gt("upvote_count", 0);
       // 기간 필터
       if (period !== "all") {
         const now = new Date();
@@ -313,6 +354,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
         { status: 401 }
+      );
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status },
       );
     }
 
@@ -529,7 +578,47 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const personalInfoKinds = findObviousPublicPersonalInfo(
+      title,
+      content,
+      sponsorshipDetail,
+      priceData?.vendor_name,
+      priceData?.region,
+      priceData?.details,
+      priceData ? JSON.stringify(priceData) : null,
+      ...tags,
+      cost_data ? JSON.stringify(cost_data) : null,
+      pollDraft?.question,
+      ...(pollDraft?.options.map((option) => option.label) ?? [])
+    );
+    if (personalInfoKinds.length > 0) {
+      return NextResponse.json(
+        {
+          error: PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+          code: "COMMUNITY_PERSONAL_INFO_DETECTED",
+          detected: personalInfoKinds,
+        },
+        { status: 422 }
+      );
+    }
+
     const serviceClient = getServiceClient();
+    const { data: originProfile, error: originProfileError } = await serviceClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (originProfileError) {
+      return NextResponse.json(
+        {
+          error: "작성자 출처를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          code: "COMMUNITY_CONTENT_ORIGIN_UNAVAILABLE",
+        },
+        { status: 503 },
+      );
+    }
+    const contentOrigin = originProfile?.is_admin === true ? "operator" : "member";
 
     // 커뮤니티 프로필 자동 생성 (없으면)
     const { data: existingProfile } = await serviceClient
@@ -577,6 +666,7 @@ export async function POST(req: NextRequest) {
       .from("community_posts")
       .insert({
         author_id: user.id,
+        content_origin: contentOrigin,
         category,
         title,
         content,

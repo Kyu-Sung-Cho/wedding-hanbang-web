@@ -1,15 +1,68 @@
 ﻿"use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { useCommunityStore } from "@/stores/communityStore";
 import CommentItem from "@/components/community/CommentItem";
 import type { CommentWithAuthor } from "@/types/community.types";
+import { weddingPath } from "@/lib/weddingPaths";
 
 interface CommentSectionProps {
   postId: string;
+}
+
+function mergeUniqueReplies(
+  nestedReplies: CommentWithAuthor[],
+  flatReplies: CommentWithAuthor[],
+): CommentWithAuthor[] {
+  const repliesById = new Map<string, CommentWithAuthor>();
+
+  for (const reply of [...nestedReplies, ...flatReplies]) {
+    const existing = repliesById.get(reply.id);
+    repliesById.set(
+      reply.id,
+      existing
+        ? {
+            ...existing,
+            ...reply,
+            replies: mergeUniqueReplies(
+              existing.replies ?? [],
+              reply.replies ?? [],
+            ),
+          }
+        : reply,
+    );
+  }
+
+  return [...repliesById.values()];
+}
+
+export function buildCommentTree(
+  sourceComments: CommentWithAuthor[],
+): CommentWithAuthor[] {
+  const topLevel: CommentWithAuthor[] = [];
+  const repliesMap = new Map<string, CommentWithAuthor[]>();
+
+  for (const comment of sourceComments) {
+    if (!comment.parent_id) {
+      topLevel.push(comment);
+      continue;
+    }
+
+    const replies = repliesMap.get(comment.parent_id) ?? [];
+    replies.push(comment);
+    repliesMap.set(comment.parent_id, replies);
+  }
+
+  return topLevel.map((comment) => ({
+    ...comment,
+    replies: mergeUniqueReplies(
+      comment.replies ?? [],
+      repliesMap.get(comment.id) ?? [],
+    ),
+  }));
 }
 
 export default function CommentSection({ postId }: CommentSectionProps) {
@@ -28,6 +81,10 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const pendingSubmissionKeys = useRef(
+    new Map<string, { content: string; idempotencyKey: string }>(),
+  );
 
   // 유저 상태 확인
   useEffect(() => {
@@ -47,16 +104,43 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     }
   }, [postId, fetchComments]);
 
+  async function submitWithStableKey(input: {
+    post_id: string;
+    parent_id?: string;
+    content: string;
+  }) {
+    const content = input.content.trim();
+    const lane = input.parent_id ? `reply:${input.parent_id}` : "answer";
+    const pending = pendingSubmissionKeys.current.get(lane);
+    const idempotencyKey =
+      pending?.content === content
+        ? pending.idempotencyKey
+        : globalThis.crypto.randomUUID();
+
+    pendingSubmissionKeys.current.set(lane, { content, idempotencyKey });
+    const ok = await createComment(
+      { ...input, content },
+      { idempotencyKey },
+    );
+    if (ok) pendingSubmissionKeys.current.delete(lane);
+    return ok;
+  }
+
   // 댓글 작성
   async function handleSubmit() {
     if (!newComment.trim() || submitting) return;
     setSubmitting(true);
-    const ok = await createComment({
+    setSubmitError(null);
+    const ok = await submitWithStableKey({
       post_id: postId,
       content: newComment.trim(),
     });
     if (ok) {
       setNewComment("");
+    } else {
+      setSubmitError(
+        "답변이 저장되지 않았어요. 내용을 유지했으니 잠시 후 다시 등록해 주세요.",
+      );
     }
     setSubmitting(false);
   }
@@ -76,35 +160,24 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   );
   const isLoadingCurrentComments = commentsPostId === postId && commentsLoading;
 
-  const treeComments = useMemo(() => {
-    const topLevel: CommentWithAuthor[] = [];
-    const repliesMap: Record<string, CommentWithAuthor[]> = {};
-
-    visibleComments.forEach((c) => {
-      if (!c.parent_id) {
-        topLevel.push(c);
-      } else {
-        if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
-        repliesMap[c.parent_id].push(c);
-      }
-    });
-
-    return topLevel.map((c) => ({
-      ...c,
-      replies: repliesMap[c.id] ?? [],
-    }));
-  }, [visibleComments]);
+  const treeComments = useMemo(
+    () => buildCommentTree(visibleComments),
+    [visibleComments],
+  );
 
   const commentCount = currentPost?.id === postId
     ? currentPost.comment_count
     : visibleComments.length;
+  const commentsReturnPath =
+    `${weddingPath(`/community/post/${postId}`)}#comments`;
+  const loginHref = `/login?redirect=${encodeURIComponent(commentsReturnPath)}`;
 
   return (
-    <div>
+    <div className="scroll-mt-24">
       {/* 댓글 수 헤더 */}
       <div className="flex items-center gap-2 mb-4">
         <h3 className="text-base font-medium text-[#1A1A1F]">
-          댓글{" "}
+          답변{" "}
           {commentCount > 0 && (
             <span className="text-[#B5ADA3]">{commentCount}</span>
           )}
@@ -115,10 +188,19 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       {user ? (
         <div className="mb-4">
           <textarea
+            id="comment-composer"
             value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              const pending = pendingSubmissionKeys.current.get("answer");
+              if (pending && pending.content !== nextValue.trim()) {
+                pendingSubmissionKeys.current.delete("answer");
+              }
+              setSubmitError(null);
+              setNewComment(nextValue);
+            }}
             onKeyDown={handleKeyDown}
-            placeholder="댓글을 작성해 주세요..."
+            placeholder="직접 겪은 범위와 질문자가 다음에 확인할 행동을 적어주세요."
             rows={3}
             maxLength={2000}
             className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
@@ -133,9 +215,20 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               disabled={!newComment.trim() || submitting}
               className="px-4 py-2 text-base font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {submitting ? "등록 중..." : "등록"}
+              {submitting ? "등록 중..." : "답변 등록"}
             </button>
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-[#8F6662]">
+            전화번호·이메일·주소·계좌번호·서명·QR코드는 답변에 적지 마세요.
+          </p>
+          {submitError && (
+            <p
+              role="alert"
+              className="mt-2 rounded-lg bg-[#FBF8F2] px-3 py-2 text-xs leading-relaxed text-[#8F6662]"
+            >
+              {submitError}
+            </p>
+          )}
         </div>
       ) : (
         <div className="mb-4 relative">
@@ -143,12 +236,12 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#B5ADA3]" />
             <p className="text-base text-[#878680]">
               <Link
-                href="/login"
+                href={loginHref}
                 className="text-[#36534E] font-semibold hover:underline"
               >
                 로그인
               </Link>
-              하고 댓글을 작성해 보세요
+              하고 답변을 작성해 보세요
             </p>
           </div>
         </div>
@@ -171,7 +264,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         <div className="text-center py-8">
           <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#B5ADA3]" />
           <p className="text-base text-[#878680]">
-            아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
+            아직 답변이 없습니다. 첫 경험을 나눠주세요.
           </p>
         </div>
       ) : (
@@ -185,8 +278,8 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               onDelete={deleteComment}
               onEdit={updateComment}
               onVote={voteComment}
-              onReply={async (parentId, content) => {
-                await createComment({
+              onReply={(parentId, content) => {
+                return submitWithStableKey({
                   post_id: postId,
                   parent_id: parentId,
                   content,

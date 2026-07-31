@@ -1,5 +1,13 @@
 # 세션 종합 — 2026-07-06 (일부 07-07 새벽)
 
+> [!CAUTION]
+> **SUPERSEDED HISTORICAL SESSION RECORD**
+>
+> 아래 HEAD·테스트·배포 완료 문장은 2026-07-06 당시 증거다. 현재 작업 트리나 운영
+> 상태를 설명하지 않는다. 현재 기준은 `README.md`,
+> `MVP_PRODUCT_DIRECTION_2026-07-30.md`와
+> `operations/FULL_REPOSITORY_AUDIT_2026-07-30.md`를 따른다.
+
 > 이 문서는 2026-07-06 하루 작업의 전체 기록이다. **모든 변경은 배포·라이브 확인 완료,
 > git은 커밋·main ff-merge·push 전부 끝난 상태**(HEAD = main = origin/main = origin/audit
 > 브랜치 = `992b1139`, 워킹트리 클린). 이 세션 커밋 20개, 최종 테스트 **337개 그린**.

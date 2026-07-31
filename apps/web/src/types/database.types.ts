@@ -44,6 +44,8 @@ export interface WeddingJourney {
   venue: string | null;
   total_budget: number;
   progress: Record<string, ProgressItem>;
+  /** Monotonic database-owned token used to reject stale Amora proposals. */
+  state_revision?: number;
   created_at: string;
   updated_at: string;
 }
@@ -96,6 +98,26 @@ export interface ProgressItem {
   payer?: PayerType;
 }
 
+export type ScheduleEventStatus = "planned" | "completed";
+
+/**
+ * 일정 담당자는 보는 사람 기준의 "나/상대방"을 저장하지 않는다.
+ * 커플 구성원은 프로필 UUID, 공동 담당은 couple, 외부 담당은 사용자가
+ * 직접 입력한 짧은 역할명만 저장해 다른 구성원이 보아도 의미가 바뀌지 않는다.
+ */
+export type ScheduleEventAssignee =
+  | {
+      kind: "member";
+      profileId: string;
+    }
+  | {
+      kind: "couple";
+    }
+  | {
+      kind: "external";
+      label: string;
+    };
+
 export interface ScheduleEvent {
   id: string;
   date: string;
@@ -105,6 +127,12 @@ export interface ScheduleEvent {
   sourceKey?: string;
   /** 모멘트 루프 트리거 — constants/moments.ts의 MomentType. 같은 타입 복수 이벤트 허용(예: 청첩장 모임 그룹별) */
   momentType?: string;
+  /** 기존 일정에 값이 없으면 planned로 해석한다. */
+  status?: ScheduleEventStatus;
+  /** 일을 끝냈다고 판단할 수 있는 사용자가 입력한 기준. */
+  completionCriteria?: string;
+  /** 값이 없으면 담당 미정. 구성원 이름은 이 JSON에 복사하지 않는다. */
+  assignee?: ScheduleEventAssignee;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,10 +150,14 @@ export type ChatMessageTarget = "ai" | "partner";
 export type ChatMessageVisibility = "shared" | "bride_private" | "groom_private";
 
 export interface PendingAmoraAction {
-  version: 1;
+  version: 2;
   actionId: string;
   tool: string;
   input: Record<string, unknown>;
+  /** Server-computed SHA-256 of the canonical exact tool input. */
+  inputDigest: string;
+  /** Server-computed SHA-256 of the exact tool name and canonical input. */
+  operationKey: string;
   /** Canonical, server-authored Korean description of the exact mutation. */
   confirmation: string;
   /** Server epoch milliseconds. */
@@ -141,10 +173,15 @@ export interface ChatMessageMetadata {
   imageUrls?: string[];
   imagePaths?: string[];
   target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게
+  /** Durable user message this AI row answers; used for exact UI correlation. */
+  in_reply_to_user_message_id?: string;
+  /** Client echo consumed by the DB application lease trigger. */
+  confirmed_amora_action_id?: string;
+  /** Proposal-time wedding_journeys state token enforced by the database. */
+  pending_amora_action_journey_revision?: number;
   lifecycle?: {
     stage?: string;
-    riskLevel?: string;
-    riskScore?: number;
+    severity?: string;
     primaryActionId?: string;
     href?: string;
   };

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   createAdminClient: vi.fn(),
   hasActiveAccountDeletion: vi.fn(async () => false),
+  checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true })),
   claimCommunityUploadSession: vi.fn(),
   markCommunityUploadCompleted: vi.fn(async () => true),
   rejectCommunityUploadSession: vi.fn(async () => true),
@@ -23,6 +24,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
   hasActiveAccountDeletion: mocks.hasActiveAccountDeletion,
+}));
+vi.mock("@/lib/community/writeAccess", () => ({
+  checkCommunityWriteAccess: mocks.checkCommunityWriteAccess,
 }));
 vi.mock("@/lib/supabase/destinationFence", () => ({
   verifyRuntimeSupabaseServiceDestination: mocks.verifyRuntimeSupabaseServiceDestination,

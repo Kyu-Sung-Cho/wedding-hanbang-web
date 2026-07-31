@@ -123,7 +123,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             <p className="text-[13px] font-medium leading-[1.5] text-[#928980]">
               {weddingDate
                 ? "이번 주 마감 임박 항목이 없어요. 좋은 흐름이에요."
-                : "예식일을 입력하면 이번 주 할 일을 골라드려요."}
+                : "결혼식 날짜를 입력하면 이번 주 할 일을 골라드려요."}
             </p>
           )}
         </div>
@@ -142,7 +142,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             정답보다 두 사람의 기준부터
           </p>
           <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
-            예단·호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
+            두 가족에게 드릴 선물·서로 부를 호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
           </p>
         </Link>
 

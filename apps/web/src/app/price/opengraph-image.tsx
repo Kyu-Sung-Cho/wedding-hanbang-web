@@ -10,7 +10,7 @@ import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
 
-export const alt = "스드메·예식장 공시 가격 — 업체별 기본가와 추가금";
+export const alt = "사진 촬영·드레스·메이크업·결혼식장 공시 가격";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
@@ -47,7 +47,9 @@ export default async function OpenGraphImage() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", color: "#8F6662", fontSize: 28 }}>한국소비자원 참가격 공시</div>
-          <div style={{ display: "flex", fontSize: 66, lineHeight: 1.14, letterSpacing: -2 }}>스드메·예식장 공시 가격</div>
+          <div style={{ display: "flex", fontSize: 58, lineHeight: 1.14, letterSpacing: 0 }}>
+            사진 촬영·드레스·메이크업·결혼식장 공시 가격
+          </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
             {total > 0 && (
               <div style={{ display: "flex", fontSize: 50, color: "#8F5150" }}>{total.toLocaleString()}곳</div>

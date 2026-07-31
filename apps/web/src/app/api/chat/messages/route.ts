@@ -4,8 +4,12 @@ import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord, isUuid } from "@/utils/requestValidation";
+import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
 const MAX_BODY_BYTES = 8 * 1024;
+const PRIVATE_NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+} as const;
 
 // 사용자가 해당 커플에 속하는지 + role 반환
 async function verifyCoupleOwnership(
@@ -50,6 +54,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: true, deleted: 0 });
     }
 
+    if (!isTrustedMutationRequest(request)) {
+      return NextResponse.json(
+        {
+          error: "요청 출처를 확인할 수 없습니다.",
+          code: "UNTRUSTED_MUTATION_REQUEST",
+        },
+        { status: 403, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+
     const limited = checkRateLimit(rateLimitKey("chat:messages:delete", request, user!.id), {
       maxRequests: 10,
       windowMs: 10 * 60 * 1000,
@@ -70,7 +84,63 @@ export async function DELETE(request: Request) {
     // Backward compat: mode 없으면 옛 방식 (본인 화면만 정리 — 가장 안전한 default)
     const mode: ClearMode = rawMode ?? "view_reset_shared";
 
-    const { ok, role } = await verifyCoupleOwnership(user!.id, coupleId);
+    if (mode === "delete_private") {
+      // This authenticated RPC derives auth.uid(), current role and visibility
+      // while holding the membership and private-memory scope locks.
+      const { data, error } = await supabase.rpc(
+        "hard_delete_current_user_private_chat",
+        { p_couple_id: coupleId },
+      );
+      if (error) {
+        const denied = error.code === "42501";
+        if (!denied) {
+          console.error("private chat hard delete RPC failed", {
+            code: error.code ?? null,
+          });
+        }
+        return NextResponse.json(
+          {
+            error: denied
+              ? "이 대화를 삭제할 권한이 없습니다."
+              : "비공개 대화를 안전하게 삭제하지 못했어요. 다시 시도해 주세요.",
+            code: denied
+              ? "PRIVATE_CHAT_DELETE_SCOPE_DENIED"
+              : "PRIVATE_CHAT_DELETE_FAILED",
+          },
+          {
+            status: denied ? 403 : 503,
+            headers: PRIVATE_NO_STORE_HEADERS,
+          },
+        );
+      }
+      if (
+        !isRecord(data)
+        || data.success !== true
+        || typeof data.cleared_at !== "string"
+        || typeof data.deleted_messages !== "number"
+      ) {
+        console.error("private chat hard delete RPC returned an invalid result");
+        return NextResponse.json(
+          {
+            error: "비공개 대화 삭제 결과를 확인하지 못했어요.",
+            code: "PRIVATE_CHAT_DELETE_INVALID_RESULT",
+          },
+          { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          mode,
+          deleted: data.deleted_messages,
+          clearedAt: data.cleared_at,
+        },
+        { headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+
+    const { ok } = await verifyCoupleOwnership(user!.id, coupleId);
     if (!ok) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
@@ -108,21 +178,6 @@ export async function DELETE(request: Request) {
           },
           { status: 410 },
         );
-      }
-
-      case "delete_private": {
-        // 본인 private만 삭제. 상대방 private은 절대 못 건드림.
-        if (role !== "bride" && role !== "groom") {
-          return NextResponse.json({ error: "역할이 설정되지 않았습니다." }, { status: 400 });
-        }
-        const myVisibility = role === "bride" ? "bride_private" : "groom_private";
-        const { count, error } = await admin
-          .from("chat_messages")
-          .delete({ count: "exact" })
-          .eq("couple_id", coupleId)
-          .eq("visibility", myVisibility);
-        if (error) throw error;
-        return NextResponse.json({ success: true, mode, deleted: count ?? 0 });
       }
 
       default:

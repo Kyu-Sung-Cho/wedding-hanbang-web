@@ -7,11 +7,11 @@ function source(path: string): string {
 }
 
 describe("onboarding return journey boundary", () => {
-  it("uses the same safe destination for already-complete, submitted and invite-modal exits", () => {
+  it("uses the same safe destination for every onboarding and approval-modal exit", () => {
     const onboarding = source("src/app/(auth)/onboarding/page.tsx");
     const safeExits = onboarding.match(/window\.location\.href = getAuthRedirectPath\(/g) ?? [];
 
-    expect(safeExits).toHaveLength(3);
+    expect(safeExits).toHaveLength(4);
     expect(onboarding).not.toContain('window.location.href = "/wedding/lounge"');
   });
 

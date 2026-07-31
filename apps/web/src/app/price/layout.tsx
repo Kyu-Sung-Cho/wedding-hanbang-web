@@ -53,7 +53,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
               <Logo size="sm" variant="white" />
             </Link>
             <p className="mt-3 text-[13px] font-medium leading-6 text-white/70">
-              AI가 함께하는 가장 든든한 결혼 준비
+              결혼 준비, 아모라와 정리하세요.
             </p>
           </div>
 

@@ -72,7 +72,7 @@ const initialState = {
   venueUndecided: false,
   sanggyeonryeDate: null as string | null,
   sanggyeonryeUndecided: false,
-  approximateBudget: 20000000,
+  approximateBudget: 0,
   preferences: { ...initialPreferences },
   progressChecklist: PROGRESS_CHECKLIST_ITEMS.map((item) => ({ ...item })),
 };

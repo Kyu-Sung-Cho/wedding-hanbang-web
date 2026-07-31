@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { setDemoCookies } from "@/lib/demoSession";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
@@ -13,9 +14,11 @@ export async function POST(request: Request) {
   // 앱 셸은 데모 쿠키를 실제 세션보다 우선한다. 로그인한 사용자가 공개 표면의
   // 체험 버튼을 누르면 자기 데이터 대신 샘플 화면을 보게 되므로, 실제 세션이
   // 있으면 데모를 만들지 않고 본인 화면으로 돌려보낸다.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) return NextResponse.json({ success: true, alreadySignedIn: true });
+  if (!isPreviewStubMode()) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) return NextResponse.json({ success: true, alreadySignedIn: true });
+  }
 
   const response = NextResponse.json({ success: true });
   if (!setDemoCookies(response)) {

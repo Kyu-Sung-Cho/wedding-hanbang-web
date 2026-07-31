@@ -112,7 +112,7 @@ async function handleProactiveRequest(req: NextRequest) {
       return NextResponse.json({ triggered: false });
     }
 
-    // 1순위: 모멘트 루프 (D-3 챙김 / D-1 출발 전 / D+1 안부) — 친언니의 본체.
+    // 1순위: 모멘트 루프 (D-3 확인 / D-1 출발 전 / D+1 안부).
     // 일반 6시간 쿨다운의 예외지만, 같은 셀은 한 번만 발화한다.
     // 중복 방지는 "due 셀의 키를 직접 조회"(윈도우 밀림 없음) + 기존 유니크 인덱스
     // chat_messages_client_request_id_unique(couple_id, metadata->>client_request_id)로
@@ -245,7 +245,10 @@ async function handleProactiveRequest(req: NextRequest) {
       progress: journey.progress,
     });
 
-    if (plan.riskLevel === "calm" || plan.primaryAction.severity === "celebrate") {
+    if (
+      plan.primaryAction.severity !== "critical"
+      && plan.primaryAction.severity !== "warning"
+    ) {
       return NextResponse.json({ triggered: false });
     }
 
@@ -289,8 +292,7 @@ async function handleProactiveRequest(req: NextRequest) {
           suggestions: plan.guardrails.slice(0, 3).map((item) => item.cta),
           lifecycle: {
             stage: plan.stage,
-            riskLevel: plan.riskLevel,
-            riskScore: plan.riskScore,
+            severity: plan.primaryAction.severity,
             primaryActionId: plan.primaryAction.id,
             href: plan.primaryAction.href,
           },

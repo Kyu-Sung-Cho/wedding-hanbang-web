@@ -126,7 +126,9 @@ describe("POST /api/internal/vendors/recommend", () => {
     expect(responseBody.results).toHaveLength(1);
     expect(responseBody.results[0]).toMatchObject({
       vendor: { id: "vendor-1", category: "studio" },
-      match_reasons: expect.arrayContaining(["원본 제공 조건 충족"]),
+      match_reasons: expect.arrayContaining([
+        "촬영한 전체 사진 파일 받기 조건 충족",
+      ]),
     });
     expect(mocks.loadRecommendationCandidates).toHaveBeenCalledWith(publicClient, "studio");
     expect(mocks.logRecommendationImpressions).toHaveBeenCalledWith(

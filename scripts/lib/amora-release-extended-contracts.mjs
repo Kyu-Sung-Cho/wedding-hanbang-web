@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const SHA256 = /^[a-f0-9]{64}$/;
 
 export const AMORA_POST_EXPAND_TABLES = Object.freeze([
@@ -412,7 +414,161 @@ function validateFinalizationContract(manifest) {
   return contract;
 }
 
+function textListSha256(values) {
+  return createHash("sha256")
+    .update(`${values.join("\n")}\n`, "utf8")
+    .digest("hex");
+}
+
+function validateSuccessorForwardOnlySecurityOperations(manifest) {
+  if (!Array.isArray(manifest.forwardOnlySecurityOperations)
+      || manifest.forwardOnlySecurityOperations.length !== 0) {
+    invalid(
+      "FORWARD_ONLY_SECURITY_OPERATIONS_INVALID",
+      "successor controller may not replay predecessor forward-only operations",
+    );
+  }
+  return manifest.forwardOnlySecurityOperations;
+}
+
+function validateSuccessorPostExpandBackupContract(manifest) {
+  const contract = manifest.postExpandBackupContract;
+  const versions = Array.isArray(manifest.expandMigrations)
+    ? manifest.expandMigrations.map((entry) => entry?.file?.slice(0, 14))
+    : [];
+  const expectedHead = versions.at(-1);
+  const tables = contract?.expectedTables;
+  const tablesValid = Array.isArray(tables)
+    && tables.length > 0
+    && tables.length === contract.expectedTableCount
+    && new Set(tables).size === tables.length
+    && tables.every((table, index) =>
+      /^[a-z][a-z0-9_]{1,62}$/.test(table)
+      && (index === 0 || table > tables[index - 1]));
+  if (!exactKeys(contract, [
+    "id",
+    "version",
+    "phase",
+    "verificationReceiptFileName",
+    "maximumAgeMinutes",
+    "expectedTableCount",
+    "expectedTables",
+    "expectedReleaseMigrationBaselineHead",
+    "expectedReleaseMigrationHead",
+    "expectedReleaseMigrationVersions",
+    "expectedTableContractSha256",
+    "expectedReleaseMigrationContractSha256",
+    "expectedCommitBinding",
+    "requiredLedgerEvidence",
+    "requiredReceiptValues",
+    "capture",
+    "verifier",
+    "hostedRestoreEvidence",
+  ])
+      || contract.id !== `post-${manifest.release}-backup`
+      || contract.version !== 2
+      || contract.phase !== "post-push-pre-deployment-canary"
+      || contract.verificationReceiptFileName
+        !== `${manifest.release}-post-expand-backup-verification.json`
+      || contract.maximumAgeMinutes !== 1_440
+      || !tablesValid
+      || contract.expectedTableContractSha256 !== textListSha256(tables)
+      || contract.expectedReleaseMigrationBaselineHead !== manifest.requiredRemoteHead
+      || contract.expectedReleaseMigrationHead !== expectedHead
+      || !exactArray(contract.expectedReleaseMigrationVersions, versions)
+      || contract.expectedReleaseMigrationContractSha256
+        !== textListSha256(versions)
+      || contract.expectedCommitBinding !== "release-expected-commit"
+      || contract.requiredLedgerEvidence
+        !== "live-remote-ledger-and-encrypted-backup-contract"
+      || !exactKeys(contract.requiredReceiptValues, [
+        "Verified",
+        "SourceCanonicalDigestsVerified",
+        "PGliteJsonbRoundTripVerified",
+        "PlaintextWrittenToDisk",
+      ])
+      || contract.requiredReceiptValues.Verified !== true
+      || contract.requiredReceiptValues.SourceCanonicalDigestsVerified !== true
+      || contract.requiredReceiptValues.PGliteJsonbRoundTripVerified !== true
+      || contract.requiredReceiptValues.PlaintextWrittenToDisk !== false
+      || !exactKeys(contract.capture, ["file", "sha256"])
+      || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(contract.capture.file ?? "")
+      || contract.capture.file === "scripts/amora-db-backup.ps1"
+      || !SHA256.test(contract.capture.sha256 ?? "")
+      || !exactKeys(contract.verifier, ["file", "sha256"])
+      || !/^scripts\/[a-z0-9][a-z0-9_.-]*\.ps1$/.test(contract.verifier.file ?? "")
+      || contract.verifier.file === "scripts/amora-db-verify-backup.ps1"
+      || !SHA256.test(contract.verifier.sha256 ?? "")
+      || !exactKeys(contract.hostedRestoreEvidence, [
+        "receiptFileName",
+        "maximumAgeMinutes",
+        "requiredTargetIsolation",
+        "requiredChecks",
+      ])
+      || contract.hostedRestoreEvidence.receiptFileName
+        !== `${manifest.release}-post-expand-hosted-restore-evidence.json`
+      || contract.hostedRestoreEvidence.maximumAgeMinutes !== 1_440
+      || contract.hostedRestoreEvidence.requiredTargetIsolation
+        !== "different-supabase-project"
+      || !exactArray(
+        contract.hostedRestoreEvidence.requiredChecks,
+        POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
+      )) {
+    invalid(
+      "POST_EXPAND_BACKUP_CONTRACT_INVALID",
+      "successor post-expand backup must pin its exact tables, manifest migrations and isolated restore",
+    );
+  }
+  return contract;
+}
+
+function validateSuccessorFinalizationContract(manifest) {
+  const contract = manifest.finalizationContract;
+  if (!exactKeys(contract, [
+    "id",
+    "version",
+    "operation",
+    "requiredLeasePhase",
+    "canaryMaximumAgeMinutes",
+    "deploymentMaximumAgeMinutes",
+    "requiredCanaryChecks",
+    "externalEvidence",
+    "confirmationIncludesCanarySha256",
+  ])
+      || contract.id !== "production-write-fence-exact-owner-finalizer"
+      || contract.version !== 2
+      || !exactKeys(contract.operation, ["id", "file", "sha256"])
+      || contract.operation.id
+        !== "production-write-fence-finalize-20260717121000"
+      || contract.operation.file
+        !== "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql"
+      || !SHA256.test(contract.operation.sha256 ?? "")
+      || contract.requiredLeasePhase !== "deployment-canary"
+      || contract.canaryMaximumAgeMinutes !== 15
+      || contract.deploymentMaximumAgeMinutes !== 1_440
+      || !exactArray(contract.requiredCanaryChecks, FINALIZER_REQUIRED_CANARY_CHECKS)
+      || validateFinalizerExternalEvidenceContract(contract.externalEvidence)
+        !== contract.externalEvidence
+      || contract.confirmationIncludesCanarySha256 !== true) {
+    invalid(
+      "FINALIZATION_CONTRACT_INVALID",
+      "successor exact-owner finalization contract is missing or invalid",
+    );
+  }
+  return contract;
+}
+
 export function validateAmoraExtendedReleaseContracts(manifest) {
+  if (manifest?.status === "controller_ready") {
+    return {
+      forwardOnlySecurityOperations:
+        validateSuccessorForwardOnlySecurityOperations(manifest),
+      postExpandBackupContract:
+        validateSuccessorPostExpandBackupContract(manifest),
+      finalizationContract:
+        validateSuccessorFinalizationContract(manifest),
+    };
+  }
   return {
     forwardOnlySecurityOperations:
       validateForwardOnlySecurityOperations(manifest),

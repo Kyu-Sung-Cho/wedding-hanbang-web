@@ -7,6 +7,7 @@ import CommunityAmoraLauncher from "@/components/community/CommunityAmoraLaunche
 import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
 import { CONTACT } from "@/lib/constants/contact";
+import { isWeddingCourtEnabled } from "@/lib/features/weddingLaunchFlags";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 export default function CommunityLayout({
@@ -14,11 +15,13 @@ export default function CommunityLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const weddingCourtEnabled = isWeddingCourtEnabled();
+
   return (
     <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
       <CommunityAuthInitializer />
       <Suspense fallback={<div className="h-[76px] bg-[#fffdf7]" />}>
-        <CommunityNav />
+        <CommunityNav weddingCourtEnabled={weddingCourtEnabled} />
       </Suspense>
       <ToastContainer />
 
@@ -45,7 +48,7 @@ function CommunityFooter() {
         <div>
           <FooterBrand />
           <p className="mt-3 text-[13px] font-medium text-white/70">
-            AI가 함께하는 가장 든든한 결혼 준비
+            결혼 준비, 아모라와 정리하세요.
           </p>
           {/* Instagram·YouTube·Kakao 아이콘은 제거했다. 계정이 없는데 아이콘만 있었고
               셋 다 /wedding으로 돌아왔다 — 있는 척하는 링크는 신뢰를 깎는다.
@@ -99,7 +102,7 @@ function CommunityFooter() {
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex items-center rounded-full border border-[#d8c79a]/70 px-4 py-2 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />
@@ -124,7 +127,11 @@ function FooterColumn({ title, items }: { title: string; items: Array<{ label: s
             : { href: item.href };
 
           return (
-            <Link key={item.label} {...linkProps} className="text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]">
+            <Link
+              key={item.label}
+              {...linkProps}
+              className="inline-flex min-h-11 items-center text-[13px] font-medium text-white/65 hover:text-[#f2e8c8]"
+            >
               {item.label}
             </Link>
           );

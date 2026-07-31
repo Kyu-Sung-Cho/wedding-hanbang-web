@@ -448,7 +448,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     );
   });
 
-  it("never lets private conflict history influence shared conflict detection", async () => {
+  it("does not ask the provider to upgrade one-sided conflict language", async () => {
     const now = Date.now();
     mocks.rawMessages.splice(
       0,
@@ -497,7 +497,100 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ triggered: false });
-    expect(mocks.structuredResponse).toHaveBeenCalledTimes(1);
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("requires conflict evidence from both roles before any provider call", async () => {
+    const now = Date.now();
+    mocks.rawMessages.splice(
+      0,
+      mocks.rawMessages.length,
+      {
+        id: "30000000-0000-4000-8000-000000000062",
+        content: "진짜 화가 나. 결혼 취소하고 싶어.",
+        sender_type: "bride",
+        sender_id: USER_ID,
+        created_at: new Date(now - 10_000).toISOString(),
+        visibility: "shared",
+        metadata: null,
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000061",
+        content: "너는 맨날 내 말을 안 들어. 대화가 안 돼.",
+        sender_type: "bride",
+        sender_id: USER_ID,
+        created_at: new Date(now - 20_000).toISOString(),
+        visibility: "shared",
+        metadata: null,
+      },
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      triggered: false,
+      reason: expect.stringContaining("양측 발화 부족"),
+    });
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("excludes current third-party complaints before any provider call", async () => {
+    const now = Date.now();
+    mocks.rawMessages.splice(
+      0,
+      mocks.rawMessages.length,
+      {
+        id: "30000000-0000-4000-8000-000000000072",
+        content: "엄마가 그 업체는 절대 안 된다고 반대래.",
+        sender_type: "groom",
+        sender_id: "00000000-0000-4000-8000-000000000002",
+        created_at: new Date(now - 10_000).toISOString(),
+        visibility: "shared",
+        metadata: null,
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000071",
+        content: "친구가 남자친구가 말을 안 들어서 너무 화가 났대.",
+        sender_type: "bride",
+        sender_id: USER_ID,
+        created_at: new Date(now - 20_000).toISOString(),
+        visibility: "shared",
+        metadata: null,
+      },
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      triggered: false,
+      score: 0,
+    });
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
+    expect(mocks.auditedResponse).not.toHaveBeenCalled();
+  });
+
+  it("never copies direct partner messages to either provider without consent", async () => {
+    mocks.rawMessages[0] = {
+      ...mocks.rawMessages[0],
+      metadata: { target: "partner" },
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "privacy_consent_required",
+    });
+    expect(mocks.claimConflictCheck).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.structuredResponse).not.toHaveBeenCalled();
     expect(mocks.auditedResponse).not.toHaveBeenCalled();
   });
 

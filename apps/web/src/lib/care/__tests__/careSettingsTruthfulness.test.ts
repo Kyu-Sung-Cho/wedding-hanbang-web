@@ -16,17 +16,20 @@ const onboardingSource = readFileSync(
 );
 
 describe("web proactive-care settings truthfulness", () => {
-  it("uses the authenticated profile API availability instead of guessing delivery state", () => {
-    expect(source).toContain('fetch("/api/profile"');
-    expect(source).toContain("parseCareAvailability");
-    expect(source).toContain("careAvailability?.emailVerified");
-    expect(source).toContain("canChangeCareConsent");
+  it("does not offer a new opt-in before proactive email is a released capability", () => {
+    expect(source).not.toContain("parseCareAvailability");
+    expect(source).not.toContain("canChangeCareConsent");
+    expect(source).not.toContain("아모라 먼저 챙기기");
+    expect(source).not.toContain("이메일로 먼저 챙겨드려요");
   });
 
-  it("distinguishes preparation, pause, and unverified-email states", () => {
-    expect(source).toContain("현재 준비 중이에요");
-    expect(source).toContain("발송이 일시중지됐어요");
-    expect(source).toContain("가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요");
+  it("preserves an opt-out only for users with a valid historical consent", () => {
+    expect(source).toContain("profile?.care_notifications_enabled === true");
+    expect(source).toContain("profile.care_notifications_consented_at.trim().length > 0");
+    expect(source).toContain("hasLegacyCareConsent &&");
+    expect(source).toContain("care_notifications_enabled: false");
+    expect(source).toContain("이전 이메일 수신 동의");
+    expect(source).toContain("이메일 수신 동의 해제");
   });
 
   it("does not promise proactive delivery before feature availability and consent are known", () => {

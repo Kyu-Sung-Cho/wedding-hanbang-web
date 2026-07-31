@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 
 function getServiceClient() {
@@ -76,6 +77,14 @@ export async function POST(
 
       bookmarked = false;
     } else {
+      const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+      if (!writeAccess.allowed) {
+        return NextResponse.json(
+          { error: writeAccess.message, code: writeAccess.code },
+          { status: writeAccess.status }
+        );
+      }
+
       const { error } = await serviceClient
         .from("community_bookmarks")
         .insert({

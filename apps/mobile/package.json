@@ -4,9 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "node ./scripts/start-expo-dev.mjs --clear",
-    "dev:ios": "node ./scripts/start-expo-dev.mjs --ios --clear",
-    "dev:android": "node ./scripts/start-expo-dev.mjs --android --clear",
+    "dev": "node ./scripts/start-expo-dev.mjs",
+    "dev:tunnel": "node ./scripts/start-expo-dev.mjs --tunnel",
+    "dev:ios": "node ./scripts/start-expo-dev.mjs --ios",
+    "dev:android": "node ./scripts/start-expo-dev.mjs --android",
     "build": "expo export --platform all --output-dir .expo/export-smoke --clear",
     "test": "node --test ./src/__tests__/*.test.mjs",
     "eas:init": "pnpm dlx eas-cli@21.0.2 init",
@@ -68,10 +69,12 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@eslint/js": "^9.39.4",
+    "@expo/ngrok": "4.1.0",
     "@sentry/cli": "2.55.0",
     "@types/react": "~19.1.0",
     "@types/react-dom": "~19.1.11",
     "async-limiter": "1.0.1",
+    "babel-preset-expo": "54.0.12",
     "eslint": "^9.39.4",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.62.1"

@@ -1,23 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useChatStore } from "../chatStore";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  buildConfirmedActionRecoveryRequest,
+  useChatStore,
+} from "../chatStore";
 import type { WeddingContext } from "@/types/chat.types";
 import { useAuthStore } from "../authStore";
 import { captureEvent } from "@/lib/analytics";
 
 const mockFetch = vi.fn();
+const chatStoreSource = readFileSync(
+  path.join(process.cwd(), "src/stores/chatStore.ts"),
+  "utf8",
+);
 const mockInsertSingle = vi.fn();
 const mockStorageUpload = vi.fn();
+const mockInsert = vi.fn(() => ({
+  select: vi.fn(() => ({
+    single: mockInsertSingle,
+  })),
+}));
 
 const mockSupabase = {
   storage: {
     from: vi.fn(() => ({ upload: mockStorageUpload })),
   },
   from: vi.fn(() => ({
-    insert: vi.fn(() => ({
-      select: vi.fn(() => ({
-        single: mockInsertSingle,
-      })),
-    })),
+    insert: mockInsert,
   })),
 };
 
@@ -45,6 +55,103 @@ vi.mock("@/lib/supabase/client", () => ({
 vi.mock("@/lib/analytics", () => ({
   captureEvent: vi.fn(),
 }));
+
+describe("confirmed Amora action recovery", () => {
+  const actionId = "22222222-2222-4222-8222-222222222222";
+  const sourceMessage = {
+    id: "11111111-1111-4111-8111-111111111111",
+    couple_id: "couple-1",
+    sender_id: null,
+    sender_role: "ai" as const,
+    content: "예산을 변경할까요?",
+    metadata: null,
+    visibility: "shared" as const,
+    created_at: "2026-07-30T01:00:00.000Z",
+  };
+  const confirmationMessage = {
+    id: "33333333-3333-4333-8333-333333333333",
+    couple_id: "couple-1",
+    sender_id: "user-1",
+    sender_role: "bride" as const,
+    content: "좋아요. 제안한 변경을 적용해 주세요.",
+    metadata: { confirmed_amora_action_id: actionId },
+    visibility: "shared" as const,
+    created_at: "2026-07-30T01:01:00.000Z",
+  };
+
+  beforeEach(() => {
+    useAuthStore.setState({
+      profile: {
+        id: "user-1",
+        name: "테스터",
+        role: "bride",
+        couple_id: "couple-1",
+      } as never,
+      journey: null,
+    });
+  });
+
+  it("builds an explicit provider-only resume from the latest owned durable confirmation", () => {
+    const recovery = buildConfirmedActionRecoveryRequest(
+      [sourceMessage, confirmationMessage],
+      "couple-1",
+    );
+
+    expect(recovery).toEqual(expect.objectContaining({
+      userMessageId: confirmationMessage.id,
+      confirmedActionId: actionId,
+      recoveryKind: "confirmed_action",
+      canRetry: true,
+    }));
+    expect(JSON.parse(recovery?.requestBody ?? "{}")).toEqual(expect.objectContaining({
+      userMessageId: confirmationMessage.id,
+      confirmedActionId: actionId,
+      visibility: "shared",
+    }));
+  });
+
+  it("loads the newest bounded history and restores chronological display order", () => {
+    expect(chatStoreSource).toMatch(
+      /\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(500\)/,
+    );
+    expect(chatStoreSource).toMatch(
+      /\.or\("metadata->>target\.is\.null,metadata->>target\.neq\.partner"\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(1\)\s*\.maybeSingle\(\)/,
+    );
+    expect(chatStoreSource).toMatch(
+      /const allMessages = boundedRows\s*\.reverse\(\)/,
+    );
+  });
+
+  it("ignores direct partner chat but stops recovery after a newer canonical AI turn", () => {
+    const partnerMessage = {
+      ...confirmationMessage,
+      id: "44444444-4444-4444-8444-444444444444",
+      sender_id: "user-2",
+      sender_role: "groom" as const,
+      content: "확인했어",
+      metadata: { target: "partner" as const },
+      created_at: "2026-07-30T01:02:00.000Z",
+    };
+    expect(buildConfirmedActionRecoveryRequest(
+      [sourceMessage, confirmationMessage, partnerMessage],
+      "couple-1",
+    )).toEqual(expect.objectContaining({
+      userMessageId: confirmationMessage.id,
+    }));
+
+    const aiResponse = {
+      ...sourceMessage,
+      id: "55555555-5555-4555-8555-555555555555",
+      content: "반영했어요.",
+      metadata: { confirmed_amora_action_id: actionId },
+      created_at: "2026-07-30T01:03:00.000Z",
+    };
+    expect(buildConfirmedActionRecoveryRequest(
+      [sourceMessage, confirmationMessage, aiResponse],
+      "couple-1",
+    )).toBeNull();
+  });
+});
 
 describe("useChatStore quota warning", () => {
   beforeEach(() => {
@@ -100,6 +207,74 @@ describe("useChatStore quota warning", () => {
     });
 
     expect(useChatStore.getState().quotaRemaining).toBeNull();
+  });
+
+  it("sends only the requester's explicit summary for structured mediation", async () => {
+    useChatStore.setState({
+      messages: [
+        {
+          id: "partner-secret",
+          couple_id: "couple-1",
+          sender_id: "user-2",
+          sender_role: "groom",
+          content: "PARTNER_RAW_SECRET",
+          metadata: { target: "partner" },
+          visibility: "shared",
+          created_at: "2026-07-31T00:00:00.000Z",
+        },
+        {
+          id: "private-secret",
+          couple_id: "couple-1",
+          sender_id: "user-1",
+          sender_role: "bride",
+          content: "PRIVATE_RAW_SECRET",
+          metadata: { target: "ai" },
+          visibility: "bride_private",
+          created_at: "2026-07-31T00:00:01.000Z",
+        },
+      ],
+    });
+    mockFetch.mockResolvedValue(completedChatResponse("조율 초안"));
+
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "  예산 상한선을 두고 의견이 달라요.  ",
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const requestBody = JSON.parse(
+      String((mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.body),
+    ) as Record<string, unknown>;
+    const serialized = JSON.stringify(requestBody);
+    expect(serialized).not.toContain("PARTNER_RAW_SECRET");
+    expect(serialized).not.toContain("PRIVATE_RAW_SECRET");
+    expect(requestBody).toMatchObject({
+      requestKind: "mediation",
+      visibility: "shared",
+      conflictContext: "예산 상한선을 두고 의견이 달라요.",
+      messages: [
+        {
+          role: "user",
+          content: expect.stringContaining("[MEDIATION_REQUEST]"),
+        },
+      ],
+    });
+  });
+
+  it("does not call the mediation endpoint for an empty summary", async () => {
+    await useChatStore.getState().requestMediation({
+      coupleId: "couple-1",
+      senderRole: "bride",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      conflictContext: "   ",
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(useChatStore.getState().error).toContain("상황을 짧게");
   });
 
   it("consumes CRLF SSE frames split across network chunks and keeps quota metadata", async () => {
@@ -559,6 +734,7 @@ describe("useChatStore failed provider retry", () => {
   });
 
   it("keeps the exact explicit action confirmation id in the provider retry snapshot", async () => {
+    mockInsert.mockClear();
     mockFetch
       .mockResolvedValueOnce(new Response("temporary failure", { status: 503 }))
       .mockResolvedValueOnce(completedChatResponse());
@@ -582,6 +758,12 @@ describe("useChatStore failed provider retry", () => {
     expect(JSON.parse(String(firstBody))).toEqual(expect.objectContaining({
       confirmedActionId: "22222222-2222-4222-8222-222222222222",
     }));
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: {
+        confirmed_amora_action_id:
+          "22222222-2222-4222-8222-222222222222",
+      },
+    }));
 
     await useChatStore.getState().retryFailedMessage();
 
@@ -589,6 +771,60 @@ describe("useChatStore failed provider retry", () => {
     expect(JSON.parse(String((mockFetch.mock.calls[1][1] as RequestInit).body))).toEqual(
       expect.objectContaining({ confirmedActionId: "22222222-2222-4222-8222-222222222222" }),
     );
+  });
+
+  it("reconciles a committed confirmation when its insert response is lost", async () => {
+    const confirmedActionId = "22222222-2222-4222-8222-222222222222";
+    const reconciledMessage = {
+      ...insertedMessage,
+      id: "33333333-3333-4333-8333-333333333333",
+      content: "좋아요. 제안한 변경을 적용해 주세요.",
+      metadata: { confirmed_amora_action_id: confirmedActionId },
+      visibility: "shared",
+    };
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "NETWORK_RESPONSE_LOST" },
+    });
+    const recoveryQuery = {
+      insert: mockInsert,
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: reconciledMessage,
+        error: null,
+      }),
+    };
+    recoveryQuery.select.mockReturnValue(recoveryQuery);
+    recoveryQuery.eq.mockReturnValue(recoveryQuery);
+    mockSupabase.from
+      .mockImplementationOnce(() => ({ insert: mockInsert }))
+      .mockImplementationOnce(() => recoveryQuery);
+    mockFetch.mockResolvedValue(completedChatResponse());
+
+    await useChatStore.getState().sendMessage({
+      content: reconciledMessage.content,
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+      confirmedActionId,
+    });
+
+    expect(mockInsertSingle).toHaveBeenCalledTimes(1);
+    expect(recoveryQuery.eq).toHaveBeenCalledWith(
+      "metadata->>confirmed_amora_action_id",
+      confirmedActionId,
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(
+      (mockFetch.mock.calls[0][1] as RequestInit).body,
+    ))).toEqual(expect.objectContaining({
+      userMessageId: reconciledMessage.id,
+      confirmedActionId,
+    }));
   });
 
   it("rejects a malformed or private action confirmation before any durable side effect", async () => {

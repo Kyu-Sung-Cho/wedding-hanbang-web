@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 interface WeddingDetailsProps {
   weddingDate: string | null;
   weddingDateUndecided: boolean;
@@ -20,16 +18,6 @@ interface WeddingDetailsProps {
   isPartnerData?: boolean;
 }
 
-const BUDGET_OPTIONS = [
-  { value: 10000000, label: "1,000만원" },
-  { value: 15000000, label: "1,500만원" },
-  { value: 20000000, label: "2,000만원" },
-  { value: 25000000, label: "2,500만원" },
-  { value: 30000000, label: "3,000만원" },
-  { value: 40000000, label: "4,000만원" },
-  { value: 50000000, label: "5,000만원 이상" },
-];
-
 export default function WeddingDetails({
   weddingDate,
   weddingDateUndecided,
@@ -47,13 +35,6 @@ export default function WeddingDetails({
   onBudgetChange,
   isPartnerData,
 }: WeddingDetailsProps) {
-  const [showCustomBudget, setShowCustomBudget] = useState(
-    budget > 50000000 || (budget >= 50000000 && !BUDGET_OPTIONS.some((o) => o.value === budget))
-  );
-  const [customBudgetText, setCustomBudgetText] = useState(
-    budget > 50000000 ? String(budget / 10000) : ""
-  );
-
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -95,9 +76,11 @@ export default function WeddingDetails({
         </div>
       </div>
 
-      {/* 상견례 날짜 — 모멘트 루프 연료(친언니가 먼저 챙기는 첫 순간) */}
+      {/* 두 가족이 처음 만나는 날짜 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">상견례 날짜</label>
+        <label className="text-[14px] font-medium text-noir-800">
+          양쪽 부모님이 처음 함께 만나는 날짜
+        </label>
         <div className="flex gap-2">
           <input
             type="date"
@@ -125,16 +108,16 @@ export default function WeddingDetails({
         </p>
       </div>
 
-      {/* 예식장 */}
+      {/* 결혼식장 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">예식장</label>
+        <label className="text-[14px] font-medium text-noir-800">결혼식장</label>
         <div className="flex gap-2">
           <input
             type="text"
             value={venue ?? ""}
             onChange={(e) => onVenueChange(e.target.value || null)}
             disabled={venueUndecided}
-            placeholder="예: 샘플 예식장, 샘플 호텔 등"
+            placeholder="예: 샘플 결혼식장, 샘플 호텔"
             className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 disabled:opacity-40"
           />
           <button
@@ -156,55 +139,37 @@ export default function WeddingDetails({
       {/* 예산 */}
       <div className="space-y-2">
         <label className="text-[14px] font-medium text-noir-800">
-          총 예산 (대략적으로)
+          결혼 준비에 쓸 총 예산
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          {BUDGET_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => {
-                if (opt.value === 50000000) {
-                  setShowCustomBudget(true);
-                  onBudgetChange(opt.value);
-                } else {
-                  setShowCustomBudget(false);
-                  setCustomBudgetText("");
-                  onBudgetChange(opt.value);
-                }
-              }}
-              className={`px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-                opt.value === 50000000
-                  ? showCustomBudget
-                    ? "bg-[#795252] text-white"
-                    : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
-                  : budget === opt.value && !showCustomBudget
-                    ? "bg-[#795252] text-white"
-                    : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={budget > 0 ? String(Math.round(budget / 10000)) : ""}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/[^\d]/g, "");
+              onBudgetChange(digits ? Number(digits) * 10000 : 0);
+            }}
+            placeholder="직접 입력"
+            aria-label="총 예산 금액"
+            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+          />
+          <span className="text-[13px] text-taupe-500 whitespace-nowrap">만원</span>
+          <button
+            type="button"
+            onClick={() => onBudgetChange(0)}
+            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+              budget === 0
+                ? "bg-[#795252] text-white"
+                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+            }`}
+          >
+            아직 미정
+          </button>
         </div>
-        {showCustomBudget && (
-          <div className="mt-3 flex items-center gap-2">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={customBudgetText}
-              onChange={(e) => {
-                const num = e.target.value.replace(/[^\d]/g, "");
-                setCustomBudgetText(num);
-                if (num) {
-                  onBudgetChange(Number(num) * 10000);
-                }
-              }}
-              placeholder="예: 7000"
-              className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
-            />
-            <span className="text-[13px] text-taupe-500 whitespace-nowrap">만원</span>
-          </div>
-        )}
+        <p className="text-[12px] text-taupe-400 leading-relaxed">
+          정한 금액이 있을 때만 입력하세요. 비워 두면 아모라가 금액을 대신 정하지 않습니다.
+        </p>
       </div>
     </div>
   );

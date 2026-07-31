@@ -9,44 +9,62 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, ArrowRight, Heart, User, CheckCircle2, Sparkles, Check } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import {
+  WEDDING_BUDGET_TENDENCY_OPTIONS,
+  WEDDING_GUEST_COUNT_OPTIONS,
+  WEDDING_PRIORITY_OPTIONS,
+  WEDDING_STYLE_OPTIONS,
+  type WeddingBudgetTendencyValue,
+  type WeddingGuestCountValue,
+  type WeddingPriorityValue,
+  type WeddingStyleValue,
+} from "@hanbang/shared";
 import { apiFetch } from "@/lib/api";
 
 type Role = "bride" | "groom";
 type CoupleAction = "create" | "join";
-type WeddingStyle = "minimal" | "classic" | "fancy" | "natural";
-type PriorityItem = "sdm" | "venue" | "rings" | "honeymoon" | "ceremony" | "housing";
-type BudgetTendency = "saving" | "balanced" | "premium";
-type GuestCount = "under50" | "50to100" | "100to200" | "200to300" | "over300";
+type WeddingStyle = WeddingStyleValue;
+type PriorityItem = WeddingPriorityValue;
+type BudgetTendency = WeddingBudgetTendencyValue;
+type GuestCount = WeddingGuestCountValue;
 
-const STYLE_OPTIONS: { value: WeddingStyle; emoji: string; label: string; desc: string }[] = [
-  { value: "minimal", emoji: "\u{1F90D}", label: "\uBBF8\uB2C8\uBA40", desc: "\uAE54\uB054\uD558\uACE0 \uC2EC\uD50C\uD558\uAC8C" },
-  { value: "classic", emoji: "\u{1F3DB}\uFE0F", label: "\uD074\uB798\uC2DD", desc: "\uC804\uD1B5\uC801\uC774\uACE0 \uACA9\uC2DD\uC788\uAC8C" },
-  { value: "fancy", emoji: "\u2728", label: "\uD654\uB824\uD55C", desc: "\uD654\uB824\uD558\uACE0 \uD2B9\uBCC4\uD558\uAC8C" },
-  { value: "natural", emoji: "\u{1F33F}", label: "\uC790\uC5F0\uC2A4\uB7EC\uC6B4", desc: "\uD3B8\uC548\uD558\uACE0 \uC790\uC720\uB86D\uAC8C" },
-];
+const STYLE_EMOJI: Record<WeddingStyle, string> = {
+  minimal: "\u{1F90D}",
+  classic: "\u{1F3DB}\uFE0F",
+  fancy: "\u2728",
+  natural: "\u{1F33F}",
+};
 
-const PRIORITY_OPTIONS: { value: PriorityItem; emoji: string; label: string }[] = [
-  { value: "sdm", emoji: "\u{1F4F8}", label: "\uC2A4\uB4DC\uBA54" },
-  { value: "venue", emoji: "\u{1F3F0}", label: "\uC608\uC2DD\uC7A5" },
-  { value: "rings", emoji: "\u{1F48D}", label: "\uC608\uBB3C/\uC608\uB2E8" },
-  { value: "honeymoon", emoji: "\u2708\uFE0F", label: "\uC2E0\uD63C\uC5EC\uD589" },
-  { value: "ceremony", emoji: "\u{1F38A}", label: "\uBCF8\uC2DD \uC5F0\uCD9C" },
-  { value: "housing", emoji: "\u{1F3E0}", label: "\uC2E0\uD63C\uC9D1/\uD63C\uC218" },
-];
+const PRIORITY_EMOJI: Record<PriorityItem, string> = {
+  sdm: "\u{1F4F8}",
+  venue: "\u{1F3F0}",
+  rings: "\u{1F48D}",
+  honeymoon: "\u2708\uFE0F",
+  ceremony: "\u{1F38A}",
+  housing: "\u{1F3E0}",
+};
 
-const BUDGET_OPTIONS: { value: BudgetTendency; emoji: string; label: string; desc: string }[] = [
-  { value: "saving", emoji: "\u{1F4B0}", label: "\uC808\uC57D\uD615", desc: "\uCD5C\uC18C\uD55C\uC73C\uB85C \uD569\uB9AC\uC801\uC73C\uB85C" },
-  { value: "balanced", emoji: "\u2696\uFE0F", label: "\uAC00\uC131\uBE44", desc: "\uAF2D \uD544\uC694\uD55C \uACF3\uC5D0 \uD22C\uC790" },
-  { value: "premium", emoji: "\u{1F48E}", label: "\uD504\uB9AC\uBBF8\uC5C4", desc: "\uCD5C\uACE0\uC758 \uD000\uB9AC\uD2F0\uB97C \uC6D0\uD574\uC694" },
-];
+const BUDGET_EMOJI: Record<BudgetTendency, string> = {
+  saving: "\u{1F4B0}",
+  balanced: "\u2696\uFE0F",
+  premium: "\u{1F48E}",
+};
 
-const GUEST_OPTIONS: { value: GuestCount; label: string }[] = [
-  { value: "under50", label: "50\uBA85 \uC774\uD558 (\uC2A4\uBAB0\uC6E8\uB529)" },
-  { value: "50to100", label: "50~100\uBA85" },
-  { value: "100to200", label: "100~200\uBA85" },
-  { value: "200to300", label: "200~300\uBA85" },
-  { value: "over300", label: "300\uBA85 \uC774\uC0C1" },
-];
+const STYLE_OPTIONS = WEDDING_STYLE_OPTIONS.map((option) => ({
+  ...option,
+  emoji: STYLE_EMOJI[option.value],
+  desc: option.description,
+}));
+const PRIORITY_OPTIONS = WEDDING_PRIORITY_OPTIONS.map((option) => ({
+  ...option,
+  emoji: PRIORITY_EMOJI[option.value],
+}));
+const BUDGET_OPTIONS = WEDDING_BUDGET_TENDENCY_OPTIONS.map((option) => ({
+  ...option,
+  emoji: BUDGET_EMOJI[option.value],
+  desc: option.description,
+}));
+const GUEST_OPTIONS = WEDDING_GUEST_COUNT_OPTIONS;
 
 // 축하 파티클 컴포넌트
 function CelebrationDots() {
@@ -396,12 +414,12 @@ export default function OnboardingScreen() {
                 <Text style={styles.checkLabel}>아직 정하지 않았어요</Text>
               </Pressable>
 
-              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>예식장</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>결혼식장</Text>
               <TextInput
                 style={styles.input}
                 value={venue}
                 onChangeText={setVenue}
-                placeholder="예식장 이름 (선택)"
+                placeholder="결혼식장 이름 (선택)"
                 placeholderTextColor={colors.taupe[400]}
               />
 

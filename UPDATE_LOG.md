@@ -1,5 +1,11 @@
 # 웨딩한방 웹 (hanbang.ai) 업데이트 기록
 
+> [!IMPORTANT]
+> 이 파일은 확인된 과거 배포 기록이며, 2026-06-17 이후 배포 이력이 완전하다는 증거가
+> 아니다. 현재 배포 상태는 GitHub checks, Vercel receipt, release manifest와 최신
+> `docs/operations/` 인계 문서를 함께 확인한다. 로컬 변경이나 테스트 통과만으로 여기에
+> “배포 완료”를 추가하지 않는다.
+
 ---
 
 ## 배포 기록

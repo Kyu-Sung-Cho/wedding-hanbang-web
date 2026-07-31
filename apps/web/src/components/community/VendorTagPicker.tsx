@@ -74,14 +74,19 @@ export default function VendorTagPicker({
 
   // 기존 vendorIds에 해당하는 벤더 정보 로드
   useEffect(() => {
-    if (vendorIds.length === 0) return;
-    // 이미 선택된 벤더 정보가 있으면 스킵
-    if (selectedVendors.length === vendorIds.length) return;
+    if (vendorIds.length === 0) {
+      setSelectedVendors([]);
+      return;
+    }
 
+    const controller = new AbortController();
     Promise.all(
       vendorIds.map(async (id) => {
         try {
-          const res = await fetch(`/api/vendors?ids=${encodeURIComponent(id)}&limit=1`);
+          const res = await fetch(
+            `/api/vendors?ids=${encodeURIComponent(id)}&limit=1`,
+            { signal: controller.signal },
+          );
           if (!res.ok) return null;
           const data = await res.json();
           const list = Array.isArray(data) ? data : data.vendors ?? [];
@@ -91,10 +96,13 @@ export default function VendorTagPicker({
         }
       })
     ).then((vendors) => {
-      setSelectedVendors(vendors.filter((v): v is VendorTagInfo => v !== null));
+      if (!controller.signal.aborted) {
+        setSelectedVendors(vendors.filter((v): v is VendorTagInfo => v !== null));
+      }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    return () => controller.abort();
+  }, [vendorIds]);
 
   // 디바운스 검색
   const searchVendors = useCallback(async (q: string) => {

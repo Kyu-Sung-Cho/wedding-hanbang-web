@@ -15,7 +15,7 @@ import { createPublicClient } from "@/lib/supabase/public";
  * 공개된 위약금·환불 원문 건수. 분기 공시 갱신 때 함께 바뀐다.
  *
  * 2026-07-26 운영 `v_public_vendor_policies` 실조회: 831건 / vendor 행 502.
- * 다만 **업체 수로 쓸 값은 502가 아니라 412다** — 같은 샵이 대행사별로 여러 행에
+ * 다만 **업체 수로 쓸 값은 502가 아니라 414다** — 같은 샵이 대행사별로 여러 행에
  * 들어와 있고 목록은 한 카드로 묶는다. 첫 화면 상수 주석 참고.
  */
 const PUBLISHED_POLICY_COUNT = 831;
@@ -31,17 +31,17 @@ const loadCounts = cache((): Promise<PriceCatalog> => (
 
 // 각 카테고리에서 실제로 공시되는 항목만 적는다(없는 정보를 약속하지 않는다).
 const CATEGORY_HINTS: Record<PriceCategory, string> = {
-  studio: "촬영 상품 기본가와 앨범·원본·수정본 추가금",
-  dress: "대여 기본가와 피팅비·헬퍼비 등 추가 항목",
-  makeup: "신부 메이크업 기본가와 혼주·얼리스타트 추가금",
-  hall: "대관료·식대와 보증인원 등 계약 조건",
+  studio: "촬영 기본 금액과 앨범·촬영한 전체 사진 파일·수정해 주는 사진의 추가 금액",
+  dress: "드레스 대여 기본 금액과 입어보기·결혼식 날 도움 비용 등 별도 항목",
+  makeup: "두 사람의 헤어·메이크업 기본 금액과 부모님 메이크업·이른 시작 비용",
+  hall: "장소 사용료·식사비와 계약상 최소 식사 인원 등 조건",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
   const catalog = await loadCounts();
   const period = disclosureRoundLabel();
   const total = PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0);
-  const title = "스드메·예식장 공시 가격과 위약금 — 업체가 공개한 원문 그대로";
+  const title = "사진 촬영·드레스·메이크업·결혼식장 공시 가격과 위약금";
   const description = `${period} 기준 업체 ${total.toLocaleString()}곳의 기본가·추가금과, 취소 위약금·환불 규정 원문 ${PUBLISHED_POLICY_COUNT.toLocaleString()}건을 한 화면에서. 요약도 판정도 하지 않습니다.`;
   return {
     title,
@@ -61,7 +61,7 @@ export default async function PriceIndexPage() {
       <section className="border-b border-[#243832]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-bold tracking-[0.13em] text-[#8F6662]">한국소비자원 참가격 공시</p>
-          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-[-0.04em] text-[#243832] sm:text-4xl">
+          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-normal text-[#243832] sm:text-4xl">
             공시 가격과 위약금, 업체가 쓴 문장 그대로
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -92,7 +92,7 @@ export default async function PriceIndexPage() {
       </section>
 
       <div className="mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6">
-        <h2 className="text-lg font-bold tracking-[-0.02em] text-[#243832]">어떤 항목부터 볼까요?</h2>
+        <h2 className="text-lg font-bold tracking-normal text-[#243832]">어떤 항목부터 볼까요?</h2>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2">
           {PRICE_CATEGORIES.map((category) => (
             <li key={category}>

@@ -4,11 +4,11 @@
  *
  * 모멘트 = 결혼 준비 여정에서 아모라가 먼저 챙기는 시점 있는 사건.
  * 각 모멘트는 D-3(챙김) / D-1(출발 전 체크) / D+1(안부·기억) 최대 3셀.
- * 문안은 친언니 톤 5원칙: 결론 먼저 / 불안 명명 / 선택지 2개+나라면 / 카톡체 대본 / 편들기.
+ * 문안은 사용자를 재촉하지 않는 따뜻하고 직접적인 말투를 사용한다.
  *
  * trigger:
  * - "event": 유저 일정 입력(progress.__events의 momentType 매칭) 기준
- * - "wedding_relative": 예식일 ± weddingOffsetDays로 모멘트 날짜 자동 산출
+ * - "wedding_relative": 결혼식 날짜 ± weddingOffsetDays로 모멘트 날짜 자동 산출
  */
 
 export type MomentType =
@@ -26,7 +26,7 @@ export type MomentType =
   | "first_holiday";
 
 export interface MomentCell {
-  /** 아모라 발화 본문 (친언니 톤) */
+  /** 아모라 발화 본문 */
   message: string;
   /** D-1 출발 전 체크 항목 */
   checklist?: string[];
@@ -40,7 +40,7 @@ export interface MomentDefinition {
   type: MomentType;
   label: string;
   trigger: "event" | "wedding_relative";
-  /** wedding_relative일 때 예식일 기준 오프셋 (본식 = 0, 식후 = 양수) */
+  /** wedding_relative일 때 결혼식 날짜 기준 오프셋 (결혼식 날 = 0, 이후 = 양수) */
   weddingOffsetDays?: number;
   /** 돈이 걸린 모멘트 여부 (우선순위 가중) */
   moneyInvolved: boolean;
@@ -56,12 +56,12 @@ export interface MomentDefinition {
 export const MOMENTS: Record<MomentType, MomentDefinition> = {
   family_greeting: {
     type: "family_greeting",
-    label: "양가 첫인사",
+    label: "한쪽 가족에게 첫인사",
     trigger: "event",
     moneyInvolved: true,
     d3: {
       message:
-        "첫인사 3일 전이네. 선물은 가족마다 달라서 꼭 준비해야 하는 정답은 없어. 챙기고 싶다면 파트너에게 음식 제한·선호와 서로 편한 예산부터 물어보자. 주문이 필요하면 수령 가능일만 확인하면 돼.",
+        "가족에게 처음 인사드리기 사흘 전이네. 선물은 가족마다 달라서 꼭 준비해야 하는 정답은 없어. 챙기고 싶다면 파트너에게 음식 제한·선호와 서로 편한 예산부터 물어보자. 주문이 필요하면 받을 수 있는 날짜만 확인하면 돼.",
     },
     d1: {
       message: "내일이지? 떨리는 게 자연스러워. 정답을 맞히는 자리가 아니라 서로 인사하는 자리야.",
@@ -86,15 +86,15 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   sanggyeonrye: {
     type: "sanggyeonrye",
-    label: "상견례",
+    label: "양쪽 부모님이 함께 만나는 자리",
     trigger: "event",
     moneyInvolved: true,
     d3: {
       message:
-        "상견례 사흘 전이야. 무슨 이야기를 해야 할지 걱정될 수 있어. 오늘은 식당 예약·참석 인원·음식 제한을 확인하고, 꼭 논의할 것과 다음으로 미룰 것을 파트너와 맞춰보자.",
+        "양쪽 부모님이 함께 만나는 날 사흘 전이야. 무슨 이야기를 해야 할지 걱정될 수 있어. 오늘은 식당 예약·참석 인원·음식 제한을 확인하고, 꼭 논의할 것과 다음으로 미룰 것을 파트너와 맞춰보자.",
     },
     d1: {
-      message: "내일 상견례야. 서로 편하게 대화할 수 있도록 실무적인 것만 마지막으로 맞춰보자.",
+      message: "내일 양쪽 부모님이 함께 만나. 서로 편하게 대화할 수 있도록 필요한 것만 마지막으로 맞춰보자.",
       checklist: [
         "예약·참석 인원 최종 확인",
         "이동이 불편한 분을 고려해 좌석·접근성 확인",
@@ -106,7 +106,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
         "내일 ○시에 ○○로 예약했어요. 편하게 인사 나누는 자리로 생각해 주세요. 자세한 결정은 저희가 정리해서 다시 말씀드릴게요.",
     },
     dAfter: {
-      message: "상견례 끝! 진짜 큰 산 하나 넘었어.",
+      message: "양쪽 부모님이 함께 만나는 자리를 잘 마쳤네. 고생했어.",
       question:
         "어제 분위기 어땠어? 실제로 합의된 내용과 아직 의견만 나온 내용을 나눠서 정리해볼까? 저장은 네가 원하는 항목만 할게.",
     },
@@ -116,17 +116,17 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   venue_tour: {
     type: "venue_tour",
-    label: "예식장 투어",
+    label: "결혼식장 방문",
     trigger: "event",
     moneyInvolved: true,
     d3: {
       message:
-        "예식장 투어 3일 전이야. 가격과 조건은 장소·날짜·계약마다 달라서 구두 설명보다 서면 견적과 계약서가 기준이야. 비교할 질문을 같이 챙겨가자.",
+        "결혼식장 방문 사흘 전이야. 가격과 조건은 장소·날짜·계약마다 달라서 구두 설명보다 서면 견적과 계약서가 기준이야. 비교할 질문을 같이 챙겨가자.",
     },
     d1: {
-      message: "내일 투어지? 현장에서 바로 계약하자고 하면 이 말 한마디면 돼.",
+      message: "내일 결혼식장을 방문하지? 현장에서 바로 계약하자고 하면 이 말로 답해도 돼.",
       checklist: [
-        "보증인원·최소 식대와 최종 확정 시점",
+        "결혼식장에 보장하기로 한 최소 식사 인원·1인당 식사 금액과 인원 확정 시점",
         "필수·선택 항목, 세금·봉사료를 포함한 총액",
         "가격 변경, 취소·날짜 변경·환불 규정",
         "오늘 결제 가능한 상한과 숙려 시간을 둘이 미리 합의",
@@ -134,8 +134,8 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
       script: "오늘은 둘러보러 온 거라서요, 견적서만 받아갈게요. 상의해보고 연락드릴게요.",
     },
     dAfter: {
-      message: "투어 다녀온 거 고생했어!",
-      question: "어디가 제일 마음에 남았어? 받아온 견적 있으면 견적 체크 돌려줄게 — 빠진 항목부터 보자.",
+      message: "결혼식장 다녀오느라 고생했어.",
+      question: "어디가 제일 마음에 남았어? 받아온 견적이 있으면 포함 여부를 아직 확인하지 않은 항목부터 같이 보자.",
     },
     memoryKeys: ["venue_candidates", "venue_quotes"],
     sourceRefs: ["provider:venue_quote", "contract:venue_terms", "quoteCheck"],
@@ -143,27 +143,27 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   dress_tour: {
     type: "dress_tour",
-    label: "드레스 투어",
+    label: "드레스 매장 방문",
     trigger: "event",
     moneyInvolved: true,
     d3: {
       message:
-        "드레스 투어 3일 전! 피팅비·결제 방식·촬영 가능 여부는 샵마다 달라. 예약 안내나 샵에 직접 확인하고, 기록이 제한되면 허용되는 범위에서 특징을 메모하자.",
+        "드레스 매장 방문 사흘 전이야. 드레스를 입어보는 비용·결제 방식·사진 촬영 가능 여부는 매장마다 달라. 예약 안내를 보거나 매장에 직접 확인하고, 기록이 제한되면 허용되는 범위에서 특징을 메모하자.",
     },
     d1: {
-      message: "내일 드레스 입는 날이야. 샵에서 요청한 준비물과 네가 편하게 움직일 수 있는지만 확인하자.",
+      message: "내일 드레스를 입어보는 날이야. 매장에서 요청한 준비물과 네가 편하게 움직일 수 있는지만 확인하자.",
       checklist: [
-        "샵 안내에 맞는 편안한 속옷·이너웨어",
+        "매장 안내에 맞는 편안한 속옷",
         "머리 묶을 끈",
-        "샵에서 요청했다면 예정한 굽 높이와 비슷한 신발",
+        "매장에서 요청했다면 결혼식 날 신을 높이와 비슷한 신발",
         "원하는 스타일 참고 사진",
-        "샵이 안내한 피팅비와 결제 수단",
+        "매장이 안내한 드레스 입어보기 비용과 결제 수단",
       ],
     },
     dAfter: {
-      message: "드레스 어땠어? 입어본 날은 기억이 다 섞이니까 지금 적어두는 게 최고야.",
+      message: "드레스 어땠어? 입어본 날은 기억이 섞이기 쉬우니 지금 적어두면 나중에 비교하기 편해.",
       question:
-        "어떤 옷이 가장 편하고 마음에 들었어? 핏·목선·움직임과 추가 비용 안내를 나눠 적어두면 다음 샵을 비교하기 쉬워.",
+        "어떤 옷이 가장 편하고 마음에 들었어? 몸에 맞는 정도·목선·움직임과 추가 비용 안내를 나눠 적어두면 다음 매장을 비교하기 쉬워.",
     },
     memoryKeys: ["dress_preference", "shop_impressions", "helper_fee_disclosed"],
     sourceRefs: ["provider:dress_shop_policy", "contract:dress_quote", "user_choice:comfort"],
@@ -176,7 +176,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     moneyInvolved: true,
     d3: {
       message:
-        "촬영 3일 전이야. 스튜디오 안내문을 기준으로 부케·의상·도움 인력 포함 범위와 추가 결제 항목을 다시 확인하자. 결제 수단도 업체에 확인해두면 당일이 편해.",
+        "촬영 사흘 전이야. 촬영 업체 안내문을 기준으로 손에 드는 꽃·의상·착용을 돕는 직원의 포함 범위와 추가 결제 항목을 다시 확인하자. 결제 수단도 업체에 확인해두면 당일이 편해.",
     },
     d1: {
       message:
@@ -190,7 +190,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     },
     dAfter: {
       message: "촬영 끝! 고생 많았어, 허리 안 아파?",
-      question: "제일 마음에 든 컷이나 컨셉 있었어? 본식 스냅 정할 때 기준으로 기억해둘게.",
+      question: "제일 마음에 든 사진이나 분위기가 있었어? 결혼식 날 사진 촬영을 정할 때 참고할 수 있어.",
     },
     memoryKeys: ["shoot_concept_preference", "studio_done"],
     sourceRefs: ["provider:studio_checklist", "contract:studio_quote", "user_choice:comfort"],
@@ -198,25 +198,25 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   dress_fitting: {
     type: "dress_fitting",
-    label: "가봉·최종피팅",
+    label: "드레스 수선·최종 확인",
     trigger: "event",
     moneyInvolved: false,
     d3: {
       message:
-        "가봉 3일 전이야. 몸을 일정에 맞추려고 무리하지 않아도 돼. 최근 착용감이나 체형 변화가 걱정되면 샵에 먼저 알려 수선 가능 범위와 마감일을 확인하자.",
+        "드레스 수선 상태를 확인하기 사흘 전이야. 몸을 일정에 맞추려고 무리하지 않아도 돼. 최근 착용감이나 체형 변화가 걱정되면 매장에 먼저 알려 고칠 수 있는 범위와 완료 날짜를 확인하자.",
     },
     d1: {
-      message: "내일 가봉이야. 드레스는 입는 게 아니라 '움직여보는' 날이야.",
+      message: "내일 드레스 수선 상태를 확인해. 입어보기만 하지 말고 실제로 움직여보자.",
       checklist: [
-        "샵에서 요청했다면 예정한 굽 높이의 신발",
+        "매장에서 요청했다면 결혼식 날 신을 높이와 비슷한 신발",
         "파트너와 함께 입는다면 전체 비율 확인",
         "앉기·걷기·팔 들기 테스트",
-        "베일·장갑 등 소품 최종 확정",
+        "면사포·장갑 등 함께 빌릴 물품 최종 확정",
       ],
     },
     dAfter: {
-      message: "가봉 잘 끝났어?",
-      question: "수선 들어간 데 있어? 본식 헬퍼비 금액도 들었으면 알려줘 — 예산에 미리 잡아둘게.",
+      message: "드레스 수선 상태 확인은 잘 끝났어?",
+      question: "더 고치기로 한 곳이 있어? 결혼식 날 드레스 착용을 돕는 직원 비용도 확인했다면 예산에 함께 적어둘 수 있어.",
     },
     memoryKeys: ["final_dress_spec", "wedding_helper_fee"],
     sourceRefs: ["provider:dress_shop_policy", "user_choice:comfort"],
@@ -224,18 +224,18 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   invitation_meeting: {
     type: "invitation_meeting",
-    label: "청첩장 모임",
+    label: "초대장 전달 모임",
     trigger: "event",
     moneyInvolved: true,
     d3: {
       message:
-        "이번 주 청첩장 모임이지? 식사·답례 방식은 관계와 모임마다 달라서 정답은 없어. 초대할 사람과 전달 방식을 확인하고, 둘이 편한 총예산 안에서 식당과 결제 계획을 정하면 돼.",
+        "이번 주에 초대장을 전하는 모임이 있지? 식사비를 누가 내는지는 관계와 모임마다 달라서 정답은 없어. 초대할 사람과 전달 방식을 확인하고, 둘이 편한 총예산 안에서 식당과 결제 계획을 정하면 돼.",
     },
     d1: {
       message: "오늘(내일) 모임 나가기 전에 30초만 — 이것만 확인하고 나가.",
       checklist: [
-        "참석 인원에 맞춘 종이 청첩장과 필요한 여유분",
-        "상대가 원할 때 보낼 모바일 청첩장 링크",
+        "참석 인원에 맞춘 종이 초대장과 필요한 여유분",
+        "상대가 원할 때 보낼 모바일 초대장 링크",
         "합의한 예산과 결제 수단",
         "식당 예약 재확인",
       ],
@@ -252,19 +252,19 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   final_check: {
     type: "final_check",
-    label: "D-30 최종점검",
+    label: "결혼식 30일 전 확인",
     trigger: "wedding_relative",
     weddingOffsetDays: -30,
     moneyInvolved: true,
     d1: {
       message:
-        "한 달 남았어. '뭔가 빠뜨린 것 같은데 뭔지 모르겠는' 그 느낌, 다들 그래 — 정상이야. 자주 빠지는 다섯 개부터 같이 보자.",
+        "결혼식까지 한 달 남았어. 빠뜨린 것이 걱정된다면 계약서와 직접 정한 일정부터 차례로 확인해보자.",
       checklist: [
-        "계약서의 보증인원 확정 기한 확인",
-        "사회자에게 식순 전달",
-        "잔금 일정표 만들기 (누가·언제·얼마)",
-        "접수·정산이 필요하다면 담당자와 방식을 합의",
-        "계약별 잔금·사례 항목과 결제 수단 확인",
+        "결혼식장에 보장하기로 한 최소 식사 인원의 확정 날짜 확인",
+        "결혼식 진행자에게 진행 순서 전달",
+        "남은 계약 금액 일정표 만들기 (누가·언제·얼마)",
+        "축하금을 받거나 비용을 정리할 담당자와 방식을 합의",
+        "계약별 남은 금액·감사 비용과 결제 수단 확인",
       ],
     },
     memoryKeys: ["final_check_started"],
@@ -273,24 +273,24 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   wedding_day: {
     type: "wedding_day",
-    label: "본식",
+    label: "결혼식 날",
     trigger: "wedding_relative",
     weddingOffsetDays: 0,
     moneyInvolved: true,
     d3: {
       message:
-        "사흘 뒤면 진짜네. 오늘은 접수·정산·업체 잔금을 누가 어떤 방식으로 맡을지 정리하는 날이야. 가족이 함께 관리할 돈이 있다면 보관·기록·정산 기준을 당사자끼리 미리 합의해두자.",
+        "결혼식이 사흘 뒤네. 오늘은 축하금 접수·비용 정리·업체에 남은 금액을 누가 어떤 방식으로 맡을지 정리하자. 가족이 함께 관리할 돈이 있다면 보관·기록·정리 기준을 당사자끼리 미리 합의해두자.",
     },
     d1: {
       message: "내일이야. 두 사람이 모든 일을 직접 해결할 필요는 없어. 담당자에게 최종 정보를 건네고, 오늘은 쉴 시간을 확보하자.",
       checklist: [
-        "계약별 잔금·사례 항목과 확인된 결제 수단",
+        "계약별 남은 금액·감사 비용과 확인된 결제 수단",
         "각자 필요한 개인 소지품과 여분",
-        "식순 최종 확인 + 사회자에게 전달 완료",
+        "결혼식 진행 순서 최종 확인 + 진행자에게 전달 완료",
         "내일 집합 시간·동선 공유",
       ],
       script:
-        "내일 사회 봐주셔서 감사해요! 식순 최종본 보내드려요. 시작 전에 한 번만 맞춰봐요 — 도착하시면 연락 주세요.",
+        "내일 진행을 맡아주셔서 감사해요! 최종 진행 순서를 보내드려요. 시작 전에 한 번만 맞춰봐요. 도착하시면 연락 주세요.",
     },
     dAfter: {
       message: "진짜 결혼했네, 우리. 고생 많았어.",
@@ -312,7 +312,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
         "내일 출발이지? 입국 조건은 목적지·국적·경유지마다 달라. 정부·대사관 등 공식 안내와 항공사 안내에서 여권 유효기간·비자·경유 조건을 다시 확인하고, 여권은 이동 중 직접 꺼낼 수 있게 보관하자.",
       checklist: [
         "여권·비자·경유 조건을 공식 출처에서 확인",
-        "예약 바우처를 안전한 두 위치에 보관",
+        "예약 확인서를 안전한 두 위치에 보관",
         "현지 결제 수단과 비상 연락 방법",
         "여행자보험 보장 내용·연락처 확인",
         "복용 중인 약과 목적지 반입 규정 확인",
@@ -329,7 +329,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
 
   family_visit_after: {
     type: "family_visit_after",
-    label: "귀국 후 양가 인사",
+    label: "귀국 후 두 가족에게 인사",
     trigger: "wedding_relative",
     weddingOffsetDays: 8,
     moneyInvolved: true,
@@ -343,7 +343,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
       ],
     },
     dAfter: {
-      message: "양가 인사 다 다녀왔어?",
+      message: "두 가족에게 인사를 잘 드렸어?",
       question: "다음에도 참고하고 싶은 일정이나 취향이 있었어? 저장해도 되는 내용만 알려줘.",
     },
     memoryKeys: ["family_visit_done", "gift_reaction"],
@@ -362,7 +362,7 @@ export const MOMENTS: Record<MomentType, MomentDefinition> = {
     d1: {
       message: "내일부터 명절이야. 순서 정했지? 그럼 절반은 끝났어.",
       checklist: [
-        "방문 순서 최종 확정 (양가에 미리 알리기)",
+        "방문 순서 최종 확정 (두 가족에게 미리 알리기)",
         "선물·용돈은 의무로 가정하지 말고 둘의 총예산 합의",
         "이동·준비·정리 역할을 한쪽에 몰지 않게 나누기",
         "쉬어야 하는 시간과 불편한 요청에 대한 경계 합의",

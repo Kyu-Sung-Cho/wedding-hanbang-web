@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   createAdminClient: vi.fn(),
   hasActiveAccountDeletion: vi.fn(async () => false),
+  checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true })),
   checkRateLimitPersistent: vi.fn(async () => null),
   rateLimitKey: vi.fn((prefix: string, _request: Request, userId?: string) =>
     `${prefix}:${userId ?? "anonymous"}`
@@ -20,6 +21,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
   hasActiveAccountDeletion: mocks.hasActiveAccountDeletion,
+}));
+
+vi.mock("@/lib/community/writeAccess", () => ({
+  checkCommunityWriteAccess: mocks.checkCommunityWriteAccess,
 }));
 
 vi.mock("@/utils/rateLimit", () => ({

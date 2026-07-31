@@ -15,7 +15,7 @@ export default function RootError({ error, reset }: { error: Error & { digest?: 
     <main className="flex min-h-screen items-center justify-center bg-[#FBF8F2] px-5 py-16 text-[#243832]">
       <div className="w-full max-w-md text-center">
         <p className="text-sm font-bold text-[#8F6662]">잠시 문제가 생겼어요</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em]">화면을 불러오지 못했어요</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-normal">화면을 불러오지 못했어요</h1>
         <p className="mt-3 text-sm leading-6 text-[#243832]/70">
           저장된 일정·예산·대화 내용은 그대로예요. 다시 시도해도 같은 화면이 나오면 잠시 후에 열어봐 주세요.
         </p>

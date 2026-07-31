@@ -238,6 +238,7 @@ export async function POST(req: NextRequest) {
         post_id: postId,
         parent_id: null,
         author_id: AMORA_USER_ID,
+        content_origin: "ai",
         content: aiText,
         upvote_count: 0,
         is_deleted: false,
@@ -247,51 +248,15 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (commentError) {
-      // is_ai 컬럼이 없는 경우 fallback (컬럼 미생성 시)
-      const { data: fallbackComment, error: fallbackError } = await serviceClient
-        .from("community_comments")
-        .insert({
-          post_id: postId,
-          parent_id: null,
-          author_id: AMORA_USER_ID,
-          content: aiText,
-          upvote_count: 0,
-          is_deleted: false,
-        })
-        .select("*")
-        .single();
-
-      if (fallbackError) {
-        console.error("AI comment insert error:", fallbackError);
-        return NextResponse.json({ error: "댓글 저장 실패" }, { status: 500 });
-      }
-
-      // comment_count 증가
-      await serviceClient
-        .from("community_posts")
-        .select("comment_count")
-        .eq("id", postId)
-        .single()
-        .then(({ data }) => {
-          return serviceClient
-            .from("community_posts")
-            .update({ comment_count: (data?.comment_count ?? 0) + 1 })
-            .eq("id", postId);
-        });
-
-      return NextResponse.json({
-        comment: {
-          ...fallbackComment,
-          author: {
-            nickname: "아모라 AI",
-            rank: "master",
-            avatar_url: null,
-            wedding_year: null,
-            wedding_month: null,
-          },
-          is_ai: true,
+      // 출처 플래그를 저장하지 못한 AI 답변을 일반 회원 답변처럼 남기지 않는다.
+      console.error("AI comment origin persistence error:", commentError);
+      return NextResponse.json(
+        {
+          error: "AI 답변의 출처를 안전하게 저장하지 못했습니다.",
+          code: "COMMUNITY_AI_ORIGIN_PERSISTENCE_FAILED",
         },
-      }, { status: 201 });
+        { status: 500 },
+      );
     }
 
     // comment_count 증가

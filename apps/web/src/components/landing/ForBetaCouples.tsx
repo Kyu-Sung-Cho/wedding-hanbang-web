@@ -56,7 +56,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="초대" tone="light" />
-          <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-[-0.015em]">
+          <h2 className="font-serif-kr text-[clamp(28px,5vw,56px)] font-light text-white leading-[1.25] tracking-normal">
             아모라의 운영 검증에
             <br />
             <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.
@@ -126,7 +126,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
                 <>
                   {/* 진척 수치 — sans-serif + tabular-nums (Cormorant "1" Roman numeral 혼동 방지) */}
                   <div className="flex items-baseline gap-3 mb-3">
-                    <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-[-0.02em]">
+                    <span className="font-sans tabular-nums text-white text-[clamp(40px,8vw,60px)] font-light leading-none tracking-normal">
                       {BETA_CURRENT}
                     </span>
                     <span className="text-white/40 text-lg md:text-xl font-light tabular-nums">

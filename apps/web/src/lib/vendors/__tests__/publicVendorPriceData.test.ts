@@ -17,6 +17,7 @@ function fakeSupabase(
     ranges: Array<[number, number]>;
     inValues: unknown[] | null;
     ilike: [string, string] | null;
+    selects: string[];
   }> = [];
   const client = {
     from(table: string) {
@@ -26,11 +27,15 @@ function fakeSupabase(
         ranges: [] as Array<[number, number]>,
         inValues: null as unknown[] | null,
         ilike: null as [string, string] | null,
+        selects: [] as string[],
       };
       calls.push(call);
       let rows = [...(fixtures[table] ?? [])];
       const query: Record<string, unknown> = {};
-      query.select = () => query;
+      query.select = (columns: string) => {
+        call.selects.push(columns);
+        return query;
+      };
       query.eq = (column: string, value: unknown) => {
         rows = rows.filter((row) => row[column] === value);
         return query;
@@ -91,6 +96,7 @@ describe("assemblePublicVendorPriceProfile", () => {
       id: "price-1",
       period_label: "2026Q3",
       price_category: "studio",
+      region_code: "seoul_gangnam3",
       item_name: "기본 촬영",
       base_spec: "20p 앨범",
       price_min_krw: 1_200_000,
@@ -125,6 +131,7 @@ describe("assemblePublicVendorPriceProfile", () => {
       prices: [{
         id: "price-1",
         is_current: true,
+        region_code: "seoul_gangnam3",
         agency: { id: "agency-1", name: "샘플 대행사" },
         options: [{
           name: "야외 촬영",
@@ -177,6 +184,7 @@ describe("assemblePublicVendorPriceProfile", () => {
       id,
       period_label: period,
       price_category: "hall",
+      region_code: "seoul_etc",
       item_name: "대관료",
       base_spec: null,
       price_min_krw: min,
@@ -274,6 +282,7 @@ describe("loadPublicVendorPriceProfile", () => {
       source: "kca_tprice",
       period_label: "2026Q3",
       price_category: "studio",
+      region_code: "seoul_etc",
       item_name: `상품 ${index}`,
       base_spec: null,
       price_min_krw: 1_000_000 + index,
@@ -313,11 +322,13 @@ describe("loadPublicVendorPriceProfile", () => {
     const profile = await loadPublicVendorPriceProfile(client, "sample-studio");
 
     expect(profile?.prices).toHaveLength(51);
+    expect(profile?.prices[0]?.region_code).toBe("seoul_etc");
     const priceCall = calls.find(({ table }) => table === "v_public_official_prices");
     expect(priceCall).toMatchObject({
       orders: ["period_label", "price_min_krw", "id"],
       ranges: [[0, 199]],
     });
+    expect(priceCall?.selects[0]).toContain("region_code");
     const optionCalls = calls.filter(({ table }) => table === "v_public_official_price_options");
     expect(optionCalls).toHaveLength(4);
     expect(optionCalls.every(({ inValues }) => (inValues?.length ?? 0) <= 50)).toBe(true);
@@ -388,13 +399,19 @@ describe("loadPublicVendorPriceProfile", () => {
   // 상세가 방문한 슬러그의 id를 쓰면 같은 샵이 두 개의 서로 다른 id로 찜되고,
   // 목록에서 찜한 샵을 형제 주소로 열면 찜이 안 된 것으로 보인다.
   it("형제 슬러그로 들어와도 대표 id·슬러그는 같은 값을 준다", async () => {
-    const vendorRow = (id: string, slug: string, name: string, regionCode: string) => ({
+    const vendorRow = (
+      id: string,
+      slug: string,
+      name: string,
+      regionCode: string,
+      aliases: string[],
+    ) => ({
       id,
       slug,
       name,
       category: "studio",
       region_code: regionCode,
-      aliases: [],
+      aliases,
       official_url: null,
       instagram_url: null,
       naver_place_url: null,
@@ -419,10 +436,10 @@ describe("loadPublicVendorPriceProfile", () => {
       agency_display_name: agency,
       is_current: true,
     });
-    const { client } = fakeSupabase({
+    const { client, calls } = fakeSupabase({
       v_public_vendors: [
-        vendorRow("vendor-1", "mei-studio-a", "메이스튜디오", "seoul_etc"),
-        vendorRow("vendor-2", "mei-studio-b", "메이 스튜디오", "gyeongsang"),
+        vendorRow("vendor-1", "mei-studio-a", "메이스튜디오", "seoul_etc", ["메이"]),
+        vendorRow("vendor-2", "mei-studio-b", "메이 스튜디오", "gyeongsang", ["메이 옛 상호"]),
       ],
       v_public_official_prices: [
         priceRow("price-a", "mei-studio-a", "가대행사"),
@@ -435,8 +452,14 @@ describe("loadPublicVendorPriceProfile", () => {
     const profile = await loadPublicVendorPriceProfile(client, "mei-studio-b");
 
     expect(profile?.vendor.slug).toBe("mei-studio-b");
+    expect(profile?.vendor.name).toBe("메이스튜디오");
+    expect(profile?.vendor.aliases).toEqual(["메이", "메이 스튜디오", "메이 옛 상호"]);
     expect(profile?.identity.canonicalSlug).toBe("mei-studio-a");
     expect(profile?.identity.canonicalVendorId).toBe("vendor-1");
+    const identityCall = calls.find(({ table, ilike }) => (
+      table === "v_public_vendors" && ilike !== null
+    ));
+    expect(identityCall?.selects[0]).toContain("aliases");
   });
 
   it("keeps same-name-different-business vendors apart", async () => {
@@ -489,6 +512,77 @@ describe("loadPublicVendorPriceProfile", () => {
     expect(profile?.identity.vendorIds).toEqual(["vendor-1"]);
     // 형제 조회 자체를 하지 않는다 — 동명이업은 합치면 안 되는 게 확정이다.
     expect(calls.filter(({ ilike }) => ilike !== null)).toHaveLength(0);
+  });
+
+  it("merges only the row-scoped verified Seoul identity inside a split same-name group", async () => {
+    const vendorRow = (
+      id: string,
+      slug: string,
+      regionCode: string,
+    ) => ({
+      id,
+      slug,
+      name: "랑게",
+      category: "studio",
+      region_code: regionCode,
+      aliases: [],
+      official_url: null,
+      instagram_url: null,
+      naver_place_url: null,
+      attributes: {},
+      tags: [],
+    });
+    const priceRow = (id: string, slug: string, regionCode: string) => ({
+      id,
+      vendor_slug: slug,
+      source: "kca_tprice",
+      period_label: "2026Q3",
+      price_category: "studio",
+      region_code: regionCode,
+      item_name: "촬영 상품",
+      base_spec: null,
+      price_min_krw: 1_000_000,
+      price_max_krw: 1_000_000,
+      vat_note: null,
+      price_note: null,
+      source_label: "한국소비자원 참가격 · 2026Q3",
+      is_current: true,
+    });
+    const langheSeoulEtc = "studio-ingest-8b66b01259700071";
+    const langheSeoulGangnam = "studio-ingest-712748b50059a490";
+    const langheJeolla = "studio-ingest-langhe-jeolla";
+    const { client, calls } = fakeSupabase({
+      v_public_vendors: [
+        vendorRow("vendor-seoul-etc", langheSeoulEtc, "seoul_etc"),
+        vendorRow("vendor-seoul-gangnam", langheSeoulGangnam, "seoul_gangnam3"),
+        vendorRow("vendor-jeolla", langheJeolla, "jeolla"),
+      ],
+      v_public_official_prices: [
+        priceRow("price-seoul-etc", langheSeoulEtc, "seoul_etc"),
+        priceRow("price-seoul-gangnam", langheSeoulGangnam, "seoul_gangnam3"),
+        priceRow("price-jeolla", langheJeolla, "jeolla"),
+      ],
+      v_public_official_price_options: [],
+    });
+
+    const profile = await loadPublicVendorPriceProfile(client, langheSeoulEtc);
+
+    expect(new Set(profile?.identity.vendorIds)).toEqual(new Set([
+      "vendor-seoul-etc",
+      "vendor-seoul-gangnam",
+    ]));
+    expect(profile?.identity.vendorIds).not.toContain("vendor-jeolla");
+    expect(profile?.prices.map(({ id }) => id).sort()).toEqual([
+      "price-seoul-etc",
+      "price-seoul-gangnam",
+    ]);
+    const identityCall = calls.find(({ table, inValues }) => (
+      table === "v_public_vendors" && inValues !== null
+    ));
+    expect(new Set(identityCall?.inValues)).toEqual(new Set([
+      langheSeoulEtc,
+      langheSeoulGangnam,
+    ]));
   });
 });
 

@@ -68,6 +68,36 @@ const REAL_WORLD_OVERRIDE_PATTERN =
   /(?:진짜|현실|실제로|지금|현재|칼|흉기|때리|맞고|폭행|협박|위협)/;
 const CURRENT_DISCLOSURE_SIGNAL_PATTERN =
   /(?:(?:지금|오늘|방금|현재)\s*.{0,60}(?:죽|자살|자해|목숨|극단적|때리|맞고|폭행|협박|위협|감금|스토킹|성폭|성추행|성범죄|강간|약을?\s*(?:먹|삼키)|타이레놀|아세트아미노펜|농약|락스|표백제|세제|부동액|번개탄|연탄|뛰어내|칼|흉기)|(?:오히려|도리어)\s*.{0,40}(?:죽|자살|자해|목숨|극단적)|(?:나|난|나는|내가|저|전|저는|제가|남편|아내|배우자|남자친구|여자친구|신랑|신부|상대)\s*.{0,40}(?:지금|오늘|방금|현재|맞고\s*있|당하고\s*있|협박받고\s*있)|(?:칼|흉기|위험한\s*물건)\s*.{0,30}(?:들고\s*있|쥐고\s*있|휘두르)|(?:살려\s*줘|도와\s*줘))/;
+const COLLOQUIAL_SELF_HARM_PATTERNS = [
+  /그만\s*살고\s*싶/,
+  /죽고만\s*싶/,
+  /(?:차라리\s*)?사라지고\s*싶/,
+  /살고\s*싶은\s*마음(?:이|은)?\s*(?:하나도\s*)?없/,
+] as const;
+const COLLOQUIAL_SELF_HARM_NEGATION_PATTERNS = [
+  /그만\s*살고\s*싶은\s*(?:건|것은)\s*아니/,
+  /죽고만\s*싶지\s*않/,
+  /죽고만\s*싶은\s*(?:건|것은)\s*아니/,
+  /(?:차라리\s*)?사라지고\s*싶지\s*않/,
+  /(?:차라리\s*)?사라지고\s*싶은\s*(?:건|것은)\s*아니/,
+  /살고\s*싶은\s*마음(?:이|은)?\s*없(?:는\s*(?:건|것은)\s*아니|지\s*않)/,
+] as const;
+const HYPOTHETICAL_COLLOQUIAL_SELF_HARM_PATTERN =
+  /(?:그만\s*살고\s*싶|죽고만\s*싶|(?:차라리\s*)?사라지고\s*싶|살고\s*싶은\s*마음(?:이|은)?\s*(?:하나도\s*)?없).{0,16}(?:다면|으면|면|경우)/;
+const FIRST_PERSON_COLLOQUIAL_SELF_HARM_PATTERN =
+  /(?:^|[\s,.!?])(?:나|난|나는|내가|저|전|저는|제가|나도|저도)\s*.{0,30}(?:그만\s*살고\s*싶|죽고만\s*싶|(?:차라리\s*)?사라지고\s*싶|살고\s*싶은\s*마음(?:이|은)?\s*(?:하나도\s*)?없)/;
+const THIRD_PARTY_COLLOQUIAL_SELF_HARM_PATTERN =
+  /(?:(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|신랑|신부|배우자|남편|아내|남자친구|여자친구|상대|그|그녀|주인공|고객|사용자|내담자)(?:가|이|는|은|도)|누가|누군가|사람이)\s*.{0,50}(?:그만\s*살고\s*싶|죽고만\s*싶|(?:차라리\s*)?사라지고\s*싶|살고\s*싶은\s*마음(?:이|은)?\s*(?:하나도\s*)?없)/;
+const HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN =
+  /(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:한꺼번에|왕창|잔뜩|몽땅|한\s*(?:움큼|줌))(?:을|를)?\s*(?:입(?:안)?에\s*)?털어\s*넣/;
+const HIGH_RISK_DRUG_DUMP_ATTEMPT_NEGATION_PATTERN =
+  /(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:한꺼번에|왕창|잔뜩|몽땅|한\s*(?:움큼|줌))(?:을|를)?\s*(?:입(?:안)?에\s*)?털어\s*넣(?:지\s*않|은\s*(?:건|것은)\s*아니)/;
+const FIRST_PERSON_HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN =
+  /(?:^|[\s,.!?])(?:나|난|나는|내가|저|전|저는|제가|나도|저도)\s*.{0,50}(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:한꺼번에|왕창|잔뜩|몽땅|한\s*(?:움큼|줌))(?:을|를)?\s*(?:입(?:안)?에\s*)?털어\s*넣/;
+const THIRD_PARTY_HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN =
+  /(?:(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|신랑|신부|배우자|남편|아내|남자친구|여자친구|상대|그|그녀|주인공|고객|사용자|내담자)(?:가|이|는|은|도)|누가|누군가|사람이)\s*.{0,70}(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:한꺼번에|왕창|잔뜩|몽땅|한\s*(?:움큼|줌))(?:을|를)?\s*(?:입(?:안)?에\s*)?털어\s*넣/;
+const FIRST_PERSON_REPORTING_THIRD_PARTY_COLLOQUIAL_RISK_PATTERN =
+  /(?:^|[\s,.!?])(?:나|난|나는|내가|저|전|저는|제가|나도|저도)\s*.{0,20}(?:(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|신랑|신부|배우자|남편|아내|남자친구|여자친구|상대|그|그녀|주인공|고객|사용자|내담자)(?:가|이|는|은|도)|누가|누군가|사람이)\s*.{0,70}(?:그만\s*살고\s*싶|죽고만\s*싶|(?:차라리\s*)?사라지고\s*싶|살고\s*싶은\s*마음(?:이|은)?\s*(?:하나도\s*)?없|(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:한꺼번에|왕창|잔뜩|몽땅|한\s*(?:움큼|줌))(?:을|를)?\s*(?:입(?:안)?에\s*)?털어\s*넣)/;
 const SELF_HARM_PATTERNS = [
   /죽\s*고\s*싶/,
   /살(?:고|기)\s*싶지\s*않|살기\s*싫/,
@@ -95,6 +125,7 @@ const SELF_HARM_ATTEMPT_PATTERNS = [
   /목(?:을)?\s*(?:매|맸|맨|매달)/,
   /(?:옥상|난간|다리|베란다|한강)\s*.{0,30}(?:뛰어내(?:리|릴|린|렸|려)|몸을\s*던(?:지|질|진|졌|지려))/,
   /손목을?\s*(?:그었|긋|베었)/,
+  HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN,
 ] as const;
 const SELF_HARM_EMERGENCY_OUTCOME_PATTERNS = [
   /(?:수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:먹|삼(?:키|켰)|복용).{0,30}(?:의식(?:이)?\s*없|깨(?:지)?\s*않|쓰러|반응(?:이)?\s*없)/,
@@ -116,9 +147,10 @@ const SELF_HARM_ATTEMPT_NEGATION_PATTERNS = [
   /(?:번개탄|연탄)(?:을|를)?\s*(?:(?:피우|피워(?:놓)?|붙이|점화하|켜)지\s*않|(?:피운|피워놓은|붙인|점화한|켠)\s*(?:건|것은)\s*아니)/,
   /목(?:을)?\s*(?:매|매달)지\s*않/,
   /(?:옥상|난간|다리|베란다|한강)\s*.{0,30}(?:(?:뛰어내리|몸을\s*던지)지\s*않|(?:뛰어내리|몸을\s*던지)려는\s*(?:건|것은)\s*아니)/,
+  HIGH_RISK_DRUG_DUMP_ATTEMPT_NEGATION_PATTERN,
 ] as const;
 const HYPOTHETICAL_SELF_HARM_ATTEMPT_PATTERN =
-  /(?:먹|삼(?:키|켰)|복용|마(?:시|셨|셔)|피(?:우|웠|워|운|울)|붙(?:이|였)|점화(?:하|했)|켜|켰|목(?:을)?\s*(?:매|매달)|뛰어내(?:리|릴|린)|몸을\s*던(?:지|질|진)).{0,16}(?:면|다면|경우)/;
+  /(?:먹|삼(?:키|켰)|복용|마(?:시|셨|셔)|피(?:우|웠|워|운|울)|붙(?:이|였)|점화(?:하|했)|켜|켰|털어\s*넣|목(?:을)?\s*(?:매|매달)|뛰어내(?:리|릴|린)|몸을\s*던(?:지|질|진)).{0,16}(?:면|다면|경우)/;
 const FIRST_PERSON_SELF_HARM_PATTERN =
    /(?:^|[\s,.!?])(?:나|난|나는|내가|저|전|저는|제가|나도|저도)\s*.{0,30}(?:죽\s*고\s*싶|죽\s*을\s*(?:래|거야)|죽어야\s*(?:겠|할\s*것\s*같)|죽어\s*버리|살(?:고|기)\s*싶지\s*않|살기\s*싫|자살|자해|목숨을?\s*끊|극단적\s*선택|죽으려고|손목을?\s*그었)/;
 const FIRST_PERSON_SELF_HARM_ATTEMPT_PATTERN =
@@ -162,15 +194,36 @@ const CURRENT_INTERPERSONAL_DANGER_PATTERNS = [
   /성범죄\s*피해를?\s*입/,
   /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}(?:협박|위협)\s*중/,
   /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}(?:나|저)(?:를|의)?\s*죽이려고/,
-  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}목을?\s*조르/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}목(?:을)?\s*(?:조르|조른|조여|조였|졸라|졸랐)/,
   /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}성관계를?\s*(?:강요|요구)/,
   /(?:칼|흉기|위험한\s*물건)\s*.{0,30}(?:들고\s*있|쥐고\s*있|휘두르)/,
   /문을?\s*부수/,
+  /(?:내|제|나의|저의)\s*목(?:을)?\s*(?:조르|조른|조여|조였|졸라|졸랐)/,
+  /(?:^|[\s,.!?])(?:나|저)(?:를)?\s*(?:발로\s*(?:차|찼|걷어차|걷어찼)|주먹으로\s*(?:치|쳤|때리|때렸))/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*(?:(?:나|저)(?:를)?\s*)?(?:발로\s*(?:차|찼|걷어차|걷어찼)|주먹으로\s*(?:치|쳤|때리|때렸))/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*(?:(?:나|저)(?:를)?\s*)?밀치.{0,30}(?:물건|집기|가구)(?:을|를)?\s*던지/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*(?:나|저)(?:를)?\s*밀치(?:고|며|는|고\s*있|었|쳤)/,
+  /(?:칼|흉기)(?:을|를)?\s*(?:들고|쥐고).{0,30}(?:집|문)\s*앞.{0,20}(?:찾아왔|찾아온|기다리|서\s*있)/,
+  /(?:내|제|나의|저의)\s*(?:위치|동선)(?:를|을)?\s*(?:추적|찾아내).{0,40}(?:집|문)\s*앞(?:에서|에)?\s*(?:기다리|서\s*있|머물)/,
+  /강제로\s*(?:성적\s*)?(?:관계|성관계)(?:를|을)?\s*(?:맺|가졌|했)/,
 ] as const;
-const CURRENT_INTERPERSONAL_DANGER_NEGATION_PATTERNS = [
+const CURRENT_INTERPERSONAL_DANGER_EXCLUSION_PATTERNS = [
   /(?:협박|위협)하고\s*있지\s*않/,
   /(?:협박|위협)(?:을)?\s*받고\s*있지\s*않/,
   /성범죄(?:를|을)?\s*당하고\s*있지\s*않/,
+  /(?:내|제|나의|저의)\s*목(?:을)?\s*(?:조르|조이)지\s*않/,
+  /(?:나|저)(?:를)?\s*(?:발로\s*(?:차|걷어차)|주먹으로\s*(?:치|때리))지\s*않/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*(?:(?:나|저)(?:를)?\s*)?(?:발로\s*(?:차|걷어차)|주먹으로\s*(?:치|때리))지\s*않/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}목(?:을)?\s*(?:조른|조였던|졸랐던)\s*(?:건|것은)\s*아니/,
+  /(?:내|제|나의|저의)\s*목(?:을)?\s*(?:조른|조였던|졸랐던)\s*(?:건|것은)\s*아니/,
+  /(?:나|저)(?:를)?\s*(?:발로\s*(?:찬|찼던)|주먹으로\s*(?:친|쳤던))\s*(?:건|것은)\s*아니/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*(?:(?:나|저)(?:를)?\s*)?(?:발로\s*(?:찬|찼던)|주먹으로\s*(?:친|쳤던))\s*(?:건|것은)\s*아니/,
+  /(?:배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:가|이)\s*.{0,30}밀친\s*(?:건|것은)\s*아니/,
+  /(?:칼|흉기)(?:을|를)?\s*(?:들고|쥐고).{0,30}(?:집|문)\s*앞.{0,20}(?:찾아온|기다린|서\s*있던)\s*(?:건|것은)\s*아니/,
+  /(?:내|제|나의|저의)\s*(?:위치|동선)(?:를|을)?\s*(?:추적|찾아낸).{0,40}(?:집|문)\s*앞.{0,20}(?:기다린|서\s*있던)\s*(?:건|것은)\s*아니/,
+  /강제로\s*(?:성적\s*)?(?:관계|성관계)(?:를|을)?\s*(?:맺은|가진|했던)\s*(?:건|것은)\s*아니/,
+  /(?:업체|회사|기관|거래처|협력사|파트너사|고객|사업\s*파트너)(?:와|하고|이랑)\s*강제로\s*관계(?:를|을)?\s*맺/,
+  /게임(?:에서|속에서|중에)\s*.{0,80}(?:칼|흉기)(?:을|를)?\s*(?:들고|쥐고).{0,30}(?:집|문)\s*앞.{0,20}(?:찾아왔|찾아온|기다리|서\s*있)/,
 ] as const;
 const SEGMENT_BOUNDARY_PATTERN = /(?:[\n.!?;,]+|하지만|그런데|근데|말고|아니라)/;
 
@@ -210,11 +263,19 @@ export function classifyAmoraCrisis(
     ) continue;
 
     const selfHarmEvidence = removeMatchingPhrases(
-      [...SELF_HARM_NEGATION_PATTERNS, ...SELF_HARM_ATTEMPT_NEGATION_PATTERNS],
+      [
+        ...SELF_HARM_NEGATION_PATTERNS,
+        ...COLLOQUIAL_SELF_HARM_NEGATION_PATTERNS,
+        ...SELF_HARM_ATTEMPT_NEGATION_PATTERNS,
+      ],
       candidate,
     );
+    const colloquialSelfHarm =
+      matchesAny(COLLOQUIAL_SELF_HARM_PATTERNS, selfHarmEvidence)
+      && !HYPOTHETICAL_COLLOQUIAL_SELF_HARM_PATTERN.test(selfHarmEvidence);
     const directSelfHarm =
       matchesAny(SELF_HARM_PATTERNS, selfHarmEvidence)
+      || colloquialSelfHarm
       || (
         (
           matchesAny(SELF_HARM_ATTEMPT_PATTERNS, selfHarmEvidence)
@@ -222,22 +283,33 @@ export function classifyAmoraCrisis(
         )
         && !HYPOTHETICAL_SELF_HARM_ATTEMPT_PATTERN.test(selfHarmEvidence)
       );
+    const firstPersonColloquialRisk =
+      (
+        FIRST_PERSON_COLLOQUIAL_SELF_HARM_PATTERN.test(candidate)
+        || FIRST_PERSON_HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN.test(candidate)
+      )
+      && !FIRST_PERSON_REPORTING_THIRD_PARTY_COLLOQUIAL_RISK_PATTERN.test(candidate);
     const thirdPartyOnly =
       (
         THIRD_PARTY_SELF_HARM_PATTERN.test(candidate)
         || THIRD_PARTY_SELF_HARM_ATTEMPT_PATTERN.test(candidate)
         || THIRD_PARTY_EXPANDED_ATTEMPT_PATTERN.test(candidate)
         || THIRD_PARTY_EMERGENCY_OUTCOME_PATTERN.test(candidate)
+        || THIRD_PARTY_COLLOQUIAL_SELF_HARM_PATTERN.test(candidate)
+        || THIRD_PARTY_HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN.test(candidate)
       )
       && !FIRST_PERSON_SELF_HARM_PATTERN.test(candidate)
       && !FIRST_PERSON_SELF_HARM_ATTEMPT_PATTERN.test(candidate)
-      && !FIRST_PERSON_EXPANDED_ATTEMPT_PATTERN.test(candidate);
+      && !FIRST_PERSON_EXPANDED_ATTEMPT_PATTERN.test(candidate)
+      && !firstPersonColloquialRisk;
     const realThirdPartyRisk =
       (
         REAL_THIRD_PARTY_SELF_HARM_PATTERN.test(candidate)
         || REAL_THIRD_PARTY_SELF_HARM_ATTEMPT_PATTERN.test(candidate)
         || REAL_THIRD_PARTY_EXPANDED_ATTEMPT_PATTERN.test(candidate)
         || THIRD_PARTY_EMERGENCY_OUTCOME_PATTERN.test(candidate)
+        || THIRD_PARTY_COLLOQUIAL_SELF_HARM_PATTERN.test(candidate)
+        || THIRD_PARTY_HIGH_RISK_DRUG_DUMP_ATTEMPT_PATTERN.test(candidate)
       )
       && !HYPOTHETICAL_THIRD_PARTY_PATTERN.test(candidate);
     if (directSelfHarm && thirdPartyOnly && realThirdPartyRisk) {
@@ -246,7 +318,7 @@ export function classifyAmoraCrisis(
       selfHarm = true;
     }
     const interpersonalEvidence = removeMatchingPhrases(
-      CURRENT_INTERPERSONAL_DANGER_NEGATION_PATTERNS,
+      CURRENT_INTERPERSONAL_DANGER_EXCLUSION_PATTERNS,
       candidate,
     );
     if (matchesAny(CURRENT_INTERPERSONAL_DANGER_PATTERNS, interpersonalEvidence)) {

@@ -7,6 +7,12 @@ import type {
   GuestCount,
   WeddingPreferences,
 } from "@/types/onboarding.types";
+import {
+  WEDDING_BUDGET_TENDENCY_OPTIONS,
+  WEDDING_GUEST_COUNT_OPTIONS,
+  WEDDING_PRIORITY_OPTIONS,
+  WEDDING_STYLE_OPTIONS,
+} from "@hanbang/shared";
 
 interface WeddingStylePreferencesProps {
   preferences: WeddingPreferences;
@@ -16,52 +22,46 @@ interface WeddingStylePreferencesProps {
   onGuestCountChange: (count: GuestCount) => void;
 }
 
-const STYLE_OPTIONS: {
-  value: WeddingStyle;
-  emoji: string;
-  label: string;
-  desc: string;
-}[] = [
-  { value: "minimal", emoji: "\u{1F90D}", label: "\uBBF8\uB2C8\uBA40", desc: "\uAE54\uB054\uD558\uACE0 \uC2EC\uD50C\uD558\uAC8C" },
-  { value: "classic", emoji: "\u{1F3DB}\uFE0F", label: "\uD074\uB798\uC2DD", desc: "\uC804\uD1B5\uC801\uC774\uACE0 \uACA9\uC2DD\uC788\uAC8C" },
-  { value: "fancy", emoji: "\u2728", label: "\uD654\uB824\uD55C", desc: "\uD654\uB824\uD558\uACE0 \uD2B9\uBCC4\uD558\uAC8C" },
-  { value: "natural", emoji: "\u{1F33F}", label: "\uC790\uC5F0\uC2A4\uB7EC\uC6B4", desc: "\uD3B8\uC548\uD558\uACE0 \uC790\uC720\uB86D\uAC8C" },
-];
+const STYLE_EMOJI: Record<WeddingStyle, string> = {
+  minimal: "\u{1F90D}",
+  classic: "\u{1F3DB}\uFE0F",
+  fancy: "\u2728",
+  natural: "\u{1F33F}",
+};
 
-const PRIORITY_OPTIONS: {
-  value: PriorityItem;
-  emoji: string;
-  label: string;
-}[] = [
-  { value: "sdm", emoji: "\u{1F4F8}", label: "\uC2A4\uB4DC\uBA54" },
-  { value: "venue", emoji: "\u{1F3F0}", label: "\uC608\uC2DD\uC7A5" },
-  { value: "rings", emoji: "\u{1F48D}", label: "\uC608\uBB3C/\uC608\uB2E8" },
-  { value: "honeymoon", emoji: "\u2708\uFE0F", label: "\uC2E0\uD63C\uC5EC\uD589" },
-  { value: "ceremony", emoji: "\u{1F38A}", label: "\uBCF8\uC2DD \uC5F0\uCD9C" },
-  { value: "housing", emoji: "\u{1F3E0}", label: "\uC2E0\uD63C\uC9D1/\uD63C\uC218" },
-];
+const PRIORITY_EMOJI: Record<PriorityItem, string> = {
+  sdm: "\u{1F4F8}",
+  venue: "\u{1F3F0}",
+  rings: "\u{1F48D}",
+  honeymoon: "\u2708\uFE0F",
+  ceremony: "\u{1F38A}",
+  housing: "\u{1F3E0}",
+};
 
-const BUDGET_OPTIONS: {
-  value: BudgetTendency;
-  emoji: string;
-  label: string;
-  desc: string;
-}[] = [
-  { value: "saving", emoji: "\u{1F4B0}", label: "\uC808\uC57D\uD615", desc: "\uCD5C\uC18C\uD55C\uC73C\uB85C \uD569\uB9AC\uC801\uC73C\uB85C" },
-  { value: "balanced", emoji: "\u2696\uFE0F", label: "\uAC00\uC131\uBE44", desc: "\uAF2D \uD544\uC694\uD55C \uACF3\uC5D0 \uD22C\uC790" },
-  { value: "premium", emoji: "\u{1F48E}", label: "\uD504\uB9AC\uBBF8\uC5C4", desc: "\uCD5C\uACE0\uC758 \uD000\uB9AC\uD2F0\uB97C \uC6D0\uD574\uC694" },
-];
+const BUDGET_EMOJI: Record<BudgetTendency, string> = {
+  saving: "\u{1F4B0}",
+  balanced: "\u2696\uFE0F",
+  premium: "\u{1F48E}",
+};
 
-const GUEST_OPTIONS: {
-  value: GuestCount;
-  label: string;
-}[] = [
-  { value: "under50", label: "50\uBA85 \uC774\uD558 (\uC2A4\uBAB0\uC6E8\uB529)" },
-  { value: "50to100", label: "50~100\uBA85" },
-  { value: "100to200", label: "100~200\uBA85" },
-  { value: "200to300", label: "200~300\uBA85" },
-  { value: "over300", label: "300\uBA85 \uC774\uC0C1" },
-];
+const STYLE_OPTIONS = WEDDING_STYLE_OPTIONS.map((option) => ({
+  ...option,
+  emoji: STYLE_EMOJI[option.value],
+  desc: option.description,
+}));
+
+const PRIORITY_OPTIONS = WEDDING_PRIORITY_OPTIONS.map((option) => ({
+  ...option,
+  emoji: PRIORITY_EMOJI[option.value],
+}));
+
+const BUDGET_OPTIONS = WEDDING_BUDGET_TENDENCY_OPTIONS.map((option) => ({
+  ...option,
+  emoji: BUDGET_EMOJI[option.value],
+  desc: option.description,
+}));
+
+const GUEST_OPTIONS = WEDDING_GUEST_COUNT_OPTIONS;
 
 export default function WeddingStylePreferences({
   preferences,
@@ -74,17 +74,17 @@ export default function WeddingStylePreferences({
     <div className="space-y-7">
       <div className="text-center">
         <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
-          웨딩 스타일
+          결혼식 선호
         </h2>
         <p className="text-[14px] text-taupe-400">
-          취향에 맞는 추천을 위해 알려주세요
+          알고 있는 만큼만 골라도 돼요
         </p>
       </div>
 
-      {/* Q1: 웨딩 스타일 */}
+      {/* Q1: 결혼식 분위기 */}
       <div className="space-y-3">
         <p className="text-[14px] font-medium text-noir-800">
-          원하는 웨딩 스타일은?
+          결혼식 공간과 연출에서 원하는 분위기는 무엇인가요?
         </p>
         <div className="grid grid-cols-2 gap-3">
           {STYLE_OPTIONS.map((opt) => (
@@ -113,7 +113,7 @@ export default function WeddingStylePreferences({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-[14px] font-medium text-noir-800">
-            가장 중요한 항목은?
+            더 중요하게 생각하는 항목은 무엇인가요?
           </p>
           <span className="text-[11px] text-taupe-400">
             최대 3개 선택
@@ -164,7 +164,7 @@ export default function WeddingStylePreferences({
       {/* Q3: 예산 성향 */}
       <div className="space-y-3">
         <p className="text-[14px] font-medium text-noir-800">
-          예산 성향은?
+          돈을 쓸 때 어떤 기준을 더 중요하게 생각하나요?
         </p>
         <div className="grid grid-cols-3 gap-2.5">
           {BUDGET_OPTIONS.map((opt) => (

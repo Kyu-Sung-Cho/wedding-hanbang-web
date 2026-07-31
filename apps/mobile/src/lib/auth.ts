@@ -5,9 +5,12 @@
 
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import { extractMobileOAuthAuthorizationCode } from "@hanbang/shared/utils";
 import { supabase } from "./supabase";
 import type { Provider } from "@supabase/supabase-js";
+
+type SupportedOAuthProvider = Extract<Provider, "kakao" | "apple">;
 
 // iOS: 브라우저 인증 세션 완료 감지
 WebBrowser.maybeCompleteAuthSession();
@@ -19,6 +22,21 @@ const redirectTo = `${SITE_URL}/auth/mobile-callback`;
 
 // 앱으로 돌아올 때 감지할 URL (hanbang:// 또는 exp://)
 const appReturnUrl = Linking.createURL("auth/callback");
+
+export function isOAuthProviderEnabled(
+  provider: SupportedOAuthProvider,
+): boolean {
+  // Expo Web에는 현재 same-origin HTTP callback 교환 경로가 없다.
+  if (Platform.OS === "web") return false;
+
+  if (provider === "kakao") {
+    // Supabase/Kakao 양쪽 운영 설정이 끝난 빌드에서만 명시적으로 연다.
+    return process.env.EXPO_PUBLIC_KAKAO_OAUTH_ENABLED === "true";
+  }
+
+  // Apple provider가 운영에서 꺼질 때 빌드 환경으로 즉시 숨길 수 있다.
+  return process.env.EXPO_PUBLIC_APPLE_OAUTH_ENABLED !== "false";
+}
 
 /**
  * 앱에 저장된 PKCE verifier로 일회용 authorization code를 교환한다.
@@ -34,7 +52,16 @@ async function createSessionFromUrl(url: string) {
 /**
  * OAuth 로그인
  */
-export async function signInWithOAuth(provider: Provider) {
+export async function signInWithOAuth(provider: SupportedOAuthProvider) {
+  if (!isOAuthProviderEnabled(provider)) {
+    const message = Platform.OS === "web"
+      ? "소셜 로그인은 설치한 앱에서 이용할 수 있어요."
+      : provider === "kakao"
+        ? "카카오 로그인은 현재 준비 중이에요. 이메일 로그인을 이용해주세요."
+        : "Apple 로그인을 현재 이용할 수 없어요. 이메일 로그인을 이용해주세요.";
+    throw new Error(message);
+  }
+
   // 카카오: account_email scope 제거 (비즈앱 아니라 권한 없음)
   const scopes = provider === "kakao"
     ? "profile_nickname profile_image"

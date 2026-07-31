@@ -96,7 +96,7 @@ export default function TrendingPosts() {
                 <h4 className="text-sm text-[#263832] group-hover:text-[#36534E] transition-colors line-clamp-2 leading-snug">
                   {p.title}
                 </h4>
-                <p className="text-xs text-[#635b51] mt-1">댓글 {p.comment_count}개</p>
+                <p className="text-xs text-[#635b51] mt-1">답변 {p.comment_count}개</p>
               </div>
             </Link>
           </li>

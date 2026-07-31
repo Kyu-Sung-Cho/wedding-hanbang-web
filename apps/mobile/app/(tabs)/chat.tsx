@@ -46,6 +46,7 @@ interface ChatMessageMetadata {
   client_visible_request_id?: string;
   mediation?: unknown;
   pending_amora_action?: unknown;
+  confirmed_amora_action_id?: string;
   toolResults?: ToolExecutionResult[];
   [key: string]: unknown;
 }
@@ -87,6 +88,7 @@ interface AiDraft {
   context: ChatApiMessage[];
   visibility: ChatMessageVisibility;
   confirmedActionId?: string;
+  amoraSourceMessageId?: string;
 }
 
 interface AiRequest {
@@ -140,6 +142,11 @@ interface ChatStreamCompletion {
   text: string;
   toolResults: ToolExecutionResult[];
   metadata: ChatMessageMetadata | null;
+}
+
+interface AmoraApplicationClaim {
+  applicationGranted: boolean;
+  retryAfterMs: number;
 }
 
 type ChatStreamUpdateCallback = (
@@ -698,6 +705,68 @@ async function requestChatStream(
   );
 }
 
+async function requestAmoraApplicationClaimWithToken(
+  actionId: string,
+  messageId: string,
+  accessToken: string,
+): Promise<AmoraApplicationClaim> {
+  const response = await fetch(
+    `${API_BASE}/api/amora/shared-actions/${encodeURIComponent(actionId)}`,
+    {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messageId }),
+    },
+  );
+  if (!response.ok) throw new ChatTransportError("HTTP", response.status);
+  const value: unknown = await response.json().catch(() => null);
+  if (
+    typeof value !== "object"
+    || value === null
+    || Array.isArray(value)
+    || typeof (value as Record<string, unknown>).applicationGranted !== "boolean"
+    || !Number.isInteger((value as Record<string, unknown>).retryAfterMs)
+    || ((value as Record<string, unknown>).retryAfterMs as number) < 0
+    || ((value as Record<string, unknown>).retryAfterMs as number) > 60_000
+  ) {
+    throw new ChatTransportError("STREAM");
+  }
+  return value as unknown as AmoraApplicationClaim;
+}
+
+async function requestAmoraApplicationClaim(
+  actionId: string,
+  messageId: string,
+): Promise<AmoraApplicationClaim> {
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new ChatTransportError("AUTH");
+  try {
+    return await requestAmoraApplicationClaimWithToken(
+      actionId,
+      messageId,
+      accessToken,
+    );
+  } catch (error) {
+    if (!(error instanceof ChatTransportError) || error.status !== 401) {
+      throw error;
+    }
+  }
+  const { data: refreshed, error } = await supabase.auth.refreshSession();
+  if (error || !refreshed.session?.access_token) {
+    throw new ChatTransportError("AUTH");
+  }
+  return requestAmoraApplicationClaimWithToken(
+    actionId,
+    messageId,
+    refreshed.session.access_token,
+  );
+}
+
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
   if (timedOut || (error instanceof ChatTransportError && error.code === "TIMEOUT")) {
     return "답변이 평소보다 오래 걸렸어요. 같은 요청으로 다시 이어갈 수 있어요.";
@@ -761,6 +830,10 @@ export default function ChatScreen() {
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
+  const [pendingActionNotice, setPendingActionNotice] = useState<{
+    actionId: string;
+    message: string;
+  } | null>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -782,9 +855,15 @@ export default function ChatScreen() {
     && sendFailureVisibility(sendFailure) === selectedVisibility
     ? sendFailure
     : null;
+  const isConfirmedActionRecovery =
+    activeSendFailure?.kind === "ai_insert"
+    && typeof activeSendFailure.draft.confirmedActionId === "string";
   const latestSharedMessageId = [...messages]
     .reverse()
-    .find((message) => message.visibility === "shared")?.id ?? null;
+    .find((message) => (
+      message.visibility === "shared"
+      && message.metadata?.target !== "partner"
+    ))?.id ?? null;
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1_000);
@@ -818,12 +897,42 @@ export default function ChatScreen() {
       if (partners?.[0]) setPartnerName(partners?.[0]?.name ?? "");
 
       // 대화 이력
-      const { data: history } = await supabase.from("chat_messages")
-        .select("id, role, sender_type, content, metadata, created_at, visibility")
-        .eq("couple_id", profile.couple_id).order("created_at", { ascending: true }).limit(200);
+      const [
+        { data: history },
+        { data: latestCanonical },
+      ] = await Promise.all([
+        supabase.from("chat_messages")
+          .select("id, role, sender_type, content, metadata, created_at, visibility")
+          .eq("couple_id", profile.couple_id)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(200),
+        supabase.from("chat_messages")
+          .select("id, role, sender_type, content, metadata, created_at, visibility")
+          .eq("couple_id", profile.couple_id)
+          .eq("visibility", "shared")
+          .or("metadata->>target.is.null,metadata->>target.neq.partner")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
-      if (history?.length) {
-        const historyMessages = history
+      if (history?.length || latestCanonical) {
+        const boundedHistory = [...(history ?? [])];
+        if (
+          latestCanonical
+          && !boundedHistory.some((message) => message.id === latestCanonical.id)
+        ) {
+          boundedHistory.push(latestCanonical);
+        }
+        const historyMessages = boundedHistory
+          .sort((left, right) => {
+            const byCreatedAt =
+              new Date(left.created_at ?? 0).getTime()
+              - new Date(right.created_at ?? 0).getTime();
+            return byCreatedAt || left.id.localeCompare(right.id);
+          })
           .map((message) => chatMessageFromRealtimeRow(message))
           .filter((message): message is ChatMessage => (
             message !== null && canViewerSeeChatMessage(message, viewerRole)
@@ -836,6 +945,42 @@ export default function ChatScreen() {
           }
         }
         setMessages(historyMessages);
+
+        const canonicalShared = historyMessages.filter((message) => (
+          message.visibility === "shared"
+          && message.metadata?.target !== "partner"
+        ));
+        const durableConfirmation = canonicalShared[canonicalShared.length - 1];
+        const confirmedActionId =
+          durableConfirmation?.metadata?.confirmed_amora_action_id;
+        if (
+          durableConfirmation
+          && durableConfirmation.sender_type === viewerRole
+          && durableConfirmation.role === "user"
+          && typeof confirmedActionId === "string"
+          && viewerRole
+        ) {
+          setSendFailure({
+            kind: "ai_insert",
+            message: "확인은 안전하게 저장됐어요. 반영을 이어서 완료해 주세요.",
+            draft: {
+              text: durableConfirmation.content,
+              clientRequestId: Crypto.randomUUID(),
+              startedAt: durableConfirmation.created_at
+                ?? new Date(0).toISOString(),
+              coupleId: profile.couple_id,
+              userId: user.id,
+              senderType: viewerRole,
+              senderName: profile.name ?? "사용자",
+              context: canonicalShared
+                .slice(0, -1)
+                .slice(-39)
+                .map(({ role, content }) => ({ role, content })),
+              visibility: "shared",
+              confirmedActionId,
+            },
+          });
+        }
       }
 
       // Realtime
@@ -905,24 +1050,42 @@ export default function ChatScreen() {
   function pressOut() { Animated.spring(sendBtnScale, { toValue: 1, friction: 3, tension: 120, useNativeDriver: true }).start(); }
 
   async function findDurableUserMessage(
-    draft: Pick<AiDraft, "text" | "startedAt" | "coupleId" | "userId" | "senderType" | "visibility">,
+    draft: Pick<
+      AiDraft,
+      | "text"
+      | "startedAt"
+      | "coupleId"
+      | "userId"
+      | "senderType"
+      | "visibility"
+      | "confirmedActionId"
+    >,
     intendedTarget: MessageTarget,
   ): Promise<ChatMessage | null> {
-    const { data, error } = await supabase.from("chat_messages")
+    let query = supabase.from("chat_messages")
       .select("id, role, sender_type, content, metadata, created_at, visibility")
       .eq("couple_id", draft.coupleId)
       .eq("sender_id", draft.userId)
       .eq("sender_type", draft.senderType)
       .eq("role", "user")
       .eq("content", draft.text)
-      .eq("visibility", draft.visibility)
-      .gte("created_at", draft.startedAt)
+      .eq("visibility", draft.visibility);
+    if (!draft.confirmedActionId) {
+      query = query.gte("created_at", draft.startedAt);
+    }
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .limit(10);
 
     if (error || !data) return null;
     const match = data.find((row) => {
       const metadata = row.metadata as ChatMessageMetadata | null;
+      if (draft.confirmedActionId) {
+        return (
+          intendedTarget === "ai"
+          && metadata?.confirmed_amora_action_id === draft.confirmedActionId
+        );
+      }
       return intendedTarget === "partner"
         ? metadata?.target === "partner"
         : metadata?.target !== "partner";
@@ -1112,6 +1275,28 @@ export default function ChatScreen() {
         ? await findDurableUserMessage(draft, "ai")
         : null;
 
+      if (
+        !durableMessage
+        && reconcileFirst
+        && draft.confirmedActionId
+        && draft.amoraSourceMessageId
+      ) {
+        const claim = await requestAmoraApplicationClaim(
+          draft.confirmedActionId,
+          draft.amoraSourceMessageId,
+        );
+        if (!claim.applicationGranted) {
+          if (mountedRef.current) {
+            setPendingActionNotice({
+              actionId: draft.confirmedActionId,
+              message: "다른 화면에서 반영을 진행 중이에요. 잠시 후 다시 시도해 주세요.",
+            });
+            setStreaming(false);
+          }
+          return;
+        }
+      }
+
       if (!durableMessage) {
         const { data, error } = await supabase.from("chat_messages")
           .insert({
@@ -1120,6 +1305,9 @@ export default function ChatScreen() {
             sender_type: draft.senderType,
             role: "user",
             content: draft.text,
+            metadata: draft.confirmedActionId
+              ? { confirmed_amora_action_id: draft.confirmedActionId }
+              : null,
             visibility: draft.visibility,
           })
           .select("id, role, sender_type, content, metadata, created_at, visibility")
@@ -1164,7 +1352,9 @@ export default function ChatScreen() {
       if (mountedRef.current) {
         setSendFailure({
           kind: "ai_insert",
-          message: "질문을 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
+          message: draft.confirmedActionId
+            ? "반영 요청을 끝내지 못했어요. 확인은 유지되니 이어서 완료해 주세요."
+            : "질문을 저장하지 못했어요. 입력은 그대로 두었으니 다시 시도해 주세요.",
           draft,
         });
         setStreaming(false);
@@ -1278,8 +1468,12 @@ export default function ChatScreen() {
 
     const latestSharedMessage = [...messages]
       .reverse()
-      .find((message) => message.visibility === "shared");
-    const action = latestSharedMessage ? getPendingAmoraAction(latestSharedMessage) : null;
+      .find((message) => (
+        message.visibility === "shared"
+        && message.metadata?.target !== "partner"
+      ));
+    if (!latestSharedMessage) return;
+    const action = getPendingAmoraAction(latestSharedMessage);
     if (
       !action
       || action.actionId !== actionId
@@ -1289,7 +1483,24 @@ export default function ChatScreen() {
     sendingRef.current = true;
     applyingPendingActionRef.current = actionId;
     setApplyingPendingActionId(actionId);
+    setPendingActionNotice(null);
     try {
+      const claim = await requestAmoraApplicationClaim(
+        actionId,
+        latestSharedMessage.id,
+      );
+      if (!claim.applicationGranted) {
+        const retrySeconds = Math.max(
+          1,
+          Math.ceil(claim.retryAfterMs / 1_000),
+        );
+        setPendingActionNotice({
+          actionId,
+          message:
+            `다른 화면에서 반영을 시작했어요. ${retrySeconds}초 뒤에도 반영되지 않으면 다시 눌러 주세요.`,
+        });
+        return;
+      }
       const context = messages
         .filter((message) => (
           (!message.id.startsWith("temp_") || Boolean(message.content.trim()))
@@ -1310,7 +1521,13 @@ export default function ChatScreen() {
         context,
         visibility: "shared",
         confirmedActionId: actionId,
+        amoraSourceMessageId: latestSharedMessage.id,
       }, false);
+    } catch (error) {
+      setPendingActionNotice({
+        actionId,
+        message: getAiFailureMessage(error, false),
+      });
     } finally {
       applyingPendingActionRef.current = null;
       setApplyingPendingActionId(null);
@@ -1405,6 +1622,11 @@ export default function ChatScreen() {
                     : pendingActionDisabledReason === "not_latest"
                       ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
                       : "현재 답변이 끝나면 다시 확인할 수 있어요."}
+                </Text>
+              )}
+              {pendingActionNotice?.actionId === pendingAction.actionId && (
+                <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
+                  {pendingActionNotice.message}
                 </Text>
               )}
               <View style={st.pendingActionControls}>
@@ -1518,7 +1740,7 @@ export default function ChatScreen() {
                 ? "이 범위의 대화는 상대방에게 보이지 않아요.\n아모라에게 편하게 이야기해 주세요."
                 : "결혼 준비 뭐든 물어보세요.\n파트너에게도 메시지를 보낼 수 있어요."}
             />
-            <View style={st.suggestions}>{["스드메 평균 가격이 얼마야?", "결혼 준비 체크리스트 알려줘", "웨딩홀 고를 때 주의할 점은?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { handleTargetChange("ai"); handleInputChange(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
+            <View style={st.suggestions}>{["웨딩 사진 촬영 예산을 정리해줘", "지금 먼저 할 일 세 가지를 알려줘", "결혼식장 계약 전에 무엇을 확인해야 해?"].map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => { handleTargetChange("ai"); handleInputChange(q); }}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
           </View>
         ) : (
           <FlatList ref={flatListRef} data={visibleMessages} inverted keyExtractor={(m) => m.id} renderItem={renderMessage} contentContainerStyle={st.messageList} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS === "android"} maxToRenderPerBatch={10} windowSize={5} initialNumToRender={12} />
@@ -1552,10 +1774,20 @@ export default function ChatScreen() {
               onPress={handleRetry}
               disabled={streaming}
               accessibilityRole="button"
-              accessibilityLabel={activeSendFailure.kind === "ai_response" ? "아모라 답변 다시 받기" : "메시지 다시 보내기"}
+              accessibilityLabel={
+                isConfirmedActionRecovery
+                  ? "확인한 변경 반영 계속하기"
+                  : activeSendFailure.kind === "ai_response"
+                    ? "아모라 답변 다시 받기"
+                    : "메시지 다시 보내기"
+              }
             >
               <Text style={st.retryText}>
-                {activeSendFailure.kind === "ai_response" ? "답변 다시 받기" : "다시 보내기"}
+                {isConfirmedActionRecovery
+                  ? "반영 계속하기"
+                  : activeSendFailure.kind === "ai_response"
+                    ? "답변 다시 받기"
+                    : "다시 보내기"}
               </Text>
             </Pressable>
           </View>

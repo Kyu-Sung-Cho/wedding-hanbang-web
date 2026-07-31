@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 
 @font-face {
   font-family: "Paperlogy";
@@ -1052,6 +1052,10 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .c6-sheet-in,
   .c6-fade-in,
   .c6-fade-up {

@@ -86,7 +86,10 @@ const REQUEST_ID = "00000000-0000-4000-8000-000000000099";
 function request(body: Record<string, unknown>): Request {
   return new Request("http://localhost/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Sec-Fetch-Site": "same-origin",
+    },
     body: JSON.stringify(body),
   });
 }

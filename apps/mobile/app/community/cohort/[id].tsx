@@ -73,9 +73,9 @@ type TopicKey = (typeof TOPICS)[number]["key"];
 
 const STARTER_PROMPTS: { label: string; topic: Exclude<TopicKey, "all">; text: string }[] = [
   {
-    label: "예식장 가격 묻기",
+    label: "결혼식장 가격 묻기",
     topic: "price",
-    text: "예식장 견적, 어느 정도가 적당할까요?",
+    text: "결혼식장 견적의 포함 항목과 금액을 같이 봐주세요.",
   },
   {
     label: "투어 후기 공유",

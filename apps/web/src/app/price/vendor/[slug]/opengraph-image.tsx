@@ -22,7 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   studio: "스튜디오",
   dress: "드레스",
   makeup: "메이크업",
-  hall: "예식장",
+  hall: "결혼식장",
 };
 
 export default async function OpenGraphImage({

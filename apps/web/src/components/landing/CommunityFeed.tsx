@@ -88,7 +88,7 @@ export default async function CommunityFeed() {
         <div className="mb-16 md:mb-20 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div className="max-w-2xl">
             <SectionLabel label="커뮤니티" />
-            <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em] mb-4">
+            <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal mb-4">
               지금, <em className="not-italic text-rose-500">다른 커플들</em>은
               <br />
               이런 고민을 나누고 있어요.
@@ -139,7 +139,7 @@ export default async function CommunityFeed() {
                   </div>
 
                   {/* 제목 */}
-                  <h3 className="font-serif-kr text-[20px] md:text-[22px] text-noir-800 font-medium leading-[1.4] tracking-[-0.005em] mb-4 line-clamp-2 group-hover:text-rose-500 transition-colors">
+                  <h3 className="font-serif-kr text-[20px] md:text-[22px] text-noir-800 font-medium leading-[1.4] tracking-normal mb-4 line-clamp-2 group-hover:text-rose-500 transition-colors">
                     {post.title}
                   </h3>
 
@@ -180,7 +180,7 @@ function EmptyState() {
   return (
     <div className="border-y border-platinum/70 py-16 md:py-20 text-center">
       <Sparkles className="w-8 h-8 text-rose-500 mx-auto mb-6 opacity-60" />
-      <p className="font-serif-kr text-[22px] md:text-[26px] text-noir-800 font-light leading-snug mb-4 tracking-[-0.005em]">
+      <p className="font-serif-kr text-[22px] md:text-[26px] text-noir-800 font-light leading-snug mb-4 tracking-normal">
         아직 첫 글을 기다리는 중이에요.
       </p>
       <p className="text-charcoal text-[14px] md:text-[15px] font-light leading-relaxed max-w-md mx-auto mb-10">

@@ -51,7 +51,7 @@ test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한
   );
   // 업체 수는 **DB 행 수와 다른 수량**이다. `count(distinct vendor_id)`는 502지만
   // 같은 샵이 대행사별로 여러 행에 들어와 있고 목록은 한 카드로 묶는다.
-  // 2026-07-26~28 첫 화면이 502를 주장해 실제(412)보다 22% 부풀어 있었는데,
+  // 2026-07-26~30 첫 화면이 502를 주장해 실제(414)보다 약 21% 부풀어 있었는데,
   // 예전 이 테스트는 두 값이 **같아야 한다**고 봐서 오히려 틀린 값을 고정하고 있었다.
   // 이제는 감사가 화면 기준으로 대조하는지만 확인하고, 값 자체의 검증은
   // DB를 볼 수 있는 `audit:production`(=== 1-c ===)에 맡긴다.
@@ -131,4 +131,25 @@ test("업체 수는 위약금 공시 업체로만 쓴다", () => {
       + " — 가격 공개 업체 수는 이보다 많다",
   );
   assert.ok(vendorCount > 0);
+});
+
+test("운영·유통 감사도 행 단위 검증 신원을 카드 수에 반영한다", () => {
+  const productionAudit = read("scripts/audit/production-readiness-audit.mjs");
+  const distributionAudit = read("scripts/audit/distribution-claims-audit.mjs");
+
+  assert.match(
+    productionAudit,
+    /VERIFIED_VENDOR_IDENTITY_BY_SLUG/,
+    "운영 감사가 row-scoped slug 병합표를 읽지 않는다",
+  );
+  assert.match(
+    productionAudit,
+    /verifiedRowIdentity/,
+    "운영 감사가 각 vendor slug의 검증 신원을 카드 키보다 먼저 적용하지 않는다",
+  );
+  assert.match(
+    distributionAudit,
+    /vendorIdentityKey\(category,\s*row\.vendor_name,\s*row\.vendor_slug\)/,
+    "유통 감사가 실제 목록의 vendorIdentityKey를 호출하지 않는다",
+  );
 });

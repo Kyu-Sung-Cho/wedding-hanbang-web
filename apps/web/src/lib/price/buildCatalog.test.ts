@@ -31,6 +31,30 @@ describe("price catalog build fallback", () => {
     expect(catalog.agencies).toEqual([]);
   });
 
+  it("uses an empty catalog for the explicit synthetic local environment", async () => {
+    const loader = vi.fn().mockRejectedValue(new Error("local preview must not open Supabase"));
+    const catalog = await loadPriceCatalogWithBuildFallback(loader, {
+      CI: "false",
+      HANBANG_SYNTHETIC_SUPABASE_ENVIRONMENT: "true",
+      NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+    });
+
+    expect(loader).not.toHaveBeenCalled();
+    expect(catalog.counts).toEqual({ studio: 0, dress: 0, makeup: 0, hall: 0 });
+    expect(catalog.agencies).toEqual([]);
+  });
+
+  it("does not let the synthetic marker hide a real deployment failure", async () => {
+    const loader = vi.fn().mockRejectedValue(new Error("database unavailable"));
+
+    await expect(loadPriceCatalogWithBuildFallback(loader, {
+      HANBANG_SYNTHETIC_SUPABASE_ENVIRONMENT: "true",
+      NEXT_PUBLIC_SUPABASE_URL: "https://sampleprojectref1234.supabase.co",
+    })).rejects.toThrow("database unavailable");
+
+    expect(loader).toHaveBeenCalledOnce();
+  });
+
   it.each([
     {},
     {

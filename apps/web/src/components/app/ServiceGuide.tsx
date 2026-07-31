@@ -6,8 +6,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
-  Building2,
   CalendarCheck,
   Sparkles,
   Users,
@@ -15,7 +13,6 @@ import {
   MessageCircle,
   Check,
   RefreshCw,
-  Shield,
 } from "lucide-react";
 
 const STORAGE_KEY = "hanbang_service_guide_seen_v2";
@@ -38,24 +35,24 @@ function SlideWelcome() {
 
       {/* 타이틀 — 모바일 사이즈 다운 */}
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
-        결혼 준비,{"\n"}이제 혼자 고민하지 마세요
+        결혼 준비,{"\n"}아모라와 정리하세요.
       </h2>
       <p className="text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
-        웨딩한방이 처음부터 끝까지 함께합니다
+        아모라에게 결혼 준비를 말하면 예산·체크리스트·일정으로 이어서 정리할 수 있어요.
       </p>
 
       {/* 3가지 핵심 가치 */}
       <div className="flex items-stretch gap-3 w-full max-w-[380px] mb-7">
         {[
-          { icon: <MessageCircle className="w-6 h-6" />, label: "AI 상담", sub: "24시간 플래너" },
-          { icon: <Users className="w-6 h-6" />, label: "커플 연동", sub: "실시간 동기화" },
-          { icon: <Wallet className="w-6 h-6" />, label: "예산 관리", sub: "사용 금액 확인" },
+          { icon: <MessageCircle className="w-6 h-6" />, label: "아모라", sub: "지금 상황 말하기" },
+          { icon: <CalendarCheck className="w-6 h-6" />, label: "할 일·일정", sub: "해야 할 일과 날짜 정리" },
+          { icon: <Wallet className="w-6 h-6" />, label: "예산", sub: "예상 금액과 실제로 쓴 금액" },
         ].map((item, i) => (
           <div
             key={i}
             className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-2xl bg-[#fcf9f8] border border-[#f6f3f2]"
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#36534E] to-[#C9A96E] flex items-center justify-center text-white">
+            <div className="w-11 h-11 rounded-xl bg-[#36534E] flex items-center justify-center text-white">
               {item.icon}
             </div>
             <span className="text-base font-medium text-[#1b1c1c]">{item.label}</span>
@@ -64,9 +61,9 @@ function SlideWelcome() {
         ))}
       </div>
 
-      {/* 그라데이션 라인 애니메이션 */}
+      {/* 진행 안내선 */}
       <div className="w-full max-w-[300px] h-[2px] rounded-full overflow-hidden bg-[#f6f3f2]">
-        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#36534E] via-[#C9A96E] to-[#36534E] animate-guide-shimmer" />
+        <div className="h-full w-1/2 rounded-full bg-[#36534E] animate-guide-shimmer" />
       </div>
     </div>
   );
@@ -87,7 +84,7 @@ function SlideDashboard() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* D-day 카드 */}
         <div className="relative">
-          <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 flex items-center justify-between shadow-sm">
+          <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-sm text-[#7a8290] mb-0.5">우리의 결혼식</p>
               <p className="text-sm font-semibold text-[#263832]">2026. 09. 12 (토)</p>
@@ -114,7 +111,7 @@ function SlideDashboard() {
           </div>
           <div className="w-full h-2 rounded-full bg-[#f6f3f2] overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
+              className="h-full rounded-full bg-[#36534E]"
               style={{ width: "35%" }}
             />
           </div>
@@ -131,11 +128,11 @@ function SlideDashboard() {
           <p className="text-sm text-[#504444] mb-3">카테고리 현황</p>
           <div className="flex flex-wrap gap-2">
             {[
-              { name: "예식장", status: "done", emoji: "check" },
-              { name: "스드메", status: "progress", emoji: "refresh" },
-              { name: "예물", status: "todo", emoji: "empty" },
+              { name: "결혼식장", status: "done", emoji: "check" },
+              { name: "사진·의상·메이크업", status: "progress", emoji: "refresh" },
+              { name: "결혼반지·기념 선물", status: "todo", emoji: "empty" },
               { name: "신혼여행", status: "todo", emoji: "empty" },
-              { name: "혼수", status: "progress", emoji: "refresh" },
+              { name: "가전·가구·생활용품", status: "progress", emoji: "refresh" },
             ].map((cat, i) => (
               <span
                 key={i}
@@ -176,13 +173,13 @@ function SlideChat() {
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
           <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[#36534E] text-white px-4 py-2.5 shadow-sm">
-            <p className="text-base leading-relaxed">이번 주에 스튜디오 상담 가는데 뭘 준비하면 좋을까?</p>
+            <p className="text-base leading-relaxed">이번 주에 웨딩 사진 촬영 업체와 상담하는데, 무엇을 확인해야 할까?</p>
           </div>
         </div>
 
         {/* AI 메시지 (왼쪽) */}
         <div className="flex justify-start gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#36534E] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-8 h-8 rounded-full bg-[#36534E] flex items-center justify-center flex-shrink-0 mt-0.5">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col gap-2 max-w-[80%]">
@@ -223,7 +220,6 @@ function SlideChat() {
               "카테고리 체크리스트",
               "커플 연동",
               "커뮤니티 연결",
-              "시세 정보",
             ].map((label) => (
               <span
                 key={label}
@@ -253,14 +249,14 @@ function SlideBudget() {
       {/* Mock 예산 UI */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 총 예산 카드 */}
-        <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
+        <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-[#7a8290]">총 예산</span>
             <span className="text-base font-semibold text-[#263832]">3,000만원</span>
           </div>
           <div className="w-full h-2.5 rounded-full bg-[#f1eadf] overflow-hidden">
             <div className="flex h-full">
-              <div className="h-full bg-gradient-to-r from-[#36534E] to-[#78a096]" style={{ width: "36%" }} />
+              <div className="h-full bg-[#36534E]" style={{ width: "36%" }} />
               <div className="h-full bg-[#C9A96E]/75" style={{ width: "18%" }} />
             </div>
           </div>
@@ -274,24 +270,24 @@ function SlideBudget() {
         <div className="rounded-2xl bg-white border border-[#f6f3f2] overflow-hidden divide-y divide-[#f6f3f2]">
           {[
             {
-              name: "예식장",
+              name: "결혼식장",
               spent: 600,
               total: 800,
-              tag: "커플",
+              tag: "두 사람",
               tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
             {
-              name: "스드메",
+              name: "사진·의상·메이크업",
               spent: 280,
               total: 350,
-              tag: "신부측",
-              tagColor: "bg-purple-50 text-purple-600",
+              tag: "한 사람",
+              tagColor: "bg-[#F5EFE4] text-[#765D31]",
             },
             {
               name: "신혼여행",
               spent: 200,
               total: 300,
-              tag: "커플",
+              tag: "두 사람",
               tagColor: "bg-[#36534E]/10 text-[#36534E]",
             },
           ].map((row, i) => (
@@ -300,7 +296,7 @@ function SlideBudget() {
                 <div className="flex items-center gap-2">
                   <span className="text-base font-medium text-[#1b1c1c]">{row.name}</span>
                   <span className={`text-sm font-medium px-1.5 py-0.5 rounded-full ${row.tagColor}`}>
-                    {row.tag === "커플" ? "👫 " : "👰 "}{row.tag}
+                    {row.tag}
                   </span>
                 </div>
                 <span className="text-sm text-[#504444]">
@@ -309,7 +305,7 @@ function SlideBudget() {
               </div>
               <div className="w-full h-1.5 rounded-full bg-[#f6f3f2] overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#78a096]"
+                  className="h-full rounded-full bg-[#36534E]"
                   style={{ width: `${(row.spent / row.total) * 100}%` }}
                 />
               </div>
@@ -342,14 +338,14 @@ function SlideFeaturePages() {
       desc: "상담, 투어, 촬영, 계약 날짜 정리",
     },
     {
-      icon: BarChart3,
-      title: "시세 정보",
-      desc: "내 견적이 평균과 얼마나 다른지 확인",
+      icon: Wallet,
+      title: "예산",
+      desc: "예상 금액과 실제로 쓴 금액 정리",
     },
     {
-      icon: Building2,
-      title: "업체 탐색",
-      desc: "지역, 가격대, 스타일로 후보 좁히기",
+      icon: Users,
+      title: "커뮤니티",
+      desc: "다른 사람의 준비 경험과 질문 확인",
     },
   ];
 
@@ -363,10 +359,10 @@ function SlideFeaturePages() {
       </p>
 
       <div className="w-full max-w-[380px] flex flex-col gap-3">
-        <div className="rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 shadow-sm">
+        <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <p className="text-sm font-medium text-[#36534E] mb-2">추천 흐름</p>
           <p className="text-base leading-relaxed text-[#1b1c1c]">
-            아모라에게 먼저 물어보고, 답변에서 나온 금액은 예산에, 날짜는 일정에, 비교가 필요한 항목은 시세와 업체 탐색에서 확인하세요.
+            아모라에게 결혼 준비를 말하면, 답변에서 나온 금액은 예산에, 해야 할 일과 날짜는 할 일·일정에 이어서 정리할 수 있어요.
           </p>
         </div>
 
@@ -387,7 +383,7 @@ function SlideFeaturePages() {
 
         <div className="rounded-2xl border border-[#f6f3f2] bg-[#fcf9f8] px-4 py-3">
           <p className="text-sm leading-relaxed text-[#635b51]">
-            모든 기능을 처음부터 다 쓸 필요는 없어요. 막히면 아모라, 확정되면 일정·예산, 비교가 필요하면 시세·업체 탐색 순서로만 기억하세요.
+            무엇부터 해야 할지 막히면 아모라에게 지금 상황을 말해보세요. 필요한 일과 날짜, 금액을 한곳에서 이어서 정리할 수 있어요.
           </p>
         </div>
       </div>
@@ -414,16 +410,16 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
       </div>
 
       <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
-        준비되셨나요?
+        이제 아모라에게 말해보세요
       </h2>
       <p className="text-sm sm:text-sm sm:text-base text-[#504444] text-center mb-5 sm:mb-6">
-        무료로 모든 기능을 이용할 수 있어요
+        지금 상황 한 가지만 말해도 다음에 확인할 일을 함께 정리할 수 있어요.
       </p>
 
       {/* CTA 버튼 */}
       <button
         onClick={onStart}
-        className="w-full max-w-[320px] py-3.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(54,83,78,0.2)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.23)] transition-all mb-5"
+        className="w-full max-w-[320px] py-3.5 bg-[#36534E] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(54,83,78,0.2)] hover:bg-[#2B423E] hover:shadow-[0_6px_20px_rgba(54,83,78,0.23)] transition-all mb-5"
       >
         시작하기
       </button>
@@ -439,19 +435,6 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         <span className="text-base text-[#B5ADA3]">다시 보지 않기</span>
       </label>
 
-      {/* 신뢰 배지 */}
-      <div className="flex items-center justify-center gap-5">
-        {[
-          { icon: <Sparkles className="w-4 h-4" />, label: "무료" },
-          { icon: <Shield className="w-4 h-4" />, label: "광고 없음" },
-          { icon: <Check className="w-4 h-4" />, label: "데이터 보호" },
-        ].map((badge, i) => (
-          <div key={i} className="flex items-center gap-1 text-[#B5ADA3]">
-            {badge.icon}
-            <span className="text-sm">{badge.label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -627,7 +610,7 @@ export default function ServiceGuide() {
         <div className="px-6 mb-3">
           <div className="w-full h-[3px] rounded-full bg-[#f6f3f2] overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#36534E] to-[#C9A96E] transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-[#36534E] transition-all duration-500 ease-out"
               style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
             />
           </div>

@@ -65,11 +65,11 @@ describe("ActionCard remaining budget mutation results", () => {
 
     const plan = container.querySelector('[aria-label="예산안 적용 결과"]');
     expect(plan?.textContent).toContain("3,000만원");
-    expect(plan?.textContent).toContain("예식장");
+    expect(plan?.textContent).toContain("결혼식장");
     expect(plan?.textContent).toContain("1,200만원");
-    expect(plan?.textContent).toContain("예물");
+    expect(plan?.textContent).toContain("결혼반지·기념 선물");
     expect(plan?.textContent).toContain("300만원");
-    expect(plan?.textContent).toContain("예비비");
+    expect(plan?.textContent).toContain("예비비·사용처 미정");
     expect(plan?.textContent).toContain("1,500만원");
   });
 

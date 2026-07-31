@@ -102,6 +102,17 @@ describe("public landing preview stub", () => {
     expect(container.querySelector("button[title]")).toBeNull();
   });
 
+  it("does not cover quote-check controls with the floating launcher", async () => {
+    mocks.usePathname.mockReturnValue("/wedding/community/quote-check");
+
+    await act(async () => {
+      root.render(<CommunityAmoraLauncher />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("button[title]")).toBeNull();
+  });
+
   it("keeps keyboard focus inside the login prompt and restores the launcher", async () => {
     await act(async () => {
       root.render(<CommunityAmoraLauncher />);

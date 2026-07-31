@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 
-const ALLOWED_ACTIONS = ["hide", "unhide", "delete"] as const;
+const ALLOWED_ACTIONS = ["hide", "restore", "soft_delete"] as const;
 type ModerateAction = (typeof ALLOWED_ACTIONS)[number];
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isSchemaUnavailable(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return (
+    error.code === "42883" ||
+    error.code === "PGRST202" ||
+    error.message?.includes("community_moderate_content") === true
+  );
+}
 
 /**
  * POST /api/admin/posts/[id]/moderate
- * body: { action: 'hide' | 'unhide' | 'delete', reason?: string }
+ * body: { action: "hide" | "restore" | "soft_delete", reason: string }
  *
- * - hide: visibility를 'draft'로 변경 (작성자 외 모두에게 숨김, 복구 가능)
- * - unhide: visibility를 'public'으로 변경 (under_review 플래그도 해제)
- * - delete: 게시글 row 삭제 (댓글/투표/북마크/폴 등 CASCADE로 같이 정리)
- *
- * 모든 액션은 verifyAdmin 가드 통과 + ai_interactions_log에 감사 로그 기록.
+ * 조치·신고 상태·감사 이벤트·작성자 통지는 DB RPC 한 트랜잭션으로 처리한다.
+ * 실제 row를 지우는 hard delete는 이 경로에서 허용하지 않는다.
  */
 export async function POST(
   request: NextRequest,
@@ -20,99 +29,95 @@ export async function POST(
 ) {
   try {
     const { authorized, userId: adminId } = await verifyAdmin(request);
-    if (!authorized) {
+    if (!authorized || !adminId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
-    const body = await request.json().catch(() => ({}));
-    const action = body?.action as string | undefined;
-    const reason = typeof body?.reason === "string" ? body.reason.slice(0, 500) : null;
-
-    if (!action || !ALLOWED_ACTIONS.includes(action as ModerateAction)) {
+    if (!UUID_PATTERN.test(id)) {
       return NextResponse.json(
-        { error: "잘못된 액션입니다. (hide/unhide/delete)" },
+        { error: "올바른 게시글 ID가 아닙니다." },
         { status: 400 }
       );
     }
 
-    const supabase = getServiceClient();
+    const body: unknown = await request.json().catch(() => null);
+    const action =
+      body && typeof body === "object" && "action" in body
+        ? (body.action as string)
+        : "";
+    const reason =
+      body && typeof body === "object" && "reason" in body
+        ? String(body.reason).trim()
+        : "";
 
-    // 게시글 존재 확인
-    const { data: post } = await supabase
-      .from("community_posts")
-      .select("id, title, author_id, visibility")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (!post) {
-      return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
+    if (!ALLOWED_ACTIONS.includes(action as ModerateAction)) {
+      return NextResponse.json(
+        { error: "허용되지 않은 조치입니다." },
+        { status: 400 }
+      );
     }
 
-    if (action === "hide") {
-      const { error } = await supabase
-        .from("community_posts")
-        .update({ visibility: "draft" })
-        .eq("id", id);
-      if (error) {
-        console.error("[admin moderate hide] error:", error);
-        return NextResponse.json({ error: "숨김 처리 실패" }, { status: 500 });
-      }
-    } else if (action === "unhide") {
-      const { error } = await supabase
-        .from("community_posts")
-        .update({ visibility: "public", under_review: false })
-        .eq("id", id);
-      if (error) {
-        console.error("[admin moderate unhide] error:", error);
-        return NextResponse.json({ error: "복원 처리 실패" }, { status: 500 });
-      }
-    } else if (action === "delete") {
-      const { error } = await supabase
-        .from("community_posts")
-        .delete()
-        .eq("id", id);
-      if (error) {
-        console.error("[admin moderate delete] error:", error);
-        return NextResponse.json({ error: "삭제 실패" }, { status: 500 });
-      }
+    if (reason.length < 3 || reason.length > 2_000) {
+      return NextResponse.json(
+        { error: "조치 사유를 3자 이상 2,000자 이하로 입력해 주세요." },
+        { status: 400 }
+      );
     }
 
-    // 관련 신고를 자동으로 'resolved'로 마킹 (조치 완료 의미)
-    if (action === "hide" || action === "delete") {
-      void supabase
-        .from("community_reports")
-        .update({ status: "resolved" })
-        .eq("post_id", id)
-        .in("status", ["pending", "reviewed"])
-        .then(() => {}, () => {});
-    }
+    const { data, error } = await getServiceClient().rpc(
+      "community_moderate_content" as never,
+      {
+        p_target_type: "post",
+        p_target_id: id,
+        p_action: action,
+        p_reason: reason,
+        p_admin_id: adminId,
+      } as never
+    );
 
-    // 감사 로그 (best effort, 실패 무시)
-    void supabase
-      .from("ai_interactions_log")
-      .insert({
-        user_id: adminId,
-        couple_id: null,
-        interaction_type: "admin_moderation",
-        specialist_type: null,
-        user_input: null,
-        ai_output: null,
-        success: true,
-        metadata: {
-          action,
-          target_type: "post",
-          target_id: id,
-          target_author_id: post.author_id,
-          target_title: post.title,
-          reason,
+    if (error) {
+      console.error("[admin moderate] atomic RPC failed:", {
+        code: error.code,
+        message: error.message,
+      });
+
+      if (isSchemaUnavailable(error)) {
+        return NextResponse.json(
+          {
+            error:
+              "안전한 조치 기록 기능이 아직 준비되지 않아 변경하지 않았습니다.",
+            code: "COMMUNITY_MODERATION_SCHEMA_UNAVAILABLE",
+          },
+          { status: 503 }
+        );
+      }
+
+      if (error.code === "P0002") {
+        return NextResponse.json(
+          { error: "게시글을 찾을 수 없습니다." },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: "조치를 기록하지 못해 아무것도 변경하지 않았습니다.",
+          code: "COMMUNITY_MODERATION_FAILED",
         },
-      })
-      .then(() => {}, () => {});
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ ok: true, action });
-  } catch (err) {
-    console.error("[admin moderate] unexpected:", err);
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ ok: true, result: data });
+  } catch (error) {
+    console.error("[admin moderate] unexpected:", error);
+    return NextResponse.json(
+      {
+        error: "조치를 기록하지 못해 아무것도 변경하지 않았습니다.",
+        code: "COMMUNITY_MODERATION_FAILED",
+      },
+      { status: 500 }
+    );
   }
 }

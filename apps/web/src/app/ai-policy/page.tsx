@@ -23,7 +23,7 @@ export default function AIPolicyPage() {
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[#504444]">
-            최종 수정: 2026년 7월 · OpenAI GPT-5.6 제공 방식 반영
+            최종 수정일: 2026년 7월 31일
           </p>
         </div>
 
@@ -42,16 +42,16 @@ export default function AIPolicyPage() {
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
                 <li>AI가 생성한 답변임을 명확히 표시합니다.</li>
                 <li>사용 AI 모델을 공개합니다 (OpenAI GPT-5.6 Luna·Terra).</li>
-                <li>AI의 한계를 숨기지 않습니다.</li>
+                <li>AI를 사람인 것처럼 소개하지 않고, 틀리거나 빠진 답변이 생길 수 있음을 알립니다.</li>
               </ul>
             </div>
 
             <div>
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">2. 안전성</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
-                <li>위험관리방안을 마련하고 내부 문서로 보관합니다.</li>
-                <li>사용자가 AI 답변의 문제를 신고할 수 있는 창구를 제공합니다.</li>
-                <li>신고된 문제는 정해진 내부 절차에 따라 검토합니다.</li>
+                <li>개인정보, 계약, 결제, 안전에 영향을 줄 수 있는 답변을 별도로 점검합니다.</li>
+                <li>예산·할 일·일정 저장과 다른 사람에게 공유하는 동작은 사용자가 실행 전에 확인합니다.</li>
+                <li>사용자가 AI 답변의 문제를 신고할 수 있는 이메일 창구를 제공합니다.</li>
               </ul>
             </div>
 
@@ -59,38 +59,40 @@ export default function AIPolicyPage() {
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">3. 사용자 권리</h3>
               <ul className="list-disc pl-5 text-sm text-[#504444] space-y-1 leading-relaxed">
                 <li>AI 대화 기록을 확인하고, 제공되는 기능으로 대화 목록을 비울 수 있습니다.</li>
-                <li>Couple Memory 데이터는 회사의 자산이 아니라 커플의 자산입니다.</li>
-                <li>제3자에게 판매하지 않습니다.</li>
+                <li>아모라의 개인 도움 방식을 직접 확인·수정·삭제할 수 있습니다. 이 값은 성격·유형·궁합 판정에 사용하지 않고, 현재 질문에서 직접 요청한 방식이 저장값보다 우선합니다.</li>
+                <li>함께 준비할 사람과 공유할 내용과 나만 볼 내용을 구분합니다.</li>
+                <li>회원의 대화와 결혼 준비 정보를 다른 사업자에게 판매하지 않습니다.</li>
               </ul>
             </div>
 
             <div>
               <h3 className="font-medium text-base text-[#1b1c1c] mb-2">4. 법령·정책 반영</h3>
               <p className="text-sm text-[#504444] leading-relaxed">
-                관련 법령과 서비스 정책을 검토해 운영에 반영합니다. 대화 기록을 비우는 기능과
-                실제 보관 범위는 서비스 내 설정 및 개인정보 처리방침에서 확인할 수 있습니다.
+                「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」과 개인정보 보호 관계 법령을
+                검토해 운영에 반영합니다. 실제 수집 항목과 보관 범위는{" "}
+                <Link href="/privacy" className="underline hover:text-[#795252]">
+                  개인정보 처리방침
+                </Link>
+                에서 확인할 수 있습니다.
               </p>
             </div>
           </div>
         </section>
 
-        {/* Section 2 — 관리·감독 책임자 */}
-        <section className="mb-10 p-6 max-md:p-5 bg-white rounded-2xl border border-[#e5dcdc]">
+        {/* Section 2 — 관리·감독 담당 */}
+        <section className="mb-10 p-6 max-md:p-5 bg-white rounded-lg border border-[#e5dcdc]">
           <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
-            관리·감독 책임자
+            AI 운영 문의
           </h2>
           <ul className="text-sm text-[#504444] space-y-2 leading-relaxed">
             <li>
-              <strong className="text-[#1b1c1c]">이름</strong>: 조규성 (CEO)
+              <strong className="text-[#1b1c1c]">담당</strong>: 웨딩한방 AI 운영 담당
             </li>
             <li>
               <strong className="text-[#1b1c1c]">이메일</strong>:{" "}
-              <a href="mailto:ceo@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-                ceo@hanbang.ai
+              <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
+                support@hanbang.ai
               </a>
-            </li>
-            <li>
-              <strong className="text-[#1b1c1c]">연락처</strong>: 이메일 문의
             </li>
           </ul>
         </section>
@@ -101,12 +103,14 @@ export default function AIPolicyPage() {
             AI의 한계
           </h2>
           <p className="text-sm text-[#504444] mb-4 leading-relaxed">
-            아모라는 OpenAI GPT-5.6 Luna·Terra를 기반으로 하며, 웨딩한방이 제공하는 결혼 준비 정보와 사용자가 입력한 맥락을 바탕으로 답변합니다. 다음 사항을 인지하시기 바랍니다:
+            아모라는 OpenAI GPT-5.6 Luna·Terra를 이용하고, 회원이 입력한 내용과 웨딩한방의
+            검토된 결혼 준비 자료를 바탕으로 답변합니다. 다음 한계가 있습니다.
           </p>
           <ul className="list-disc pl-5 text-sm text-[#504444] space-y-2 leading-relaxed">
-            <li>법률 자문을 대체하지 않습니다. 계약 관련 중요 결정은 변호사와 상의하세요.</li>
-            <li>실시간 가격은 변동 가능합니다. 최종 가격은 업체와 직접 확인하세요.</li>
-            <li>감정적 지원은 제공하지만 전문 상담을 대체하지 않습니다.</li>
+            <li>법률·세금·의료 등 자격이 필요한 전문 상담을 대신하지 않습니다.</li>
+            <li>업체 공개 가격과 계약 조건은 바뀔 수 있습니다. 계약 전 업체의 최신 원문을 직접 확인해야 합니다.</li>
+            <li>사용자가 입력하지 않은 예산, 가격, 일정, 가족의 생각이나 감정 상태를 사실처럼 만들지 않도록 제한하지만, 잘못된 추론이 생길 수 있습니다.</li>
+            <li>개인 도움 방식은 답변의 순서와 표현만 조정합니다. 이 설정만으로 예산·일정·담당자·업체를 바꾸거나 저장하지 않습니다.</li>
           </ul>
         </section>
 
@@ -116,15 +120,14 @@ export default function AIPolicyPage() {
             문제 신고
           </h2>
           <p className="text-sm text-[#504444] leading-relaxed">
-            AI 답변 오류, 부적절한 내용, 환각 현상 등을 발견하시면{" "}
-            <a href="mailto:ceo@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-              ceo@hanbang.ai
+            사실과 다른 답변, 부적절한 내용, 저장·공유 문제를 발견하면{" "}
+            <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
+              support@hanbang.ai
             </a>
-            로 신고해주세요. 접수된 신고는 내부 운영 절차에 따라 확인합니다.
+            로 알려주세요. 접수 내용을 확인한 뒤 처리 결과를 안내합니다.
           </p>
         </section>
 
-        {/* TODO(HUMAN): Confirm exact AI Basic Act article numbers before quoting specific clause numbers. */}
         {/* 하단 */}
         <div className="pt-8 mt-8 border-t border-[#e5dcdc] text-xs text-[#504444]/70">
           <p>

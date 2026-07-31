@@ -13,7 +13,6 @@ import {
 } from "@/utils/scheduleEvents";
 import {
   CATEGORY_LABELS,
-  CATEGORY_RATIOS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import type { ScheduleEvent } from "@/types/database.types";
@@ -127,7 +126,7 @@ function defaultActionHref(categoryKey: string | null, source: string): string {
   if (source === "schedule" || categoryKey === "invitation") {
     return "/wedding/schedule";
   }
-  // 가족 조율 페이지는 제거됐다(2026-07-26) — 사회·답례품처럼 가족 합의가 필요한
+  // 가족 조율 페이지는 제거됐다(2026-07-26) — 진행·감사 선물처럼 가족 합의가 필요한
   // 항목은 일반 안내 대신 아모라와 상황을 정리하는 쪽으로 보낸다.
   if (categoryKey === "mc" || categoryKey === "gift") {
     return "/wedding/chat";
@@ -264,7 +263,7 @@ function buildVenueOperation(
       "update_venue",
       toolInput,
       "invalid_venue",
-      "예식장 이름을 다시 확인해 주세요.",
+      "결혼식장 이름을 다시 확인해 주세요.",
     );
   }
   const venue = normalizeWhitespace(toolInput.venue);
@@ -273,7 +272,7 @@ function buildVenueOperation(
       "update_venue",
       toolInput,
       "invalid_venue",
-      "예식장 이름은 1자 이상 200자 이하로 입력해 주세요.",
+      "결혼식장 이름은 1자 이상 200자 이하로 입력해 주세요.",
     );
   }
   const previousVenue = context.weddingContext.venue;
@@ -282,7 +281,7 @@ function buildVenueOperation(
       "update_venue",
       toolInput,
       "no_change",
-      "이미 같은 예식장으로 설정되어 있어요.",
+      "이미 같은 결혼식장으로 설정되어 있어요.",
     );
   }
   return {
@@ -296,7 +295,7 @@ function buildVenueOperation(
       toolInput,
       toolOutput: { venue, previous_venue: previousVenue },
       success: true,
-      displayMessage: `예식장을 "${venue}"로 설정했어요.`,
+      displayMessage: `결혼식장을 "${venue}"로 설정했어요.`,
     },
   };
 }
@@ -377,7 +376,7 @@ function buildCategoryBudgetOperation(
   const hasSpent = toolInput.spent !== undefined;
   if (
     typeof category !== "string"
-    || !Object.prototype.hasOwnProperty.call(CATEGORY_RATIOS, category)
+    || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
     || (!hasBudget && !hasSpent)
     || (hasBudget && !isValidWonAmount(toolInput.budget))
     || (hasSpent && !isValidWonAmount(toolInput.spent))
@@ -461,7 +460,7 @@ function buildBudgetPlanOperation(
     !isValidWonAmount(totalBudget)
     || !Array.isArray(allocations)
     || allocations.length < 1
-    || allocations.length > Object.keys(CATEGORY_RATIOS).length
+    || allocations.length > Object.keys(CATEGORY_LABELS).length
     || (toolInput.intake_summary !== undefined
       && (
         typeof toolInput.intake_summary !== "string"
@@ -480,7 +479,7 @@ function buildBudgetPlanOperation(
     if (
       !isRecord(candidate)
       || typeof candidate.category !== "string"
-      || !Object.prototype.hasOwnProperty.call(CATEGORY_RATIOS, candidate.category)
+      || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, candidate.category)
       || !isValidWonAmount(candidate.budget)
       || (candidate.rationale !== undefined
         && (typeof candidate.rationale !== "string" || candidate.rationale.length > 500))

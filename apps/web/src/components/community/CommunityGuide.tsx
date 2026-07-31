@@ -33,9 +33,9 @@ function SlideEmpathy() {
       {/* 말풍선 시나리오 */}
       <div className="w-full max-w-[380px] flex flex-col gap-3 mb-7">
         {[
-          { text: "스드메 가격이 적정한 건지 모르겠어요...", align: "left" as const },
+          { text: "사진 촬영·드레스·메이크업 가격을 어떻게 비교해야 할지 모르겠어요.", align: "left" as const },
           { text: "다들 어디서 예약했어요?", align: "right" as const },
-          { text: "예식장 견적에서 별도 항목을 놓칠 뻔했어요 😢", align: "left" as const },
+          { text: "결혼식장 견적에서 따로 내는 금액을 놓칠 뻔했어요.", align: "left" as const },
         ].map((bubble, i) => (
           <div
             key={i}
@@ -67,7 +67,7 @@ function SlideEmpathy() {
 }
 
 /* ─────────────────────────────────────────────
-   Slide 2 — 진짜 후기 (시나리오: 스드메 알아볼 때)
+   Slide 2 — 후기 예시 (사진 촬영·드레스·메이크업을 알아볼 때)
    ───────────────────────────────────────────── */
 function SlideRealReview() {
   return (
@@ -77,7 +77,7 @@ function SlideRealReview() {
         <div className="flex items-center gap-2 mb-3 px-1">
           <Search className="w-5 h-5 text-[#36534E]" />
           <span className="text-base text-[#36534E] font-medium">
-            상황: 스드메 알아보는 중
+            상황: 사진 촬영 업체를 알아보는 중
           </span>
         </div>
       </div>
@@ -100,8 +100,8 @@ function SlideRealReview() {
             샘플 게시글 · 스튜디오 조건 비교 💍
           </div>
           <p className="text-base text-[#635b51] font-light leading-relaxed text-left">
-            같은 패키지 이름이어도 원본·보정본 포함 범위가 달랐어요.
-            받은 견적의 기준일과 별도 항목을 함께 비교해볼게요.
+            같은 상품 이름이어도 받는 전체 사진 수와 보정해 주는 사진 수가 달랐어요.
+            받은 견적의 기준일과 따로 내는 금액을 함께 비교해볼게요.
           </p>
         </div>
         {/* 샘플 조건 비교 테이블 */}
@@ -147,7 +147,7 @@ function SlideRealReview() {
             </div>
             <div className="flex items-center gap-1 text-[#B5ADA3]">
               <MessageCircle className="w-4 h-4" />
-              <span className="text-sm">댓글</span>
+              <span className="text-sm">답변</span>
             </div>
           </div>
           <Bookmark className="w-4 h-4 text-[#B5ADA3]" />
@@ -157,7 +157,7 @@ function SlideRealReview() {
       <p className="text-base text-[#635b51] font-light text-center">
         <span className="text-[#36534E] font-medium">가격, 사진, 솔직한 평가</span>까지
         <br />
-        직접 경험한 후기로 비교하세요
+        회원이 공유한 후기와 질문을 비교하세요
       </p>
     </div>
   );
@@ -216,7 +216,7 @@ function SlideCohort() {
             <div className="text-sm text-[#B5ADA3] mb-0.5">행복한예비맘</div>
             <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[#263832] leading-relaxed">
-                스튜디오 견적의 원본·보정본 포함 범위가 달라서 비교하기 어렵네요 💭
+                사진 촬영 견적마다 받는 사진 수와 보정해 주는 사진 수가 달라서 비교하기 어렵네요.
               </span>
             </div>
           </div>
@@ -354,8 +354,8 @@ function SlideHowToUse() {
           <div className="text-left">
             <div className="text-base text-[#263832] font-semibold mb-1">검색으로 빠르게</div>
             <div className="text-sm text-[#635b51] font-light leading-relaxed">
-              &quot;강남 스튜디오&quot; &quot;원본 포함 스드메&quot; 검색하면
-              <br />관련 후기가 바로 나와요
+              &quot;강남 사진 촬영&quot; &quot;받는 사진 수&quot;처럼 검색하면
+              <br />관련 후기를 찾을 수 있어요
             </div>
           </div>
         </div>
@@ -441,7 +441,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             bg: "#F0F9FF",
             border: "#BAE6FD",
             label: "일반",
-            desc: "직접 경험한 솔직한 글",
+            desc: "일반 회원이 작성한 글 · 경험 인증 아님",
           },
           {
             Icon: Star,
@@ -457,7 +457,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             bg: "#F1F5F9",
             border: "#CBD5E1",
             label: "광고",
-            desc: "광고는 표시하고, 추천에서 제외",
+            desc: "업체 광고임을 글에 표시",
           },
         ].map((rule, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">

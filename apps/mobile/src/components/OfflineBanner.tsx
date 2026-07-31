@@ -5,23 +5,37 @@ import { WifiOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 
 const CONNECTIVITY_CHECK_URL = "https://www.google.com/generate_204";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const WEB_CONNECTIVITY_CHECK_URL = SUPABASE_URL
+  ? `${SUPABASE_URL.replace(/\/+$/, "")}/auth/v1/health`
+  : null;
 const CHECK_TIMEOUT_MS = 5000;
 const HIDDEN_OFFSET_Y = -120;
 
 async function checkConnectivity(): Promise<boolean> {
-  if (Platform.OS === "web") {
-    return typeof navigator === "undefined" ? true : navigator.onLine !== false;
-  }
-
   let timeout: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    const isWeb = Platform.OS === "web";
+    const targetUrl = isWeb
+      ? WEB_CONNECTIVITY_CHECK_URL
+      : CONNECTIVITY_CHECK_URL;
+    if (!targetUrl) return true;
+
     const controller = new AbortController();
     timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
-    const res = await fetch(CONNECTIVITY_CHECK_URL, {
-      method: "HEAD",
+    const res = await fetch(targetUrl, {
+      method: isWeb ? "GET" : "HEAD",
       cache: "no-store",
       signal: controller.signal,
+      headers:
+        isWeb && SUPABASE_ANON_KEY
+          ? {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            }
+          : undefined,
     });
     return res.ok || res.status === 204;
   } catch {

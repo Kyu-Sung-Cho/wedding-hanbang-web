@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   addEvent,
+  getScheduleEventAssigneeLabel,
+  getScheduleEventStatus,
   getEvents,
   isValidScheduleYmd,
   MAX_SCHEDULE_EVENTS,
   ScheduleEventCapacityError,
   ScheduleEventValidationError,
   sanitizeUserFacingScheduleMemo,
+  updateEvent,
   upsertMomentEvent,
+  type ScheduleEventDraft,
 } from "../scheduleEvents";
 
 function validEvent(index: number) {
@@ -67,6 +71,45 @@ describe("getEvents", () => {
     })).toEqual([valid]);
   });
 
+  it("keeps legacy events compatible and treats a missing status as planned", () => {
+    const legacy = validEvent(3);
+
+    expect(getEvents({ __events: [legacy] })).toEqual([legacy]);
+    expect(getScheduleEventStatus(legacy)).toBe("planned");
+  });
+
+  it("accepts canonical execution fields without copying profile names", () => {
+    const event = {
+      ...validEvent(4),
+      status: "completed",
+      completionCriteria: "계약서 확인과 예약금 입금까지",
+      assignee: {
+        kind: "member",
+        profileId: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+      },
+    } as const;
+
+    expect(getEvents({ __events: [event] })).toEqual([event]);
+    expect(JSON.stringify(event.assignee)).not.toContain("지은");
+    expect(getScheduleEventStatus(event)).toBe("completed");
+  });
+
+  it.each([
+    { status: "doing" },
+    { completionCriteria: "c".repeat(501) },
+    { assignee: "me" },
+    { assignee: { kind: "member", profileId: "current-user" } },
+    { assignee: { kind: "couple", profileId: "unexpected" } },
+    { assignee: { kind: "external", label: "  " } },
+    { assignee: { kind: "external", label: "가".repeat(81) } },
+    { assignee: { kind: "external", label: "가족\u200b담당" } },
+    { completionCriteria: "확인\n입금" },
+  ] as const)("fails closed on malformed execution fields: %s", (extension) => {
+    expect(getEvents({
+      __events: [{ ...validEvent(5), ...extension }],
+    })).toEqual([]);
+  });
+
   it("bounds attacker-controlled event arrays", () => {
     const events = Array.from(
       { length: MAX_SCHEDULE_EVENTS + 20 },
@@ -108,10 +151,78 @@ describe("getEvents", () => {
     [{ date: "2027-05-01", title: "   " }, "title"],
     [{ date: "2027-05-01", title: "Valid", memo: "m".repeat(2_001) }, "memo"],
     [{ date: "2027-05-01", title: "Valid", categoryKey: "c".repeat(101) }, "categoryKey"],
+    [{ date: "2027-05-01", title: "Valid", status: "doing" }, "status"],
+    [{
+      date: "2027-05-01",
+      title: "Valid",
+      assignee: { kind: "member", profileId: "partner" },
+    }, "assignee"],
   ] as const)("refuses an invalid event draft field: %s", (draft, field) => {
-    expect(() => addEvent({}, draft)).toThrow(
+    expect(() => addEvent({}, draft as unknown as ScheduleEventDraft)).toThrow(
       expect.objectContaining<Partial<ScheduleEventValidationError>>({ field }),
     );
+  });
+
+  it("stores a member assignment by immutable profile id and preserves it on update", () => {
+    const profileId = "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2";
+    const { newProgress, newEvent } = addEvent(
+      {},
+      {
+        date: "2027-05-01",
+        title: "드레스 최종 확인",
+        status: "planned",
+        completionCriteria: "수선 결과 확인",
+        assignee: { kind: "member", profileId },
+      },
+    );
+
+    expect(newEvent.assignee).toEqual({ kind: "member", profileId });
+    expect(getScheduleEventAssigneeLabel(newEvent.assignee, {
+      viewer: { id: profileId, name: "지은" },
+      partner: {
+        id: "4ed560aa-52e6-47d2-9595-612d0bfe2c7b",
+        name: "수현",
+      },
+    })).toBe("지은 (나)");
+    expect(getScheduleEventAssigneeLabel(newEvent.assignee, {
+      viewer: {
+        id: "4ed560aa-52e6-47d2-9595-612d0bfe2c7b",
+        name: "수현",
+      },
+      partner: { id: profileId, name: "지은" },
+    })).toBe("지은 (파트너)");
+
+    const updated = updateEvent(newProgress, newEvent.id, {
+      status: "completed",
+    });
+    expect(getEvents(updated)[0]).toMatchObject({
+      assignee: { kind: "member", profileId },
+      status: "completed",
+      completionCriteria: "수선 결과 확인",
+    });
+  });
+
+  it("formats unassigned, couple, external, and disconnected-member labels safely", () => {
+    const context = {
+      viewer: {
+        id: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2",
+        name: "지은",
+      },
+    };
+
+    expect(getScheduleEventAssigneeLabel(undefined, context)).toBe("담당 미정");
+    expect(getScheduleEventAssigneeLabel({ kind: "couple" }, context)).toBe("함께");
+    expect(getScheduleEventAssigneeLabel(
+      { kind: "external", label: "웨딩 플래너" },
+      context,
+    )).toBe("외부 · 웨딩 플래너");
+    expect(getScheduleEventAssigneeLabel(
+      {
+        kind: "member",
+        profileId: "4ed560aa-52e6-47d2-9595-612d0bfe2c7b",
+      },
+      context,
+    )).toBe("연결이 끊긴 기존 담당자");
   });
 });
 

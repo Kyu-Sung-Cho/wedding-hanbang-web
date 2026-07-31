@@ -11,6 +11,19 @@ import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 import SuggestionButtons from "./SuggestionButtons";
 import StreamingBubble from "./StreamingBubble";
+import MediationConsentDialog from "./MediationConsentDialog";
+import {
+  AmoraPersonalizationConfirmation,
+  AmoraQuickStart,
+} from "./AmoraPersonalizationPrompt";
+import {
+  clearPendingAmoraPersonalizationChoice,
+  readPendingAmoraPersonalizationChoice,
+  rememberPendingAmoraPersonalizationChoice,
+  resolveAmoraPersonalizationReply,
+  shouldOfferAmoraQuickStart,
+  type PendingAmoraPersonalizationChoice,
+} from "./amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingActionDisabledReason,
@@ -25,6 +38,9 @@ import {
 } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
+import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
+import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
@@ -57,6 +73,10 @@ interface ChatComposerDraft {
 export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const router = useRouter();
   const { profile, couple, journey, isDemo } = useAuthStore();
+  const amoraPersonalization = useAmoraPersonalization(
+    isOpen && !isDemo && Boolean(profile?.id),
+  );
+  const saveAmoraPersonalization = amoraPersonalization.save;
   const {
     messages,
     isStreaming,
@@ -71,6 +91,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     loadMessages,
     sendMessage,
     requestInitialGreeting,
+    requestMediation: requestStructuredMediation,
     clearMessages,
     subscribeToMessages,
     retryFailedMessage,
@@ -117,8 +138,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   const applyingPendingActionRef = useRef<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [messageTarget, setMessageTarget] = useState<ChatMessageTarget>("ai");
-  const [showMediationBanner, setShowMediationBanner] = useState(false);
+  const [pendingPersonalization, setPendingPersonalization] =
+    useState<PendingAmoraPersonalizationChoice | null>(null);
   const [mediationDismissed, setMediationDismissed] = useState(false);
+  const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const greetingRequested = useRef(false);
   const subscribed = useRef(false);
@@ -142,10 +165,32 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   );
   const errorMatchesActiveScope = !failedRequest
     || (!!activeVisibility && failedRequest.visibility === activeVisibility);
+  const isConfirmedActionRecovery =
+    failedRequest?.recoveryKind === "confirmed_action";
+  const showMediationBanner =
+    !mediationDismissed
+    && !mediationConsentOpen
+    && shouldOfferMediation(messages);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || isDemo) {
+      setPendingPersonalization(null);
+      return;
+    }
+    setPendingPersonalization(
+      readPendingAmoraPersonalizationChoice(profile.id, coupleId),
+    );
+  }, [coupleId, isDemo, profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id || !coupleId || !amoraPersonalization.profile) return;
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [amoraPersonalization.profile, coupleId, profile?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,6 +213,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     initialControl?.focus();
 
     const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (mediationConsentOpen) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -200,7 +246,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       document.removeEventListener("keydown", handleDialogKeyDown);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [isOpen]);
+  }, [isOpen, mediationConsentOpen]);
 
   const handleScopeChange = useCallback((nextScope: ChatScope) => {
     if (isStreaming || isSending || (nextScope === "private" && !myPrivateVisibility)) return;
@@ -307,59 +353,6 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     }
   }, [isOpen, messages, isStreaming, streamingContent]);
 
-  // 갈등 감지: 점수 기반 + 패턴 분석
-  useEffect(() => {
-    if (mediationDismissed) return;
-
-    const timer = window.setTimeout(() => {
-      const CONFLICT_SIGNALS: { keywords: string[]; weight: number }[] = [
-        { keywords: ["싸우자", "싸웠", "다퉜", "말 안 해", "무시하", "대화가 안", "말이 안 통", "이해를 못 해"], weight: 5 },
-        { keywords: ["왜 맨날 너만", "나만 양보", "너는 맨날", "맨날 나한테", "내 말은 안 듣", "관심이 없", "니가 알아서"], weight: 4 },
-        { keywords: ["난 반대", "절대 안 돼", "그건 싫어", "왜 그걸 해야", "말도 안 돼", "너무 비싸다고", "돈이 어디 있", "예산 초과"], weight: 3 },
-        { keywords: ["속상해", "서운해", "답답해", "화나", "짜증나", "지쳤어", "힘들어"], weight: 2 },
-        { keywords: ["비싸", "별로", "아깝", "싫어", "안돼", "그만"], weight: 1 },
-      ];
-
-      const recentPartnerMsgs = messages
-        .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-        .slice(-6);
-
-      if (recentPartnerMsgs.length < 3) {
-        setShowMediationBanner(false);
-        return;
-      }
-
-      const senders = new Set(recentPartnerMsgs.map((m) => m.sender_role));
-      const bothSides = senders.size >= 2;
-
-      let totalScore = 0;
-      let messagesWithConflict = 0;
-
-      for (const msg of recentPartnerMsgs) {
-        let msgScore = 0;
-        for (const signal of CONFLICT_SIGNALS) {
-          for (const kw of signal.keywords) {
-            if (msg.content.includes(kw)) {
-              msgScore += signal.weight;
-              break;
-            }
-          }
-        }
-        if (msgScore > 0) {
-          messagesWithConflict++;
-          totalScore += msgScore;
-        }
-      }
-
-      if (bothSides) totalScore = Math.round(totalScore * 1.5);
-
-      const THRESHOLD = 7;
-      const isConflict = totalScore >= THRESHOLD && messagesWithConflict >= 2;
-      setShowMediationBanner(isConflict);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [messages, mediationDismissed]);
-
   // 첨부파일 처리
   const processFile = useCallback((file: File) => {
     const typeInfo = ALLOWED_TYPES[file.type];
@@ -439,7 +432,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
   }, [processFile]);
 
   const handleSend = useCallback(
-    async (text?: string) => {
+    async (text?: string, targetOverride?: ChatMessageTarget) => {
       if (isStreaming || isSending) return;
       const content = text ?? input.trim();
       const currentAttachments = [...attachments];
@@ -484,7 +477,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           progress: journey?.progress ?? {},
         },
         images: currentAttachments.length > 0 ? currentAttachments : undefined,
-        target: activeScope === "private" ? "ai" : messageTarget,
+        target:
+          activeScope === "private"
+            ? "ai"
+            : targetOverride ?? messageTarget,
         visibility: activeVisibility,
       });
     },
@@ -506,21 +502,150 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     ]
   );
 
-  // 중재 요청
-  const requestMediation = useCallback(() => {
-    setShowMediationBanner(false);
+  const personalizationReply = resolveAmoraPersonalizationReply(
+    messages,
+    profile?.id ?? null,
+    coupleId ?? null,
+    pendingPersonalization,
+  );
+  const personalizationReplyMessageId =
+    personalizationReply.replyMessageId;
+
+  useEffect(() => {
+    if (
+      !profile?.id ||
+      !coupleId ||
+      !pendingPersonalization ||
+      !initialLoadDone ||
+      amoraPersonalization.status !== "ready" ||
+      personalizationReply.state !== "stale"
+    ) {
+      return;
+    }
+    clearPendingAmoraPersonalizationChoice(profile.id, coupleId);
+    setPendingPersonalization(null);
+  }, [
+    amoraPersonalization.status,
+    coupleId,
+    initialLoadDone,
+    pendingPersonalization,
+    personalizationReply.state,
+    profile?.id,
+  ]);
+
+  const showPersonalizationConfirmation =
+    activeScope === "shared" &&
+    amoraPersonalization.status === "ready" &&
+    !amoraPersonalization.profile &&
+    Boolean(personalizationReplyMessageId) &&
+    Boolean(pendingPersonalization) &&
+    !isStreaming &&
+    !isSending &&
+    input.trim().length === 0 &&
+    attachments.length === 0;
+  const showAmoraQuickStart = shouldOfferAmoraQuickStart({
+    enabled:
+      isOpen &&
+      !isDemo &&
+      initialLoadDone &&
+      Boolean(coupleId) &&
+      Boolean(profile),
+    status: amoraPersonalization.status,
+    hasSavedProfile: Boolean(amoraPersonalization.profile),
+    hasPendingChoice: Boolean(pendingPersonalization),
+    busy:
+      isStreaming ||
+      isSending ||
+      input.trim().length > 0 ||
+      attachments.length > 0,
+    activeTab: activeScope,
+    currentUserId: profile?.id ?? null,
+    messages,
+  });
+
+  const handlePersonalizationSelect = useCallback(
+    (option: AmoraQuickStartOption) => {
+      if (!showAmoraQuickStart || !profile || !coupleId) return;
+      const pending = rememberPendingAmoraPersonalizationChoice({
+        currentUserId: profile.id,
+        coupleId,
+        option,
+        existingUserMessageIds: messages
+          .filter(
+            (message) =>
+              message.sender_id === profile.id &&
+              message.sender_role !== "ai",
+          )
+          .map((message) => message.id),
+      });
+      if (!pending) return;
+      setPendingPersonalization(pending);
+      setMessageTarget("ai");
+      void handleSend(option.message, "ai");
+    },
+    [coupleId, handleSend, messages, profile, showAmoraQuickStart],
+  );
+
+  const confirmAmoraPersonalization = useCallback(async () => {
+    if (!pendingPersonalization) return;
+    const saved = await saveAmoraPersonalization(
+      pendingPersonalization.option.changes,
+    );
+    if (saved) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+      setPendingPersonalization(null);
+    }
+  }, [pendingPersonalization, saveAmoraPersonalization]);
+
+  const dismissAmoraPersonalization = useCallback(() => {
+    if (pendingPersonalization) {
+      clearPendingAmoraPersonalizationChoice(
+        pendingPersonalization.ownerUserId,
+        pendingPersonalization.coupleId,
+      );
+    }
+    setPendingPersonalization(null);
+  }, [pendingPersonalization]);
+
+  const openMediationConsent = useCallback(() => {
+    setMediationConsentOpen(true);
+  }, []);
+
+  const cancelMediationConsent = useCallback(() => {
+    setMediationConsentOpen(false);
     setMediationDismissed(true);
-    setMessageTarget("ai");
+  }, []);
 
-    const recentPartnerMsgs = messages
-      .filter((m) => m.metadata?.target === "partner" && m.sender_role !== "ai")
-      .slice(-3);
-    const lastTopic = recentPartnerMsgs.length > 0
-      ? recentPartnerMsgs[recentPartnerMsgs.length - 1].content.slice(0, 30)
-      : "결혼 준비";
-
-    handleSend(`아모라, 우리가 "${lastTopic}" 관련해서 의견이 다른데 도움 줄 수 있어?`);
-  }, [messages, handleSend]);
+  const confirmMediationConsent = useCallback(
+    async (requesterSummary: string) => {
+      if (!coupleId || !profile || !senderRole) return;
+      setMediationConsentOpen(false);
+      setMediationDismissed(true);
+      setMessageTarget("ai");
+      await requestStructuredMediation({
+        coupleId,
+        senderRole,
+        senderName: profile.name ?? "사용자",
+        weddingContext: {
+          weddingDate: journey?.wedding_date ?? null,
+          budget: journey?.total_budget ?? 0,
+          venue: journey?.venue ?? null,
+          progress: journey?.progress ?? {},
+        },
+        conflictContext: requesterSummary,
+      });
+    },
+    [
+      coupleId,
+      journey,
+      profile,
+      requestStructuredMediation,
+      senderRole,
+    ],
+  );
 
   const applyPendingAmoraAction = useCallback(async (actionId: string) => {
     if (
@@ -779,10 +904,20 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             {/* 에러 표시 */}
             {error && errorMatchesActiveScope && (
               <div
-                className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5"
-                role="alert"
+                className={`mx-3 mt-2 rounded-xl border p-2.5 ${
+                  isConfirmedActionRecovery
+                    ? "border-[#B9DAD5] bg-[#F0F8F6]"
+                    : "border-red-200 bg-red-50"
+                }`}
+                role={isConfirmedActionRecovery ? "status" : "alert"}
               >
-                <p className="text-xs leading-relaxed text-red-700">{error}</p>
+                <p
+                  className={`text-xs leading-relaxed ${
+                    isConfirmedActionRecovery ? "text-[#245B56]" : "text-red-700"
+                  }`}
+                >
+                  {error}
+                </p>
                 {failedRequest?.unavailableReason && (
                   <p className="mt-1 text-[0.6875rem] leading-relaxed text-red-600">
                     {failedRequest.unavailableReason}
@@ -794,18 +929,32 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       type="button"
                       onClick={() => void retryFailedMessage()}
                       disabled={isStreaming || isRetrying}
-                      className="min-h-11 rounded-lg bg-red-600 px-3 text-[0.6875rem] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className={`min-h-11 rounded-lg px-3 text-[0.6875rem] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isConfirmedActionRecovery
+                          ? "bg-[#2F766F] hover:bg-[#245B56]"
+                          : "bg-red-600 hover:bg-red-700"
+                      }`}
                     >
-                      {isRetrying ? "다시 시도 중..." : "다시 시도"}
+                      {isConfirmedActionRecovery
+                        ? isRetrying
+                          ? "반영 확인 중..."
+                          : "반영 계속하기"
+                        : isRetrying
+                          ? "다시 시도 중..."
+                          : "다시 시도"}
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={dismissFailedMessageRetry}
                     disabled={isStreaming || isRetrying}
-                    className="min-h-11 rounded-lg border border-red-200 bg-white px-3 text-[0.6875rem] font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`min-h-11 rounded-lg border bg-white px-3 text-[0.6875rem] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isConfirmedActionRecovery
+                        ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
+                        : "border-red-200 text-red-700 hover:bg-red-100"
+                    }`}
                   >
-                    닫기
+                    {isConfirmedActionRecovery ? "나중에" : "닫기"}
                   </button>
                 </div>
               </div>
@@ -858,6 +1007,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       {pendingAction && (
                         <PendingAmoraActionCard
                           action={pendingAction}
+                          messageId={msg.id}
                           disabledReason={pendingActionDisabledReason}
                           isApplying={applyingPendingActionId === pendingAction.actionId}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
@@ -874,10 +1024,28 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                             <ActionCard key={`${msg.id}-tool-${i}`} result={result} />
                           )
                         )}
+                      {pendingPersonalization &&
+                        msg.id === personalizationReplyMessageId &&
+                        showPersonalizationConfirmation && (
+                          <AmoraPersonalizationConfirmation
+                            option={pendingPersonalization.option}
+                            saving={amoraPersonalization.saving}
+                            error={amoraPersonalization.error}
+                            onConfirm={() => void confirmAmoraPersonalization()}
+                            onDismiss={dismissAmoraPersonalization}
+                          />
+                        )}
                     </div>
                   );
                 });
               })()}
+
+              {showAmoraQuickStart && (
+                <AmoraQuickStart
+                  disabled={isStreaming || isSending}
+                  onSelect={handlePersonalizationSelect}
+                />
+              )}
 
               {isStreaming && (
                 <div className="animate-fade-in">
@@ -894,7 +1062,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                 <div className="relative bg-gradient-to-r from-pink-50 via-rose-50 to-orange-50 border border-pink-200/60 rounded-2xl px-3 py-3 shadow-sm">
                   <button
                     type="button"
-                    onClick={() => { setShowMediationBanner(false); setMediationDismissed(true); }}
+                    onClick={() => setMediationDismissed(true)}
                     className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[#B5ADA3] hover:text-[#928980]"
                     aria-label="조율 상담 제안 숨기기"
                   >
@@ -910,7 +1078,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       </p>
                       <button
                         type="button"
-                        onClick={requestMediation}
+                        onClick={openMediationConsent}
                         className="mt-1.5 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-3 text-[0.6875rem] font-medium text-white transition-colors hover:shadow-md"
                       >
                         <Sparkles className="w-3 h-3" />
@@ -923,7 +1091,10 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             )}
 
             {/* 제안 버튼 — 입력창과 충분한 간격 */}
-            {suggestions.length > 0 && !isStreaming && (
+            {suggestions.length > 0 &&
+              !isStreaming &&
+              !showAmoraQuickStart &&
+              !showPersonalizationConfirmation && (
               <div className="px-3 pt-2 pb-4 border-t border-[#F0EFED]/60 mt-2">
                 <SuggestionButtons suggestions={suggestions} onSelect={handleSend} disabled={isStreaming} />
               </div>
@@ -1021,7 +1192,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
                       handleSend();
                     }
                   }}
-                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "무엇이든 물어보세요..."}
+                  placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
                   disabled={isStreaming || isSending}
                   aria-label="메시지 입력"
                   className="flex-1 px-2 py-2 text-[0.8125rem] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
@@ -1044,6 +1215,12 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
           </>
         )}
       </div>
+      {mediationConsentOpen && (
+        <MediationConsentDialog
+          onCancel={cancelMediationConsent}
+          onConfirm={confirmMediationConsent}
+        />
+      )}
     </>
   );
 }

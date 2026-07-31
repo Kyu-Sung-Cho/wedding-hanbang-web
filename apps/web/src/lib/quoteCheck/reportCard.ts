@@ -23,7 +23,7 @@ const BG = "#fbf8f2";
 const GOLD = "#9d6f36";
 const MUTED = "#6d7a76";
 const LINE = "#e5d8ca";
-const CRITICAL = "#b0483f";
+const FIRST_CHECK = "#36534E";
 
 export interface QuoteReportItem {
   name: string;
@@ -48,7 +48,7 @@ export function formatReportManwon(manwon: number): string {
 }
 
 function severityTag(severity: QuoteReportItem["severity"]): string {
-  return severity === "critical" ? "핵심" : severity === "high" ? "추가" : "선택";
+  return severity === "critical" ? "먼저" : severity === "high" ? "함께" : "해당 시";
 }
 
 /** 항목 한 줄 텍스트 — 폭 초과 시 이름을 말줄임 (테스트로 폭 보장) */
@@ -112,13 +112,23 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
   ctx.font = fontStack("600", 46);
   ctx.fillText(`${input.categoryLabel} 견적`, REPORT_PAD, 196);
 
-  // 히어로 — 입력 견적가
+  // 히어로 — standalone 체크리스트는 불필요한 가격 입력을 받지 않는다.
   ctx.fillStyle = MUTED;
   ctx.font = fontStack("500", 30);
-  ctx.fillText("입력한 견적가", REPORT_PAD, 300);
+  ctx.fillText(
+    input.quotePriceManwon > 0 ? "입력한 견적가" : "확인 필요로 남긴 항목",
+    REPORT_PAD,
+    300,
+  );
   ctx.fillStyle = INK;
   ctx.font = fontStack("700", 120);
-  ctx.fillText(formatReportManwon(input.quotePriceManwon), REPORT_PAD, 344);
+  ctx.fillText(
+    input.quotePriceManwon > 0
+      ? formatReportManwon(input.quotePriceManwon)
+      : `${input.missingTotal}개`,
+    REPORT_PAD,
+    344,
+  );
 
   // 런타임 공시가가 연결됐을 때만 참고값 표시. 0을 가격처럼 그리지 않는다.
   ctx.fillStyle = MUTED;
@@ -157,13 +167,13 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
   ctx.stroke();
   y += 44;
 
-  // 확인 안 된 항목
+  // 아직 확인하지 않은 항목
   const { shown, moreCount } = selectReportItems(input.items);
   ctx.fillStyle = GOLD;
   ctx.font = fontStack("600", 34);
   ctx.fillText(
     input.missingTotal > 0
-      ? `견적서에서 확인 안 된 항목 ${input.missingTotal}개`
+      ? `아직 견적서에서 확인하지 않은 항목 ${input.missingTotal}개`
       : "주요 항목이 모두 견적서에 명시돼 있어요",
     REPORT_PAD,
     y
@@ -173,7 +183,7 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
   ctx.font = fontStack("500", 38);
   for (const item of shown) {
     const tag = severityTag(item.severity);
-    ctx.fillStyle = item.severity === "critical" ? CRITICAL : GOLD;
+    ctx.fillStyle = item.severity === "critical" ? FIRST_CHECK : GOLD;
     ctx.font = fontStack("600", 28);
     ctx.fillText(`[${tag}]`, REPORT_PAD, y + 8);
     const tagWidth = ctx.measureText(`[${tag}]`).width + 16;
@@ -189,7 +199,7 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
   if (moreCount > 0) {
     ctx.fillStyle = MUTED;
     ctx.font = fontStack("500", 32);
-    ctx.fillText(`외 ${moreCount}개 항목 — 리포트 전체는 링크에서`, REPORT_PAD, y);
+    ctx.fillText(`외 ${moreCount}개 항목 — 체크리스트 화면에서 모두 확인`, REPORT_PAD, y);
     y += 60;
   }
 
@@ -203,8 +213,8 @@ export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HT
 
   ctx.fillStyle = MUTED;
   ctx.font = fontStack("500", 28);
-  ctx.fillText("평가가 아니라 '확인 안 된 항목' 카운트예요.", REPORT_PAD, noticeY);
-  ctx.fillText("적정선은 커플마다 달라요 — 계약 전에 물어보는 게 핵심.", REPORT_PAD, noticeY + 44);
+  ctx.fillText("'확인 필요'로 남긴 항목만 정리했어요.", REPORT_PAD, noticeY);
+  ctx.fillText("'이용 안 함'으로 고른 항목은 결과에서 제외했어요.", REPORT_PAD, noticeY + 44);
 
   ctx.font = fontStack("400", 26);
   const sourceLines = wrapText(`출처: ${input.sourceNote}`, MAX_W, 26, measure).slice(0, 2);

@@ -9,6 +9,7 @@ import type {
   TimePeriod,
   InitialCommunityFeed,
   CreatePostInput,
+  UpdatePostInput,
   CreateCommentInput,
 } from "@/types/community.types";
 
@@ -44,12 +45,15 @@ interface CommunityState {
   fetchPostDetail: (id: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<void>;
   createPost: (input: CreatePostInput) => Promise<string | null>;
-  updatePost: (id: string, input: Partial<CreatePostInput>) => Promise<boolean>;
+  updatePost: (id: string, input: UpdatePostInput) => Promise<boolean>;
   deletePost: (id: string) => Promise<boolean>;
   votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   toggleBookmark: (postId: string) => Promise<void>;
-  createComment: (input: CreateCommentInput) => Promise<boolean>;
+  createComment: (
+    input: CreateCommentInput,
+    options?: { idempotencyKey?: string },
+  ) => Promise<boolean>;
   updateComment: (commentId: string, content: string) => Promise<boolean>;
   deleteComment: (commentId: string) => Promise<boolean>;
   incrementView: (postId: string) => Promise<void>;
@@ -117,8 +121,8 @@ function writeFeedCache(key: string, value: CachedFeed): void {
 // vote/bookmark는 in-memory state만 갱신해도 30s 안엔 stale 캐시 보일 수 있지만,
 // 백그라운드 refetch가 바로 정정하므로 무시.
 function shouldSkipFreshFeedNetwork(sort: PostSort): boolean {
-  // Latest feed should always revalidate so newly published posts appear promptly.
-  return sort !== "new";
+  // 최신/답변 상태 피드는 작은 변화가 글의 포함 여부 자체를 바꾸므로 항상 재검증한다.
+  return sort !== "new" && sort !== "unanswered" && sort !== "resolved";
 }
 
 function invalidateFeedCache(): void {
@@ -354,9 +358,44 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (res.ok) invalidateFeedCache();
-      return res.ok;
+      const data = (await res.json().catch(() => null)) as {
+        post?: Partial<PostDetail> & { id?: string };
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        set({
+          errorMessage:
+            typeof data?.error === "string"
+              ? data.error
+              : "게시글 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        });
+        return false;
+      }
+
+      const returnedPost = data?.post;
+      if (returnedPost?.id === id) {
+        set((state) => ({
+          posts: state.posts.map((post) =>
+            post.id === id ? { ...post, ...returnedPost } : post
+          ),
+          currentPost:
+            state.currentPost?.id === id
+              ? { ...state.currentPost, ...returnedPost }
+              : state.currentPost,
+          errorMessage: null,
+          lastSyncedAt: new Date().toISOString(),
+        }));
+      } else {
+        set({ errorMessage: null, lastSyncedAt: new Date().toISOString() });
+      }
+
+      invalidateFeedCache();
+      return true;
     } catch {
+      set({
+        errorMessage: "게시글 수정 중 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.",
+      });
       return false;
     }
   },
@@ -451,22 +490,59 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch { /* ignore */ }
   },
 
-  createComment: async (input) => {
+  createComment: async (input, options) => {
     try {
+      const idempotencyKey =
+        options?.idempotencyKey ?? globalThis.crypto.randomUUID();
       const res = await fetch("/api/community/comments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify(input),
       });
       if (!res.ok) return false;
+      const responseBody = (await res.json().catch(() => null)) as {
+        post_comment_count?: unknown;
+      } | null;
+      const postCommentCount =
+        typeof responseBody?.post_comment_count === "number"
+        && Number.isSafeInteger(responseBody.post_comment_count)
+        && responseBody.post_comment_count >= 0
+          ? responseBody.post_comment_count
+          : null;
       // 댓글 다시 불러오기
       await get().fetchComments(input.post_id);
-      // 글 댓글 수 업데이트
-      set((s) => ({
-        currentPost: s.currentPost?.id === input.post_id
-          ? { ...s.currentPost, comment_count: s.currentPost.comment_count + 1 }
-          : s.currentPost,
-      }));
+      invalidateFeedCache();
+      // 첫 답변이 달린 글은 즉시 "답변 기다려요" 피드에서 빠져야 한다.
+      set((s) => {
+        const postWasVisible = s.posts.some((post) => post.id === input.post_id);
+        const leavesUnansweredFeed = s.currentSort === "unanswered" && postWasVisible;
+
+        return {
+          posts: leavesUnansweredFeed
+            ? s.posts.filter((post) => post.id !== input.post_id)
+            : s.posts.map((post) =>
+                post.id === input.post_id
+                  ? {
+                      ...post,
+                      comment_count:
+                        postCommentCount ?? post.comment_count + 1,
+                    }
+                  : post,
+              ),
+          total: leavesUnansweredFeed ? Math.max(0, s.total - 1) : s.total,
+          currentPost:
+            s.currentPost?.id === input.post_id
+              ? {
+                  ...s.currentPost,
+                  comment_count:
+                    postCommentCount ?? s.currentPost.comment_count + 1,
+                }
+              : s.currentPost,
+        };
+      });
       return true;
     } catch {
       return false;

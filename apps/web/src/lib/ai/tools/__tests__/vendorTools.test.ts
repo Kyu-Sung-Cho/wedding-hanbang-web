@@ -253,10 +253,10 @@ describe("vendorTools", () => {
         rating: 4.8,
         reviewCount: 17,
         tags: ["실크", "클래식"],
-        aiRecommend: true,
         link: "/wedding/vendors/vendor-1",
       }],
     });
+    expect(JSON.stringify(result.toolOutput)).not.toContain("aiRecommend");
     expect(insertedLogs).toEqual([{
       user_id: "profile-1",
       query: "한복",

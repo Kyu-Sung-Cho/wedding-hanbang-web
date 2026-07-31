@@ -67,6 +67,45 @@ describe("filterPriceCatalog", () => {
     expect(filterPriceCatalog(vendors, { sort: "lowest_price" }).map(({ id }) => id))
       .toEqual(["2", "1", "3"]);
   });
+
+  it("keeps only the selected region's disclosed offers on a merged vendor", () => {
+    const merged = {
+      ...vendor("1", "여러 지역 스튜디오", [], 1_100_000),
+      regionCode: "seoul_gangnam3",
+      regionCodes: ["seoul_gangnam3", "gangwon"],
+      offers: [
+        {
+          ...vendor("1", "여러 지역 스튜디오", [], 1_100_000).offers[0],
+          id: "offer-seoul",
+          regionCode: "seoul_gangnam3",
+        },
+        {
+          ...vendor("1", "여러 지역 스튜디오", [], 1_400_000).offers[0],
+          id: "offer-gangwon",
+          regionCode: "gangwon",
+        },
+      ],
+    } satisfies PriceVendor;
+
+    const seoulOnly = {
+      ...vendor("2", "서울 전용 스튜디오", [], 900_000),
+      regionCode: "seoul_gangnam3",
+      regionCodes: ["seoul_gangnam3"],
+      offers: [{
+        ...vendor("2", "서울 전용 스튜디오", [], 900_000).offers[0],
+        id: "offer-seoul-only",
+        regionCode: "seoul_gangnam3",
+      }],
+    } satisfies PriceVendor;
+
+    const results = filterPriceCatalog([merged, seoulOnly], { regionCode: "gangwon" });
+    const [result] = results;
+
+    expect(results).toHaveLength(1);
+    expect(result?.offers.map(({ id }) => id)).toEqual(["offer-gangwon"]);
+    expect(result?.regionCode).toBe("gangwon");
+    expect(result?.regionCodes).toEqual(["gangwon"]);
+  });
 });
 
 describe("pricePolicyBadgeClass", () => {

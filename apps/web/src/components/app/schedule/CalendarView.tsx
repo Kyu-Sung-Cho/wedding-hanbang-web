@@ -16,18 +16,19 @@ import {
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { ScheduleEvent } from "@/types/database.types";
-import { sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import {
+  getScheduleEventAssigneeLabel,
+  getScheduleEventStatus,
+  sanitizeUserFacingScheduleMemo,
+  type ScheduleEventAssigneeContext,
+} from "@/utils/scheduleEvents";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례", venue: "예식장", studio: "스튜디오",
-  dress: "드레스/턱시도", makeup: "메이크업", ring: "예물(반지)",
-  hanbok: "한복", yedan: "예단", honeymoon: "신혼여행",
-  houseware: "혼수(가전/가구)", housing: "신혼집", invitation: "청첩장",
-  snap: "본식스냅/영상", shoes: "웨딩구두", bouquet: "부케/꽃장식",
-  gift: "답례품", mc: "사회/축가", ham: "함", pyebaek: "폐백",
-  etiquette: "예절가이드",
+  ...PLANNING_CATEGORY_LABELS,
+  etiquette: "결혼 예절 참고",
 };
 
 interface Props {
@@ -35,6 +36,7 @@ interface Props {
   events: ScheduleEvent[];
   onAddEvent: (date: string) => void;
   onEditEvent: (event: ScheduleEvent) => void;
+  assigneeContext?: ScheduleEventAssigneeContext;
 }
 
 const WEDDING_DAY_COLOR = "bg-gradient-to-br from-[#B07834] to-[#D0A15F]";
@@ -47,6 +49,7 @@ export default function CalendarView({
   events,
   onAddEvent,
   onEditEvent,
+  assigneeContext = {},
 }: Props) {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -142,11 +145,15 @@ export default function CalendarView({
               {/* 실제 등록 일정 점 */}
               {inMonth && dayEvents.length > 0 && (
                 <div className="flex gap-0.5">
-                  {dayEvents.slice(0, 2).map((_, i) => (
+                  {dayEvents.slice(0, 2).map((event, i) => (
                     <div
                       key={`e${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${
-                        isWedding || isSelected ? "bg-white/70" : PERSONAL_EVENT_COLOR
+                        isWedding || isSelected
+                          ? "bg-white/70"
+                          : getScheduleEventStatus(event) === "completed"
+                            ? "bg-[#6D806E]"
+                            : PERSONAL_EVENT_COLOR
                       }`}
                     />
                   ))}
@@ -196,6 +203,7 @@ export default function CalendarView({
                 const memoText = sanitizeUserFacingScheduleMemo(evt.memo)?.trim();
                 const shouldShowMemo =
                   Boolean(memoText) && memoText !== evt.title.trim();
+                const isCompleted = getScheduleEventStatus(evt) === "completed";
 
                 return (
                   <button
@@ -207,15 +215,48 @@ export default function CalendarView({
                       <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <p className="font-serif-kr text-base text-[#1A1A1F] font-normal">
+                          <p
+                            className={`font-serif-kr text-base font-normal ${
+                              isCompleted
+                                ? "text-[#6D806E] line-through"
+                                : "text-[#1A1A1F]"
+                            }`}
+                          >
                             {evt.title}
                           </p>
-                          {evt.categoryKey && (
-                            <span className={`shrink-0 text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
-                              {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-medium ${
+                                isCompleted
+                                  ? "bg-[#C7D1C2]/45 text-[#4F6451]"
+                                  : `${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR}`
+                              }`}
+                            >
+                              {isCompleted ? "완료" : "예정"}
                             </span>
-                          )}
+                            {evt.categoryKey && (
+                              <span className={`shrink-0 text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
+                                {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <p className="mt-1.5 text-[12px] font-medium text-[#5d6879]">
+                          담당 · {getScheduleEventAssigneeLabel(
+                            evt.assignee,
+                            assigneeContext,
+                          )}
+                        </p>
+                        {evt.completionCriteria && (
+                          <div className="mt-2 rounded-lg border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
+                            <p className="mb-1 text-[11px] font-semibold text-[#4F6451]">
+                              완료 기준
+                            </p>
+                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[#526056]">
+                              {evt.completionCriteria}
+                            </p>
+                          </div>
+                        )}
                         {shouldShowMemo && (
                           <div className="mt-2 rounded-lg border border-[#eadfc9]/70 bg-[#fffdf8] px-3 py-2">
                             <p className="mb-1 text-[11px] font-semibold text-[#795252]">

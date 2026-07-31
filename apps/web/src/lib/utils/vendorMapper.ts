@@ -25,8 +25,10 @@ type PrivateVendorColumn =
   | "account_number"
   | "account_holder";
 
-type VendorMapperRow = Omit<VendorRow, PrivateVendorColumn>
-  & Partial<Pick<VendorRow, PrivateVendorColumn>>;
+type NonPublicVendorColumn = PrivateVendorColumn | "ai_recommend";
+
+type VendorMapperRow = Omit<VendorRow, NonPublicVendorColumn>
+  & Partial<Pick<VendorRow, NonPublicVendorColumn>>;
 
 type VendorProductMapperRow = Omit<VendorProductRow, "notes">
   & Partial<Pick<VendorProductRow, "notes">>;
@@ -39,6 +41,7 @@ export type PublicVendor = Omit<
   | "businessNumber"
   | "businessLicenseUrl"
   | "notificationSettings"
+  | "aiRecommend"
 >;
 
 // 카테고리 매핑 (DB 영문 → 프론트엔드 한글)
@@ -157,6 +160,7 @@ export function vendorToPublicVendor(vendor: Vendor): PublicVendor {
   delete publicVendor.businessNumber;
   delete publicVendor.businessLicenseUrl;
   delete publicVendor.notificationSettings;
+  delete publicVendor.aiRecommend;
   return publicVendor as PublicVendor;
 }
 

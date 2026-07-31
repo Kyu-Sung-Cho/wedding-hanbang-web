@@ -2,6 +2,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeHtml } from "@/utils/sanitize";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
+import {
+  findObviousPublicPersonalInfo,
+  PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+} from "@/lib/community/publicPersonalInfo";
 
 function getServiceClient() {
   return createAdminClient();
@@ -24,6 +29,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const supabase = await createClientFromRequest(req);
+    const serviceClient = getServiceClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -35,8 +41,18 @@ export async function PATCH(
       );
     }
 
-    // 작성자 확인
-    const { data: existingComment } = await supabase
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        { error: writeAccess.message, code: writeAccess.code },
+        { status: writeAccess.status },
+      );
+    }
+
+    // Authenticated direct writes are revoked. Re-read the authoritative row
+    // with the server client, then explicitly enforce author/admin ownership
+    // before using that same boundary for the mutation.
+    const { data: existingComment } = await serviceClient
       .from("community_comments")
       .select("author_id, is_deleted")
       .eq("id", id)
@@ -56,7 +72,9 @@ export async function PATCH(
       );
     }
 
-    if (existingComment.author_id !== user.id && !(await isAdmin(user.id))) {
+    const userIsAdmin =
+      existingComment.author_id !== user.id && (await isAdmin(user.id));
+    if (existingComment.author_id !== user.id && !userIsAdmin) {
       return NextResponse.json(
         { error: "수정 권한이 없습니다." },
         { status: 403 }
@@ -75,13 +93,32 @@ export async function PATCH(
       );
     }
 
-    const { data: updatedComment, error } = await supabase
+    const personalInfoKinds = findObviousPublicPersonalInfo(content);
+    if (personalInfoKinds.length > 0) {
+      return NextResponse.json(
+        {
+          error: PUBLIC_PERSONAL_INFO_BLOCK_MESSAGE,
+          code: "COMMUNITY_PERSONAL_INFO_DETECTED",
+          detected: personalInfoKinds,
+        },
+        { status: 422 }
+      );
+    }
+
+    let updateQuery = serviceClient
       .from("community_comments")
       .update({
         content,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .eq("is_deleted", false);
+    if (!userIsAdmin) {
+      // Repeat ownership in the write predicate so a stale or replaced row
+      // cannot cross the authorization boundary between read and update.
+      updateQuery = updateQuery.eq("author_id", user.id);
+    }
+    const { data: updatedComment, error } = await updateQuery
       .select("*")
       .single();
 

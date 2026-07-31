@@ -35,7 +35,7 @@ const CTA_MAP: Record<string, CTAConfig> = {
     icon: FileSearch,
     label: "상황 확인",
     title: "이 상황, 내 기준으로 한 번 더 확인해볼까요?",
-    subtext: "예식일, 예산, 준비 단계 기준으로 다음 행동을 정리합니다.",
+    subtext: "결혼식 날짜, 예산, 준비 단계 기준으로 다음 행동을 정리합니다.",
     href: "/chat",
   },
   tour_review: {
@@ -99,7 +99,7 @@ function buildChatHref(
 ) {
   if (!postTitle) return weddingPath("/chat");
   const prompt = [
-    "이 커뮤니티 글을 내 예식일, 예산, 준비 단계 기준으로 해석해줘.",
+    "이 커뮤니티 글을 내 결혼식 날짜, 예산, 준비 단계 기준으로 해석해줘.",
     `글 제목: ${postTitle}`,
     postContent ? `글 내용: ${toPlainExcerpt(postContent)}` : null,
     priceData ? formatPriceLine(priceData) : null,
@@ -125,7 +125,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
       icon: Wallet,
       label: "예산",
       title: "확인한 금액을 예산에 반영하기",
-      subtext: "견적가와 예상 추가금을 한 곳에서 관리합니다.",
+      subtext: "확인한 견적가와 별도 금액을 한 곳에서 관리합니다.",
       href: "/budget",
     };
   } else if (SCHEDULE_CATEGORIES.has(category)) {

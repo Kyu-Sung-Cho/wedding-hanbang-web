@@ -21,12 +21,15 @@ import {
 } from "node:path";
 import {
   AMORA_POST_EXPAND_TABLE_CONTRACT_SHA256,
-  AMORA_POST_EXPAND_TABLES,
   AMORA_RELEASE_MIGRATION_CONTRACT_SHA256,
-  AMORA_RELEASE_MIGRATION_VERSIONS,
   POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
   validateAmoraExtendedReleaseContracts,
 } from "./amora-release-extended-contracts.mjs";
+import {
+  SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  SuccessorReleaseContractError,
+  validateSuccessorReleaseContract,
+} from "./supabase-successor-release-contract.mjs";
 import {
   ProductionToolchainError,
   resolvePinnedWindowsProductionToolchain,
@@ -37,7 +40,7 @@ import {
   validateExternalGateProvenanceFiles,
 } from "./production-external-gate-provenance.mjs";
 
-const MANIFEST_RELATIVE_PATH =
+const PREDECESSOR_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/amora-engine-v2-20260716.json";
 const FINALIZER_SQL_RELATIVE_PATH =
   "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql";
@@ -74,6 +77,13 @@ const REQUIRED_CANARY_CHECKS = Object.freeze([
   "signupStillDisabled",
   "storageHelperClosed",
   "webWriteFenceStillEnabled",
+]);
+const SUCCESSOR_RUNTIME_EVIDENCE_NAMES = Object.freeze([
+  "backup",
+  "finalizer",
+  "hostedRestore",
+  "hostedStaging",
+  "storage",
 ]);
 const TEMPLATE_TOKENS = Object.freeze({
   projectRef: "__HB_FINALIZER_PROJECT_REF__",
@@ -512,17 +522,55 @@ function parseArgs(argv) {
 }
 
 async function loadFinalizationManifest(repoRoot) {
-  const path = join(repoRoot, MANIFEST_RELATIVE_PATH);
+  const successorPath = join(
+    repoRoot,
+    SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  );
+  const successorMetadata = await lstat(successorPath).catch(() => null);
+  let selectedManifest = null;
+  let manifestRelativePath = PREDECESSOR_MANIFEST_RELATIVE_PATH;
+  if (successorMetadata) {
+    if (!successorMetadata.isFile() || successorMetadata.isSymbolicLink()) {
+      blocked(
+        "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+        "successor release manifest must be one regular repository file",
+      );
+    }
+    let successor;
+    try {
+      successor = validateSuccessorReleaseContract({ repoRoot });
+    } catch (error) {
+      if (error instanceof SuccessorReleaseContractError) {
+        blocked(
+          "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+          `successor release contract failed: ${error.code}`,
+        );
+      }
+      throw error;
+    }
+    if (successor.deploymentBlocked || !successor.controllerManifest) {
+      blocked(
+        "SUCCESSOR_RELEASE_DEPLOYMENT_BLOCKED",
+        "successor release is deployment-blocked and cannot be finalized",
+      );
+    }
+    selectedManifest = successor.controllerManifest;
+    manifestRelativePath = successor.manifest.controllerContract.file;
+  }
+
+  const path = join(repoRoot, manifestRelativePath);
   const metadata = await lstat(path).catch(() => null);
   if (!metadata?.isFile() || metadata.isSymbolicLink()
       || metadata.size < 2 || metadata.size > MAX_RECEIPT_BYTES) {
     blocked("MANIFEST_INVALID", "release manifest must be one bounded regular file");
   }
-  let manifest;
-  try {
-    manifest = JSON.parse(await readFile(path, "utf8"));
-  } catch {
-    blocked("MANIFEST_INVALID", "release manifest is not valid JSON");
+  let manifest = selectedManifest;
+  if (!manifest) {
+    try {
+      manifest = JSON.parse(await readFile(path, "utf8"));
+    } catch {
+      blocked("MANIFEST_INVALID", "release manifest is not valid JSON");
+    }
   }
   let extendedContracts;
   try {
@@ -550,7 +598,7 @@ async function loadFinalizationManifest(repoRoot) {
         "confirmationIncludesCanarySha256",
       ])
       || contract.id !== "production-write-fence-exact-owner-finalizer"
-      || contract.version !== 1
+      || contract.version !== (manifest.status === "controller_ready" ? 2 : 1)
       || contract.requiredLeasePhase !== "deployment-canary"
       || contract.canaryMaximumAgeMinutes !== CANARY_MAXIMUM_AGE_MINUTES
       || contract.deploymentMaximumAgeMinutes !== DEPLOYMENT_MAXIMUM_AGE_MINUTES
@@ -657,6 +705,47 @@ function validateOutcomeCheckEvidence(receipt, manifest, phase) {
   });
 }
 
+function validateSuccessorRuntimeEvidenceSummary(receipt) {
+  const records = receipt.successorRuntimeEvidence;
+  const startedAt = parseCanonicalInstant(receipt.startedAt);
+  if (!Array.isArray(records)
+      || records.length !== SUCCESSOR_RUNTIME_EVIDENCE_NAMES.length
+      || startedAt === null
+      || !SHA256.test(receipt.successorRuntimeEvidenceSetSha256 ?? "")) {
+    return false;
+  }
+  for (const [index, record] of records.entries()) {
+    const verifiedAt = parseUtcInstant(record?.verifiedAt);
+    const expiresAt = parseUtcInstant(record?.expiresAt);
+    if (!exactKeys(record, [
+      "expiresAt",
+      "name",
+      "rawEvidenceSha256",
+      "receiptSha256",
+      "verifiedAt",
+    ])
+        || record.name !== SUCCESSOR_RUNTIME_EVIDENCE_NAMES[index]
+        || !SHA256.test(record.receiptSha256 ?? "")
+        || !SHA256.test(record.rawEvidenceSha256 ?? "")
+        || verifiedAt === null
+        || expiresAt === null
+        || verifiedAt > startedAt
+        || expiresAt <= startedAt) {
+      return false;
+    }
+  }
+  const expectedSha256 = textSha256(
+    `${records.map((record) => [
+      record.name,
+      record.receiptSha256,
+      record.rawEvidenceSha256,
+      record.verifiedAt,
+      record.expiresAt,
+    ].join(":")).join("\n")}\n`,
+  );
+  return expectedSha256 === receipt.successorRuntimeEvidenceSetSha256;
+}
+
 function validateOutcomeReceipt({
   receipt,
   sha256,
@@ -681,6 +770,8 @@ function validateOutcomeReceipt({
       || !validateOutcomeCheckEvidence(receipt, manifest, "postApply")
       || receipt.postconditionsPassed
         !== receipt.postPushCheckCount + receipt.postApplyCheckCount
+      || (manifest.status === "controller_ready"
+        && !validateSuccessorRuntimeEvidenceSummary(receipt))
       || parseCanonicalInstant(receipt.completedAt) === null
       || receipt.supabaseCliVersion !== manifest.backupContract.supabaseCli.version
       || receipt.supabaseCliBinarySha256
@@ -1225,7 +1316,16 @@ function validateCanaryReceipt({
   };
 }
 
-export function renderProductionWriteFenceFinalizerSql(template, evidence) {
+export function renderProductionWriteFenceFinalizerSql(
+  template,
+  evidence,
+  postExpandBackupContract = {
+    expectedTableContractSha256:
+      AMORA_POST_EXPAND_TABLE_CONTRACT_SHA256,
+    expectedReleaseMigrationContractSha256:
+      AMORA_RELEASE_MIGRATION_CONTRACT_SHA256,
+  },
+) {
   const patterns = {
     projectRef: PROJECT_REF,
     databaseSystemIdentifier: /^\d{10,32}$/,
@@ -1258,9 +1358,9 @@ export function renderProductionWriteFenceFinalizerSql(template, evidence) {
     blocked("FINALIZER_EVIDENCE_INVALID", "finalizer canary timestamps are non-canonical");
   }
   if (evidence.postExpandTableContractSha256
-        !== AMORA_POST_EXPAND_TABLE_CONTRACT_SHA256
+        !== postExpandBackupContract?.expectedTableContractSha256
       || evidence.postExpandMigrationContractSha256
-        !== AMORA_RELEASE_MIGRATION_CONTRACT_SHA256) {
+        !== postExpandBackupContract?.expectedReleaseMigrationContractSha256) {
     blocked(
       "FINALIZER_EVIDENCE_INVALID",
       "post-expand table and migration contract digests are not exact",
@@ -1691,7 +1791,7 @@ export async function runProductionWriteFenceFinalizer({
       postExpandBackup.liveSchemaContractSha256,
     postExpandLogicalDataContractSha256:
       postExpandBackup.logicalDataContractSha256,
-  });
+  }, postExpandBackupContract);
 
   const finalizerLock = await open(finalizerLockPath, "wx", 0o600).catch(() => null);
   if (!finalizerLock) {
@@ -1882,6 +1982,8 @@ export async function runProductionWriteFenceFinalizer({
 export const productionWriteFenceFinalizerTestHooks = Object.freeze({
   compactFinalizerSql,
   defaultRunCommand,
+  loadFinalizationManifest,
   requiredCanaryChecks: REQUIRED_CANARY_CHECKS,
   textSha256,
+  validateSuccessorRuntimeEvidenceSummary,
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -15,6 +16,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
 
@@ -64,7 +66,7 @@ function getTitle(result: ToolExecutionResult) {
     case "update_task_status":
       return "일정 업데이트";
     case "update_venue":
-      return "예식장 설정";
+      return "결혼식장 설정";
     case "get_budget_summary":
       return "예산 현황";
     case "get_schedule_summary":
@@ -116,18 +118,7 @@ function getAccentColor(toolName: string) {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  meeting: "상견례", venue: "예식장", studio: "스튜디오", dress: "드레스/턱시도",
-  makeup: "메이크업", snap: "스냅/영상", ring: "예물", yedan: "예단",
-  hanbok: "한복", shoes: "웨딩구두", bouquet: "부케", honeymoon: "신혼여행",
-  houseware: "혼수", housing: "신혼집", invitation: "청첩장", gift: "답례품",
-  mc: "사회/축가", ham: "함", pyebaek: "폐백", reserve: "예비비",
-};
-
-const CATEGORY_RATIOS: Record<string, number> = {
-  meeting: 0.01, venue: 0.20, studio: 0.10, dress: 0.07, makeup: 0.05,
-  snap: 0.04, ring: 0.12, yedan: 0.05, hanbok: 0.03, shoes: 0.01,
-  bouquet: 0.01, honeymoon: 0.12, houseware: 0.07, housing: 0.00,
-  invitation: 0.02, gift: 0.02, mc: 0.01, ham: 0.01, pyebaek: 0.01, reserve: 0.05,
+  ...PLANNING_CATEGORY_LABELS,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -199,13 +190,15 @@ function BudgetMiniCard() {
   if (!totalBudget) return null;
 
   const topCategories = ["venue", "studio", "dress", "makeup", "ring", "honeymoon"];
-  const items = topCategories.map((key) => {
+  const items = topCategories.flatMap((key) => {
     const item = progress[key];
-    const budget = readWonAmount(item?.budget)
-      ?? Math.round(totalBudget * (CATEGORY_RATIOS[key] ?? 0));
+    const budget = readWonAmount(item?.budget);
     const spent = readLegacyProgressSpent(item);
-    const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-    return { key, label: CATEGORY_LABELS[key], budget, spent, pct };
+    if (budget === null && spent === 0) return [];
+    const pct = budget !== null && budget > 0
+      ? Math.round((spent / budget) * 100)
+      : null;
+    return [{ key, label: CATEGORY_LABELS[key], budget, spent, pct }];
   });
 
   let totalSpent = 0;
@@ -227,12 +220,14 @@ function BudgetMiniCard() {
             <span className="text-[#928980] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
             <div className="flex-1 h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full ${cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
-                style={{ width: `${Math.min(cat.pct, 100)}%` }}
+                className={`h-full rounded-full ${cat.pct !== null && cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
+                style={{ width: `${cat.pct === null ? 0 : Math.min(cat.pct, 100)}%` }}
               />
             </div>
             <span className="w-[64px] flex-shrink-0 text-right text-[#1A1A1F]">{formatWon(cat.spent)}</span>
-            <span className={`w-[36px] text-right flex-shrink-0 font-medium ${cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>{cat.pct}%</span>
+            <span className={`w-[44px] text-right flex-shrink-0 font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>
+              {cat.pct !== null ? `${cat.pct}%` : cat.budget === 0 ? "0원" : "미입력"}
+            </span>
           </div>
         ))}
       </div>
@@ -527,6 +522,9 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
 function ScheduleMiniCard() {
   const { journey, updateJourney } = useAuthStore();
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
 
   const categories = ["meeting", "venue", "studio", "dress", "makeup", "ring", "honeymoon", "houseware"];
   const items = categories.map((key) => {
@@ -539,6 +537,7 @@ function ScheduleMiniCard() {
   }).filter(c => c.total > 0);
 
   const handleToggle = async (catKey: string, itemId: string) => {
+    if (savingItemId) return;
     const existing = progress[catKey];
     if (!existing?.checklist) return;
     const newChecklist = existing.checklist.map((item) =>
@@ -547,18 +546,46 @@ function ScheduleMiniCard() {
     const doneCount = newChecklist.filter((c) => c.done).length;
     const totalCount = newChecklist.length;
     const newStatus = doneCount === 0 ? "not_started" : doneCount === totalCount ? "completed" : "in_progress";
-    await updateJourney({
-      progress: {
-        ...progress,
-        [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
-      },
-    });
+    setSavingItemId(itemId);
+    setSaveError("");
+    setSaveNotice("");
+    try {
+      const result = await updateJourney({
+        progress: {
+          ...progress,
+          [catKey]: { ...existing, checklist: newChecklist, status: newStatus },
+        },
+      });
+      if (result.status === "pending_partner") {
+        setSaveNotice(
+          `${result.summary} 상대방 확인 전에는 반영되지 않습니다.`,
+        );
+      }
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "체크 상태를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSavingItemId(null);
+    }
   };
 
   if (items.length === 0) return null;
 
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
+      {saveNotice && (
+        <p role="status" className="rounded-lg bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
+          {saveNotice}
+        </p>
+      )}
+      {saveError && (
+        <p role="alert" className="rounded-lg bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
+          {saveError}
+        </p>
+      )}
       {items.map((cat) => (
         <div key={cat.key}>
           <div className="flex items-center gap-2 text-sm mb-1">
@@ -573,10 +600,12 @@ function ScheduleMiniCard() {
           </div>
           {/* 체크리스트 항목 (최대 3개만 표시) */}
           {progress[cat.key]?.checklist?.slice(0, 3).map((item: { id: string; label: string; done?: boolean }) => (
-            <div
+            <button
+              type="button"
               key={item.id}
-              onClick={() => handleToggle(cat.key, item.id)}
-              className="flex items-center gap-2 py-1 pl-2 cursor-pointer hover:bg-black/[0.02] rounded"
+              disabled={Boolean(savingItemId)}
+              onClick={() => void handleToggle(cat.key, item.id)}
+              className="flex w-full items-center gap-2 rounded py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
             >
               <div className="flex-shrink-0">
                 {item.done ? (
@@ -590,7 +619,7 @@ function ScheduleMiniCard() {
               <span className={`text-sm ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
                 {item.label}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       ))}

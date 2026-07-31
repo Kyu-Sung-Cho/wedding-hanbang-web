@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import {
   dateToYearQuarter,
   FLEX_COHORT_MONTH,
@@ -48,6 +49,19 @@ export async function POST(req: Request) {
 
     if (existingMembership) {
       return NextResponse.json({ room_id: existingMembership.room_id, reason: "already_assigned" });
+    }
+
+    const writeAccess = await checkCommunityWriteAccess(supabase, user.id);
+    if (!writeAccess.allowed) {
+      return NextResponse.json(
+        {
+          room_id: null,
+          reason: "community_write_blocked",
+          error: writeAccess.message,
+          code: writeAccess.code,
+        },
+        { status: writeAccess.status }
+      );
     }
 
     // 2. wedding_date 조회 (couple → journey)

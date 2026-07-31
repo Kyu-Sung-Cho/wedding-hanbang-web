@@ -57,7 +57,7 @@ export default function ProblemReframe() {
           className="mb-20 md:mb-28 max-w-3xl"
         >
           <SectionLabel label="다시 보기" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-[-0.01em]">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal">
             결혼 준비가 힘든 이유는
             <br />
             <em className="not-italic text-rose-500">다른 곳</em>에 있습니다.
@@ -81,7 +81,7 @@ export default function ProblemReframe() {
               </p>
 
               {/* 진실 */}
-              <h3 className="font-serif-kr text-[22px] md:text-[26px] text-noir-800 font-medium leading-[1.35] tracking-[-0.005em] mb-7">
+              <h3 className="font-serif-kr text-[22px] md:text-[26px] text-noir-800 font-medium leading-[1.35] tracking-normal mb-7">
                 {card.truth}
               </h3>
 

@@ -60,9 +60,6 @@ export default function SpotlightTutorial({
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [missing, setMissing] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   // ─── 시작 트리거 ────────────────────────────────────────────
   useEffect(() => {
@@ -112,6 +109,16 @@ export default function SpotlightTutorial({
   // ─── 타겟 요소 위치 추적 ────────────────────────────────────
   const currentStep = steps[stepIndex];
 
+  const finishInternal = useCallback(() => {
+    try {
+      localStorage.setItem(storageKey, "true");
+    } catch {
+      /* */
+    }
+    setVisible(false);
+    setStepIndex(0);
+  }, [storageKey]);
+
   const updateRect = useCallback(() => {
     if (!currentStep) return;
     const el = document.querySelector(currentStep.selector) as HTMLElement | null;
@@ -131,7 +138,7 @@ export default function SpotlightTutorial({
 
   useEffect(() => {
     if (!visible) return;
-    updateRect();
+    const initialFrame = window.requestAnimationFrame(() => updateRect());
     const onResize = () => updateRect();
     const onScroll = () => {
       const el = document.querySelector(currentStep?.selector ?? "") as HTMLElement | null;
@@ -140,6 +147,7 @@ export default function SpotlightTutorial({
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, true);
     return () => {
+      window.cancelAnimationFrame(initialFrame);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll, true);
     };
@@ -156,18 +164,7 @@ export default function SpotlightTutorial({
       }
     }, 400);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, missing, stepIndex, steps.length]);
-
-  const finishInternal = useCallback(() => {
-    try {
-      localStorage.setItem(storageKey, "true");
-    } catch {
-      /* */
-    }
-    setVisible(false);
-    setStepIndex(0);
-  }, [storageKey]);
+  }, [finishInternal, missing, stepIndex, steps.length, visible]);
 
   const next = useCallback(() => {
     if (stepIndex < steps.length - 1) {
@@ -233,7 +230,7 @@ export default function SpotlightTutorial({
     return { top, left };
   }, [targetRect]);
 
-  if (!visible || !mounted) return null;
+  if (!visible || typeof document === "undefined") return null;
   if (!currentStep) return null;
 
   const radius = currentStep.radius ?? 12;

@@ -43,17 +43,21 @@ who can write the repository and are not production authorization.
 
 ## Required integration before authorization
 
-The shared successor validator currently accepts only the blocked manifest
-shape. Changing the manifest to `deployment_authorized`, replacing `missing`
-with receipt pins, or adding synthetic v1 receipts therefore fails before any
-claimed evidence is considered. This is intentional fail-closed behavior, not
-a completed authorization path.
+The shared successor validator accepts the current blocked shape and one
+strict future `controller_ready` shape. The latter hash-pins a separate
+Supabase controller contract and private runtime receipt schemas; it does not
+authorize a Vercel production build. Changing the manifest to
+`deployment_authorized`, replacing `missing` with path/hash-only receipts, or
+adding synthetic success JSON still fails before any claimed evidence is
+considered. This is intentional fail-closed behavior, not a completed build
+authorization path.
 
-Before any status change, one reviewed external signed-authorization contract
-must be implemented and consumed by all of:
+Before a production build can be authorized, one reviewed external
+signed-authorization contract must be implemented and consumed by all of:
 
 1. the successor release validator;
-2. the production release controller; and
+2. the production release controller after its private five-receipt Supabase
+   evidence gate; and
 3. `apps/web/next.config.ts`.
 
 The signed authorization must bind the exact catalog source, filter, count and

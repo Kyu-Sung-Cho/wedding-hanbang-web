@@ -3,7 +3,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { FileText, Loader2, Pencil, Trash2, Eye, EyeOff, ArrowLeft, Save, X } from "lucide-react";
+import {
+  FileText,
+  Loader2,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  Save,
+  X,
+  CheckCircle2,
+  MessageCircle,
+} from "lucide-react";
 import Link from "next/link";
 import Avatar from "@/components/community/Avatar";
 import CommunityConfigurationUnavailable from "@/components/community/CommunityConfigurationUnavailable";
@@ -293,6 +305,8 @@ export default function MyPostsPage() {
         <div className="space-y-3">
           {displayed.map((post) => {
             const cat = CATEGORY_MAP[post.category];
+            const isResolutionPost =
+              post.category === "is_normal" || post.category === "ama";
             return (
               <div key={post.id} className="bg-white rounded-2xl border border-black/[0.04] px-5 py-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between gap-3">
@@ -308,6 +322,20 @@ export default function MyPostsPage() {
                           <EyeOff className="w-2.5 h-2.5" /> 회원
                         </span>
                       )}
+                      {isResolutionPost && (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            post.is_resolved
+                              ? "bg-[#C7D1C2]/45 text-[#36534E]"
+                              : "bg-[#F6EFE5] text-[#8F6662]"
+                          }`}
+                        >
+                          {post.is_resolved && (
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                          )}
+                          {post.is_resolved ? "해결됨" : "답변 받는 중"}
+                        </span>
+                      )}
                     </div>
                     <Link href={communityPostPath(post.id)} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
                       {post.title}
@@ -316,7 +344,13 @@ export default function MyPostsPage() {
                       <span>{timeAgo(post.created_at)}</span>
                       <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.view_count}</span>
                       <span>좋아요 {post.upvote_count}</span>
-                      <span>댓글 {post.comment_count}</span>
+                      <Link
+                        href={communityPostPath(post.id, "comments")}
+                        className="inline-flex items-center gap-0.5 text-[#635b51] hover:text-[#36534E] hover:underline"
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                        답변 {post.comment_count}
+                      </Link>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">

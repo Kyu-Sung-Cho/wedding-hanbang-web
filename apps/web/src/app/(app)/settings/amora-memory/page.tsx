@@ -247,6 +247,11 @@ export default function AmoraMemorySettingsPage() {
             <p className="mt-1 text-sm font-light leading-relaxed text-[#36534E]">
               켜 두면 대화에서 직접 확정한 선택과 취향을 정리해 다음 상담에 활용해요. 틀린 내용은 고치고, 원치 않는 기억은 언제든 지울 수 있어요.
             </p>
+            <p className="mt-2 text-xs leading-relaxed text-[#725F55]">
+              건강·임신·난임·성생활처럼 민감한 내용은 장기 기억에 저장하지
+              않아요. 주민번호·계좌번호·정확한 주소·계약·예약번호는 입력하지
+              마세요.
+            </p>
           </div>
         </div>
       </section>

@@ -84,21 +84,22 @@ describe("get_budget_summary — 실데이터 원칙 (상태 기반 추정 금�
 
     const out = result.toolOutput as {
       total_spent: number;
-      categories: Array<{ key: string; allocated: number; allocated_is_estimate: boolean; spent: number }>;
+      categories: Array<{ key: string; allocated: number | null; allocated_is_set: boolean; spent: number }>;
     };
     expect(out.total_spent).toBe(5_000_000); // 실기록만 — 예전 휴리스틱이면 studio 배정액이 섞여 커짐
     const venue = out.categories.find((c) => c.key === "venue")!;
     expect(venue.allocated).toBe(20_000_000); // 사용자가 설정한 배정액 존중 (비율 무시 금지)
-    expect(venue.allocated_is_estimate).toBe(false);
+    expect(venue.allocated_is_set).toBe(true);
     expect(venue.spent).toBe(5_000_000);
     const studio = out.categories.find((c) => c.key === "studio")!;
     expect(studio.spent).toBe(0);
-    expect(studio.allocated_is_estimate).toBe(true); // 미설정 → 참고치임을 명시
+    expect(studio.allocated).toBeNull();
+    expect(studio.allocated_is_set).toBe(false);
   });
 
-  it("참고치 사용 시 메시지에 명시한다", async () => {
+  it("입력하지 않은 항목의 예산을 추정하지 않는다고 명시한다", async () => {
     const result = await executeTool("get_budget_summary", {}, makeCtx());
-    expect(result.displayMessage).toContain("참고치");
+    expect(result.displayMessage).toContain("입력된 금액만 표시");
   });
 
   it("예산을 초과해도 실패하지 않고 초과액을 정확히 안내한다", async () => {

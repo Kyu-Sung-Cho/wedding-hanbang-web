@@ -2,10 +2,10 @@
 
 ## Product Context
 
-- **What this is:** Wedding Hanbang is an AI wedding operating room for Korean couples preparing a wedding together.
-- **Who it is for:** Couples 6-12 months before the wedding who need one place for decisions, budget, schedule, vendors, and partner coordination.
-- **Product type:** Consumer mobile app plus web app, community, vendor marketplace, and marketing site.
-- **Core memory:** The first impression should be "this app tells us what to do next, without making wedding planning feel cheap or chaotic."
+- **What this is:** Wedding Hanbang is a web service where couples tell Amora about their wedding preparation and Amora connects the result to their budget, checklist, and schedule.
+- **Who it is for:** Couples who do not know what to do next or are tired of keeping wedding decisions across chat, notes, calendars, and spreadsheets.
+- **Product type:** Amora-led web MVP with budget, checklist, schedule, and community support.
+- **Core memory:** The first impression should be "tell Amora, and our wedding preparation gets organized."
 
 ## Aesthetic Direction
 
@@ -96,3 +96,4 @@
 | 2026-07-28 | 같은 프로토타입의 off-scale 타입 값(13·15·17·28)과 `rounded-[24px]`·`rounded-[14px]`를 잠정 유지한다 | 문항 화면의 세로 배분이 §5 가설2("다섯 답 동시 비교")에 직접 걸려 있어, 스케일 정렬이 접힘선을 움직인다. R1-UX 실기기 관찰 뒤 일괄 정렬한다. 근거·실측: `docs/wedding-code/63_today_one_line_design_plan_2026-07-28.md` §13-2·13-3. |
 | 2026-07-29 | `/today`(오늘 한 마디)는 목록이 아니라 **세 장 뽑기**로 하고, 세 장은 항상 마음 2 + 돈 1로 고정한다 | 28행 목록으로 띄워보니 첫 화면 10장 중 9장이 돈·계약이라 첫인상이 청구서였다. 구성을 seed 운에 맡기면 돈만 세 장인 날이 반드시 생긴다. 실측·근거: `docs/wedding-code/63_today_one_line_design_plan_2026-07-28.md` §14. |
 | 2026-07-29 | 공유 링크 원문(URL)은 결과 화면에 텍스트로 노출하지 않는다 | 주소에 카드 id가 들어 있어, 캡처를 보내는 순간 상대가 열기 전에 어느 장인지 들킨다. 주소는 복사 버튼이 들고 있는다. |
+| 2026-07-30 | 웹 MVP를 아모라·예산·체크리스트·일정·커뮤니티로 제한하고 아모라를 단일 제품 중심으로 둔다 | 첫 방문자가 공시가격·업체·커뮤니티·도구를 별도 제품으로 해석하지 않도록, "아모라에게 말하면 준비가 정리된다"는 한 가지 약속 아래 실행 도구와 커뮤니티를 배치한다. |

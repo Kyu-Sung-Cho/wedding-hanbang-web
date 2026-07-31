@@ -179,7 +179,11 @@ export const SCENARIOS = [
       maxQuestions: 1,
       noList: true,
       noHeading: true,
+      required: [
+        [/예산|총액|금액|비용|줄여|늘어/, "did not respond to the user's concrete budget burden"],
+      ],
       forbidden: [
+        [/^(?:많이 힘드시겠어요|충분히 그럴 수 있어요|걱정하지 마세요|하나씩 차근차근|제가 도와드릴게요)/, "opened with a reusable comfort phrase"],
         [/현재\s*예산은|저장된\s*예산|진행률은/, "dumped stored profile data into an emotional opening"],
         [/첫\s*단계|배분표|총예산부터/, "jumped into a planning template before narrowing the user's burden"],
       ],
@@ -220,7 +224,11 @@ export const SCENARIOS = [
       maxQuestions: 1,
       noList: true,
       noHeading: true,
+      required: [
+        [/말|듣|정리하지|이야기/, "did not adapt to the user's request to be heard first"],
+      ],
       forbidden: [
+        [/^(?:많이 힘드시겠어요|충분히 그럴 수 있어요|걱정하지 마세요|하나씩 차근차근|제가 도와드릴게요)/, "reused generic comfort after direct style feedback"],
         [/정리해드릴|우선순위|체크|단계/, "repeated the same report/checklist behavior after feedback"],
       ],
     },

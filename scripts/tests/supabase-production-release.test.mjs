@@ -20,6 +20,9 @@ import {
   FINALIZER_REQUIRED_CANARY_CHECKS,
   POST_EXPAND_HOSTED_RESTORE_REQUIRED_CHECKS,
 } from "../lib/amora-release-extended-contracts.mjs";
+import {
+  SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
+} from "../lib/supabase-successor-release-contract.mjs";
 
 const PROJECT_REF = "abcdefghijklmnopqrst";
 const HOSTED_RESTORE_PROJECT_REF = "zyxwvutsrqponmlkjihg";
@@ -154,40 +157,257 @@ async function addBlockedSuccessorRelease(fixture) {
   await write(fixture.root, `supabase/migrations/${migrationFile}`, migrationSql);
 }
 
-/**
- * 증거가 전부 고정된 후속 릴리스를 만든다.
- *
- * 계약은 통과하지만 컨트롤러 본체가 아직 후속 릴리스를 대상으로 하지 않으므로,
- * 여기서도 릴리스는 열리면 안 된다 — 다만 "증거가 없다"가 아니라 "본체가 없다"로
- * 구분돼 막혀야 한다. 그 구분이 무너지면 증거만 채우고 배포가 열렸다고 착각한다.
- */
-async function addEvidencePinnedSuccessorRelease(fixture) {
+function successorRuntimeEvidenceContracts(release) {
+  return Object.fromEntries(
+    Object.entries(SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS).map(
+      ([name, requirement]) => {
+        const slug = name.replace(/([A-Z])/g, "-$1").toLowerCase();
+        return [name, {
+          kind: requirement.kind,
+          receiptFileName: `${release}-${slug}-evidence.json`,
+          rawEvidenceFileName: `${release}-${slug}-raw.json`,
+          rawEvidenceSource: requirement.rawEvidenceSource,
+          maximumAgeMinutes: requirement.maximumAgeMinutes,
+          requiredChecks: [...requirement.requiredChecks],
+        }];
+      },
+    ),
+  );
+}
+
+async function addControllerReadySuccessorRelease(fixture) {
   await addBlockedSuccessorRelease(fixture);
-  const manifestFile = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
-  const manifest = JSON.parse(await readFile(join(fixture.root, manifestFile), "utf8"));
-  const body = '{"verified":true}\n';
-  const evidence = {};
-  for (const [name, file] of [
-    ["backup", "backup-receipt.json"],
-    ["hostedStaging", "hosted-staging.json"],
-    ["hostedRestore", "hosted-restore.json"],
-    ["storage", "storage-drain.json"],
-    ["finalizer", "finalizer.json"],
-  ]) {
-    const relative = `docs/operations/evidence/${file}`;
-    await write(fixture.root, relative, body);
-    evidence[name] = {
-      file: relative,
-      sha256: sha256(body),
-      capturedAt: "2026-07-26T00:31:05Z",
-      releaseCommit: RELEASE_COMMIT,
-    };
-  }
-  manifest.status = "evidence_pinned";
-  manifest.deploymentEvidence = evidence;
-  manifest.backupContract = { id: "amora-db-current-baseline", version: 1 };
-  await write(fixture.root, manifestFile, `${JSON.stringify(manifest, null, 2)}
-`);
+  const predecessorFile = "supabase/release-manifests/amora-engine-v2-20260716.json";
+  const successorFile =
+    "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
+  const predecessor = JSON.parse(await readFile(
+    join(fixture.root, predecessorFile),
+    "utf8",
+  ));
+  const successor = JSON.parse(await readFile(
+    join(fixture.root, successorFile),
+    "utf8",
+  ));
+  const releaseVersions =
+    successor.expandMigrations.map((entry) => entry.file.slice(0, 14));
+  const baselineTables = predecessor.postExpandBackupContract.expectedTables;
+  const postExpandTables = [...baselineTables, "vendor_alias_proposals"].sort();
+  const textDigest = (values) => sha256(`${values.join("\n")}\n`);
+  const successorPostCheckSql = `BEGIN TRANSACTION READ ONLY;
+SELECT
+  0 AS successor_created_table_count,
+  1 AS account_deletion_auth_fk_contract_count,
+  4 AS couple_plan_change_auth_user_fk_count,
+  1 AS couple_plan_change_display_guard_count,
+  1 AS couple_plan_change_idempotency_index_count,
+  4 AS couple_plan_change_journey_write_fence_count,
+  3 AS couple_plan_change_terminal_event_count,
+  1 AS couple_plan_change_write_boundary_trigger_count,
+  1 AS successor_migration_head_count,
+  8 AS successor_feature_flags_off_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.wedding_court_votes'::regclass
+      AND conname = 'wedding_court_votes_user_id_fkey'
+      AND contype = 'f'
+      AND confrelid = 'auth.users'::regclass
+      AND confdeltype = 'c'
+      AND convalidated
+  ) AS wedding_court_auth_delete_fk_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.chat_feedback'::regclass
+      AND conname = 'chat_feedback_user_id_fkey'
+      AND contype = 'f'
+      AND confrelid = 'auth.users'::regclass
+      AND confdeltype = 'c'
+      AND convalidated
+  ) AS chat_feedback_auth_delete_fk_count,
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_constraint
+    WHERE conrelid = 'public.wedding_payment_ledger'::regclass
+      AND contype = 'f'
+      AND convalidated
+      AND (
+        (conname = 'wedding_payment_ledger_couple_id_fkey'
+          AND confrelid = 'public.couples'::regclass AND confdeltype = 'c')
+        OR (conname = 'wedding_payment_ledger_created_by_fkey'
+          AND confrelid = 'public.profiles'::regclass AND confdeltype = 'n')
+        OR (conname = 'wedding_payment_ledger_updated_by_fkey'
+          AND confrelid = 'public.profiles'::regclass AND confdeltype = 'n')
+      )
+  ) AS payment_ledger_fk_contract_count;
+ROLLBACK;
+`;
+  const successorHistoricalAudit =
+    "BEGIN TRANSACTION READ ONLY;\nselect true as verified;\nROLLBACK;\n";
+  const successorCapture = "# fixture successor backup capture\n";
+  const successorVerifier = "# fixture successor backup verifier\n";
+  const rollbackContract = {
+    version: 1,
+    strategy: "forward-fix-feature-off",
+    migrationRollback: "prohibited",
+    featureOffReceiptFileName:
+      `${successor.release}-feature-off-rollback.json`,
+    maximumAgeMinutes: 30,
+    requiredControls: {
+      AMORA_AUXILIARY_MEMORY_ENABLED: "false",
+      AMORA_CARE_OUTBOUND_ENABLED: "false",
+      AMORA_COMMUNITY_AI_COMMENT_ENABLED: "false",
+      AMORA_OPENAI_ENABLED: "false",
+      AMORA_PROACTIVE_CHAT_ENABLED: "false",
+      AMORA_COST_GUARD_ENABLED: "true",
+      WEDDING_COURT_ENABLED: "false",
+      WEDDING_PAYMENT_LEDGER_ENABLED: "false",
+    },
+    requiredChecks: [
+      "databaseWriteFenceHeld",
+      "storageWriteFenceHeld",
+      "authSignupDisabled",
+      "webWriteFenceEnabled",
+    ],
+  };
+  const contract = {
+    contractVersion: 1,
+    release: successor.release,
+    projectRef: successor.projectRef,
+    historicalEffectAudit: predecessor.historicalEffectAudit ?? {
+      file: "supabase/contract-migrations/vendor-disclosure-successor-audit.sql",
+      sha256: sha256(successorHistoricalAudit),
+    },
+    preApplyChecks: predecessor.preApplyChecks,
+    postPushChecks: [],
+    postApplyChecks: [{
+      id: "vendor-disclosure-successor-postcheck",
+      type: "read-only-sql",
+      file: "supabase/release-checks/vendor-disclosure-successor-post.sql",
+      sha256: sha256(successorPostCheckSql),
+      expectedEvidence: {
+        account_deletion_auth_fk_contract_count: 1,
+        couple_plan_change_auth_user_fk_count: 4,
+        couple_plan_change_display_guard_count: 1,
+        couple_plan_change_idempotency_index_count: 1,
+        couple_plan_change_journey_write_fence_count: 4,
+        couple_plan_change_terminal_event_count: 3,
+        couple_plan_change_write_boundary_trigger_count: 1,
+        successor_created_table_count: 0,
+        successor_feature_flags_off_count: 8,
+        successor_migration_head_count: 1,
+        wedding_court_auth_delete_fk_count: 1,
+        chat_feedback_auth_delete_fk_count: 1,
+        payment_ledger_fk_contract_count: 3,
+      },
+    }],
+    forwardOnlySecurityOperations: [],
+    manualPlatformOperations: predecessor.manualPlatformOperations,
+    rollbackArtifacts: predecessor.rollbackArtifacts,
+    manualControlEvidence: {
+      receiptFileName: `${successor.release}-production-write-fence.json`,
+      storageDrainReceiptFileName: `${successor.release}-storage-drain.json`,
+      maximumAgeMinutes: 30,
+      signedUploadTokenTtlMinutes: 120,
+      signedUploadGraceMinutes: 10,
+      storageStabilityWindowMinutes: 5,
+    },
+    backupContract: {
+      id: `pre-${successor.release}-current-remote-backup`,
+      version: 2,
+      format: "hbam2-encrypted-current-user",
+      expectedTableCount: baselineTables.length,
+      expectedTables: baselineTables,
+      expectedTableContractSha256: textDigest(baselineTables),
+      expectedMigrationHead: successor.requiredRemoteHead,
+      excludedEphemeralTables:
+        predecessor.backupContract.excludedEphemeralTables,
+      ephemeralRebuildContract:
+        predecessor.backupContract.ephemeralRebuildContract,
+      expectedCommitBinding: "release-expected-commit",
+      expectedOrigin: predecessor.backupContract.expectedOrigin,
+      verifier: predecessor.postExpandBackupContract.verifier,
+      providerPhysicalBackup:
+        predecessor.backupContract.providerPhysicalBackup,
+      hostedRestoreEvidence: {
+        ...predecessor.backupContract.hostedRestoreEvidence,
+        receiptFileName: `${successor.release}-hosted-restore-evidence.json`,
+      },
+      supabaseCli: predecessor.backupContract.supabaseCli,
+      requiredReceiptValues:
+        predecessor.postExpandBackupContract.requiredReceiptValues,
+    },
+    postExpandBackupContract: {
+      ...predecessor.postExpandBackupContract,
+      id: `post-${successor.release}-backup`,
+      version: 2,
+      verificationReceiptFileName:
+        `${successor.release}-post-expand-backup-verification.json`,
+      expectedTableCount: postExpandTables.length,
+      expectedTables: postExpandTables,
+      expectedReleaseMigrationBaselineHead: successor.requiredRemoteHead,
+      expectedReleaseMigrationHead: releaseVersions.at(-1),
+      expectedReleaseMigrationVersions: releaseVersions,
+      expectedTableContractSha256: textDigest(postExpandTables),
+      expectedReleaseMigrationContractSha256: textDigest(releaseVersions),
+      capture: {
+        file: "scripts/vendor-disclosure-db-backup.ps1",
+        sha256: sha256(successorCapture),
+      },
+      verifier: {
+        file: "scripts/vendor-disclosure-db-verify-backup.ps1",
+        sha256: sha256(successorVerifier),
+      },
+      hostedRestoreEvidence: {
+        ...predecessor.postExpandBackupContract.hostedRestoreEvidence,
+        receiptFileName:
+          `${successor.release}-post-expand-hosted-restore-evidence.json`,
+      },
+    },
+    finalizationContract: {
+      ...predecessor.finalizationContract,
+      version: 2,
+    },
+    rollbackContract,
+    requiredDocuments: predecessor.requiredDocuments,
+  };
+  const contractFile =
+    "supabase/release-contracts/vendor-disclosure-production-controller-v1.json";
+  const contractText = `${JSON.stringify(contract, null, 2)}\n`;
+  await write(fixture.root, contractFile, contractText);
+  await write(
+    fixture.root,
+    "supabase/release-checks/vendor-disclosure-successor-post.sql",
+    successorPostCheckSql,
+  );
+  await write(
+    fixture.root,
+    "supabase/contract-migrations/vendor-disclosure-successor-audit.sql",
+    successorHistoricalAudit,
+  );
+  await write(
+    fixture.root,
+    "scripts/vendor-disclosure-db-backup.ps1",
+    successorCapture,
+  );
+  await write(
+    fixture.root,
+    "scripts/vendor-disclosure-db-verify-backup.ps1",
+    successorVerifier,
+  );
+  successor.status = "controller_ready";
+  successor.deploymentEvidence =
+    successorRuntimeEvidenceContracts(successor.release);
+  successor.controllerContract = {
+    file: contractFile,
+    sha256: sha256(contractText),
+  };
+  await write(
+    fixture.root,
+    successorFile,
+    `${JSON.stringify(successor, null, 2)}\n`,
+  );
+  return { contract, successor };
 }
 
 async function createFixture({ withPostPushOperation = false } = {}) {
@@ -775,24 +995,191 @@ test("production release controller refuses a deployment-blocked successor befor
   }
 });
 
-test("증거를 고정해도 후속 릴리스 본체가 없으면 다른 코드로 계속 막는다", async () => {
+test("controller-ready successor selects its exact manifest body instead of the predecessor", async () => {
   const fixture = await createFixture();
   try {
-    await addEvidencePinnedSuccessorRelease(fixture);
-    await assert.rejects(
-      runProductionRelease({
+    const ready = await addControllerReadySuccessorRelease(fixture);
+    const selection =
+      await productionReleaseControllerTestHooks.selectReleaseManifest(fixture.root);
+    assert.equal(selection.manifest.release, ready.successor.release);
+    assert.deepEqual(
+      selection.expectedMigrations,
+      ready.successor.expandMigrations.map((entry) => entry.file),
+    );
+    assert.equal(selection.manifest.requiredRemoteHead, "20260716091000");
+    assert.equal(selection.successor, true);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("successor backup validation requires the exact current-remote table set and private HBAM2 manifest", async () => {
+  const fixture = await createFixture();
+  try {
+    const { contract } = await addControllerReadySuccessorRelease(fixture);
+    const backupContract = contract.backupContract;
+    const verifierText = await readFile(
+      join(fixture.root, backupContract.verifier.file),
+      "utf8",
+    );
+    await write(
+      fixture.backupSourceRepo,
+      backupContract.verifier.file,
+      verifierText,
+    );
+
+    const backupDirectory = join(fixture.receiptRoot, "successor-private-backup");
+    await mkdir(backupDirectory, { recursive: true });
+    const createdAt = new Date(Date.now() - 2 * 60_000).toISOString();
+    const inventoryCapturedAt =
+      new Date(Date.parse(createdAt) - 30_000).toISOString();
+    const sourceCapturedAt =
+      new Date(Date.parse(createdAt) - 60_000).toISOString();
+    const inventoryContractSha256 = "D".repeat(64);
+    const sourceRelationContractSha256 = "E".repeat(64);
+    const liveSchemaContractSha256 = "F".repeat(64);
+    const logicalDataContractSha256 = "A".repeat(64);
+    const cliRelativePath = "node_modules/@supabase/cli/bin/supabase.exe";
+    const privateManifest = {
+      format: "HBAM2-AES-256-CBC-HMAC-SHA256-DPAPI-CurrentUser",
+      format_version: 2,
+      status: "complete",
+      backup_set_id: BACKUP_SET_ID,
+      created_at_utc: createdAt,
+      source_captured_at: sourceCapturedAt,
+      inventory_captured_at: inventoryCapturedAt,
+      inventory_contract_sha256: inventoryContractSha256,
+      source_relation_contract_sha256: sourceRelationContractSha256,
+      live_schema_contract_sha256: liveSchemaContractSha256,
+      logical_data_contract_sha256: logicalDataContractSha256,
+      source_project_ref: PROJECT_REF,
+      implementation: { git_commit: RELEASE_COMMIT },
+      supabase_cli: {
+        version: backupContract.supabaseCli.version,
+        invocation_relative_path: cliRelativePath,
+        files: {
+          [cliRelativePath]: backupContract.supabaseCli.binarySha256,
+        },
+      },
+      plaintext_written_to_disk: false,
+      tables: Object.fromEntries(
+        backupContract.expectedTables.map((table) => [table, { row_count: 0 }]),
+      ),
+    };
+    await writeFile(
+      join(backupDirectory, "manifest.json"),
+      `${JSON.stringify(privateManifest, null, 2)}\n`,
+      "utf8",
+    );
+    for (const file of [
+      "logical-data.json.hbam2",
+      "logical-data.json.key.dpapi",
+      "schema-inventory.json.hbam2",
+      "schema-inventory.json.key.dpapi",
+    ]) {
+      await writeFile(join(backupDirectory, file), `${file}\n`, "utf8");
+    }
+    const receipt = {
+      AgeSeconds: 120,
+      BackupDirectory: backupDirectory,
+      BackupSetId: BACKUP_SET_ID,
+      CreatedAtUtc: createdAt,
+      ExternalForeignKeysSkipped: 0,
+      ForeignKeysChecked: 12,
+      GitCommit: RELEASE_COMMIT,
+      InventoryCapturedAt: inventoryCapturedAt,
+      InventoryContractSha256: inventoryContractSha256,
+      LiveSchemaContractSha256: liveSchemaContractSha256,
+      LogicalDataContractSha256: logicalDataContractSha256,
+      ManifestSha256: await rawFileSha256(
+        join(backupDirectory, "manifest.json"),
+      ),
+      NodeSha256: "B".repeat(64),
+      NodeVersion: "v24.4.1",
+      PGliteJsonbRoundTripVerified: true,
+      PGliteTreeSha256: "C".repeat(64),
+      PGliteVersion: "0.3.8",
+      PlaintextWrittenToDisk: false,
+      PrimaryConstraintsChecked: 24,
+      SourceCanonicalDigestsVerified: true,
+      SourceCapturedAt: sourceCapturedAt,
+      SourceRelationContractSha256: sourceRelationContractSha256,
+      SupabaseCliBinarySha256: backupContract.supabaseCli.binarySha256,
+      SupabaseCliVersion: backupContract.supabaseCli.version,
+      TableCount: backupContract.expectedTableCount,
+      TotalRows: 42,
+      Verified: true,
+    };
+    const receiptPath = join(
+      fixture.receiptRoot,
+      "successor-backup-verification.json",
+    );
+    await writeFile(receiptPath, JSON.stringify(receipt), "utf8");
+    const runCommand = async (command, args, options) => {
+      if (command === "git" && options.cwd === fixture.backupSourceRepo) {
+        if (args[0] === "status") {
+          return { status: 0, stdout: "", stderr: "" };
+        }
+        if (args[0] === "rev-parse") {
+          return { status: 0, stdout: `${RELEASE_COMMIT}\n`, stderr: "" };
+        }
+        if (args[0] === "remote") {
+          return {
+            status: 0,
+            stdout: `${backupContract.expectedOrigin}\n`,
+            stderr: "",
+          };
+        }
+      }
+      if (command.toLowerCase().includes("powershell")
+          || command.toLowerCase().endsWith("pwsh")) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            ...receipt,
+            AgeSeconds: Math.floor(
+              (Date.now() - Date.parse(createdAt)) / 1_000,
+            ),
+          }),
+          stderr: "",
+        };
+      }
+      throw new Error(`Unexpected command: ${command} ${args.join(" ")}`);
+    };
+
+    const verified =
+      await productionReleaseControllerTestHooks.validateBackupReceipt({
+        path: receiptPath,
         repoRoot: fixture.root,
-        argv: [
-          "--check-only",
-          `--expected-commit=${RELEASE_COMMIT}`,
-          "--remote-ref=origin/release",
-          `--backup-receipt=${fixture.backupReceiptPath}`,
-          `--backup-source-repo=${fixture.backupSourceRepo}`,
-          `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
-        ],
+        backupSourceRepo: fixture.backupSourceRepo,
+        backupContract,
+        expectedCommit: RELEASE_COMMIT,
+        projectRef: PROJECT_REF,
+        runCommand,
+      });
+    assert.equal(verified.TableCount, backupContract.expectedTableCount);
+    assert.equal(
+      verified.SchemaContractSha256,
+      receipt.LiveSchemaContractSha256,
+    );
+
+    await writeFile(
+      receiptPath,
+      JSON.stringify({ ...receipt, TableCount: 14 }),
+      "utf8",
+    );
+    await assert.rejects(
+      productionReleaseControllerTestHooks.validateBackupReceipt({
+        path: receiptPath,
+        repoRoot: fixture.root,
+        backupSourceRepo: fixture.backupSourceRepo,
+        backupContract,
+        expectedCommit: RELEASE_COMMIT,
+        projectRef: PROJECT_REF,
+        runCommand,
       }),
-      // 증거가 갖춰졌다고 선임 매니페스트를 대상으로 릴리스가 돌면 안 된다.
-      (error) => error?.code === "SUCCESSOR_RELEASE_CONTROLLER_NOT_IMPLEMENTED",
+      (error) => error?.code === "BACKUP_RECEIPT_INVALID",
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
@@ -800,14 +1187,29 @@ test("증거를 고정해도 후속 릴리스 본체가 없으면 다른 코드�
   }
 });
 
-test("증거가 깨진 후속 릴리스는 계약 위반으로 막는다", async () => {
+test("controller-ready successor refuses a changed controller contract pin", async () => {
   const fixture = await createFixture();
   try {
-    await addEvidencePinnedSuccessorRelease(fixture);
-    const manifestFile = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
-    const manifest = JSON.parse(await readFile(join(fixture.root, manifestFile), "utf8"));
-    // 증거 파일 내용을 바꿔 해시를 어긋나게 한다 — 사후 위조 시나리오.
-    await write(fixture.root, manifest.deploymentEvidence.backup.file, '{"verified":false}\n');
+    const ready = await addControllerReadySuccessorRelease(fixture);
+    await write(
+      fixture.root,
+      ready.successor.controllerContract.file,
+      `${JSON.stringify({ ...ready.contract, contractVersion: 2 })}\n`,
+    );
+    await assert.rejects(
+      productionReleaseControllerTestHooks.selectReleaseManifest(fixture.root),
+      (error) => error?.code === "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("controller-ready successor derives production confirmation from the successor identity", async () => {
+  const fixture = await createFixture();
+  try {
+    await addControllerReadySuccessorRelease(fixture);
     await assert.rejects(
       runProductionRelease({
         repoRoot: fixture.root,
@@ -820,8 +1222,38 @@ test("증거가 깨진 후속 릴리스는 계약 위반으로 막는다", async
           `--confirm-production=CHECK:${PROJECT_REF}:test-release:${RELEASE_COMMIT}`,
         ],
       }),
-      (error) => error?.code === "SUCCESSOR_RELEASE_CONTRACT_INVALID",
+      (error) => error?.code === "PRODUCTION_CONFIRMATION_MISMATCH",
     );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+    await rm(fixture.receiptRoot, { recursive: true, force: true });
+  }
+});
+
+test("controller-ready successor cannot enter Git or Supabase gates without all five fresh private receipts", async () => {
+  const fixture = await createFixture();
+  let commandCalled = false;
+  try {
+    const ready = await addControllerReadySuccessorRelease(fixture);
+    await assert.rejects(
+      runProductionRelease({
+        repoRoot: fixture.root,
+        argv: [
+          "--check-only",
+          `--expected-commit=${RELEASE_COMMIT}`,
+          "--remote-ref=origin/release",
+          `--backup-receipt=${fixture.backupReceiptPath}`,
+          `--backup-source-repo=${fixture.backupSourceRepo}`,
+          `--confirm-production=CHECK:${PROJECT_REF}:${ready.successor.release}:${RELEASE_COMMIT}`,
+        ],
+        runCommand: async () => {
+          commandCalled = true;
+          return { status: 1, stdout: "", stderr: "" };
+        },
+      }),
+      (error) => error?.code === "RUNTIME_EVIDENCE_RAW_INVALID",
+    );
+    assert.equal(commandCalled, false);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
     await rm(fixture.receiptRoot, { recursive: true, force: true });

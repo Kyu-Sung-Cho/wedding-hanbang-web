@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
@@ -25,13 +25,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import {
-  canChangeCareConsent,
-  careChannelsAvailable,
-  hasCareConsent,
-  parseCareAvailability,
-  type CareAvailability,
-} from "@/lib/care/careConsent";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
 import type { Profile } from "@/types/database.types";
@@ -42,41 +35,27 @@ import type {
   GuestCount,
 } from "@/types/onboarding.types";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { CONTACT } from "@/lib/constants/contact";
 import {
   resolveCoupleConnectionState,
   type CoupleConnectionState,
+  WEDDING_BUDGET_TENDENCY_OPTIONS,
+  WEDDING_GUEST_COUNT_OPTIONS,
+  WEDDING_PRIORITY_OPTIONS,
+  WEDDING_STYLE_OPTIONS,
 } from "@hanbang/shared";
 
 // 웨딩 스타일 4필드 선택지 — 온보딩과 동일
-const STYLE_OPTIONS: { value: WeddingStyle; label: string }[] = [
-  { value: "minimal", label: "미니멀" },
-  { value: "classic", label: "클래식" },
-  { value: "fancy", label: "화려한" },
-  { value: "natural", label: "자연스러운" },
-];
-
-const PRIORITY_OPTIONS: { value: PriorityItem; label: string }[] = [
-  { value: "sdm", label: "스드메" },
-  { value: "venue", label: "예식장" },
-  { value: "rings", label: "예물·예단" },
-  { value: "honeymoon", label: "신혼여행" },
-  { value: "ceremony", label: "본식 연출" },
-  { value: "housing", label: "신혼집" },
-];
-
-const BUDGET_TENDENCY_OPTIONS: { value: BudgetTendency; label: string }[] = [
-  { value: "saving", label: "절약형" },
-  { value: "balanced", label: "가성비" },
-  { value: "premium", label: "프리미엄" },
-];
-
-const GUEST_COUNT_OPTIONS: { value: GuestCount; label: string }[] = [
-  { value: "under50", label: "50명 이하" },
-  { value: "50to100", label: "50~100명" },
-  { value: "100to200", label: "100~200명" },
-  { value: "200to300", label: "200~300명" },
-  { value: "over300", label: "300명 이상" },
-];
+const STYLE_OPTIONS: readonly { value: WeddingStyle; label: string }[] =
+  WEDDING_STYLE_OPTIONS;
+const PRIORITY_OPTIONS: readonly { value: PriorityItem; label: string }[] =
+  WEDDING_PRIORITY_OPTIONS;
+const BUDGET_TENDENCY_OPTIONS: readonly {
+  value: BudgetTendency;
+  label: string;
+}[] = WEDDING_BUDGET_TENDENCY_OPTIONS;
+const GUEST_COUNT_OPTIONS: readonly { value: GuestCount; label: string }[] =
+  WEDDING_GUEST_COUNT_OPTIONS;
 
 type WeddingPreferenceState = Partial<{
   weddingStyle: WeddingStyle | null;
@@ -90,150 +69,29 @@ type ProfileUpdateResponse = {
   error?: string;
 };
 
-type CareAvailabilityResponse = {
-  profile?: {
-    id?: unknown;
-    care_notifications_enabled?: unknown;
-    care_notifications_consented_at?: unknown;
-  };
-  careAvailability?: unknown;
-  error?: string;
-  code?: string;
-};
-
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
-function maskEmail(email: string): string | null {
-  const at = email.lastIndexOf("@");
-  if (at <= 0 || at === email.length - 1) return null;
-  const local = email.slice(0, at);
-  const domain = email.slice(at + 1);
-  const visible = local.slice(0, Math.min(2, local.length));
-  return `${visible}***@${domain}`;
-}
-
 export default function SettingsPage() {
-  const { user, profile, partner, couple, journey, isDemo, signOut, updateJourney, updateProfile } = useAuthStore();
+  const {
+    user,
+    profile,
+    partner,
+    couple,
+    journey,
+    isDemo,
+    signOut,
+    updateJourney,
+    updateProfile,
+  } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
   const [copied, setCopied] = useState(false);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
   const [regenerating, setRegenerating] = useState(false);
-
-  // 휴대폰 번호 (알림톡/문자 케어 채널 준비)
-  const [phoneInput, setPhoneInput] = useState("");
-  const [phoneConsent, setPhoneConsent] = useState(false);
-  const [phoneSaving, setPhoneSaving] = useState(false);
-  const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
-  const [careSaving, setCareSaving] = useState(false);
-  const [careMessage, setCareMessage] = useState<string | null>(null);
-  const [careAvailability, setCareAvailability] = useState<CareAvailability | null>(null);
-  const careNotificationsConsented = hasCareConsent({
-    care_notifications_enabled: profile?.care_notifications_enabled ?? false,
-    care_notifications_consented_at: profile?.care_notifications_consented_at ?? null,
-  });
-
-  const refreshCareAvailability = useCallback(async (signal?: AbortSignal) => {
-    if (isDemo) {
-      setCareAvailability(null);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/profile", {
-        cache: "no-store",
-        signal,
-      });
-      const payload = (await response.json().catch(() => ({}))) as CareAvailabilityResponse;
-      const nextAvailability = parseCareAvailability(payload.careAvailability);
-      const serverProfile = payload.profile;
-      if (
-        !response.ok ||
-        !nextAvailability ||
-        typeof serverProfile?.id !== "string" ||
-        typeof serverProfile.care_notifications_enabled !== "boolean" ||
-        !(
-          serverProfile.care_notifications_consented_at === null ||
-          typeof serverProfile.care_notifications_consented_at === "string"
-        )
-      ) {
-        throw new Error("CARE_AVAILABILITY_LOOKUP_FAILED");
-      }
-      const currentProfile = useAuthStore.getState().profile;
-      if (!currentProfile || currentProfile.id !== serverProfile.id) {
-        throw new Error("CARE_PROFILE_MISMATCH");
-      }
-      useAuthStore.setState({
-        profile: {
-          ...currentProfile,
-          care_notifications_enabled: serverProfile.care_notifications_enabled,
-          care_notifications_consented_at: serverProfile.care_notifications_consented_at,
-        },
-      });
-      setCareAvailability(nextAvailability);
-    } catch (error) {
-      if (!(error instanceof Error && error.name === "AbortError")) {
-        setCareAvailability(null);
-      }
-    }
-  }, [isDemo]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void refreshCareAvailability(controller.signal);
-    return () => controller.abort();
-  }, [refreshCareAvailability]);
-
-  useEffect(() => {
-    setPhoneInput(profile?.phone ?? "");
-    setPhoneConsent(Boolean(profile?.phone_care_consented_at));
-  }, [profile?.phone, profile?.phone_care_consented_at]);
-
-  const phoneDirty =
-    (profile?.phone ?? "") !== phoneInput.replace(/[^0-9]/g, "") ||
-    Boolean(profile?.phone_care_consented_at) !== phoneConsent;
-
-  async function savePhone() {
-    if (isDemo || phoneSaving) return;
-    setPhoneSaving(true);
-    setPhoneMessage(null);
-    try {
-      await updateProfile({
-        phone: phoneInput,
-        phone_care_consent: phoneInput.replace(/[^0-9]/g, "") ? phoneConsent : false,
-      });
-      setPhoneMessage("저장했어요.");
-    } catch (err) {
-      setPhoneMessage(err instanceof Error ? err.message : "저장에 실패했어요.");
-    } finally {
-      setPhoneSaving(false);
-      window.setTimeout(() => setPhoneMessage(null), 4000);
-    }
-  }
-
-  async function toggleCareNotifications() {
-    if (isDemo || careSaving) return;
-    const enabling = !careNotificationsConsented;
-    if (enabling && !canChangeCareConsent(false, careAvailability)) {
-      setCareMessage("아모라 먼저 챙기기는 현재 준비 중이에요.");
-      return;
-    }
-    setCareSaving(true);
-    setCareMessage(null);
-    try {
-      await updateProfile({ care_notifications_enabled: enabling });
-      setCareMessage(enabling ? "내 수신 동의를 저장했어요." : "내 수신 동의를 해제했어요.");
-    } catch (error) {
-      setCareMessage(error instanceof Error ? error.message : "알림 설정을 저장하지 못했어요.");
-      await refreshCareAvailability();
-    } finally {
-      setCareSaving(false);
-    }
-  }
 
   // 수정 모드
   const [editingName, setEditingName] = useState(false);
@@ -246,6 +104,8 @@ export default function SettingsPage() {
   const [budgetInput, setBudgetInput] = useState("");
   const [venueInput, setVenueInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [journeyNotice, setJourneyNotice] = useState("");
+  const [journeyError, setJourneyError] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -255,9 +115,10 @@ export default function SettingsPage() {
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
   const [resetWeddingError, setResetWeddingError] = useState("");
-  const [comingSoonToast, setComingSoonToast] = useState("");
   const [draftPrefs, setDraftPrefs] = useState<WeddingPreferenceState>({});
   const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [revokingLegacyCareConsent, setRevokingLegacyCareConsent] = useState(false);
+  const [legacyCareConsentError, setLegacyCareConsentError] = useState("");
 
   useEffect(() => {
     const context = {
@@ -308,6 +169,22 @@ export default function SettingsPage() {
 
   const phase = coupleConnection.phase;
   const coupleCode = coupleConnection.inviteCode;
+  const hasLegacyCareConsent =
+    profile?.care_notifications_enabled === true &&
+    typeof profile.care_notifications_consented_at === "string" &&
+    profile.care_notifications_consented_at.trim().length > 0;
+
+  const revokeLegacyCareConsent = async () => {
+    setRevokingLegacyCareConsent(true);
+    setLegacyCareConsentError("");
+    try {
+      await updateProfile({ care_notifications_enabled: false });
+    } catch {
+      setLegacyCareConsentError("수신 동의를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setRevokingLegacyCareConsent(false);
+    }
+  };
 
   const handleCopy = () => {
     if (!coupleCode) return;
@@ -393,9 +270,25 @@ export default function SettingsPage() {
   // 날짜 저장
   const saveDate = async () => {
     setSaving(true);
-    await updateJourney({ wedding_date: dateInput || null });
-    setSaving(false);
-    setEditingDate(false);
+    setJourneyError("");
+    setJourneyNotice("");
+    try {
+      const result = await updateJourney({ wedding_date: dateInput || null });
+      setJourneyNotice(
+        result.status === "pending_partner"
+          ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
+          : "결혼일을 저장했어요.",
+      );
+      setEditingDate(false);
+    } catch (error) {
+      setJourneyError(
+        error instanceof Error
+          ? error.message
+          : "결혼일을 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 예산 저장
@@ -403,17 +296,49 @@ export default function SettingsPage() {
     const value = parseInt(budgetInput) * 10000;
     if (isNaN(value) || value <= 0) return;
     setSaving(true);
-    await updateJourney({ total_budget: value });
-    setSaving(false);
-    setEditingBudget(false);
+    setJourneyError("");
+    setJourneyNotice("");
+    try {
+      const result = await updateJourney({ total_budget: value });
+      setJourneyNotice(
+        result.status === "pending_partner"
+          ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
+          : "총예산을 저장했어요.",
+      );
+      setEditingBudget(false);
+    } catch (error) {
+      setJourneyError(
+        error instanceof Error
+          ? error.message
+          : "총예산을 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // 예식장 저장 — 빈 문자열은 null로 (미정 상태)
+  // 결혼식장 저장 — 빈 문자열은 null로 (미정 상태)
   const saveVenue = async () => {
     setSaving(true);
-    await updateJourney({ venue: venueInput.trim() || null });
-    setSaving(false);
-    setEditingVenue(false);
+    setJourneyError("");
+    setJourneyNotice("");
+    try {
+      const result = await updateJourney({ venue: venueInput.trim() || null });
+      setJourneyNotice(
+        result.status === "pending_partner"
+          ? `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`
+          : "대표 식장을 저장했어요.",
+      );
+      setEditingVenue(false);
+    } catch (error) {
+      setJourneyError(
+        error instanceof Error
+          ? error.message
+          : "대표 식장을 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   // 웨딩 스타일 선호도 — journey.progress.__preferences 안에 저장됨.
@@ -444,12 +369,25 @@ export default function SettingsPage() {
     const nextPrefs = { ...draftPrefs, ...partial };
     setDraftPrefs(nextPrefs);
     setPreferenceSaving(true);
+    setJourneyError("");
+    setJourneyNotice("");
     try {
-      await updateJourney({
+      const result = await updateJourney({
         progress: { ...currentProgress, __preferences: nextPrefs } as never,
       });
-    } catch {
+      if (result.status === "pending_partner") {
+        setDraftPrefs(prefs ?? {});
+        setJourneyNotice(
+          `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`,
+        );
+      }
+    } catch (error) {
       setDraftPrefs(prefs ?? {});
+      setJourneyError(
+        error instanceof Error
+          ? error.message
+          : "웨딩 선호도를 저장하지 못했습니다.",
+      );
     } finally {
       setPreferenceSaving(false);
     }
@@ -546,33 +484,6 @@ export default function SettingsPage() {
 
   const userName = profile?.name ?? "사용자";
   const userEmail = user?.email ?? profile?.email ?? "";
-  const careDeliveryEmail = careAvailability?.emailVerified
-    ? maskEmail(userEmail)
-    : null;
-  const careConsentChangeAllowed = canChangeCareConsent(
-    careNotificationsConsented,
-    careAvailability,
-  );
-  const careStatus = !careAvailability
-    ? "상태 확인 중"
-    : !careChannelsAvailable(careAvailability)
-      ? careNotificationsConsented ? "발송 일시중지" : "준비 중"
-      : !careAvailability.outboundEnabled
-        ? "앱에서 먼저 알려드려요"
-        : careDeliveryEmail ? "사용 가능" : "이메일 인증 필요";
-  const careDescription = !careAvailability
-    ? careNotificationsConsented
-      ? "아모라 케어 발송 상태를 확인하고 있어요. 기존 동의는 언제든 해제할 수 있어요."
-      : "아모라 케어 발송 상태를 확인하고 있어요."
-    : !careChannelsAvailable(careAvailability)
-      ? careNotificationsConsented
-        ? "아모라 먼저 챙기기 발송이 일시중지됐어요. 기존 동의는 유지되며 언제든 해제할 수 있어요."
-        : "아모라 먼저 챙기기는 현재 준비 중이에요. 발송을 시작하면 여기서 켤 수 있어요."
-    : !careAvailability.outboundEnabled
-      ? "상견례·본식 같은 고비 전후로 아모라가 앱에서 먼저 말을 걸어드려요. 이메일 발송은 아직 준비 중이라 앱 안에서만 알려드리고, 언제든 여기서 해제할 수 있어요."
-      : careDeliveryEmail
-        ? `상견례·청첩장 모임 전후 공유 대화와 이메일을 가입 이메일 ${careDeliveryEmail}로 보내요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작되고, 언제든 여기서 해제할 수 있어요.`
-        : "상견례·청첩장 모임 전후 아모라 케어를 준비해요. 가입 이메일 인증을 마치면 이메일 안내도 받을 수 있어요. 파트너가 연결돼 있으면 두 분이 각각 동의해야 시작돼요.";
   const userRole = profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
   const initials = userName.slice(0, 2).toUpperCase();
 
@@ -594,6 +505,23 @@ export default function SettingsPage() {
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 제목 */}
       <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] mb-6 animate-fade-in">설정</h1>
+
+      {journeyNotice && (
+        <div
+          role="status"
+          className="mb-4 rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+        >
+          {journeyNotice}
+        </div>
+      )}
+      {journeyError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+        >
+          {journeyError}
+        </div>
+      )}
 
       {/* 프로필 카드 */}
       <motion.div
@@ -685,11 +613,11 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* 예식장 — 온보딩에서 입력되는 값이지만 설정에서 양쪽이 같이 보고 수정할 수 있게 노출 */}
+          {/* 결혼식장 — 온보딩 값이며 두 사람이 함께 확인하고 수정할 수 있다. */}
           <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
             <MapPin className="w-6 h-6 text-[#795252] flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#B5ADA3]">예식장</p>
+              <p className="text-sm text-[#B5ADA3]">결혼식장</p>
               {editingVenue ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
@@ -697,7 +625,7 @@ export default function SettingsPage() {
                     value={venueInput}
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
-                    placeholder="예: 샘플 예식장, 샘플 호텔"
+                    placeholder="예: 결혼식장 이름"
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
                     autoFocus
                   />
@@ -780,7 +708,11 @@ export default function SettingsPage() {
             <p className="text-base text-[#504444] font-light">
               아모라가 추천·예산 짤 때 쓰는 취향 정보예요
               <span className="ml-2 text-sm text-[#B5ADA3]">
-                {preferenceSaving ? "저장 중..." : "선택하면 바로 저장돼요"}
+                {isDemo
+                  ? "체험에서는 저장되지 않아요"
+                  : preferenceSaving
+                    ? "저장 중..."
+                    : "선택하면 바로 저장돼요"}
               </span>
             </p>
           </div>
@@ -958,12 +890,10 @@ export default function SettingsPage() {
                     아래에서 새 커플로 다시 시작하거나 문제가 있으면 고객지원에 문의해 주세요.
                   </p>
                   <a
-                    href="https://hanbang.ai/support"
-                    target="_blank"
-                    rel="noreferrer"
+                    href={`mailto:${CONTACT.email}`}
                     className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
                   >
-                    고객지원 열기
+                    고객지원 문의
                   </a>
                 </div>
               </div>
@@ -986,12 +916,10 @@ export default function SettingsPage() {
                 안전을 위해 새 멤버 초대는 잠시 멈췄어요. 화면을 새로고침하거나 고객지원에 문의해 주세요.
               </p>
               <a
-                href="https://hanbang.ai/support"
-                target="_blank"
-                rel="noreferrer"
+                href={`mailto:${CONTACT.email}`}
                 className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
               >
-                고객지원 열기
+                고객지원 문의
               </a>
             </div>
           )}
@@ -1035,83 +963,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          {/* 아모라 케어 — 서버 저장(이메일 아웃바운드), 아래 로컬 토글들과 저장소가 다름 */}
-          <div className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
-            <div className="min-w-0 pr-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[17px] font-medium text-[#1A1A1F]">아모라 먼저 챙기기 · 내 동의</p>
-                <span className="rounded-full bg-[#F0E8E4] px-2.5 py-1 text-xs font-medium text-[#795252]">
-                  {careStatus}
-                </span>
-              </div>
-              <p id="care-availability-description" className="mt-1 text-sm text-[#928980] font-light leading-relaxed">
-                {careDescription}
-              </p>
-              {careMessage && <p aria-live="polite" className="mt-1 text-sm text-[#795252]">{careMessage}</p>}
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-label="아모라 먼저 챙기기"
-              aria-describedby="care-availability-description"
-              aria-checked={careNotificationsConsented}
-              disabled={isDemo || careSaving || !careConsentChangeAllowed}
-              onClick={() => void toggleCareNotifications()}
-              className="relative h-11 w-14 flex-shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 disabled:opacity-50"
-            >
-              <span className={`absolute inset-x-1 top-2 h-7 rounded-full transition-colors ${
-                careNotificationsConsented ? "bg-[#8F6662]" : "bg-[#C7D1C2]"
-              }`} />
-              <span className={`absolute left-0 top-2.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
-                careNotificationsConsented ? "translate-x-7" : "translate-x-1.5"
-              }`} />
-            </button>
-          </div>
-          {/* 휴대폰 번호 — 알림톡/문자 케어 채널 준비 (서버 저장) */}
-          <div className="px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors">
-            <p className="text-[17px] font-medium text-[#1A1A1F]">휴대폰 번호</p>
-            <p className="text-sm text-[#B5ADA3] font-light mb-3">
-              카톡·문자 케어 오픈 시 이 번호로 아모라가 먼저 안부를 물어요 (준비 중)
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="tel"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="010-1234-5678"
-                disabled={isDemo}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[#F6F3F2] text-[15px] text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all disabled:opacity-50"
-              />
-              <button
-                onClick={savePhone}
-                disabled={isDemo || phoneSaving || !phoneDirty}
-                className="px-5 py-2.5 rounded-xl bg-[#795252] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#946a6a] transition-colors flex-shrink-0"
-              >
-                {phoneSaving ? "저장 중" : "저장"}
-              </button>
-            </div>
-            <label className="mt-3 flex items-start gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={phoneConsent}
-                onChange={(e) => setPhoneConsent(e.target.checked)}
-                disabled={isDemo || !phoneInput.replace(/[^0-9]/g, "")}
-                className="mt-0.5 h-4 w-4 accent-[#795252]"
-              />
-              <span className="text-sm text-[#504444] font-light leading-relaxed">
-                직접 입력한 일정 안내를 카톡·문자로 받는 것에 동의합니다
-                <span className="text-[#B5ADA3]"> (언제든 여기서 해제 가능)</span>
-              </span>
-            </label>
-            {phoneMessage && (
-              <p className="mt-2 text-sm text-[#795252]">{phoneMessage}</p>
-            )}
-          </div>
           {[
-            { key: "schedule" as const, label: "일정 알림", desc: "D-day 체크리스트 리마인더" },
-            { key: "budget" as const, label: "예산 알림", desc: "예산 초과 및 변동 알림" },
-            { key: "ai" as const, label: "맞춤 추천 알림", desc: "맞춤 업체 추천, 꿀팁 안내" },
-            { key: "marketing" as const, label: "마케팅 알림", desc: "이벤트, 할인 정보" },
+            { key: "schedule" as const, label: "일정 알림", desc: "앱 안 알림 목록에서 결혼식까지 남은 기간에 맞춰 확인할 일을 알려드려요." },
+            { key: "budget" as const, label: "예산 알림", desc: "앱 안 알림 목록에서 전체 예산 범위를 정할 시점을 알려드려요." },
           ].map((item) => (
             <div
               key={item.key}
@@ -1122,6 +976,10 @@ export default function SettingsPage() {
                 <p className="text-sm text-[#B5ADA3] font-light">{item.desc}</p>
               </div>
               <button
+                type="button"
+                role="switch"
+                aria-label={item.label}
+                aria-checked={notifications[item.key]}
                 onClick={() => toggleNotification(item.key)}
                 className={`w-12 h-7 rounded-full transition-colors relative ${
                   notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-[#B5ADA3]/30"
@@ -1136,6 +994,57 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+
+        {hasLegacyCareConsent && (
+          <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">
+            <p className="text-[17px] font-medium text-[#1A1A1F]">이전 이메일 수신 동의</p>
+            <p className="mt-1 text-sm font-light leading-relaxed text-[#928980]">
+              예전에 동의한 아모라 이메일 수신을 여기에서 해제할 수 있어요.
+            </p>
+            <button
+              type="button"
+              onClick={() => void revokeLegacyCareConsent()}
+              disabled={revokingLegacyCareConsent}
+              className="mt-3 text-sm font-medium text-[#A04A4A] underline underline-offset-4 disabled:cursor-wait disabled:opacity-50"
+            >
+              {revokingLegacyCareConsent ? "해제 중..." : "이메일 수신 동의 해제"}
+            </button>
+            {legacyCareConsentError && (
+              <p role="alert" className="mt-2 text-sm text-[#A04A4A]">
+                {legacyCareConsentError}
+              </p>
+            )}
+          </div>
+        )}
+      </motion.div>
+
+      {/* 개인별 아모라 도움 방식 — 커플 공용 웨딩 스타일과 분리 */}
+      <motion.div
+        {...fadeIn}
+        transition={{ duration: 0.5, delay: 0.12 }}
+        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+      >
+        <Link
+          {...weddingLinkProps("/settings/amora-style")}
+          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#36534E]"
+        >
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#36534E] shadow-[0_4px_14px_rgba(54,83,78,0.2)]">
+            <Sparkles className="h-5 w-5 text-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-medium text-[#243832]">
+              아모라 도움 방식
+            </span>
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+              추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요
+            </span>
+          </span>
+          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+            <ShieldCheck className="h-4 w-4" />
+            나만 적용
+          </span>
+          <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B89785]" />
+        </Link>
       </motion.div>
 
       {/* 아모라 기억 관리 */}
@@ -1172,34 +1081,28 @@ export default function SettingsPage() {
         className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6"
       >
         {[
-          { label: "이용약관" },
-          { label: "개인정보 처리방침" },
-          { label: "고객센터" },
-          { label: "앱 버전", value: "v1.0.0 (Beta)" },
+          { label: "이용약관", href: "/terms" },
+          { label: "개인정보 처리방침", href: "/privacy" },
         ].map((item) => (
-          <button
+          <Link
             key={item.label}
-            onClick={() => {
-              if (!item.value) {
-                setComingSoonToast(item.label);
-                setTimeout(() => setComingSoonToast(""), 3000);
-              }
-            }}
-            className="w-full flex items-center justify-between px-6 py-5 hover:bg-[#F6F3F2] transition-colors"
+            href={item.href}
+            className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
           >
             <span className="text-[17px] text-[#1A1A1F]">{item.label}</span>
-            {item.value ? (
-              <span className="text-base text-[#B5ADA3]">{item.value}</span>
-            ) : (
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
-            )}
-          </button>
+            <ChevronRight className="h-5 w-5 text-[#B5ADA3]" />
+          </Link>
         ))}
-        {comingSoonToast && (
-          <div className="px-6 py-3 bg-amber-50">
-            <p className="text-sm text-amber-700">{comingSoonToast} 페이지는 준비 중입니다.</p>
-          </div>
-        )}
+        <a
+          href={`mailto:${CONTACT.email}`}
+          className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
+        >
+          <span>
+            <span className="block text-[17px] text-[#1A1A1F]">고객센터</span>
+            <span className="mt-0.5 block text-sm text-[#928980]">{CONTACT.email}</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-[#B5ADA3]" />
+        </a>
       </motion.div>
 
       {/* 로그아웃 & 탈퇴 */}

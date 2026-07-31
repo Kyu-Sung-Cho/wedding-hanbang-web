@@ -49,7 +49,7 @@ export default async function BetaPage() {
           <p className="text-[11px] tracking-[0.3em] text-rose-light mb-6 font-medium">
             베타 모집
           </p>
-          <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-[-0.015em] max-w-3xl">
+          <h1 className="font-serif-kr text-[clamp(34px,5.5vw,68px)] font-light text-white leading-[1.15] tracking-normal max-w-3xl">
             아모라의 운영 검증에
             <br />
             <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.

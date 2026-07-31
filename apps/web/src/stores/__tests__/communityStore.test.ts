@@ -9,6 +9,7 @@ function post(id: string, createdAt: string): PostWithAuthor {
   return {
     id,
     author_id: "author-1",
+    content_origin: "member",
     category: "free",
     title: id,
     content: "",
@@ -77,6 +78,7 @@ function comment(
     post_id: postId,
     parent_id: null,
     author_id: author.user_id,
+    content_origin: "member",
     content,
     upvote_count: 0,
     is_deleted: false,
@@ -127,6 +129,33 @@ describe("useCommunityStore feed cache", () => {
     expect(useCommunityStore.getState().posts[0].id).toBe("cached-hot");
   });
 
+  it("always revalidates a fresh unanswered cache because reply state changes membership", async () => {
+    useCommunityStore.getState().setSort("unanswered");
+    const cachedPost = {
+      ...post("cached-question", "2026-06-15T00:00:00.000Z"),
+      category: "is_normal" as const,
+    };
+    const networkPost = {
+      ...post("network-question", "2026-06-16T00:00:00.000Z"),
+      category: "ama" as const,
+    };
+    sessionStorage.setItem(
+      "community:feed:all:unanswered:_:_:_",
+      JSON.stringify({ posts: [cachedPost], total: 1, hasMore: false, ts: Date.now() }),
+    );
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ posts: [networkPost], total: 1, hasMore: false }),
+    });
+
+    await useCommunityStore.getState().fetchPosts(true);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/community/posts?sort=unanswered&page=1&limit=20",
+    );
+    expect(useCommunityStore.getState().posts[0].id).toBe("network-question");
+  });
+
   it("applies the current user's new nickname to cached community state", () => {
     const oldAuthor = communityProfile("author-1", "old-name");
     const otherAuthor = communityProfile("author-2", "other-name");
@@ -163,6 +192,90 @@ describe("useCommunityStore feed cache", () => {
     expect(state.comments[0].replies?.[0].author.nickname).toBe("new-name");
     expect(state.comments[1].author.nickname).toBe("other-name");
     expect(sessionStorage.getItem("community:feed:all:hot:_:_:_")).toBeNull();
+  });
+
+  it("merges a resolved post response into both the feed and current detail", async () => {
+    const question = {
+      ...post("question-1", "2026-06-15T00:00:00.000Z"),
+      category: "is_normal" as const,
+    };
+    const currentPost = {
+      ...question,
+      vendor_details: [],
+    } as PostDetail;
+    useCommunityStore.setState({
+      posts: [question],
+      currentPost,
+    });
+    sessionStorage.setItem(
+      "community:feed:all:new:_:_:_",
+      JSON.stringify({ posts: [question], total: 1, hasMore: false, ts: Date.now() }),
+    );
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        post: {
+          id: question.id,
+          is_resolved: true,
+          updated_at: "2026-06-16T00:00:00.000Z",
+        },
+      }),
+    });
+
+    const success = await useCommunityStore
+      .getState()
+      .updatePost(question.id, { is_resolved: true });
+
+    expect(success).toBe(true);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/community/posts/${question.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_resolved: true }),
+      },
+    );
+    expect(useCommunityStore.getState().posts[0]).toEqual(
+      expect.objectContaining({
+        id: question.id,
+        is_resolved: true,
+        author: question.author,
+      }),
+    );
+    expect(useCommunityStore.getState().currentPost).toEqual(
+      expect.objectContaining({
+        id: question.id,
+        is_resolved: true,
+        vendor_details: [],
+      }),
+    );
+    expect(sessionStorage.getItem("community:feed:all:new:_:_:_")).toBeNull();
+  });
+
+  it("keeps the current post unchanged when a resolution update fails", async () => {
+    const question = {
+      ...post("question-1", "2026-06-15T00:00:00.000Z"),
+      category: "ama" as const,
+    };
+    useCommunityStore.setState({
+      posts: [question],
+      currentPost: { ...question, vendor_details: [] } as PostDetail,
+    });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "상태를 저장하지 못했습니다." }),
+    });
+
+    const success = await useCommunityStore
+      .getState()
+      .updatePost(question.id, { is_resolved: true });
+
+    expect(success).toBe(false);
+    expect(useCommunityStore.getState().posts[0].is_resolved).toBe(false);
+    expect(useCommunityStore.getState().currentPost?.is_resolved).toBe(false);
+    expect(useCommunityStore.getState().errorMessage).toBe(
+      "상태를 저장하지 못했습니다.",
+    );
   });
 
   it("clears stale comments immediately when loading a different post", async () => {
@@ -221,6 +334,113 @@ describe("useCommunityStore feed cache", () => {
     const state = useCommunityStore.getState();
     expect(state.commentsPostId).toBe("post-2");
     expect(state.comments.map((c) => c.id)).toEqual(["comment-new"]);
+  });
+
+  it("removes a question from the unanswered feed immediately after the first answer", async () => {
+    const question = {
+      ...post("question-1", "2026-06-15T00:00:00.000Z"),
+      category: "is_normal" as const,
+    };
+    useCommunityStore.setState({
+      currentSort: "unanswered",
+      posts: [question],
+      total: 1,
+      currentPost: { ...question, vendor_details: [] } as PostDetail,
+    });
+    sessionStorage.setItem(
+      "community:feed:all:unanswered:_:_:_",
+      JSON.stringify({ posts: [question], total: 1, hasMore: false, ts: Date.now() }),
+    );
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ comments: [] }),
+    });
+
+    const ok = await useCommunityStore.getState().createComment({
+      post_id: question.id,
+      content: "제가 겪은 범위에서는 이 항목부터 확인했어요.",
+    });
+
+    expect(ok).toBe(true);
+    expect(useCommunityStore.getState().posts).toEqual([]);
+    expect(useCommunityStore.getState().total).toBe(0);
+    expect(useCommunityStore.getState().currentPost?.comment_count).toBe(1);
+    expect(sessionStorage.getItem("community:feed:all:unanswered:_:_:_")).toBeNull();
+  });
+
+  it("forwards the caller's stable idempotency key on a comment retry", async () => {
+    const stableKey = "70000000-0000-4000-8000-000000000001";
+    mockFetch
+      .mockRejectedValueOnce(new Error("network interrupted"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ post_comment_count: 1 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ comments: [] }),
+      });
+    const input = {
+      post_id: "post-1",
+      content: "같은 제출을 다시 시도합니다.",
+    };
+
+    const first = await useCommunityStore.getState().createComment(
+      input,
+      { idempotencyKey: stableKey },
+    );
+    const retry = await useCommunityStore.getState().createComment(
+      input,
+      { idempotencyKey: stableKey },
+    );
+
+    expect(first).toBe(false);
+    expect(retry).toBe(true);
+    const commentCalls = mockFetch.mock.calls.filter(
+      ([url]) => url === "/api/community/comments",
+    );
+    expect(commentCalls).toHaveLength(2);
+    for (const [, init] of commentCalls) {
+      expect(init).toEqual(expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": stableKey,
+        }),
+      }));
+    }
+  });
+
+  it("uses the server count on an idempotent replay instead of incrementing twice", async () => {
+    const answeredPost = {
+      ...post("question-1", "2026-06-15T00:00:00.000Z"),
+      category: "is_normal" as const,
+      comment_count: 3,
+    };
+    useCommunityStore.setState({
+      currentSort: "new",
+      posts: [answeredPost],
+      currentPost: { ...answeredPost, vendor_details: [] } as PostDetail,
+    });
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          replayed: true,
+          post_comment_count: 3,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ comments: [] }),
+      });
+
+    const ok = await useCommunityStore.getState().createComment(
+      { post_id: answeredPost.id, content: "재시도한 같은 답변" },
+      { idempotencyKey: "70000000-0000-4000-8000-000000000002" },
+    );
+
+    expect(ok).toBe(true);
+    expect(useCommunityStore.getState().posts[0]?.comment_count).toBe(3);
+    expect(useCommunityStore.getState().currentPost?.comment_count).toBe(3);
   });
 
   it("updates edited comments inside the current comment tree", async () => {
