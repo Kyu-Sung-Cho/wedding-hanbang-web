@@ -197,7 +197,7 @@ test("document authority chain is complete and old status claims stay historical
   );
   assert.match(
     documents.currentRelease,
-    /마지막 code\/config 검증 commit: `2a13e2656c0b938ab5ec81064fd328e023e3347b`/,
+    /마지막 code\/config 검증 commit: `a66da0d8857e75eb404a7b9a34ff1069b6be889e`/,
   );
   assert.match(
     documents.currentRelease,

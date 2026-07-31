@@ -78,7 +78,7 @@ commit의 READY 배포이고, 새 작업 트리는 GitHub Draft PR과 Vercel 보
 - 최초 통합 snapshot commit:
   `04f0ea1603c4ebbe5e9018f17ada5e239ac508c7`
 - 마지막 검증 code/config commit:
-  `2a13e2656c0b938ab5ec81064fd328e023e3347b`
+  `a66da0d8857e75eb404a7b9a34ff1069b6be889e`
 - remote branch:
   `origin/agent/release-handoff-20260731`
 - Draft PR:
@@ -424,9 +424,11 @@ commit 전에 각 경로의 참조 검색과 nearest test를 확인해야 한다
   case에만 30초 예산을 준 commit
   `62f2035c3a1d7eaa668472a46be496432138ad64`를 추가했다.
 - 수정 뒤 해당 파일 43/43, 가장 무거운 PGlite 4파일 128/128, 전체 web suite를
-  원래 4 workers에서 461 files / 3,948 tests PASS로 재검증했다. 전역 workers를
-  2로 낮추는 임시 완화는 느리고 불필요해 final code/config
-  `2a13e2656c0b938ab5ec81064fd328e023e3347b`에서 되돌렸다.
+  4 workers와 2 workers에서 각각 461 files / 3,948 tests PASS로 재검증했다.
+  그러나 cache-cleared merged release gate에서는 4 workers가 두 번 불안정했고 두
+  번째에는 결과를 남기기 전에 web test process가 종료됐다. 따라서 실행시간보다
+  릴리스 재현성을 우선해 final code/config
+  `a66da0d8857e75eb404a7b9a34ff1069b6be889e`에서 workers를 2로 고정했다.
 
 production build는 synthetic/local 환경 성공과 실제 production fence를 구분한다.
 manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
@@ -437,7 +439,7 @@ manifest가 blocked인 상태를 우회해 build·deploy하지 않는다.
 - local branch: `agent/release-handoff-20260731`
 - base/origin: `0f84665e9b8828f30e5a83ca5854ef618c3f4518`
 - 최초 통합 snapshot: `04f0ea1603c4ebbe5e9018f17ada5e239ac508c7`
-- 마지막 code/config 검증 commit: `2a13e2656c0b938ab5ec81064fd328e023e3347b`
+- 마지막 code/config 검증 commit: `a66da0d8857e75eb404a7b9a34ff1069b6be889e`
 - push: 완료
 - PR: Draft [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79)
 - GitHub checks:
