@@ -5,10 +5,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    // PGlite boots a PostgreSQL WASM runtime per migration test file. Bounding
-    // file workers prevents CPU/memory contention from turning healthy 5s
-    // assertions into nondeterministic CI timeouts.
-    maxWorkers: 4,
+    // PGlite boots a PostgreSQL WASM runtime per migration test file. Four
+    // workers pass in isolation but have twice terminated the web test process
+    // inside the cache-cleared merged release gate. Keep two workers so local,
+    // pre-push, and CI checks share the release-proven stable bound.
+    maxWorkers: 2,
     testTimeout: 15_000,
     setupFiles: ["./src/test/supabaseDestinationEnv.ts"],
   },
