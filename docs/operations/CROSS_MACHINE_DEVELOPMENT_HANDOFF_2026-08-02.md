@@ -306,11 +306,11 @@ corepack pnpm build:web
 | repository test | PASS | `pnpm test:repo`, exit 0, 125.7초 |
 | shared workspace test | PASS | exit 0 |
 | web workspace test | PASS | 529 files / 5,070 tests |
-| 현재 전체 후보 `pnpm test` | PASS | root 종료 코드 0, Turbo 2/2; 전체 실행 18분 0.6초 |
+| 현재 전체 후보 `pnpm test` | PASS | 최종 재실행 exit 0, 101.8초; Turbo workspace 테스트 cache hit |
 | 현재 전체 후보 `pnpm typecheck` | PASS | 4 workspace + ingest |
 | Supabase release contract | PASS / BLOCKED | tests 189/189, 66개 manifest 정적 fence PASS, 적용은 `deployment_blocked` |
 | 커뮤니티 release contract | LOCAL READY / PRODUCTION NO-GO | local 13개 계약과 test 2/2 통과, hosted·운영 증거 없음 |
-| 현재 전체 후보 `pnpm build:web` | PENDING | 실행 중인 웹 dev lock을 강제 종료하지 않고 격리 worktree 확인 예정 |
+| 현재 전체 후보 `pnpm build:web` | BLOCKED | 다른 작업의 active web dev lock을 확인해 강제 종료하지 않음; 코드 실패로 판정하지 않음 |
 | hosted migration | NOT RUN | production DB NO-GO |
 | Vercel/EAS production deploy | NOT RUN | 별도 승인·receipt 필요 |
 
