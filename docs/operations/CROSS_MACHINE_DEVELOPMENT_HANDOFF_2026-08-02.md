@@ -1,12 +1,33 @@
-# 다른 컴퓨터 개발 인수인계 — 2026-08-02
+# 다른 컴퓨터 개발 인수인계 — 2026-08-02 (2026-08-03 GitHub 동기화)
 
 > [!IMPORTANT]
-> **상태: SOURCE SNAPSHOT / RELEASE CANDIDATE / PRODUCTION DB NO-GO**
+> **상태: SOURCE SNAPSHOT PUSHED / DRAFT PR / PRODUCTION DB NO-GO**
 >
 > 이 문서는 `agent/release-handoff-20260731` 브랜치에 모인 웹·모바일·공유 패키지·DB
 > 후보를 다른 컴퓨터에서 그대로 이어 개발하기 위한 시작점이다. GitHub에 코드가
 > 존재한다는 사실은 Vercel 운영 배포, hosted Supabase migration 적용, 앱스토어 출시를
 > 뜻하지 않는다. 운영 변경은 각 release fence와 승인 증거를 별도로 통과해야 한다.
+
+### 2026-08-03 GitHub 기준점
+
+| 항목 | 확인값 |
+|---|---|
+| repository | `https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git` |
+| 이어서 개발할 branch | `agent/release-handoff-20260731` |
+| 통합 구현 anchor | `a617d268cdadd9d7a348222942b0f0e1851467de` (`feat: 아모라·커뮤니티 통합 인수인계 반영`) |
+| anchor 변경량 | `764fb213` 대비 478 files, +79,766 / -5,293 |
+| GitHub 검토면 | Draft PR [#79](https://github.com/Kyu-Sung-Cho/wedding-hanbang-web/pull/79) |
+| 최종 source | 이 문서를 포함한 `origin/agent/release-handoff-20260731`의 최신 HEAD |
+
+`a617d268`은 큰 구현 묶음을 찾기 위한 고정 anchor이고, 실제 재개 기준은 언제나 원격 branch
+HEAD다. 정확한 구현 목록은 `git show --stat a617d268`과
+`git diff --name-status 764fb213 a617d268`로 다시 확인한다. 2026-07-31 inventory는 당시 dirty
+worktree의 역사 기록이므로 현재 478-file 구현 목록으로 오해하지 않는다.
+
+보호형 Vercel Preview의 기존 receipt `dpl_CByALSMu1zcnLPudFDmnCSM9egMC`는 code SHA
+`41686ad60721092b6f1fd7088cb674ed5e7b43eb`에만 묶인다. 따라서 `a617d268` 이후 현재
+source의 Preview 화면·로그인·브라우저 QA를 증명하지 않는다. 새 컴퓨터에서는 PR #79의 최신
+deployment source binding을 먼저 확인하고, 현재 HEAD와 다르면 새 Preview 증거로 다시 검증한다.
 
 ## 1. 가장 먼저 할 일
 
@@ -46,7 +67,8 @@ git status -sb
 | 항목 | 현재 정본 |
 |---|---|
 | 패키지 관리자 | `pnpm@11.7.0` |
-| Node.js | `>=22.13.0` |
+| 일반 개발·빌드 Node.js | `>=22.13.0` (검증 기준 `22.13.0`) |
+| Expo 로컬 dev server Node.js | `20.19.x` (현재 wrapper 검증 기준 `20.19.6`) |
 | 웹 | Next.js `16.2.11`, React `19.2.3`, Tailwind CSS 4 |
 | 모바일 | Expo `~54.0.36`, React Native `0.81.5`, React `19.1.0` |
 | 저장소 구조 | pnpm/Turbo 모노레포 |
@@ -83,8 +105,9 @@ git status -sb
 
 ### 4.1 아모라 대화 기반
 
-- 한 화면 안에서 공유 아모라, 파트너 직접 대화, 개인 아모라 초안을 독립적으로
-  유지한다.
+- 사용자는 하나의 아모라 입구에서 대화를 이어가지만, 서버와 상태는 `shared_ai`,
+  `shared_partner`, `private_ai` 레인과 현재 active segment로 분리한다. 한 채팅처럼 보이는
+  편의성이 private/shared 경계를 없애지는 않는다.
 - 사용자·세션이 바뀐 뒤 늦게 도착한 비동기 결과와 Realtime 이벤트가 새 계정 상태를
   덮지 못하도록 generation/session fence를 추가했다.
 - 저장 실패, provider 실패, 재시도, 첨부 업로드를 서로 다른 실패 상태로 처리한다.
@@ -93,9 +116,24 @@ git status -sb
   중복 실행을 막는다.
 - 대화 segment schema, dual-write, 현재 segment read 경로, memory repair/replay 후보를
   추가했다. 단, hosted 적용과 read flag 활성화 전이므로 운영 기능으로 주장하지 않는다.
+- `W3`는 명시적인 “그게·아까·앞에서 말한” 참조가 있을 때만 같은 actor·visibility·active
+  segment의 직전 사용자 발화와 그 ID에 정확히 연결된 AI 답변 1쌍을 제한 길이로 사용한다.
+  그 외 `W3`와 `W4`는 현재 발화만 쓰고 저장 요약·도구·첨부·장기 기억을 읽지 않는다.
+- 저장 문맥을 사용한 응답은 actor-bound privacy epoch를 커밋까지 원자적으로 재검증한다.
+  검증 전 provider delta와 민감 tool event를 버퍼링하고, final fence가 실패하면 초안을 화면에
+  한 글자도 내보내지 않는다.
+- 재시도는 `same_request`와 `new_message`를 명시적으로 구분한다. legacy 또는 잘못된
+  retry metadata는 이전 응답·도구 실행을 임의 재생하지 않고 fail-closed한다.
+- `W0`·`W1` 기억 복구는 같은 트랜잭션의 ID-only outbox 또는 동일 active job이 정확히
+  증명될 때만 멱등 처리한다. `W2`~`W5`, legacy, malformed metadata는 장기 기억으로 자동
+  승격하지 않는다.
 - 중재안은 두 사용자의 정확한 revision 확인과 현재 roster 결속을 통과해야 확정된다.
-- 위기 표현은 규칙 기반 분류·안전 응답·회복 경로와 테스트를 가진다. 의료·법률 판단을
-  대신한다는 의미는 아니다.
+- 숨은 legacy 자동 갈등 감지·중재는 production에서 강제로 거부한다. 중재 요청 안의
+  폭력·협박·강압 통제는 일반 중재가 아니라 안전 경계로 전환한다.
+- 위기 표현은 모델보다 먼저 규칙 기반으로 방향과 현재성을 분류하고, 피해 위험과 가해
+  위험에 서로 다른 고정 안전 응답을 사용한다. provider 실패·새로고침 뒤에도 raw disclosure를
+  복사하지 않는 deterministic recovery와 pinned safety card를 유지한다. 이는 의료·법률 판단을
+  대신한다는 의미가 아니다.
 
 세부 설계 정본:
 
@@ -218,6 +256,24 @@ apps/mobile/.env.local
 보관한다. 모바일 `EXPO_PUBLIC_*`와 웹 `NEXT_PUBLIC_*`는 공개 번들에 포함될 수 있으므로
 service role이나 private provider key를 넣지 않는다.
 
+아모라 운영 안전 flag는 새 환경에서 자동으로 켜지지 않는다. 최소한 다음 값은 migration,
+restore, canary와 소유자 승인 전까지 정확히 `false`를 유지한다.
+
+```text
+AMORA_OPENAI_ENABLED=false
+AMORA_AUXILIARY_MEMORY_ENABLED=false
+AMORA_CARE_OUTBOUND_ENABLED=false
+AMORA_COMMUNITY_AI_COMMENT_ENABLED=false
+AMORA_CONVERSATION_SEGMENT_READ_ENABLED=false
+AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED=false
+AMORA_TODAY_ONE_ENABLED=false
+```
+
+인증된 live 대화 평가에는 서버·운영자 전용 `AMORA_EVAL_SECRET`이 필요하다. 최소 32자의
+별도 랜덤 값을 password manager/Vercel/CI에서 주입하며 실제 값은 Git이나 `NEXT_PUBLIC_*`에
+넣지 않는다. 이 값이 없거나 짧으면 live 평가는 fail-closed하는 것이 정상이다. offline 평가는
+외부 AI 호출 없이 비워 둔 상태로 실행할 수 있다.
+
 기존 컴퓨터의 `.env.local`을 메신저, 이메일, Git commit으로 옮기지 않는다. Vercel,
 EAS, Supabase, 팀 password manager에서 목적지별로 다시 주입한다.
 
@@ -237,6 +293,9 @@ corepack pnpm dev:web
 강제로 종료하지 않는다.
 
 ### 모바일
+
+Expo 로컬 dev server는 일반 빌드 terminal과 분리해 Node `20.19.x`(현재 wrapper 기준
+`20.19.6`)에서 실행한다. EAS와 일반 repository 명령의 기준은 Node `>=22.13.0`이다.
 
 ```powershell
 corepack pnpm dev:mobile
@@ -303,7 +362,8 @@ corepack pnpm build:web
 | 모바일 release readiness | PASS | 104 checks |
 | 모바일→웹 링크 계약 | PASS | 1 test |
 | 로컬 runtime contract HTTP | PASS | `200`, project ref/capability 확인 |
-| repository test | PASS | `pnpm test:repo`, exit 0, 125.7초 |
+| repository test | PASS | `pnpm test:repo`, 273/273, exit 0, 86.6초 wall time |
+| 인수인계 문서 계약 | PASS | `node --test scripts/tests/repository-handoff-docs.test.mjs`, 7/7 |
 | shared workspace test | PASS | exit 0 |
 | web workspace test | PASS | 529 files / 5,070 tests |
 | 현재 전체 후보 `pnpm test` | PASS | 최종 재실행 exit 0, 101.8초; Turbo workspace 테스트 cache hit |
@@ -311,8 +371,16 @@ corepack pnpm build:web
 | Supabase release contract | PASS / BLOCKED | tests 189/189, 66개 manifest 정적 fence PASS, 적용은 `deployment_blocked` |
 | 커뮤니티 release contract | LOCAL READY / PRODUCTION NO-GO | local 13개 계약과 test 2/2 통과, hosted·운영 증거 없음 |
 | 현재 전체 후보 `pnpm build:web` | PASS | 격리 worktree와 local QA synthetic 환경에서 exit 0; Next.js 16.2.11, 142개 정적 페이지, production artifact 2,365개 clean |
+| 모바일 정적 export | PASS | Web·iOS·Android export exit 0; Sentry org/project 미설정 경고는 release credential 미주입 경계로 기록 |
+| 아모라 offline 평가 | PASS / LIVE UNVERIFIED | 37 scenarios, 19 domains, W0~W5; `externalAiCalls=0`, `humanReviews=0`, `liveMatrixVerified=false` |
 | hosted migration | NOT RUN | production DB NO-GO |
 | Vercel/EAS production deploy | NOT RUN | 별도 승인·receipt 필요 |
+
+web build의 PASS는 local QA synthetic 환경에서 코드·정적 산출물을 검증한 결과다. 실제
+Supabase 공개 변수가 없는 raw production build는 page-data 단계에서 실패하도록 되어 있으며,
+이는 승인된 Preview 환경의 build·브라우저 QA를 대체하지 않는다. 현재 source에 대해 아직
+증명되지 않은 항목은 live Luna/Terra provider 호출, 사람 검토, 실제 커플 두 계정 E2E,
+최신 Preview source binding과 보호형 브라우저 QA다.
 
 ## 9. 알려진 미완료와 출시 게이트
 
@@ -346,7 +414,8 @@ corepack pnpm build:web
 
 1. 새 컴퓨터에서 이 브랜치와 환경을 복원하고 전체 검증 ledger를 새 commit 기준으로
    다시 만든다.
-2. active web dev process가 없을 때 `corepack pnpm build:web`을 완료한다.
+2. 승인된 preview 환경을 주입한 fresh clone에서 같은 HEAD의 web build를 재실행하고,
+   PR #79의 deployment source binding과 보호형 브라우저 QA를 남긴다.
 3. 두 실제 계정·두 기기 조합으로 웹↔모바일 실시간 동기화를 검증한다.
 4. `.well-known` association 파일에 필요한 실제 Apple/Android 서명 정보를 확보한다.
 5. preview clone에서 신규 migration 순서, rollback, restore를 검증한다.

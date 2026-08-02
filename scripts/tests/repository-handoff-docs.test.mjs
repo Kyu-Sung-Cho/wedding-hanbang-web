@@ -110,6 +110,50 @@ test("cross-machine handoff links the machine-local Lazyweb runbook without comm
   }
 });
 
+test("current cross-machine handoff pins the implementation and evidence boundaries", async () => {
+  const [agents, readme, docsIndex, crossMachine, fullHandoff, envExample] =
+    await Promise.all([
+      readFile(new URL("AGENTS.md", root), "utf8"),
+      readFile(new URL("README.md", root), "utf8"),
+      readFile(new URL("docs/README.md", root), "utf8"),
+      readFile(new URL(crossMachineHandoffPath, root), "utf8"),
+      readFile(new URL(currentReleaseHandoffPath, root), "utf8"),
+      readFile(new URL("apps/web/.env.example", root), "utf8"),
+    ]);
+
+  for (const document of [agents, readme, docsIndex, crossMachine]) {
+    assert.match(document, /docs\/AMORA_CONVERSATION_FOUNDATION_2026-08-01\.md/);
+    assert.match(document, /docs\/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30\.md/);
+  }
+  for (const document of [agents, readme, docsIndex]) {
+    assert.match(
+      document,
+      /docs\/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02\.md/,
+    );
+    assert.match(document, /PLAN|제안/);
+    assert.match(document, /미구현/);
+  }
+
+  for (const document of [crossMachine, fullHandoff]) {
+    assert.match(document, /a617d268cdadd9d7a348222942b0f0e1851467de/);
+    assert.match(document, /478 files/);
+    assert.match(document, /79,766/);
+    assert.match(document, /5,293/);
+    assert.match(document, /41686ad60721092b6f1fd7088cb674ed5e7b43eb/);
+    assert.match(document, /UNVERIFIED|증명하지 않는다/);
+  }
+
+  assert.match(crossMachine, /20\.19\.6/);
+  assert.match(crossMachine, /37 scenarios/);
+  assert.match(crossMachine, /19 domains/);
+  assert.match(crossMachine, /externalAiCalls=0/);
+  assert.match(crossMachine, /humanReviews=0/);
+  assert.match(crossMachine, /liveMatrixVerified=false/);
+  assert.match(crossMachine, /production artifact 2,365개 clean/);
+  assert.match(crossMachine, /AMORA_EVAL_SECRET/);
+  assert.match(envExample, /^AMORA_EVAL_SECRET=$/m);
+});
+
 test("current MVP source is explicit and historical briefs cannot masquerade as current", async () => {
   const [
     agents,
@@ -378,9 +422,10 @@ test("current release inventory is exhaustive, minimal, and fail-closed", async 
 // `pnpm audit:production`이 "키가 없다"로 죽고 원인을 안내하지 못했다.
 // CLAUDE.md가 `.env.example`을 환경변수의 정본으로 지정하므로 그 계약을 지킨다.
 test("운영 스크립트가 요구하는 env 키가 .env.example에 문서화돼 있다", async () => {
-  const [example, audit] = await Promise.all([
+  const [example, audit, amoraEval] = await Promise.all([
     readFile(new URL("apps/web/.env.example", root), "utf8"),
     readFile(new URL("scripts/audit/production-readiness-audit.mjs", root), "utf8"),
+    readFile(new URL("scripts/amora-conversation-eval.mjs", root), "utf8"),
   ]);
   // 앱 런타임이 아니라 **스크립트**가 요구하는 키들. 빠지면 새 컴퓨터에서 막힌다.
   for (const key of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_SERVICE_ROLE_KEY"]) {
@@ -395,4 +440,6 @@ test("운영 스크립트가 요구하는 env 키가 .env.example에 문서화�
     /SUPABASE_ACCESS_TOKEN/,
     "감사 스크립트가 더 이상 그 키를 쓰지 않으면 이 계약을 갱신할 것",
   );
+  assert.match(example, /^AMORA_EVAL_SECRET=$/m);
+  assert.match(amoraEval, /AMORA_EVAL_SECRET must be set to at least 32 characters/);
 });

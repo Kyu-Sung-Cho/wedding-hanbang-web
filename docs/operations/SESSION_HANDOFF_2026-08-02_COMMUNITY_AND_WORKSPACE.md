@@ -12,6 +12,13 @@
 > 이 문서를 GitHub에 올리는 것은 소스 공유일 뿐이다. Supabase migration 적용,
 > Vercel production 배포, 커뮤니티 공개, EAS 빌드·스토어 출시는 승인하지 않는다.
 
+> [!NOTE]
+> **2026-08-03 source closure:** 이 세션의 큰 구현 묶음은
+> `a617d268cdadd9d7a348222942b0f0e1851467de`에 고정돼 있고, 이후 문서·검증 보강까지
+> `origin/agent/release-handoff-20260731`에 이어진다. 실제 재개 기준은 원격 최신 HEAD다.
+> neutral member 모델은 계속 제안 단계이며, 기존 SHA `41686ad6`의 Preview receipt는 이
+> 현재 구현을 검증한 증거가 아니다.
+
 ## 1. 60초 인계
 
 현재 제품 계약은 바뀌지 않았다.

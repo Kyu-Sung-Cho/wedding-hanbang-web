@@ -53,6 +53,12 @@
   `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
 - **2026-08-02 커뮤니티·전체 구현 보충 인계**(검색·신뢰·아모라 연결 · 구현/후속 구분):
   `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- **현재 아모라 대화 기반**(lane·segment · privacy fence · retry · 기억 복구 · 위기 안전):
+  `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+- **현재 아모라 통합 케어 계약**(W0~W5 · 실행 경계 · 평가 기준):
+  `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
+- **neutral couple member 전환 제안**(PLAN · 미구현 · 미배포):
+  `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
 - **UI 작업용 선택적 Lazyweb 런북**(기기별 MCP·보안 경계·재설치, 제품 정본 아님):
   `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
 - **현재 웹 MVP 제품 계약**(한 줄 정의 · 제품 위계 · 전면/비전면 범위 · 핵심 지표):

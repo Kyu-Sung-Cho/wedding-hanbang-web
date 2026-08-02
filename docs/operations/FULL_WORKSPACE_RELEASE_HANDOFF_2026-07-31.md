@@ -30,6 +30,18 @@
 > `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`에 기록한다.
 > 이 보충 문서도 배포나 DB 적용 승인이 아니다.
 
+> [!WARNING]
+> **2026-08-03 현재 source 경계:** 통합 구현 anchor는
+> `a617d268cdadd9d7a348222942b0f0e1851467de`이며 `764fb213` 대비 478 files,
+> +79,766 / -5,293이다. 이 문서를 포함한 실제 재개 기준은
+> `origin/agent/release-handoff-20260731` 최신 HEAD다. 아래 2026-07-31 inventory는 당시
+> dirty worktree의 역사 기록이며 현재 478-file 구현 목록이 아니다.
+>
+> 기존 Preview receipt `dpl_CByALSMu1zcnLPudFDmnCSM9egMC`는 code SHA
+> `41686ad60721092b6f1fd7088cb674ed5e7b43eb`에만 묶인다. 따라서 현재 통합 구현의
+> Preview·로그인·브라우저 QA 증거로 상속하지 않는다. 최신 source binding은 PR #79에서
+> 다시 확인하며, 일치하지 않으면 **UNVERIFIED**로 유지한다.
+
 ## 1. 30초 요약
 
 현재 제품 정의는 다음 한 문장이다.

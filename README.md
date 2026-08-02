@@ -28,6 +28,12 @@
   `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
 - 2026-08-02 커뮤니티 설계·후속 전체 구현 상세 보충 인계:
   `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+- 현재 아모라 대화·privacy·retry·기억·위기 안전 기반:
+  `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+- 현재 아모라 W0~W5 통합 케어 제품 계약:
+  `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
+- 성별 역할을 강제하지 않는 커플 member 전환안(**PLAN, 아직 미구현·미배포**):
+  `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
 - 선택적 Lazyweb MCP 디자인 조사와 새 컴퓨터 재설치 런북:
   `docs/operations/LAZYWEB_MCP_DESIGN_WORKFLOW_2026-08-02.md`
 - 현재 Supabase successor release controller:

@@ -14,6 +14,12 @@
      `docs/operations/CROSS_MACHINE_DEVELOPMENT_HANDOFF_2026-08-02.md`
    - 커뮤니티 설계와 후속 전체 구현 상세:
      `docs/operations/SESSION_HANDOFF_2026-08-02_COMMUNITY_AND_WORKSPACE.md`
+   - 아모라 대화·privacy·retry·기억·위기 안전 기반:
+     `docs/AMORA_CONVERSATION_FOUNDATION_2026-08-01.md`
+   - 아모라 W0~W5 통합 케어 제품 계약:
+     `docs/AMORA_INTEGRATED_CARE_PRODUCT_SPEC_2026-07-30.md`
+   - neutral couple member 전환 제안(**PLAN, 미구현·미배포**):
+     `docs/AMORA_NEUTRAL_COUPLE_MEMBER_MIGRATION_PROPOSAL_2026-08-02.md`
 5. 변경 영역의 현재 게이트
    - DB: `docs/operations/SUCCESSOR_SUPABASE_RELEASE_CONTROLLER_2026-07-31.md`
    - 커뮤니티: `docs/operations/COMMUNITY_PRODUCTION_RELEASE_GATE_2026-07-31.md`
